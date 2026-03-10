@@ -3,17 +3,8 @@
   "pages404": true,
   "appType": "pages",
   "caseSensitive": false,
-  "basePath": "/newgit",
+  "basePath": "",
   "redirects": [
-    {
-      "source": "/newgit/",
-      "destination": "/newgit",
-      "basePath": false,
-      "internal": true,
-      "priority": true,
-      "statusCode": 308,
-      "regex": "^/newgit/$"
-    },
     {
       "source": "/:path+/",
       "destination": "/:path+",
@@ -25,13 +16,7 @@
   ],
   "headers": [],
   "rewrites": {
-    "beforeFiles": [
-      {
-        "source": "/newgit//_next/:path+",
-        "destination": "/newgit/_next/:path+",
-        "regex": "^/newgit//_next(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))(?:/)?$"
-      }
-    ],
+    "beforeFiles": [],
     "afterFiles": [],
     "fallback": []
   },
