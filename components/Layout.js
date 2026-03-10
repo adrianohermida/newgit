@@ -179,7 +179,7 @@ export default function Layout({ children }) {
 
           <div className="flex items-center gap-6">
             <a
-              href="https://wa.me/5511400040000"
+              href="https://wa.me/5551996032004"
               target="_blank"
               rel="noopener noreferrer"
               className="hidden md:inline-flex items-center gap-2 border border-[#C5A059]/50 text-[#C5A059] px-6 py-2.5 text-xs font-semibold tracking-[0.12em] uppercase hover:bg-[#C5A059] hover:text-[#050706] transition-all duration-300"
@@ -261,7 +261,7 @@ export default function Layout({ children }) {
                 </li>
                 <li className="flex items-center gap-3">
                   <span className="text-[#C5A059] opacity-100">✆</span>
-                  <span>(11) 4004-0000</span>
+                  <span>(51) 3181-0323</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <span className="text-[#C5A059] opacity-100">✉</span>
@@ -282,7 +282,7 @@ export default function Layout({ children }) {
 
           <div className="pt-8 flex flex-col md:flex-row justify-between items-center gap-6" style={{ borderTop: "1px solid #2D2E2E" }}>
             <p className="text-xs opacity-30">
-              © 2025 Hermida Maia Advocacia. Todos os direitos reservados. OAB/SP 000.000
+              © 2025 Hermida Maia Advocacia. Todos os direitos reservados. OAB/SP 476963
             </p>
             <div className="flex gap-8 text-xs opacity-30">
               <a className="hover:opacity-100 hover:text-[#C5A059] transition-all" href="#">Termos</a>
