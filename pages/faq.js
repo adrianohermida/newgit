@@ -172,8 +172,6 @@ function FAQItem({ item, defaultOpen }) {
 
       {/* CTA */}
       <section className="py-20" style={{ background: DARK }}>
-            </div>
-          </Layout>
         <div className="max-w-4xl mx-auto px-4 text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-8" style={{ background: "rgba(17,212,115,0.15)" }}>
             <MessageSquare size={28} style={{ color: GREEN }} />
