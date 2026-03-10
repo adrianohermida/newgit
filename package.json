@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build && next export",
+    "start": "next start",
+    "export": "next export",
+    "gh-pages": "GITHUB_PAGES=true next build && GITHUB_PAGES=true next export -o docs"
+  }
+}
