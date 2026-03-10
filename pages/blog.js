@@ -46,6 +46,7 @@ const ARTICLES = [
   },
 ];
 
+export default function Blog() {
   return (
     <Layout>
       <div className="pt-32 pb-24">

@@ -94,10 +94,6 @@ function FAQItem({ item, defaultOpen }) {
   );
 }
 
-export default function FAQ() {
-  const [activeCategory, setActiveCategory] = useState("all");
-  const [search, setSearch] = useState("");
-
   const filtered = FAQS.filter((f) => {
     const matchCat = activeCategory === "all" || f.category === activeCategory;
     const matchSearch = search === "" || f.q.toLowerCase().includes(search.toLowerCase()) || f.a.toLowerCase().includes(search.toLowerCase());
