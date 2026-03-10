@@ -86,18 +86,13 @@ function NavMenu({ isOpen, onClose }) {
 export default function Layout({ children }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  // Removido useRouter para compatibilidade com static export
 
-
-  // Garantia de compatibilidade com static export:
-  // Nunca acessar window/document fora de useEffect!
   useEffect(() => {
     if (typeof window !== "undefined") {
       const handleScroll = () => setScrolled(window.scrollY > 50);
       window.addEventListener("scroll", handleScroll);
       return () => window.removeEventListener("scroll", handleScroll);
     }
-    // No-op para SSR/static export
     return undefined;
   }, []);
 
@@ -112,12 +107,11 @@ export default function Layout({ children }) {
         document.body.style.overflow = "";
       };
     }
-    // No-op para SSR/static export
     return undefined;
   }, [menuOpen]);
 
   return (
-    <div className="min-h-screen" style={{ background: "#050706", color: "#F4F1EA" }}>
+    <div className="min-h-screen flex flex-col">
       {/* Vertical side labels */}
       <div className="fixed left-4 top-1/2 -translate-y-1/2 z-40 hidden xl:flex flex-col items-center gap-4">
         <div

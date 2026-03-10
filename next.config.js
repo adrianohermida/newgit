@@ -8,9 +8,5 @@ module.exports = {
   basePath: isGithubPages ? `/${repo}` : '',
   assetPrefix: isGithubPages ? `/${repo}/` : '',
   images: { unoptimized: true },
-  experimental: {
-    alias: {
-      '@': __dirname,
-    },
-  },
+  // experimental: {}, // Removido alias @ para compatibilidade com Turbopack/Next.js 16+
 };
