@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/router";
+// import { useRouter } from "next/router";
 import { motion, AnimatePresence } from "framer-motion";
 
 const NAV_ITEMS = [
@@ -86,17 +86,20 @@ function NavMenu({ isOpen, onClose }) {
 export default function Layout({ children }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const router = useRouter();
+  // Removido useRouter para compatibilidade com static export
 
   useEffect(() => {
+    // Garante que o código só roda no client
     if (typeof window !== "undefined") {
       const handleScroll = () => setScrolled(window.scrollY > 50);
       window.addEventListener("scroll", handleScroll);
       return () => window.removeEventListener("scroll", handleScroll);
     }
+    return undefined;
   }, []);
 
   useEffect(() => {
+    // Garante que o código só roda no client
     if (typeof document !== "undefined") {
       if (menuOpen) {
         document.body.style.overflow = "hidden";
@@ -107,6 +110,7 @@ export default function Layout({ children }) {
         document.body.style.overflow = "";
       };
     }
+    return undefined;
   }, [menuOpen]);
 
   return (
