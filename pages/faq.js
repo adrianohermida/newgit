@@ -56,9 +56,9 @@ const CATEGORIES = [
   { id: "recuperacao", label: "Recuperação Judicial" },
 ];
 
+
 function FAQItem({ item, defaultOpen }) {
   const [open, setOpen] = useState(defaultOpen || false);
-
   return (
     <div
       className="rounded-xl border overflow-hidden"
@@ -74,7 +74,7 @@ function FAQItem({ item, defaultOpen }) {
           style={{ color: GREEN, flexShrink: 0, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.3s" }}
         />
       </button>
-          <div style={{ background: "#f6f8f7", color: "#0f172a" }}>
+      <div style={{ background: "#f6f8f7", color: "#0f172a" }}>
         <AnimatePresence>
           {open && (
             <motion.div
@@ -90,16 +90,19 @@ function FAQItem({ item, defaultOpen }) {
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
     </div>
   );
 }
 
+export default function FAQ() {
+  const [activeCategory, setActiveCategory] = useState("all");
+  const [search, setSearch] = useState("");
   const filtered = FAQS.filter((f) => {
     const matchCat = activeCategory === "all" || f.category === activeCategory;
     const matchSearch = search === "" || f.q.toLowerCase().includes(search.toLowerCase()) || f.a.toLowerCase().includes(search.toLowerCase());
     return matchCat && matchSearch;
   });
-
   return (
     <div style={{ background: "#f6f8f7", color: "#0f172a" }}>
       {/* Hero */}
