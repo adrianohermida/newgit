@@ -1,22 +1,27 @@
 self.__BUILD_MANIFEST = {
   "/": [
-    "static/chunks/7ddb7b734ec21c8e.js"
+    "static/chunks/be346d612575ceb7.js"
   ],
   "/_error": [
-    "static/chunks/5001d393f3a95e7f.js"
+    "static/chunks/65dc1396bcf97b4b.js"
   ],
   "/blog": [
-    "static/chunks/314fb7db1a52e257.js"
+    "static/chunks/cbd50447e2227066.js"
   ],
   "/faq": [
-    "static/chunks/de294caf5ee5b4ac.js"
+    "static/chunks/c2fcf97188fd17e7.js"
   ],
   "/servicos": [
-    "static/chunks/ca27745151418cf3.js"
+    "static/chunks/b2eb11335b7d7606.js"
   ],
   "__rewrites": {
     "afterFiles": [],
-    "beforeFiles": [],
+    "beforeFiles": [
+      {
+        "source": "/newgit//_next/:path+",
+        "destination": "/newgit/_next/:path+"
+      }
+    ],
     "fallback": []
   },
   "sortedPages": [
