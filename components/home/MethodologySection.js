@@ -1,50 +1,108 @@
-import React from "react";
+
+import React, { useRef } from "react";
 import { motion, useInView } from "framer-motion";
 
-const steps = [
+const STEPS = [
   {
-    title: "Envie seus dados",
-    desc: "Preencha o simulador com suas informações e tipo de dívida.",
+    number: "01",
+    title: "Consultoria",
+    desc: "Análise técnica detalhada de todos os seus contratos e débitos.",
   },
   {
-    title: "Receba a análise",
-    desc: "Nossa equipe jurídica avalia seu caso e estima a economia possível.",
+    number: "02",
+    title: "Estratégia",
+    desc: "Desenvolvimento de plano jurídico personalizado para seu caso.",
   },
   {
-    title: "Negocie com apoio",
-    desc: "Acompanhamos você em todo o processo de negociação e defesa.",
+    number: "03",
+    title: "Negociação",
+    desc: "Intervenção direta com credores ou via processo judicial célere.",
+  },
+  {
+    number: "04",
+    title: "Solução",
+    desc: "Assinatura do acordo e restabelecimento do seu crédito.",
   },
 ];
 
-export default function MethodologySection() {
-  const ref = React.useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-100px" });
+function StepCard({ step, index }) {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-50px" });
+
   return (
-    <section ref={ref} className="py-24 lg:py-32 bg-black">
-      <div className="max-w-5xl mx-auto px-6">
-        <motion.h2
-          initial={{ opacity: 0, y: 30 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.7 }}
-          className="font-serif text-4xl md:text-5xl font-light mb-14 text-center"
-        >
-          Como funciona
-        </motion.h2>
-        <div className="grid md:grid-cols-3 gap-10">
-          {steps.map((s, i) => (
-            <motion.div
-              key={s.title}
-              initial={{ opacity: 0, y: 30 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.7, delay: 0.1 * i }}
-              className="bg-[#181A19] p-8 rounded-lg border border-[#2D2E2E] flex flex-col items-center text-center"
-            >
-              <div className="w-12 h-12 flex items-center justify-center rounded-full mb-6" style={{ background: "#C5A05922" }}>
-                <span className="font-serif text-2xl" style={{ color: "#C5A059" }}>{i + 1}</span>
-              </div>
-              <h3 className="font-serif text-lg mb-2" style={{ color: "#C5A059" }}>{s.title}</h3>
-              <p className="opacity-60 text-sm">{s.desc}</p>
-            </motion.div>
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 40 }}
+      animate={isInView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.7, delay: index * 0.15 }}
+      className="relative group"
+    >
+      {/* Connector line */}
+      {index < STEPS.length - 1 && (
+        <div 
+          className="hidden lg:block absolute top-10 left-full w-full h-px"
+          style={{ background: "linear-gradient(to right, #2D2E2E, transparent)" }}
+        />
+      )}
+      
+      <div className="text-center lg:text-left">
+        <div className="inline-flex items-center justify-center w-20 h-20 mb-6 relative">
+          <div 
+            className="absolute inset-0 transition-all duration-500"
+            style={{ 
+              border: index === 3 ? "1px solid #C5A059" : "1px solid #2D2E2E",
+              background: index === 3 ? "rgba(197, 160, 89, 0.05)" : "transparent",
+            }}
+          />
+          <span 
+            className="font-serif text-2xl font-light relative z-10"
+            style={{ color: index === 3 ? "#C5A059" : "#F4F1EA" }}
+          >
+            {step.number}
+          </span>
+        </div>
+        
+        <h4 className="font-serif text-2xl font-light mb-3" style={{ color: "#F4F1EA" }}>
+          {step.title}
+        </h4>
+        <p className="text-sm leading-relaxed opacity-40 max-w-xs mx-auto lg:mx-0">
+          {step.desc}
+        </p>
+      </div>
+    </motion.div>
+  );
+}
+
+export default function MethodologySection() {
+  const headerRef = useRef(null);
+  const isInView = useInView(headerRef, { once: true });
+
+  return (
+    <section className="py-24 lg:py-32 relative" style={{ borderTop: "1px solid #2D2E2E" }}>
+      <div className="mx-auto max-w-7xl px-6">
+        <div ref={headerRef} className="text-center mb-20">
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={isInView ? { opacity: 1 } : {}}
+            transition={{ duration: 0.6 }}
+            className="text-xs font-semibold tracking-[0.3em] uppercase mb-4"
+            style={{ color: "#C5A059" }}
+          >
+            Metodologia
+          </motion.p>
+          <motion.h3
+            initial={{ opacity: 0, y: 20 }}
+            animate={isInView ? { opacity: 1, y: 0 } : {}}
+            transition={{ duration: 0.8, delay: 0.1 }}
+            className="font-serif text-4xl md:text-5xl font-light"
+          >
+            Seu caminho para a <span className="italic" style={{ color: "#C5A059" }}>liberdade</span> financeira
+          </motion.h3>
+        </div>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8">
+          {STEPS.map((step, i) => (
+            <StepCard key={step.number} step={step} index={i} />
           ))}
         </div>
       </div>
