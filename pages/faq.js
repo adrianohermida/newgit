@@ -75,20 +75,21 @@ function FAQItem({ item, defaultOpen }) {
         />
       </button>
           <div style={{ background: "#f6f8f7", color: "#0f172a" }}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            style={{ overflow: "hidden" }}
-          >
-            <div className="px-6 pb-6 leading-relaxed border-t" style={{ color: "#475569", borderColor: "#f1f5f9" }}>
-              <div className="pt-4">{item.a}</div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              style={{ overflow: "hidden" }}
+            >
+              <div className="px-6 pb-6 leading-relaxed border-t" style={{ color: "#475569", borderColor: "#f1f5f9" }}>
+                <div className="pt-4">{item.a}</div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
     </div>
   );
 }
