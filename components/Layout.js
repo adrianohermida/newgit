@@ -27,7 +27,7 @@ function NavMenu({ isOpen, onClose }) {
             className="absolute inset-0 opacity-20"
             style={{
               backgroundImage:
-                "url('public/perfil_1.jpg')",
+                "url('/perfil_1.jpg')",
               backgroundSize: "cover",
               backgroundPosition: "center",
             }}
@@ -67,7 +67,7 @@ function NavMenu({ isOpen, onClose }) {
               className="mt-8"
             >
               <a
-                href="https://wa.me/5511400040000"
+                href="https://wa.me/5551996032004"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-3 border border-[#C5A059] text-[#C5A059] px-8 py-4 text-sm font-semibold tracking-[0.15em] uppercase hover:bg-[#C5A059] hover:text-[#050706] transition-all duration-300"
