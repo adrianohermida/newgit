@@ -74,8 +74,7 @@ function FAQItem({ item, defaultOpen }) {
           style={{ color: GREEN, flexShrink: 0, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.3s" }}
         />
       </button>
-          <Layout>
-            <div style={{ background: "#f6f8f7", color: "#0f172a" }}>
+          <div style={{ background: "#f6f8f7", color: "#0f172a" }}>
         {open && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
