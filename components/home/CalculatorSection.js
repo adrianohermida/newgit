@@ -49,13 +49,14 @@ export default function CalculatorSection() {
       ref={ref}
       className="py-24 lg:py-32 relative overflow-hidden"
       style={{ 
-        background: `radial-gradient(ellipse at 50% 50%, rgba(27, 67, 50, ${luminosity}) 0%, #050706 70%)`,
+        background: `radial-gradient(ellipse at 50% 50%, rgba(5,7,6,0.98) 0%, #050706 100%)`,
+        color: "#F4F1EA",
         transition: "background 0.5s ease",
       }}
     >
-      {/* Atmospheric image overlay */}
+      {/* Overlay de atmosfera escura */}
       <div 
-        className="absolute inset-0 opacity-10 pointer-events-none"
+        className="absolute inset-0 opacity-20 pointer-events-none"
         style={{
           backgroundImage: `url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69afcb1629af46b252a01ca2/3f356e7c6_generated_image.png')`,
           backgroundSize: "cover",
@@ -72,14 +73,13 @@ export default function CalculatorSection() {
             transition={{ duration: 0.8 }}
           >
             <p className="text-xs font-semibold tracking-[0.3em] uppercase mb-4" style={{ color: "#C5A059" }}>
-              Simulador
+              SIMULADOR
             </p>
             <h2 className="font-serif text-4xl md:text-5xl lg:text-6xl font-light mb-6">
               Simule sua <span className="italic" style={{ color: "#C5A059" }}>economia</span> agora
             </h2>
-            <p className="text-base leading-relaxed opacity-50 mb-10 max-w-lg">
-              Nossa calculadora utiliza inteligência jurídica para estimar quanto você pode economizar 
-              ao contestar juros abusivos e aplicar a Lei do Superendividamento.
+            <p className="text-base leading-relaxed text-[#F4F1EA] opacity-80 mb-10 max-w-lg">
+              Nossa calculadora utiliza inteligência jurídica para estimar quanto você pode economizar ao contestar juros abusivos e aplicar a Lei do Superendividamento.
             </p>
 
             <div className="space-y-5">
@@ -90,7 +90,7 @@ export default function CalculatorSection() {
                       <path d="M5 12l5 5L20 6" />
                     </svg>
                   </div>
-                  <p className="text-sm font-medium opacity-60">{item}</p>
+                  <p className="text-sm font-medium text-[#F4F1EA] opacity-80">{item}</p>
                 </div>
               ))}
             </div>
@@ -106,16 +106,17 @@ export default function CalculatorSection() {
             <div 
               className="p-8 md:p-10"
               style={{ 
-                background: "rgba(13, 15, 14, 0.9)",
+                background: "rgba(13, 15, 14, 0.98)",
                 border: "1px solid #2D2E2E",
                 backdropFilter: "blur(20px)",
+                color: "#F4F1EA",
               }}
             >
               {!submitted ? (
                 <form onSubmit={handleSubmit} className="space-y-8">
                   <div className="text-center mb-2">
-                    <p className="text-xs font-semibold tracking-[0.2em] uppercase opacity-40 mb-2">Economia estimada</p>
-                    <p className="text-4xl md:text-5xl font-serif font-light text-gold-gradient">
+                    <p className="text-xs font-semibold tracking-[0.2em] uppercase opacity-60 mb-2" style={{ color: "#C5A059" }}>ECONOMIA ESTIMADA</p>
+                    <p className="text-4xl md:text-5xl font-serif font-light" style={{ color: "#F4F1EA" }}>
                       {formatCurrency(savings)}
                     </p>
                   </div>
@@ -125,8 +126,8 @@ export default function CalculatorSection() {
                   {/* Debt slider */}
                   <div>
                     <div className="flex justify-between items-baseline mb-4">
-                      <label className="text-xs font-semibold tracking-[0.15em] uppercase opacity-50">
-                        Valor das Dívidas
+                      <label className="text-xs font-semibold tracking-[0.15em] uppercase opacity-70 text-[#F4F1EA]">
+                        VALOR DAS DÍVIDAS
                       </label>
                       <span className="text-lg font-serif" style={{ color: "#C5A059" }}>
                         {formatCurrency(debtAmount)}
@@ -142,15 +143,15 @@ export default function CalculatorSection() {
                       className="w-full"
                     />
                     <div className="flex justify-between mt-2">
-                      <span className="text-[10px] opacity-30">R$ 5.000</span>
-                      <span className="text-[10px] opacity-30">R$ 500.000</span>
+                      <span className="text-[10px] opacity-40 text-[#F4F1EA]">R$ 5.000</span>
+                      <span className="text-[10px] opacity-40 text-[#F4F1EA]">R$ 500.000</span>
                     </div>
                   </div>
 
                   {/* Debt type */}
                   <div>
-                    <label className="text-xs font-semibold tracking-[0.15em] uppercase opacity-50 block mb-3">
-                      Tipo de Dívida
+                    <label className="text-xs font-semibold tracking-[0.15em] uppercase opacity-70 text-[#F4F1EA] block mb-3">
+                      TIPO DE DÍVIDA
                     </label>
                     <div className="grid grid-cols-2 gap-2">
                       {DEBT_TYPES.map((type) => (
@@ -161,8 +162,8 @@ export default function CalculatorSection() {
                           className="text-left px-4 py-3 text-xs font-medium transition-all duration-200"
                           style={{
                             border: `1px solid ${debtType === type.value ? "#C5A059" : "#2D2E2E"}`,
-                            color: debtType === type.value ? "#C5A059" : "rgba(244, 241, 234, 0.5)",
-                            background: debtType === type.value ? "rgba(197, 160, 89, 0.05)" : "transparent",
+                            color: debtType === type.value ? "#C5A059" : "#F4F1EA",
+                            background: debtType === type.value ? "rgba(197, 160, 89, 0.08)" : "transparent",
                           }}
                         >
                           {type.label}
@@ -173,8 +174,8 @@ export default function CalculatorSection() {
 
                   {/* WhatsApp */}
                   <div>
-                    <label className="text-xs font-semibold tracking-[0.15em] uppercase opacity-50 block mb-3">
-                      Seu WhatsApp
+                    <label className="text-xs font-semibold tracking-[0.15em] uppercase opacity-70 text-[#F4F1EA] block mb-3">
+                      SEU WHATSAPP
                     </label>
                     <input
                       type="tel"
@@ -203,7 +204,7 @@ export default function CalculatorSection() {
                     {isSubmitting ? "Enviando..." : "Calcular Economia →"}
                   </button>
 
-                  <p className="text-[10px] text-center opacity-25">
+                  <p className="text-[10px] text-center opacity-40 text-[#F4F1EA]">
                     Ao simular, você concorda com nossa Política de Privacidade.
                   </p>
                 </form>
