@@ -257,7 +257,7 @@ export default function Layout({ children }) {
               <ul className="space-y-5 text-sm opacity-50">
                 <li className="flex items-start gap-3">
                   <span className="text-[#C5A059] opacity-100 mt-0.5">↗</span>
-                  <span>Av. Dolores Alcaraz Caldas, 90, 8º Andar – Praia de Belas, CEP 90110-180 - Porto Alegre/ RS/span>
+                  <span>Av. Dolores Alcaraz Caldas, 90, 8º Andar – Praia de Belas, CEP 90110-180 - Porto Alegre/ RS</span>
                 </li>
                 <li className="flex items-center gap-3">
                   <span className="text-[#C5A059] opacity-100">✆</span>
