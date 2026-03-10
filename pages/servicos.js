@@ -1,8 +1,8 @@
 import React from "react";
-import ServicosHero from "@/components/servicos/ServicosHero";
-import ServicosList from "@/components/servicos/ServicosList";
-import ServicosFAQ from "@/components/servicos/ServicosFAQ";
-import ServicosCTA from "@/components/servicos/ServicosCTA";
+import ServicosHero from "../components/servicos/ServicosHero";
+import ServicosList from "../components/servicos/servicosList";
+import ServicosFAQ from "../components/servicos/ServicosFAQ";
+import ServicosCTA from "../components/servicos/ServicosCTA";
 
 export default function Servicos() {
   return (

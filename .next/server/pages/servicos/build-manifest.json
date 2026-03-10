@@ -6,9 +6,10 @@
   "rootMainFiles": [],
   "pages": {
     "/servicos": [
-      "static/chunks/8fc831baade152de.js",
-      "static/chunks/9638357811afae27.js",
-      "static/chunks/turbopack-c2111aff9f2afd76.js"
+      "static/chunks/9fcea4c4d3e5060a.js",
+      "static/chunks/54d48b21aac31d9a.js",
+      "static/chunks/da0ff8adaa6cce90.js",
+      "static/chunks/turbopack-37f5ccd777f4f697.js"
     ]
   },
   "ampFirstPages": []

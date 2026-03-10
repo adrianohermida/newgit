@@ -6,9 +6,10 @@
   "rootMainFiles": [],
   "pages": {
     "/blog": [
-      "static/chunks/11d24d1818312384.js",
-      "static/chunks/9638357811afae27.js",
-      "static/chunks/turbopack-326af19b289cdfa5.js"
+      "static/chunks/dd1ac600d5cf1b6a.js",
+      "static/chunks/54d48b21aac31d9a.js",
+      "static/chunks/da0ff8adaa6cce90.js",
+      "static/chunks/turbopack-7b43f5665c7e0658.js"
     ]
   },
   "ampFirstPages": []
