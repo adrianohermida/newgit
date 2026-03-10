@@ -23,6 +23,12 @@ jobs:
       - name: Build and Export
         run: npm run gh-pages
 
+      - name: Ensure .nojekyll exists
+        run: |
+          if [ ! -f docs/.nojekyll ]; then
+            touch docs/.nojekyll
+          fi
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:

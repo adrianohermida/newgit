@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "export": "next export",
-    "gh-pages": "GITHUB_PAGES=true next build && GITHUB_PAGES=true next export && rm -rf docs && mv out docs"
+    "gh-pages": "GITHUB_PAGES=true next build && GITHUB_PAGES=true next export && rm -rf docs && mv out docs && touch docs/.nojekyll"
   },
   "dependencies": {
     "next": "latest",
