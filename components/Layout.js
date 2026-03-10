@@ -27,7 +27,7 @@ function NavMenu({ isOpen, onClose }) {
             className="absolute inset-0 opacity-20"
             style={{
               backgroundImage:
-                "url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69afcb1629af46b252a01ca2/785905e76_generated_image.png')",
+                "url('public/perfil_1.jpg')",
               backgroundSize: "cover",
               backgroundPosition: "center",
             }}
@@ -257,7 +257,7 @@ export default function Layout({ children }) {
               <ul className="space-y-5 text-sm opacity-50">
                 <li className="flex items-start gap-3">
                   <span className="text-[#C5A059] opacity-100 mt-0.5">↗</span>
-                  <span>Av. Paulista, 1000 - Bela Vista, São Paulo/SP</span>
+                  <span>Av. Dolores Alcaraz Caldas, 90, 8º Andar – Praia de Belas, CEP 90110-180 - Porto Alegre/ RS/span>
                 </li>
                 <li className="flex items-center gap-3">
                   <span className="text-[#C5A059] opacity-100">✆</span>
@@ -282,7 +282,7 @@ export default function Layout({ children }) {
 
           <div className="pt-8 flex flex-col md:flex-row justify-between items-center gap-6" style={{ borderTop: "1px solid #2D2E2E" }}>
             <p className="text-xs opacity-30">
-              © 2025 Hermida Maia Advocacia. Todos os direitos reservados. OAB/SP 476963
+              © 2025 Hermida Maia Advocacia. Todos os direitos reservados. OAB/RS 107048
             </p>
             <div className="flex gap-8 text-xs opacity-30">
               <a className="hover:opacity-100 hover:text-[#C5A059] transition-all" href="#">Termos</a>
