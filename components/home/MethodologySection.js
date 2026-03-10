@@ -78,7 +78,7 @@ export default function MethodologySection() {
   const isInView = useInView(headerRef, { once: true });
 
   return (
-    <section className="py-24 lg:py-32 relative" style={{ borderTop: "1px solid #2D2E2E" }}>
+    <section className="py-24 lg:py-32 relative" style={{ borderTop: "1px solid #2D2E2E", background: "#050706", color: "#F4F1EA" }}>
       <div className="mx-auto max-w-7xl px-6">
         <div ref={headerRef} className="text-center mb-20">
           <motion.p
@@ -88,7 +88,7 @@ export default function MethodologySection() {
             className="text-xs font-semibold tracking-[0.3em] uppercase mb-4"
             style={{ color: "#C5A059" }}
           >
-            Metodologia
+            METODOLOGIA
           </motion.p>
           <motion.h3
             initial={{ opacity: 0, y: 20 }}

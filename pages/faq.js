@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Search, MessageSquare, Phone, Send } from "lucide-react";
+import Layout from "../components/Layout";
 
 const GREEN = "#11d473";
 const DARK = "#102219";
@@ -73,7 +74,8 @@ function FAQItem({ item, defaultOpen }) {
           style={{ color: GREEN, flexShrink: 0, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.3s" }}
         />
       </button>
-      <AnimatePresence initial={false}>
+          <Layout>
+            <div style={{ background: "#f6f8f7", color: "#0f172a" }}>
         {open && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
@@ -174,6 +176,8 @@ export default function FAQ() {
 
       {/* CTA */}
       <section className="py-20" style={{ background: DARK }}>
+            </div>
+          </Layout>
         <div className="max-w-4xl mx-auto px-4 text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-8" style={{ background: "rgba(17,212,115,0.15)" }}>
             <MessageSquare size={28} style={{ color: GREEN }} />
