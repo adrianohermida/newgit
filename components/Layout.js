@@ -88,18 +88,20 @@ export default function Layout({ children }) {
   const [scrolled, setScrolled] = useState(false);
   // Removido useRouter para compatibilidade com static export
 
+
+  // Garantia de compatibilidade com static export:
+  // Nunca acessar window/document fora de useEffect!
   useEffect(() => {
-    // Garante que o código só roda no client
     if (typeof window !== "undefined") {
       const handleScroll = () => setScrolled(window.scrollY > 50);
       window.addEventListener("scroll", handleScroll);
       return () => window.removeEventListener("scroll", handleScroll);
     }
+    // No-op para SSR/static export
     return undefined;
   }, []);
 
   useEffect(() => {
-    // Garante que o código só roda no client
     if (typeof document !== "undefined") {
       if (menuOpen) {
         document.body.style.overflow = "hidden";
@@ -110,6 +112,7 @@ export default function Layout({ children }) {
         document.body.style.overflow = "";
       };
     }
+    // No-op para SSR/static export
     return undefined;
   }, [menuOpen]);
 
