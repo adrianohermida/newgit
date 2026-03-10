@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-// import { useRouter } from "next/router";
 import { motion, AnimatePresence } from "framer-motion";
 
 const NAV_ITEMS = [
@@ -51,12 +50,13 @@ function NavMenu({ isOpen, onClose }) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 + i * 0.08, duration: 0.5 }}
               >
-                <Link
-                  href={item.href}
-                  onClick={onClose}
-                  className="font-serif text-5xl md:text-7xl font-light text-[#F4F1EA] hover:text-[#C5A059] transition-colors duration-300 block py-2"
-                >
-                  {item.label}
+                <Link href={item.href} legacyBehavior>
+                  <a
+                    onClick={onClose}
+                    className="font-serif text-5xl md:text-7xl font-light text-[#F4F1EA] hover:text-[#C5A059] transition-colors duration-300 block py-2"
+                  >
+                    {item.label}
+                  </a>
                 </Link>
               </motion.div>
             ))}
@@ -111,7 +111,7 @@ export default function Layout({ children }) {
   }, [menuOpen]);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-[#050706] text-[#F4F1EA]">
       {/* Vertical side labels */}
       <div className="fixed left-4 top-1/2 -translate-y-1/2 z-40 hidden xl:flex flex-col items-center gap-4">
         <div
@@ -166,13 +166,13 @@ export default function Layout({ children }) {
           {/* Desktop nav */}
           <nav className="hidden lg:flex items-center gap-10">
             {NAV_ITEMS.map((item) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className="text-xs font-semibold tracking-[0.12em] uppercase hover:text-[#C5A059] transition-colors duration-300"
-                style={{ color: "#F4F1EA" }}
-              >
-                {item.label}
+              <Link key={item.label} href={item.href} legacyBehavior>
+                <a
+                  className="text-xs font-semibold tracking-[0.12em] uppercase hover:text-[#C5A059] transition-colors duration-300"
+                  style={{ color: "#F4F1EA" }}
+                >
+                  {item.label}
+                </a>
               </Link>
             ))}
           </nav>
@@ -242,8 +242,10 @@ export default function Layout({ children }) {
               <ul className="space-y-4 text-sm opacity-50">
                 {NAV_ITEMS.map((item) => (
                   <li key={item.label}>
-                    <Link href={item.href} className="hover:text-[#C5A059] hover:opacity-100 transition-all">
-                      {item.label}
+                    <Link href={item.href} legacyBehavior>
+                      <a className="hover:text-[#C5A059] hover:opacity-100 transition-all">
+                        {item.label}
+                      </a>
                     </Link>
                   </li>
                 ))}
