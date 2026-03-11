@@ -1,7 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 
-const BG_IMAGE = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69afcb1629af46b252a01ca2/9f6b9fe41_generated_image.png";
+const BG_IMAGE = "/servicos_hero.jpg";
 
 export default function ServicosHero() {
   return (

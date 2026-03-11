@@ -16,7 +16,7 @@ const SERVICES = [
     ],
     cta: { label: "Consultar meu contrato", Icon: ArrowRight },
     ctaVariant: "dark",
-    image: "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69afcb1629af46b252a01ca2/eb41f4fb8_generated_image.png",
+    image: "/servicos_juros.jpg",
     reverse: false,
   },
   {
@@ -29,7 +29,7 @@ const SERVICES = [
     ],
     cta: { label: "Quero me reestruturar", Icon: Scale },
     ctaVariant: "outline",
-    image: "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69afcb1629af46b252a01ca2/92604e21e_generated_image.png",
+    image: "/servicos_superendividamento.jpg",
     reverse: true,
   },
   {
@@ -42,7 +42,7 @@ const SERVICES = [
     ],
     cta: { label: "Falar com Especialista", Icon: Briefcase },
     ctaVariant: "green",
-    image: "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69afcb1629af46b252a01ca2/785905e76_generated_image.png",
+    image: "/servicos_recuperacao.jpg",
     reverse: false,
   },
 ];
