@@ -27,7 +27,7 @@ function NavMenu({ isOpen, onClose }) {
             className="absolute inset-0 opacity-20"
             style={{
               backgroundImage:
-                "url('/perfil_1.jpg')",
+                "url('/perfil_1.webp')",
               backgroundSize: "cover",
               backgroundPosition: "center",
             }}

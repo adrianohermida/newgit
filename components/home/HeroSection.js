@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 
-const HERO_IMAGE = "/perfil_1.jpg";
+const HERO_IMAGE = "/perfil_1.webp";
 
 export default function HeroSection() {
   const sectionRef = useRef(null);
