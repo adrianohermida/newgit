@@ -6,11 +6,11 @@ import { useRouter } from "next/router";
 
 const NAV_ITEMS = [
   { label: "Início", href: "/" },
+  { label: "Sobre", href: "/#sobre" },
   { label: "Serviços", href: "/servicos" },
   { label: "Calculadora", href: "/#calculadora" },
-  { label: "Sobre", href: "/#sobre" },
   { label: "Blog", href: "/blog" },
-  { label: "FAQ", href: "/faq" },
+  { label: "Contato", href: "/contato" },
 ];
 
 function NavMenu({ isOpen, onClose }) {
@@ -45,7 +45,7 @@ function NavMenu({ isOpen, onClose }) {
           </button>
 
           <nav className="relative z-10 flex flex-col items-center gap-3">
-            {NAV_ITEMS.map((item, i) => (
+            {NAV_ITEMS.filter(item => item.label !== "FAQ").map((item, i) => (
               <motion.div
                 key={item.label}
                 initial={{ opacity: 0, y: 30 }}
@@ -244,7 +244,7 @@ export default function Layout({ children }) {
             <div>
               <h4 className="text-xs font-semibold tracking-[0.2em] uppercase mb-8" style={{ color: "#C5A059" }}>Navegação</h4>
               <ul className="space-y-4 text-sm opacity-50">
-                {NAV_ITEMS.map((item) => {
+                {NAV_ITEMS.filter(item => item.label !== "FAQ").map((item) => {
                   const isActive = router.pathname === item.href || (item.href === "/servicos" && router.pathname.startsWith("/servicos"));
                   return (
                     <li key={item.label}>
