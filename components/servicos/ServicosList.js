@@ -157,12 +157,12 @@ function ServiceBlock({ service, index }) {
       </div>
 
       {/* Image */}
-      <div className="w-full flex-1 overflow-hidden rounded-2xl shadow-2xl lg:max-w-xl">
+      <div className="w-full flex-1 overflow-hidden rounded-2xl shadow-2xl lg:max-w-xl" style={{ background: "#050706" }}>
         <img
           src={image}
           alt={title}
           className="h-full w-full object-cover"
-          style={{ aspectRatio: "4/3" }}
+          style={{ aspectRatio: "4/3", background: "#050706" }}
         />
       </div>
     </motion.div>

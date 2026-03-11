@@ -7,10 +7,6 @@ export default function ServicosHero() {
   return (
     <section className="relative overflow-hidden py-28 lg:py-40" style={{ background: "#050706" }}>
       <div
-        className="absolute inset-0 opacity-20"
-        style={{ backgroundImage: `url('${BG_IMAGE}')`, backgroundSize: "cover", backgroundPosition: "center" }}
-      />
-      <div
         className="absolute inset-0"
         style={{ background: "linear-gradient(to top, #102219 0%, rgba(16,34,25,0.75) 60%, transparent 100%)" }}
       />
