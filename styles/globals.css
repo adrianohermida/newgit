@@ -82,7 +82,7 @@
   }
 
 	body {
-		@apply bg-[#050706] text-[#F4F1EA];
+		@apply bg-[#050706] text-[#F5F1EA];
 		background-image: url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69afcb1629af46b252a01ca2/785905e76_generated_image.png');
 		background-size: cover;
 		background-position: center;

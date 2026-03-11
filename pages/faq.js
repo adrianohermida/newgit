@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Search, MessageSquare, Phone, Send } from "lucide-react";
 import Layout from "../components/Layout";
 
-const GREEN = "#11d473";
-const DARK = "#102219";
+const GREEN = "#11d473"; // não será mais usado para botões/headers
+const DARK = "#050706"; // reforça darkmode igual ao header do Layout
 
 const FAQS = [
   {
@@ -62,19 +62,19 @@ function FAQItem({ item, defaultOpen }) {
   return (
     <div
       className="rounded-xl border overflow-hidden"
-      style={{ background: "#fff", borderColor: open ? "rgba(17,212,115,0.3)" : "#e2e8f0" }}
+      style={{ background: "#181a1b", borderColor: open ? "#C5A059" : "#232323" }}
     >
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between p-6 text-left"
       >
-        <h3 className="font-bold text-lg pr-4" style={{ color: "#0f172a" }}>{item.q}</h3>
+        <h3 className="font-bold text-lg pr-4" style={{ color: "#F4F1EA" }}>{item.q}</h3>
         <ChevronDown
           size={22}
-          style={{ color: GREEN, flexShrink: 0, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.3s" }}
+          style={{ color: open ? "#C5A059" : "#F4F1EA", flexShrink: 0, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.3s" }}
         />
       </button>
-      <div style={{ background: "#f6f8f7", color: "#0f172a" }}>
+      <div style={{ background: "#232323", color: "#F4F1EA" }}>
         <AnimatePresence>
           {open && (
             <motion.div
@@ -84,7 +84,7 @@ function FAQItem({ item, defaultOpen }) {
               transition={{ duration: 0.3 }}
               style={{ overflow: "hidden" }}
             >
-              <div className="px-6 pb-6 leading-relaxed border-t" style={{ color: "#475569", borderColor: "#f1f5f9" }}>
+              <div className="px-6 pb-6 leading-relaxed border-t" style={{ color: "#C5A059", borderColor: "#2D2E2E" }}>
                 <div className="pt-4">{item.a}</div>
               </div>
             </motion.div>
@@ -105,16 +105,17 @@ export default function FAQ() {
   });
   return (
     <Layout>
-      <div style={{ background: "#f6f8f7", color: "#0f172a" }}>
+
+      <div style={{ background: "#181a1b", color: "#F4F1EA" }}>
         {/* Hero */}
-        <section className="relative py-20 overflow-hidden" style={{ background: "#0f172a" }}>
-          <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, rgba(17,212,115,0.15) 0%, transparent 60%)" }} />
+        <section className="relative py-20 overflow-hidden" style={{ background: DARK }}>
+          <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, rgba(197,160,89,0.10) 0%, transparent 60%)" }} />
           <div className="relative max-w-4xl mx-auto px-4 text-center">
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="text-white text-4xl md:text-6xl font-black mb-6"
+              className="text-[#F4F1EA] text-4xl md:text-6xl font-black mb-6"
             >
               Perguntas Frequentes
             </motion.h1>
@@ -122,7 +123,7 @@ export default function FAQ() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
-              className="text-slate-300 text-lg md:text-xl leading-relaxed"
+              className="text-[#C5A059] text-lg md:text-xl leading-relaxed"
             >
               Esclareça suas dúvidas sobre seus direitos e encontre as melhores soluções jurídicas para recuperar sua saúde financeira e tranquilidade.
             </motion.p>
@@ -131,14 +132,14 @@ export default function FAQ() {
 
         {/* Search & Categories */}
         <section className="max-w-4xl mx-auto px-4 -mt-8 relative z-10">
-          <div className="rounded-xl shadow-2xl p-6 border" style={{ background: "#fff", borderColor: "#e2e8f0" }}>
+          <div className="rounded-xl shadow-2xl p-6 border" style={{ background: "#232323", borderColor: "#2D2E2E" }}>
             <div className="relative">
-              <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: "#94a3b8" }} />
+              <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: "#C5A059" }} />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-12 pr-4 py-4 rounded-lg outline-none"
-                style={{ background: "#f1f5f9", color: "#0f172a" }}
+                style={{ background: "#181a1b", color: "#F4F1EA" }}
                 placeholder="Busque por um tema (ex: Superendividamento, Juros Abusivos...)"
               />
             </div>
@@ -150,8 +151,8 @@ export default function FAQ() {
                   className="px-5 py-2 rounded-full font-bold text-sm transition-all"
                   style={
                     activeCategory === cat.id
-                      ? { background: GREEN, color: DARK }
-                      : { background: "#f1f5f9", color: "#475569" }
+                      ? { background: "#C5A059", color: DARK }
+                      : { background: "#232323", color: "#F4F1EA", border: "1px solid #2D2E2E" }
                   }
                 >
                   {cat.label}
@@ -177,11 +178,11 @@ export default function FAQ() {
         {/* CTA */}
         <section className="py-20" style={{ background: DARK }}>
           <div className="max-w-4xl mx-auto px-4 text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-8" style={{ background: "rgba(17,212,115,0.15)" }}>
-              <MessageSquare size={28} style={{ color: GREEN }} />
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-8" style={{ background: "rgba(197,160,89,0.10)" }}>
+              <MessageSquare size={28} style={{ color: "#C5A059" }} />
             </div>
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">Ainda tem dúvidas?</h2>
-            <p className="text-lg mb-10" style={{ color: "#94a3b8" }}>
+            <h2 className="text-3xl md:text-4xl font-bold text-[#F4F1EA] mb-6">Ainda tem dúvidas?</h2>
+            <p className="text-lg mb-10" style={{ color: "#C5A059" }}>
               Cada caso é único. Nossos especialistas estão prontos para analisar sua situação específica e oferecer o melhor caminho jurídico.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -190,15 +191,15 @@ export default function FAQ() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full sm:w-auto px-8 py-4 rounded-lg font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
-                style={{ background: GREEN, color: DARK }}
+                style={{ background: "#C5A059", color: DARK }}
               >
                 <Send size={18} />
                 Enviar Mensagem
               </a>
               <a
                 href="tel:+5551810323"
-                className="w-full sm:w-auto px-8 py-4 rounded-lg font-bold flex items-center justify-center gap-2 border transition-all hover:bg-[#11d473]/10"
-                style={{ borderColor: GREEN, color: GREEN }}
+                className="w-full sm:w-auto px-8 py-4 rounded-lg font-bold flex items-center justify-center gap-2 border transition-all hover:bg-[#C5A059]/10"
+                style={{ borderColor: "#C5A059", color: "#C5A059" }}
               >
                 <Phone size={18} />
                 Falar via WhatsApp
