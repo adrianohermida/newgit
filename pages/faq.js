@@ -195,7 +195,7 @@ export default function FAQ() {
               Enviar Mensagem
             </a>
             <a
-              href="tel:+551140040000"
+              href="tel:+5551810323"
               className="w-full sm:w-auto px-8 py-4 rounded-lg font-bold flex items-center justify-center gap-2 border transition-all hover:bg-[#11d473]/10"
               style={{ borderColor: GREEN, color: GREEN }}
             >

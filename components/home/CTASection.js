@@ -69,7 +69,7 @@ export default function CTASection() {
             </svg>
           </a>
           <a
-            href="tel:+551140040000"
+            href="tel:+5551810323"
             className="inline-flex items-center gap-3 px-10 py-5 text-sm font-semibold tracking-[0.12em] uppercase border transition-all duration-300 hover:bg-white/5"
             style={{ borderColor: "rgba(244, 241, 234, 0.15)", color: "#F4F1EA" }}
           >

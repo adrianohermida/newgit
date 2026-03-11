@@ -44,7 +44,7 @@ export default function ServicosCTA() {
                 Falar pelo WhatsApp
               </a>
               <a
-                href="tel:+551140040000"
+                href="tel:+5551810323"
                 className="rounded-full border border-white/20 px-8 py-4 font-bold text-white transition-colors hover:bg-white/10"
               >
                 (11) 4004-0000
