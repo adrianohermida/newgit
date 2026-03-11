@@ -5,7 +5,13 @@ const GOLD = "#C5A059";
 
 export default function ServicosCTA() {
   return (
-    <section className="py-20 lg:py-32" style={{ background: "#050706" }}>
+    <section
+      className="py-20 lg:py-32"
+      style={{
+        background: "linear-gradient(135deg, rgb(27, 67, 50) 0%, rgb(5, 7, 6) 100%)",
+        borderTop: "1px solid rgba(197, 160, 89, 0.15)",
+      }}
+    >
       <div className="mx-auto max-w-7xl px-6 lg:px-12">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
@@ -13,7 +19,7 @@ export default function ServicosCTA() {
           viewport={{ once: true }}
           transition={{ duration: 0.7 }}
           className="relative overflow-hidden rounded-3xl px-8 py-16 text-center lg:px-16 lg:py-24"
-          style={{ background: "#232323" }}
+          style={{ background: "transparent" }}
         >
           {/* Decorative blobs */}
           <div
