@@ -8,7 +8,7 @@ export default function ServicosHero() {
     <section className="relative overflow-hidden py-28 lg:py-40" style={{ background: "#050706" }}>
       <div
         className="absolute inset-0"
-        style={{ background: "linear-gradient(to top, #102219 0%, rgba(16,34,25,0.75) 60%, transparent 100%)" }}
+        style={{ background: "linear-gradient(to top, #050706 0%, rgba(16,34,25,0.75) 60%, transparent 100%)" }}
       />
 
       <div className="relative z-10 mx-auto max-w-7xl px-6 lg:px-12">

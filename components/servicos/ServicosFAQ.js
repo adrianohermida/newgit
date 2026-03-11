@@ -26,7 +26,7 @@ export default function ServicosFAQ() {
   const [openIndex, setOpenIndex] = useState(0);
 
   return (
-    <section className="py-20 lg:py-32" style={{ background: "rgba(197,160,89,0.04)" }}>
+    <section className="py-20 lg:py-32" style={{ background: "#050706" }}>
       <div className="mx-auto max-w-3xl px-6 lg:px-12">
         <div className="text-center mb-14">
           <h2 className="text-3xl font-bold tracking-tight lg:text-4xl" style={{ color: "#F4F1EA" }}>

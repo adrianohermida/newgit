@@ -6,57 +6,73 @@ const GOLD = "#C5A059";
 export default function ServicosCTA() {
   return (
     <section
-      className="py-20 lg:py-32"
+      className="py-24 lg:py-32 relative overflow-hidden"
       style={{
-        background: "linear-gradient(135deg, rgb(27, 67, 50) 0%, rgb(5, 7, 6) 100%)",
+        background: "linear-gradient(135deg, #1B4332 0%, #050706 100%)",
         borderTop: "1px solid rgba(197, 160, 89, 0.15)",
       }}
     >
-      <div className="mx-auto max-w-7xl px-6 lg:px-12">
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.7 }}
-          className="relative overflow-hidden rounded-3xl px-8 py-16 text-center lg:px-16 lg:py-24"
-          style={{ background: "transparent" }}
-        >
-          {/* Decorative blobs */}
-          <div
-            className="absolute -right-16 -top-16 h-64 w-64 rounded-full blur-3xl pointer-events-none"
-            style={{ background: "rgba(197,160,89,0.15)" }}
-          />
-          <div
-            className="absolute -bottom-16 -left-16 h-64 w-64 rounded-full blur-3xl pointer-events-none"
-            style={{ background: "rgba(197,160,89,0.08)" }}
-          />
+      {/* Decorative lines */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-px h-full opacity-5" style={{ background: GOLD }} />
+        <div className="absolute top-0 left-2/4 w-px h-full opacity-5" style={{ background: GOLD }} />
+        <div className="absolute top-0 left-3/4 w-px h-full opacity-5" style={{ background: GOLD }} />
+      </div>
 
-          <div className="relative z-10 mx-auto max-w-2xl">
-            <h2 className="text-3xl font-bold text-[#F4F1EA] lg:text-5xl mb-6">
-              Pronto para recuperar sua{" "}
-              <span style={{ color: GOLD }}>liberdade financeira?</span>
-            </h2>
-            <p className="text-lg mb-10" style={{ color: GOLD }}>
-              Agende agora uma consulta com um de nossos advogados especialistas e proteja seu patrimônio.
-            </p>
-            <div className="flex flex-wrap justify-center gap-4">
-              <a
-                href="https://wa.me/555131810323"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-full px-8 py-4 font-bold transition-transform hover:scale-105"
-                style={{ background: GOLD, color: "#050706" }}
-              >
-                Falar pelo WhatsApp
-              </a>
-              <a
-                href="tel:+5551810323"
-                className="rounded-full border border-white/20 px-8 py-4 font-bold text-[#F4F1EA] transition-colors hover:bg-white/10"
-              >
-                (51) 3181-0323
-              </a>
-            </div>
-          </div>
+      <div className="relative z-10 mx-auto max-w-4xl px-6 text-center">
+        <motion.p
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          className="text-xs font-semibold tracking-[0.3em] uppercase mb-6"
+          style={{ color: GOLD }}
+        >
+          Comece agora
+        </motion.p>
+
+        <motion.h2
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.8 }}
+          className="font-serif text-4xl md:text-6xl lg:text-7xl font-light mb-8"
+          style={{ color: "#F4F1EA" }}
+        >
+          Sua <span className="italic text-gold-gradient">liberdade</span> financeira começa com uma conversa
+        </motion.h2>
+
+        <motion.p
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.8 }}
+          className="text-base opacity-40 mb-12 max-w-2xl mx-auto leading-relaxed"
+        >
+          Agende uma consulta gratuita e descubra como podemos reduzir suas dívidas e restaurar sua paz financeira.
+        </motion.p>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.8 }}
+          className="flex flex-wrap justify-center gap-4"
+        >
+          <a
+            href="https://wa.me/555131810323"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-3 px-10 py-5 text-sm font-semibold tracking-[0.12em] uppercase transition-all duration-300 hover:scale-105"
+            style={{ background: GOLD, color: "#050706" }}
+          >
+            Falar com Especialista
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </a>
+          <a
+            href="tel:+5551810323"
+            className="inline-flex items-center gap-3 px-10 py-5 text-sm font-semibold tracking-[0.12em] uppercase border transition-all duration-300 hover:bg-white/5"
+            style={{ borderColor: "rgba(244, 241, 234, 0.15)", color: "#F4F1EA" }}
+          >
+            (51) 3181-0323
+          </a>
         </motion.div>
       </div>
     </section>

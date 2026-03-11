@@ -70,6 +70,7 @@ function ServiceBlock({ service, index }) {
       viewport={{ once: true, margin: "-80px" }}
       transition={{ duration: 0.7 }}
       className={`mb-24 flex flex-col items-center gap-12 lg:flex-row ${reverse ? "lg:flex-row-reverse" : ""}`}
+      style={{ background: "#050706", borderRadius: 24 }}
     >
       {/* Text */}
       <div className="flex-1 space-y-6">
@@ -160,7 +161,7 @@ function ServiceBlock({ service, index }) {
       <div className="w-full flex-1 overflow-hidden rounded-2xl shadow-2xl lg:max-w-xl" style={{ background: "#050706" }}>
         <img
           src={image}
-          alt={title}
+          alt={`Serviço jurídico: ${title} - especialista em superendividamento, revisão bancária, contratos e defesa contra juros abusivos`}
           className="h-full w-full object-cover"
           style={{ aspectRatio: "4/3", background: "#050706" }}
         />
@@ -171,8 +172,9 @@ function ServiceBlock({ service, index }) {
 
 export default function ServicosList() {
   return (
-    <section className="py-20 lg:py-32" style={{ background: "#f6f8f7" }}>
+    <section className="py-20 lg:py-32" style={{ background: "#050706" }}>
       <div className="mx-auto max-w-7xl px-6 lg:px-12">
+        <h1 className="text-4xl font-black mb-12 text-[#C5A059]">Serviços Jurídicos: Superendividamento, Juros Abusivos, Contratos e Direito Bancário</h1>
         {SERVICES.map((service, i) => (
           <ServiceBlock key={service.title} service={service} index={i} />
         ))}

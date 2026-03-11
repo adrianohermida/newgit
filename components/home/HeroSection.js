@@ -25,20 +25,17 @@ export default function HeroSection() {
               Proteção Legal Especializada
             </motion.div>
 
-            <motion.h2
+            <motion.h1
               initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.3 }}
               className="font-serif text-5xl md:text-6xl lg:text-7xl xl:text-[5.5rem] font-light leading-[0.95] mb-8"
               style={{ color: "#F4F1EA" }}
             >
-              Elimine até{" "}
-              <span className="text-gold-gradient font-medium italic">70%</span>
-              <br />
-              das suas
-              <br />
+              Elimine até <span className="text-gold-gradient font-medium italic">70%</span><br />
+              das suas<br />
               <span className="font-medium">dívidas</span>
-            </motion.h2>
+            </motion.h1>
 
             <motion.p
               initial={{ opacity: 0, y: 20 }}
@@ -118,7 +115,7 @@ export default function HeroSection() {
                 }}
               >
                 <img
-                  alt="Advogado Hermida Maia"
+                  alt="Advogado especialista em superendividamento, revisão bancária, contratos e defesa contra juros abusivos - Hermida Maia"
                   src={HERO_IMAGE}
                   crossOrigin="anonymous"
                   className="w-full h-full object-cover"
