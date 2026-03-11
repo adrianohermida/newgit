@@ -2,9 +2,11 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 
+import { useRouter } from "next/router";
+
 const NAV_ITEMS = [
   { label: "Início", href: "/" },
-  { label: "Serviços", href: "/#servicos" },
+  { label: "Serviços", href: "/servicos" },
   { label: "Calculadora", href: "/#calculadora" },
   { label: "Sobre", href: "/#sobre" },
   { label: "Blog", href: "/blog" },
@@ -86,6 +88,7 @@ function NavMenu({ isOpen, onClose }) {
 export default function Layout({ children }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -165,16 +168,19 @@ export default function Layout({ children }) {
 
           {/* Desktop nav */}
           <nav className="hidden lg:flex items-center gap-10">
-            {NAV_ITEMS.map((item) => (
-              <Link key={item.label} href={item.href} legacyBehavior>
-                <a
-                  className="text-xs font-semibold tracking-[0.12em] uppercase hover:text-[#C5A059] transition-colors duration-300"
-                  style={{ color: "#F4F1EA" }}
-                >
-                  {item.label}
-                </a>
-              </Link>
-            ))}
+            {NAV_ITEMS.map((item) => {
+              const isActive = router.pathname === item.href || (item.href === "/servicos" && router.pathname.startsWith("/servicos"));
+              return (
+                <Link key={item.label} href={item.href} legacyBehavior>
+                  <a
+                    className={`text-xs font-semibold tracking-[0.12em] uppercase transition-colors duration-300 ${isActive ? "text-[#C5A059]" : "hover:text-[#C5A059]"}`}
+                    style={{ color: isActive ? "#C5A059" : "#F4F1EA" }}
+                  >
+                    {item.label}
+                  </a>
+                </Link>
+              );
+            })}
           </nav>
 
           <div className="flex items-center gap-6">
@@ -240,15 +246,18 @@ export default function Layout({ children }) {
             <div>
               <h4 className="text-xs font-semibold tracking-[0.2em] uppercase mb-8" style={{ color: "#C5A059" }}>Navegação</h4>
               <ul className="space-y-4 text-sm opacity-50">
-                {NAV_ITEMS.map((item) => (
-                  <li key={item.label}>
-                    <Link href={item.href} legacyBehavior>
-                      <a className="hover:text-[#C5A059] hover:opacity-100 transition-all">
-                        {item.label}
-                      </a>
-                    </Link>
-                  </li>
-                ))}
+                {NAV_ITEMS.map((item) => {
+                  const isActive = router.pathname === item.href || (item.href === "/servicos" && router.pathname.startsWith("/servicos"));
+                  return (
+                    <li key={item.label}>
+                      <Link href={item.href} legacyBehavior>
+                        <a className={`hover:text-[#C5A059] hover:opacity-100 transition-all ${isActive ? "text-[#C5A059] opacity-100" : ""}`}>
+                          {item.label}
+                        </a>
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
 
