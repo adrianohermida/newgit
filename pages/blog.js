@@ -1,6 +1,6 @@
-
 import Layout from "../components/Layout";
 import { motion } from "framer-motion";
+import Head from "next/head";
 
 const ARTICLES = [
   {
@@ -50,6 +50,12 @@ const ARTICLES = [
 export default function Blog() {
   return (
     <Layout>
+      <Head>
+        <title>Blog Jurídico: Superendividamento, Juros Abusivos, Contratos e Defesa do Consumidor | Hermida Maia</title>
+        <meta name="description" content="Dicas e informações sobre superendividamento, revisão bancária, contratos, empréstimo consignado, cartão de crédito e direito bancário. Conteúdo para consumidores e empresas." />
+        <meta name="keywords" content="advogado, blog jurídico, superendividamento, revisão bancária, contratos, juros abusivo, empréstimo consignado, cartão de crédito, defesa do consumidor, direito bancário" />
+      </Head>
+
       <div className="pt-32 pb-24">
         <div className="mx-auto max-w-7xl px-6">
           {/* Header */}

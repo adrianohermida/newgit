@@ -7,16 +7,7 @@ export default function HeroSection() {
   const sectionRef = useRef(null);
 
   return (
-    <section ref={sectionRef} className="relative min-h-screen flex items-center overflow-hidden pt-24 pb-16 lg:pt-0 lg:pb-0">
-      {/* Background gradient */}
-      <div className="absolute inset-0 z-0">
-        <div 
-          className="absolute inset-0"
-          style={{ 
-            background: "radial-gradient(ellipse at 70% 50%, rgba(27, 67, 50, 0.3) 0%, transparent 60%)" 
-          }}
-        />
-      </div>
+    <section ref={sectionRef} className="relative min-h-screen flex items-center overflow-hidden pt-24 pb-16 lg:pt-0 lg:pb-0" style={{ background: "#050706" }}>
 
       <div className="relative z-10 mx-auto max-w-7xl px-6 w-full">
         <div className="lg:grid lg:grid-cols-12 lg:gap-8 items-center min-h-[85vh]">

@@ -9,8 +9,9 @@ export default function Servicos() {
   return (
     <Layout>
       <Head>
-        <title>Serviços Jurídicos - Hermida Maia</title>
-        <meta name="description" content="Soluções jurídicas em Direito Bancário, Superendividamento e Recuperação Judicial. Proteja seu patrimônio com especialistas." />
+        <title>Serviços Jurídicos: Superendividamento, Juros Abusivos, Contratos e Direito Bancário | Hermida Maia</title>
+        <meta name="description" content="Conheça nossos serviços jurídicos em superendividamento, revisão bancária, contratos, defesa contra juros abusivos, empréstimo consignado, cartão de crédito e direito bancário. Atendimento nacional." />
+        <meta name="keywords" content="advogado, serviços jurídicos, superendividamento, revisão bancária, contratos, juros abusivo, empréstimo consignado, cartão de crédito, defesa do consumidor, direito bancário" />
       </Head>
       <ServicosHero />
       <ServicosList />

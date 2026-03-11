@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Search, MessageSquare, Phone, Send } from "lucide-react";
 import Layout from "../components/Layout";
+import Head from "next/head";
 
 const GREEN = "#11d473"; // não será mais usado para botões/headers
 const DARK = "#050706"; // reforça darkmode igual ao header do Layout
@@ -105,6 +106,11 @@ export default function FAQ() {
   });
   return (
     <Layout>
+      <Head>
+        <title>Dúvidas Frequentes: Superendividamento, Juros Abusivos, Contratos e Direito Bancário | Hermida Maia</title>
+        <meta name="description" content="Perguntas e respostas sobre superendividamento, revisão bancária, contratos, empréstimo consignado, cartão de crédito, defesa do consumidor e direito bancário." />
+        <meta name="keywords" content="advogado, faq, dúvidas frequentes, superendividamento, revisão bancária, contratos, juros abusivo, empréstimo consignado, cartão de crédito, defesa do consumidor, direito bancário" />
+      </Head>
 
       <div style={{ background: "#181a1b", color: "#F4F1EA" }}>
         {/* Hero */}

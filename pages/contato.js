@@ -5,8 +5,9 @@ export default function Contato() {
   return (
     <Layout>
       <Head>
-        <title>Contato | Hermida Maia Advocacia</title>
-        <meta name="description" content="Fale conosco para consultoria jurídica especializada. Atendimento nacional, excelência e discrição." />
+        <title>Contato | Advogado Especialista em Direito Bancário, Superendividamento e Juros Abusivos | Hermida Maia</title>
+        <meta name="description" content="Fale com um advogado especialista em superendividamento, revisão bancária, contratos, defesa contra juros abusivos, empréstimo consignado e direito bancário. Atendimento nacional." />
+        <meta name="keywords" content="advogado, contato, superendividamento, revisão bancária, contratos, juros abusivo, empréstimo consignado, cartão de crédito, defesa do consumidor, direito bancário" />
       </Head>
       {/* Hero Section */}
       <section className="relative h-[400px] w-full overflow-hidden">
