@@ -16,7 +16,7 @@ const SERVICES = [
     ],
     cta: { label: "Consultar meu contrato", Icon: ArrowRight },
     ctaVariant: "dark",
-    image: "/servicos_juros.jpg",
+    image: "/images/servicos/servicos_juros.jpg",
     reverse: false,
   },
   {
@@ -29,7 +29,7 @@ const SERVICES = [
     ],
     cta: { label: "Quero me reestruturar", Icon: Scale },
     ctaVariant: "outline",
-    image: "/servicos_superendividamento.jpg",
+    image: "/images/servicos/servicos_superendividamento.jpg",
     reverse: true,
   },
   {
@@ -42,7 +42,7 @@ const SERVICES = [
     ],
     cta: { label: "Falar com Especialista", Icon: Briefcase },
     ctaVariant: "gold",
-    image: "/servicos_recuperacao.jpg",
+    image: "/images/servicos/servicos_recuperacao.jpg",
     reverse: false,
   },
 ];
