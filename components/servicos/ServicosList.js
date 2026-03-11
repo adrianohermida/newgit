@@ -41,7 +41,7 @@ const SERVICES = [
       { Icon: Users, title: "Negociação com Credores", desc: "Mediação especializada para novos prazos e descontos." },
     ],
     cta: { label: "Falar com Especialista", Icon: Briefcase },
-    ctaVariant: "green",
+    ctaVariant: "gold",
     image: "/servicos_recuperacao.jpg",
     reverse: false,
   },
@@ -51,7 +51,7 @@ function HighlightRow({ item }) {
   const HIcon = item.Icon;
   return (
     <div className="flex items-start gap-4 rounded-lg p-4" style={{ background: "rgba(17,212,115,0.05)" }}>
-      <HIcon size={20} style={{ color: GREEN, flexShrink: 0, marginTop: 2 }} />
+      <HIcon size={20} style={{ color: GOLD, flexShrink: 0, marginTop: 2 }} />
       <div>
         <h5 className="font-bold" style={{ color: "#0f172a" }}>{item.title}</h5>
         <p className="text-sm mt-1" style={{ color: "#475569" }}>{item.desc}</p>
