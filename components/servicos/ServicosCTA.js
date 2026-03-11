@@ -33,45 +33,40 @@ export default function ServicosCTA() {
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.8 }}
-          className="font-serif text-4xl md:text-6xl lg:text-7xl font-light mb-8"
+          className="text-4xl font-bold text-white lg:text-6xl leading-tight mb-8"
           style={{ color: "#F4F1EA" }}
         >
-          Sua <span className="italic text-gold-gradient">liberdade</span> financeira começa com uma conversa
+          Retome a <span className="gold-gradient-text">Soberania</span> das suas Finanças
         </motion.h2>
 
         <motion.p
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.8 }}
-          className="text-base opacity-40 mb-12 max-w-2xl mx-auto leading-relaxed"
+          className="mt-8 text-xl text-slate-400 mb-12 max-w-2xl mx-auto leading-relaxed"
         >
-          Agende uma consulta gratuita e descubra como podemos reduzir suas dívidas e restaurar sua paz financeira.
+          Nossa banca está pronta para blindar seu patrimônio e restaurar seu equilíbrio institucional.
         </motion.p>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.8 }}
-          className="flex flex-wrap justify-center gap-4"
+          className="flex flex-wrap justify-center gap-6"
         >
           <a
             href="https://wa.me/555131810323"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-3 px-10 py-5 text-sm font-semibold tracking-[0.12em] uppercase transition-all duration-300 hover:scale-105"
-            style={{ background: GOLD, color: "#050706" }}
+            className="rounded-full bg-primary px-12 py-5 text-sm font-black uppercase tracking-widest text-background-dark shadow-2xl transition-transform hover:scale-105 active:scale-95"
           >
-            Falar com Especialista
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
+            Falar com um Sócio
           </a>
           <a
-            href="tel:+5551810323"
-            className="inline-flex items-center gap-3 px-10 py-5 text-sm font-semibold tracking-[0.12em] uppercase border transition-all duration-300 hover:bg-white/5"
-            style={{ borderColor: "rgba(244, 241, 234, 0.15)", color: "#F4F1EA" }}
+            href="#"
+            className="rounded-full border border-white/20 bg-white/5 px-12 py-5 text-sm font-black uppercase tracking-widest text-white backdrop-blur-md transition-colors hover:bg-white/10"
           >
-            (51) 3181-0323
+            Conhecer a Banca
           </a>
         </motion.div>
       </div>

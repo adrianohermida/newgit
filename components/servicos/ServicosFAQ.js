@@ -6,19 +6,19 @@ const GOLD = "#C5A059";
 
 const FAQS = [
   {
-    question: "Como saber se estou pagando juros abusivos?",
+    question: "Como funciona o processo de identificação de juros abusivos?",
     answer:
-      "Realizamos um cálculo pericial comparando as taxas do seu contrato com a taxa média de mercado divulgada pelo Banco Central para o mesmo período e modalidade. Se as taxas do seu contrato estiverem acima da média, podem ser contestadas judicialmente.",
+      "Nossa equipe realiza uma análise detalhada dos contratos, identificando cláusulas abusivas e taxas acima do permitido. Utilizamos perícia técnica para fundamentar a defesa e buscar a redução dos encargos.",
   },
   {
-    question: "O que acontece se eu entrar com a Lei do Superendividamento?",
+    question: "A Lei do Superendividamento protege meus bens imediatos?",
     answer:
-      "A justiça convocará todos os seus credores para uma audiência de conciliação, onde será proposto um plano de pagamento que garanta sua subsistência básica. O objetivo é proteger o mínimo existencial enquanto reorganiza suas dívidas.",
+      "Sim. O plano de repactuação garante que o mínimo existencial seja preservado, protegendo recursos essenciais e evitando a perda de bens necessários à subsistência.",
   },
   {
-    question: "Quais empresas podem pedir Recuperação Judicial?",
+    question: "Qual a viabilidade de uma Recuperação Judicial para minha holding?",
     answer:
-      "A maioria das empresas privadas em funcionamento há mais de dois anos, incluindo EIRELI e sociedades limitadas, pode solicitar o benefício legal. É necessário comprovar a viabilidade econômica da empresa e apresentar documentação completa.",
+      "A viabilidade depende da análise do passivo, ativos e fluxo de caixa da empresa. Nossa banca avalia cada caso para propor a melhor estratégia de recuperação e proteção patrimonial.",
   },
 ];
 
