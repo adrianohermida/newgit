@@ -129,6 +129,7 @@ export default function HeroSection() {
                 <img
                   alt="Advogado Hermida Maia"
                   src={HERO_IMAGE}
+                  crossOrigin="anonymous"
                   className="w-full h-full object-cover"
                   style={{ filter: "contrast(1.1) brightness(0.9)" }}
                 />
