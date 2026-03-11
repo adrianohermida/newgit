@@ -50,11 +50,11 @@ const SERVICES = [
 function HighlightRow({ item }) {
   const HIcon = item.Icon;
   return (
-    <div className="flex items-start gap-4 rounded-lg p-4" style={{ background: "rgba(17,212,115,0.05)" }}>
+    <div className="flex items-start gap-4 rounded-lg p-4" style={{ background: "#181a1b" }}>
       <HIcon size={20} style={{ color: GOLD, flexShrink: 0, marginTop: 2 }} />
       <div>
-        <h5 className="font-bold" style={{ color: "#0f172a" }}>{item.title}</h5>
-        <p className="text-sm mt-1" style={{ color: "#475569" }}>{item.desc}</p>
+        <h5 className="font-bold" style={{ color: "#F4F1EA" }}>{item.title}</h5>
+        <p className="text-sm mt-1" style={{ color: "#C5A059", opacity: 0.8 }}>{item.desc}</p>
       </div>
     </div>
   );
@@ -70,13 +70,13 @@ function ServiceBlock({ service, index }) {
       viewport={{ once: true, margin: "-80px" }}
       transition={{ duration: 0.7 }}
       className={`mb-24 flex flex-col items-center gap-12 lg:flex-row ${reverse ? "lg:flex-row-reverse" : ""}`}
-      style={{ background: "#050706", borderRadius: 24 }}
+      style={{ background: "#181a1b", borderRadius: 24, border: "1px solid #232323" }}
     >
       {/* Text */}
       <div className="flex-1 space-y-6">
         <div
           className="flex h-14 w-14 items-center justify-center rounded-2xl"
-          style={{ background: "rgba(197,160,89,0.1)" }}
+          style={{ background: "#232323" }}
         >
           <ServiceIcon size={28} style={{ color: GOLD }} />
         </div>
@@ -85,7 +85,7 @@ function ServiceBlock({ service, index }) {
           {title}
         </h2>
 
-        <p className="text-lg leading-relaxed" style={{ color: GOLD }}>
+        <p className="text-lg leading-relaxed" style={{ color: "#C5A059", opacity: 0.85 }}>
           {desc}
         </p>
 
@@ -95,7 +95,7 @@ function ServiceBlock({ service, index }) {
             {items.map((item) => (
               <li key={item} className="flex items-center gap-3">
                 <CheckCircle size={20} style={{ color: GOLD, flexShrink: 0 }} />
-                <span style={{ color: "#F4F1EA" }}>{item}</span>
+                <span style={{ color: "#F4F1EA", opacity: 0.9 }}>{item}</span>
               </li>
             ))}
           </ul>
@@ -158,7 +158,7 @@ function ServiceBlock({ service, index }) {
       </div>
 
       {/* Image */}
-      <div className="w-full flex-1 overflow-hidden rounded-2xl shadow-2xl lg:max-w-xl" style={{ background: "#050706" }}>
+      <div className="w-full flex-1 overflow-hidden rounded-2xl shadow-2xl lg:max-w-xl" style={{ background: "#181a1b" }}>
         <img
           src={image}
           alt={`Serviço jurídico: ${title} - especialista em superendividamento, revisão bancária, contratos e defesa contra juros abusivos`}
