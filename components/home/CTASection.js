@@ -57,7 +57,7 @@ export default function CTASection() {
           className="flex flex-wrap justify-center gap-4"
         >
           <a
-            href="https://wa.me/5511400040000"
+            href="https://wa.me/555131810323"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-3 px-10 py-5 text-sm font-semibold tracking-[0.12em] uppercase transition-all duration-300 hover:scale-105"
@@ -73,7 +73,7 @@ export default function CTASection() {
             className="inline-flex items-center gap-3 px-10 py-5 text-sm font-semibold tracking-[0.12em] uppercase border transition-all duration-300 hover:bg-white/5"
             style={{ borderColor: "rgba(244, 241, 234, 0.15)", color: "#F4F1EA" }}
           >
-            (11) 4004-0000
+            (51) 3181-0323
           </a>
         </motion.div>
       </div>

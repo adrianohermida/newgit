@@ -35,7 +35,7 @@ export default function ServicosCTA() {
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               <a
-                href="https://wa.me/5511400040000"
+                href="https://wa.me/555131810323"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-full px-8 py-4 font-bold transition-transform hover:scale-105"
@@ -47,7 +47,7 @@ export default function ServicosCTA() {
                 href="tel:+5551810323"
                 className="rounded-full border border-white/20 px-8 py-4 font-bold text-white transition-colors hover:bg-white/10"
               >
-                (11) 4004-0000
+                (51) 3181-0323
               </a>
             </div>
           </div>

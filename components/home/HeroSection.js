@@ -66,7 +66,7 @@ export default function HeroSection() {
               className="flex flex-wrap gap-4 mb-14"
             >
               <a
-                href="https://wa.me/5511400040000"
+                href="https://wa.me/555131810323"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group inline-flex items-center gap-3 px-8 py-4 text-sm font-semibold tracking-[0.1em] uppercase transition-all duration-300"
