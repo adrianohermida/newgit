@@ -2,7 +2,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { TrendingDown, PiggyBank, Building2, CheckCircle, ArrowRight, Scale, Shield, Users, Briefcase } from "lucide-react";
 
-const GREEN = "#11d473";
+const GOLD = "#C5A059";
 
 const SERVICES = [
   {
@@ -75,16 +75,16 @@ function ServiceBlock({ service, index }) {
       <div className="flex-1 space-y-6">
         <div
           className="flex h-14 w-14 items-center justify-center rounded-2xl"
-          style={{ background: "rgba(17,212,115,0.1)" }}
+          style={{ background: "rgba(197,160,89,0.1)" }}
         >
-          <ServiceIcon size={28} style={{ color: GREEN }} />
+          <ServiceIcon size={28} style={{ color: GOLD }} />
         </div>
 
-        <h2 className="text-3xl font-bold tracking-tight lg:text-4xl" style={{ color: "#0f172a" }}>
+        <h2 className="text-3xl font-bold tracking-tight lg:text-4xl" style={{ color: "#F4F1EA" }}>
           {title}
         </h2>
 
-        <p className="text-lg leading-relaxed" style={{ color: "#475569" }}>
+        <p className="text-lg leading-relaxed" style={{ color: GOLD }}>
           {desc}
         </p>
 
@@ -93,8 +93,8 @@ function ServiceBlock({ service, index }) {
           <ul className="space-y-3">
             {items.map((item) => (
               <li key={item} className="flex items-center gap-3">
-                <CheckCircle size={20} style={{ color: GREEN, flexShrink: 0 }} />
-                <span style={{ color: "#334155" }}>{item}</span>
+                <CheckCircle size={20} style={{ color: GOLD, flexShrink: 0 }} />
+                <span style={{ color: "#F4F1EA" }}>{item}</span>
               </li>
             ))}
           </ul>
@@ -106,11 +106,11 @@ function ServiceBlock({ service, index }) {
             {cards.map((card) => (
               <div
                 key={card.title}
-                className="rounded-xl border p-6 bg-white"
-                style={{ borderColor: "rgba(17,212,115,0.2)" }}
+                className="rounded-xl border p-6"
+                style={{ borderColor: "rgba(197,160,89,0.2)", background: "#232323" }}
               >
-                <h4 className="font-bold mb-2" style={{ color: GREEN }}>{card.title}</h4>
-                <p className="text-sm" style={{ color: "#475569" }}>{card.desc}</p>
+                <h4 className="font-bold mb-2" style={{ color: GOLD }}>{card.title}</h4>
+                <p className="text-sm" style={{ color: "#F4F1EA" }}>{card.desc}</p>
               </div>
             ))}
           </div>
@@ -119,7 +119,7 @@ function ServiceBlock({ service, index }) {
         {/* Highlight rows */}
         {highlights && (
           <div className="space-y-3">
-            {highlights.map((h) => <HighlightRow key={h.title} item={h} />)}
+            {highlights.map((h) => <HighlightRow key={h.title} item={{...h, Icon: h.Icon, color: GOLD}} />)}
           </div>
         )}
 
@@ -128,8 +128,8 @@ function ServiceBlock({ service, index }) {
           const CtaIcon = cta.Icon;
           if (ctaVariant === "dark") return (
             <button
-              className="mt-4 flex items-center gap-2 rounded-lg px-6 py-3 font-bold text-white transition-colors hover:opacity-90"
-              style={{ background: "#0f172a" }}
+              className="mt-4 flex items-center gap-2 rounded-lg px-6 py-3 font-bold text-[#C5A059] transition-colors hover:bg-[#C5A059] hover:text-[#050706]"
+              style={{ background: "#232323" }}
             >
               {cta.label}
               <CtaIcon size={16} />
@@ -137,10 +137,8 @@ function ServiceBlock({ service, index }) {
           );
           if (ctaVariant === "outline") return (
             <button
-              className="mt-4 flex items-center gap-2 rounded-lg border-2 px-6 py-3 font-bold transition-all hover:text-white"
-              style={{ borderColor: "#0f172a", color: "#0f172a" }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "#0f172a"; e.currentTarget.style.color = "#fff"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#0f172a"; }}
+              className="mt-4 flex items-center gap-2 rounded-lg border-2 px-6 py-3 font-bold transition-all hover:bg-[#C5A059] hover:text-[#050706]"
+              style={{ borderColor: "#C5A059", color: "#C5A059" }}
             >
               {cta.label}
               <CtaIcon size={16} />
@@ -149,7 +147,7 @@ function ServiceBlock({ service, index }) {
           return (
             <button
               className="mt-4 flex items-center gap-2 rounded-lg px-6 py-3 font-bold transition-transform hover:scale-105"
-              style={{ background: GREEN, color: "#102219", boxShadow: "0 8px 25px rgba(17,212,115,0.25)" }}
+              style={{ background: "#C5A059", color: "#050706", boxShadow: "0 8px 25px rgba(197,160,89,0.25)" }}
             >
               {cta.label}
               <CtaIcon size={16} />

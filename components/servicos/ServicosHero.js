@@ -5,7 +5,7 @@ const BG_IMAGE = "/servicos_hero.jpg";
 
 export default function ServicosHero() {
   return (
-    <section className="relative overflow-hidden py-28 lg:py-40" style={{ background: "#102219" }}>
+    <section className="relative overflow-hidden py-28 lg:py-40" style={{ background: "#050706" }}>
       <div
         className="absolute inset-0 opacity-20"
         style={{ backgroundImage: `url('${BG_IMAGE}')`, backgroundSize: "cover", backgroundPosition: "center" }}
@@ -21,7 +21,7 @@ export default function ServicosHero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="inline-block rounded-full px-4 py-1 text-xs font-bold uppercase tracking-widest mb-6"
-            style={{ background: "rgba(17,212,115,0.15)", color: "#11d473" }}
+            style={{ background: "rgba(197,160,89,0.15)", color: "#C5A059" }}
           >
             Nossa Expertise
           </motion.span>
@@ -33,7 +33,7 @@ export default function ServicosHero() {
             className="text-4xl font-black leading-tight text-white lg:text-6xl mb-6"
           >
             Soluções Jurídicas para sua{" "}
-            <span style={{ color: "#11d473" }}>Saúde Financeira</span>
+            <span style={{ color: "#C5A059" }}>Saúde Financeira</span>
           </motion.h1>
 
           <motion.p
@@ -41,7 +41,7 @@ export default function ServicosHero() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
             className="text-lg leading-relaxed"
-            style={{ color: "#94a3b8" }}
+            style={{ color: "#C5A059" }}
           >
             Atuação estratégica em Direito Bancário e Recuperação Judicial, protegendo seu patrimônio e
             garantindo seus direitos perante instituições financeiras.

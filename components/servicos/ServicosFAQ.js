@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 
-const GREEN = "#11d473";
+const GOLD = "#C5A059";
 
 const FAQS = [
   {
@@ -26,13 +26,13 @@ export default function ServicosFAQ() {
   const [openIndex, setOpenIndex] = useState(0);
 
   return (
-    <section className="py-20 lg:py-32" style={{ background: "rgba(17,212,115,0.04)" }}>
+    <section className="py-20 lg:py-32" style={{ background: "rgba(197,160,89,0.04)" }}>
       <div className="mx-auto max-w-3xl px-6 lg:px-12">
         <div className="text-center mb-14">
-          <h2 className="text-3xl font-bold tracking-tight lg:text-4xl" style={{ color: "#0f172a" }}>
+          <h2 className="text-3xl font-bold tracking-tight lg:text-4xl" style={{ color: "#F4F1EA" }}>
             Dúvidas Frequentes
           </h2>
-          <p className="mt-4" style={{ color: "#475569" }}>
+          <p className="mt-4" style={{ color: GOLD }}>
             Esclareça as principais questões sobre nossos serviços especializados.
           </p>
         </div>
@@ -41,13 +41,13 @@ export default function ServicosFAQ() {
           {FAQS.map((faq, i) => (
             <div
               key={faq.question}
-              className="rounded-lg border bg-white overflow-hidden"
-              style={{ borderColor: "rgba(17,212,115,0.15)" }}
+              className="rounded-lg border bg-[#232323] overflow-hidden"
+              style={{ borderColor: "rgba(197,160,89,0.15)" }}
             >
               <button
                 onClick={() => setOpenIndex(openIndex === i ? -1 : i)}
-                className="flex w-full items-center justify-between text-left px-6 py-5 font-bold transition-colors hover:bg-gray-50"
-                style={{ color: "#0f172a" }}
+                className="flex w-full items-center justify-between text-left px-6 py-5 font-bold transition-colors hover:bg-[#2d2d2d]"
+                style={{ color: "#F4F1EA" }}
               >
                 <span>{faq.question}</span>
                 <motion.div
@@ -55,7 +55,7 @@ export default function ServicosFAQ() {
                   transition={{ duration: 0.25 }}
                   style={{ flexShrink: 0, marginLeft: 12 }}
                 >
-                  <ChevronDown size={20} style={{ color: GREEN }} />
+                  <ChevronDown size={20} style={{ color: GOLD }} />
                 </motion.div>
               </button>
 
@@ -69,7 +69,7 @@ export default function ServicosFAQ() {
                     transition={{ duration: 0.3 }}
                     className="overflow-hidden"
                   >
-                    <p className="px-6 pb-5 text-sm leading-relaxed" style={{ color: "#475569" }}>
+                    <p className="px-6 pb-5 text-sm leading-relaxed" style={{ color: GOLD }}>
                       {faq.answer}
                     </p>
                   </motion.div>
