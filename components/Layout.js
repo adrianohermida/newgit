@@ -29,7 +29,7 @@ function NavMenu({ isOpen, onClose }) {
             className="absolute inset-0 opacity-20"
             style={{
               backgroundImage:
-                "url('/perfil_1.webp')",
+                "url('https://sspvizogbcyigquqycsz.supabase.co/storage/v1/object/public/Images/perfil_1.webp')",
               backgroundSize: "cover",
               backgroundPosition: "center",
             }}

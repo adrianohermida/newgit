@@ -43,7 +43,7 @@ const ARTICLES = [
     date: "20 Set 2023",
     title: "Financiamento de veículo: quando é possível revisá-lo judicialmente",
     excerpt: "Saiba quando e como entrar com uma ação revisional para reduzir as parcelas do seu financiamento.",
-    image: "/perfil_1.webp",
+    image: "https://sspvizogbcyigquqycsz.supabase.co/storage/v1/object/public/Images/perfil_1.webp",
   },
 ];
 
