@@ -1,5 +1,7 @@
 import { google } from 'googleapis';
 import nodemailer from 'nodemailer';
+import { supabase } from '../../lib/supabase';
+import { v4 as uuidv4 } from 'uuid';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -31,12 +33,51 @@ export default async function handler(req, res) {
 
   const calendar = google.calendar({ version: 'v3', auth: oAuth2Client });
 
+  // Checar se o slot está realmente disponível no Google Calendar
+  const slotStart = `${data}T${hora}:00-03:00`;
+  const slotEndHour = String(Number(hora.split(':')[0]) + 1).padStart(2, '0');
+  const slotEnd = `${data}T${slotEndHour}:${hora.split(':')[1]}:00-03:00`;
+  const busy = await calendar.freebusy.query({
+    requestBody: {
+      timeMin: slotStart,
+      timeMax: slotEnd,
+      timeZone: 'America/Sao_Paulo',
+      items: [{ id: 'primary' }],
+    },
+  });
+  const isBusy = busy.data.calendars['primary'].busy.length > 0;
+  if (isBusy) {
+    return res.status(409).json({ ok: false, error: 'Horário já está ocupado. Escolha outro.' });
+  }
+
+  // Gerar ID único para o agendamento
+  const agendamentoId = uuidv4();
+
+  // Persistir no Supabase
+  const { error: supabaseError } = await supabase.from('agendamentos').insert([
+    {
+      id: agendamentoId,
+      nome,
+      email,
+      telefone,
+      area,
+      data,
+      hora,
+      status: 'pendente',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+  ]);
+  if (supabaseError) {
+    return res.status(500).json({ ok: false, error: 'Erro ao salvar agendamento.' });
+  }
+
   // Montar evento
   const event = {
     summary: `Consulta Jurídica - ${area}`,
     description: `Cliente: ${nome} (${email})\nTelefone: ${telefone}\nObservações: ${observacoes}`,
-    start: { dateTime: `${data}T${hora}:00-03:00` },
-    end: { dateTime: `${data}T${String(Number(hora.split(':')[0]) + 1).padStart(2, '0')}:${hora.split(':')[1]}:00-03:00` },
+    start: { dateTime: slotStart },
+    end: { dateTime: slotEnd },
     attendees: [{ email }],
   };
 
@@ -70,7 +111,7 @@ export default async function handler(req, res) {
       console.error('Erro ao enviar e-mail de confirmação:', mailError);
     }
 
-    return res.status(200).json({ ok: true, eventId: response.data.id });
+    return res.status(200).json({ ok: true, eventId: response.data.id, agendamentoId });
   } catch (error) {
     let mensagemErro = 'Ocorreu um erro ao tentar agendar sua consulta. Por favor, tente novamente mais tarde.';
     // Mensagens mais amigáveis para erros comuns

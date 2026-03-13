@@ -32,23 +32,33 @@ export default function AgendamentoForm() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
+
   useEffect(() => {
-    loadAvailableSlots();
+    const fetchSlots = async () => {
+      const slots = {};
+      const today = new Date();
+      for (let i = 1; i <= 30; i++) {
+        const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i);
+        if (date >= today && date.getDay() !== 0 && date.getDay() !== 6) {
+          const dateStr = date.toISOString().split('T')[0];
+          try {
+            const res = await fetch(`/api/slots?data=${dateStr}`);
+            const data = await res.json();
+            if (data.ok) {
+              slots[dateStr] = data.slots;
+            } else {
+              slots[dateStr] = [];
+            }
+          } catch {
+            slots[dateStr] = [];
+          }
+        }
+      }
+      setAvailableSlots(slots);
+    };
+    fetchSlots();
     // eslint-disable-next-line
   }, [currentMonth]);
-
-  const loadAvailableSlots = async () => {
-    const mockSlots = {};
-    const today = new Date();
-    for (let i = 1; i <= 30; i++) {
-      const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i);
-      if (date >= today && date.getDay() !== 0 && date.getDay() !== 6) {
-        const dateStr = date.toISOString().split('T')[0];
-        mockSlots[dateStr] = ["09:00", "10:30", "14:00", "15:30", "17:00"];
-      }
-    }
-    setAvailableSlots(mockSlots);
-  };
 
   const getDaysInMonth = () => {
     const year = currentMonth.getFullYear();
