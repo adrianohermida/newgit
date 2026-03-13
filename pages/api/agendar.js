@@ -50,18 +50,18 @@ export default async function handler(req, res) {
     // Enviar e-mail de confirmação via SMTP Yandex
     try {
       const transporter = nodemailer.createTransport({
-        host: process.env.YANDEX_SMTP_HOST || 'smtp.yandex.com',
-        port: process.env.YANDEX_SMTP_PORT ? parseInt(process.env.YANDEX_SMTP_PORT) : 465,
-        secure: true,
+        host: process.env.MAIL_HOST,
+        port: process.env.MAIL_PORT ? parseInt(process.env.MAIL_PORT) : 465,
+        secure: process.env.MAIL_SECURE === 'true' || process.env.MAIL_SECURE === true,
         auth: {
-          user: process.env.YANDEX_SMTP_USER,
-          pass: process.env.YANDEX_SMTP_PASS,
+          user: process.env.MAIL_USER,
+          pass: process.env.MAIL_PASS,
         },
       });
 
       await transporter.sendMail({
-        from: `Agendamento Jurídico <${process.env.YANDEX_SMTP_USER}>`,
-        to: email,
+        from: process.env.MAIL_FROM || `Agendamento Jurídico <${process.env.MAIL_USER}>`,
+        to: "suporte@hermidamaia.adv.br",
         subject: 'Confirmação de Agendamento',
         text: `Olá, ${nome}!\n\nSua consulta jurídica foi agendada com sucesso para o dia ${data} às ${hora}.\n\nÁrea: ${area}\nTelefone: ${telefone}\nObservações: ${observacoes || 'Nenhuma'}\n\nSe precisar reagendar, entre em contato conosco.\n\nAtenciosamente,\nEquipe Jurídica`,
       });
