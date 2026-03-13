@@ -1,7 +1,7 @@
 import React from "react";
 import { User, ArrowLeft, CheckCircle2, Lock } from "lucide-react";
-import { Input } from "../../ui/input";
-import { Textarea } from "../../ui/textarea";
+import Input from "../../ui/input";
+import Textarea from "../../ui/textarea";
 
 const GOLD = "#C5A059";
 const OBSIDIAN = "#050706";

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import getConfig from "next/config";
-const basePath = (typeof window !== "undefined" && window.__NEXT_DATA__ && window.__NEXT_DATA__.assetPrefix) ? window.__NEXT_DATA__.assetPrefix : (getConfig()?.publicRuntimeConfig?.basePath || "");
+// const basePath = (typeof window !== "undefined" && window.__NEXT_DATA__ && window.__NEXT_DATA__.assetPrefix) ? window.__NEXT_DATA__.assetPrefix : "";
+const basePath = (typeof window !== "undefined" && window.__NEXT_DATA__ && window.__NEXT_DATA__.assetPrefix) ? window.__NEXT_DATA__.assetPrefix : "";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useRouter } from "next/router";
