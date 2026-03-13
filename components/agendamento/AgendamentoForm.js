@@ -80,10 +80,32 @@ export default function AgendamentoForm() {
   };
 
   const handleSubmit = async () => {
+    // Validação de campos obrigatórios
+    if (!formData.nome || !formData.email || !formData.telefone || !selectedDate || !selectedTime) {
+      alert("Por favor, preencha todos os campos obrigatórios: Nome, E-mail, Telefone, Data e Horário.");
+      return;
+    }
     setSubmitting(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      setSuccess(true);
+      const res = await fetch("/api/agendar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome: formData.nome,
+          email: formData.email,
+          telefone: formData.telefone,
+          observacoes: formData.observacoes,
+          area: AREAS.find(a => a.id === selectedArea)?.title,
+          data: selectedDate?.toISOString().split('T')[0],
+          hora: selectedTime,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setSuccess(true);
+      } else {
+        alert("Erro ao agendar: " + (data.error || "Tente novamente."));
+      }
     } catch (error) {
       alert("Erro ao realizar agendamento. Tente novamente.");
     }

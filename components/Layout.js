@@ -186,12 +186,13 @@ export default function Layout({ children }) {
           </nav>
 
           <div className="flex items-center gap-6">
-            <a
-              href={`${basePath}/agendamento`}
-              className="hidden md:inline-flex items-center gap-2 border border-[#C5A059]/50 text-[#C5A059] px-6 py-2.5 text-xs font-semibold tracking-[0.12em] uppercase hover:bg-[#C5A059] hover:text-[#050706] transition-all duration-300"
-            >
-              Consulta
-            </a>
+            <Link href="/agendamento" legacyBehavior>
+              <a
+                className="hidden md:inline-flex items-center gap-2 border border-[#C5A059]/50 text-[#C5A059] px-6 py-2.5 text-xs font-semibold tracking-[0.12em] uppercase hover:bg-[#C5A059] hover:text-[#050706] transition-all duration-300"
+              >
+                Consulta
+              </a>
+            </Link>
 
             {/* Hamburger */}
             <button
