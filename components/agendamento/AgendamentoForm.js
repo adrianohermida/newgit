@@ -5,6 +5,10 @@ import DateStep from "./steps/DateStep";
 import ClientStep from "./steps/ClientStep";
 import SuccessStep from "./steps/SuccessStep";
 
+// DEBUG: Log para garantir que o componente está sendo renderizado
+if (typeof window !== "undefined") {
+  console.log("[AgendamentoForm] Componente carregado");
+}
 const AREAS = [
   { id: "superendividamento", title: "Superendividamento", desc: "Recuperação financeira e judicial" },
   { id: "bancario", title: "Direito Bancário", desc: "Revisão de contratos e juros" },
@@ -112,53 +116,73 @@ export default function AgendamentoForm() {
     setSubmitting(false);
   };
 
+
+  // DEBUG: Log de estado
+  if (typeof window !== "undefined") {
+    console.log("[AgendamentoForm] step:", step, "success:", success, { selectedArea, selectedDate, selectedTime, formData });
+  }
+
   if (success) {
     return <SuccessStep selectedDate={selectedDate} selectedTime={selectedTime} />;
   }
 
-  return (
-    <div style={{ background: "#050706", minHeight: "100vh" }}>
-      <div className="max-w-6xl mx-auto px-6 pb-20">
-        <AnimatePresence mode="wait">
-          {step === 1 && (
-            <AreaStep
-              AREAS={AREAS}
-              selectedArea={selectedArea}
-              setSelectedArea={setSelectedArea}
-              onContinue={() => setStep(2)}
-            />
-          )}
-          {step === 2 && (
-            <DateStep
-              currentMonth={currentMonth}
-              handlePrevMonth={handlePrevMonth}
-              handleNextMonth={handleNextMonth}
-              getDaysInMonth={getDaysInMonth}
-              availableSlots={availableSlots}
-              selectedDate={selectedDate}
-              setSelectedDate={setSelectedDate}
-              selectedTime={selectedTime}
-              setSelectedTime={setSelectedTime}
-              getAvailableTimes={getAvailableTimes}
-              onBack={() => setStep(1)}
-              onContinue={() => setStep(3)}
-            />
-          )}
-          {step === 3 && (
-            <ClientStep
-              AREAS={AREAS}
-              selectedArea={selectedArea}
-              selectedDate={selectedDate}
-              selectedTime={selectedTime}
-              formData={formData}
-              setFormData={setFormData}
-              onBack={() => setStep(2)}
-              onSubmit={handleSubmit}
-              submitting={submitting}
-            />
-          )}
-        </AnimatePresence>
+  // Fallback visual: se algo der errado, mostra um aviso e o formulário básico
+  try {
+    return (
+      <div style={{ background: "#050706", minHeight: "100vh" }}>
+        <div className="max-w-6xl mx-auto px-6 pb-20">
+          <AnimatePresence mode="wait">
+            {step === 1 && (
+              <AreaStep
+                AREAS={AREAS}
+                selectedArea={selectedArea}
+                setSelectedArea={setSelectedArea}
+                onContinue={() => setStep(2)}
+              />
+            )}
+            {step === 2 && (
+              <DateStep
+                currentMonth={currentMonth}
+                handlePrevMonth={handlePrevMonth}
+                handleNextMonth={handleNextMonth}
+                getDaysInMonth={getDaysInMonth}
+                availableSlots={availableSlots}
+                selectedDate={selectedDate}
+                setSelectedDate={setSelectedDate}
+                selectedTime={selectedTime}
+                setSelectedTime={setSelectedTime}
+                getAvailableTimes={getAvailableTimes}
+                onBack={() => setStep(1)}
+                onContinue={() => setStep(3)}
+              />
+            )}
+            {step === 3 && (
+              <ClientStep
+                AREAS={AREAS}
+                selectedArea={selectedArea}
+                selectedDate={selectedDate}
+                selectedTime={selectedTime}
+                formData={formData}
+                setFormData={setFormData}
+                onBack={() => setStep(2)}
+                onSubmit={handleSubmit}
+                submitting={submitting}
+              />
+            )}
+          </AnimatePresence>
+        </div>
       </div>
-    </div>
-  );
+    );
+  } catch (err) {
+    if (typeof window !== "undefined") {
+      console.error("[AgendamentoForm] Erro de renderização:", err);
+    }
+    return (
+      <div className="p-8 text-center text-red-500">
+        Ocorreu um erro ao carregar o formulário de agendamento.<br />
+        Tente recarregar a página ou entre em contato com o suporte.<br />
+        <pre style={{ color: 'red', marginTop: 16 }}>{err?.message}</pre>
+      </div>
+    );
+  }
 }
