@@ -6,6 +6,7 @@ const GOLD = "#C5A059";
 const OBSIDIAN = "#050706";
 const PARCHMENT = "#F4F1EA";
 
+export default function SuccessStep({ selectedDate, selectedTime }) {
   return (
     <div style={{ background: OBSIDIAN, minHeight: "100vh" }}>
       <section className="relative py-20 sm:py-32 px-4 sm:px-6 overflow-hidden">
