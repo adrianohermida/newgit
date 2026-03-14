@@ -32,7 +32,6 @@ export default function AgendamentoForm() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
-
   const [slotsApiError, setSlotsApiError] = useState(false);
   useEffect(() => {
     const fetchSlots = async () => {
@@ -58,6 +57,30 @@ export default function AgendamentoForm() {
           }
         }
       }
+      // ...existing code...
+    };
+    fetchSlots();
+  }, [currentMonth]);
+
+  // Centralização do formulário na tela
+  return (
+    <div className="flex items-center justify-center min-h-[80vh]">
+      <div className="w-full">
+        <AnimatePresence mode="wait">
+          {step === 1 && (
+            <AreaStep
+              AREAS={AREAS}
+              selectedArea={selectedArea}
+              setSelectedArea={setSelectedArea}
+              onContinue={() => setStep(2)}
+            />
+          )}
+          {/* ...outros steps... */}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
       setAvailableSlots(slots);
       setSlotsApiError(!apiOk);
     };
