@@ -4,7 +4,7 @@ const isGithubPages = process.env.GITHUB_PAGES === 'true';
 const repo = 'newgit'; // Altere para o nome do seu repositório
 
 const nextConfig = {
-  output: 'export',
+  // output: 'export',
   // Para GitHub Pages, defina o basePath e assetPrefix
   basePath: isGithubPages ? `/${repo}` : '',
   assetPrefix: isGithubPages ? `/${repo}/` : '',
@@ -13,3 +13,5 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
+
+import('@opennextjs/cloudflare').then(m => m.initOpenNextCloudflareForDev());
