@@ -46,6 +46,7 @@ export default function AgendamentoForm() {
     return '/api'; // local/dev
   };
 
+
   useEffect(() => {
     const fetchSlots = async () => {
       const slots = {};
@@ -71,16 +72,33 @@ export default function AgendamentoForm() {
           }
         }
       }
-      // ...existing code...
+      setAvailableSlots(slots);
+      setSlotsApiError(!apiOk);
     };
     fetchSlots();
+    // eslint-disable-next-line
   }, [currentMonth]);
 
-  // Centralização do formulário na tela
+  // DEBUG: Log de estado
+  if (typeof window !== "undefined") {
+    console.log("[AgendamentoForm] step:", step, "success:", success, { selectedArea, selectedDate, selectedTime, formData });
+  }
+
+  if (success) {
+    return <SuccessStep selectedDate={selectedDate} selectedTime={selectedTime} />;
+  }
+
+  // Aviso para fallback estático
+  const FallbackWarning = () => slotsApiError ? (
+    <div style={{ background: '#fffbe6', color: '#bfa100', padding: 12, borderRadius: 8, marginBottom: 16, textAlign: 'center', fontWeight: 'bold' }}>
+      Aviso: Este formulário está em modo demonstração. Os horários exibidos são exemplos e o agendamento real só funcionará em ambiente com backend ativo.
+    </div>
+  ) : null;
 
   return (
-    <div className="flex items-center justify-center min-h-[80vh]">
-      <div className="w-full">
+    <div style={{ background: "#050706", minHeight: "100vh" }}>
+      <div className="max-w-6xl mx-auto px-6 pb-20">
+        <FallbackWarning />
         <AnimatePresence mode="wait">
           {step === 1 && (
             <AreaStep
@@ -90,7 +108,35 @@ export default function AgendamentoForm() {
               onContinue={() => setStep(2)}
             />
           )}
-          {/* ...outros steps... */}
+          {step === 2 && (
+            <DateStep
+              currentMonth={currentMonth}
+              handlePrevMonth={handlePrevMonth}
+              handleNextMonth={handleNextMonth}
+              getDaysInMonth={getDaysInMonth}
+              availableSlots={availableSlots}
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+              selectedTime={selectedTime}
+              setSelectedTime={setSelectedTime}
+              getAvailableTimes={getAvailableTimes}
+              onBack={() => setStep(1)}
+              onContinue={() => setStep(3)}
+            />
+          )}
+          {step === 3 && (
+            <ClientStep
+              AREAS={AREAS}
+              selectedArea={selectedArea}
+              selectedDate={selectedDate}
+              selectedTime={selectedTime}
+              formData={formData}
+              setFormData={setFormData}
+              onBack={() => setStep(2)}
+              onSubmit={handleSubmit}
+              submitting={submitting}
+            />
+          )}
         </AnimatePresence>
       </div>
     </div>
