@@ -33,10 +33,12 @@ export default function AgendamentoForm() {
   const [success, setSuccess] = useState(false);
 
 
+  const [slotsApiError, setSlotsApiError] = useState(false);
   useEffect(() => {
     const fetchSlots = async () => {
       const slots = {};
       const today = new Date();
+      let apiOk = true;
       for (let i = 1; i <= 30; i++) {
         const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i);
         if (date >= today && date.getDay() !== 0 && date.getDay() !== 6) {
@@ -48,13 +50,16 @@ export default function AgendamentoForm() {
               slots[dateStr] = data.slots;
             } else {
               slots[dateStr] = [];
+              apiOk = false;
             }
           } catch {
-            slots[dateStr] = [];
+            slots[dateStr] = ["09:00", "10:30", "14:00", "15:30", "17:00"];
+            apiOk = false;
           }
         }
       }
       setAvailableSlots(slots);
+      setSlotsApiError(!apiOk);
     };
     fetchSlots();
     // eslint-disable-next-line
@@ -132,15 +137,24 @@ export default function AgendamentoForm() {
     console.log("[AgendamentoForm] step:", step, "success:", success, { selectedArea, selectedDate, selectedTime, formData });
   }
 
+
   if (success) {
     return <SuccessStep selectedDate={selectedDate} selectedTime={selectedTime} />;
   }
+
+  // Aviso para fallback estático
+  const FallbackWarning = () => slotsApiError ? (
+    <div style={{ background: '#fffbe6', color: '#bfa100', padding: 12, borderRadius: 8, marginBottom: 16, textAlign: 'center', fontWeight: 'bold' }}>
+      Aviso: Este formulário está em modo demonstração. Os horários exibidos são exemplos e o agendamento real só funcionará em ambiente com backend ativo.
+    </div>
+  ) : null;
 
   // Fallback visual: se algo der errado, mostra um aviso e o formulário básico
   try {
     return (
       <div style={{ background: "#050706", minHeight: "100vh" }}>
         <div className="max-w-6xl mx-auto px-6 pb-20">
+          <FallbackWarning />
           <AnimatePresence mode="wait">
             {step === 1 && (
               <AreaStep
