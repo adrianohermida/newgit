@@ -30,6 +30,13 @@ export async function onRequestGet(context) {
   if (agendamento.status === 'confirmado') {
     return new Response('Agendamento já confirmado.', { status: 200 });
   }
+  // Expiração do token: 24h após criação
+  const criadoEm = new Date(agendamento.created_at);
+  const agora = new Date();
+  const expirado = (agora - criadoEm) > 24 * 60 * 60 * 1000;
+  if (expirado) {
+    return new Response('Este link de confirmação expirou. Solicite um novo agendamento.', { status: 410 });
+  }
 
   // Atualizar status para confirmado
   const updateResp = await fetch(`${supabaseUrl}/rest/v1/agendamentos?id=eq.${agendamento.id}`, {
