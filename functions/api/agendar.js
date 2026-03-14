@@ -49,10 +49,13 @@ export async function onRequestPost(context) {
     return new Response(JSON.stringify({ ok: false, error: 'Horário já está ocupado. Escolha outro.' }), { status: 409, headers: { 'Content-Type': 'application/json' } });
   }
 
-  // Gerar ID único para o agendamento
-  const agendamentoId = uuidv4();
 
-  // Persistir no Supabase
+  // Gerar ID único e token de confirmação
+  const agendamentoId = uuidv4();
+  const tokenConfirmacao = uuidv4();
+
+
+  // Persistir no Supabase (inclui token de confirmação)
   const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const insertResp = await fetch(`${supabaseUrl}/rest/v1/agendamentos`, {
@@ -72,6 +75,7 @@ export async function onRequestPost(context) {
       data,
       hora,
       status: 'pendente',
+      token_confirmacao: tokenConfirmacao,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
@@ -100,8 +104,36 @@ export async function onRequestPost(context) {
   }
   const eventData = await eventResp.json();
 
-  // Envio de e-mail: use um serviço externo (MailChannels, Resend, etc) ou SMTP se disponível
-  // Aqui apenas simula sucesso
+
+  // Envio de e-mail de confirmação (MailChannels, Resend, etc)
+  // Exemplo: MailChannels (Cloudflare)
+  const siteUrl = env.SITE_URL || 'https://seusite.pages.dev';
+  const linkConfirmacao = `${siteUrl}/api/confirmar?token=${tokenConfirmacao}`;
+  const emailBody = `Olá, ${nome}!\n\nRecebemos seu pedido de agendamento para ${data} às ${hora}.\n\nPara confirmar, clique no link: ${linkConfirmacao}\n\nSe não foi você, ignore este e-mail.`;
+  const suporteBody = `Novo agendamento:\nNome: ${nome}\nE-mail: ${email}\nTelefone: ${telefone}\nÁrea: ${area}\nData: ${data}\nHora: ${hora}\nToken: ${tokenConfirmacao}`;
+
+  // Enviar para usuário
+  await fetch('https://api.mailchannels.net/tx/v1/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      personalizations: [{ to: [{ email }], dkim_domain: '', dkim_selector: '', dkim_private_key: '' }],
+      from: { email: 'nao-responda@hermidamaia.com.br', name: 'Hermida Maia' },
+      subject: 'Confirme seu agendamento',
+      content: [{ type: 'text/plain', value: emailBody }],
+    })
+  });
+  // Enviar para suporte
+  await fetch('https://api.mailchannels.net/tx/v1/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      personalizations: [{ to: [{ email: 'contato@hermidamaia.com.br' }] }],
+      from: { email: 'nao-responda@hermidamaia.com.br', name: 'Hermida Maia' },
+      subject: 'Novo agendamento recebido',
+      content: [{ type: 'text/plain', value: suporteBody }],
+    })
+  });
 
   return new Response(JSON.stringify({ ok: true, eventId: eventData.id, agendamentoId }), {
     status: 200,

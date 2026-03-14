@@ -33,17 +33,31 @@ export default function AgendamentoForm() {
   const [success, setSuccess] = useState(false);
 
   const [slotsApiError, setSlotsApiError] = useState(false);
+
+  // Utilitário para detectar endpoint serverless em produção
+  const getApiBase = () => {
+    if (typeof window !== 'undefined' && window.location.hostname.endsWith('pages.dev')) {
+      // Cloudflare Pages
+      return `https://${window.location.hostname}/api`;
+    }
+    if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_API_BASE_URL) {
+      return process.env.NEXT_PUBLIC_API_BASE_URL;
+    }
+    return '/api'; // local/dev
+  };
+
   useEffect(() => {
     const fetchSlots = async () => {
       const slots = {};
       const today = new Date();
       let apiOk = true;
+      const apiBase = getApiBase();
       for (let i = 1; i <= 30; i++) {
         const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i);
         if (date >= today && date.getDay() !== 0 && date.getDay() !== 6) {
           const dateStr = date.toISOString().split('T')[0];
           try {
-            const res = await fetch(`/api/slots?data=${dateStr}`);
+            const res = await fetch(`${apiBase}/slots?data=${dateStr}`);
             const data = await res.json();
             if (data.ok) {
               slots[dateStr] = data.slots;
