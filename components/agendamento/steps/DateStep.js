@@ -4,6 +4,7 @@ import { Calendar, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 const GOLD = "#C5A059";
 const PARCHMENT = "#F4F1EA";
 const GHOST = "#2D2E2E";
+const OBSIDIAN = "#050706";
 
 export default function DateStep({
   currentMonth,

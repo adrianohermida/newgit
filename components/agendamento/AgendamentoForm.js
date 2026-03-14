@@ -77,6 +77,7 @@ export default function AgendamentoForm() {
   }, [currentMonth]);
 
   // Centralização do formulário na tela
+
   return (
     <div className="flex items-center justify-center min-h-[80vh]">
       <div className="w-full">
@@ -95,12 +96,6 @@ export default function AgendamentoForm() {
     </div>
   );
 }
-      setAvailableSlots(slots);
-      setSlotsApiError(!apiOk);
-    };
-    fetchSlots();
-    // eslint-disable-next-line
-  }, [currentMonth]);
 
   const getDaysInMonth = () => {
     const year = currentMonth.getFullYear();
