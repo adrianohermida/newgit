@@ -1,7 +1,6 @@
 import { google } from 'googleapis';
 import nodemailer from 'nodemailer';
 // Integração real com Supabase ocorre nas Cloudflare Functions (functions/api/agendar.js)
-import { v4 as uuidv4 } from 'uuid';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
