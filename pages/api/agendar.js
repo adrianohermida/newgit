@@ -1,6 +1,6 @@
 import { google } from 'googleapis';
 import nodemailer from 'nodemailer';
-import { supabase } from '../../lib/supabase';
+// Integração real com Supabase ocorre nas Cloudflare Functions (functions/api/agendar.js)
 import { v4 as uuidv4 } from 'uuid';
 
 export default async function handler(req, res) {
@@ -53,24 +53,8 @@ export default async function handler(req, res) {
   // Gerar ID único para o agendamento
   const agendamentoId = uuidv4();
 
-  // Persistir no Supabase
-  const { error: supabaseError } = await supabase.from('agendamentos').insert([
-    {
-      id: agendamentoId,
-      nome,
-      email,
-      telefone,
-      area,
-      data,
-      hora,
-      status: 'pendente',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ]);
-  if (supabaseError) {
-    return res.status(500).json({ ok: false, error: 'Erro ao salvar agendamento.' });
-  }
+  // Integração real com Supabase ocorre nas Cloudflare Functions (functions/api/agendar.js)
+  // Aqui, apenas simula sucesso para build estático/local
 
   // Montar evento
   const event = {
