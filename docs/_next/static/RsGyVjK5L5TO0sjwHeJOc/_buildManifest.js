@@ -1,28 +1,33 @@
 self.__BUILD_MANIFEST = {
   "/": [
-    "static/chunks/7b880c0e3f6cfb37.js"
+    "static/chunks/e57d317b90487990.js"
   ],
   "/_error": [
-    "static/chunks/db51adb994839633.js"
+    "static/chunks/2224a21ec6cb75a8.js"
   ],
   "/agendamento": [
-    "static/chunks/e496f72c6ce1689b.js"
+    "static/chunks/09f133bc1343faf8.js"
   ],
   "/blog": [
-    "static/chunks/23b5a14b8d9e27ff.js"
+    "static/chunks/55ede497e60e3903.js"
   ],
   "/contato": [
-    "static/chunks/3a471d3936fe9fc0.js"
+    "static/chunks/b79fd6b45666b4bc.js"
   ],
   "/faq": [
-    "static/chunks/ee8a06c20e1e7add.js"
+    "static/chunks/93c95cf8c32698b1.js"
   ],
   "/servicos": [
-    "static/chunks/89752bcf81e098be.js"
+    "static/chunks/d5376fcadf09d0af.js"
   ],
   "__rewrites": {
     "afterFiles": [],
-    "beforeFiles": [],
+    "beforeFiles": [
+      {
+        "source": "/newgit//_next/:path+",
+        "destination": "/newgit/_next/:path+"
+      }
+    ],
     "fallback": []
   },
   "sortedPages": [
@@ -31,6 +36,7 @@ self.__BUILD_MANIFEST = {
     "/_error",
     "/agendamento",
     "/api/agendar",
+    "/api/slots",
     "/blog",
     "/contato",
     "/faq",
