@@ -189,7 +189,42 @@ export default function AgendamentoForm() {
     return availableSlots[dateStr] || [];
   };
 
-  const handleSubmit = async () => {
+
+  // Funções auxiliares devem estar dentro do componente para acessar o estado corretamente
+  function getDaysInMonth() {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+    const days = [];
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      const prevMonthDay = new Date(year, month, -i);
+      days.unshift({ day: prevMonthDay.getDate(), isPrevMonth: true, date: prevMonthDay });
+    }
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      days.push({ day, isPrevMonth: false, date });
+    }
+    return days;
+  }
+
+  function handlePrevMonth() {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+  }
+
+  function handleNextMonth() {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+  }
+
+  function getAvailableTimes() {
+    if (!selectedDate) return [];
+    const dateStr = selectedDate.toISOString().split('T')[0];
+    return availableSlots[dateStr] || [];
+  }
+
+  async function handleSubmit() {
     // Validação de campos obrigatórios
     if (!formData.nome || !formData.email || !formData.telefone || !selectedDate || !selectedTime) {
       alert("Por favor, preencha todos os campos obrigatórios: Nome, E-mail, Telefone, Data e Horário.");
@@ -197,7 +232,7 @@ export default function AgendamentoForm() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/agendar", {
+      const res = await fetch(`${getApiBase()}/agendar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -220,70 +255,5 @@ export default function AgendamentoForm() {
       alert("Erro ao realizar agendamento. Tente novamente.");
     }
     setSubmitting(false);
-  };
-
-
-  // DEBUG: Log de estado
-  if (typeof window !== "undefined") {
-    console.log("[AgendamentoForm] step:", step, "success:", success, { selectedArea, selectedDate, selectedTime, formData });
   }
-
-
-  if (success) {
-    return <SuccessStep selectedDate={selectedDate} selectedTime={selectedTime} />;
-  }
-
-  // Aviso para fallback estático
-  const FallbackWarning = () => slotsApiError ? (
-    <div style={{ background: '#fffbe6', color: '#bfa100', padding: 12, borderRadius: 8, marginBottom: 16, textAlign: 'center', fontWeight: 'bold' }}>
-      Aviso: Este formulário está em modo demonstração. Os horários exibidos são exemplos e o agendamento real só funcionará em ambiente com backend ativo.
-    </div>
-  ) : null;
-
-  return (
-    <div style={{ background: "#050706", minHeight: "100vh" }}>
-      <div className="max-w-6xl mx-auto px-6 pb-20">
-        <FallbackWarning />
-        <AnimatePresence mode="wait">
-          {step === 1 && (
-            <AreaStep
-              AREAS={AREAS}
-              selectedArea={selectedArea}
-              setSelectedArea={setSelectedArea}
-              onContinue={() => setStep(2)}
-            />
-          )}
-          {step === 2 && (
-            <DateStep
-              currentMonth={currentMonth}
-              handlePrevMonth={handlePrevMonth}
-              handleNextMonth={handleNextMonth}
-              getDaysInMonth={getDaysInMonth}
-              availableSlots={availableSlots}
-              selectedDate={selectedDate}
-              setSelectedDate={setSelectedDate}
-              selectedTime={selectedTime}
-              setSelectedTime={setSelectedTime}
-              getAvailableTimes={getAvailableTimes}
-              onBack={() => setStep(1)}
-              onContinue={() => setStep(3)}
-            />
-          )}
-          {step === 3 && (
-            <ClientStep
-              AREAS={AREAS}
-              selectedArea={selectedArea}
-              selectedDate={selectedDate}
-              selectedTime={selectedTime}
-              formData={formData}
-              setFormData={setFormData}
-              onBack={() => setStep(2)}
-              onSubmit={handleSubmit}
-              submitting={submitting}
-            />
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
-  );
 }

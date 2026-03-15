@@ -1,6 +1,6 @@
 import { google } from 'googleapis';
 import nodemailer from 'nodemailer';
-// Integração real com Supabase ocorre nas Cloudflare Functions (functions/api/agendar.js)
+import { v4 as uuidv4 } from 'uuid';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -22,17 +22,17 @@ export default async function handler(req, res) {
     });
   }
 
-  // Autenticação OAuth2 (use variáveis de ambiente para as credenciais)
+  // Sempre obter novo access token via refresh token
   const oAuth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
     process.env.GOOGLE_REDIRECT_URI
   );
-  // Sempre obter novo access token via refresh token
+  oAuth2Client.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
   let accessToken = null;
   try {
-    const { token } = await oAuth2Client.getAccessToken();
-    accessToken = token;
+    const tokenResponse = await oAuth2Client.refreshAccessToken();
+    accessToken = tokenResponse.credentials.access_token;
     oAuth2Client.setCredentials({ access_token: accessToken, refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
   } catch (e) {
     return res.status(500).json({ ok: false, error: 'Erro ao obter access token do Google.' });
