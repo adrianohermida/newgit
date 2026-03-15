@@ -36,6 +36,10 @@ export default function AgendamentoForm() {
 
   // Utilitário para detectar endpoint serverless em produção
   const getApiBase = () => {
+    if (typeof window !== 'undefined' && window.location.hostname.endsWith('github.io')) {
+      // Rodando no GitHub Pages, use o endpoint serverless real
+      return 'https://newgit.aetherlab.workers.dev/api';
+    }
     if (typeof window !== 'undefined' && window.location.hostname.endsWith('pages.dev')) {
       // Cloudflare Pages
       return `https://${window.location.hostname}/api`;
