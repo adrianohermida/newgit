@@ -36,13 +36,22 @@ export default function AgendamentoForm() {
 
   // Utilitário para detectar endpoint serverless em produção
   const getApiBase = () => {
-    if (typeof window !== 'undefined' && window.location.hostname.endsWith('github.io')) {
-      // Rodando no GitHub Pages, use o endpoint serverless real
-      return 'https://newgit.aetherlab.workers.dev/api';
-    }
-    if (typeof window !== 'undefined' && window.location.hostname.endsWith('pages.dev')) {
+    if (typeof window !== 'undefined') {
+      const host = window.location.hostname;
+      // GitHub Pages padrão ou domínio customizado
+      if (
+        host.endsWith('github.io') ||
+        host === 'adrianohermida.com.br' ||
+        host === 'www.adrianohermida.com.br' ||
+        host === 'hermidamaia.com.br' ||
+        host === 'www.hermidamaia.com.br'
+      ) {
+        return 'https://newgit.aetherlab.workers.dev/api';
+      }
       // Cloudflare Pages
-      return `https://${window.location.hostname}/api`;
+      if (host.endsWith('pages.dev')) {
+        return `https://${host}/api`;
+      }
     }
     if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_API_BASE_URL) {
       return process.env.NEXT_PUBLIC_API_BASE_URL;
