@@ -1,0 +1,12 @@
+name = "newgit"
+type = "javascript"
+account_id = "SUA_ACCOUNT_ID_AQUI"
+workers_dev = true
+compatibility_date = "2024-03-15"
+
+[vars]
+GOOGLE_ACCESS_TOKEN = "SUA_GOOGLE_ACCESS_TOKEN_AQUI"
+
+[site]
+bucket = "./public"
+entry-point = "functions"

@@ -1,0 +1,3 @@
+[
+  { "pattern": "/api/*", "zone_id": null, "custom_domain": null }
+]

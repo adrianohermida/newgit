@@ -21,11 +21,27 @@ export async function onRequestGet(context) {
   const dateEnd = `${data}T23:59:59-03:00`;
 
   try {
+    // 1. Obter access token usando refresh token
+    const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: env.GOOGLE_CLIENT_ID,
+        client_secret: env.GOOGLE_CLIENT_SECRET,
+        refresh_token: env.GOOGLE_OAUTH_REFRESH_TOKEN,
+        grant_type: 'refresh_token',
+      })
+    });
+    if (!tokenResp.ok) throw new Error('Erro ao obter access token do Google');
+    const tokenData = await tokenResp.json();
+    const accessToken = tokenData.access_token;
+
+    // 2. Consultar eventos do Google Calendar
     const calendarId = 'primary';
     const urlApi = `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?timeMin=${encodeURIComponent(dateStart)}&timeMax=${encodeURIComponent(dateEnd)}&singleEvents=true&orderBy=startTime`;
     const resp = await fetch(urlApi, {
       headers: {
-        'Authorization': `Bearer ${env.GOOGLE_ACCESS_TOKEN}`,
+        'Authorization': `Bearer ${accessToken}`,
       },
     });
     if (!resp.ok) throw new Error('Erro ao consultar Google Calendar');
