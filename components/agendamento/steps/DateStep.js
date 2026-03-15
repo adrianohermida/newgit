@@ -1,10 +1,5 @@
-import React from "react";
-import { Calendar, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 
-const GOLD = "#C5A059";
-const PARCHMENT = "#F4F1EA";
-const GHOST = "#2D2E2E";
-const OBSIDIAN = "#050706";
+import { GOLD, PARCHMENT, GHOST, OBSIDIAN } from "../colors";
 
 export default function DateStep({
   currentMonth,

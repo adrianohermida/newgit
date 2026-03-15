@@ -1,10 +1,5 @@
-import React from "react";
-import { motion } from "framer-motion";
-import { CheckCircle2 } from "lucide-react";
 
-const GOLD = "#C5A059";
-const OBSIDIAN = "#050706";
-const PARCHMENT = "#F4F1EA";
+import { GOLD, OBSIDIAN, PARCHMENT } from "../colors";
 
 export default function SuccessStep({ selectedDate, selectedTime }) {
   return (
