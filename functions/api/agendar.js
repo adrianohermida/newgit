@@ -26,11 +26,32 @@ export async function onRequestPost(context) {
   const slotStart = `${data}T${hora}:00-03:00`;
   const slotEndHour = String(Number(hora.split(':')[0]) + 1).padStart(2, '0');
   const slotEnd = `${data}T${slotEndHour}:${hora.split(':')[1]}:00-03:00`;
-  // Consulta FreeBusy via REST API
+
+  // 1. Obter access token usando refresh token
+  let accessToken = env.GOOGLE_ACCESS_TOKEN;
+  try {
+    const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: env.GOOGLE_CLIENT_ID,
+        client_secret: env.GOOGLE_CLIENT_SECRET,
+        refresh_token: env.GOOGLE_OAUTH_REFRESH_TOKEN,
+        grant_type: 'refresh_token',
+      })
+    });
+    if (!tokenResp.ok) throw new Error('Erro ao obter access token do Google');
+    const tokenData = await tokenResp.json();
+    accessToken = tokenData.access_token;
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: 'Erro ao obter access token do Google.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
+
+  // 2. Consulta FreeBusy via REST API
   const freebusyResp = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${env.GOOGLE_ACCESS_TOKEN}`,
+      'Authorization': `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -88,7 +109,7 @@ export async function onRequestPost(context) {
   const eventResp = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${env.GOOGLE_ACCESS_TOKEN}`,
+      'Authorization': `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
