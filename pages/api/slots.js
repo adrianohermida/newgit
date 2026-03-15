@@ -12,7 +12,15 @@ export default async function handler(req, res) {
     process.env.GOOGLE_CLIENT_SECRET,
     process.env.GOOGLE_REDIRECT_URI
   );
-  oAuth2Client.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
+  // Sempre obter novo access token via refresh token
+  let accessToken = null;
+  try {
+    const { token } = await oAuth2Client.getAccessToken();
+    accessToken = token;
+    oAuth2Client.setCredentials({ access_token: accessToken, refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: 'Erro ao obter access token do Google.' });
+  }
   const calendar = google.calendar({ version: 'v3', auth: oAuth2Client });
 
   // Defina os horários fixos possíveis
