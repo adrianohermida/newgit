@@ -25,7 +25,10 @@ export default function AgendamentoForm() {
   const [availableSlots, setAvailableSlots] = useState({});
   const [formData, setFormData] = useState({
     nome: "",
-
+    email: "",
+    telefone: "",
+    observacoes: ""
+  });
 
   useEffect(() => {
     const fetchSlots = async () => {
