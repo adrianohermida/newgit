@@ -162,11 +162,8 @@ export default function AgendamentoForm() {
     return <SuccessStep selectedDate={selectedDate} selectedTime={selectedTime} />;
   }
 
-  const FallbackWarning = () => slotsApiError ? (
-    <div style={{ background: '#fffbe6', color: '#bfa100', padding: 12, borderRadius: 8, marginBottom: 16, textAlign: 'center', fontWeight: 'bold' }}>
-      Aviso: Este formulário está em modo demonstração. Os horários exibidos são exemplos e o agendamento real só funcionará em ambiente com backend ativo.
-    </div>
-  ) : null;
+  // Aviso removido conforme solicitado
+  const FallbackWarning = () => null;
 
   return (
     <div style={{ background: "#050706", minHeight: "100vh" }}>

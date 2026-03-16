@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { label: "Calculadora", href: "/calculadora" },
   { label: "Blog", href: "/blog" },
   { label: "Contato", href: "/contato" },
+  { label: "Entrar", href: "https://hmdesk.freshdesk.com/support/login", external: true },
 ];
 
 function NavMenu({ isOpen, onClose }) {
@@ -170,6 +171,20 @@ export default function Layout({ children }) {
           {/* Desktop nav */}
           <nav className="hidden lg:flex items-center gap-10">
             {NAV_ITEMS.map((item) => {
+              if (item.external) {
+                return (
+                  <a
+                    key={item.label}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-semibold tracking-[0.12em] uppercase transition-colors duration-300 hover:text-[#C5A059]"
+                    style={{ color: "#F4F1EA" }}
+                  >
+                    {item.label}
+                  </a>
+                );
+              }
               const isActive = router.pathname === item.href || (item.href === "/servicos" && router.pathname.startsWith("/servicos"));
               return (
                 <Link key={item.label} href={item.href} legacyBehavior>
@@ -276,7 +291,28 @@ export default function Layout({ children }) {
                   <span className="text-[#C5A059] opacity-100">✉</span>
                   <span>contato@hermidamaia.com.br</span>
                 </li>
+                <li>
+                  <div className="mt-2">
+                    <h4 className="text-xs font-semibold tracking-[0.2em] uppercase mb-2" style={{ color: "#C5A059" }}>Horário</h4>
+                    <div className="text-sm opacity-50 space-y-2">
+                      <p>Seg — Sex: 08h às 18h</p>
+                      <p>Sáb: 09h às 13h</p>
+                      <p className="mt-4 text-xs">Atendimento emergencial 24h para clientes.</p>
+                    </div>
+                  </div>
+                </li>
               </ul>
+                        <div>
+                          <h4 className="text-xs font-semibold tracking-[0.2em] uppercase mb-8" style={{ color: "#C5A059" }}>Recursos</h4>
+                          <ul className="space-y-4 text-sm opacity-50">
+                            <li><a href="https://hmdesk.freshdesk.com/support/login" target="_blank" rel="noopener noreferrer" className="hover:text-[#C5A059] hover:opacity-100 transition-all">Área do Cliente</a></li>
+                            <li><a href="https://hmdesk.freshdesk.com/support/home" target="_blank" rel="noopener noreferrer" className="hover:text-[#C5A059] hover:opacity-100 transition-all">Central de Ajuda</a></li>
+                            <li><a href="https://hmdesk.freshdesk.com/support/tickets/new" target="_blank" rel="noopener noreferrer" className="hover:text-[#C5A059] hover:opacity-100 transition-all">Enviar um ticket</a></li>
+                            <li><a href="https://hmdesk.freshdesk.com/support/tickets" target="_blank" rel="noopener noreferrer" className="hover:text-[#C5A059] hover:opacity-100 transition-all">Meus Tickets</a></li>
+                            <li><a href="https://billing.stripe.com/p/login/eVa5og2B39i37MA144" target="_blank" rel="noopener noreferrer" className="hover:text-[#C5A059] hover:opacity-100 transition-all">2ª de Faturas</a></li>
+                            <li><a href="https://comunica.pje.jus.br/" target="_blank" rel="noopener noreferrer" className="hover:text-[#C5A059] hover:opacity-100 transition-all">Comunicações Processuais</a></li>
+                          </ul>
+                        </div>
             </div>
 
             <div>
