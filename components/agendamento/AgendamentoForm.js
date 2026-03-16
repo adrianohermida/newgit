@@ -29,12 +29,135 @@ export default function AgendamentoForm() {
     telefone: "",
     observacoes: ""
   });
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [slotsApiError, setSlotsApiError] = useState(false);
+
+  // Funções auxiliares devem estar dentro do componente para acessar o estado corretamente
+  function getDaysInMonth() {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+    const days = [];
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      const prevMonthDay = new Date(year, month, -i);
+      days.unshift({ day: prevMonthDay.getDate(), isPrevMonth: true, date: prevMonthDay });
+    }
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      days.push({ day, isPrevMonth: false, date });
+    }
+    return days;
+  }
+
+  function handlePrevMonth() {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+  }
+
+  function handleNextMonth() {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+  }
+
+  function getAvailableTimes() {
+    if (!selectedDate) return [];
+    const dateStr = selectedDate.toISOString().split('T')[0];
+    return availableSlots[dateStr] || [];
+  }
+
+  // Utilitário para detectar endpoint serverless em produção
+  const getApiBase = () => {
+    if (typeof window !== 'undefined') {
+      const host = window.location.hostname;
+      if (
+        host.endsWith('github.io') ||
+        host === 'adrianohermida.com.br' ||
+        host === 'www.adrianohermida.com.br' ||
+        host === 'hermidamaia.com.br' ||
+        host === 'www.hermidamaia.com.br'
+      ) {
+        return 'https://newgit.aetherlab.workers.dev/api';
+      }
+      if (host.endsWith('pages.dev')) {
+        return `https://${host}/api`;
+      }
+    }
+    if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_API_BASE_URL) {
+      return process.env.NEXT_PUBLIC_API_BASE_URL;
+    }
+    return '/api'; // local/dev
+  };
+
+  useEffect(() => {
+    const fetchSlots = async () => {
+      const slots = {};
+      const today = new Date();
+      let apiOk = true;
+      const apiBase = getApiBase();
+      for (let i = 1; i <= 30; i++) {
+        const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i);
+        if (date >= today && date.getDay() !== 0 && date.getDay() !== 6) {
+          const dateStr = date.toISOString().split('T')[0];
+          try {
+            const res = await fetch(`${apiBase}/slots?data=${dateStr}`);
+            const data = await res.json();
+            if (data.ok) {
+              slots[dateStr] = data.slots;
+            } else {
+              slots[dateStr] = [];
+              apiOk = false;
+            }
+          } catch {
+            slots[dateStr] = ["09:00", "10:30", "14:00", "15:30", "17:00"];
+            apiOk = false;
+          }
+        }
+      }
+      setAvailableSlots(slots);
+      setSlotsApiError(!apiOk);
+    };
+    fetchSlots();
+    // eslint-disable-next-line
+  }, [currentMonth]);
+
+  async function handleSubmit() {
+    if (!formData.nome || !formData.email || !formData.telefone || !selectedDate || !selectedTime) {
+      alert("Por favor, preencha todos os campos obrigatórios: Nome, E-mail, Telefone, Data e Horário.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${getApiBase()}/agendar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome: formData.nome,
+          email: formData.email,
+          telefone: formData.telefone,
+          observacoes: formData.observacoes,
+          area: AREAS.find(a => a.id === selectedArea)?.title,
+          data: selectedDate?.toISOString().split('T')[0],
+          hora: selectedTime,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setSuccess(true);
+      } else {
+        alert("Erro ao agendar: " + (data.error || "Tente novamente."));
+      }
+    } catch (error) {
+      alert("Erro ao realizar agendamento. Tente novamente.");
+    }
+    setSubmitting(false);
+  }
 
   if (success) {
     return <SuccessStep selectedDate={selectedDate} selectedTime={selectedTime} />;
   }
 
-  // Aviso para fallback estático
   const FallbackWarning = () => slotsApiError ? (
     <div style={{ background: '#fffbe6', color: '#bfa100', padding: 12, borderRadius: 8, marginBottom: 16, textAlign: 'center', fontWeight: 'bold' }}>
       Aviso: Este formulário está em modo demonstração. Os horários exibidos são exemplos e o agendamento real só funcionará em ambiente com backend ativo.
