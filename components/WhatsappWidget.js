@@ -1,20 +1,32 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 const whatsappNumber = "555131810323";
 const whatsappLink = `https://wa.me/${whatsappNumber}?text=Ol%C3%A1%2C%20gostaria%20de%20mais%20informa%C3%A7%C3%B5es%20sobre%20seus%20servi%C3%A7os.`;
 
+
 export default function WhatsappWidget() {
+  const [showPrimary, setShowPrimary] = useState(false);
+  const [showSecondary, setShowSecondary] = useState(false);
+  const timerRef = useRef();
+
   useEffect(() => {
-    // Exibe mensagem primária/ secundária após delay
-    const timer1 = setTimeout(() => {
-      const primary = document.querySelector('.wc_whatsapp_primary');
-      if (primary && window.innerWidth > 550) {
-        primary.style.display = 'flex';
+    // Simula cookie com localStorage
+    const cookieKey = "wc_whatsapp_primary";
+    const cookieValue = window.localStorage.getItem(cookieKey);
+    if (cookieValue !== "1") {
+      window.localStorage.setItem(cookieKey, "1");
+      timerRef.current = setTimeout(() => {
+        setShowPrimary(true);
+      }, 4000);
+    } else {
+      // Se for desktop, mostra secundária
+      if (window.innerWidth > 550) {
+        timerRef.current = setTimeout(() => {
+          setShowSecondary(true);
+        }, 4000);
       }
-    }, 4000);
-    return () => {
-      clearTimeout(timer1);
-    };
+    }
+    return () => clearTimeout(timerRef.current);
   }, []);
 
   // CSS inline para evitar dependência externa
@@ -57,7 +69,21 @@ export default function WhatsappWidget() {
           box-shadow: 7px 7px 15px 8px rgba(0,0,0,0.17);
           position: absolute;
           width: 350px;
-          display: none;
+          display: flex;
+          flex-direction: row;
+          ${!showPrimary ? 'display: none;' : ''}
+        }
+        .wc_whatsapp_secondary {
+          max-width: 300px;
+          display: ${showSecondary ? 'block' : 'none'};
+          position: absolute;
+          bottom: 70px;
+          left: 60px;
+          background: #fff;
+          border-radius: 5px;
+          box-shadow: 2px 2px 8px rgba(0,0,0,0.17);
+          padding: 10px;
+        }
         }
         .wc_whatsapp_primary p {
           margin: 20px;
@@ -81,11 +107,31 @@ export default function WhatsappWidget() {
         .wc_whatsapp_primary .close:hover { color: #f00; opacity: 1; }
       `}</style>
       <div className="wc_whatsapp_app right">
-        <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="wc_whatsapp" aria-label="Fale conosco pelo WhatsApp"></a>
-        <div className="wc_whatsapp_primary">
-          <button className="close" type="button" onClick={e => { e.target.closest('.wc_whatsapp_primary').style.display = 'none'; }}>×</button>
-          <p>👋 Olá! Tudo bem? Fale conosco pelo WhatsApp!</p>
-        </div>
+        <a
+          href={whatsappLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="wc_whatsapp"
+          aria-label="Fale conosco pelo WhatsApp"
+          onMouseEnter={() => setShowSecondary(false)}
+        ></a>
+        {showPrimary && (
+          <div className="wc_whatsapp_primary" onClick={() => { setShowPrimary(false); if (window.innerWidth > 550) setShowSecondary(true); }}>
+            <button className="close" type="button" onClick={e => { e.stopPropagation(); setShowPrimary(false); if (window.innerWidth > 550) setShowSecondary(true); }}>×</button>
+            <p>👋 Olá! Tudo bem? Fale conosco pelo WhatsApp!</p>
+          </div>
+        )}
+        {showSecondary && (
+          <a
+            href={whatsappLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="wc_whatsapp_secondary"
+            onClick={() => setShowSecondary(false)}
+          >
+            <p>Nossa equipe está esperando seu contato. Inicie uma conversa abaixo.</p>
+          </a>
+        )}
       </div>
     </>
   );
