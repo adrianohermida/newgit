@@ -2,6 +2,50 @@ import Layout from "../components/Layout";
 import Head from "next/head";
 
 export default function Contato() {
+  const [form, setForm] = React.useState({
+    name: '',
+    email: '',
+    phone: '',
+    subject: 'Revisão de Dívidas',
+    message: ''
+  });
+  const [loading, setLoading] = React.useState(false);
+  const [feedback, setFeedback] = React.useState(null);
+
+  const handleChange = e => {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async e => {
+    e.preventDefault();
+    setLoading(true);
+    setFeedback(null);
+    try {
+      const res = await fetch('/api/freshdesk-ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          subject: form.subject,
+          description: `${form.message}\nTelefone: ${form.phone}`,
+          custom_fields: {}
+        })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setFeedback('Mensagem enviada com sucesso! Em breve entraremos em contato.');
+        setForm({ name: '', email: '', phone: '', subject: 'Revisão de Dívidas', message: '' });
+      } else {
+        setFeedback('Erro ao enviar mensagem: ' + (data.error || 'Tente novamente.'));
+      }
+    } catch (err) {
+      setFeedback('Erro ao enviar mensagem: ' + err.message);
+    }
+    setLoading(false);
+  };
+
   return (
     <Layout>
       <Head>
@@ -14,25 +58,25 @@ export default function Contato() {
         {/* Formulário */}
         <div className="rounded-2xl bg-[#181a1b] p-8 shadow-xl shadow-[#C5A059]/5 border border-[#2D2E2E]" id="form">
           <h2 className="mb-6 text-2xl font-bold text-[#F4F1EA]">Envie uma Mensagem</h2>
-          <form className="space-y-4">
+          <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-semibold text-[#C5A059]">Nome Completo</label>
-                <input className="rounded-lg border-[#2D2E2E] bg-[#232323] p-3 text-[#F4F1EA] focus:border-[#C5A059] focus:ring-[#C5A059]" placeholder="Seu nome" type="text" />
+                <input name="name" value={form.name} onChange={handleChange} className="rounded-lg border-[#2D2E2E] bg-[#232323] p-3 text-[#F4F1EA] focus:border-[#C5A059] focus:ring-[#C5A059]" placeholder="Seu nome" type="text" required />
               </div>
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-semibold text-[#C5A059]">E-mail Corporativo</label>
-                <input className="rounded-lg border-[#2D2E2E] bg-[#232323] p-3 text-[#F4F1EA] focus:border-[#C5A059] focus:ring-[#C5A059]" placeholder="exemplo@email.com" type="email" />
+                <input name="email" value={form.email} onChange={handleChange} className="rounded-lg border-[#2D2E2E] bg-[#232323] p-3 text-[#F4F1EA] focus:border-[#C5A059] focus:ring-[#C5A059]" placeholder="exemplo@email.com" type="email" required />
               </div>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-semibold text-[#C5A059]">Telefone (WhatsApp)</label>
-                <input className="rounded-lg border-[#2D2E2E] bg-[#232323] p-3 text-[#F4F1EA] focus:border-[#C5A059] focus:ring-[#C5A059]" placeholder="(00) 00000-0000" type="tel" />
+                <input name="phone" value={form.phone} onChange={handleChange} className="rounded-lg border-[#2D2E2E] bg-[#232323] p-3 text-[#F4F1EA] focus:border-[#C5A059] focus:ring-[#C5A059]" placeholder="(00) 00000-0000" type="tel" />
               </div>
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-semibold text-[#C5A059]">Assunto</label>
-                <select className="rounded-lg border-[#2D2E2E] bg-[#232323] p-3 text-[#F4F1EA] focus:border-[#C5A059] focus:ring-[#C5A059]">
+                <select name="subject" value={form.subject} onChange={handleChange} className="rounded-lg border-[#2D2E2E] bg-[#232323] p-3 text-[#F4F1EA] focus:border-[#C5A059] focus:ring-[#C5A059]">
                   <option>Revisão de Dívidas</option>
                   <option>Recuperação Judicial</option>
                   <option>LGPD</option>
@@ -42,11 +86,12 @@ export default function Contato() {
             </div>
             <div className="flex flex-col gap-2">
               <label className="text-sm font-semibold text-[#C5A059]">Sua Mensagem</label>
-              <textarea className="rounded-lg border-[#2D2E2E] bg-[#232323] p-3 text-[#F4F1EA] focus:border-[#C5A059] focus:ring-[#C5A059]" placeholder="Como podemos ajudar?" rows={4}></textarea>
+              <textarea name="message" value={form.message} onChange={handleChange} className="rounded-lg border-[#2D2E2E] bg-[#232323] p-3 text-[#F4F1EA] focus:border-[#C5A059] focus:ring-[#C5A059]" placeholder="Como podemos ajudar?" rows={4} required></textarea>
             </div>
-            <button className="w-full rounded-lg bg-[#C5A059] py-4 font-bold text-[#050706] transition-transform hover:scale-[1.02]" type="submit">
-              Enviar Mensagem com Segurança
+            <button className="w-full rounded-lg bg-[#C5A059] py-4 font-bold text-[#050706] transition-transform hover:scale-[1.02]" type="submit" disabled={loading}>
+              {loading ? 'Enviando...' : 'Enviar Mensagem com Segurança'}
             </button>
+            {feedback && <div className="mt-4 text-center text-[#C5A059]">{feedback}</div>}
           </form>
         </div>
         {/* Contato Direto */}
