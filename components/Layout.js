@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
-// const basePath = (typeof window !== "undefined" && window.__NEXT_DATA__ && window.__NEXT_DATA__.assetPrefix) ? window.__NEXT_DATA__.assetPrefix : "";
-const basePath = (typeof window !== "undefined" && window.__NEXT_DATA__ && window.__NEXT_DATA__.assetPrefix) ? window.__NEXT_DATA__.assetPrefix : "";
 import { motion, AnimatePresence } from "framer-motion";
-
 import { useRouter } from "next/router";
+import dynamic from "next/dynamic";
+const WhatsappWidget = dynamic(() => import("./WhatsappWidget"), { ssr: false });
 
 const NAV_ITEMS = [
   { label: "Início", href: "/" },
@@ -26,12 +25,9 @@ function NavMenu({ isOpen, onClose }) {
           transition={{ duration: 0.6, ease: [0.76, 0, 0.24, 1] }}
           className="fixed inset-0 z-[100] flex items-center justify-center"
           style={{ background: "#050706" }}
-        import dynamic from "next/dynamic";
-        const WhatsappWidget = dynamic(() => import("./WhatsappWidget"), { ssr: false });
         >
           <div
-            <div className="min-h-screen flex flex-col bg-[#050706] text-[#F4F1EA]">
-              <WhatsappWidget />
+            className="absolute inset-0 opacity-20"
             style={{
               backgroundImage:
                 "url('https://sspvizogbcyigquqycsz.supabase.co/storage/v1/object/public/Images/perfil_1.webp')",

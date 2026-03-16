@@ -29,6 +29,8 @@ export default function AgendamentoForm() {
     telefone: "",
     observacoes: ""
   });
+  const [success, setSuccess] = useState(false);
+  const [slotsApiError, setSlotsApiError] = useState(false);
 
   useEffect(() => {
     const fetchSlots = async () => {
