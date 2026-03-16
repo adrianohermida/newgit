@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
   // Para domínio customizado, não use basePath nem assetPrefix
   images: { unoptimized: true },
 };
