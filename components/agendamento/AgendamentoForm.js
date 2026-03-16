@@ -91,16 +91,29 @@ export default function AgendamentoForm() {
         const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i);
         if (date >= today && date.getDay() !== 0 && date.getDay() !== 6) {
           const dateStr = date.toISOString().split('T')[0];
+          let data = null;
           try {
             const res = await fetch(`${apiBase}/slots?data=${dateStr}`);
-            const data = await res.json();
-            if (data.ok) {
+            if (res.status === 404) {
+              // Tenta buscar arquivo estático
+              const staticRes = await fetch(`/slots/${dateStr}.json`);
+              if (staticRes.ok) {
+                data = await staticRes.json();
+              } else {
+                data = { ok: true, slots: ["09:00", "10:30", "14:00", "15:30", "17:00"] };
+                apiOk = false;
+              }
+            } else {
+              data = await res.json();
+            }
+            if (data && data.ok) {
               slots[dateStr] = data.slots;
             } else {
               slots[dateStr] = [];
               apiOk = false;
             }
           } catch {
+            // fallback: mock slots
             slots[dateStr] = ["09:00", "10:30", "14:00", "15:30", "17:00"];
             apiOk = false;
           }
