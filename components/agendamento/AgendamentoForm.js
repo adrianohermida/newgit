@@ -38,8 +38,8 @@ export default function AgendamentoForm() {
     if (typeof window !== "undefined" && window.location.hostname === "localhost") {
       return "http://localhost:8787/api";
     }
-    // Para deploy estático (ex: GitHub Pages), usar caminho relativo
-    return "/api";
+    // Produção: usar domínio customizado
+    return "https://hermidamaia.adv.br/api";
   }
 
   // Funções para navegação de mês

@@ -128,7 +128,7 @@ export async function onRequestPost(context) {
 
   // Envio de e-mail de confirmação (MailChannels, Resend, etc)
   // Exemplo: MailChannels (Cloudflare)
-  const siteUrl = env.SITE_URL || 'https://seusite.pages.dev';
+  const siteUrl = env.SITE_URL || 'https://hermidamaia.adv.br';
   const linkConfirmacao = `${siteUrl}/api/confirmar?token=${tokenConfirmacao}`;
   const emailBody = `Olá, ${nome}!\n\nRecebemos seu pedido de agendamento para ${data} às ${hora}.\n\nPara confirmar, clique no link: ${linkConfirmacao}\n\nSe não foi você, ignore este e-mail.`;
   const suporteBody = `Novo agendamento:\nNome: ${nome}\nE-mail: ${email}\nTelefone: ${telefone}\nÁrea: ${area}\nData: ${data}\nHora: ${hora}\nToken: ${tokenConfirmacao}`;
