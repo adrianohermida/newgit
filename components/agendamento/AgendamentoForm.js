@@ -31,7 +31,56 @@ export default function AgendamentoForm() {
   });
   const [success, setSuccess] = useState(false);
   const [slotsApiError, setSlotsApiError] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
+  // Utilitário para obter a base da API (Cloudflare/produção ou local)
+  function getApiBase() {
+    if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+      return "http://localhost:8787/api";
+    }
+    // Para deploy estático (ex: GitHub Pages), usar caminho relativo
+    return "/api";
+  }
+
+  // Funções para navegação de mês
+  function handlePrevMonth() {
+    setCurrentMonth(prev => {
+      const d = new Date(prev);
+      d.setMonth(d.getMonth() - 1);
+      return d;
+    });
+  }
+  function handleNextMonth() {
+    setCurrentMonth(prev => {
+      const d = new Date(prev);
+      d.setMonth(d.getMonth() + 1);
+      return d;
+    });
+  }
+
+  // Retorna todos os dias do mês atual para o calendário
+  function getDaysInMonth() {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const days = [];
+    // Preencher dias do mês anterior para alinhar o calendário
+    for (let i = 0; i < firstDay.getDay(); i++) {
+      days.push({ date: new Date(year, month, i - firstDay.getDay() + 1), isPrevMonth: true });
+    }
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      days.push({ date: new Date(year, month, d), isPrevMonth: false });
+    }
+    return days;
+  }
+
+  // Retorna horários disponíveis para o dia selecionado
+  function getAvailableTimes(date) {
+    if (!date) return [];
+    const dateStr = date.toISOString().split('T')[0];
+    return availableSlots[dateStr] || [];
+  }
   useEffect(() => {
     const fetchSlots = async () => {
       const slots = {};

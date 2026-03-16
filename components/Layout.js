@@ -301,6 +301,7 @@ export default function Layout({ children }) {
           </div>
         </div>
       </footer>
+      <WhatsappWidget />
     </div>
   );
 }
