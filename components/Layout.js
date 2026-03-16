@@ -255,7 +255,7 @@ export default function Layout({ children }) {
                 </div>
               </div>
               <p className="text-sm leading-relaxed mb-8 opacity-50">
-                Escritório especializado em Direito Bancário e Proteção ao Consumidor com atuação em todo o território nacional.
+                Escritório especializado na Defesa do Devedor e Superendividamento com atuação em todo o território nacional.
               </p>
             </div>
 
