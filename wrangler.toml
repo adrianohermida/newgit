@@ -1,8 +1,6 @@
 
 name = "newgit"
 main = "functions/index.js"
-account_id = "SUA_ACCOUNT_ID_AQUI"
-workers_dev = true
 compatibility_date = "2024-03-15"
 
 [vars]
