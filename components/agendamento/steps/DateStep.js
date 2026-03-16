@@ -1,7 +1,7 @@
 
 
 import { GOLD, PARCHMENT, GHOST, OBSIDIAN } from "../colors";
-import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function DateStep({
   currentMonth,
@@ -21,7 +21,7 @@ export default function DateStep({
     <div className="flex flex-col gap-6 sm:gap-8 max-w-3xl mx-auto mt-6 mb-6">
       <div className="rounded-xl border bg-black/80 p-4 sm:p-8 shadow-lg" style={{ borderColor: GHOST }}>
         <div className="flex items-center gap-3 mb-6 sm:mb-8">
-          <Calendar size={24} style={{ color: GOLD }} />
+          <CalendarIcon size={24} style={{ color: GOLD }} />
           <h2 className="text-xl sm:text-2xl font-bold" style={{ color: PARCHMENT }}>Escolha Data e Horário</h2>
         </div>
         <div className="flex flex-col sm:flex-row gap-6 sm:gap-8">

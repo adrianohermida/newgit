@@ -8,7 +8,10 @@ export async function onRequestGet(context) {
   if (!data) {
     return new Response(JSON.stringify({ ok: false, error: 'Data não informada.' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
     });
   }
 
@@ -53,12 +56,18 @@ export async function onRequestGet(context) {
     const disponiveis = horariosPossiveis.filter(h => !ocupados.includes(h));
     return new Response(JSON.stringify({ ok: true, slots: disponiveis }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
     });
   } catch (error) {
-    return new Response(JSON.stringify({ ok: false, error: 'Erro ao consultar Google Calendar.' }), {
+    return new Response(JSON.stringify({ ok: false, error: error.message || 'Erro ao consultar Google Calendar.' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
     });
   }
 }
