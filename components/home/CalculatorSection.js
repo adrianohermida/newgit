@@ -13,6 +13,8 @@ export default function CalculatorSection() {
   const [debtAmount, setDebtAmount] = useState(50000);
   const [debtType, setDebtType] = useState("cartao_credito");
   const [whatsapp, setWhatsapp] = useState("");
+  const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const ref = useRef(null);
@@ -25,7 +27,10 @@ export default function CalculatorSection() {
   const [feedback, setFeedback] = useState(null);
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!whatsapp) return;
+    if (!nome || !email || !whatsapp) {
+      setFeedback('Por favor, preencha nome, e-mail e WhatsApp.');
+      return;
+    }
     setIsSubmitting(true);
     setFeedback(null);
     try {
@@ -33,8 +38,8 @@ export default function CalculatorSection() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: whatsapp,
-          email: 'lead@hermidamaia.adv.br',
+          name: nome,
+          email: email,
           subject: `Lead Calculadora - ${debtType}`,
           description: `Valor da dívida: R$ ${debtAmount}\nTipo: ${debtType}\nEconomia estimada: R$ ${savings}\nWhatsApp: ${whatsapp}`,
           custom_fields: {}
@@ -186,6 +191,44 @@ export default function CalculatorSection() {
                     </div>
                   </div>
 
+                  {/* Nome */}
+                  <div>
+                    <label className="text-xs font-semibold tracking-[0.15em] uppercase opacity-70 text-[#F4F1EA] block mb-3">
+                      SEU NOME
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Seu nome completo"
+                      value={nome}
+                      onChange={(e) => setNome(e.target.value)}
+                      className="w-full bg-transparent px-4 py-3 text-sm outline-none transition-colors"
+                      style={{ 
+                        border: "1px solid #2D2E2E",
+                        color: "#F4F1EA",
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = "#C5A059"}
+                      onBlur={(e) => e.target.style.borderColor = "#2D2E2E"}
+                    />
+                  </div>
+                  {/* E-mail */}
+                  <div>
+                    <label className="text-xs font-semibold tracking-[0.15em] uppercase opacity-70 text-[#F4F1EA] block mb-3">
+                      SEU E-MAIL
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full bg-transparent px-4 py-3 text-sm outline-none transition-colors"
+                      style={{ 
+                        border: "1px solid #2D2E2E",
+                        color: "#F4F1EA",
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = "#C5A059"}
+                      onBlur={(e) => e.target.style.borderColor = "#2D2E2E"}
+                    />
+                  </div>
                   {/* WhatsApp */}
                   <div>
                     <label className="text-xs font-semibold tracking-[0.15em] uppercase opacity-70 text-[#F4F1EA] block mb-3">
