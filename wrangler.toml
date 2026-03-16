@@ -1,7 +1,10 @@
 name = "newgit"
 main = "functions/index.js"
 compatibility_date = "2024-03-15"
-
+[build]
+command = "npm run build"
+[site]
+bucket = ".next"
 [vars]
 GOOGLE_ACCESS_TOKEN = "AIzaSyBf57fugs2soqY9woC4iuXlhBlRyhibsbQ"
 CLOUDFLARE_TOKEN = "3PcJElRGprp6ew19O7lYs1FLRfriflcw6zK552iP"
