@@ -22,21 +22,35 @@ export default function CalculatorSection() {
   const savings = Math.round(debtAmount * (selectedType?.rate || 0.5));
   const luminosity = Math.min(0.15, (debtAmount / 500000) * 0.15);
 
+  const [feedback, setFeedback] = useState(null);
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!whatsapp) return;
     setIsSubmitting(true);
-    // await base44.entities.Lead.create({
-    //   whatsapp,
-    //   debt_amount: debtAmount,
-    //   debt_type: debtType,
-    //   estimated_savings: savings,
-    //   status: "novo",
-    // });
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setSubmitted(true);
-    }, 1200); // Simulação de envio
+    setFeedback(null);
+    try {
+      const res = await fetch('/api/freshdesk-ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: whatsapp,
+          email: 'lead@hermidamaia.adv.br',
+          subject: `Lead Calculadora - ${debtType}`,
+          description: `Valor da dívida: R$ ${debtAmount}\nTipo: ${debtType}\nEconomia estimada: R$ ${savings}\nWhatsApp: ${whatsapp}`,
+          custom_fields: {}
+        })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setFeedback('Simulação enviada com sucesso! Um especialista entrará em contato.');
+        setSubmitted(true);
+      } else {
+        setFeedback('Erro ao enviar simulação: ' + (data.error || 'Tente novamente.'));
+      }
+    } catch (err) {
+      setFeedback('Erro ao enviar simulação: ' + err.message);
+    }
+    setIsSubmitting(false);
   };
 
   const formatCurrency = (value) => {
@@ -203,10 +217,10 @@ export default function CalculatorSection() {
                   >
                     {isSubmitting ? "Enviando..." : "Calcular Economia →"}
                   </button>
-
                   <p className="text-[10px] text-center opacity-40 text-[#F4F1EA]">
                     Ao simular, você concorda com nossa Política de Privacidade.
                   </p>
+                  {feedback && <div className="mt-4 text-center text-[#C5A059]">{feedback}</div>}
                 </form>
               ) : (
                 <div className="text-center py-12">

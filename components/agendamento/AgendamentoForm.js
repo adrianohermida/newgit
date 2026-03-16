@@ -132,7 +132,11 @@ export default function AgendamentoForm() {
       return;
     }
     setSubmitting(true);
+    let agendamentoOk = false;
+    let freshdeskOk = false;
+    let freshdeskError = null;
     try {
+      // Envia para API de agendamento
       const res = await fetch(`${getApiBase()}/agendar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -147,10 +151,33 @@ export default function AgendamentoForm() {
         }),
       });
       const data = await res.json();
-      if (data.ok) {
+      agendamentoOk = data.ok;
+      // Envia para Freshdesk
+      try {
+        const fdRes = await fetch('/api/freshdesk-ticket', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: formData.nome,
+            email: formData.email,
+            subject: `Agendamento - ${AREAS.find(a => a.id === selectedArea)?.title}`,
+            description: `Telefone: ${formData.telefone}\nData: ${selectedDate?.toISOString().split('T')[0]}\nHora: ${selectedTime}\nObservações: ${formData.observacoes}`,
+            custom_fields: {}
+          })
+        });
+        const fdData = await fdRes.json();
+        freshdeskOk = fdData.ok;
+        freshdeskError = fdData.error || null;
+      } catch (err) {
+        freshdeskError = err.message;
+      }
+      if (agendamentoOk) {
         setSuccess(true);
       } else {
         alert("Erro ao agendar: " + (data.error || "Tente novamente."));
+      }
+      if (!freshdeskOk) {
+        alert("Aviso: Ticket não foi aberto no Freshdesk. " + (freshdeskError || "Tente novamente."));
       }
     } catch (error) {
       alert("Erro ao realizar agendamento. Tente novamente.");
