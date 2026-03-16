@@ -239,6 +239,7 @@ export default function Layout({ children }) {
 
         <div className="relative z-10 mx-auto max-w-7xl px-6 pt-20 pb-10">
           <div className="grid gap-12 lg:grid-cols-4 mb-16">
+            {/* Coluna 1: Institucional */}
             <div className="lg:col-span-1">
               <div className="flex items-center gap-3 mb-8">
                 <div className="w-10 h-10 flex items-center justify-center border border-[#C5A059]/40">
@@ -258,6 +259,7 @@ export default function Layout({ children }) {
               </p>
             </div>
 
+            {/* Coluna 2: Navegação */}
             <div>
               <h4 className="text-xs font-semibold tracking-[0.2em] uppercase mb-8" style={{ color: "#C5A059" }}>Navegação</h4>
               <ul className="space-y-4 text-sm opacity-50">
@@ -276,6 +278,20 @@ export default function Layout({ children }) {
               </ul>
             </div>
 
+            {/* Coluna 3: Recursos */}
+            <div>
+              <h4 className="text-xs font-semibold tracking-[0.2em] uppercase mb-8" style={{ color: "#C5A059" }}>Recursos</h4>
+              <ul className="space-y-4 text-sm opacity-50">
+                <li><a href="https://hmdesk.freshdesk.com/support/login" target="_blank" rel="noopener noreferrer" className="hover:text-[#C5A059] hover:opacity-100 transition-all">Área do Cliente</a></li>
+                <li><a href="https://hmdesk.freshdesk.com/support/home" target="_blank" rel="noopener noreferrer" className="hover:text-[#C5A059] hover:opacity-100 transition-all">Central de Ajuda</a></li>
+                <li><a href="https://hmdesk.freshdesk.com/support/tickets/new" target="_blank" rel="noopener noreferrer" className="hover:text-[#C5A059] hover:opacity-100 transition-all">Enviar um ticket</a></li>
+                <li><a href="https://hmdesk.freshdesk.com/support/tickets" target="_blank" rel="noopener noreferrer" className="hover:text-[#C5A059] hover:opacity-100 transition-all">Meus Tickets</a></li>
+                <li><a href="https://billing.stripe.com/p/login/eVa5og2B39i37MA144" target="_blank" rel="noopener noreferrer" className="hover:text-[#C5A059] hover:opacity-100 transition-all">2ª de Faturas</a></li>
+                <li><a href="https://comunica.pje.jus.br/" target="_blank" rel="noopener noreferrer" className="hover:text-[#C5A059] hover:opacity-100 transition-all">Comunicações Processuais</a></li>
+              </ul>
+            </div>
+
+            {/* Coluna 4: Contato (à direita) */}
             <div>
               <h4 className="text-xs font-semibold tracking-[0.2em] uppercase mb-8" style={{ color: "#C5A059" }}>Contato</h4>
               <ul className="space-y-5 text-sm opacity-50">
@@ -302,26 +318,6 @@ export default function Layout({ children }) {
                   </div>
                 </li>
               </ul>
-                        <div>
-                          <h4 className="text-xs font-semibold tracking-[0.2em] uppercase mb-8" style={{ color: "#C5A059" }}>Recursos</h4>
-                          <ul className="space-y-4 text-sm opacity-50">
-                            <li><a href="https://hmdesk.freshdesk.com/support/login" target="_blank" rel="noopener noreferrer" className="hover:text-[#C5A059] hover:opacity-100 transition-all">Área do Cliente</a></li>
-                            <li><a href="https://hmdesk.freshdesk.com/support/home" target="_blank" rel="noopener noreferrer" className="hover:text-[#C5A059] hover:opacity-100 transition-all">Central de Ajuda</a></li>
-                            <li><a href="https://hmdesk.freshdesk.com/support/tickets/new" target="_blank" rel="noopener noreferrer" className="hover:text-[#C5A059] hover:opacity-100 transition-all">Enviar um ticket</a></li>
-                            <li><a href="https://hmdesk.freshdesk.com/support/tickets" target="_blank" rel="noopener noreferrer" className="hover:text-[#C5A059] hover:opacity-100 transition-all">Meus Tickets</a></li>
-                            <li><a href="https://billing.stripe.com/p/login/eVa5og2B39i37MA144" target="_blank" rel="noopener noreferrer" className="hover:text-[#C5A059] hover:opacity-100 transition-all">2ª de Faturas</a></li>
-                            <li><a href="https://comunica.pje.jus.br/" target="_blank" rel="noopener noreferrer" className="hover:text-[#C5A059] hover:opacity-100 transition-all">Comunicações Processuais</a></li>
-                          </ul>
-                        </div>
-            </div>
-
-            <div>
-              <h4 className="text-xs font-semibold tracking-[0.2em] uppercase mb-8" style={{ color: "#C5A059" }}>Horário</h4>
-              <div className="text-sm opacity-50 space-y-2">
-                <p>Seg — Sex: 08h às 18h</p>
-                <p>Sáb: 09h às 13h</p>
-                <p className="mt-4 text-xs">Atendimento emergencial 24h para clientes.</p>
-              </div>
             </div>
           </div>
 
