@@ -1,6 +1,8 @@
 
 import { GOLD, OBSIDIAN, PARCHMENT, GHOST } from "../colors";
 import { User } from "lucide-react";
+import Input from "../../ui/input";
+import Textarea from "../../ui/textarea";
 
 export default function ClientStep({
   AREAS,
