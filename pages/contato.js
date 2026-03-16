@@ -62,7 +62,7 @@ export default function Contato() {
               </div>
               <div>
                 <p className="font-bold text-[#F4F1EA]">Endereço</p>
-                <p className="text-[#C5A059]">Av. Paulista, 1000 - 15º Andar Bela Vista, Sâo Paulo- SP</p>
+                <p className="text-[#C5A059]">Av. Dolores Alcaraz Caldas, 90, 8º Andar – Praia de Belas, CEP 90110-180 - Porto Alegre/ RS</p>
               </div>
             </div>
             <div className="flex items-start gap-4">
