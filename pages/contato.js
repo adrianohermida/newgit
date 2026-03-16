@@ -62,7 +62,7 @@ export default function Contato() {
               </div>
               <div>
                 <p className="font-bold text-[#F4F1EA]">Endereço</p>
-                <p className="text-[#C5A059]">Av. Paulista, 1000 - 15º Andar<br/>Bela Vista, São Paulo - SP, 01310-100</p>
+                <p className="text-[#C5A059]">Av. Paulista, 1000 - 15º Andar Bela Vista, Sâo Paulo- SP</p>
               </div>
             </div>
             <div className="flex items-start gap-4">
@@ -71,7 +71,7 @@ export default function Contato() {
               </div>
               <div>
                 <p className="font-bold text-[#F4F1EA]">Telefone e WhatsApp</p>
-                <p className="text-[#C5A059]">+55 (11) 4003-0000</p>
+                <p className="text-[#C5A059]">+55 (51) 3181-0323</p>
               </div>
             </div>
             <div className="flex items-start gap-4">
