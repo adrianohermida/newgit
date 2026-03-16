@@ -7,11 +7,11 @@ export default async function handler(req, res) {
   const { data } = req.query; // data no formato YYYY-MM-DD
   if (!data) return res.status(400).json({ ok: false, error: 'Data não informada.' });
 
-  const oAuth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_CALENDAR_REDIRECT_URI
-  );
+    const oAuth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_CALENDAR_REDIRECT_URI
+    );
   // Sempre obter novo access token via refresh token
   let accessToken = null;
   try {
