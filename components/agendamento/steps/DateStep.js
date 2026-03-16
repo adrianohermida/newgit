@@ -1,5 +1,7 @@
 
+
 import { GOLD, PARCHMENT, GHOST, OBSIDIAN } from "../colors";
+import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function DateStep({
   currentMonth,

@@ -26,11 +26,12 @@ export default function Calculadora() {
             <button className="flex min-w-[120px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-5 bg-primary text-background-dark text-sm font-bold leading-normal tracking-[0.015em] hover:opacity-90 transition-opacity">
               Falar com Advogado
             </button>
-          </div>
+            <Layout>
+              <div className="flex-1">
         </header>
         <main className="flex-1">
-          {/* Hero & Simulator Section */}
-          <section className="px-6 md:px-20 py-12 md:py-20">
+              </div>
+            </Layout>
             <div className="max-w-[1200px] mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
               {/* Left: Content */}
               <div className="flex flex-col gap-6">

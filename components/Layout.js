@@ -26,9 +26,12 @@ function NavMenu({ isOpen, onClose }) {
           transition={{ duration: 0.6, ease: [0.76, 0, 0.24, 1] }}
           className="fixed inset-0 z-[100] flex items-center justify-center"
           style={{ background: "#050706" }}
+        import dynamic from "next/dynamic";
+        const WhatsappWidget = dynamic(() => import("./WhatsappWidget"), { ssr: false });
         >
           <div
-            className="absolute inset-0 opacity-20"
+            <div className="min-h-screen flex flex-col bg-[#050706] text-[#F4F1EA]">
+              <WhatsappWidget />
             style={{
               backgroundImage:
                 "url('https://sspvizogbcyigquqycsz.supabase.co/storage/v1/object/public/Images/perfil_1.webp')",
