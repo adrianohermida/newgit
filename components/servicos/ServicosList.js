@@ -134,13 +134,13 @@ function ServiceBlock({ service, index }) {
             >
               {cta.label}
               <CtaIcon size={16} />
-            </button>
-          );
-          if (ctaVariant === "outline") return (
-            <button
-              className="mt-4 flex items-center gap-2 rounded-lg border-2 px-6 py-3 font-bold transition-all hover:bg-[#C5A059] hover:text-[#050706]"
-              style={{ borderColor: "#C5A059", color: "#C5A059" }}
-            >
+                <button
+                  key={time}
+                  onClick={() => setSelectedTime(time)}
+                  className={`px-3 py-2 rounded-lg font-bold text-xs sm:text-sm transition-all ${selectedTime === time ? 'bg-[#C5A059] text-black ring-2 ring-[#C5A059]' : 'bg-black/40 text-[#F4F1EA] hover:bg-[#C5A059]/10 hover:text-[#C5A059]'}`}
+                >
+                  {time}
+                </button>
               {cta.label}
               <CtaIcon size={16} />
             </button>

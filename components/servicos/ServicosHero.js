@@ -29,7 +29,7 @@ export default function ServicosHero() {
             Estratégias jurídicas de elite em Direito Bancário e Reestruturação de Passivos. Soluções sob medida para quem exige rigor técnico e discrição absoluta.
           </p>
           <div className="mt-12 flex flex-wrap gap-5">
-            <button className="rounded-full bg-primary px-10 py-5 text-sm font-black uppercase tracking-widest text-background-dark shadow-2xl shadow-primary/20 transition-all hover:scale-105 hover:shadow-primary/40">
+            <button className="rounded-full bg-primary px-10 py-5 text-sm font-black uppercase tracking-widest text-background-dark shadow-2xl shadow-primary/20 transition-all hover:scale-105 hover:bg-[#C5A059] hover:text-[#050706] hover:shadow-primary/40">
               Agendar Consultoria
             </button>
           </div>

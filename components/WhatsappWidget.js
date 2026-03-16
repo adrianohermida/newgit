@@ -23,7 +23,7 @@ export default function WhatsappWidget() {
   }, []);
 
   return (
-    <div className="wc_whatsapp_app right">
+    <div className="wc_whatsapp_app right" style={{ background: 'rgba(32, 34, 36, 0.95)', borderRadius: 16, boxShadow: '0 4px 24px #0008', padding: 0 }}>
       <a
         href={whatsappLink}
         target="_blank"

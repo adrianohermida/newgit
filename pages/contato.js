@@ -9,25 +9,6 @@ export default function Contato() {
         <meta name="description" content="Fale com um advogado especialista em superendividamento, revisão bancária, contratos, defesa contra juros abusivos, empréstimo consignado e direito bancário. Atendimento nacional." />
         <meta name="keywords" content="advogado, contato, superendividamento, revisão bancária, contratos, juros abusivo, empréstimo consignado, cartão de crédito, defesa do consumidor, direito bancário" />
       </Head>
-      {/* Hero Section */}
-      <section className="relative h-[400px] w-full overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-[#050706]/90 to-[#050706]/40 z-10" />
-        <img
-          alt="Escritório de advocacia elegante e moderno"
-          className="h-full w-full object-cover"
-          src="/perfil_2.jpg"
-        />
-        <div className="relative z-20 flex h-full flex-col items-center justify-center px-6 text-center">
-          <h1 className="text-4xl font-black tracking-tight text-white md:text-6xl">Fale Conosco</h1>
-          <p className="mt-4 max-w-2xl text-lg text-slate-200">
-            Estamos à disposição para oferecer consultoria jurídica especializada e soluções estratégicas para o seu caso. Excelência e discrição em cada atendimento.
-          </p>
-          <div className="mt-8 flex gap-4">
-            <a className="rounded-lg bg-[#C5A059] px-8 py-3 font-bold text-[#050706] hover:bg-[#C5A059]/90 transition-all" href="#form">Iniciar Contato</a>
-            <a className="rounded-lg border border-white/30 bg-white/10 px-8 py-3 font-bold text-white backdrop-blur-sm hover:bg-[#C5A059]/10 transition-all" href="#map">Ver Endereço</a>
-          </div>
-        </div>
-      </section>
       {/* Grid */}
       <section className="mx-auto grid max-w-7xl gap-12 px-6 py-20 lg:grid-cols-2 lg:px-12">
         {/* Formulário */}
@@ -116,23 +97,6 @@ export default function Contato() {
                 <span className="material-symbols-outlined text-xl text-[#C5A059]">work</span>
               </a>
             </div>
-          </div>
-        </div>
-      </section>
-      {/* Mapa */}
-      <section className="w-full h-[450px] bg-[#232323] relative" id="map">
-        <div className="absolute inset-0 grayscale opacity-60">
-          <img
-            alt="Mapa de localização em São Paulo"
-            className="w-full h-full object-cover"
-            src="/mapa_sp.jpg"
-          />
-        </div>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="bg-[#181a1b] p-6 rounded-xl shadow-2xl flex flex-col items-center gap-2 border border-[#C5A059]/20 z-20">
-            <span className="material-symbols-outlined text-[#C5A059] text-4xl">location_on</span>
-            <p className="font-bold text-center text-[#F4F1EA]">Nossa Sede</p>
-            <p className="text-xs text-[#C5A059]">Estamos aqui para recebê-lo.</p>
           </div>
         </div>
       </section>

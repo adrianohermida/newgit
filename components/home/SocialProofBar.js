@@ -13,11 +13,7 @@ export default function SocialProofBar() {
           Reconhecimento & Credibilidade
         </p>
         <div className="flex flex-wrap items-center justify-center gap-10 md:gap-16 opacity-25">
-          <span className="text-base md:text-xl font-bold uppercase font-serif" style={{ color: "#F4F1EA" }}>PRÊMIO NACIONAL ADVOCACIA & JUSTIÇA</span>
           <img src="/images/fenalaw-24-logo-branco.webp" alt="Fenalaw" style={{ height: 32, width: "auto", filter: "brightness(0) invert(1)" }} />
-          <img src="/images/migalhas.png" alt="Migalhas" style={{ height: 32, width: "auto", filter: "brightness(0) invert(1)" }} />
-          <span className="text-base md:text-xl font-bold uppercase font-serif" style={{ color: "#F4F1EA" }}>FENALAW</span>
-          <span className="text-base md:text-xl font-bold uppercase font-serif" style={{ color: "#F4F1EA" }}>MIGALHAS</span>
           <div className="flex items-center gap-2" style={{ color: "#F4F1EA" }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M9 12l2 2 4-4" />

@@ -75,7 +75,7 @@ export default function DateStep({
                 <button
                   key={time}
                   onClick={() => setSelectedTime(time)}
-                  className={`px-3 py-2 rounded-lg font-bold text-xs sm:text-sm transition-all ${selectedTime === time ? 'bg-[#C5A059] text-black ring-2 ring-[#C5A059]' : 'bg-black/40 text-[#F4F1EA]'}`}
+                  className={`px-3 py-2 rounded-lg font-bold text-xs sm:text-sm transition-all ${selectedTime === time ? 'bg-[#C5A059] text-black ring-2 ring-[#C5A059]' : 'bg-black/40 text-[#F4F1EA] hover:bg-[#C5A059]/10 hover:text-[#C5A059]'}`}
                 >
                   {time}
                 </button>
