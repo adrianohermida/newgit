@@ -26,6 +26,12 @@ export default function AgendamentoForm() {
   const [formData, setFormData] = useState({
     nome: "",
 
+
+  useEffect(() => {
+    const fetchSlots = async () => {
+      const slots = {};
+      const today = new Date();
+      let apiOk = true;
       const apiBase = getApiBase();
       for (let i = 1; i <= 30; i++) {
         const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i);
@@ -145,70 +151,4 @@ export default function AgendamentoForm() {
 
 
 
-  // Funções auxiliares devem estar dentro do componente para acessar o estado corretamente
-  function getDaysInMonth() {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-    const days = [];
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      const prevMonthDay = new Date(year, month, -i);
-      days.unshift({ day: prevMonthDay.getDate(), isPrevMonth: true, date: prevMonthDay });
-    }
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, month, day);
-      days.push({ day, isPrevMonth: false, date });
-    }
-    return days;
-  }
 
-  function handlePrevMonth() {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
-  }
-
-  function handleNextMonth() {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
-  }
-
-  function getAvailableTimes() {
-    if (!selectedDate) return [];
-    const dateStr = selectedDate.toISOString().split('T')[0];
-    return availableSlots[dateStr] || [];
-  }
-
-  async function handleSubmit() {
-    // Validação de campos obrigatórios
-    if (!formData.nome || !formData.email || !formData.telefone || !selectedDate || !selectedTime) {
-      alert("Por favor, preencha todos os campos obrigatórios: Nome, E-mail, Telefone, Data e Horário.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const res = await fetch(`${getApiBase()}/agendar`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nome: formData.nome,
-          email: formData.email,
-          telefone: formData.telefone,
-          observacoes: formData.observacoes,
-          area: AREAS.find(a => a.id === selectedArea)?.title,
-          data: selectedDate?.toISOString().split('T')[0],
-          hora: selectedTime,
-        }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setSuccess(true);
-      } else {
-        alert("Erro ao agendar: " + (data.error || "Tente novamente."));
-      }
-    } catch (error) {
-      alert("Erro ao realizar agendamento. Tente novamente.");
-    }
-    setSubmitting(false);
-  }
-  // ...restante do componente (JSX e retorno)
