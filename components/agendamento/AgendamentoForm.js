@@ -35,11 +35,12 @@ export default function AgendamentoForm() {
 
   // Utilitário para obter a base da API (Cloudflare/produção ou local)
   function getApiBase() {
+    // Cloudflare Pages Functions
     if (typeof window !== "undefined" && window.location.hostname === "localhost") {
-      return "http://localhost:8787/api";
+      return "http://localhost:8787/functions/api";
     }
-    // Produção: usar domínio customizado
-    return "https://hermidamaia.adv.br/api";
+    // Produção: usar Functions
+    return "/functions/api";
   }
 
   // Funções para navegação de mês
