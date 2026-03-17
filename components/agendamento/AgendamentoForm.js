@@ -35,12 +35,12 @@ export default function AgendamentoForm() {
 
   // Utilitário para obter a base da API (Cloudflare/produção ou local)
   function getApiBase() {
-    // Cloudflare Pages Functions
+    // Ambiente local (desenvolvimento)
     if (typeof window !== "undefined" && window.location.hostname === "localhost") {
-      return "http://localhost:8787/functions/api";
+      return "http://localhost:8787/api";
     }
-    // Produção: usar Functions
-    return "/functions/api";
+    // Produção: usar endpoint correto do Worker
+    return "/api";
   }
 
   // Funções para navegação de mês
@@ -92,21 +92,9 @@ export default function AgendamentoForm() {
         const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i);
         if (date >= today && date.getDay() !== 0 && date.getDay() !== 6) {
           const dateStr = date.toISOString().split('T')[0];
-          let data = null;
           try {
             const res = await fetch(`${apiBase}/slots?data=${dateStr}`);
-            if (res.status === 404) {
-              // Tenta buscar arquivo estático
-              const staticRes = await fetch(`/slots/${dateStr}.json`);
-              if (staticRes.ok) {
-                data = await staticRes.json();
-              } else {
-                data = { ok: true, slots: ["09:00", "10:30", "14:00", "15:30", "17:00"] };
-                apiOk = false;
-              }
-            } else {
-              data = await res.json();
-            }
+            const data = await res.json();
             if (data && data.ok) {
               slots[dateStr] = data.slots;
             } else {
@@ -114,8 +102,7 @@ export default function AgendamentoForm() {
               apiOk = false;
             }
           } catch {
-            // fallback: mock slots
-            slots[dateStr] = ["09:00", "10:30", "14:00", "15:30", "17:00"];
+            slots[dateStr] = [];
             apiOk = false;
           }
         }
