@@ -21,6 +21,10 @@ export default function Contato() {
 
   const handleSubmit = async e => {
     e.preventDefault();
+    if (!form.name || !form.email) {
+      setFeedback('Por favor, preencha nome e e-mail.');
+      return;
+    }
     setLoading(true);
     setFeedback(null);
     try {

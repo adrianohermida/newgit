@@ -127,8 +127,12 @@ export default function AgendamentoForm() {
   }, [currentMonth]);
 
   async function handleSubmit() {
-    if (!formData.nome || !formData.email || !formData.telefone || !selectedDate || !selectedTime) {
-      alert("Por favor, preencha todos os campos obrigatórios: Nome, E-mail, Telefone, Data e Horário.");
+    if (!formData.nome || !formData.email) {
+      alert("Por favor, preencha nome e e-mail.");
+      return;
+    }
+    if (!formData.telefone || !selectedDate || !selectedTime) {
+      alert("Por favor, preencha todos os campos obrigatórios: Telefone, Data e Horário.");
       return;
     }
     setSubmitting(true);
