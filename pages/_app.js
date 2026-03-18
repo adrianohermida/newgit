@@ -29,6 +29,15 @@ export default function App({ Component, pageProps }) {
         a.innerHTML = '<img border="none" src="https://fm.sendpul.se/8672e56ee69550b039f6b32e73b058d56692731/Site/booking.svg" alt="Book an appointment with Hermida Maia Advocacia using Setmore"/>';
         document.body.appendChild(a);
       }
+      // Freshsales Suite CRM Tracking
+      if (!document.getElementById('freshsales_crm_script')) {
+        const crmScript = document.createElement('script');
+        crmScript.id = 'freshsales_crm_script';
+        crmScript.src = '//eu.fw-cdn.com/10713913/375987.js';
+        crmScript.setAttribute('chat', 'false');
+        crmScript.async = true;
+        document.body.appendChild(crmScript);
+      }
     }
   }, []);
 
@@ -68,11 +77,6 @@ export default function App({ Component, pageProps }) {
           gtag('js', new Date());
           gtag('config', 'G-72669401');
         `}} />
-        {/* Freshsales Suite CRM Tracking */}
-        <script
-          src="//eu.fw-cdn.com/10713913/375987.js"
-          chat="false"
-        />
       </Head>
       <Component {...pageProps} />
     </>
