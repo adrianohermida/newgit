@@ -68,6 +68,11 @@ export default function App({ Component, pageProps }) {
           gtag('js', new Date());
           gtag('config', 'G-72669401');
         `}} />
+        {/* Freshsales Suite CRM Tracking */}
+        <script
+          src="//eu.fw-cdn.com/10713913/375987.js"
+          chat="false"
+        />
       </Head>
       <Component {...pageProps} />
     </>
