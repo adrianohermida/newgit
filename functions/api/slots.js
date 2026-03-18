@@ -8,12 +8,11 @@ export async function onRequestGet(context) {
 
   let accessToken = env.GOOGLE_ACCESS_TOKEN;
   try {
-    const params = new URLSearchParams({
-      client_id: env.GOOGLE_CLIENT_ID,
-      client_secret: env.GOOGLE_CLIENT_SECRET,
-      refresh_token: env.GOOGLE_OAUTH_REFRESH_TOKEN,
-      grant_type: 'refresh_token'
-    });
+    const params =
+      "client_id=" + encodeURIComponent(env.GOOGLE_CLIENT_ID) +
+      "&client_secret=" + encodeURIComponent(env.GOOGLE_CLIENT_SECRET) +
+      "&refresh_token=" + encodeURIComponent(env.GOOGLE_OAUTH_REFRESH_TOKEN) +
+      "&grant_type=refresh_token";
     const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
