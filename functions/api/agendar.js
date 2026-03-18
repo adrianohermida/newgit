@@ -32,11 +32,6 @@ export async function onRequestPost(context) {
   try {
     const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
-      import { google } from 'googleapis';
-      import nodemailer from 'nodemailer';
-      import { v4 as uuidv4 } from 'uuid';
-
-      export async function onRequestPost(context) {
       body: new URLSearchParams({
         client_id: env.GOOGLE_CLIENT_ID,
         client_secret: env.GOOGLE_CLIENT_SECRET,
