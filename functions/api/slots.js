@@ -56,7 +56,6 @@ export async function onRequestGet(context) {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
-  }
 
   // Dependendo do ambiente, você pode usar fetch para acessar a API do Google Calendar diretamente
   // Aqui, um exemplo de fetch para a API REST do Google Calendar (usando OAuth2 token já obtido)
