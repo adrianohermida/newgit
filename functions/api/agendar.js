@@ -1,4 +1,5 @@
 
+
 // Função simples para gerar uuidv4-like (suficiente para ambiente Cloudflare)
 function uuidv4() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -74,11 +75,9 @@ export async function onRequestPost(context) {
     return new Response(JSON.stringify({ ok: false, error: 'Horário já está ocupado. Escolha outro.' }), { status: 409, headers: { 'Content-Type': 'application/json' } });
   }
 
-
   // Gerar ID único e token de confirmação
   const agendamentoId = uuidv4();
   const tokenConfirmacao = uuidv4();
-
 
   // Persistir no Supabase (inclui token de confirmação)
   const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
@@ -129,9 +128,7 @@ export async function onRequestPost(context) {
   }
   const eventData = await eventResp.json();
 
-
   // Envio de e-mail de confirmação (MailChannels, Resend, etc)
-  // Exemplo: MailChannels (Cloudflare)
   const siteUrl = env.SITE_URL || 'https://hermidamaia.adv.br';
   const linkConfirmacao = `${siteUrl}/api/confirmar?token=${tokenConfirmacao}`;
   const emailBody = `Olá, ${nome}!\n\nRecebemos seu pedido de agendamento para ${data} às ${hora}.\n\nPara confirmar, clique no link: ${linkConfirmacao}\n\nSe não foi você, ignore este e-mail.`;
