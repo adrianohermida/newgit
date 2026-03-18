@@ -1,6 +1,14 @@
 // Cloudflare Pages Function para agendamento
 // Adaptado para rodar em ambiente serverless (sem dependências Node.js exclusivas)
-import { v4 as uuidv4 } from 'uuid';
+
+// Importação dinâmica para ambientes serverless (Cloudflare não suporta import/export dinâmico dentro de funções)
+let uuidv4;
+try {
+  uuidv4 = (await import('uuid')).v4;
+} catch (e) {
+  // fallback para ambientes que não suportam import dinâmico
+  uuidv4 = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
 
 export async function onRequestPost(context) {
   const { request, env } = context;

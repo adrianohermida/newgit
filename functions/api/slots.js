@@ -20,9 +20,8 @@ export async function onRequestGet(context) {
           client_secret: env.GOOGLE_CLIENT_SECRET,
           refresh_token: env.GOOGLE_OAUTH_REFRESH_TOKEN,
           grant_type: 'refresh_token',
-        })
-      });
-      if (!tokenResp.ok) throw new Error('Erro ao obter access token do Google');
+        });
+      }
       const tokenData = await tokenResp.json();
       accessToken = tokenData.access_token;
     } catch (e) {
