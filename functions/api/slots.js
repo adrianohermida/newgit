@@ -7,7 +7,7 @@ export async function onRequestGet(context) {
   const data = url.searchParams.get('data');
     if (!data) {
       return new Response(JSON.stringify({ ok: false, error: 'Data não informada.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
-    }
+    // Chave extra removida
 
     // Obter access token
     let accessToken = env.GOOGLE_ACCESS_TOKEN;
