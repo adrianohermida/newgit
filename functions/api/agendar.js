@@ -1,6 +1,3 @@
-// Cloudflare Pages Function para agendamento
-// Adaptado para rodar em ambiente serverless (sem dependências Node.js exclusivas)
-
 
 // Função simples para gerar uuidv4-like (suficiente para ambiente Cloudflare)
 function uuidv4() {
