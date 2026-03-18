@@ -5,28 +5,28 @@ export async function onRequestGet(context) {
   const { request, env } = context;
   const url = new URL(request.url);
   const data = url.searchParams.get('data');
-    if (!data) {
-      return new Response(JSON.stringify({ ok: false, error: 'Data não informada.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
-    // Chave extra removida
+  if (!data) {
+    return new Response(JSON.stringify({ ok: false, error: 'Data não informada.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+  }
 
-    // Obter access token
-    let accessToken = env.GOOGLE_ACCESS_TOKEN;
-    try {
-      const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          client_id: env.GOOGLE_CLIENT_ID,
-          client_secret: env.GOOGLE_CLIENT_SECRET,
-          refresh_token: env.GOOGLE_OAUTH_REFRESH_TOKEN,
-          grant_type: 'refresh_token',
-        });
-      }
-      const tokenData = await tokenResp.json();
-      accessToken = tokenData.access_token;
-    } catch (e) {
-      return new Response(JSON.stringify({ ok: false, error: 'Erro ao obter access token do Google.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
-    }
+  // Obter access token
+  let accessToken = env.GOOGLE_ACCESS_TOKEN;
+  try {
+    const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: env.GOOGLE_CLIENT_ID,
+        client_secret: env.GOOGLE_CLIENT_SECRET,
+        refresh_token: env.GOOGLE_OAUTH_REFRESH_TOKEN,
+        grant_type: 'refresh_token',
+      })
+    });
+    const tokenData = await tokenResp.json();
+    accessToken = tokenData.access_token;
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: 'Erro ao obter access token do Google.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
 
     // Horários possíveis
     const horariosPossiveis = ["09:00", "10:30", "14:00", "15:30", "17:00"];
