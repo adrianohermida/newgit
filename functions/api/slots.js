@@ -1,4 +1,3 @@
-// Cloudflare Pages Function para retornar slots disponíveis do Google Calendar
 export async function onRequestGet(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -7,7 +6,6 @@ export async function onRequestGet(context) {
     return new Response(JSON.stringify({ ok: false, error: 'Data não informada.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
 
-  // Obter access token
   let accessToken = env.GOOGLE_ACCESS_TOKEN;
   try {
     const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
@@ -17,7 +15,7 @@ export async function onRequestGet(context) {
         client_id: env.GOOGLE_CLIENT_ID,
         client_secret: env.GOOGLE_CLIENT_SECRET,
         refresh_token: env.GOOGLE_OAUTH_REFRESH_TOKEN,
-        grant_type: 'refresh_token',
+        grant_type: 'refresh_token'
       })
     });
     if (!tokenResp.ok) throw new Error('Erro ao obter access token do Google');
@@ -27,16 +25,14 @@ export async function onRequestGet(context) {
     return new Response(JSON.stringify({ ok: false, error: 'Erro ao obter access token do Google.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 
-  // Horários possíveis
   const horariosPossiveis = ["09:00", "10:30", "14:00", "15:30", "17:00"];
   const dateStart = `${data}T00:00:00-03:00`;
   const dateEnd = `${data}T23:59:59-03:00`;
 
-  // Buscar eventos ocupados
   const eventsResp = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${dateStart}&timeMax=${dateEnd}&singleEvents=true&orderBy=startTime`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/json'
     }
   });
   if (!eventsResp.ok) {
@@ -48,11 +44,10 @@ export async function onRequestGet(context) {
     return start ? start.substring(11, 16) : null;
   }).filter(Boolean);
 
-  // Filtrar horários disponíveis
   const disponiveis = horariosPossiveis.filter(h => !ocupados.includes(h));
 
   return new Response(JSON.stringify({ ok: true, slots: disponiveis }), {
     status: 200,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' }
   });
 }
