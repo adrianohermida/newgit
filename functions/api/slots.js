@@ -1,7 +1,7 @@
 export async function onRequestGet(context) {
   const { request, env } = context;
   const url = new URL(request.url);
-  const data = url.searchParams.get('data');
+  const data = url.searchParams.get('data'); 
   if (!data) {
     return new Response(JSON.stringify({ ok: false, error: 'Data não informada.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
