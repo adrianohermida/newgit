@@ -18,11 +18,16 @@ export async function onRequestGet(context) {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params
     });
-    if (!tokenResp.ok) throw new Error('Erro ao obter access token do Google');
+    if (!tokenResp.ok) {
+      throw new Error('Erro ao obter access token do Google');
+    }
     const tokenData = await tokenResp.json();
     accessToken = tokenData.access_token;
   } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: 'Erro ao obter access token do Google.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return new Response(
+      JSON.stringify({ ok: false, error: 'Erro ao obter access token do Google.' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 
   const horariosPossiveis = ["09:00", "10:30", "14:00", "15:30", "17:00"];
