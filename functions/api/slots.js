@@ -24,7 +24,10 @@ export async function onRequestGet(context) {
     const tokenData = await tokenResp.json();
     accessToken = tokenData.access_token;
   } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: 'Erro ao obter access token do Google.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return new Response(
+      JSON.stringify({ ok: false, error: 'Erro ao obter access token do Google.' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 
   const horariosPossiveis = ["09:00", "10:30", "14:00", "15:30", "17:00"];
@@ -48,8 +51,11 @@ export async function onRequestGet(context) {
 
   const disponiveis = horariosPossiveis.filter(h => !ocupados.includes(h));
 
-  return new Response(JSON.stringify({ ok: true, slots: disponiveis }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' }
-  });
+  return new Response(
+    JSON.stringify({ ok: true, slots: disponiveis }),
+    {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    }
+  );
 }
