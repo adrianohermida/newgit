@@ -3,7 +3,8 @@
 // Testa o fluxo completo da API de agendamento contra o servidor local (wrangler pages dev)
 // Uso: npm run test:integration
 
-const BASE_URL = 'http://localhost:8787';
+// wrangler pages dev usa 8788 por padrão; wrangler dev usa 8787
+const BASE_URL = process.env.API_BASE_URL || 'http://localhost:8788';
 
 const PAYLOAD_AGENDAR = {
   nome: 'Teste CI',
@@ -103,11 +104,30 @@ async function testConfirmar(token) {
   }
 }
 
+async function checkServer() {
+  try {
+    await fetch(`${BASE_URL}/api/slots-month?mes=2026-01`, { signal: AbortSignal.timeout(3000) });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
   console.log('\n══════════════════════════════════════════════');
   console.log('  Teste de Integração — Hermida Maia API');
   console.log(`  Base URL: ${BASE_URL}`);
   console.log('══════════════════════════════════════════════\n');
+
+  const online = await checkServer();
+  if (!online) {
+    console.error(`❌  Servidor não encontrado em ${BASE_URL}`);
+    console.error('   Inicie o servidor antes de rodar os testes:');
+    console.error('   npx wrangler pages dev out\n');
+    console.error('   Para usar outra porta:');
+    console.error('   API_BASE_URL=http://localhost:8787 npm run test:integration\n');
+    process.exit(1);
+  }
 
   await testSlotsMonth();
 
