@@ -1,14 +1,35 @@
-# Como publicar no domínio hermidamaia.adv.br
+# Deploy do projeto
 
-1. Rode:
-   npm run build && npx next export
+Este repositorio deve publicar no projeto Cloudflare Pages `newgit-pages`.
 
-2. Faça deploy do conteúdo da pasta `out/` para o branch/pasta configurado no GitHub Pages OU para o serviço de hospedagem que aponta para hermidamaia.adv.br.
+O recurso `newgit` nao deve ser usado para deploy deste codigo. Se ele ainda existir no Cloudflare, mantenha-o apenas se tiver outra funcao operacional; caso contrario, remova-o ou deixe sem relacao com este repositorio para evitar conflito.
 
-3. No GitHub, configure o Pages para servir a partir da pasta /out (ou /docs, se preferir).
+## Cloudflare Pages
 
-4. No Cloudflare Pages, configure o domínio customizado hermidamaia.adv.br para apontar para o repositório e branch correto.
+Configure o projeto `newgit-pages` assim:
 
-5. Certifique-se de que o CNAME do domínio customizado está configurado para hermidamaia.adv.br.
+1. `Build command`: `npm run build`
+2. `Build output directory`: `out`
+3. `Deploy command`: deixe vazio
+4. Variaveis e secrets: configure os mesmos valores usados no ambiente local e no teste de integracao
 
-Pronto! Seu site estará disponível em https://hermidamaia.adv.br
+Deploy manual:
+
+```bash
+npm run deploy:pages
+```
+
+Deploy por GitHub Actions:
+
+- o workflow [`.github/workflows/nextjs.yml`](/workspaces/newgit/.github/workflows/nextjs.yml) publica em `newgit-pages`
+- exige `CLOUDFLARE_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` nos secrets do GitHub
+
+## Desenvolvimento local
+
+Para testar o runtime de Pages localmente:
+
+```bash
+npm run dev:pages
+```
+
+Isso sobe o site estatico e as `functions/api/*` com `wrangler pages dev`.

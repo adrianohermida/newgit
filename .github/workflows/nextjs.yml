@@ -33,4 +33,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy out --project-name=newgit --commit-dirty=true
+          command: pages deploy out --project-name=newgit-pages --commit-dirty=true
