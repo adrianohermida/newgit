@@ -4,6 +4,7 @@ import AreaStep from "./steps/AreaStep";
 import DateStep from "./steps/DateStep";
 import ClientStep from "./steps/ClientStep";
 import SuccessStep from "./steps/SuccessStep";
+import { formatDateKey } from "./dateUtils";
 
 // DEBUG: Log para garantir que o componente está sendo renderizado
 if (typeof window !== "undefined") {
@@ -79,7 +80,8 @@ export default function AgendamentoForm() {
   // Retorna horários disponíveis para o dia selecionado
   function getAvailableTimes(date) {
     if (!date) return [];
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = formatDateKey(date);
+    if (!dateStr) return [];
     return availableSlots[dateStr] || [];
   }
   useEffect(() => {
@@ -120,6 +122,8 @@ export default function AgendamentoForm() {
     let freshdeskOk = false;
     let freshdeskError = null;
     try {
+      const selectedDateKey = formatDateKey(selectedDate);
+
       // Envia para API de agendamento
       const res = await fetch(`${getApiBase()}/agendar`, {
         method: "POST",
@@ -130,7 +134,7 @@ export default function AgendamentoForm() {
           telefone: formData.telefone,
           observacoes: formData.observacoes,
           area: AREAS.find(a => a.id === selectedArea)?.title,
-          data: selectedDate?.toISOString().split('T')[0],
+          data: selectedDateKey,
           hora: selectedTime,
         }),
       });
@@ -145,7 +149,7 @@ export default function AgendamentoForm() {
             name: formData.nome,
             email: formData.email,
             subject: `Agendamento - ${AREAS.find(a => a.id === selectedArea)?.title}`,
-            description: `Telefone: ${formData.telefone}\nData: ${selectedDate?.toISOString().split('T')[0]}\nHora: ${selectedTime}\nObservações: ${formData.observacoes}`,
+            description: `Telefone: ${formData.telefone}\nData: ${selectedDateKey}\nHora: ${selectedTime}\nObservações: ${formData.observacoes}`,
             custom_fields: {}
           })
         });
@@ -223,7 +227,6 @@ export default function AgendamentoForm() {
     </div>
   );
 }
-
 
 
 

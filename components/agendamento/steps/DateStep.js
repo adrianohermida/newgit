@@ -3,6 +3,7 @@
 
 import { GOLD, PARCHMENT, GHOST, OBSIDIAN } from "../colors";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { formatDateKey } from "../dateUtils";
 
 export default function DateStep({
   currentMonth,
@@ -44,9 +45,9 @@ export default function DateStep({
             </div>
             <div className="grid grid-cols-7 gap-1">
               {getDaysInMonth().map((dayObj, i) => {
-                const dateStr = dayObj.date.toISOString().split('T')[0];
+                const dateStr = formatDateKey(dayObj.date);
                 const hasSlots = availableSlots[dateStr]?.length > 0;
-                const isSelected = selectedDate?.toISOString().split('T')[0] === dateStr;
+                const isSelected = formatDateKey(selectedDate) === dateStr;
                 const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
                 const isPast = dayObj.date < todayMidnight;
                 return (

@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-// ../.wrangler/tmp/bundle-9DdVZc/checked-fetch.js
+// ../.wrangler/tmp/bundle-vsQBYK/checked-fetch.js
 var urls = /* @__PURE__ */ new Set();
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
@@ -652,27 +652,46 @@ async function onRequestGet4(context) {
 __name(onRequestGet4, "onRequestGet");
 
 // _middleware.js
-var VARS_OBRIGATORIAS = [
-  "GOOGLE_CLIENT_ID",
-  "GOOGLE_CLIENT_SECRET",
-  "GOOGLE_OAUTH_REFRESH_TOKEN",
-  "NEXT_PUBLIC_SUPABASE_URL",
-  "SUPABASE_SERVICE_ROLE_KEY",
-  "RESEND_API_KEY"
-];
+var VARS_POR_ROTA = {
+  "/api/slots": [
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "GOOGLE_OAUTH_REFRESH_TOKEN"
+  ],
+  "/api/slots-month": [
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "GOOGLE_OAUTH_REFRESH_TOKEN"
+  ],
+  "/api/agendar": [
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "GOOGLE_OAUTH_REFRESH_TOKEN",
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "RESEND_API_KEY"
+  ],
+  "/api/confirmar": [
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "RESEND_API_KEY"
+  ]
+};
 async function onRequest(context) {
   const { request, env, next } = context;
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/")) {
     return next();
   }
-  const ausentes = VARS_OBRIGATORIAS.filter((v) => !env[v]);
+  const varsObrigatorias = VARS_POR_ROTA[url.pathname] || [];
+  const ausentes = varsObrigatorias.filter((v) => !env[v]);
   if (ausentes.length > 0) {
     return new Response(
       JSON.stringify({
         ok: false,
         error: "Configura\xE7\xE3o incompleta no servidor. Vari\xE1veis de ambiente ausentes.",
-        ausentes
+        ausentes,
+        route: url.pathname
       }),
       {
         status: 500,
@@ -1230,7 +1249,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// ../.wrangler/tmp/bundle-9DdVZc/middleware-insertion-facade.js
+// ../.wrangler/tmp/bundle-vsQBYK/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -1262,7 +1281,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// ../.wrangler/tmp/bundle-9DdVZc/middleware-loader.entry.ts
+// ../.wrangler/tmp/bundle-vsQBYK/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;
