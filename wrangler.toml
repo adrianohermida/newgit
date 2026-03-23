@@ -1,14 +1,11 @@
 name = "newgit"
-main = "functions/index.js"
 compatibility_date = "2024-03-15"
-[build]
-command = "npm run build"
-[site]
-bucket = "out"
-# Secrets devem ser configurados via Cloudflare Dashboard ou:
-#   wrangler secret put GOOGLE_CLIENT_ID
-#   wrangler secret put GOOGLE_CLIENT_SECRET
-#   wrangler secret put GOOGLE_OAUTH_REFRESH_TOKEN
-#   wrangler secret put NEXT_PUBLIC_SUPABASE_URL
-#   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
-#   wrangler secret put SITE_URL
+pages_build_output_dir = "out"
+
+# Secrets configurados via Cloudflare Dashboard > Pages > Settings > Environment Variables:
+#   GOOGLE_CLIENT_ID
+#   GOOGLE_CLIENT_SECRET
+#   GOOGLE_OAUTH_REFRESH_TOKEN
+#   NEXT_PUBLIC_SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY
+#   SITE_URL

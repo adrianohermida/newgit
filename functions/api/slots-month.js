@@ -1,3 +1,13 @@
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+export async function onRequestOptions() {
+  return new Response(null, { status: 204, headers: CORS });
+}
+
 // Retorna todos os slots disponíveis de um mês inteiro em uma única chamada
 // GET /api/slots-month?mes=YYYY-MM
 export async function onRequestGet(context) {
@@ -7,7 +17,7 @@ export async function onRequestGet(context) {
   if (!mes || !/^\d{4}-\d{2}$/.test(mes)) {
     return new Response(JSON.stringify({ ok: false, error: 'Parâmetro "mes" inválido. Use o formato YYYY-MM.' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...CORS, 'Content-Type': 'application/json' },
     });
   }
 
@@ -30,7 +40,7 @@ export async function onRequestGet(context) {
   } catch {
     return new Response(JSON.stringify({ ok: false, error: 'Erro ao autenticar com Google Calendar.' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...CORS, 'Content-Type': 'application/json' },
     });
   }
 
@@ -53,7 +63,7 @@ export async function onRequestGet(context) {
   if (!eventsResp.ok) {
     return new Response(JSON.stringify({ ok: false, error: 'Erro ao consultar eventos do Google Calendar.' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...CORS, 'Content-Type': 'application/json' },
     });
   }
   const eventsData = await eventsResp.json();
@@ -96,6 +106,6 @@ export async function onRequestGet(context) {
 
   return new Response(JSON.stringify({ ok: true, slots: slotsPorDia }), {
     status: 200,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...CORS, 'Content-Type': 'application/json' },
   });
 }
