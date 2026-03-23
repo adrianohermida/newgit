@@ -94,11 +94,14 @@ async function onRequestPost(context) {
         grant_type: "refresh_token"
       })
     });
-    if (!tokenResp.ok) throw new Error("Erro ao obter access token do Google");
+    if (!tokenResp.ok) {
+      const errBody = await tokenResp.json().catch(() => ({}));
+      throw new Error(errBody.error_description || errBody.error || `HTTP ${tokenResp.status}`);
+    }
     const tokenData = await tokenResp.json();
     accessToken = tokenData.access_token;
   } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: "Erro ao obter access token do Google." }), { status: 500, headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ ok: false, error: "Erro ao obter access token do Google.", detail: e.message }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
   const freebusyResp = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
     method: "POST",
@@ -449,11 +452,14 @@ async function onRequestGet3(context) {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params
     });
-    if (!tokenResp.ok) throw new Error("Falha ao obter access token");
+    if (!tokenResp.ok) {
+      const errBody = await tokenResp.json().catch(() => ({}));
+      throw new Error(errBody.error_description || errBody.error || `HTTP ${tokenResp.status}`);
+    }
     const tokenData = await tokenResp.json();
     accessToken = tokenData.access_token;
-  } catch {
-    return new Response(JSON.stringify({ ok: false, error: "Erro ao autenticar com Google Calendar." }), {
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: "Erro ao autenticar com Google Calendar.", detail: e.message }), {
       status: 500,
       headers: { ...CORS, "Content-Type": "application/json" }
     });

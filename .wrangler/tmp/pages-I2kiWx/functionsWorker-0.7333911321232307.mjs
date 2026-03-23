@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-// ../.wrangler/tmp/bundle-eQ6Weg/checked-fetch.js
+// ../.wrangler/tmp/bundle-tU2O5Z/checked-fetch.js
 var urls = /* @__PURE__ */ new Set();
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
@@ -66,11 +66,14 @@ async function onRequestPost(context) {
         grant_type: "refresh_token"
       })
     });
-    if (!tokenResp.ok) throw new Error("Erro ao obter access token do Google");
+    if (!tokenResp.ok) {
+      const errBody = await tokenResp.json().catch(() => ({}));
+      throw new Error(errBody.error_description || errBody.error || `HTTP ${tokenResp.status}`);
+    }
     const tokenData = await tokenResp.json();
     accessToken = tokenData.access_token;
   } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: "Erro ao obter access token do Google." }), { status: 500, headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ ok: false, error: "Erro ao obter access token do Google.", detail: e.message }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
   const freebusyResp = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
     method: "POST",
@@ -421,11 +424,14 @@ async function onRequestGet3(context) {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params
     });
-    if (!tokenResp.ok) throw new Error("Falha ao obter access token");
+    if (!tokenResp.ok) {
+      const errBody = await tokenResp.json().catch(() => ({}));
+      throw new Error(errBody.error_description || errBody.error || `HTTP ${tokenResp.status}`);
+    }
     const tokenData = await tokenResp.json();
     accessToken = tokenData.access_token;
-  } catch {
-    return new Response(JSON.stringify({ ok: false, error: "Erro ao autenticar com Google Calendar." }), {
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: "Erro ao autenticar com Google Calendar.", detail: e.message }), {
       status: 500,
       headers: { ...CORS, "Content-Type": "application/json" }
     });
@@ -1125,7 +1131,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// ../.wrangler/tmp/bundle-eQ6Weg/middleware-insertion-facade.js
+// ../.wrangler/tmp/bundle-tU2O5Z/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -1157,7 +1163,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// ../.wrangler/tmp/bundle-eQ6Weg/middleware-loader.entry.ts
+// ../.wrangler/tmp/bundle-tU2O5Z/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

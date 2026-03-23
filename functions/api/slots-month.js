@@ -34,11 +34,14 @@ export async function onRequestGet(context) {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params,
     });
-    if (!tokenResp.ok) throw new Error('Falha ao obter access token');
+    if (!tokenResp.ok) {
+      const errBody = await tokenResp.json().catch(() => ({}));
+      throw new Error(errBody.error_description || errBody.error || `HTTP ${tokenResp.status}`);
+    }
     const tokenData = await tokenResp.json();
     accessToken = tokenData.access_token;
-  } catch {
-    return new Response(JSON.stringify({ ok: false, error: 'Erro ao autenticar com Google Calendar.' }), {
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: 'Erro ao autenticar com Google Calendar.', detail: e.message }), {
       status: 500,
       headers: { ...CORS, 'Content-Type': 'application/json' },
     });
