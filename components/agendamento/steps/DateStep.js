@@ -47,7 +47,8 @@ export default function DateStep({
                 const dateStr = dayObj.date.toISOString().split('T')[0];
                 const hasSlots = availableSlots[dateStr]?.length > 0;
                 const isSelected = selectedDate?.toISOString().split('T')[0] === dateStr;
-                const isPast = dayObj.date < new Date();
+                const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
+                const isPast = dayObj.date < todayMidnight;
                 return (
                   <button
                     key={i}
@@ -60,7 +61,7 @@ export default function DateStep({
                       opacity: dayObj.isPrevMonth || !hasSlots || isPast ? 0.3 : 1,
                     }}
                   >
-                    {dayObj.day}
+                    {dayObj.date.getDate()}
                   </button>
                 );
               })}
@@ -72,7 +73,7 @@ export default function DateStep({
               <span className="font-bold text-xs sm:text-base" style={{ color: PARCHMENT }}>Horários disponíveis</span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {getAvailableTimes().map((time, idx) => (
+              {getAvailableTimes(selectedDate).map((time, idx) => (
                 <button
                   key={time}
                   onClick={() => setSelectedTime(time)}

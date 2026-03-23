@@ -5,6 +5,10 @@ compatibility_date = "2024-03-15"
 command = "npm run build"
 [site]
 bucket = ".next"
-[vars]
-GOOGLE_ACCESS_TOKEN = "AIzaSyBf57fugs2soqY9woC4iuXlhBlRyhibsbQ"
-CLOUDFLARE_TOKEN = "3PcJElRGprp6ew19O7lYs1FLRfriflcw6zK552iP"
+# Secrets devem ser configurados via Cloudflare Dashboard ou:
+#   wrangler secret put GOOGLE_CLIENT_ID
+#   wrangler secret put GOOGLE_CLIENT_SECRET
+#   wrangler secret put GOOGLE_OAUTH_REFRESH_TOKEN
+#   wrangler secret put NEXT_PUBLIC_SUPABASE_URL
+#   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+#   wrangler secret put SITE_URL

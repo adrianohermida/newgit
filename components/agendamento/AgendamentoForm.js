@@ -84,31 +84,23 @@ export default function AgendamentoForm() {
   }
   useEffect(() => {
     const fetchSlots = async () => {
-      const slots = {};
-      const today = new Date();
-      let apiOk = true;
       const apiBase = getApiBase();
-      for (let i = 1; i <= 30; i++) {
-        const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i);
-        if (date >= today && date.getDay() !== 0 && date.getDay() !== 6) {
-          const dateStr = date.toISOString().split('T')[0];
-          try {
-            const res = await fetch(`${apiBase}/slots?data=${dateStr}`);
-            const data = await res.json();
-            if (data && data.ok) {
-              slots[dateStr] = data.slots;
-            } else {
-              slots[dateStr] = [];
-              apiOk = false;
-            }
-          } catch {
-            slots[dateStr] = [];
-            apiOk = false;
-          }
+      const ano = currentMonth.getFullYear();
+      const mes = String(currentMonth.getMonth() + 1).padStart(2, '0');
+      try {
+        const res = await fetch(`${apiBase}/slots-month?mes=${ano}-${mes}`);
+        const data = await res.json();
+        if (data && data.ok) {
+          setAvailableSlots(data.slots);
+          setSlotsApiError(false);
+        } else {
+          setAvailableSlots({});
+          setSlotsApiError(true);
         }
+      } catch {
+        setAvailableSlots({});
+        setSlotsApiError(true);
       }
-      setAvailableSlots(slots);
-      setSlotsApiError(!apiOk);
     };
     fetchSlots();
     // eslint-disable-next-line

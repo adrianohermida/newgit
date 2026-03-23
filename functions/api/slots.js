@@ -44,9 +44,16 @@ export async function onRequestGet(context) {
     return new Response(JSON.stringify({ ok: false, error: 'Erro ao consultar eventos.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
   const eventsData = await eventsResp.json();
+  const fmt = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
   const ocupados = (eventsData.items || []).map(ev => {
     const start = ev.start.dateTime || ev.start.date;
-    return start ? start.substring(11, 16) : null;
+    if (!start) return null;
+    return fmt.format(new Date(start));
   }).filter(Boolean);
 
   const disponiveis = horariosPossiveis.filter(h => !ocupados.includes(h));

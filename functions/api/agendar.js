@@ -128,6 +128,20 @@ export async function onRequestPost(context) {
     return new Response(JSON.stringify({ ok: false, error: 'Erro ao criar evento no Google Calendar.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
   const eventData = await eventResp.json();
+  const googleEventId = eventData.id || null;
+
+  // Atualizar registro no Supabase com o ID do evento do Google Calendar
+  if (googleEventId) {
+    await fetch(`${supabaseUrl}/rest/v1/agendamentos?id=eq.${agendamentoId}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ google_event_id: googleEventId, updated_at: new Date().toISOString() }),
+    });
+  }
 
   // Envio de e-mail de confirmação (MailChannels, Resend, etc)
   const siteUrl = env.SITE_URL || 'https://hermidamaia.adv.br';
@@ -140,7 +154,7 @@ export async function onRequestPost(context) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      personalizations: [{ to: [{ email }], dkim_domain: '', dkim_selector: '', dkim_private_key: '' }],
+      personalizations: [{ to: [{ email }] }],
       from: { email: 'nao-responda@hermidamaia.com.br', name: 'Hermida Maia' },
       subject: 'Confirme seu agendamento',
       content: [{ type: 'text/plain', value: emailBody }],
