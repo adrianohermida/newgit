@@ -1,17 +1,14 @@
-// Endpoint para receber dados do formulário e criar ticket no Freshdesk
-import { createFreshdeskTicket } from '../../lib/freshdesk';
-
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).end();
-
-  try {
-    const { name, email, subject, description, priority, status, custom_fields } = req.body;
-    if (!name || !email || !subject || !description) {
-      return res.status(400).json({ ok: false, error: 'Campos obrigatórios ausentes.' });
-    }
-    const ticket = await createFreshdeskTicket({ name, email, subject, description, priority, status, custom_fields });
-    return res.status(200).json({ ok: true, ticket });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message });
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    return res.status(405).json({ ok: false, error: 'Method not allowed.' });
   }
+
+  return res.status(410).json({
+    ok: false,
+    error: 'Endpoint legado desativado. Use a implementação canônica em Cloudflare Pages Functions.',
+    route: '/api/freshdesk-ticket',
+    canonical_runtime: 'functions/api/freshdesk-ticket.js',
+    hint: 'Para desenvolvimento local, execute `npm run dev:pages` e teste a rota via Wrangler Pages.',
+  });
 }

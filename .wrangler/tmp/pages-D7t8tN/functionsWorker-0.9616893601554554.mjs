@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-// ../.wrangler/tmp/bundle-4W4p1s/checked-fetch.js
+// ../.wrangler/tmp/bundle-lUhVO9/checked-fetch.js
 var urls = /* @__PURE__ */ new Set();
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
@@ -489,6 +489,59 @@ async function onRequestGet(context) {
 }
 __name(onRequestGet, "onRequestGet");
 
+// api/freshdesk-ticket.js
+var JSON_HEADERS = { "Content-Type": "application/json" };
+async function onRequestPost2(context) {
+  const { request, env } = context;
+  try {
+    const { name, email, subject, description, priority = 1, status = 2, custom_fields = {} } = await request.json();
+    if (!name || !email || !subject || !description) {
+      return new Response(JSON.stringify({ ok: false, error: "Campos obrigat\xF3rios ausentes." }), {
+        status: 400,
+        headers: JSON_HEADERS
+      });
+    }
+    const res = await fetch(`${env.FRESHDESK_DOMAIN}/api/v2/tickets`, {
+      method: "POST",
+      headers: {
+        Authorization: env.FRESHDESK_BASIC_TOKEN,
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify({
+        name,
+        email,
+        subject,
+        description,
+        priority,
+        status,
+        custom_fields
+      })
+    });
+    const body = await res.json().catch(async () => ({ raw: await res.text().catch(() => "") }));
+    if (!res.ok) {
+      return new Response(JSON.stringify({
+        ok: false,
+        error: typeof body === "object" ? body.description || body.message || "Erro ao criar ticket no Freshdesk." : "Erro ao criar ticket no Freshdesk.",
+        detail: body
+      }), {
+        status: 500,
+        headers: JSON_HEADERS
+      });
+    }
+    return new Response(JSON.stringify({ ok: true, ticket: body }), {
+      status: 200,
+      headers: JSON_HEADERS
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ ok: false, error: error.message || "Erro ao processar ticket." }), {
+      status: 500,
+      headers: JSON_HEADERS
+    });
+  }
+}
+__name(onRequestPost2, "onRequestPost");
+
 // api/slots.js
 async function onRequestGet2(context) {
   const { request, env } = context;
@@ -753,6 +806,13 @@ var VARS_POR_ROTA = {
       "RESEND_API_KEY"
     ],
     oneOf: []
+  },
+  "/api/freshdesk-ticket": {
+    required: [
+      "FRESHDESK_DOMAIN",
+      "FRESHDESK_BASIC_TOKEN"
+    ],
+    oneOf: []
   }
 };
 async function onRequest(context) {
@@ -807,6 +867,13 @@ var routes = [
     method: "GET",
     middlewares: [],
     modules: [onRequestGet]
+  },
+  {
+    routePath: "/api/freshdesk-ticket",
+    mountPath: "/api",
+    method: "POST",
+    middlewares: [],
+    modules: [onRequestPost2]
   },
   {
     routePath: "/api/slots",
@@ -1332,7 +1399,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// ../.wrangler/tmp/bundle-4W4p1s/middleware-insertion-facade.js
+// ../.wrangler/tmp/bundle-lUhVO9/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -1364,7 +1431,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// ../.wrangler/tmp/bundle-4W4p1s/middleware-loader.entry.ts
+// ../.wrangler/tmp/bundle-lUhVO9/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

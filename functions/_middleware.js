@@ -36,6 +36,13 @@ const VARS_POR_ROTA = {
     ],
     oneOf: [],
   },
+  '/api/freshdesk-ticket': {
+    required: [
+      'FRESHDESK_DOMAIN',
+      'FRESHDESK_BASIC_TOKEN',
+    ],
+    oneOf: [],
+  },
 };
 
 export async function onRequest(context) {

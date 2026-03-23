@@ -1,5 +1,6 @@
 import { onRequestPost as __api_agendar_js_onRequestPost } from "/workspaces/newgit/functions/api/agendar.js"
 import { onRequestGet as __api_confirmar_js_onRequestGet } from "/workspaces/newgit/functions/api/confirmar.js"
+import { onRequestPost as __api_freshdesk_ticket_js_onRequestPost } from "/workspaces/newgit/functions/api/freshdesk-ticket.js"
 import { onRequestGet as __api_slots_js_onRequestGet } from "/workspaces/newgit/functions/api/slots.js"
 import { onRequestGet as __api_slots_month_js_onRequestGet } from "/workspaces/newgit/functions/api/slots-month.js"
 import { onRequestOptions as __api_slots_month_js_onRequestOptions } from "/workspaces/newgit/functions/api/slots-month.js"
@@ -21,6 +22,13 @@ export const routes = [
       method: "GET",
       middlewares: [],
       modules: [__api_confirmar_js_onRequestGet],
+    },
+  {
+      routePath: "/api/freshdesk-ticket",
+      mountPath: "/api",
+      method: "POST",
+      middlewares: [],
+      modules: [__api_freshdesk_ticket_js_onRequestPost],
     },
   {
       routePath: "/api/slots",
