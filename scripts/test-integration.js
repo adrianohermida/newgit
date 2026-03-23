@@ -3,19 +3,32 @@
 // Testa o fluxo completo da API de agendamento contra o servidor local (wrangler pages dev)
 // Uso: npm run test:integration
 
+const fs = require('fs');
+const path = require('path');
+
+loadLocalEnv();
+
 // wrangler pages dev usa 8788 por padrão; wrangler dev usa 8787
 const BASE_URL = process.env.API_BASE_URL || 'http://localhost:8788';
 
-const PAYLOAD_AGENDAR = {
-  nome: 'Teste CI',
-  email: 'dev@hermidamaia.com.br',
-  telefone: '11999999999',
-  area: 'Superendividamento',
-  data: '2026-04-15',
-  hora: '09:00',
-};
-
 const results = [];
+
+function loadLocalEnv() {
+  const envPath = path.join(process.cwd(), '.dev.vars');
+  if (!fs.existsSync(envPath)) return;
+
+  const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+  for (const line of lines) {
+    if (!line || line.trim().startsWith('#')) continue;
+    const idx = line.indexOf('=');
+    if (idx === -1) continue;
+    const key = line.slice(0, idx).trim();
+    const value = line.slice(idx + 1);
+    if (key && process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+}
 
 function log(step, status, detail = '') {
   const icon = status === 'PASS' ? '✅' : status === 'FAIL' ? '❌' : '⚠️ ';
@@ -40,9 +53,10 @@ function formatErrorBody(body) {
 }
 
 async function testSlotsMonth() {
-  const step = 'GET /api/slots-month?mes=2026-03';
+  const step = 'GET /api/slots-month?mes=...';
+  const targetMonth = process.env.TEST_MONTH || getSuggestedMonth();
   try {
-    const res = await fetch(`${BASE_URL}/api/slots-month?mes=2026-03`);
+    const res = await fetch(`${BASE_URL}/api/slots-month?mes=${targetMonth}`);
     const body = await res.json();
     if (!res.ok) {
       log(step, 'FAIL', `HTTP ${res.status}: ${body.error || JSON.stringify(body)}${formatErrorBody(body)}`);
@@ -54,27 +68,47 @@ async function testSlotsMonth() {
     }
     const totalDias = Object.keys(body.slots).length;
     const totalSlots = Object.values(body.slots).reduce((acc, s) => acc + s.length, 0);
-    log(step, 'PASS', `${totalDias} dias com slots, ${totalSlots} slots disponíveis no total`);
-    return body.slots;
+    const selected = pickFirstAvailableSlot(body.slots);
+    if (!selected) {
+      log(step, 'FAIL', `Nenhum slot disponível encontrado em ${targetMonth}`);
+      return null;
+    }
+    log(step, 'PASS', `${totalDias} dias com slots, ${totalSlots} slots disponíveis no total | escolhido ${selected.data} ${selected.hora}`);
+    return selected;
   } catch (err) {
     log(step, 'FAIL', err.message);
     return null;
   }
 }
 
-async function testAgendar() {
+async function testAgendar(slot) {
   const step = 'POST /api/agendar';
+  if (!slot) {
+    log(step, 'WARN', 'Pulado — nenhum slot válido disponível');
+    return null;
+  }
+
+  const payload = {
+    nome: 'Teste CI',
+    email: process.env.TEST_EMAIL || 'dev@hermidamaia.com.br',
+    telefone: '11999999999',
+    area: 'Superendividamento',
+    data: slot.data,
+    hora: slot.hora,
+    observacoes: 'Teste automatizado de integração',
+  };
+
   try {
     const res = await fetch(`${BASE_URL}/api/agendar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(PAYLOAD_AGENDAR),
+      body: JSON.stringify(payload),
     });
     const body = await res.json();
 
     // 409 = horário ocupado (slot real do Google Calendar) — aceitável em CI
     if (res.status === 409) {
-      log(step, 'WARN', `Horário ${PAYLOAD_AGENDAR.hora} já ocupado no Google Calendar (esperado em CI)`);
+      log(step, 'WARN', `Horário ${payload.hora} em ${payload.data} já ocupado no Google Calendar`);
       return null;
     }
     if (!res.ok || !body.ok) {
@@ -82,7 +116,37 @@ async function testAgendar() {
       return null;
     }
     log(step, 'PASS', `agendamentoId=${body.agendamentoId} | eventId=${body.eventId}`);
-    return body;
+    return { ...body, payload };
+  } catch (err) {
+    log(step, 'FAIL', err.message);
+    return null;
+  }
+}
+
+async function fetchTokenByAgendamentoId(agendamentoId) {
+  const step = 'Lookup token no Supabase';
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey || !agendamentoId) {
+    log(step, 'WARN', 'Pulado — credenciais do Supabase ou agendamentoId indisponíveis');
+    return null;
+  }
+
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/agendamentos?id=eq.${agendamentoId}&select=id,token_confirmacao,status,confirmed_at`, {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    const body = await res.json().catch(() => []);
+    if (!res.ok || !Array.isArray(body) || body.length === 0) {
+      log(step, 'FAIL', `HTTP ${res.status}: não foi possível localizar token para ${agendamentoId}`);
+      return null;
+    }
+    log(step, 'PASS', `token encontrado para ${agendamentoId}`);
+    return body[0].token_confirmacao;
   } catch (err) {
     log(step, 'FAIL', err.message);
     return null;
@@ -122,6 +186,57 @@ async function testConfirmar(token) {
   }
 }
 
+async function verifyConfirmedState(agendamentoId) {
+  const step = 'Verificar status confirmado no Supabase';
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey || !agendamentoId) {
+    log(step, 'WARN', 'Pulado — credenciais do Supabase ou agendamentoId indisponíveis');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/agendamentos?id=eq.${agendamentoId}&select=id,status,confirmed_at`, {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    const body = await res.json().catch(() => []);
+    if (!res.ok || !Array.isArray(body) || body.length === 0) {
+      log(step, 'FAIL', `HTTP ${res.status}: registro não encontrado`);
+      return;
+    }
+    const row = body[0];
+    if (row.status === 'confirmado' && row.confirmed_at) {
+      log(step, 'PASS', `status=${row.status} | confirmed_at=${row.confirmed_at}`);
+      return;
+    }
+    log(step, 'FAIL', `status=${row.status || 'desconhecido'} | confirmed_at=${row.confirmed_at || 'null'}`);
+  } catch (err) {
+    log(step, 'FAIL', err.message);
+  }
+}
+
+function getSuggestedMonth() {
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
+function pickFirstAvailableSlot(slotsByDay) {
+  const days = Object.keys(slotsByDay).sort();
+  for (const day of days) {
+    const horarios = Array.isArray(slotsByDay[day]) ? slotsByDay[day] : [];
+    if (horarios.length > 0) {
+      return { data: day, hora: horarios[0] };
+    }
+  }
+  return null;
+}
+
 async function checkServer() {
   try {
     await fetch(`${BASE_URL}/api/slots-month?mes=2026-01`, { signal: AbortSignal.timeout(3000) });
@@ -147,18 +262,18 @@ async function main() {
     process.exit(1);
   }
 
-  await testSlotsMonth();
+  const slot = await testSlotsMonth();
 
-  const agendarResult = await testAgendar();
-  const token = agendarResult?.agendamentoId
-    ? null // token_confirmacao não é retornado na resposta — buscamos por agendamentoId
+  const agendarResult = await testAgendar(slot);
+  const lookedUpToken = agendarResult?.agendamentoId
+    ? await fetchTokenByAgendamentoId(agendarResult.agendamentoId)
     : null;
 
-  // confirmar.js recebe o token_confirmacao, não o agendamentoId.
-  // Em CI, não temos como recuperar o token sem consultar o Supabase diretamente.
-  // Se quiser testar confirmar, passe o token via env: TOKEN_CONFIRMACAO=xxx npm run test:integration
   const tokenEnv = process.env.TOKEN_CONFIRMACAO || null;
-  await testConfirmar(tokenEnv);
+  await testConfirmar(lookedUpToken || tokenEnv);
+  if (agendarResult?.agendamentoId) {
+    await verifyConfirmedState(agendarResult.agendamentoId);
+  }
 
   // Relatório final
   console.log('\n══════════════════════════════════════════════');
