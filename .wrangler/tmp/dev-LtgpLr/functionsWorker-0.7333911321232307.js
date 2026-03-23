@@ -215,13 +215,36 @@ Observa\xE7\xF5es: ${observacoes}`,
     if (!updateResp.ok) {
       const updateDetail = await updateResp.text().catch(() => "");
       console.error("Supabase update google_event_id error:", updateDetail || updateResp.status);
+      const deleteEventResp = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(googleEventId)}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`
+        }
+      });
+      if (!deleteEventResp.ok) {
+        const deleteEventDetail = await deleteEventResp.text().catch(() => "");
+        console.error("Google Calendar rollback error:", deleteEventDetail || deleteEventResp.status);
+      }
+      const rollbackResp = await fetch(`${supabaseUrl}/rest/v1/agendamentos?id=eq.${agendamentoId}`, {
+        method: "DELETE",
+        headers: {
+          "apikey": supabaseKey,
+          "Authorization": `Bearer ${supabaseKey}`
+        }
+      });
+      if (!rollbackResp.ok) {
+        const rollbackDetail = await rollbackResp.text().catch(() => "");
+        console.error("Supabase rollback after update failure error:", rollbackDetail || rollbackResp.status);
+      }
       return new Response(JSON.stringify({
         ok: false,
         error: "Evento criado no Google Calendar, mas falha ao atualizar o Supabase.",
         detail: updateDetail || `HTTP ${updateResp.status}`,
         stage: "supabase_update_google_event_id",
         eventId: googleEventId,
-        agendamentoId
+        agendamentoId,
+        googleRollbackOk: deleteEventResp.ok,
+        supabaseRollbackOk: rollbackResp.ok
       }), {
         status: 500,
         headers: { "Content-Type": "application/json" }

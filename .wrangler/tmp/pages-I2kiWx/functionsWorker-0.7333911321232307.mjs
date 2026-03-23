@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-// ../.wrangler/tmp/bundle-dcr1zF/checked-fetch.js
+// ../.wrangler/tmp/bundle-NF84Um/checked-fetch.js
 var urls = /* @__PURE__ */ new Set();
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
@@ -187,13 +187,36 @@ Observa\xE7\xF5es: ${observacoes}`,
     if (!updateResp.ok) {
       const updateDetail = await updateResp.text().catch(() => "");
       console.error("Supabase update google_event_id error:", updateDetail || updateResp.status);
+      const deleteEventResp = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(googleEventId)}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`
+        }
+      });
+      if (!deleteEventResp.ok) {
+        const deleteEventDetail = await deleteEventResp.text().catch(() => "");
+        console.error("Google Calendar rollback error:", deleteEventDetail || deleteEventResp.status);
+      }
+      const rollbackResp = await fetch(`${supabaseUrl}/rest/v1/agendamentos?id=eq.${agendamentoId}`, {
+        method: "DELETE",
+        headers: {
+          "apikey": supabaseKey,
+          "Authorization": `Bearer ${supabaseKey}`
+        }
+      });
+      if (!rollbackResp.ok) {
+        const rollbackDetail = await rollbackResp.text().catch(() => "");
+        console.error("Supabase rollback after update failure error:", rollbackDetail || rollbackResp.status);
+      }
       return new Response(JSON.stringify({
         ok: false,
         error: "Evento criado no Google Calendar, mas falha ao atualizar o Supabase.",
         detail: updateDetail || `HTTP ${updateResp.status}`,
         stage: "supabase_update_google_event_id",
         eventId: googleEventId,
-        agendamentoId
+        agendamentoId,
+        googleRollbackOk: deleteEventResp.ok,
+        supabaseRollbackOk: rollbackResp.ok
       }), {
         status: 500,
         headers: { "Content-Type": "application/json" }
@@ -1187,7 +1210,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// ../.wrangler/tmp/bundle-dcr1zF/middleware-insertion-facade.js
+// ../.wrangler/tmp/bundle-NF84Um/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -1219,7 +1242,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// ../.wrangler/tmp/bundle-dcr1zF/middleware-loader.entry.ts
+// ../.wrangler/tmp/bundle-NF84Um/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;
