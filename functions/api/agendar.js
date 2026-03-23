@@ -237,7 +237,7 @@ export async function onRequestPost(context) {
 
   // Envio de e-mail via Resend (https://resend.com)
   const siteUrl = env.SITE_URL || 'https://hermidamaia.adv.br';
-  const linkConfirmacao = `${siteUrl}/api/confirmar?token=${tokenConfirmacao}`;
+  const linkConfirmacao = `${siteUrl}/confirmar?token=${tokenConfirmacao}`;
 
   const dataFormatada = new Date(`${data}T${hora}:00-03:00`).toLocaleDateString('pt-BR', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Sao_Paulo'
