@@ -186,28 +186,36 @@ export async function onRequestPost(context) {
   </table>
 </div>`;
 
+  // Envia e-mail via Resend (https://api.resend.com).
+  // Falha silenciosa: agendamento já está salvo no Supabase e no Google Calendar.
   async function enviarEmail(to, subject, html) {
-    const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY;
-    const resp = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ to, subject, html }),
-    });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      console.error(`send-email error para ${to}:`, err.error || resp.status);
+    try {
+      const resp = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'Hermida Maia Advocacia <contato@hermidamaia.com.br>',
+          to: [to],
+          subject,
+          html,
+        }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        console.error(`Resend error para ${to}:`, err.message || err.name || resp.status);
+      }
+    } catch (e) {
+      console.error(`Resend exception para ${to}:`, e.message);
     }
-    return resp.ok;
   }
 
   // Disparar ambos os e-mails em paralelo (não bloqueia retorno ao cliente)
   await Promise.all([
-    enviarEmail(email, 'Confirme seu agendamento — Hermida Maia', emailClienteHtml),
-    enviarEmail('contato@hermidamaia.com.br', `Novo agendamento — ${nome}`, emailSuporteHtml),
+    enviarEmail(email, 'Confirme seu agendamento', emailClienteHtml),
+    enviarEmail('contato@hermidamaia.com.br', 'Novo agendamento recebido', emailSuporteHtml),
   ]);
 
   return new Response(JSON.stringify({ ok: true, eventId: eventData.id, agendamentoId }), {

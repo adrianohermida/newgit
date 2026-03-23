@@ -8,6 +8,7 @@ const VARS_OBRIGATORIAS = [
   'GOOGLE_OAUTH_REFRESH_TOKEN',
   'NEXT_PUBLIC_SUPABASE_URL',
   'SUPABASE_SERVICE_ROLE_KEY',
+  'RESEND_API_KEY',
 ];
 
 export async function onRequest(context) {

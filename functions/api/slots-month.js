@@ -71,7 +71,9 @@ export async function onRequestGet(context) {
   }
   const eventsData = await eventsResp.json();
 
-  // Converte ISO string para hora e data no fuso fixo de Brasília (UTC-3, sem DST)
+  // Conversão determinística UTC-3 (Brasília, sem DST).
+  // Evita Intl.DateTimeFormat que pode gerar separadores inconsistentes
+  // (ex: "09h00" vs "09:00") dependendo da runtime do Cloudflare Workers.
   function toSPTime(isoString) {
     const d = new Date(isoString);
     const sp = new Date(d.getTime() - 3 * 60 * 60 * 1000);

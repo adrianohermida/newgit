@@ -88,29 +88,35 @@ export async function onRequestGet(context) {
   </table>
 </div>`;
 
+  // Envia e-mail via Resend. Falha silenciosa: confirmação já está salva no Supabase.
   async function enviarEmail(to, subject, html) {
-    const resp = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ to, subject, html }),
-    });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      console.error(`send-email error para ${to}:`, err.error || resp.status);
+    try {
+      const resp = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'Hermida Maia Advocacia <contato@hermidamaia.com.br>',
+          to: [to],
+          subject,
+          html,
+        }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        console.error(`Resend error para ${to}:`, err.message || err.name || resp.status);
+      }
+    } catch (e) {
+      console.error(`Resend exception para ${to}:`, e.message);
     }
   }
 
-  try {
-    await Promise.all([
-      enviarEmail(agendamento.email, 'Sua consulta está confirmada — Hermida Maia Advocacia', emailClienteHtml),
-      enviarEmail('contato@hermidamaia.com.br', `Agendamento confirmado — ${agendamento.nome}`, emailEscritorioHtml),
-    ]);
-  } catch (_) {
-    // Falha no e-mail não bloqueia a confirmação
-  }
+  await Promise.all([
+    enviarEmail(agendamento.email, 'Sua consulta está confirmada - Hermida Maia Advocacia', emailClienteHtml),
+    enviarEmail('contato@hermidamaia.com.br', `Agendamento confirmado — ${agendamento.nome}`, emailEscritorioHtml),
+  ]);
 
   // Página de sucesso
   const htmlSucesso = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agendamento Confirmado | Hermida Maia</title><style>body{margin:0;font-family:sans-serif;background:#050706;color:#F4F1EA;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center}.card{background:#111;border:1px solid #2D2E2E;border-radius:12px;padding:48px 32px;max-width:480px}.icon{font-size:48px;margin-bottom:16px}.title{color:#C5A059;font-size:24px;font-weight:bold;margin-bottom:12px}.sub{color:#F4F1EA;opacity:.8;margin-bottom:24px}.btn{display:inline-block;background:#C5A059;color:#050706;font-weight:bold;padding:12px 28px;border-radius:8px;text-decoration:none}</style></head><body><div class="card"><div class="icon">✅</div><div class="title">Agendamento Confirmado!</div><p class="sub">Sua consulta está agendada. Entraremos em contato para mais detalhes.</p><a class="btn" href="https://hermidamaia.adv.br">Voltar ao site</a></div></body></html>`;

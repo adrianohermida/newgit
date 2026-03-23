@@ -225,27 +225,33 @@ Observa\xE7\xF5es: ${observacoes}`,
   </table>
 </div>`;
   async function enviarEmail(to, subject, html) {
-    const supabaseUrl2 = env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey2 = env.SUPABASE_SERVICE_ROLE_KEY;
-    const resp = await fetch(`${supabaseUrl2}/functions/v1/send-email`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${supabaseKey2}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ to, subject, html })
-    });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      console.error(`send-email error para ${to}:`, err.error || resp.status);
+    try {
+      const resp = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          from: "Hermida Maia Advocacia <contato@hermidamaia.com.br>",
+          to: [to],
+          subject,
+          html
+        })
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        console.error(`Resend error para ${to}:`, err.message || err.name || resp.status);
+      }
+    } catch (e) {
+      console.error(`Resend exception para ${to}:`, e.message);
     }
-    return resp.ok;
   }
   __name(enviarEmail, "enviarEmail");
   __name2(enviarEmail, "enviarEmail");
   await Promise.all([
-    enviarEmail(email, "Confirme seu agendamento \u2014 Hermida Maia", emailClienteHtml),
-    enviarEmail("contato@hermidamaia.com.br", `Novo agendamento \u2014 ${nome}`, emailSuporteHtml)
+    enviarEmail(email, "Confirme seu agendamento", emailClienteHtml),
+    enviarEmail("contato@hermidamaia.com.br", "Novo agendamento recebido", emailSuporteHtml)
   ]);
   return new Response(JSON.stringify({ ok: true, eventId: eventData.id, agendamentoId }), {
     status: 200,
@@ -336,28 +342,34 @@ async function onRequestGet(context) {
   </table>
 </div>`;
   async function enviarEmail(to, subject, html) {
-    const resp2 = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${supabaseKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ to, subject, html })
-    });
-    if (!resp2.ok) {
-      const err = await resp2.json().catch(() => ({}));
-      console.error(`send-email error para ${to}:`, err.error || resp2.status);
+    try {
+      const resp2 = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          from: "Hermida Maia Advocacia <contato@hermidamaia.com.br>",
+          to: [to],
+          subject,
+          html
+        })
+      });
+      if (!resp2.ok) {
+        const err = await resp2.json().catch(() => ({}));
+        console.error(`Resend error para ${to}:`, err.message || err.name || resp2.status);
+      }
+    } catch (e) {
+      console.error(`Resend exception para ${to}:`, e.message);
     }
   }
   __name(enviarEmail, "enviarEmail");
   __name2(enviarEmail, "enviarEmail");
-  try {
-    await Promise.all([
-      enviarEmail(agendamento.email, "Sua consulta est\xE1 confirmada \u2014 Hermida Maia Advocacia", emailClienteHtml),
-      enviarEmail("contato@hermidamaia.com.br", `Agendamento confirmado \u2014 ${agendamento.nome}`, emailEscritorioHtml)
-    ]);
-  } catch (_) {
-  }
+  await Promise.all([
+    enviarEmail(agendamento.email, "Sua consulta est\xE1 confirmada - Hermida Maia Advocacia", emailClienteHtml),
+    enviarEmail("contato@hermidamaia.com.br", `Agendamento confirmado \u2014 ${agendamento.nome}`, emailEscritorioHtml)
+  ]);
   const htmlSucesso = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Agendamento Confirmado | Hermida Maia</title><style>body{margin:0;font-family:sans-serif;background:#050706;color:#F4F1EA;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center}.card{background:#111;border:1px solid #2D2E2E;border-radius:12px;padding:48px 32px;max-width:480px}.icon{font-size:48px;margin-bottom:16px}.title{color:#C5A059;font-size:24px;font-weight:bold;margin-bottom:12px}.sub{color:#F4F1EA;opacity:.8;margin-bottom:24px}.btn{display:inline-block;background:#C5A059;color:#050706;font-weight:bold;padding:12px 28px;border-radius:8px;text-decoration:none}</style></head><body><div class="card"><div class="icon">\u2705</div><div class="title">Agendamento Confirmado!</div><p class="sub">Sua consulta est\xE1 agendada. Entraremos em contato para mais detalhes.</p><a class="btn" href="https://hermidamaia.adv.br">Voltar ao site</a></div></body></html>`;
   return new Response(htmlSucesso, { status: 200, headers: { "Content-Type": "text/html; charset=UTF-8" } });
 }
@@ -402,16 +414,17 @@ async function onRequestGet2(context) {
     return new Response(JSON.stringify({ ok: false, error: "Erro ao consultar eventos." }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
   const eventsData = await eventsResp.json();
-  const fmt = new Intl.DateTimeFormat("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  });
+  function toSPTime(iso) {
+    const d = new Date(iso);
+    const sp = new Date(d.getTime() - 3 * 60 * 60 * 1e3);
+    return String(sp.getUTCHours()).padStart(2, "0") + ":" + String(sp.getUTCMinutes()).padStart(2, "0");
+  }
+  __name(toSPTime, "toSPTime");
+  __name2(toSPTime, "toSPTime");
   const ocupados = (eventsData.items || []).map((ev) => {
-    const start = ev.start.dateTime || ev.start.date;
+    const start = ev.start.dateTime;
     if (!start) return null;
-    return fmt.format(new Date(start));
+    return toSPTime(start);
   }).filter(Boolean);
   const disponiveis = horariosPossiveis.filter((h) => !ocupados.includes(h));
   return new Response(
@@ -587,7 +600,8 @@ var VARS_OBRIGATORIAS = [
   "GOOGLE_CLIENT_SECRET",
   "GOOGLE_OAUTH_REFRESH_TOKEN",
   "NEXT_PUBLIC_SUPABASE_URL",
-  "SUPABASE_SERVICE_ROLE_KEY"
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "RESEND_API_KEY"
 ];
 async function onRequest(context) {
   const { request, env, next } = context;
