@@ -1,5 +1,3 @@
-
-
 // Função simples para gerar uuidv4-like (suficiente para ambiente Cloudflare)
 // Função para gerar uuidv4 (Cloudflare)
 function uuidv4() {
@@ -86,6 +84,7 @@ export async function onRequestPost(context) {
   // Persistir no Supabase (inclui token de confirmação)
   const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const nowIso = new Date().toISOString();
   const insertResp = await fetch(`${supabaseUrl}/rest/v1/agendamentos`, {
     method: 'POST',
     headers: {
@@ -102,14 +101,22 @@ export async function onRequestPost(context) {
       area,
       data,
       hora,
+      observacoes: observacoes || null,
       status: 'pendente',
       token_confirmacao: tokenConfirmacao,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      created_at: nowIso,
+      updated_at: nowIso,
     })
   });
   if (!insertResp.ok) {
-    return new Response(JSON.stringify({ ok: false, error: 'Erro ao salvar agendamento.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    const errorDetail = await insertResp.text().catch(() => '');
+    console.error('Supabase insert error:', errorDetail || insertResp.status);
+    return new Response(JSON.stringify({
+      ok: false,
+      error: 'Erro ao salvar agendamento.',
+      detail: errorDetail || `HTTP ${insertResp.status}`,
+      stage: 'supabase_insert',
+    }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 
   // Criar evento no Google Calendar
@@ -128,14 +135,36 @@ export async function onRequestPost(context) {
     })
   });
   if (!eventResp.ok) {
-    return new Response(JSON.stringify({ ok: false, error: 'Erro ao criar evento no Google Calendar.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    const errorDetail = await eventResp.text().catch(() => '');
+    console.error('Google Calendar create event error:', errorDetail || eventResp.status);
+
+    // Compensação: não deixar registro pendente órfão se o evento não foi criado.
+    const rollbackResp = await fetch(`${supabaseUrl}/rest/v1/agendamentos?id=eq.${agendamentoId}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+      },
+    });
+    if (!rollbackResp.ok) {
+      const rollbackDetail = await rollbackResp.text().catch(() => '');
+      console.error('Supabase rollback error:', rollbackDetail || rollbackResp.status);
+    }
+
+    return new Response(JSON.stringify({
+      ok: false,
+      error: 'Erro ao criar evento no Google Calendar.',
+      detail: errorDetail || `HTTP ${eventResp.status}`,
+      stage: 'google_calendar_create',
+      rollbackOk: rollbackResp.ok,
+    }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
   const eventData = await eventResp.json();
   const googleEventId = eventData.id || null;
 
   // Atualizar registro no Supabase com o ID do evento do Google Calendar
   if (googleEventId) {
-    await fetch(`${supabaseUrl}/rest/v1/agendamentos?id=eq.${agendamentoId}`, {
+    const updateResp = await fetch(`${supabaseUrl}/rest/v1/agendamentos?id=eq.${agendamentoId}`, {
       method: 'PATCH',
       headers: {
         'apikey': supabaseKey,
@@ -144,6 +173,21 @@ export async function onRequestPost(context) {
       },
       body: JSON.stringify({ google_event_id: googleEventId, updated_at: new Date().toISOString() }),
     });
+    if (!updateResp.ok) {
+      const updateDetail = await updateResp.text().catch(() => '');
+      console.error('Supabase update google_event_id error:', updateDetail || updateResp.status);
+      return new Response(JSON.stringify({
+        ok: false,
+        error: 'Evento criado no Google Calendar, mas falha ao atualizar o Supabase.',
+        detail: updateDetail || `HTTP ${updateResp.status}`,
+        stage: 'supabase_update_google_event_id',
+        eventId: googleEventId,
+        agendamentoId,
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
   }
 
   // Envio de e-mail via Resend (https://resend.com)
