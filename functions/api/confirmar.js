@@ -1,4 +1,5 @@
 import { getCleanEnvValue, getSupabaseServerKey, inspectSupabaseKey } from '../lib/env.js';
+import { INTERNAL_RECIPIENTS, buildActionLinks, formatAgendamentoDate, getSiteUrl, sendTransactionalEmail } from '../lib/agendamento-helpers.js';
 
 // Cloudflare Pages Function para confirmação de agendamento via link seguro
 // Endpoint: /functions/api/confirmar.js
@@ -40,7 +41,7 @@ export async function onRequestGet(context) {
     }
     return new Response('Configuracao interna invalida para confirmacao.', { status: 500 });
   }
-  const resp = await fetch(`${supabaseUrl}/rest/v1/agendamentos?token_confirmacao=eq.${token}`, {
+  const resp = await fetch(`${supabaseUrl}/rest/v1/agendamentos?or=(${encodeURIComponent(`token_confirmacao.eq.${token},admin_token_confirmacao.eq.${token}`)})&select=*`, {
     headers: {
       'apikey': supabaseKey,
       'Authorization': `Bearer ${supabaseKey}`,
@@ -63,6 +64,9 @@ export async function onRequestGet(context) {
     return new Response('Token inválido ou agendamento não encontrado.', { status: 404 });
   }
   const agendamento = agendamentos[0];
+  const actor = agendamento.token_confirmacao === token ? 'cliente' : 'advogado';
+  const siteUrl = getSiteUrl(env);
+  const actionLinks = buildActionLinks(siteUrl, agendamento);
   if (agendamento.status === 'confirmado') {
     const confirmedLabel = agendamento.confirmed_at
       ? new Date(agendamento.confirmed_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
@@ -122,9 +126,7 @@ export async function onRequestGet(context) {
   const agendamentoConfirmado = updatedRows[0];
 
   // Montar e-mails de confirmação
-  const dataFormatada = new Date(`${agendamento.data}T12:00:00-03:00`).toLocaleDateString('pt-BR', {
-    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Sao_Paulo'
-  });
+  const dataFormatada = formatAgendamentoDate(agendamento.data, '12:00');
 
   const emailClienteHtml = `
 <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#050706;color:#F4F1EA;padding:32px;border-radius:12px">
@@ -136,6 +138,10 @@ export async function onRequestGet(context) {
     <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Data</td><td style="padding:8px">${dataFormatada}</td></tr>
     <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Horário</td><td style="padding:8px">${agendamento.hora}</td></tr>
   </table>
+  <div style="margin:20px 0">
+    <a href="${actionLinks.cliente.remarcar}" style="display:inline-block;background:#111827;color:#F4F1EA;font-weight:bold;padding:14px 28px;border-radius:8px;text-decoration:none;margin:8px 8px 8px 0;border:1px solid #C5A059">Remarcar</a>
+    <a href="${actionLinks.cliente.cancelar}" style="display:inline-block;background:#7f1d1d;color:#F4F1EA;font-weight:bold;padding:14px 28px;border-radius:8px;text-decoration:none;margin:8px 0">Cancelar</a>
+  </div>
   <p style="font-size:13px;color:#aaa">Em caso de dúvidas, acesse <a href="https://hermidamaia.adv.br" style="color:#C5A059">hermidamaia.adv.br</a> ou entre em contato conosco.</p>
 </div>`;
 
@@ -154,35 +160,9 @@ export async function onRequestGet(context) {
   </table>
 </div>`;
 
-  // Envia e-mail via Resend. Falha silenciosa: confirmação já está salva no Supabase.
-  async function enviarEmail(to, subject, html) {
-    try {
-      const resp = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: 'Hermida Maia Advocacia <contato@hermidamaia.adv.br>',
-          to: [to],
-          reply_to: 'suporte@hermidamaia.adv.br',
-          subject,
-          html,
-        }),
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        console.error(`Resend error para ${to}:`, err.message || err.name || resp.status);
-      }
-    } catch (e) {
-      console.error(`Resend exception para ${to}:`, e.message);
-    }
-  }
-
   await Promise.all([
-    enviarEmail(agendamentoConfirmado.email, 'Sua consulta está confirmada - Hermida Maia Advocacia', emailClienteHtml),
-    enviarEmail('suporte@hermidamaia.adv.br', `Agendamento confirmado — ${agendamentoConfirmado.nome}`, emailEscritorioHtml),
+    sendTransactionalEmail(env, agendamentoConfirmado.email, 'Sua consulta está confirmada - Hermida Maia Advocacia', emailClienteHtml),
+    sendTransactionalEmail(env, INTERNAL_RECIPIENTS, `Agendamento confirmado — ${agendamentoConfirmado.nome}`, `${emailEscritorioHtml}<p style="font-family:sans-serif">Ação realizada por: <strong>${actor}</strong>.</p>`),
   ]);
 
   if (wantsJson) {

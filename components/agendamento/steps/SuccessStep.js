@@ -29,7 +29,7 @@ export default function SuccessStep({ selectedDate, selectedTime }) {
             className="font-serif text-2xl sm:text-4xl md:text-5xl font-bold mb-4"
             style={{ color: PARCHMENT }}
           >
-            Agendamento Confirmado!
+            Solicitacao Recebida!
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 20 }}
@@ -38,7 +38,7 @@ export default function SuccessStep({ selectedDate, selectedTime }) {
             className="text-sm sm:text-lg opacity-70 mb-8"
             style={{ color: PARCHMENT }}
           >
-            Você receberá um e-mail de confirmação com todos os detalhes da consulta e o link para a videochamada.
+            Enviamos um e-mail com links seguros para confirmar, cancelar ou remarcar seu agendamento.
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 20 }}

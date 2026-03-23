@@ -36,6 +36,28 @@ const VARS_POR_ROTA = {
     ],
     oneOf: [],
   },
+  '/api/cancelar': {
+    required: [
+      'NEXT_PUBLIC_SUPABASE_URL',
+      'SUPABASE_SERVICE_ROLE_KEY',
+      'RESEND_API_KEY',
+    ],
+    oneOf: [
+      ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_OAUTH_REFRESH_TOKEN'],
+      ['GOOGLE_ACCESS_TOKEN'],
+    ],
+  },
+  '/api/remarcar': {
+    required: [
+      'NEXT_PUBLIC_SUPABASE_URL',
+      'SUPABASE_SERVICE_ROLE_KEY',
+      'RESEND_API_KEY',
+    ],
+    oneOf: [
+      ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_OAUTH_REFRESH_TOKEN'],
+      ['GOOGLE_ACCESS_TOKEN'],
+    ],
+  },
   '/api/freshdesk-ticket': {
     required: [
       'FRESHDESK_DOMAIN',
