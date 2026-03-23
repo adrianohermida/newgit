@@ -1,4 +1,4 @@
--- Migration: 003_add_agendamento_action_tokens
+-- Migration: 004_add_agendamento_action_tokens
 -- Adiciona tokens e auditoria para cancelamento e remarcação por cliente e advogado
 
 ALTER TABLE public.agendamentos
