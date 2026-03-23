@@ -1,4 +1,5 @@
 import { getGoogleAccessToken } from '../lib/google-auth.js';
+import { MINIMUM_LEAD_HOURS, isSlotBookable } from '../lib/slot-policy.js';
 
 // Função simples para gerar uuidv4-like (suficiente para ambiente Cloudflare)
 // Função para gerar uuidv4 (Cloudflare)
@@ -33,6 +34,15 @@ export async function onRequestPost(context) {
   const slotStart = `${data}T${hora}:00-03:00`;
   const slotEndHour = String(Number(hora.split(':')[0]) + 1).padStart(2, '0');
   const slotEnd = `${data}T${slotEndHour}:${hora.split(':')[1]}:00-03:00`;
+  const slotStartDate = new Date(slotStart);
+  if (!isSlotBookable(slotStartDate)) {
+    return new Response(JSON.stringify({
+      ok: false,
+      error: `Agendamentos devem respeitar antecedencia minima de ${MINIMUM_LEAD_HOURS} horas.`,
+      stage: 'minimum_lead_time',
+      minimumLeadHours: MINIMUM_LEAD_HOURS,
+    }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+  }
 
   // 1. Obter access token usando refresh token
   let accessToken;

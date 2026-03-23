@@ -49,6 +49,7 @@ function formatErrorBody(body) {
     extras.push(`ausentes=${body.ausentes.join(',')}`);
   }
   if (body.stage) extras.push(`stage=${body.stage}`);
+  if (body.minimumLeadHours) extras.push(`minimumLeadHours=${body.minimumLeadHours}`);
   return extras.length > 0 ? ` (${extras.join(' | ')})` : '';
 }
 
@@ -255,6 +256,8 @@ async function verifyConfirmedState(agendamentoId) {
 
 function getSuggestedMonth() {
   const now = new Date();
+  now.setUTCDate(1);
+  now.setUTCMonth(now.getUTCMonth() + 1);
   const year = now.getUTCFullYear();
   const month = String(now.getUTCMonth() + 1).padStart(2, '0');
   return `${year}-${month}`;

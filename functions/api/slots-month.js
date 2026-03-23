@@ -1,4 +1,5 @@
 import { getGoogleAccessToken } from '../lib/google-auth.js';
+import { MINIMUM_LEAD_HOURS, isSlotBookable } from '../lib/slot-policy.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -99,6 +100,7 @@ export async function onRequestGet(context) {
     slotsPorDia[dia] = horariosPossiveis.filter((horario) => {
       const slotInterval = buildSlotInterval(dia, horario);
       if (!slotInterval) return false;
+      if (!isSlotBookable(slotInterval.start)) return false;
       return !eventosOcupados.some((evento) => hasOverlap(slotInterval, evento));
     });
   }
@@ -106,6 +108,7 @@ export async function onRequestGet(context) {
   return new Response(JSON.stringify({
     ok: true,
     slots: slotsPorDia,
+    minimumLeadHours: MINIMUM_LEAD_HOURS,
     authSource: authMeta?.source,
     warning: authMeta?.warning || undefined,
   }), {

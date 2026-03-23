@@ -26,6 +26,9 @@ export default function DateStep({
           <CalendarIcon size={24} style={{ color: GOLD }} />
           <h2 className="text-xl sm:text-2xl font-bold" style={{ color: PARCHMENT }}>Escolha Data e Horário</h2>
         </div>
+        <p className="text-xs sm:text-sm mb-4 opacity-70" style={{ color: PARCHMENT }}>
+          Os horarios exibidos respeitam antecedencia minima de 72 horas.
+        </p>
         <div className="flex flex-col sm:flex-row gap-6 sm:gap-8">
           {/* Calendar */}
           <div className="border rounded-lg p-3 sm:p-4 flex-1 mb-6 sm:mb-0" style={{ borderColor: GHOST, background: "rgba(0,0,0,0.2)" }}>

@@ -1,4 +1,5 @@
 import { getGoogleAccessToken } from '../lib/google-auth.js';
+import { MINIMUM_LEAD_HOURS, isSlotBookable } from '../lib/slot-policy.js';
 
 export async function onRequestGet(context) {
   const { request, env } = context;
@@ -66,11 +67,12 @@ export async function onRequestGet(context) {
   const disponiveis = horariosPossiveis.filter((horario) => {
     const slotInterval = buildSlotInterval(horario);
     if (!slotInterval) return false;
+    if (!isSlotBookable(slotInterval.start)) return false;
     return !eventosOcupados.some((evento) => hasOverlap(slotInterval, evento));
   });
 
   return new Response(
-    JSON.stringify({ ok: true, slots: disponiveis }),
+    JSON.stringify({ ok: true, slots: disponiveis, minimumLeadHours: MINIMUM_LEAD_HOURS }),
     {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

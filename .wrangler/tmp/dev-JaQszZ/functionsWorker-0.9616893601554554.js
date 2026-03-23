@@ -99,6 +99,20 @@ async function getGoogleAccessToken(env) {
 }
 __name(getGoogleAccessToken, "getGoogleAccessToken");
 __name2(getGoogleAccessToken, "getGoogleAccessToken");
+var MINIMUM_LEAD_HOURS = 72;
+function getMinimumBookingDate() {
+  return new Date(Date.now() + MINIMUM_LEAD_HOURS * 60 * 60 * 1e3);
+}
+__name(getMinimumBookingDate, "getMinimumBookingDate");
+__name2(getMinimumBookingDate, "getMinimumBookingDate");
+function isSlotBookable(slotStart) {
+  if (!(slotStart instanceof Date) || Number.isNaN(slotStart.getTime())) {
+    return false;
+  }
+  return slotStart.getTime() >= getMinimumBookingDate().getTime();
+}
+__name(isSlotBookable, "isSlotBookable");
+__name2(isSlotBookable, "isSlotBookable");
 function uuidv4() {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(c) {
     var r = Math.random() * 16 | 0, v = c === "x" ? r : r & 3 | 8;
@@ -127,6 +141,15 @@ async function onRequestPost(context) {
   const slotStart = `${data}T${hora}:00-03:00`;
   const slotEndHour = String(Number(hora.split(":")[0]) + 1).padStart(2, "0");
   const slotEnd = `${data}T${slotEndHour}:${hora.split(":")[1]}:00-03:00`;
+  const slotStartDate = new Date(slotStart);
+  if (!isSlotBookable(slotStartDate)) {
+    return new Response(JSON.stringify({
+      ok: false,
+      error: `Agendamentos devem respeitar antecedencia minima de ${MINIMUM_LEAD_HOURS} horas.`,
+      stage: "minimum_lead_time",
+      minimumLeadHours: MINIMUM_LEAD_HOURS
+    }), { status: 400, headers: { "Content-Type": "application/json" } });
+  }
   let accessToken;
   let authMeta;
   try {
@@ -555,10 +578,11 @@ async function onRequestGet2(context) {
   const disponiveis = horariosPossiveis.filter((horario) => {
     const slotInterval = buildSlotInterval(horario);
     if (!slotInterval) return false;
+    if (!isSlotBookable(slotInterval.start)) return false;
     return !eventosOcupados.some((evento) => hasOverlap(slotInterval, evento));
   });
   return new Response(
-    JSON.stringify({ ok: true, slots: disponiveis }),
+    JSON.stringify({ ok: true, slots: disponiveis, minimumLeadHours: MINIMUM_LEAD_HOURS }),
     {
       status: 200,
       headers: { "Content-Type": "application/json" }
@@ -655,12 +679,14 @@ async function onRequestGet3(context) {
     slotsPorDia[dia] = horariosPossiveis.filter((horario) => {
       const slotInterval = buildSlotInterval(dia, horario);
       if (!slotInterval) return false;
+      if (!isSlotBookable(slotInterval.start)) return false;
       return !eventosOcupados.some((evento) => hasOverlap(slotInterval, evento));
     });
   }
   return new Response(JSON.stringify({
     ok: true,
     slots: slotsPorDia,
+    minimumLeadHours: MINIMUM_LEAD_HOURS,
     authSource: authMeta?.source,
     warning: authMeta?.warning || void 0
   }), {
