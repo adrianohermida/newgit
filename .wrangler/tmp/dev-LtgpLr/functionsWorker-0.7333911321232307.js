@@ -480,19 +480,38 @@ async function onRequestGet2(context) {
     return new Response(JSON.stringify({ ok: false, error: "Erro ao consultar eventos." }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
   const eventsData = await eventsResp.json();
-  function toSPTime(iso) {
-    const d = new Date(iso);
-    const sp = new Date(d.getTime() - 3 * 60 * 60 * 1e3);
-    return String(sp.getUTCHours()).padStart(2, "0") + ":" + String(sp.getUTCMinutes()).padStart(2, "0");
+  const SLOT_DURATION_MINUTES = 60;
+  function buildSlotInterval(horario) {
+    const start = /* @__PURE__ */ new Date(`${data}T${horario}:00-03:00`);
+    const end = new Date(start.getTime() + SLOT_DURATION_MINUTES * 60 * 1e3);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return null;
+    }
+    return { start, end };
   }
-  __name(toSPTime, "toSPTime");
-  __name2(toSPTime, "toSPTime");
-  const ocupados = (eventsData.items || []).map((ev) => {
-    const start = ev.start.dateTime;
-    if (!start) return null;
-    return toSPTime(start);
+  __name(buildSlotInterval, "buildSlotInterval");
+  __name2(buildSlotInterval, "buildSlotInterval");
+  function hasOverlap(intervalA, intervalB) {
+    return intervalA.start < intervalB.end && intervalB.start < intervalA.end;
+  }
+  __name(hasOverlap, "hasOverlap");
+  __name2(hasOverlap, "hasOverlap");
+  const eventosOcupados = (eventsData.items || []).map((ev) => {
+    if (!ev.start?.dateTime || !ev.end?.dateTime) {
+      return null;
+    }
+    const start = new Date(ev.start.dateTime);
+    const end = new Date(ev.end.dateTime);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return null;
+    }
+    return { start, end };
   }).filter(Boolean);
-  const disponiveis = horariosPossiveis.filter((h) => !ocupados.includes(h));
+  const disponiveis = horariosPossiveis.filter((horario) => {
+    const slotInterval = buildSlotInterval(horario);
+    if (!slotInterval) return false;
+    return !eventosOcupados.some((evento) => hasOverlap(slotInterval, evento));
+  });
   return new Response(
     JSON.stringify({ ok: true, slots: disponiveis }),
     {
@@ -563,43 +582,45 @@ async function onRequestGet3(context) {
     });
   }
   const eventsData = await eventsResp.json();
-  function toSPTime(isoString) {
-    const d = new Date(isoString);
-    const sp = new Date(d.getTime() - 3 * 60 * 60 * 1e3);
-    const hh = String(sp.getUTCHours()).padStart(2, "0");
-    const mm = String(sp.getUTCMinutes()).padStart(2, "0");
-    return `${hh}:${mm}`;
-  }
-  __name(toSPTime, "toSPTime");
-  __name2(toSPTime, "toSPTime");
-  function toSPDate(isoString) {
-    const d = new Date(isoString);
-    const sp = new Date(d.getTime() - 3 * 60 * 60 * 1e3);
-    const yyyy = sp.getUTCFullYear();
-    const mm = String(sp.getUTCMonth() + 1).padStart(2, "0");
-    const dd = String(sp.getUTCDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-  }
-  __name(toSPDate, "toSPDate");
-  __name2(toSPDate, "toSPDate");
-  const ocupadosPorDia = {};
-  for (const ev of eventsData.items || []) {
-    const start = ev.start.dateTime || ev.start.date;
-    if (!start) continue;
-    if (!ev.start.dateTime) continue;
-    const dia = toSPDate(start);
-    const hora = toSPTime(start);
-    if (!ocupadosPorDia[dia]) ocupadosPorDia[dia] = [];
-    ocupadosPorDia[dia].push(hora);
-  }
+  const SLOT_DURATION_MINUTES = 60;
   const horariosPossiveis = ["09:00", "10:30", "14:00", "15:30", "17:00"];
+  function buildSlotInterval(dia, horario) {
+    const [hh, mm] = horario.split(":").map(Number);
+    const start = /* @__PURE__ */ new Date(`${dia}T${horario}:00-03:00`);
+    const end = new Date(start.getTime() + SLOT_DURATION_MINUTES * 60 * 1e3);
+    if (Number.isNaN(hh) || Number.isNaN(mm) || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return null;
+    }
+    return { start, end };
+  }
+  __name(buildSlotInterval, "buildSlotInterval");
+  __name2(buildSlotInterval, "buildSlotInterval");
+  function hasOverlap(intervalA, intervalB) {
+    return intervalA.start < intervalB.end && intervalB.start < intervalA.end;
+  }
+  __name(hasOverlap, "hasOverlap");
+  __name2(hasOverlap, "hasOverlap");
+  const eventosOcupados = (eventsData.items || []).map((ev) => {
+    if (!ev.start?.dateTime || !ev.end?.dateTime) {
+      return null;
+    }
+    const start = new Date(ev.start.dateTime);
+    const end = new Date(ev.end.dateTime);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return null;
+    }
+    return { start, end };
+  }).filter(Boolean);
   const slotsPorDia = {};
   for (let d = 1; d <= ultimoDia; d++) {
     const dia = `${mes}-${String(d).padStart(2, "0")}`;
     const diaSemana = new Date(ano, numMes - 1, d).getDay();
     if (diaSemana === 0 || diaSemana === 6) continue;
-    const ocupados = ocupadosPorDia[dia] || [];
-    slotsPorDia[dia] = horariosPossiveis.filter((h) => !ocupados.includes(h));
+    slotsPorDia[dia] = horariosPossiveis.filter((horario) => {
+      const slotInterval = buildSlotInterval(dia, horario);
+      if (!slotInterval) return false;
+      return !eventosOcupados.some((evento) => hasOverlap(slotInterval, evento));
+    });
   }
   return new Response(JSON.stringify({ ok: true, slots: slotsPorDia }), {
     status: 200,

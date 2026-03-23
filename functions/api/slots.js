@@ -44,21 +44,40 @@ export async function onRequestGet(context) {
     return new Response(JSON.stringify({ ok: false, error: 'Erro ao consultar eventos.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
   const eventsData = await eventsResp.json();
-  // Conversão determinística UTC-3 (Brasília, sem DST).
-  // Evita Intl.DateTimeFormat que pode gerar separadores inconsistentes
-  // (ex: "09h00" vs "09:00") dependendo da runtime do Cloudflare Workers.
-  function toSPTime(iso) {
-    const d = new Date(iso);
-    const sp = new Date(d.getTime() - 3 * 60 * 60 * 1000);
-    return String(sp.getUTCHours()).padStart(2, '0') + ':' + String(sp.getUTCMinutes()).padStart(2, '0');
-  }
-  const ocupados = (eventsData.items || []).map(ev => {
-    const start = ev.start.dateTime;
-    if (!start) return null; // eventos de dia inteiro não bloqueiam slots
-    return toSPTime(start);
-  }).filter(Boolean);
+  const SLOT_DURATION_MINUTES = 60;
 
-  const disponiveis = horariosPossiveis.filter(h => !ocupados.includes(h));
+  function buildSlotInterval(horario) {
+    const start = new Date(`${data}T${horario}:00-03:00`);
+    const end = new Date(start.getTime() + SLOT_DURATION_MINUTES * 60 * 1000);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return null;
+    }
+    return { start, end };
+  }
+
+  function hasOverlap(intervalA, intervalB) {
+    return intervalA.start < intervalB.end && intervalB.start < intervalA.end;
+  }
+
+  const eventosOcupados = (eventsData.items || [])
+    .map((ev) => {
+      if (!ev.start?.dateTime || !ev.end?.dateTime) {
+        return null;
+      }
+      const start = new Date(ev.start.dateTime);
+      const end = new Date(ev.end.dateTime);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return null;
+      }
+      return { start, end };
+    })
+    .filter(Boolean);
+
+  const disponiveis = horariosPossiveis.filter((horario) => {
+    const slotInterval = buildSlotInterval(horario);
+    if (!slotInterval) return false;
+    return !eventosOcupados.some((evento) => hasOverlap(slotInterval, evento));
+  });
 
   return new Response(
     JSON.stringify({ ok: true, slots: disponiveis }),

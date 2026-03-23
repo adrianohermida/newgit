@@ -70,48 +70,48 @@ export async function onRequestGet(context) {
     });
   }
   const eventsData = await eventsResp.json();
+  const SLOT_DURATION_MINUTES = 60;
+  const horariosPossiveis = ['09:00', '10:30', '14:00', '15:30', '17:00'];
 
-  // Conversão determinística UTC-3 (Brasília, sem DST).
-  // Evita Intl.DateTimeFormat que pode gerar separadores inconsistentes
-  // (ex: "09h00" vs "09:00") dependendo da runtime do Cloudflare Workers.
-  function toSPTime(isoString) {
-    const d = new Date(isoString);
-    const sp = new Date(d.getTime() - 3 * 60 * 60 * 1000);
-    const hh = String(sp.getUTCHours()).padStart(2, '0');
-    const mm = String(sp.getUTCMinutes()).padStart(2, '0');
-    return `${hh}:${mm}`;
-  }
-  function toSPDate(isoString) {
-    const d = new Date(isoString);
-    const sp = new Date(d.getTime() - 3 * 60 * 60 * 1000);
-    const yyyy = sp.getUTCFullYear();
-    const mm = String(sp.getUTCMonth() + 1).padStart(2, '0');
-    const dd = String(sp.getUTCDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
+  function buildSlotInterval(dia, horario) {
+    const [hh, mm] = horario.split(':').map(Number);
+    const start = new Date(`${dia}T${horario}:00-03:00`);
+    const end = new Date(start.getTime() + SLOT_DURATION_MINUTES * 60 * 1000);
+    if (Number.isNaN(hh) || Number.isNaN(mm) || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return null;
+    }
+    return { start, end };
   }
 
-  // Agrupar eventos ocupados por data
-  const ocupadosPorDia = {};
-  for (const ev of eventsData.items || []) {
-    const start = ev.start.dateTime || ev.start.date;
-    if (!start) continue;
-    // Eventos de dia inteiro (start.date, sem hora) não bloqueam slots
-    if (!ev.start.dateTime) continue;
-    const dia = toSPDate(start);
-    const hora = toSPTime(start);
-    if (!ocupadosPorDia[dia]) ocupadosPorDia[dia] = [];
-    ocupadosPorDia[dia].push(hora);
+  function hasOverlap(intervalA, intervalB) {
+    return intervalA.start < intervalB.end && intervalB.start < intervalA.end;
   }
+
+  const eventosOcupados = (eventsData.items || [])
+    .map((ev) => {
+      if (!ev.start?.dateTime || !ev.end?.dateTime) {
+        return null;
+      }
+      const start = new Date(ev.start.dateTime);
+      const end = new Date(ev.end.dateTime);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return null;
+      }
+      return { start, end };
+    })
+    .filter(Boolean);
 
   // Calcular slots disponíveis por dia
-  const horariosPossiveis = ['09:00', '10:30', '14:00', '15:30', '17:00'];
   const slotsPorDia = {};
   for (let d = 1; d <= ultimoDia; d++) {
     const dia = `${mes}-${String(d).padStart(2, '0')}`;
     const diaSemana = new Date(ano, numMes - 1, d).getDay();
     if (diaSemana === 0 || diaSemana === 6) continue; // ignorar fins de semana
-    const ocupados = ocupadosPorDia[dia] || [];
-    slotsPorDia[dia] = horariosPossiveis.filter(h => !ocupados.includes(h));
+    slotsPorDia[dia] = horariosPossiveis.filter((horario) => {
+      const slotInterval = buildSlotInterval(dia, horario);
+      if (!slotInterval) return false;
+      return !eventosOcupados.some((evento) => hasOverlap(slotInterval, evento));
+    });
   }
 
   return new Response(JSON.stringify({ ok: true, slots: slotsPorDia }), {
