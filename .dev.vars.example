@@ -1,0 +1,10 @@
+# Copie este arquivo para .dev.vars e preencha com os valores reais
+# O wrangler carrega .dev.vars automaticamente em modo de desenvolvimento local
+# NUNCA commite .dev.vars — ele já está no .gitignore
+
+GOOGLE_CLIENT_ID=seu-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-...
+GOOGLE_OAUTH_REFRESH_TOKEN=1//...
+NEXT_PUBLIC_SUPABASE_URL=https://sspvizogbcyigquqycsz.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SITE_URL=http://localhost:8788

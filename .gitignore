@@ -419,3 +419,9 @@ FodyWeavers.xsd
 
 # Next.js build output
 .next/
+
+# Wrangler local secrets (nunca commitar)
+.dev.vars
+
+# Static export
+out/
