@@ -140,11 +140,15 @@ export async function onRequestPost(context) {
   if (!insertResp.ok) {
     const errorDetail = await insertResp.text().catch(() => '');
     console.error('Supabase insert error:', errorDetail || insertResp.status);
+    const migrationHint = errorDetail.includes("admin_token_cancelamento")
+      ? 'Execute a migration 003_add_agendamento_action_tokens.sql no Supabase.'
+      : undefined;
     return new Response(JSON.stringify({
       ok: false,
       error: 'Erro ao salvar agendamento.',
       detail: errorDetail || `HTTP ${insertResp.status}`,
       stage: 'supabase_insert',
+      migrationHint,
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 

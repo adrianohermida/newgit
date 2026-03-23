@@ -121,7 +121,7 @@ async function verifySupabaseCredentials() {
   }
 
   try {
-    const res = await fetch(`${supabaseUrl}/rest/v1/agendamentos?select=id&limit=1`, {
+    const res = await fetch(`${supabaseUrl}/rest/v1/agendamentos?select=id,token_cancelamento,token_remarcacao,admin_token_confirmacao,admin_token_cancelamento,admin_token_remarcacao&limit=1`, {
       headers: {
         apikey: serviceRoleKey,
         Authorization: `Bearer ${serviceRoleKey}`,
@@ -133,10 +133,13 @@ async function verifySupabaseCredentials() {
       const detail = body && typeof body === 'object'
         ? `${body.message || 'erro'}${body.hint ? ` | ${body.hint}` : ''}`
         : `HTTP ${res.status}`;
-      log(step, 'FAIL', detail);
+      const migrationHint = detail.includes('admin_token_cancelamento')
+        ? ' | migration 003_add_agendamento_action_tokens.sql pendente'
+        : '';
+      log(step, 'FAIL', `${detail}${migrationHint}`);
       return false;
     }
-    log(step, 'PASS', 'credenciais do Supabase aceitas');
+    log(step, 'PASS', 'credenciais do Supabase e colunas de ações aceitas');
     return true;
   } catch (err) {
     log(step, 'FAIL', err.message);
