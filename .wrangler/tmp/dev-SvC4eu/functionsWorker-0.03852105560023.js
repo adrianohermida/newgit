@@ -123,28 +123,65 @@ function getCleanEnvValue(value) {
 }
 __name(getCleanEnvValue, "getCleanEnvValue");
 __name2(getCleanEnvValue, "getCleanEnvValue");
-function inspectSupabaseKey(value) {
+function normalizeSupabaseKey(value) {
   const key = getCleanEnvValue(value);
+  if (!key || typeof key !== "string") {
+    return { key, repaired: false, repairHint: null };
+  }
+  if (!key.startsWith("eyJ")) {
+    return { key, repaired: false, repairHint: null };
+  }
+  const dotCount = (key.match(/\./g) || []).length;
+  if (dotCount === 2) {
+    return { key, repaired: false, repairHint: null };
+  }
+  const candidateStarts = [];
+  let searchIndex = key.indexOf("eyJ", 1);
+  while (searchIndex !== -1) {
+    candidateStarts.push(searchIndex);
+    searchIndex = key.indexOf("eyJ", searchIndex + 1);
+  }
+  for (let index = candidateStarts.length - 1; index >= 0; index -= 1) {
+    const start = candidateStarts[index];
+    const candidate = key.slice(start);
+    const candidateDotCount = (candidate.match(/\./g) || []).length;
+    if (candidate.startsWith("eyJ") && candidateDotCount === 2) {
+      return {
+        key: candidate,
+        repaired: true,
+        repairHint: "suffix_jwt_extracted"
+      };
+    }
+  }
+  return { key, repaired: false, repairHint: null };
+}
+__name(normalizeSupabaseKey, "normalizeSupabaseKey");
+__name2(normalizeSupabaseKey, "normalizeSupabaseKey");
+function inspectSupabaseKey(value) {
+  const normalized = normalizeSupabaseKey(value);
+  const key = normalized.key;
   if (!key) {
-    return { exists: false, format: "missing", dotCount: 0 };
+    return { exists: false, format: "missing", dotCount: 0, repaired: false };
   }
   if (key.startsWith("sb_secret_")) {
-    return { exists: true, format: "sb_secret", dotCount: 0 };
+    return { exists: true, format: "sb_secret", dotCount: 0, repaired: normalized.repaired };
   }
   if (key.startsWith("eyJ")) {
     const dotCount = (key.match(/\./g) || []).length;
     return {
       exists: true,
       format: dotCount === 2 ? "jwt" : "malformed_jwt",
-      dotCount
+      dotCount,
+      repaired: normalized.repaired,
+      repairHint: normalized.repairHint
     };
   }
-  return { exists: true, format: "unknown", dotCount: 0 };
+  return { exists: true, format: "unknown", dotCount: 0, repaired: normalized.repaired };
 }
 __name(inspectSupabaseKey, "inspectSupabaseKey");
 __name2(inspectSupabaseKey, "inspectSupabaseKey");
 function getSupabaseServerKey(env) {
-  return getCleanEnvValue(env.SUPABASE_SERVICE_ROLE_KEY) || null;
+  return normalizeSupabaseKey(env.SUPABASE_SERVICE_ROLE_KEY).key || null;
 }
 __name(getSupabaseServerKey, "getSupabaseServerKey");
 __name2(getSupabaseServerKey, "getSupabaseServerKey");

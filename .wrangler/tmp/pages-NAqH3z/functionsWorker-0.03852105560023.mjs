@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-// ../.wrangler/tmp/bundle-fz4mYj/checked-fetch.js
+// ../.wrangler/tmp/bundle-Up3zZA/checked-fetch.js
 var urls = /* @__PURE__ */ new Set();
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
@@ -96,27 +96,63 @@ function getCleanEnvValue(value) {
   return trimmed;
 }
 __name(getCleanEnvValue, "getCleanEnvValue");
-function inspectSupabaseKey(value) {
+function normalizeSupabaseKey(value) {
   const key = getCleanEnvValue(value);
+  if (!key || typeof key !== "string") {
+    return { key, repaired: false, repairHint: null };
+  }
+  if (!key.startsWith("eyJ")) {
+    return { key, repaired: false, repairHint: null };
+  }
+  const dotCount = (key.match(/\./g) || []).length;
+  if (dotCount === 2) {
+    return { key, repaired: false, repairHint: null };
+  }
+  const candidateStarts = [];
+  let searchIndex = key.indexOf("eyJ", 1);
+  while (searchIndex !== -1) {
+    candidateStarts.push(searchIndex);
+    searchIndex = key.indexOf("eyJ", searchIndex + 1);
+  }
+  for (let index = candidateStarts.length - 1; index >= 0; index -= 1) {
+    const start = candidateStarts[index];
+    const candidate = key.slice(start);
+    const candidateDotCount = (candidate.match(/\./g) || []).length;
+    if (candidate.startsWith("eyJ") && candidateDotCount === 2) {
+      return {
+        key: candidate,
+        repaired: true,
+        repairHint: "suffix_jwt_extracted"
+      };
+    }
+  }
+  return { key, repaired: false, repairHint: null };
+}
+__name(normalizeSupabaseKey, "normalizeSupabaseKey");
+function inspectSupabaseKey(value) {
+  const normalized = normalizeSupabaseKey(value);
+  const key = normalized.key;
   if (!key) {
-    return { exists: false, format: "missing", dotCount: 0 };
+    return { exists: false, format: "missing", dotCount: 0, repaired: false };
   }
   if (key.startsWith("sb_secret_")) {
-    return { exists: true, format: "sb_secret", dotCount: 0 };
+    return { exists: true, format: "sb_secret", dotCount: 0, repaired: normalized.repaired };
   }
   if (key.startsWith("eyJ")) {
     const dotCount = (key.match(/\./g) || []).length;
     return {
       exists: true,
       format: dotCount === 2 ? "jwt" : "malformed_jwt",
-      dotCount
+      dotCount,
+      repaired: normalized.repaired,
+      repairHint: normalized.repairHint
     };
   }
-  return { exists: true, format: "unknown", dotCount: 0 };
+  return { exists: true, format: "unknown", dotCount: 0, repaired: normalized.repaired };
 }
 __name(inspectSupabaseKey, "inspectSupabaseKey");
 function getSupabaseServerKey(env) {
-  return getCleanEnvValue(env.SUPABASE_SERVICE_ROLE_KEY) || null;
+  return normalizeSupabaseKey(env.SUPABASE_SERVICE_ROLE_KEY).key || null;
 }
 __name(getSupabaseServerKey, "getSupabaseServerKey");
 
@@ -1455,7 +1491,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// ../.wrangler/tmp/bundle-fz4mYj/middleware-insertion-facade.js
+// ../.wrangler/tmp/bundle-Up3zZA/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -1487,7 +1523,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// ../.wrangler/tmp/bundle-fz4mYj/middleware-loader.entry.ts
+// ../.wrangler/tmp/bundle-Up3zZA/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;
