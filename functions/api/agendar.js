@@ -1,3 +1,5 @@
+import { getGoogleAccessToken } from '../lib/google-auth.js';
+
 // Função simples para gerar uuidv4-like (suficiente para ambiente Cloudflare)
 // Função para gerar uuidv4 (Cloudflare)
 function uuidv4() {
@@ -33,23 +35,11 @@ export async function onRequestPost(context) {
   const slotEnd = `${data}T${slotEndHour}:${hora.split(':')[1]}:00-03:00`;
 
   // 1. Obter access token usando refresh token
-  let accessToken = env.GOOGLE_ACCESS_TOKEN;
+  let accessToken;
+  let authMeta;
   try {
-    const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      body: new URLSearchParams({
-        client_id: env.GOOGLE_CLIENT_ID,
-        client_secret: env.GOOGLE_CLIENT_SECRET,
-        refresh_token: env.GOOGLE_OAUTH_REFRESH_TOKEN,
-        grant_type: 'refresh_token',
-      })
-    });
-    if (!tokenResp.ok) {
-      const errBody = await tokenResp.json().catch(() => ({}));
-      throw new Error(errBody.error_description || errBody.error || `HTTP ${tokenResp.status}`);
-    }
-    const tokenData = await tokenResp.json();
-    accessToken = tokenData.access_token;
+    authMeta = await getGoogleAccessToken(env);
+    accessToken = authMeta.accessToken;
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: 'Erro ao obter access token do Google.', detail: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
@@ -289,7 +279,13 @@ export async function onRequestPost(context) {
     enviarEmail('contato@hermidamaia.com.br', 'Novo agendamento recebido', emailSuporteHtml),
   ]);
 
-  return new Response(JSON.stringify({ ok: true, eventId: eventData.id, agendamentoId }), {
+  return new Response(JSON.stringify({
+    ok: true,
+    eventId: eventData.id,
+    agendamentoId,
+    authSource: authMeta?.source,
+    warning: authMeta?.warning || undefined,
+  }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });

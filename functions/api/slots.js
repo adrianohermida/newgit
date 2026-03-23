@@ -1,3 +1,5 @@
+import { getGoogleAccessToken } from '../lib/google-auth.js';
+
 export async function onRequestGet(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -6,26 +8,14 @@ export async function onRequestGet(context) {
     return new Response(JSON.stringify({ ok: false, error: 'Data não informada.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
 
-  let accessToken = env.GOOGLE_ACCESS_TOKEN;
+  let accessToken;
+  let authMeta;
   try {
-    const params =
-      "client_id=" + encodeURIComponent(env.GOOGLE_CLIENT_ID) +
-      "&client_secret=" + encodeURIComponent(env.GOOGLE_CLIENT_SECRET) +
-      "&refresh_token=" + encodeURIComponent(env.GOOGLE_OAUTH_REFRESH_TOKEN) +
-      "&grant_type=refresh_token";
-    const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params
-    });
-    if (!tokenResp.ok) {
-      throw new Error('Erro ao obter access token do Google');
-    }
-    const tokenData = await tokenResp.json();
-    accessToken = tokenData.access_token;
+    authMeta = await getGoogleAccessToken(env);
+    accessToken = authMeta.accessToken;
   } catch (e) {
     return new Response(
-      JSON.stringify({ ok: false, error: 'Erro ao obter access token do Google.' }),
+      JSON.stringify({ ok: false, error: 'Erro ao obter access token do Google.', detail: e.message }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }

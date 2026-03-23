@@ -1,3 +1,5 @@
+import { getGoogleAccessToken } from '../lib/google-auth.js';
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -23,23 +25,10 @@ export async function onRequestGet(context) {
 
   // Obter access token via refresh token
   let accessToken;
+  let authMeta;
   try {
-    const params =
-      'client_id=' + encodeURIComponent(env.GOOGLE_CLIENT_ID) +
-      '&client_secret=' + encodeURIComponent(env.GOOGLE_CLIENT_SECRET) +
-      '&refresh_token=' + encodeURIComponent(env.GOOGLE_OAUTH_REFRESH_TOKEN) +
-      '&grant_type=refresh_token';
-    const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params,
-    });
-    if (!tokenResp.ok) {
-      const errBody = await tokenResp.json().catch(() => ({}));
-      throw new Error(errBody.error_description || errBody.error || `HTTP ${tokenResp.status}`);
-    }
-    const tokenData = await tokenResp.json();
-    accessToken = tokenData.access_token;
+    authMeta = await getGoogleAccessToken(env);
+    accessToken = authMeta.accessToken;
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: 'Erro ao autenticar com Google Calendar.', detail: e.message }), {
       status: 500,
@@ -114,7 +103,12 @@ export async function onRequestGet(context) {
     });
   }
 
-  return new Response(JSON.stringify({ ok: true, slots: slotsPorDia }), {
+  return new Response(JSON.stringify({
+    ok: true,
+    slots: slotsPorDia,
+    authSource: authMeta?.source,
+    warning: authMeta?.warning || undefined,
+  }), {
     status: 200,
     headers: { ...CORS, 'Content-Type': 'application/json' },
   });

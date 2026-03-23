@@ -24,14 +24,28 @@ function log(step, status, detail = '') {
   console.log(line);
 }
 
+function formatErrorBody(body) {
+  if (!body || typeof body !== 'object') {
+    return '';
+  }
+
+  const extras = [];
+  if (body.detail) extras.push(`detail=${body.detail}`);
+  if (body.route) extras.push(`route=${body.route}`);
+  if (Array.isArray(body.ausentes) && body.ausentes.length > 0) {
+    extras.push(`ausentes=${body.ausentes.join(',')}`);
+  }
+  if (body.stage) extras.push(`stage=${body.stage}`);
+  return extras.length > 0 ? ` (${extras.join(' | ')})` : '';
+}
+
 async function testSlotsMonth() {
   const step = 'GET /api/slots-month?mes=2026-03';
   try {
     const res = await fetch(`${BASE_URL}/api/slots-month?mes=2026-03`);
     const body = await res.json();
     if (!res.ok) {
-      const detail = body.detail ? ` (${body.detail})` : '';
-      log(step, 'FAIL', `HTTP ${res.status}: ${body.error || JSON.stringify(body)}${detail}`);
+      log(step, 'FAIL', `HTTP ${res.status}: ${body.error || JSON.stringify(body)}${formatErrorBody(body)}`);
       return null;
     }
     if (!body.ok || typeof body.slots !== 'object') {
@@ -64,8 +78,7 @@ async function testAgendar() {
       return null;
     }
     if (!res.ok || !body.ok) {
-      const detail = body.detail ? ` (${body.detail})` : '';
-      log(step, 'FAIL', `HTTP ${res.status}: ${body.error || JSON.stringify(body)}${detail}`);
+      log(step, 'FAIL', `HTTP ${res.status}: ${body.error || JSON.stringify(body)}${formatErrorBody(body)}`);
       return null;
     }
     log(step, 'PASS', `agendamentoId=${body.agendamentoId} | eventId=${body.eventId}`);
@@ -98,6 +111,9 @@ async function testConfirmar(token) {
       log(step, 'FAIL', 'Token não encontrado no Supabase');
     } else if (res.status === 410) {
       log(step, 'WARN', 'Token expirado (OK se etapa 2 foi executada há mais de 24h)');
+    } else if (res.status === 400) {
+      const body = contentType.includes('application/json') ? await res.json().catch(() => null) : await res.text();
+      log(step, 'FAIL', `HTTP 400: ${typeof body === 'string' ? body : body?.error || 'Token inválido'}`);
     } else {
       log(step, 'FAIL', `HTTP ${res.status} inesperado`);
     }

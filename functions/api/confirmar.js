@@ -4,9 +4,12 @@
 export async function onRequestGet(context) {
   const { request, env } = context;
   const url = new URL(request.url);
-  const token = url.searchParams.get('token');
+  const token = url.searchParams.get('token')?.trim();
   if (!token) {
     return new Response('Token de confirmação ausente.', { status: 400 });
+  }
+  if (!/^[0-9a-fA-F-]{36}$/.test(token)) {
+    return new Response('Token de confirmação inválido.', { status: 400 });
   }
 
   // Buscar agendamento no Supabase pelo token (id ou campo token_confirmacao)
@@ -20,6 +23,8 @@ export async function onRequestGet(context) {
     },
   });
   if (!resp.ok) {
+    const detail = await resp.text().catch(() => '');
+    console.error('Confirmar: erro ao consultar agendamento no Supabase:', detail || resp.status);
     return new Response('Erro ao consultar agendamento.', { status: 500 });
   }
   const agendamentos = await resp.json();
@@ -52,6 +57,13 @@ export async function onRequestGet(context) {
     body: JSON.stringify({ status: 'confirmado', updated_at: new Date().toISOString() })
   });
   if (!updateResp.ok) {
+    const detail = await updateResp.text().catch(() => '');
+    console.error('Confirmar: erro ao atualizar status no Supabase:', detail || updateResp.status);
+    return new Response('Erro ao confirmar agendamento.', { status: 500 });
+  }
+  const updatedRows = await updateResp.json().catch(() => []);
+  if (!Array.isArray(updatedRows) || updatedRows.length === 0) {
+    console.error('Confirmar: atualização sem linhas retornadas para o token:', token);
     return new Response('Erro ao confirmar agendamento.', { status: 500 });
   }
 

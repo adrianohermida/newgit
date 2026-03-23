@@ -3,29 +3,39 @@
 // Executa antes de qualquer função em functions/api/
 
 const VARS_POR_ROTA = {
-  '/api/slots': [
-    'GOOGLE_CLIENT_ID',
-    'GOOGLE_CLIENT_SECRET',
-    'GOOGLE_OAUTH_REFRESH_TOKEN',
-  ],
-  '/api/slots-month': [
-    'GOOGLE_CLIENT_ID',
-    'GOOGLE_CLIENT_SECRET',
-    'GOOGLE_OAUTH_REFRESH_TOKEN',
-  ],
-  '/api/agendar': [
-    'GOOGLE_CLIENT_ID',
-    'GOOGLE_CLIENT_SECRET',
-    'GOOGLE_OAUTH_REFRESH_TOKEN',
-    'NEXT_PUBLIC_SUPABASE_URL',
-    'SUPABASE_SERVICE_ROLE_KEY',
-    'RESEND_API_KEY',
-  ],
-  '/api/confirmar': [
-    'NEXT_PUBLIC_SUPABASE_URL',
-    'SUPABASE_SERVICE_ROLE_KEY',
-    'RESEND_API_KEY',
-  ],
+  '/api/slots': {
+    required: [],
+    oneOf: [
+      ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_OAUTH_REFRESH_TOKEN'],
+      ['GOOGLE_ACCESS_TOKEN'],
+    ],
+  },
+  '/api/slots-month': {
+    required: [],
+    oneOf: [
+      ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_OAUTH_REFRESH_TOKEN'],
+      ['GOOGLE_ACCESS_TOKEN'],
+    ],
+  },
+  '/api/agendar': {
+    required: [
+      'NEXT_PUBLIC_SUPABASE_URL',
+      'SUPABASE_SERVICE_ROLE_KEY',
+      'RESEND_API_KEY',
+    ],
+    oneOf: [
+      ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_OAUTH_REFRESH_TOKEN'],
+      ['GOOGLE_ACCESS_TOKEN'],
+    ],
+  },
+  '/api/confirmar': {
+    required: [
+      'NEXT_PUBLIC_SUPABASE_URL',
+      'SUPABASE_SERVICE_ROLE_KEY',
+      'RESEND_API_KEY',
+    ],
+    oneOf: [],
+  },
 };
 
 export async function onRequest(context) {
@@ -37,14 +47,22 @@ export async function onRequest(context) {
     return next();
   }
 
-  const varsObrigatorias = VARS_POR_ROTA[url.pathname] || [];
-  const ausentes = varsObrigatorias.filter(v => !env[v]);
-  if (ausentes.length > 0) {
+  const routeConfig = VARS_POR_ROTA[url.pathname] || { required: [], oneOf: [] };
+  const ausentes = routeConfig.required.filter(v => !env[v]);
+  const oneOfSatisfied = routeConfig.oneOf.length === 0 || routeConfig.oneOf.some(
+    (group) => group.every((variable) => !!env[variable])
+  );
+
+  if (ausentes.length > 0 || !oneOfSatisfied) {
+    const alternativas = !oneOfSatisfied
+      ? routeConfig.oneOf.map((group) => group.join(' + '))
+      : [];
     return new Response(
       JSON.stringify({
         ok: false,
         error: 'Configuração incompleta no servidor. Variáveis de ambiente ausentes.',
         ausentes,
+        alternativas,
         route: url.pathname,
       }),
       {
