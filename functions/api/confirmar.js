@@ -55,15 +55,16 @@ export async function onRequestGet(context) {
     return new Response('Erro ao confirmar agendamento.', { status: 500 });
   }
 
-  // Enviar e-mail de confirmação ao cliente
+  // Montar e-mails de confirmação
   const dataFormatada = new Date(`${agendamento.data}T12:00:00-03:00`).toLocaleDateString('pt-BR', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Sao_Paulo'
   });
-  const emailConfirmacaoHtml = `
+
+  const emailClienteHtml = `
 <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#050706;color:#F4F1EA;padding:32px;border-radius:12px">
   <h2 style="color:#C5A059;margin-top:0">Consulta Confirmada!</h2>
   <p>Olá, <strong>${agendamento.nome}</strong>!</p>
-  <p>Sua consulta jurídica foi confirmada com sucesso. Aguardamos você.</p>
+  <p>Sua consulta jurídica foi confirmada com sucesso. Aguardamos você no dia e horário abaixo.</p>
   <table style="width:100%;border-collapse:collapse;margin:24px 0">
     <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Área</td><td style="padding:8px">${agendamento.area}</td></tr>
     <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Data</td><td style="padding:8px">${dataFormatada}</td></tr>
@@ -72,19 +73,41 @@ export async function onRequestGet(context) {
   <p style="font-size:13px;color:#aaa">Em caso de dúvidas, acesse <a href="https://hermidamaia.adv.br" style="color:#C5A059">hermidamaia.adv.br</a> ou entre em contato conosco.</p>
 </div>`;
 
-  try {
-    await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+  const emailEscritorioHtml = `
+<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+  <h2>Agendamento Confirmado pelo Cliente — ${agendamento.area}</h2>
+  <table style="border-collapse:collapse;width:100%">
+    <tr><td style="padding:6px;font-weight:bold">Nome</td><td style="padding:6px">${agendamento.nome}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold">E-mail</td><td style="padding:6px">${agendamento.email}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold">Telefone</td><td style="padding:6px">${agendamento.telefone}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold">Área</td><td style="padding:6px">${agendamento.area}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold">Data</td><td style="padding:6px">${agendamento.data}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold">Hora</td><td style="padding:6px">${agendamento.hora}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold">Observações</td><td style="padding:6px">${agendamento.observacoes || '—'}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold">Google Event ID</td><td style="padding:6px;font-size:12px">${agendamento.google_event_id || '—'}</td></tr>
+  </table>
+</div>`;
+
+  async function enviarEmail(to, subject, html) {
+    const resp = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${supabaseKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        to: agendamento.email,
-        subject: 'Sua consulta está confirmada — Hermida Maia Advocacia',
-        html: emailConfirmacaoHtml,
-      }),
+      body: JSON.stringify({ to, subject, html }),
     });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      console.error(`send-email error para ${to}:`, err.error || resp.status);
+    }
+  }
+
+  try {
+    await Promise.all([
+      enviarEmail(agendamento.email, 'Sua consulta está confirmada — Hermida Maia Advocacia', emailClienteHtml),
+      enviarEmail('contato@hermidamaia.com.br', `Agendamento confirmado — ${agendamento.nome}`, emailEscritorioHtml),
+    ]);
   } catch (_) {
     // Falha no e-mail não bloqueia a confirmação
   }
