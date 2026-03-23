@@ -286,8 +286,9 @@ export async function onRequestPost(context) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: 'Hermida Maia Advocacia <contato@hermidamaia.com.br>',
+          from: 'Hermida Maia Advocacia <contato@hermidamaia.adv.br>',
           to: [to],
+          reply_to: 'suporte@hermidamaia.adv.br',
           subject,
           html,
         }),
@@ -304,7 +305,7 @@ export async function onRequestPost(context) {
   // Disparar ambos os e-mails em paralelo (não bloqueia retorno ao cliente)
   await Promise.all([
     enviarEmail(email, 'Confirme seu agendamento', emailClienteHtml),
-    enviarEmail('contato@hermidamaia.com.br', 'Novo agendamento recebido', emailSuporteHtml),
+    enviarEmail('suporte@hermidamaia.adv.br', 'Novo agendamento recebido', emailSuporteHtml),
   ]);
 
   return new Response(JSON.stringify({

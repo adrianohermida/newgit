@@ -122,8 +122,9 @@ export async function onRequestGet(context) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: 'Hermida Maia Advocacia <contato@hermidamaia.com.br>',
+          from: 'Hermida Maia Advocacia <contato@hermidamaia.adv.br>',
           to: [to],
+          reply_to: 'suporte@hermidamaia.adv.br',
           subject,
           html,
         }),
@@ -139,7 +140,7 @@ export async function onRequestGet(context) {
 
   await Promise.all([
     enviarEmail(agendamentoConfirmado.email, 'Sua consulta está confirmada - Hermida Maia Advocacia', emailClienteHtml),
-    enviarEmail('contato@hermidamaia.com.br', `Agendamento confirmado — ${agendamentoConfirmado.nome}`, emailEscritorioHtml),
+    enviarEmail('suporte@hermidamaia.adv.br', `Agendamento confirmado — ${agendamentoConfirmado.nome}`, emailEscritorioHtml),
   ]);
 
   // Página de sucesso

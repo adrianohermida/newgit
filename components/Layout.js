@@ -305,7 +305,7 @@ export default function Layout({ children }) {
                 </li>
                 <li className="flex items-center gap-3">
                   <span className="text-[#C5A059] opacity-100">✉</span>
-                  <span>contato@hermidamaia.com.br</span>
+                  <span>suporte@hermidamaia.adv.br</span>
                 </li>
                 <li>
                   <div className="mt-2">

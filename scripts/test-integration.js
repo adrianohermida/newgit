@@ -153,7 +153,7 @@ async function testAgendar(slot) {
 
   const payload = {
     nome: 'Teste CI',
-    email: process.env.TEST_EMAIL || 'dev@hermidamaia.com.br',
+    email: process.env.TEST_EMAIL || 'suporte@hermidamaia.adv.br',
     telefone: '11999999999',
     area: 'Superendividamento',
     data: slot.data,

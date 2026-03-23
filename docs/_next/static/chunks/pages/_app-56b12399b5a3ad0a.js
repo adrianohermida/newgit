@@ -1,0 +1,22 @@
+(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[636],{1678:()=>{},6556:(e,t,a)=>{(window.__NEXT_P=window.__NEXT_P||[]).push(["/_app",function(){return a(6579)}])},6579:(e,t,a)=>{"use strict";a.r(t),a.d(t,{default:()=>r});var n=a(7876);a(1678);var s=a(7328),o=a.n(s),i=a(4232);function r({Component:e,pageProps:t}){return(0,i.useEffect)(()=>{if(!document.getElementById("gtm-body")){let e=document.createElement("noscript");e.id="gtm-body",e.innerHTML='<iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TMBHHW6" height="0" width="0" style="display:none;visibility:hidden"></iframe>',document.body.prepend(e)}if(!document.getElementById("setmore_script")){let e=document.createElement("script");e.id="setmore_script",e.type="text/javascript",e.src="https://storage.googleapis.com/fullintegration-live/webComponentAppListing/Container/setmoreIframeLive.js",document.body.appendChild(e)}if(!document.getElementById("Setmore_button_iframe")){let e=document.createElement("a");e.id="Setmore_button_iframe",e.href="https://booking.setmore.com/scheduleappointment/93965fbc-3be5-4b72-aa5b-3b2e2b67d46b",e.style.cssText="float:none; position: fixed; right: -2px; top: 25%; display: block; z-index: 20000",e.innerHTML='<img border="none" src="https://fm.sendpul.se/8672e56ee69550b039f6b32e73b058d56692731/Site/booking.svg" alt="Book an appointment with Hermida Maia Advocacia using Setmore"/>',document.body.appendChild(e)}if(!document.getElementById("freshsales_crm_script")){let e=document.createElement("script");e.id="freshsales_crm_script",e.src="//eu.fw-cdn.com/10713913/375987.js",e.setAttribute("chat","false"),e.async=!0,document.body.appendChild(e)}},[]),(0,n.jsxs)(n.Fragment,{children:[(0,n.jsxs)(o(),{children:[(0,n.jsx)("title",{children:"Hermida Maia Advocacia | Advogado Especialista em Superendividamento, Juros Abusivos e Contratos Banc\xe1rios"}),(0,n.jsx)("meta",{name:"description",content:"Escrit\xf3rio de advocacia especializado em superendividamento, revis\xe3o banc\xe1ria, contratos, defesa contra juros abusivos, empr\xe9stimo consignado, cart\xe3o de cr\xe9dito e direito banc\xe1rio."}),(0,n.jsx)("meta",{name:"keywords",content:"advogado, superendividamento, revis\xe3o banc\xe1ria, contratos, juros abusivo, empr\xe9stimo consignado, cart\xe3o de cr\xe9dito, reserva de margem consignada, defesa do consumidor, negocia\xe7\xe3o de d\xedvidas, recupera\xe7\xe3o judicial, direito banc\xe1rio, consultoria jur\xeddica"}),(0,n.jsx)("link",{rel:"icon",type:"image/webp",href:"/images/OIP.webp"}),(0,n.jsx)("script",{dangerouslySetInnerHTML:{__html:`
+          (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+          new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+          j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+          'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+          })(window,document,'script','dataLayer','GTM-TMBHHW6');
+          (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+          new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+          j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+          'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+          })(window,document,'script','dataLayer','GTM-56WQHDR');
+        `}}),(0,n.jsx)("script",{async:!0,src:"https://www.googletagmanager.com/gtag/js?id=UA-72669401-1"}),(0,n.jsx)("script",{dangerouslySetInnerHTML:{__html:`
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'UA-72669401-1');
+        `}}),(0,n.jsx)("script",{async:!0,src:"https://www.googletagmanager.com/gtag/js?id=G-72669401"}),(0,n.jsx)("script",{dangerouslySetInnerHTML:{__html:`
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-72669401');
+        `}})]}),(0,n.jsx)(e,{...t})]})}},7328:(e,t,a)=>{e.exports=a(8022)}},e=>{var t=t=>e(e.s=t);e.O(0,[593,792],()=>(t(6556),t(9603))),_N_E=e.O()}]);
