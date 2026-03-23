@@ -81,6 +81,40 @@ async function testSlotsMonth() {
   }
 }
 
+async function verifySupabaseCredentials() {
+  const step = 'Preflight Supabase';
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    log(step, 'FAIL', 'NEXT_PUBLIC_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY ausente');
+    return false;
+  }
+
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/agendamentos?select=id&limit=1`, {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      const detail = body && typeof body === 'object'
+        ? `${body.message || 'erro'}${body.hint ? ` | ${body.hint}` : ''}`
+        : `HTTP ${res.status}`;
+      log(step, 'FAIL', detail);
+      return false;
+    }
+    log(step, 'PASS', 'credenciais do Supabase aceitas');
+    return true;
+  } catch (err) {
+    log(step, 'FAIL', err.message);
+    return false;
+  }
+}
+
 async function testAgendar(slot) {
   const step = 'POST /api/agendar';
   if (!slot) {
@@ -263,8 +297,9 @@ async function main() {
   }
 
   const slot = await testSlotsMonth();
+  const supabaseReady = await verifySupabaseCredentials();
 
-  const agendarResult = await testAgendar(slot);
+  const agendarResult = supabaseReady ? await testAgendar(slot) : null;
   const lookedUpToken = agendarResult?.agendamentoId
     ? await fetchTokenByAgendamentoId(agendarResult.agendamentoId)
     : null;
