@@ -68,27 +68,32 @@ export async function onRequestGet(context) {
   }
   const eventsData = await eventsResp.json();
 
-  // Agrupar eventos ocupados por data
-  const fmt = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-  const dateFmt = new Intl.DateTimeFormat('sv-SE', { // sv-SE dá YYYY-MM-DD
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
+  // Converte ISO string para hora e data no fuso fixo de Brasília (UTC-3, sem DST)
+  function toSPTime(isoString) {
+    const d = new Date(isoString);
+    const sp = new Date(d.getTime() - 3 * 60 * 60 * 1000);
+    const hh = String(sp.getUTCHours()).padStart(2, '0');
+    const mm = String(sp.getUTCMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }
+  function toSPDate(isoString) {
+    const d = new Date(isoString);
+    const sp = new Date(d.getTime() - 3 * 60 * 60 * 1000);
+    const yyyy = sp.getUTCFullYear();
+    const mm = String(sp.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(sp.getUTCDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
 
+  // Agrupar eventos ocupados por data
   const ocupadosPorDia = {};
   for (const ev of eventsData.items || []) {
     const start = ev.start.dateTime || ev.start.date;
     if (!start) continue;
-    const d = new Date(start);
-    const dia = dateFmt.format(d);
-    const hora = fmt.format(d);
+    // Eventos de dia inteiro (start.date, sem hora) não bloqueam slots
+    if (!ev.start.dateTime) continue;
+    const dia = toSPDate(start);
+    const hora = toSPTime(start);
     if (!ocupadosPorDia[dia]) ocupadosPorDia[dia] = [];
     ocupadosPorDia[dia].push(hora);
   }

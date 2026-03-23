@@ -143,34 +143,69 @@ export async function onRequestPost(context) {
     });
   }
 
-  // Envio de e-mail de confirmação (MailChannels, Resend, etc)
+  // Envio de e-mail via Resend (https://resend.com)
   const siteUrl = env.SITE_URL || 'https://hermidamaia.adv.br';
   const linkConfirmacao = `${siteUrl}/api/confirmar?token=${tokenConfirmacao}`;
-  const emailBody = `Olá, ${nome}!\n\nRecebemos seu pedido de agendamento para ${data} às ${hora}.\n\nPara confirmar, clique no link: ${linkConfirmacao}\n\nSe não foi você, ignore este e-mail.`;
-  const suporteBody = `Novo agendamento:\nNome: ${nome}\nE-mail: ${email}\nTelefone: ${telefone}\nÁrea: ${area}\nData: ${data}\nHora: ${hora}\nToken: ${tokenConfirmacao}`;
 
-  // Enviar para usuário
-  await fetch('https://api.mailchannels.net/tx/v1/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      personalizations: [{ to: [{ email }] }],
-      from: { email: 'nao-responda@hermidamaia.com.br', name: 'Hermida Maia' },
-      subject: 'Confirme seu agendamento',
-      content: [{ type: 'text/plain', value: emailBody }],
-    })
+  const dataFormatada = new Date(`${data}T${hora}:00-03:00`).toLocaleDateString('pt-BR', {
+    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Sao_Paulo'
   });
-  // Enviar para suporte
-  await fetch('https://api.mailchannels.net/tx/v1/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      personalizations: [{ to: [{ email: 'contato@hermidamaia.com.br' }] }],
-      from: { email: 'nao-responda@hermidamaia.com.br', name: 'Hermida Maia' },
-      subject: 'Novo agendamento recebido',
-      content: [{ type: 'text/plain', value: suporteBody }],
-    })
-  });
+
+  const emailClienteHtml = `
+<div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#050706;color:#F4F1EA;padding:32px;border-radius:12px">
+  <h2 style="color:#C5A059;margin-top:0">Pedido de Agendamento Recebido</h2>
+  <p>Olá, <strong>${nome}</strong>!</p>
+  <p>Recebemos seu pedido de consulta jurídica. Confirme pelo link abaixo para garantir o horário.</p>
+  <table style="width:100%;border-collapse:collapse;margin:24px 0">
+    <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Área</td><td style="padding:8px">${area}</td></tr>
+    <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Data</td><td style="padding:8px">${dataFormatada}</td></tr>
+    <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Horário</td><td style="padding:8px">${hora}</td></tr>
+  </table>
+  <a href="${linkConfirmacao}" style="display:inline-block;background:#C5A059;color:#050706;font-weight:bold;padding:14px 28px;border-radius:8px;text-decoration:none;margin:8px 0">
+    Confirmar Agendamento
+  </a>
+  <p style="font-size:12px;color:#888;margin-top:24px">
+    O link expira em 24 horas. Se não foi você, ignore este e-mail.
+  </p>
+</div>`;
+
+  const emailSuporteHtml = `
+<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+  <h2>Novo Agendamento — ${area}</h2>
+  <table style="border-collapse:collapse;width:100%">
+    <tr><td style="padding:6px;font-weight:bold">Nome</td><td style="padding:6px">${nome}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold">E-mail</td><td style="padding:6px">${email}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold">Telefone</td><td style="padding:6px">${telefone}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold">Data</td><td style="padding:6px">${data}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold">Hora</td><td style="padding:6px">${hora}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold">Observações</td><td style="padding:6px">${observacoes || '—'}</td></tr>
+    <tr><td style="padding:6px;font-weight:bold">Token</td><td style="padding:6px;font-size:12px">${tokenConfirmacao}</td></tr>
+  </table>
+</div>`;
+
+  async function enviarEmail(to, subject, html) {
+    const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY;
+    const resp = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ to, subject, html }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      console.error(`send-email error para ${to}:`, err.error || resp.status);
+    }
+    return resp.ok;
+  }
+
+  // Disparar ambos os e-mails em paralelo (não bloqueia retorno ao cliente)
+  await Promise.all([
+    enviarEmail(email, 'Confirme seu agendamento — Hermida Maia', emailClienteHtml),
+    enviarEmail('contato@hermidamaia.com.br', `Novo agendamento — ${nome}`, emailSuporteHtml),
+  ]);
 
   return new Response(JSON.stringify({ ok: true, eventId: eventData.id, agendamentoId }), {
     status: 200,
