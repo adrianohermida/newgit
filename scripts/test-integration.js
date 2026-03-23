@@ -53,6 +53,28 @@ function formatErrorBody(body) {
   return extras.length > 0 ? ` (${extras.join(' | ')})` : '';
 }
 
+function inspectJwtLikeKey(value) {
+  if (!value) {
+    return { exists: false, format: 'missing', dotCount: 0 };
+  }
+
+  const cleaned = String(value).trim().replace(/^['"]|['"]$/g, '');
+  if (cleaned.startsWith('sb_secret_')) {
+    return { exists: true, format: 'sb_secret', dotCount: 0 };
+  }
+
+  if (cleaned.startsWith('eyJ')) {
+    const dotCount = (cleaned.match(/\./g) || []).length;
+    return {
+      exists: true,
+      format: dotCount === 2 ? 'jwt' : 'malformed_jwt',
+      dotCount,
+    };
+  }
+
+  return { exists: true, format: 'unknown', dotCount: 0 };
+}
+
 async function testSlotsMonth() {
   const step = 'GET /api/slots-month?mes=...';
   const targetMonth = process.env.TEST_MONTH || getSuggestedMonth();
@@ -89,6 +111,12 @@ async function verifySupabaseCredentials() {
 
   if (!supabaseUrl || !serviceRoleKey) {
     log(step, 'FAIL', 'NEXT_PUBLIC_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY ausente');
+    return false;
+  }
+
+  const keyMeta = inspectJwtLikeKey(serviceRoleKey);
+  if (keyMeta.format === 'malformed_jwt') {
+    log(step, 'FAIL', `SUPABASE_SERVICE_ROLE_KEY com formato invalido no ambiente local (dots=${keyMeta.dotCount})`);
     return false;
   }
 

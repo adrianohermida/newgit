@@ -1,5 +1,6 @@
 import { getGoogleAccessToken } from '../lib/google-auth.js';
 import { MINIMUM_LEAD_HOURS, isSlotBookable } from '../lib/slot-policy.js';
+import { getCleanEnvValue, getSupabaseServerKey, inspectSupabaseKey } from '../lib/env.js';
 
 // Função simples para gerar uuidv4-like (suficiente para ambiente Cloudflare)
 // Função para gerar uuidv4 (Cloudflare)
@@ -82,8 +83,25 @@ export async function onRequestPost(context) {
   const tokenConfirmacao = uuidv4();
 
   // Persistir no Supabase (inclui token de confirmação)
-  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseUrl = getCleanEnvValue(env.NEXT_PUBLIC_SUPABASE_URL);
+  const supabaseKey = getSupabaseServerKey(env);
+  const supabaseKeyMeta = inspectSupabaseKey(supabaseKey);
+  if (!supabaseUrl || !supabaseKey) {
+    return new Response(JSON.stringify({
+      ok: false,
+      error: 'Configuracao incompleta do sistema de agendamento.',
+      stage: 'supabase_config',
+      detail: 'SUPABASE_SERVICE_ROLE_KEY ausente.',
+    }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
+  if (supabaseKeyMeta.format === 'malformed_jwt') {
+    return new Response(JSON.stringify({
+      ok: false,
+      error: 'Chave do Supabase com formato invalido no ambiente.',
+      stage: 'supabase_config',
+      detail: `Formato detectado: ${supabaseKeyMeta.format} (dots=${supabaseKeyMeta.dotCount})`,
+    }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
   const nowIso = new Date().toISOString();
   const insertResp = await fetch(`${supabaseUrl}/rest/v1/agendamentos`, {
     method: 'POST',

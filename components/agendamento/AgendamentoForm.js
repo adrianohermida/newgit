@@ -33,6 +33,37 @@ export default function AgendamentoForm() {
   const [success, setSuccess] = useState(false);
   const [slotsApiError, setSlotsApiError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [systemMessage, setSystemMessage] = useState(null);
+  const [systemMessageTone, setSystemMessageTone] = useState("error");
+
+  function showSystemMessage(message, tone = "error") {
+    setSystemMessage(message);
+    setSystemMessageTone(tone);
+  }
+
+  function getApiErrorMessage(payload, fallbackMessage) {
+    if (!payload || typeof payload !== "object") {
+      return fallbackMessage;
+    }
+
+    if (payload.stage === "minimum_lead_time" && payload.minimumLeadHours) {
+      return `Os agendamentos exigem antecedencia minima de ${payload.minimumLeadHours} horas. Selecione outra data.`;
+    }
+    if (payload.stage === "supabase_config") {
+      return "O sistema de agendamento esta em manutencao. Tente novamente em instantes.";
+    }
+    if (payload.stage === "supabase_insert") {
+      return "Nao foi possivel registrar seu agendamento agora. Tente novamente em instantes.";
+    }
+    if (payload.stage === "google_calendar_create" || payload.stage === "supabase_update_google_event_id") {
+      return "Nao foi possivel reservar este horario agora. Atualize a pagina e tente novamente.";
+    }
+    if (typeof payload.error === "string" && payload.error.includes("ocupado")) {
+      return "Este horario acabou de ficar indisponivel. Escolha outro horario para continuar.";
+    }
+
+    return fallbackMessage;
+  }
 
   // Utilitário para obter a base da API (Cloudflare/produção ou local)
   function getApiBase() {
@@ -110,17 +141,15 @@ export default function AgendamentoForm() {
 
   async function handleSubmit() {
     if (!formData.nome || !formData.email) {
-      alert("Por favor, preencha nome e e-mail.");
+      showSystemMessage("Preencha nome e e-mail para continuar.");
       return;
     }
     if (!formData.telefone || !selectedDate || !selectedTime) {
-      alert("Por favor, preencha todos os campos obrigatórios: Telefone, Data e Horário.");
+      showSystemMessage("Preencha telefone, data e horario para concluir o agendamento.");
       return;
     }
     setSubmitting(true);
-    let agendamentoOk = false;
-    let freshdeskOk = false;
-    let freshdeskError = null;
+    setSystemMessage(null);
     try {
       const selectedDateKey = formatDateKey(selectedDate);
 
@@ -139,36 +168,15 @@ export default function AgendamentoForm() {
         }),
       });
       const data = await res.json();
-      agendamentoOk = data.ok;
-      // Envia para Freshdesk
-      try {
-        const fdRes = await fetch('/api/freshdesk-ticket', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: formData.nome,
-            email: formData.email,
-            subject: `Agendamento - ${AREAS.find(a => a.id === selectedArea)?.title}`,
-            description: `Telefone: ${formData.telefone}\nData: ${selectedDateKey}\nHora: ${selectedTime}\nObservações: ${formData.observacoes}`,
-            custom_fields: {}
-          })
-        });
-        const fdData = await fdRes.json();
-        freshdeskOk = fdData.ok;
-        freshdeskError = fdData.error || null;
-      } catch (err) {
-        freshdeskError = err.message;
-      }
-      if (agendamentoOk) {
+      if (data.ok) {
         setSuccess(true);
       } else {
-        alert("Erro ao agendar: " + (data.error || "Tente novamente."));
+        showSystemMessage(
+          getApiErrorMessage(data, "Nao foi possivel concluir seu agendamento agora. Revise os dados e tente novamente em instantes.")
+        );
       }
-      if (!freshdeskOk) {
-        alert("Aviso: Ticket não foi aberto no Freshdesk. " + (freshdeskError || "Tente novamente."));
-      }
-    } catch (error) {
-      alert("Erro ao realizar agendamento. Tente novamente.");
+    } catch {
+      showSystemMessage("O sistema de agendamento esta temporariamente indisponivel. Tente novamente em instantes.");
     }
     setSubmitting(false);
   }
@@ -184,6 +192,18 @@ export default function AgendamentoForm() {
     <div style={{ background: "#050706", minHeight: "100vh" }}>
       <div className="max-w-6xl mx-auto px-6 pb-20">
         <FallbackWarning />
+        {systemMessage && (
+          <div
+            className="mb-6 rounded-lg border px-4 py-3 text-sm"
+            style={{
+              borderColor: systemMessageTone === "error" ? "#7f1d1d" : "#2D2E2E",
+              background: systemMessageTone === "error" ? "rgba(127,29,29,0.25)" : "rgba(0,0,0,0.3)",
+              color: "#F4F1EA",
+            }}
+          >
+            {systemMessage}
+          </div>
+        )}
         <AnimatePresence mode="wait">
           {step === 1 && (
             <AreaStep
@@ -227,6 +247,4 @@ export default function AgendamentoForm() {
     </div>
   );
 }
-
-
 

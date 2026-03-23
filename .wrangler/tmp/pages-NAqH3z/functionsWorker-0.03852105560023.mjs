@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-// ../.wrangler/tmp/bundle-Tzmx8e/checked-fetch.js
+// ../.wrangler/tmp/bundle-fz4mYj/checked-fetch.js
 var urls = /* @__PURE__ */ new Set();
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
@@ -86,6 +86,40 @@ function isSlotBookable(slotStart) {
 }
 __name(isSlotBookable, "isSlotBookable");
 
+// lib/env.js
+function getCleanEnvValue(value) {
+  if (typeof value !== "string") return value ?? null;
+  const trimmed = value.trim();
+  if (trimmed.startsWith('"') && trimmed.endsWith('"') || trimmed.startsWith("'") && trimmed.endsWith("'")) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+__name(getCleanEnvValue, "getCleanEnvValue");
+function inspectSupabaseKey(value) {
+  const key = getCleanEnvValue(value);
+  if (!key) {
+    return { exists: false, format: "missing", dotCount: 0 };
+  }
+  if (key.startsWith("sb_secret_")) {
+    return { exists: true, format: "sb_secret", dotCount: 0 };
+  }
+  if (key.startsWith("eyJ")) {
+    const dotCount = (key.match(/\./g) || []).length;
+    return {
+      exists: true,
+      format: dotCount === 2 ? "jwt" : "malformed_jwt",
+      dotCount
+    };
+  }
+  return { exists: true, format: "unknown", dotCount: 0 };
+}
+__name(inspectSupabaseKey, "inspectSupabaseKey");
+function getSupabaseServerKey(env) {
+  return getCleanEnvValue(env.SUPABASE_SERVICE_ROLE_KEY) || null;
+}
+__name(getSupabaseServerKey, "getSupabaseServerKey");
+
 // api/agendar.js
 function uuidv4() {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(c) {
@@ -154,8 +188,25 @@ async function onRequestPost(context) {
   }
   const agendamentoId = uuidv4();
   const tokenConfirmacao = uuidv4();
-  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseUrl = getCleanEnvValue(env.NEXT_PUBLIC_SUPABASE_URL);
+  const supabaseKey = getSupabaseServerKey(env);
+  const supabaseKeyMeta = inspectSupabaseKey(supabaseKey);
+  if (!supabaseUrl || !supabaseKey) {
+    return new Response(JSON.stringify({
+      ok: false,
+      error: "Configuracao incompleta do sistema de agendamento.",
+      stage: "supabase_config",
+      detail: "SUPABASE_SERVICE_ROLE_KEY ausente."
+    }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
+  if (supabaseKeyMeta.format === "malformed_jwt") {
+    return new Response(JSON.stringify({
+      ok: false,
+      error: "Chave do Supabase com formato invalido no ambiente.",
+      stage: "supabase_config",
+      detail: `Formato detectado: ${supabaseKeyMeta.format} (dots=${supabaseKeyMeta.dotCount})`
+    }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
   const nowIso = (/* @__PURE__ */ new Date()).toISOString();
   const insertResp = await fetch(`${supabaseUrl}/rest/v1/agendamentos`, {
     method: "POST",
@@ -370,8 +421,13 @@ async function onRequestGet(context) {
   if (!/^[0-9a-fA-F-]{36}$/.test(token)) {
     return new Response("Token de confirma\xE7\xE3o inv\xE1lido.", { status: 400 });
   }
-  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseUrl = getCleanEnvValue(env.NEXT_PUBLIC_SUPABASE_URL);
+  const supabaseKey = getSupabaseServerKey(env);
+  const supabaseKeyMeta = inspectSupabaseKey(supabaseKey);
+  if (!supabaseUrl || !supabaseKey || supabaseKeyMeta.format === "malformed_jwt") {
+    console.error("Confirmar: configuracao invalida do Supabase.", supabaseKeyMeta);
+    return new Response("Configuracao interna invalida para confirmacao.", { status: 500 });
+  }
   const resp = await fetch(`${supabaseUrl}/rest/v1/agendamentos?token_confirmacao=eq.${token}`, {
     headers: {
       "apikey": supabaseKey,
@@ -522,7 +578,7 @@ async function onRequestPost2(context) {
     if (!res.ok) {
       return new Response(JSON.stringify({
         ok: false,
-        error: typeof body === "object" ? body.description || body.message || "Erro ao criar ticket no Freshdesk." : "Erro ao criar ticket no Freshdesk.",
+        error: "Erro interno ao registrar solicitacao.",
         detail: body
       }), {
         status: 500,
@@ -1399,7 +1455,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// ../.wrangler/tmp/bundle-Tzmx8e/middleware-insertion-facade.js
+// ../.wrangler/tmp/bundle-fz4mYj/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -1431,7 +1487,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// ../.wrangler/tmp/bundle-Tzmx8e/middleware-loader.entry.ts
+// ../.wrangler/tmp/bundle-fz4mYj/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

@@ -34,7 +34,7 @@ export async function onRequestPost(context) {
     if (!res.ok) {
       return new Response(JSON.stringify({
         ok: false,
-        error: typeof body === 'object' ? body.description || body.message || 'Erro ao criar ticket no Freshdesk.' : 'Erro ao criar ticket no Freshdesk.',
+        error: 'Erro interno ao registrar solicitacao.',
         detail: body,
       }), {
         status: 500,

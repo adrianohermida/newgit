@@ -1,3 +1,5 @@
+import { getCleanEnvValue, getSupabaseServerKey, inspectSupabaseKey } from '../lib/env.js';
+
 // Cloudflare Pages Function para confirmação de agendamento via link seguro
 // Endpoint: /functions/api/confirmar.js
 
@@ -13,8 +15,13 @@ export async function onRequestGet(context) {
   }
 
   // Buscar agendamento no Supabase pelo token (id ou campo token_confirmacao)
-  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseUrl = getCleanEnvValue(env.NEXT_PUBLIC_SUPABASE_URL);
+  const supabaseKey = getSupabaseServerKey(env);
+  const supabaseKeyMeta = inspectSupabaseKey(supabaseKey);
+  if (!supabaseUrl || !supabaseKey || supabaseKeyMeta.format === 'malformed_jwt') {
+    console.error('Confirmar: configuracao invalida do Supabase.', supabaseKeyMeta);
+    return new Response('Configuracao interna invalida para confirmacao.', { status: 500 });
+  }
   const resp = await fetch(`${supabaseUrl}/rest/v1/agendamentos?token_confirmacao=eq.${token}`, {
     headers: {
       'apikey': supabaseKey,
