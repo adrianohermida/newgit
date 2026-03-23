@@ -35,11 +35,11 @@ export default function AgendamentoForm() {
 
   // Utilitário para obter a base da API (Cloudflare/produção ou local)
   function getApiBase() {
-    // Ambiente local (desenvolvimento)
     if (typeof window !== "undefined" && window.location.hostname === "localhost") {
-      return "http://localhost:8787/api";
+      // wrangler pages dev usa 8788 por padrão
+      const port = window.location.port || "8788";
+      return `http://localhost:${port}/api`;
     }
-    // Produção: usar endpoint correto do Worker
     return "/api";
   }
 

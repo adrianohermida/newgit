@@ -30,7 +30,8 @@ async function testSlotsMonth() {
     const res = await fetch(`${BASE_URL}/api/slots-month?mes=2026-03`);
     const body = await res.json();
     if (!res.ok) {
-      log(step, 'FAIL', `HTTP ${res.status}: ${body.error || JSON.stringify(body)}`);
+      const detail = body.detail ? ` (${body.detail})` : '';
+      log(step, 'FAIL', `HTTP ${res.status}: ${body.error || JSON.stringify(body)}${detail}`);
       return null;
     }
     if (!body.ok || typeof body.slots !== 'object') {
@@ -63,7 +64,8 @@ async function testAgendar() {
       return null;
     }
     if (!res.ok || !body.ok) {
-      log(step, 'FAIL', `HTTP ${res.status}: ${body.error || JSON.stringify(body)}`);
+      const detail = body.detail ? ` (${body.detail})` : '';
+      log(step, 'FAIL', `HTTP ${res.status}: ${body.error || JSON.stringify(body)}${detail}`);
       return null;
     }
     log(step, 'PASS', `agendamentoId=${body.agendamentoId} | eventId=${body.eventId}`);
