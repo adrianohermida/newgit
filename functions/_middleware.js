@@ -65,6 +65,38 @@ const VARS_POR_ROTA = {
     ],
     oneOf: [],
   },
+  '/api/admin-agendamentos': {
+    required: [
+      'NEXT_PUBLIC_SUPABASE_URL',
+      'SUPABASE_SERVICE_ROLE_KEY',
+    ],
+    oneOf: [
+      ['NEXT_PUBLIC_SUPABASE_ANON_KEY'],
+      ['SUPABASE_ANON_KEY'],
+    ],
+  },
+  '/api/admin-posts': {
+    required: [
+      'NEXT_PUBLIC_SUPABASE_URL',
+      'SUPABASE_SERVICE_ROLE_KEY',
+    ],
+    oneOf: [
+      ['NEXT_PUBLIC_SUPABASE_ANON_KEY'],
+      ['SUPABASE_ANON_KEY'],
+    ],
+  },
+  '/api/admin-leads': {
+    required: [
+      'NEXT_PUBLIC_SUPABASE_URL',
+      'SUPABASE_SERVICE_ROLE_KEY',
+      'FRESHDESK_DOMAIN',
+      'FRESHDESK_BASIC_TOKEN',
+    ],
+    oneOf: [
+      ['NEXT_PUBLIC_SUPABASE_ANON_KEY'],
+      ['SUPABASE_ANON_KEY'],
+    ],
+  },
 };
 
 export async function onRequest(context) {
