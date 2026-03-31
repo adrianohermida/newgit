@@ -3,7 +3,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/router";
 import dynamic from "next/dynamic";
-const WhatsappWidgetCircle = dynamic(() => import("./WhatsappWidgetCircle"), { ssr: false });
+const SupportWidget = dynamic(() => import("./SupportWidget"), { ssr: false });
 
 const NAV_ITEMS = [
   { label: "Início", href: "/" },
@@ -333,7 +333,7 @@ export default function Layout({ children }) {
           </div>
         </div>
       </footer>
-      <WhatsappWidgetCircle />
+      <SupportWidget />
     </div>
   );
 }

@@ -2,6 +2,10 @@ import '../styles/globals.css';
 import Head from 'next/head';
 import { useEffect } from 'react';
 
+const freshworksWidgetScriptUrl =
+  process.env.NEXT_PUBLIC_FRESHWORKS_WIDGET_SCRIPT_URL || '//eu.fw-cdn.com/10713913/375987.js';
+const freshworksChatEnabled = process.env.NEXT_PUBLIC_FRESHWORKS_WIDGET_CHAT === 'true';
+
 export default function App({ Component, pageProps }) {
   // Google Tag Manager noscript e Setmore
   useEffect(() => {
@@ -30,11 +34,11 @@ export default function App({ Component, pageProps }) {
         document.body.appendChild(a);
       }
       // Freshsales Suite CRM Tracking
-      if (!document.getElementById('freshsales_crm_script')) {
+      if (freshworksWidgetScriptUrl && !document.getElementById('freshworks_widget_script')) {
         const crmScript = document.createElement('script');
-        crmScript.id = 'freshsales_crm_script';
-        crmScript.src = '//eu.fw-cdn.com/10713913/375987.js';
-        crmScript.setAttribute('chat', 'false');
+        crmScript.id = 'freshworks_widget_script';
+        crmScript.src = freshworksWidgetScriptUrl;
+        crmScript.setAttribute('chat', freshworksChatEnabled ? 'true' : 'false');
         crmScript.async = true;
         document.body.appendChild(crmScript);
       }

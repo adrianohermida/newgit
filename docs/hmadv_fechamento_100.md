@@ -1,4 +1,4 @@
-# HMADV - Fechamento 100% da Integracao
+﻿# HMADV - Fechamento 100% da Integracao
 
 ## Objetivo final
 
@@ -139,3 +139,4 @@ Aceite:
 6. Resolver backlog historico via `tpu-sync`
 7. Concluir camada institucional
 8. Fechar reconciliacao diaria Freshsales x Supabase
+

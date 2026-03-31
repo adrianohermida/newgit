@@ -83,7 +83,6 @@ export function inspectSupabaseKey(value) {
 
 export function getSupabaseApiKey(env) {
   return (
-    normalizeSupabaseKey(env.SUPABASE_SERVICE_ROLE_KEY).key ||
     getCleanEnvValue(env.SUPABASE_ANON_KEY) ||
     getCleanEnvValue(env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
     null

@@ -28,13 +28,15 @@ export default function AgendamentoForm() {
     nome: "",
     email: "",
     telefone: "",
-    observacoes: ""
+    observacoes: "",
+    website: "",
   });
   const [success, setSuccess] = useState(false);
   const [slotsApiError, setSlotsApiError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [systemMessage, setSystemMessage] = useState(null);
   const [systemMessageTone, setSystemMessageTone] = useState("error");
+  const startedAtRef = React.useRef(Date.now());
 
   function showSystemMessage(message, tone = "error") {
     setSystemMessage(message);
@@ -162,6 +164,8 @@ export default function AgendamentoForm() {
           email: formData.email,
           telefone: formData.telefone,
           observacoes: formData.observacoes,
+          website: formData.website,
+          startedAt: startedAtRef.current,
           area: AREAS.find(a => a.id === selectedArea)?.title,
           data: selectedDateKey,
           hora: selectedTime,
@@ -169,6 +173,7 @@ export default function AgendamentoForm() {
       });
       const data = await res.json();
       if (data.ok) {
+        startedAtRef.current = Date.now();
         setSuccess(true);
       } else {
         showSystemMessage(
