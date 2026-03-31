@@ -1,18 +1,64 @@
-import { getCleanEnvValue, getSupabaseBaseUrl } from "../lib/env.js";
+function cleanEnvValue(value) {
+  if (typeof value !== "string") {
+    return value ?? null;
+  }
+
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+
+  return trimmed;
+}
 
 export async function onRequestGet(context) {
-  const { env } = context;
-  const url = getSupabaseBaseUrl(env);
-  const anonKey =
-    getCleanEnvValue(env.SUPABASE_ANON_KEY) ||
-    getCleanEnvValue(env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
-    null;
+  try {
+    const { env } = context;
+    const url =
+      cleanEnvValue(env.SUPABASE_URL) ||
+      cleanEnvValue(env.NEXT_PUBLIC_SUPABASE_URL) ||
+      null;
+    const anonKey =
+      cleanEnvValue(env.SUPABASE_ANON_KEY) ||
+      cleanEnvValue(env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
+      null;
 
-  if (!url || !anonKey) {
+    if (!url || !anonKey) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: "Configuracao publica do Supabase ausente no ambiente.",
+          hasUrl: Boolean(url),
+          hasAnonKey: Boolean(anonKey),
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        url,
+        anonKey,
+      }),
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "private, max-age=300",
+        },
+      }
+    );
+  } catch (error) {
     return new Response(
       JSON.stringify({
         ok: false,
-        error: "Configuracao publica do Supabase ausente no ambiente.",
+        error: error?.message || "Falha ao montar configuracao publica do Supabase.",
       }),
       {
         status: 500,
@@ -20,18 +66,4 @@ export async function onRequestGet(context) {
       }
     );
   }
-
-  return new Response(
-    JSON.stringify({
-      ok: true,
-      url,
-      anonKey,
-    }),
-    {
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "private, max-age=300",
-      },
-    }
-  );
 }
