@@ -7,6 +7,7 @@ Prioridades:
 - resumir andamentos, publicacoes e audiencias;
 - detectar mudancas de status, fase e instancia;
 - identificar inconsistencias;
+- reconhecer conclusao, remessa, decisao e despacho como sinais relevantes do processo;
 - sugerir anotacoes automaticas;
 - sugerir tarefas e prazos preditivos;
 - ignorar publicacoes de leilao/leiloes.
@@ -26,6 +27,7 @@ Analise o evento processual abaixo e responda apenas JSON com este formato:
   "hearing_date": "ISO|null",
   "deadline_detected": true,
   "deadline_date": "ISO|null",
+  "movement_signal": "audiencia|publicacao|conclusao|remessa|decisao|despacho|outro",
   "predictive_task": {
     "should_create": true,
     "title": "string|null",
@@ -51,6 +53,7 @@ Analise o historico consolidado do processo abaixo e responda apenas JSON com es
   "current_status": "ativo|baixado|suspenso|arquivado|indefinido",
   "current_phase": "string|null",
   "current_instance": "1|2|3|null",
+  "movement_signals": ["audiencia|publicacao|conclusao|remessa|decisao|despacho"],
   "latest_relevant_event": {
     "kind": "andamento|publicacao|audiencia|outro",
     "title": "string",

@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const TPU_GATEWAY_BASE = 'https://gateway.cloud.pje.jus.br/tpu/api/v1/publico/consulta/detalhada';
 
 const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   db: { schema: 'judiciario' },
@@ -23,6 +24,38 @@ function response(payload: unknown, status = 200) {
 function toNumber(value: unknown): number | null {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function flagToBool(value: unknown): boolean | null {
+  if (value === null || value === undefined || value === '') return null;
+  const text = String(value).trim().toUpperCase();
+  if (text === 'S' || text === 'Y' || text === 'TRUE') return true;
+  if (text === 'N' || text === 'FALSE') return false;
+  return null;
+}
+
+function deriveBusinessSignals(nome: unknown, glossario: unknown, complementos: unknown) {
+  const haystack = [
+    String(nome ?? ''),
+    String(glossario ?? ''),
+    JSON.stringify(complementos ?? []),
+  ].join(' ').toLowerCase();
+
+  return {
+    audiencia: haystack.includes('audi') || haystack.includes('sessao de julgamento'),
+    publicacao: haystack.includes('publica'),
+    conclusao: haystack.includes('conclus'),
+    remessa: haystack.includes('remessa'),
+    decisao: haystack.includes('decis'),
+    despacho: haystack.includes('despach'),
+    relevante_freshsales:
+      haystack.includes('publica') ||
+      haystack.includes('audi') ||
+      haystack.includes('decis') ||
+      haystack.includes('despach') ||
+      haystack.includes('conclus') ||
+      haystack.includes('remessa'),
+  };
 }
 
 async function countRows(
@@ -54,7 +87,7 @@ async function safeSelect<T = any>(
 async function findTpuMovimentoByCodigo(codigoCnj: number) {
   const { data, error } = await db
     .from('tpu_movimento')
-    .select('id,codigo_cnj,nome,descricao,tipo,gera_prazo')
+    .select('id,codigo_cnj,nome,descricao,tipo,gera_prazo,glossario,visibilidade_externa,flg_eletronico,monocratico,colegiado,presidente_vice,movimento_template,complementos_detalhados,gateway_synced_at')
     .eq('codigo_cnj', codigoCnj)
     .maybeSingle();
 
@@ -63,6 +96,208 @@ async function findTpuMovimentoByCodigo(codigoCnj: number) {
   }
 
   return data ?? null;
+}
+
+async function fetchGatewayDetailed(kind: 'movimentos' | 'classes' | 'assuntos' | 'documentos', codigoCnj: number) {
+  const url = `${TPU_GATEWAY_BASE}/${kind}?codigo=${codigoCnj}`;
+  const res = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`gateway_fetch_failed:${kind}:${codigoCnj}:${res.status}:${await res.text()}`);
+  }
+  return await res.json();
+}
+
+async function upsertGatewayMovimento(payload: any) {
+  const row = {
+    codigo_cnj: toNumber(payload.id ?? payload.cod_item),
+    codigo_pai_cnj: toNumber(payload.cod_item_pai),
+    nome: payload.nome ?? payload.movimento ?? null,
+    descricao: payload.descricao_glossario ?? payload.glossario ?? null,
+    glossario: payload.glossario ?? null,
+    ativa: String(payload.situacao ?? 'A').toUpperCase() !== 'I',
+    versao_cnj: null,
+    visibilidade_externa: flagToBool(payload.visibilidadeExterna),
+    flg_eletronico: flagToBool(payload.flgEletronico),
+    monocratico: flagToBool(payload.monocratico),
+    colegiado: flagToBool(payload.colegiado),
+    presidente_vice: flagToBool(payload.presidenteVice),
+    sigiloso: flagToBool(payload.sigiloso),
+    dispositivo_legal: payload.dispositivoLegal ?? null,
+    artigo: payload.artigo ?? null,
+    movimento_template: payload.movimento ?? null,
+    complementos_detalhados: payload.complementos ?? [],
+    gateway_payload: payload,
+    gateway_synced_at: new Date().toISOString(),
+    atualizado_em: new Date().toISOString(),
+    importado_em: new Date().toISOString(),
+  };
+
+  const { data, error } = await db
+    .from('tpu_movimento')
+    .upsert(row, { onConflict: 'codigo_cnj' })
+    .select('id,codigo_cnj,nome,glossario,visibilidade_externa,flg_eletronico,monocratico,colegiado,presidente_vice,movimento_template,complementos_detalhados,gateway_synced_at')
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`gateway_upsert_movimento_failed:${error.message}`);
+  }
+  if (data?.id && row.codigo_cnj) {
+    await resolverMovimentosPendentesPorCodigo(row.codigo_cnj, String(data.id));
+  }
+  return data;
+}
+
+async function upsertGatewayClasse(payload: any) {
+  const row = {
+    codigo_cnj: toNumber(payload.cod_item),
+    codigo_pai_cnj: toNumber(payload.cod_item_pai),
+    nome: payload.nome ?? null,
+    descricao: payload.descricao_glossario ?? null,
+    glossario: payload.descricao_glossario ?? null,
+    sigla: payload.sigla ?? null,
+    ativa: String(payload.situacao ?? 'A').toUpperCase() !== 'I',
+    sigiloso: flagToBool(payload.sigiloso),
+    dispositivo_legal: payload.norma ?? null,
+    artigo: payload.artigo ?? null,
+    versao_cnj: null,
+    gateway_payload: payload,
+    gateway_synced_at: new Date().toISOString(),
+    atualizado_em: new Date().toISOString(),
+    importado_em: new Date().toISOString(),
+  };
+
+  const { data, error } = await db
+    .from('tpu_classe')
+    .upsert(row, { onConflict: 'codigo_cnj' })
+    .select('id,codigo_cnj,nome,gateway_synced_at')
+    .maybeSingle();
+
+  if (error) throw new Error(`gateway_upsert_classe_failed:${error.message}`);
+  return data;
+}
+
+async function upsertGatewayAssunto(payload: any) {
+  const row = {
+    codigo_cnj: toNumber(payload.cod_item),
+    nome: payload.nome ?? null,
+    descricao: payload.descricao_glossario ?? null,
+    glossario: payload.descricao_glossario ?? null,
+    ativa: String(payload.situacao ?? 'A').toUpperCase() !== 'I',
+    sigiloso: flagToBool(payload.sigiloso),
+    versao_cnj: null,
+    codigo_pai_cnj: toNumber(payload.cod_item_pai),
+    gateway_payload: payload,
+    gateway_synced_at: new Date().toISOString(),
+    atualizado_em: new Date().toISOString(),
+    importado_em: new Date().toISOString(),
+  };
+
+  const { data, error } = await db
+    .from('tpu_assunto')
+    .upsert(row, { onConflict: 'codigo_cnj' })
+    .select('id,codigo_cnj,nome,gateway_synced_at')
+    .maybeSingle();
+
+  if (error) throw new Error(`gateway_upsert_assunto_failed:${error.message}`);
+  return data;
+}
+
+async function upsertGatewayDocumento(payload: any) {
+  const row = {
+    codigo_cnj: toNumber(payload.cod_item),
+    nome: payload.nome ?? null,
+    descricao: payload.descricao_documento ?? payload.descricao_glossario ?? null,
+    glossario: payload.descricao_glossario ?? null,
+    ativa: String(payload.situacao ?? 'A').toUpperCase() !== 'I',
+    versao_cnj: null,
+    codigo_pai_cnj: toNumber(payload.cod_item_pai),
+    gateway_payload: payload,
+    gateway_synced_at: new Date().toISOString(),
+    atualizado_em: new Date().toISOString(),
+    importado_em: new Date().toISOString(),
+  };
+
+  const { data, error } = await db
+    .from('tpu_documento')
+    .upsert(row, { onConflict: 'codigo_cnj' })
+    .select('id,codigo_cnj,nome,gateway_synced_at')
+    .maybeSingle();
+
+  if (error) throw new Error(`gateway_upsert_documento_failed:${error.message}`);
+  return data;
+}
+
+async function resolverMovimentoDetalhado(codigoCnj: number) {
+  const payload = await fetchGatewayDetailed('movimentos', codigoCnj);
+  const saved = await upsertGatewayMovimento(payload);
+  await registrarLogSync({
+    fonte: 'gateway_tpu',
+    tipo_tpu: 'movimento',
+    total_registros: 1,
+    atualizados: 1,
+    status: 'ok',
+  });
+  return {
+    ok: true,
+    codigo_cnj: codigoCnj,
+    fonte: 'gateway_tpu',
+    saved,
+    complementos: payload.complementos ?? [],
+    signals: deriveBusinessSignals(payload.nome, payload.glossario, payload.complementos ?? []),
+  };
+}
+
+async function syncGatewayEntity(kind: 'movimentos' | 'classes' | 'assuntos' | 'documentos', codigoCnj: number) {
+  const payload = await fetchGatewayDetailed(kind, codigoCnj);
+  let saved: unknown;
+  if (kind === 'movimentos') saved = await upsertGatewayMovimento(payload);
+  if (kind === 'classes') saved = await upsertGatewayClasse(payload);
+  if (kind === 'assuntos') saved = await upsertGatewayAssunto(payload);
+  if (kind === 'documentos') saved = await upsertGatewayDocumento(payload);
+
+  await registrarLogSync({
+    fonte: 'gateway_tpu',
+    tipo_tpu: kind.slice(0, -1),
+    total_registros: 1,
+    atualizados: 1,
+    status: 'ok',
+  });
+
+  return {
+    ok: true,
+    kind,
+    codigo_cnj: codigoCnj,
+    fonte: 'gateway_tpu',
+    saved,
+  };
+}
+
+async function syncGatewayMovimentos(limite: number, codigoCnj?: number | null) {
+  if (codigoCnj) {
+    return syncGatewayEntity('movimentos', codigoCnj);
+  }
+  const { data, error } = await db
+    .from('movimentos')
+    .select('codigo')
+    .is('movimento_tpu_id', null)
+    .not('codigo', 'is', null)
+    .limit(limite);
+  if (error) throw new Error(`sync_gateway_movimentos_load_failed:${error.message}`);
+
+  const codigos = [...new Set((data ?? []).map((row: any) => toNumber(row.codigo)).filter(Boolean))] as number[];
+  const results: unknown[] = [];
+  for (const codigo of codigos) {
+    try {
+      results.push(await syncGatewayEntity('movimentos', codigo));
+    } catch (e) {
+      results.push({ ok: false, codigo_cnj: codigo, error: String(e) });
+    }
+  }
+  return { ok: true, total: codigos.length, results };
 }
 
 async function findComplementosByCodigo(codigoCnj: number) {
@@ -170,6 +405,26 @@ async function marcarMovimento(
   }
 }
 
+async function resolverMovimentosPendentesPorCodigo(codigoCnj: number, movimentoTpuId: string) {
+  const { error } = await db
+    .from('movimentos')
+    .update({
+      movimento_tpu_id: movimentoTpuId,
+      tpu_status: 'resolvido',
+      tpu_resolvido_em: new Date().toISOString(),
+    })
+    .eq('codigo', codigoCnj)
+    .is('movimento_tpu_id', null);
+
+  if (error) {
+    log('warn', 'resolver_movimentos_pendentes_por_codigo_error', {
+      codigo_cnj: codigoCnj,
+      movimento_tpu_id: movimentoTpuId,
+      error: error.message,
+    });
+  }
+}
+
 async function registrarLogSync(entry: {
   fonte: string;
   tipo_tpu: string;
@@ -234,9 +489,9 @@ async function status() {
       movimentos_resolvidos: movimentosResolvidos,
     },
     suporte_online: {
-      gateway: false,
+      gateway: true,
       sgt: false,
-      observacao: 'Nesta fase a function resolve pelo estoque TPU local ja carregado no banco.',
+      observacao: 'A function resolve pelo estoque local e ja pode complementar pelo Gateway TPU detalhado.',
     },
   };
 }
@@ -253,6 +508,11 @@ async function resolverMovimento(codigoCnj: number) {
     codigo_cnj: codigoCnj,
     movimento_tpu: movimento,
     complementos,
+    signals: deriveBusinessSignals(
+      movimento?.nome,
+      (movimento as any)?.glossario,
+      complementos,
+    ),
     fonte: movimento ? 'local_db' : 'nao_encontrado',
     duracao_ms: Date.now() - inicio,
   };
@@ -419,6 +679,14 @@ Deno.serve(async (req: Request) => {
         return response(await resolverMovimento(codigo));
       }
 
+      case 'resolver_movimento_detalhado': {
+        const codigo = toNumber(url.searchParams.get('codigo_cnj'));
+        if (!codigo) {
+          return response({ ok: false, error: 'codigo_cnj obrigatorio' }, 400);
+        }
+        return response(await resolverMovimentoDetalhado(codigo));
+      }
+
       case 'resolver_lote_movimentos': {
         const limite = Math.max(1, Number(url.searchParams.get('limite') ?? '200'));
         return response(await resolverLoteMovimentos(limite));
@@ -435,11 +703,35 @@ Deno.serve(async (req: Request) => {
       case 'sync_movimentos':
         return response(await syncPlaceholder('movimento'));
 
+      case 'sync_movimentos_gateway': {
+        const limite = Math.max(1, Number(url.searchParams.get('limite') ?? '50'));
+        const codigo = toNumber(url.searchParams.get('codigo_cnj'));
+        return response(await syncGatewayMovimentos(limite, codigo));
+      }
+
       case 'sync_classes':
         return response(await syncPlaceholder('classe'));
 
+      case 'sync_classes_gateway': {
+        const codigo = toNumber(url.searchParams.get('codigo_cnj'));
+        if (!codigo) return response({ ok: false, error: 'codigo_cnj obrigatorio' }, 400);
+        return response(await syncGatewayEntity('classes', codigo));
+      }
+
       case 'sync_assuntos':
         return response(await syncPlaceholder('assunto'));
+
+      case 'sync_assuntos_gateway': {
+        const codigo = toNumber(url.searchParams.get('codigo_cnj'));
+        if (!codigo) return response({ ok: false, error: 'codigo_cnj obrigatorio' }, 400);
+        return response(await syncGatewayEntity('assuntos', codigo));
+      }
+
+      case 'sync_documentos_gateway': {
+        const codigo = toNumber(url.searchParams.get('codigo_cnj'));
+        if (!codigo) return response({ ok: false, error: 'codigo_cnj obrigatorio' }, 400);
+        return response(await syncGatewayEntity('documentos', codigo));
+      }
 
       case 'sync_all':
         return response(await syncPlaceholder('all'));
