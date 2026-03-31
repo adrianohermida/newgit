@@ -1,7 +1,9 @@
 import { fetchSupabaseAdmin } from "./supabase-rest.js";
 
-const BLOG_POSTS_SELECT =
-  "id,title,slug,excerpt,content,cover_image_url,category,status,seo_title,seo_description,published_at,author_id,created_at,updated_at";
+const BLOG_POSTS_SELECT_VARIANTS = [
+  "id,title,slug,excerpt,content,cover_image_url,category,status,seo_title,seo_description,published_at,author_id,created_at,updated_at",
+  "id,title,slug,excerpt,content,cover_image_url,category,status,seo_title,seo_description,published_at,created_at,updated_at",
+];
 
 function encodeValue(value) {
   return encodeURIComponent(value);
@@ -71,27 +73,51 @@ export function normalizeBlogPostPayload(body, profile, isUpdate = false) {
 }
 
 export async function listBlogPostsForAdmin(env, filters = {}) {
-  const params = new URLSearchParams();
-  params.set("select", BLOG_POSTS_SELECT);
-  params.set("order", "updated_at.desc,created_at.desc");
+  let lastError = null;
 
-  if (filters.status) {
-    params.set("status", `eq.${filters.status}`);
+  for (const select of BLOG_POSTS_SELECT_VARIANTS) {
+    const params = new URLSearchParams();
+    params.set("select", select);
+    params.set("order", "updated_at.desc,created_at.desc");
+
+    if (filters.status) {
+      params.set("status", `eq.${filters.status}`);
+    }
+
+    if (filters.limit) {
+      params.set("limit", String(filters.limit));
+    }
+
+    try {
+      const rows = await fetchSupabaseAdmin(env, `blog_posts?${params.toString()}`);
+      return Array.isArray(rows) ? rows.map(mapRowToEditor) : [];
+    } catch (error) {
+      lastError = error;
+    }
   }
 
-  if (filters.limit) {
-    params.set("limit", String(filters.limit));
-  }
-
-  const rows = await fetchSupabaseAdmin(env, `blog_posts?${params.toString()}`);
-  return Array.isArray(rows) ? rows.map(mapRowToEditor) : [];
+  throw lastError || new Error("Falha ao carregar posts administrativos.");
 }
 
 export async function getBlogPostForAdmin(env, id) {
-  const rows = await fetchSupabaseAdmin(
-    env,
-    `blog_posts?select=${encodeURIComponent(BLOG_POSTS_SELECT)}&id=eq.${encodeValue(id)}&limit=1`
-  );
+  let rows = null;
+  let lastError = null;
+
+  for (const select of BLOG_POSTS_SELECT_VARIANTS) {
+    try {
+      rows = await fetchSupabaseAdmin(
+        env,
+        `blog_posts?select=${encodeURIComponent(select)}&id=eq.${encodeValue(id)}&limit=1`
+      );
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (!rows && lastError) {
+    throw lastError;
+  }
 
   return Array.isArray(rows) && rows[0] ? mapRowToEditor(rows[0]) : null;
 }
