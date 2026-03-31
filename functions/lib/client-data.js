@@ -128,6 +128,11 @@ function normalizePublicationRow(row) {
   };
 }
 
+function buildProcessIdentifierCandidates(process, processId) {
+  const values = [processId, process?.id, process?.number, process?.raw?.id, process?.raw?.numero_cnj, process?.raw?.numero];
+  return [...new Set(values.filter(Boolean).map((value) => String(value).trim()).filter(Boolean))];
+}
+
 export function buildClientDraftProfile(user, profile = null) {
   const fallback = buildFallbackClientProfile(user);
   const metadata = safeJsonParse(profile?.metadata, fallback.metadata || {});
@@ -236,58 +241,94 @@ async function getClientProcessBase(env, email, processId) {
       path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero_cnj=eq.${encodeURIComponent(processId)}&cliente_email=eq.${encodeURIComponent(email)}&limit=1`,
       mapRow: normalizeProcessRow,
     },
+    {
+      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero_cnj=eq.${encodeURIComponent(processId)}&email_cliente=eq.${encodeURIComponent(email)}&limit=1`,
+      mapRow: normalizeProcessRow,
+    },
+    {
+      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero=eq.${encodeURIComponent(processId)}&cliente_email=eq.${encodeURIComponent(email)}&limit=1`,
+      mapRow: normalizeProcessRow,
+    },
   ]);
 
   return result.items[0] || null;
 }
 
 async function listClientProcessParts(env, processId) {
-  const result = await tryFetchOptional(env, [
-    {
-      path: `processo_partes?select=id,processo_id,nome,tipo_parte,cpf_cnpj,tipo_pessoa,e_cliente_escritorio,advogados&processo_id=eq.${encodeURIComponent(processId)}&limit=100`,
-      mapRow: normalizePartRow,
-    },
-    {
-      path: `partes_processo?select=id,processo_id,nome,tipo_parte,cpf_cnpj,tipo_pessoa,e_cliente_escritorio,advogados&processo_id=eq.${encodeURIComponent(processId)}&limit=100`,
-      mapRow: normalizePartRow,
-    },
-  ]);
+  const candidates = buildProcessIdentifierCandidates(null, processId);
+  for (const candidate of candidates) {
+    const result = await tryFetchOptional(env, [
+      {
+        path: `processo_partes?select=id,processo_id,numero_cnj,nome,tipo_parte,cpf_cnpj,tipo_pessoa,e_cliente_escritorio,advogados&processo_id=eq.${encodeURIComponent(candidate)}&limit=100`,
+        mapRow: normalizePartRow,
+      },
+      {
+        path: `processo_partes?select=id,processo_id,numero_cnj,nome,tipo_parte,cpf_cnpj,tipo_pessoa,e_cliente_escritorio,advogados&numero_cnj=eq.${encodeURIComponent(candidate)}&limit=100`,
+        mapRow: normalizePartRow,
+      },
+      {
+        path: `partes_processo?select=id,processo_id,numero_cnj,nome,tipo_parte,cpf_cnpj,tipo_pessoa,e_cliente_escritorio,advogados&processo_id=eq.${encodeURIComponent(candidate)}&limit=100`,
+        mapRow: normalizePartRow,
+      },
+    ]);
+    if (result.items.length) return result.items;
+  }
 
-  return result.items;
+  return [];
 }
 
 async function listClientProcessMovements(env, processId) {
-  const result = await tryFetchOptional(env, [
-    {
-      path: `processo_movimentacoes?select=id,processo_id,data_movimentacao,tipo,descricao,texto,fonte&processo_id=eq.${encodeURIComponent(processId)}&order=data_movimentacao.desc&limit=100`,
-      mapRow: normalizeMovementRow,
-    },
-    {
-      path: `movimentacoes_processo?select=id,processo_id,data_movimentacao,tipo,descricao,texto,fonte&processo_id=eq.${encodeURIComponent(processId)}&order=data_movimentacao.desc&limit=100`,
-      mapRow: normalizeMovementRow,
-    },
-    {
-      path: `movimentacoes?select=id,processo_id,data_movimentacao,tipo,descricao,texto,fonte&processo_id=eq.${encodeURIComponent(processId)}&order=data_movimentacao.desc&limit=100`,
-      mapRow: normalizeMovementRow,
-    },
-  ]);
+  const candidates = buildProcessIdentifierCandidates(null, processId);
+  for (const candidate of candidates) {
+    const result = await tryFetchOptional(env, [
+      {
+        path: `processo_movimentacoes?select=id,processo_id,numero_cnj,data_movimentacao,tipo,descricao,texto,fonte&processo_id=eq.${encodeURIComponent(candidate)}&order=data_movimentacao.desc&limit=100`,
+        mapRow: normalizeMovementRow,
+      },
+      {
+        path: `processo_movimentacoes?select=id,processo_id,numero_cnj,data_movimentacao,tipo,descricao,texto,fonte&numero_cnj=eq.${encodeURIComponent(candidate)}&order=data_movimentacao.desc&limit=100`,
+        mapRow: normalizeMovementRow,
+      },
+      {
+        path: `movimentacoes_processo?select=id,processo_id,numero_cnj,data_movimentacao,tipo,descricao,texto,fonte&processo_id=eq.${encodeURIComponent(candidate)}&order=data_movimentacao.desc&limit=100`,
+        mapRow: normalizeMovementRow,
+      },
+      {
+        path: `movimentacoes?select=id,processo_id,numero_cnj,data_movimentacao,tipo,descricao,texto,fonte&processo_id=eq.${encodeURIComponent(candidate)}&order=data_movimentacao.desc&limit=100`,
+        mapRow: normalizeMovementRow,
+      },
+      {
+        path: `movimentacoes?select=id,processo_id,numero_cnj,data_movimentacao,tipo,descricao,texto,fonte&numero_cnj=eq.${encodeURIComponent(candidate)}&order=data_movimentacao.desc&limit=100`,
+        mapRow: normalizeMovementRow,
+      },
+    ]);
+    if (result.items.length) return result.items;
+  }
 
-  return result.items;
+  return [];
 }
 
 async function listClientProcessPublications(env, processId) {
-  const result = await tryFetchOptional(env, [
-    {
-      path: `publicacoes?select=id,processo_id,data_publicacao,titulo,resumo,texto,veiculo,status,url&processo_id=eq.${encodeURIComponent(processId)}&order=data_publicacao.desc&limit=100`,
-      mapRow: normalizePublicationRow,
-    },
-    {
-      path: `processo_publicacoes?select=id,processo_id,data_publicacao,titulo,resumo,texto,veiculo,status,url&processo_id=eq.${encodeURIComponent(processId)}&order=data_publicacao.desc&limit=100`,
-      mapRow: normalizePublicationRow,
-    },
-  ]);
+  const candidates = buildProcessIdentifierCandidates(null, processId);
+  for (const candidate of candidates) {
+    const result = await tryFetchOptional(env, [
+      {
+        path: `publicacoes?select=id,processo_id,numero_cnj,data_publicacao,titulo,resumo,texto,veiculo,status,url&processo_id=eq.${encodeURIComponent(candidate)}&order=data_publicacao.desc&limit=100`,
+        mapRow: normalizePublicationRow,
+      },
+      {
+        path: `publicacoes?select=id,processo_id,numero_cnj,data_publicacao,titulo,resumo,texto,veiculo,status,url&numero_cnj=eq.${encodeURIComponent(candidate)}&order=data_publicacao.desc&limit=100`,
+        mapRow: normalizePublicationRow,
+      },
+      {
+        path: `processo_publicacoes?select=id,processo_id,numero_cnj,data_publicacao,titulo,resumo,texto,veiculo,status,url&processo_id=eq.${encodeURIComponent(candidate)}&order=data_publicacao.desc&limit=100`,
+        mapRow: normalizePublicationRow,
+      },
+    ]);
+    if (result.items.length) return result.items;
+  }
 
-  return result.items;
+  return [];
 }
 
 export async function getClientProcessDetails(env, profile, processId) {
@@ -306,10 +347,11 @@ export async function getClientProcessDetails(env, profile, processId) {
   const embeddedParts = Array.isArray(process.raw?.partes) ? process.raw.partes.map(normalizePartRow) : [];
   const embeddedMovements = Array.isArray(process.raw?.movimentacoes) ? process.raw.movimentacoes.map(normalizeMovementRow) : [];
 
+  const processCandidates = buildProcessIdentifierCandidates(process, processId);
   const [parts, movements, publications] = await Promise.all([
-    embeddedParts.length ? embeddedParts : listClientProcessParts(env, process.raw?.id || processId),
-    embeddedMovements.length ? embeddedMovements : listClientProcessMovements(env, process.raw?.id || processId),
-    listClientProcessPublications(env, process.raw?.id || processId),
+    embeddedParts.length ? embeddedParts : listClientProcessParts(env, processCandidates[0]),
+    embeddedMovements.length ? embeddedMovements : listClientProcessMovements(env, processCandidates[0]),
+    listClientProcessPublications(env, processCandidates[0]),
   ]);
 
   const warnings = [];
@@ -328,7 +370,7 @@ export async function getClientProcessDetails(env, profile, processId) {
 
 export async function listClientPublicacoes(env, profile) {
   const processes = await listClientProcessos(env, profile.email);
-  const processIds = processes.items.map((item) => item.id).filter(Boolean);
+  const processIds = processes.items.flatMap((item) => buildProcessIdentifierCandidates(item, item.id)).filter(Boolean);
 
   if (!processIds.length) {
     return {
@@ -520,15 +562,50 @@ export async function createClientTicket(env, profile, payload) {
 }
 
 export async function getClientSummary(env, profile) {
-  const [consultas, tickets, processos, documentos, financeiro] = await Promise.all([
+  const [consultas, tickets, processos, documentos, financeiro, publicacoes] = await Promise.all([
     listClientConsultas(env, profile.email),
     listClientTickets(env, profile.email),
     listClientProcessos(env, profile.email),
     listClientDocumentos(env, profile.email),
     listClientFinanceiro(env, profile.email),
+    listClientPublicacoes(env, profile),
   ]);
 
-  const warnings = [tickets.warning, processos.warning, documentos.warning, financeiro.warning].filter(Boolean);
+  const recentActivity = [
+    ...consultas.slice(0, 3).map((item) => ({
+      id: `consulta-${item.id}`,
+      type: "consulta",
+      title: item.area || "Consulta agendada",
+      date: item.updated_at || item.created_at || item.data || null,
+      helper: `${item.data || ""} ${item.hora || ""}`.trim() || item.status || "Consulta",
+      href: "/portal/consultas",
+    })),
+    ...processos.items.slice(0, 3).map((item) => ({
+      id: `processo-${item.id}`,
+      type: "processo",
+      title: item.title || item.number || "Processo",
+      date: item.updated_at || null,
+      helper: item.status || item.court || "Processo",
+      href: `/portal/processos/detalhe?id=${encodeURIComponent(item.id)}`,
+    })),
+    ...publicacoes.items.slice(0, 3).map((item) => ({
+      id: `publicacao-${item.id}`,
+      type: "publicacao",
+      title: item.title || "Publicacao",
+      date: item.date || null,
+      helper: item.source || item.status || "Publicacao judicial",
+      href: item.process_id ? `/portal/processos/detalhe?id=${encodeURIComponent(item.process_id)}` : "/portal/publicacoes",
+    })),
+  ]
+    .filter((item) => item.title)
+    .sort((left, right) => {
+      const leftTime = left.date ? new Date(left.date).getTime() : 0;
+      const rightTime = right.date ? new Date(right.date).getTime() : 0;
+      return rightTime - leftTime;
+    })
+    .slice(0, 6);
+
+  const warnings = [tickets.warning, processos.warning, documentos.warning, financeiro.warning, publicacoes.warning].filter(Boolean);
 
   return {
     summary: {
@@ -537,7 +614,9 @@ export async function getClientSummary(env, profile) {
       consultas: consultas.length,
       documentos: documentos.items.length,
       financeiro: financeiro.items.length,
+      publicacoes: publicacoes.items.length,
     },
+    recentActivity,
     warnings,
   };
 }
