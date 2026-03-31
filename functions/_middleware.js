@@ -97,6 +97,15 @@ const VARS_POR_ROTA = {
       ['NEXT_PUBLIC_SUPABASE_ANON_KEY'],
     ],
   },
+  '/api/admin-auth-config': {
+    required: [
+      'SUPABASE_URL',
+    ],
+    oneOf: [
+      ['SUPABASE_ANON_KEY'],
+      ['NEXT_PUBLIC_SUPABASE_ANON_KEY'],
+    ],
+  },
 };
 
 export async function onRequest(context) {

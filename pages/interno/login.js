@@ -3,11 +3,12 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import AuthLayout from "../../components/interno/AuthLayout";
 import { useAdminSession } from "../../lib/admin/useAdminSession";
-import { supabase, isSupabaseConfigured } from "../../lib/supabase";
+import { useSupabaseBrowser } from "../../lib/supabase";
 
 export default function InternoLoginPage() {
   const router = useRouter();
   const { authorized, loading } = useAdminSession();
+  const { supabase, isConfigured, loading: configLoading } = useSupabaseBrowser();
   const [form, setForm] = useState({ email: "", password: "", remember: true });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -54,7 +55,11 @@ export default function InternoLoginPage() {
         "Fluxo de recuperacao e onboarding inicial disponiveis em rotas separadas.",
       ]}
     >
-      {!isSupabaseConfigured() ? (
+      {configLoading ? (
+        <div className="rounded-2xl border border-[#1f3a2f] bg-[rgba(12,39,28,0.42)] px-4 py-3 text-sm text-[#D7F3E4]">
+          Carregando configuracao segura do acesso interno...
+        </div>
+      ) : !isConfigured ? (
         <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] px-4 py-3 text-sm text-[#F9D2D2]">
           Defina <code>SUPABASE_URL</code> e <code>SUPABASE_ANON_KEY</code> para habilitar o login.
         </div>

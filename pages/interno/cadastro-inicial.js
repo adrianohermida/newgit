@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import AuthLayout from "../../components/interno/AuthLayout";
-import { supabase, isSupabaseConfigured } from "../../lib/supabase";
+import { useSupabaseBrowser } from "../../lib/supabase";
 
 const initialForm = {
   fullName: "",
@@ -13,6 +13,7 @@ const initialForm = {
 };
 
 export default function CadastroInicialPage() {
+  const { supabase, isConfigured, loading: configLoading } = useSupabaseBrowser();
   const [form, setForm] = useState(initialForm);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
@@ -70,7 +71,11 @@ export default function CadastroInicialPage() {
         "Acesso continua bloqueado ate haver vinculo em admin_profiles.",
       ]}
     >
-      {!isSupabaseConfigured() ? (
+      {configLoading ? (
+        <div className="rounded-2xl border border-[#1f3a2f] bg-[rgba(12,39,28,0.42)] px-4 py-3 text-sm text-[#D7F3E4]">
+          Carregando configuracao segura do acesso interno...
+        </div>
+      ) : !isConfigured ? (
         <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] px-4 py-3 text-sm text-[#F9D2D2]">
           Defina <code>SUPABASE_URL</code> e <code>SUPABASE_ANON_KEY</code> para habilitar o cadastro inicial.
         </div>

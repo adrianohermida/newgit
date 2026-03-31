@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { supabase } from "../../lib/supabase";
+import { useSupabaseBrowser } from "../../lib/supabase";
 
 const NAV_ITEMS = [
   { href: "/interno", label: "Visao Geral" },
+  { href: "/interno/agentlab", label: "AgentLab" },
   { href: "/interno/posts", label: "Posts" },
   { href: "/interno/agendamentos", label: "Agendamentos" },
   { href: "/interno/leads", label: "Leads" },
@@ -11,6 +12,7 @@ const NAV_ITEMS = [
 
 export default function InternoLayout({ title, description, profile, children }) {
   const router = useRouter();
+  const { supabase } = useSupabaseBrowser();
 
   async function handleSignOut() {
     if (supabase) {
