@@ -1,34 +1,28 @@
 import { fetchSupabaseAdmin } from "./supabase-rest.js";
 
-const BLOG_POSTS_SELECT =
-  "id,slug,title,excerpt,content,cover_image_url,category,status,seo_title,seo_description,published_at,author_id,created_at,updated_at";
+const BLOG_SELECT =
+  "id,slug,title,excerpt,content,cover_image_url,category,status,seo_title,seo_description,author_id,published_at,created_at,updated_at";
 
-function encodeValue(value) {
-  return encodeURIComponent(value);
-}
-
-export async function listBlogPostsForAdmin(env, filters = {}) {
+export async function listBlogPostsForAdmin(env, options = {}) {
   const params = new URLSearchParams();
-  params.set("select", BLOG_POSTS_SELECT);
-  params.set("order", "updated_at.desc,created_at.desc");
+  params.set("select", BLOG_SELECT);
+  params.set("order", "updated_at.desc.nullslast,created_at.desc");
+  params.set("limit", String(Math.min(Number(options.limit || 50), 100)));
 
-  if (filters.status) {
-    params.set("status", `eq.${filters.status}`);
-  }
-
-  if (filters.limit) {
-    params.set("limit", String(filters.limit));
+  if (options.status) {
+    params.set("status", `eq.${options.status}`);
   }
 
   return fetchSupabaseAdmin(env, `blog_posts?${params.toString()}`);
 }
 
 export async function getBlogPostForAdmin(env, id) {
-  const rows = await fetchSupabaseAdmin(
-    env,
-    `blog_posts?select=${encodeURIComponent(BLOG_POSTS_SELECT)}&id=eq.${encodeValue(id)}&limit=1`
-  );
+  const params = new URLSearchParams();
+  params.set("select", BLOG_SELECT);
+  params.set("id", `eq.${id}`);
+  params.set("limit", "1");
 
+  const rows = await fetchSupabaseAdmin(env, `blog_posts?${params.toString()}`);
   return Array.isArray(rows) ? rows[0] || null : null;
 }
 
@@ -46,7 +40,7 @@ export async function createBlogPostForAdmin(env, payload) {
 }
 
 export async function updateBlogPostForAdmin(env, id, payload) {
-  const rows = await fetchSupabaseAdmin(env, `blog_posts?id=eq.${encodeValue(id)}`, {
+  const rows = await fetchSupabaseAdmin(env, `blog_posts?id=eq.${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
