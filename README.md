@@ -4,7 +4,7 @@ Este repositorio deve publicar no projeto Cloudflare Pages `newgit-pages`.
 
 O recurso `newgit` nao deve ser usado para deploy deste codigo. Se ele ainda existir no Cloudflare, mantenha-o apenas se tiver outra funcao operacional; caso contrario, remova-o ou deixe sem relacao com este repositorio para evitar conflito.
 
-## Cloudflare Pages
+## Cloudflare Pages1
 
 Configure o projeto `newgit-pages` assim:
 
