@@ -13,6 +13,7 @@ const INITIAL_STATE = {
   subscriptions: [],
   others: [],
   summary: null,
+  mapping: null,
   fieldCatalog: null,
 };
 
@@ -72,6 +73,7 @@ function FinanceiroContent({ state, setState }) {
             subscriptions: payload.subscriptions || [],
             others: payload.others || [],
             summary: payload.summary || null,
+            mapping: payload.mapping || null,
             fieldCatalog: payload.field_catalog || null,
           });
         }
@@ -150,6 +152,7 @@ function FinanceiroContent({ state, setState }) {
         />
       ) : null}
 
+      {state.mapping ? <MappingInsightCard mapping={state.mapping} /> : null}
       {state.fieldCatalog ? <FieldCatalogCard fieldCatalog={state.fieldCatalog} /> : null}
     </div>
   );
@@ -255,6 +258,82 @@ function FieldCatalogCard({ fieldCatalog }) {
           </article>
         ))}
       </div>
+    </section>
+  );
+}
+
+function MappingInsightCard({ mapping }) {
+  const cards = [
+    {
+      title: "Campo escolhido para fatura x assinatura",
+      field: mapping.deal_type_field,
+      helper: "O classificador usa este field como principal para separar deals recorrentes de cobrancas pontuais.",
+    },
+    {
+      title: "Campo escolhido para processo no account",
+      field: mapping.process_reference_field,
+      helper: "Esse campo tende a carregar o numero do processo ou a referencia principal do sales account.",
+    },
+    {
+      title: "Campo escolhido para status do account",
+      field: mapping.account_status_field,
+      helper: "Esse field ajuda a contextualizar a situacao do processo vinculado.",
+    },
+    {
+      title: "Campo escolhido para estagio do deal",
+      field: mapping.deal_stage_field,
+      helper: "Os valores observados abaixo orientam a traducao para pago, em aberto e cancelado.",
+    },
+  ].filter((item) => item.field);
+
+  const stageRows = [
+    { title: "Pago", items: mapping.stage_semantics?.pago || [] },
+    { title: "Em aberto", items: mapping.stage_semantics?.em_aberto || [] },
+    { title: "Cancelado", items: mapping.stage_semantics?.cancelado || [] },
+  ].filter((group) => group.items.length);
+
+  if (!cards.length && !stageRows.length) return null;
+
+  return (
+    <section className="rounded-[30px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
+      <div className="max-w-3xl">
+        <p className="text-[11px] uppercase tracking-[0.18em] opacity-45">Mapeamento automatico</p>
+        <h3 className="mt-3 font-serif text-3xl">Leitura real dos fields do Freshsales</h3>
+        <p className="mt-3 text-sm leading-7 opacity-62">
+          Abaixo esta a escolha automatica do portal para classificar assinatura, fatura, processo vinculado e significado dos estagios do deal.
+        </p>
+      </div>
+
+      {cards.length ? (
+        <div className="mt-6 grid gap-4 xl:grid-cols-2">
+          {cards.map((card) => (
+            <article key={card.title} className="rounded-[24px] border border-[#20332D] bg-[rgba(6,10,9,0.45)] p-5">
+              <p className="text-sm font-semibold">{card.title}</p>
+              <p className="mt-3 text-lg">{card.field.label}</p>
+              <p className="mt-1 text-xs opacity-55">{card.field.key}</p>
+              <p className="mt-3 text-sm opacity-68">{card.helper}</p>
+            </article>
+          ))}
+        </div>
+      ) : null}
+
+      {stageRows.length ? (
+        <div className="mt-6 grid gap-4 xl:grid-cols-3">
+          {stageRows.map((group) => (
+            <article key={group.title} className="rounded-[24px] border border-[#20332D] bg-[rgba(6,10,9,0.45)] p-5">
+              <p className="text-sm font-semibold">{group.title}</p>
+              <div className="mt-4 space-y-3">
+                {group.items.map((item) => (
+                  <div key={`${group.title}-${item.value}`} className="rounded-2xl border border-[#20332D] px-4 py-3">
+                    <p className="text-sm">{item.value}</p>
+                    <p className="mt-1 text-xs opacity-55">{item.occurrences} ocorrencia(s)</p>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

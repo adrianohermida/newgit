@@ -22,6 +22,7 @@ export async function onRequestGet(context) {
     subscriptions: payload.subscriptions || [],
     others: payload.others || [],
     summary: payload.summary || null,
+    mapping: payload.mapping || null,
     field_catalog: payload.field_catalog || null,
     warning: payload.warning || null,
   }), {

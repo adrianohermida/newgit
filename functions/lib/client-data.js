@@ -236,6 +236,108 @@ function buildFieldCatalog(snapshots, keywords) {
   }));
 }
 
+function getFieldValuesByCandidate(snapshots, keywords) {
+  const candidateMap = new Map();
+
+  for (const snapshot of snapshots) {
+    const { entries } = snapshotFieldEntries(snapshot);
+    for (const { key, entry } of entries) {
+      const label = entry?.label || key;
+      if (!textIncludesAny(`${key} ${label}`, keywords)) continue;
+
+      const compoundKey = `${key}::${label}`;
+      const bucket =
+        candidateMap.get(compoundKey) || {
+          key,
+          label,
+          count: 0,
+          values: new Map(),
+        };
+
+      const values = flattenToStrings(readFieldValue(entry));
+      if (values.length) {
+        bucket.count += 1;
+        values.forEach((value) => {
+          const normalized = value.trim();
+          if (!normalized) return;
+          bucket.values.set(normalized, (bucket.values.get(normalized) || 0) + 1);
+        });
+      }
+
+      candidateMap.set(compoundKey, bucket);
+    }
+  }
+
+  return Array.from(candidateMap.values())
+    .map((item) => ({
+      key: item.key,
+      label: item.label,
+      count: item.count,
+      values: Array.from(item.values.entries())
+        .sort((left, right) => right[1] - left[1])
+        .slice(0, 8)
+        .map(([value, occurrences]) => ({ value, occurrences })),
+    }))
+    .sort((left, right) => right.count - left.count);
+}
+
+function selectBestFieldCandidate(candidates, preferredKeys = []) {
+  if (!candidates.length) return null;
+
+  for (const preferredKey of preferredKeys) {
+    const exact = candidates.find((item) => item.key === preferredKey);
+    if (exact) return exact;
+  }
+
+  return candidates[0];
+}
+
+function inferStatusSemantics(snapshots) {
+  const candidates = getFieldValuesByCandidate(snapshots, ["estagio", "estágio", "stage", "status", "situacao", "situação"]);
+  const selected = selectBestFieldCandidate(candidates, ["deal_stage_id", "status", "cf_status"]);
+
+  if (!selected) {
+    return {
+      field: null,
+      values: [],
+      semantics: {
+        pago: [],
+        em_aberto: [],
+        cancelado: [],
+      },
+    };
+  }
+
+  const semantics = {
+    pago: [],
+    em_aberto: [],
+    cancelado: [],
+  };
+
+  selected.values.forEach(({ value, occurrences }) => {
+    const normalized = normalizeText(value);
+    if (textIncludesAny(normalized, ["pago", "quitado", "recebido", "won", "ganho", "paid"])) {
+      semantics.pago.push({ value, occurrences });
+      return;
+    }
+    if (textIncludesAny(normalized, ["cancelado", "cancelada", "lost", "perdido", "fechado", "encerrado"])) {
+      semantics.cancelado.push({ value, occurrences });
+      return;
+    }
+    semantics.em_aberto.push({ value, occurrences });
+  });
+
+  return {
+    field: {
+      key: selected.key,
+      label: selected.label,
+      count: selected.count,
+    },
+    values: selected.values,
+    semantics,
+  };
+}
+
 async function listFreshsalesSnapshots(env, entity, limit = 250) {
   const params = new URLSearchParams();
   params.set(
@@ -315,6 +417,24 @@ function buildFinanceItem(dealSnapshot, accountSnapshot = null) {
       targetable_type: relationships.targetable_type || null,
       targetable_id: relationships.targetable_id || null,
     },
+  };
+}
+
+function buildFinanceMapping(relatedDeals, accounts) {
+  const dealTypeCandidates = getFieldValuesByCandidate(relatedDeals, [
+    "tipo", "type", "categoria", "modalidade", "produto", "assinatura", "subscription", "fatura", "invoice", "plano",
+  ]);
+  const processCandidates = getFieldValuesByCandidate(accounts, ["processo", "cnj", "numero do processo", "numero processo", "número do processo", "número processo"]);
+  const accountStatusCandidates = getFieldValuesByCandidate(accounts, ["status", "situacao", "situação"]);
+  const stageSemantics = inferStatusSemantics(relatedDeals);
+
+  return {
+    deal_type_field: selectBestFieldCandidate(dealTypeCandidates, ["cf_tipo", "cf_categoria", "cf_modalidade", "cf_produto", "type"]),
+    process_reference_field: selectBestFieldCandidate(processCandidates, ["cf_processo", "name"]),
+    account_status_field: selectBestFieldCandidate(accountStatusCandidates, ["cf_status", "status"]),
+    deal_stage_field: stageSemantics.field,
+    deal_stage_values: stageSemantics.values,
+    stage_semantics: stageSemantics.semantics,
   };
 }
 
@@ -713,6 +833,8 @@ export async function listClientFinanceiro(env, email) {
       });
     });
 
+    const mapping = buildFinanceMapping(relatedDeals, accounts);
+
     const items = relatedDeals
       .map((deal) => {
         const relationships = safeJsonParse(deal.relationships, {});
@@ -755,6 +877,7 @@ export async function listClientFinanceiro(env, email) {
           open_amount: 0,
           recurring_amount: 0,
         },
+        mapping,
         field_catalog: fieldCatalog,
         warning: "Nenhum deal financeiro do Freshsales foi pareado ao seu contato neste ambiente.",
       };
@@ -780,6 +903,7 @@ export async function listClientFinanceiro(env, email) {
         open_amount: openAmount,
         recurring_amount: recurringAmount,
       },
+      mapping,
       field_catalog: fieldCatalog,
       warning: warnings.length ? warnings.join(" ") : null,
     };
@@ -801,6 +925,14 @@ export async function listClientFinanceiro(env, email) {
           subscriptions: 0,
           open_amount: 0,
           recurring_amount: 0,
+        },
+        mapping: {
+          deal_type_field: null,
+          process_reference_field: null,
+          account_status_field: null,
+          deal_stage_field: null,
+          deal_stage_values: [],
+          stage_semantics: { pago: [], em_aberto: [], cancelado: [] },
         },
         field_catalog: {
           deal_type_candidates: [],
