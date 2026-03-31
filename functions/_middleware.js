@@ -85,6 +85,62 @@ const VARS_POR_ROTA = {
     ],
     oneOf: [],
   },
+  "/api/client-profile": {
+    required: ["SUPABASE_SERVICE_ROLE_KEY"],
+    requiredAny: [
+      ["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"],
+      ["SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"],
+    ],
+    oneOf: [],
+  },
+  "/api/client-summary": {
+    required: ["SUPABASE_SERVICE_ROLE_KEY"],
+    requiredAny: [
+      ["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"],
+      ["SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"],
+    ],
+    oneOf: [],
+  },
+  "/api/client-consultas": {
+    required: ["SUPABASE_SERVICE_ROLE_KEY"],
+    requiredAny: [
+      ["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"],
+      ["SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"],
+    ],
+    oneOf: [],
+  },
+  "/api/client-processos": {
+    required: ["SUPABASE_SERVICE_ROLE_KEY"],
+    requiredAny: [
+      ["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"],
+      ["SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"],
+    ],
+    oneOf: [],
+  },
+  "/api/client-documentos": {
+    required: ["SUPABASE_SERVICE_ROLE_KEY"],
+    requiredAny: [
+      ["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"],
+      ["SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"],
+    ],
+    oneOf: [],
+  },
+  "/api/client-financeiro": {
+    required: ["SUPABASE_SERVICE_ROLE_KEY"],
+    requiredAny: [
+      ["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"],
+      ["SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"],
+    ],
+    oneOf: [],
+  },
+  "/api/client-tickets": {
+    required: ["SUPABASE_SERVICE_ROLE_KEY"],
+    requiredAny: [
+      ["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"],
+      ["SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"],
+    ],
+    oneOf: [],
+  },
 };
 
 export async function onRequest(context) {
