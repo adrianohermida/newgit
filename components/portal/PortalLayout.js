@@ -6,6 +6,7 @@ import { useSupabaseBrowser } from "../../lib/supabase";
 const NAV_ITEMS = [
   { href: "/portal", label: "Visao geral" },
   { href: "/portal/processos", label: "Processos" },
+  { href: "/portal/publicacoes", label: "Publicacoes" },
   { href: "/portal/tickets", label: "Tickets" },
   { href: "/portal/consultas", label: "Consultas" },
   { href: "/portal/documentos", label: "Documentos" },
