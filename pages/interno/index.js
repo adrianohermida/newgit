@@ -46,6 +46,7 @@ export default function InternoHomePage() {
                 Proximos blocos
               </p>
               <ul className="space-y-3 text-sm opacity-70">
+                <li>AgentLab para governanca de agentes, chatbot e espelho do Freshsales.</li>
                 <li>Publicacao e edicao de posts do blog.</li>
                 <li>Leitura administrativa de agendamentos com filtros.</li>
                 <li>Consolidacao de leads vindos da calculadora e do contato.</li>
@@ -57,13 +58,16 @@ export default function InternoHomePage() {
                 Acessos rapidos
               </p>
               <div className="space-y-3">
-                <Link href="/interno/posts" className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
+                <Link href="/interno/agentlab" prefetch={false} className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
+                  Abrir AgentLab
+                </Link>
+                <Link href="/interno/posts" prefetch={false} className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
                   Abrir modulo de posts
                 </Link>
-                <Link href="/interno/agendamentos" className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
+                <Link href="/interno/agendamentos" prefetch={false} className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
                   Abrir leitura de agendamentos
                 </Link>
-                <Link href="/interno/leads" className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
+                <Link href="/interno/leads" prefetch={false} className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
                   Abrir leads e tickets
                 </Link>
               </div>

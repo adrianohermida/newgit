@@ -39,6 +39,7 @@ export default function InternoLayout({ title, description, profile, children })
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch={false}
                   className={`block px-4 py-3 text-sm transition-colors ${active ? "text-[#050706]" : "text-[#F4F1EA]"}`}
                   style={{
                     background: active ? "#C5A059" : "transparent",
