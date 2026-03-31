@@ -15,7 +15,16 @@ export async function onRequestGet(context) {
   }
 
   const payload = await listClientFinanceiro(env, auth.profile.email);
-  return new Response(JSON.stringify({ ok: true, items: payload.items, warning: payload.warning || null }), {
+  return new Response(JSON.stringify({
+    ok: true,
+    items: payload.items || [],
+    invoices: payload.invoices || [],
+    subscriptions: payload.subscriptions || [],
+    others: payload.others || [],
+    summary: payload.summary || null,
+    field_catalog: payload.field_catalog || null,
+    warning: payload.warning || null,
+  }), {
     status: 200,
     headers: JSON_HEADERS,
   });

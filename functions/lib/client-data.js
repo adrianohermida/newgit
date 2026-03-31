@@ -71,6 +71,253 @@ function safeJsonParse(value, fallback = {}) {
   }
 }
 
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function toNumber(value) {
+  if (value == null || value === "") return null;
+  const normalized = String(value).replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function readFieldValue(entry) {
+  if (!entry || typeof entry !== "object") return entry ?? null;
+  if ("display_value" in entry && entry.display_value != null && entry.display_value !== "") return entry.display_value;
+  if ("value" in entry && entry.value != null && entry.value !== "") return entry.value;
+  return null;
+}
+
+function flattenToStrings(value, bucket = []) {
+  if (value == null) return bucket;
+  if (Array.isArray(value)) {
+    value.forEach((item) => flattenToStrings(item, bucket));
+    return bucket;
+  }
+  if (typeof value === "object") {
+    Object.values(value).forEach((item) => flattenToStrings(item, bucket));
+    return bucket;
+  }
+  const text = String(value).trim();
+  if (text) bucket.push(text);
+  return bucket;
+}
+
+function normalizeText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function textIncludesAny(text, needles) {
+  const haystack = normalizeText(text);
+  return needles.some((needle) => haystack.includes(normalizeText(needle)));
+}
+
+function snapshotFieldEntries(snapshot) {
+  const attributes = safeJsonParse(snapshot?.attributes, {});
+  const customAttributes = safeJsonParse(snapshot?.custom_attributes, {});
+  return {
+    attributes,
+    customAttributes,
+    entries: [
+      ...Object.entries(attributes).map(([key, entry]) => ({ scope: "attribute", key, entry })),
+      ...Object.entries(customAttributes).map(([key, entry]) => ({ scope: "custom", key, entry })),
+    ],
+  };
+}
+
+function getSnapshotField(snapshot, matcher) {
+  const { entries } = snapshotFieldEntries(snapshot);
+  return entries.find((item) => matcher(item)) || null;
+}
+
+function getSnapshotFieldText(snapshot, matcher) {
+  const field = getSnapshotField(snapshot, matcher);
+  return field ? readFieldValue(field.entry) : null;
+}
+
+function getSnapshotTextCorpus(snapshot) {
+  const summary = safeJsonParse(snapshot?.summary, {});
+  const relationships = safeJsonParse(snapshot?.relationships, {});
+  const timestamps = safeJsonParse(snapshot?.timestamps, {});
+  return flattenToStrings([
+    snapshot?.display_name,
+    snapshot?.status,
+    summary,
+    relationships,
+    timestamps,
+    safeJsonParse(snapshot?.attributes, {}),
+    safeJsonParse(snapshot?.custom_attributes, {}),
+  ]).join(" | ");
+}
+
+function formatCurrencyBRL(value) {
+  if (value == null || value === "") return null;
+  const amount = typeof value === "number" ? value : toNumber(value);
+  if (amount == null) return null;
+  return amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function mapFinanceStatus(text, kind = "financeiro") {
+  const normalized = normalizeText(text);
+  if (!normalized) return kind === "subscription" ? "ativa" : "em_aberto";
+  if (textIncludesAny(normalized, ["pago", "quitado", "recebido", "ganho", "won", "paid", "recebida"])) return "pago";
+  if (textIncludesAny(normalized, ["ativo", "ativa", "vigente", "recorrente", "active", "renewed"])) return "ativa";
+  if (textIncludesAny(normalized, ["vencido", "atrasado", "overdue"])) return "vencido";
+  if (textIncludesAny(normalized, ["cancelado", "cancelada", "encerrado", "lost", "perdido", "closed"])) return "encerrado";
+  if (textIncludesAny(normalized, ["pendente", "aberto", "open", "draft", "novo"])) return "em_aberto";
+  return kind === "subscription" ? "ativa" : "em_aberto";
+}
+
+function mapFinanceStatusLabel(status) {
+  const labels = {
+    pago: "Pago",
+    ativa: "Ativa",
+    em_aberto: "Em aberto",
+    vencido: "Vencido",
+    encerrado: "Encerrado",
+  };
+  return labels[status] || "Em analise";
+}
+
+function inferDealKind(snapshot, accountSnapshot = null) {
+  const { entries } = snapshotFieldEntries(snapshot);
+  const typeField = entries.find(({ key, entry }) =>
+    textIncludesAny(`${key} ${entry?.label || ""}`, [
+      "tipo", "type", "categoria", "category", "produto", "produto contratado", "natureza", "modalidade", "assinatura", "subscription", "fatura", "invoice",
+    ])
+  );
+
+  const candidateTexts = flattenToStrings([
+    snapshot?.display_name,
+    snapshot?.status,
+    readFieldValue(typeField?.entry),
+    accountSnapshot?.display_name,
+    safeJsonParse(snapshot?.summary, {}),
+    safeJsonParse(snapshot?.attributes, {}),
+    safeJsonParse(snapshot?.custom_attributes, {}),
+  ]);
+
+  const joined = candidateTexts.join(" | ");
+  if (textIncludesAny(joined, ["assinatura", "subscription", "mensal", "mensalidade", "plano", "recorrente"])) {
+    return "subscription";
+  }
+  if (textIncludesAny(joined, ["fatura", "invoice", "boleto", "parcela", "honorario", "cobranca", "cobrança"])) {
+    return "invoice";
+  }
+  if (accountSnapshot) {
+    return "invoice";
+  }
+  return "other";
+}
+
+function buildFieldCatalog(snapshots, keywords) {
+  const catalog = new Map();
+  for (const snapshot of snapshots) {
+    const { entries } = snapshotFieldEntries(snapshot);
+    for (const { key, entry } of entries) {
+      const label = entry?.label || key;
+      if (!textIncludesAny(`${key} ${label}`, keywords)) continue;
+      const catalogKey = `${key}::${label}`;
+      const sampleBucket = catalog.get(catalogKey) || { key, label, samples: new Set() };
+      flattenToStrings(readFieldValue(entry)).slice(0, 3).forEach((value) => sampleBucket.samples.add(value));
+      catalog.set(catalogKey, sampleBucket);
+    }
+  }
+
+  return Array.from(catalog.values()).map((item) => ({
+    key: item.key,
+    label: item.label,
+    samples: Array.from(item.samples).slice(0, 4),
+  }));
+}
+
+async function listFreshsalesSnapshots(env, entity, limit = 250) {
+  const params = new URLSearchParams();
+  params.set(
+    "select",
+    "id,entity,source_id,display_name,status,emails,phones,summary,attributes,custom_attributes,relationships,timestamps,source_filter_name,synced_at"
+  );
+  params.set("entity", `eq.${entity}`);
+  params.set("order", "synced_at.desc");
+  params.set("limit", String(limit));
+
+  return fetchSupabaseAdmin(env, `freshsales_sync_snapshots?${params.toString()}`);
+}
+
+function snapshotHasEmail(snapshot, email) {
+  const normalizedEmail = normalizeEmail(email);
+  const emails = Array.isArray(snapshot?.emails) ? snapshot.emails : safeJsonParse(snapshot?.emails, []);
+  const directMatch = emails.some((item) => normalizeEmail(item) === normalizedEmail);
+  if (directMatch) return true;
+  const corpus = getSnapshotTextCorpus(snapshot);
+  return corpus.toLowerCase().includes(normalizedEmail);
+}
+
+function findAccountProcessReference(accountSnapshot) {
+  const candidate = getSnapshotFieldText(accountSnapshot, ({ key, entry }) =>
+    textIncludesAny(`${key} ${entry?.label || ""}`, ["processo", "numero do processo", "numero processo", "cnj"])
+  );
+  return candidate || accountSnapshot?.display_name || null;
+}
+
+function buildFinanceItem(dealSnapshot, accountSnapshot = null) {
+  const summary = safeJsonParse(dealSnapshot?.summary, {});
+  const relationships = safeJsonParse(dealSnapshot?.relationships, {});
+  const timestamps = safeJsonParse(dealSnapshot?.timestamps, {});
+  const kind = inferDealKind(dealSnapshot, accountSnapshot);
+  const amount = toNumber(summary.amount)
+    ?? toNumber(getSnapshotFieldText(dealSnapshot, ({ key, entry }) => textIncludesAny(`${key} ${entry?.label || ""}`, ["valor", "amount", "preco", "price"])))
+    ?? null;
+  const dueDate =
+    getSnapshotFieldText(dealSnapshot, ({ key, entry }) => textIncludesAny(`${key} ${entry?.label || ""}`, ["vencimento", "due", "due date", "cobranca", "cobrança"])) ||
+    summary.expected_close ||
+    timestamps.updated_at ||
+    null;
+  const stageText =
+    getSnapshotFieldText(dealSnapshot, ({ key, entry }) => textIncludesAny(`${key} ${entry?.label || ""}`, ["estagio", "estágio", "stage", "status"])) ||
+    dealSnapshot?.status ||
+    null;
+  const status = mapFinanceStatus(stageText || "", kind);
+  const processReference = accountSnapshot ? findAccountProcessReference(accountSnapshot) : null;
+  const accountStatus = accountSnapshot
+    ? getSnapshotFieldText(accountSnapshot, ({ key, entry }) => textIncludesAny(`${key} ${entry?.label || ""}`, ["status", "situacao", "situação"]))
+    : null;
+
+  return {
+    id: dealSnapshot.source_id,
+    title: dealSnapshot.display_name || "Negocio financeiro",
+    kind,
+    kind_label: kind === "subscription" ? "Assinatura" : kind === "invoice" ? "Fatura" : "Financeiro",
+    status,
+    status_label: mapFinanceStatusLabel(status),
+    amount,
+    amount_label: formatCurrencyBRL(amount),
+    due_date: dueDate,
+    created_at: timestamps.created_at || null,
+    updated_at: timestamps.updated_at || null,
+    stage: stageText,
+    process_account: accountSnapshot
+      ? {
+          id: accountSnapshot.source_id,
+          name: accountSnapshot.display_name || "Processo vinculado",
+          process_reference: processReference,
+          status: accountStatus,
+        }
+      : null,
+    source_filter_name: dealSnapshot.source_filter_name || null,
+    relationship_ids: {
+      sales_account_id: relationships.sales_account_id || null,
+      targetable_type: relationships.targetable_type || null,
+      targetable_id: relationships.targetable_id || null,
+    },
+  };
+}
+
 function normalizeProcessRow(row) {
   if (!row) return null;
   return {
@@ -432,28 +679,140 @@ export async function listClientDocumentos(env, email) {
 }
 
 export async function listClientFinanceiro(env, email) {
-  const result = await tryFetchOptional(env, [
-    {
-      path: `faturas?select=id,descricao,status,valor,vencimento,created_at,cliente_email&cliente_email=eq.${encodeURIComponent(email)}&order=vencimento.asc&limit=20`,
-      mapRow: (row) => ({
-        id: row.id,
-        title: row.descricao || "Fatura",
-        status: row.status || "pendente",
-        amount: row.valor || null,
-        due_date: row.vencimento || null,
-        created_at: row.created_at || null,
-      }),
-    },
-  ]);
+  try {
+    const [contactsRaw, dealsRaw, accountsRaw] = await Promise.all([
+      listFreshsalesSnapshots(env, "contacts", 250),
+      listFreshsalesSnapshots(env, "deals", 300),
+      listFreshsalesSnapshots(env, "sales_accounts", 250),
+    ]);
 
-  if (!result.items.length) {
-    return {
-      items: [],
-      warning: "Modulo financeiro do cliente ainda nao possui fonte conectada neste ambiente.",
+    const normalizedEmail = normalizeEmail(email);
+    const contacts = Array.isArray(contactsRaw) ? contactsRaw.filter((item) => snapshotHasEmail(item, normalizedEmail)) : [];
+    const contactIds = new Set(contacts.map((item) => String(item.source_id || "").trim()).filter(Boolean));
+    const accounts = Array.isArray(accountsRaw) ? accountsRaw : [];
+    const accountsById = new Map(accounts.map((item) => [String(item.source_id || "").trim(), item]));
+    const deals = Array.isArray(dealsRaw) ? dealsRaw : [];
+
+    const relatedDeals = deals.filter((deal) => {
+      const relationships = safeJsonParse(deal.relationships, {});
+      const targetType = normalizeText(relationships.targetable_type || "");
+      const targetId = String(relationships.targetable_id || "").trim();
+
+      if (targetType.includes("contact") && contactIds.has(targetId)) {
+        return true;
+      }
+
+      if (snapshotHasEmail(deal, normalizedEmail)) {
+        return true;
+      }
+
+      const textCorpus = getSnapshotTextCorpus(deal);
+      return contacts.some((contact) => {
+        const contactId = String(contact.source_id || "").trim();
+        return contactId && textCorpus.includes(contactId);
+      });
+    });
+
+    const items = relatedDeals
+      .map((deal) => {
+        const relationships = safeJsonParse(deal.relationships, {});
+        const accountId = String(relationships.sales_account_id || "").trim();
+        const account = accountId ? accountsById.get(accountId) || null : null;
+        return buildFinanceItem(deal, account);
+      })
+      .sort((left, right) => {
+        const leftTime = left.due_date ? new Date(left.due_date).getTime() : 0;
+        const rightTime = right.due_date ? new Date(right.due_date).getTime() : 0;
+        return rightTime - leftTime;
+      });
+
+    const invoices = items.filter((item) => item.kind === "invoice");
+    const subscriptions = items.filter((item) => item.kind === "subscription");
+    const others = items.filter((item) => item.kind === "other");
+    const openAmount = invoices
+      .filter((item) => item.status !== "pago")
+      .reduce((sum, item) => sum + (item.amount || 0), 0);
+    const recurringAmount = subscriptions
+      .filter((item) => item.status !== "encerrado")
+      .reduce((sum, item) => sum + (item.amount || 0), 0);
+
+    const fieldCatalog = {
+      deal_type_candidates: buildFieldCatalog(relatedDeals, ["tipo", "type", "categoria", "modalidade", "assinatura", "subscription", "fatura", "invoice", "plano"]),
+      amount_candidates: buildFieldCatalog(relatedDeals, ["valor", "amount", "price", "preco", "preço"]),
+      account_candidates: buildFieldCatalog(accounts, ["processo", "cnj", "numero", "número", "status"]),
     };
-  }
 
-  return result;
+    if (!items.length) {
+      return {
+        items: [],
+        invoices: [],
+        subscriptions: [],
+        others: [],
+        summary: {
+          total_items: 0,
+          invoices: 0,
+          subscriptions: 0,
+          open_amount: 0,
+          recurring_amount: 0,
+        },
+        field_catalog: fieldCatalog,
+        warning: "Nenhum deal financeiro do Freshsales foi pareado ao seu contato neste ambiente.",
+      };
+    }
+
+    const warnings = [];
+    if (!fieldCatalog.deal_type_candidates.length) {
+      warnings.push("Os campos de classificacao de fatura e assinatura ainda nao apareceram nos snapshots sincronizados.");
+    }
+    if (!contacts.length) {
+      warnings.push("Nao encontramos snapshot de contato do Freshsales para o e-mail autenticado; o pareamento foi feito por heuristica.");
+    }
+
+    return {
+      items,
+      invoices,
+      subscriptions,
+      others,
+      summary: {
+        total_items: items.length,
+        invoices: invoices.length,
+        subscriptions: subscriptions.length,
+        open_amount: openAmount,
+        recurring_amount: recurringAmount,
+      },
+      field_catalog: fieldCatalog,
+      warning: warnings.length ? warnings.join(" ") : null,
+    };
+  } catch (error) {
+    const message = String(error?.message || "");
+    if (
+      message.includes("freshsales_sync_snapshots") ||
+      message.includes("Could not find the table") ||
+      message.includes("PGRST205")
+    ) {
+      return {
+        items: [],
+        invoices: [],
+        subscriptions: [],
+        others: [],
+        summary: {
+          total_items: 0,
+          invoices: 0,
+          subscriptions: 0,
+          open_amount: 0,
+          recurring_amount: 0,
+        },
+        field_catalog: {
+          deal_type_candidates: [],
+          amount_candidates: [],
+          account_candidates: [],
+        },
+        warning: "Modulo financeiro do cliente ainda nao possui snapshots do Freshsales conectados neste ambiente.",
+      };
+    }
+
+    throw error;
+  }
 }
 
 export async function listClientTickets(env, email) {

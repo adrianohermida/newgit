@@ -1,10 +1,45 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
 import { clientFetch } from "../../lib/client/api";
 
+const INITIAL_STATE = {
+  loading: true,
+  error: null,
+  warning: null,
+  items: [],
+  invoices: [],
+  subscriptions: [],
+  others: [],
+  summary: null,
+  fieldCatalog: null,
+};
+
+function formatMoney(value) {
+  if (value == null || value === "") return "A definir";
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) return String(value);
+  return parsed.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function formatDate(value) {
+  if (!value) return "A definir";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return parsed.toLocaleDateString("pt-BR");
+}
+
+function statusStyle(status) {
+  if (status === "pago") return "border-[#0B6B53] bg-[rgba(11,107,83,0.16)] text-[#B9F3E0]";
+  if (status === "ativa") return "border-[#1D4ED8] bg-[rgba(29,78,216,0.16)] text-[#DBEAFE]";
+  if (status === "vencido") return "border-[#8A2E2E] bg-[rgba(138,46,46,0.16)] text-[#FECACA]";
+  if (status === "encerrado") return "border-[#3B4A45] bg-[rgba(59,74,69,0.2)] text-[#D1D5DB]";
+  return "border-[#6E5630] bg-[rgba(76,57,26,0.22)] text-[#FDE68A]";
+}
+
 export default function PortalFinanceiroPage() {
-  const [state, setState] = useState({ loading: true, error: null, warning: null, items: [] });
+  const [state, setState] = useState(INITIAL_STATE);
 
   return (
     <RequireClient>
@@ -12,7 +47,7 @@ export default function PortalFinanceiroPage() {
         <PortalLayout
           profile={profile}
           title="Financeiro"
-          description="Visao financeira do cliente com ativacao gradual de faturas e planos quando a fonte estiver disponivel."
+          description="Controle financeiro extraido dos negocios do Freshsales, com leitura de faturas, assinaturas e vinculo com processos quando o CRM estiver sincronizado."
         >
           <FinanceiroContent state={state} setState={setState} />
         </PortalLayout>
@@ -28,11 +63,21 @@ function FinanceiroContent({ state, setState }) {
       try {
         const payload = await clientFetch("/api/client-financeiro");
         if (!cancelled) {
-          setState({ loading: false, error: null, warning: payload.warning || null, items: payload.items || [] });
+          setState({
+            loading: false,
+            error: null,
+            warning: payload.warning || null,
+            items: payload.items || [],
+            invoices: payload.invoices || [],
+            subscriptions: payload.subscriptions || [],
+            others: payload.others || [],
+            summary: payload.summary || null,
+            fieldCatalog: payload.field_catalog || null,
+          });
         }
       } catch (error) {
         if (!cancelled) {
-          setState({ loading: false, error: error.message, warning: null, items: [] });
+          setState({ ...INITIAL_STATE, loading: false, error: error.message });
         }
       }
     }
@@ -42,23 +87,174 @@ function FinanceiroContent({ state, setState }) {
     };
   }, [setState]);
 
-  if (state.loading) return <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">Carregando financeiro...</div>;
-  if (state.error) return <div className="rounded-[28px] border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] p-6 text-sm">{state.error}</div>;
+  const summaryCards = useMemo(() => {
+    const summary = state.summary || {};
+    return [
+      { label: "Negocios financeiros", value: summary.total_items || 0, helper: "Deals pareados ao contato" },
+      { label: "Faturas", value: summary.invoices || 0, helper: "Associadas a processo/account" },
+      { label: "Assinaturas", value: summary.subscriptions || 0, helper: "Planos recorrentes identificados" },
+      { label: "Em aberto", value: formatMoney(summary.open_amount || 0), helper: "Valor pendente estimado" },
+    ];
+  }, [state.summary]);
+
+  if (state.loading) {
+    return <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">Carregando financeiro...</div>;
+  }
+
+  if (state.error) {
+    return <div className="rounded-[28px] border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] p-6 text-sm">{state.error}</div>;
+  }
 
   return (
-    <div className="space-y-4">
-      {state.warning ? <div className="rounded-[28px] border border-[#6E5630] bg-[rgba(76,57,26,0.22)] p-6 text-sm">{state.warning}</div> : null}
-      {!state.items.length ? <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6 text-sm opacity-70">Nenhuma cobranca ativa visivel no portal neste momento.</div> : null}
-      {state.items.map((item) => (
-        <article key={item.id} className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
-          <div className="mb-3 flex flex-wrap items-center gap-3">
-            <span className="text-[10px] uppercase tracking-[0.15em] opacity-45">{item.status}</span>
-          </div>
-          <h3 className="font-serif text-2xl">{item.title}</h3>
-          <p className="mt-3 text-sm opacity-62">Vencimento: {item.due_date || "A definir"}</p>
-          <p className="mt-1 text-sm opacity-62">Valor: {item.amount ?? "A definir"}</p>
-        </article>
-      ))}
+    <div className="space-y-6">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {summaryCards.map((card) => (
+          <article key={card.label} className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
+            <p className="text-[11px] uppercase tracking-[0.18em] opacity-45">{card.label}</p>
+            <p className="mt-4 font-serif text-3xl">{card.value}</p>
+            <p className="mt-2 text-sm opacity-60">{card.helper}</p>
+          </article>
+        ))}
+      </section>
+
+      {state.warning ? (
+        <div className="rounded-[28px] border border-[#6E5630] bg-[rgba(76,57,26,0.22)] p-6 text-sm leading-7">{state.warning}</div>
+      ) : null}
+
+      {!state.items.length ? (
+        <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-8 text-sm opacity-75">
+          Nenhum negocio financeiro apareceu para o seu contato no Freshsales neste momento.
+        </div>
+      ) : null}
+
+      <FinanceSection
+        title="Faturas e cobrancas"
+        description="Deals financeiros vinculados a processos/accounts do CRM."
+        items={state.invoices}
+        emptyMessage="Nenhuma fatura vinculada apareceu para este contato."
+      />
+
+      <FinanceSection
+        title="Assinaturas e planos"
+        description="Negocios recorrentes ou planos reconhecidos pelo catalogo de campos do Freshsales."
+        items={state.subscriptions}
+        emptyMessage="Nenhuma assinatura ativa foi identificada para este contato."
+      />
+
+      {state.others.length ? (
+        <FinanceSection
+          title="Outros negocios"
+          description="Deals ainda sem classificacao segura entre fatura e assinatura."
+          items={state.others}
+          emptyMessage=""
+        />
+      ) : null}
+
+      {state.fieldCatalog ? <FieldCatalogCard fieldCatalog={state.fieldCatalog} /> : null}
     </div>
+  );
+}
+
+function FinanceSection({ title, description, items, emptyMessage }) {
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h3 className="font-serif text-3xl">{title}</h3>
+          <p className="text-sm opacity-62">{description}</p>
+        </div>
+        <p className="text-xs uppercase tracking-[0.16em] opacity-45">{items.length} item(ns)</p>
+      </div>
+
+      {!items.length ? (
+        <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6 text-sm opacity-70">{emptyMessage}</div>
+      ) : null}
+
+      {items.length ? (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {items.map((item) => (
+            <article key={item.id} className="rounded-[30px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.18em] opacity-45">{item.kind_label}</p>
+                  <h4 className="mt-3 font-serif text-2xl">{item.title}</h4>
+                </div>
+                <span className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.14em] ${statusStyle(item.status)}`}>
+                  {item.status_label}
+                </span>
+              </div>
+
+              <div className="mt-5 grid gap-4 md:grid-cols-3">
+                <Metric label="Valor" value={item.amount_label || "A definir"} />
+                <Metric label="Data-base" value={formatDate(item.due_date)} />
+                <Metric label="Estagio" value={item.stage || "A definir"} />
+              </div>
+
+              {item.process_account ? (
+                <div className="mt-5 rounded-[24px] border border-[#20332D] bg-[rgba(6,10,9,0.45)] p-5">
+                  <p className="text-[11px] uppercase tracking-[0.18em] opacity-45">Processo associado</p>
+                  <p className="mt-3 text-lg font-semibold">{item.process_account.process_reference || item.process_account.name}</p>
+                  <p className="mt-1 text-sm opacity-62">{item.process_account.status || item.process_account.name}</p>
+                  <Link
+                    href={`/portal/processos?account=${encodeURIComponent(item.process_account.id)}`}
+                    className="mt-4 inline-flex rounded-2xl border border-[#20332D] px-4 py-2 text-sm transition hover:border-[#C49C56] hover:text-[#C49C56]"
+                  >
+                    Ver area de processos
+                  </Link>
+                </div>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function Metric({ label, value }) {
+  return (
+    <div className="rounded-[22px] border border-[#20332D] bg-[rgba(6,10,9,0.45)] p-4">
+      <p className="text-[11px] uppercase tracking-[0.18em] opacity-45">{label}</p>
+      <p className="mt-2 text-sm">{value}</p>
+    </div>
+  );
+}
+
+function FieldCatalogCard({ fieldCatalog }) {
+  const groups = [
+    { title: "Campos candidatos para tipo do deal", items: fieldCatalog.deal_type_candidates || [] },
+    { title: "Campos candidatos para valor", items: fieldCatalog.amount_candidates || [] },
+    { title: "Campos candidatos para processo/account", items: fieldCatalog.account_candidates || [] },
+  ].filter((group) => group.items.length);
+
+  if (!groups.length) return null;
+
+  return (
+    <section className="rounded-[30px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
+      <div className="max-w-3xl">
+        <p className="text-[11px] uppercase tracking-[0.18em] opacity-45">Pareamento do modulo</p>
+        <h3 className="mt-3 font-serif text-3xl">Campos identificados no Freshsales</h3>
+        <p className="mt-3 text-sm leading-7 opacity-62">
+          O portal esta lendo os fields sincronizados do modulo de deals e de accounts para melhorar o pareamento entre faturas, assinaturas e processos.
+        </p>
+      </div>
+
+      <div className="mt-6 grid gap-4 xl:grid-cols-3">
+        {groups.map((group) => (
+          <article key={group.title} className="rounded-[24px] border border-[#20332D] bg-[rgba(6,10,9,0.45)] p-5">
+            <h4 className="text-sm font-semibold">{group.title}</h4>
+            <div className="mt-4 space-y-3">
+              {group.items.slice(0, 5).map((item) => (
+                <div key={`${item.key}-${item.label}`} className="rounded-2xl border border-[#20332D] px-4 py-3">
+                  <p className="text-sm font-medium">{item.label}</p>
+                  <p className="mt-1 text-xs opacity-55">{item.key}</p>
+                  {item.samples?.length ? <p className="mt-2 text-xs opacity-70">{item.samples.join(" | ")}</p> : null}
+                </div>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
