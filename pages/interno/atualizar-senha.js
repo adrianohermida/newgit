@@ -64,17 +64,18 @@ export default function AtualizarSenhaPage() {
         "Atualizacao final usando supabase.auth.updateUser.",
       ]}
     >
-      {configLoading ? (
-        <div className="rounded-2xl border border-[#1f3a2f] bg-[rgba(12,39,28,0.42)] px-4 py-3 text-sm text-[#D7F3E4]">
-          Carregando configuracao segura do acesso interno...
-        </div>
-      ) : !isConfigured ? (
-        <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] px-4 py-3 text-sm text-[#F9D2D2]">
-          Defina <code>SUPABASE_URL</code> e <code>SUPABASE_ANON_KEY</code> para habilitar a atualizacao.
-        </div>
-      ) : (
-        <form className="space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-[24px] border border-[#1BD473]/12 bg-[#F6F8F7] p-6 text-[#102219] shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
+      <form className="space-y-6" onSubmit={handleSubmit}>
+        {configLoading ? (
+          <div className="rounded-2xl border border-[#1f3a2f] bg-[rgba(12,39,28,0.42)] px-4 py-3 text-sm text-[#D7F3E4]">
+            Carregando configuracao segura do acesso interno...
+          </div>
+        ) : !isConfigured ? (
+          <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] px-4 py-3 text-sm text-[#F9D2D2]">
+            Defina <code>SUPABASE_URL</code> e <code>SUPABASE_ANON_KEY</code> para habilitar a atualizacao.
+          </div>
+        ) : null}
+
+        <div className="rounded-[24px] border border-[#1BD473]/12 bg-[#F6F8F7] p-6 text-[#102219] shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
             <div className="mb-6">
               <h3 className="text-3xl font-black text-[#102219]">Redefinir senha</h3>
               <p className="mt-2 text-sm leading-6 text-[#345246]">
@@ -116,24 +117,23 @@ export default function AtualizarSenhaPage() {
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || configLoading || !isConfigured}
               className="mt-6 w-full rounded-xl bg-[#11D473] px-4 py-4 text-sm font-bold text-[#092014] transition hover:brightness-95 disabled:opacity-60"
             >
               {submitting ? "Atualizando..." : "Atualizar senha"}
             </button>
           </div>
 
-          {error ? <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] px-4 py-3 text-sm text-[#FCA5A5]">{error}</div> : null}
-          {message ? <div className="rounded-2xl border border-[#0C9C55]/30 bg-[#0C9C55]/10 px-4 py-3 text-sm text-[#C8F3DD]">{message}</div> : null}
+        {error ? <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] px-4 py-3 text-sm text-[#FCA5A5]">{error}</div> : null}
+        {message ? <div className="rounded-2xl border border-[#0C9C55]/30 bg-[#0C9C55]/10 px-4 py-3 text-sm text-[#C8F3DD]">{message}</div> : null}
 
-          <div className="flex flex-col gap-3 text-sm text-[#D8D1C6]/70 md:flex-row md:items-center md:justify-between">
-            <Link href="/interno/login" className="text-[#11D473] transition hover:text-[#7DE5B1]">
-              Ir para o login
-            </Link>
-            <span>Depois do reset, o acesso segue condicionado ao perfil interno ativo</span>
-          </div>
-        </form>
-      )}
+        <div className="flex flex-col gap-3 text-sm text-[#D8D1C6]/70 md:flex-row md:items-center md:justify-between">
+          <Link href="/interno/login" className="text-[#11D473] transition hover:text-[#7DE5B1]">
+            Ir para o login
+          </Link>
+          <span>Depois do reset, o acesso segue condicionado ao perfil interno ativo</span>
+        </div>
+      </form>
     </AuthLayout>
   );
 }

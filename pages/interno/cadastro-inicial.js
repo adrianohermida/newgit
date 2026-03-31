@@ -71,17 +71,18 @@ export default function CadastroInicialPage() {
         "Acesso continua bloqueado ate haver vinculo em admin_profiles.",
       ]}
     >
-      {configLoading ? (
-        <div className="rounded-2xl border border-[#1f3a2f] bg-[rgba(12,39,28,0.42)] px-4 py-3 text-sm text-[#D7F3E4]">
-          Carregando configuracao segura do acesso interno...
-        </div>
-      ) : !isConfigured ? (
-        <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] px-4 py-3 text-sm text-[#F9D2D2]">
-          Defina <code>SUPABASE_URL</code> e <code>SUPABASE_ANON_KEY</code> para habilitar o cadastro inicial.
-        </div>
-      ) : (
-        <form className="space-y-6" onSubmit={handleSubmit}>
-          <div className="grid gap-5 rounded-2xl border border-[#D4AF37]/12 bg-white/[0.03] p-6 md:grid-cols-2">
+      <form className="space-y-6" onSubmit={handleSubmit}>
+        {configLoading ? (
+          <div className="rounded-2xl border border-[#1f3a2f] bg-[rgba(12,39,28,0.42)] px-4 py-3 text-sm text-[#D7F3E4]">
+            Carregando configuracao segura do acesso interno...
+          </div>
+        ) : !isConfigured ? (
+          <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] px-4 py-3 text-sm text-[#F9D2D2]">
+            Defina <code>SUPABASE_URL</code> e <code>SUPABASE_ANON_KEY</code> para habilitar o cadastro inicial.
+          </div>
+        ) : null}
+
+        <div className="grid gap-5 rounded-2xl border border-[#D4AF37]/12 bg-white/[0.03] p-6 md:grid-cols-2">
             <Field label="Nome completo">
               <input
                 type="text"
@@ -153,25 +154,24 @@ export default function CadastroInicialPage() {
             </label>
           </div>
 
-          {error ? <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] px-4 py-3 text-sm text-[#FCA5A5]">{error}</div> : null}
-          {message ? <div className="rounded-2xl border border-[#0C9C55]/30 bg-[#0C9C55]/10 px-4 py-3 text-sm text-[#C8F3DD]">{message}</div> : null}
+        {error ? <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] px-4 py-3 text-sm text-[#FCA5A5]">{error}</div> : null}
+        {message ? <div className="rounded-2xl border border-[#0C9C55]/30 bg-[#0C9C55]/10 px-4 py-3 text-sm text-[#C8F3DD]">{message}</div> : null}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-xl bg-[linear-gradient(90deg,#D4AF37,#A67C00)] px-4 py-4 text-sm font-semibold uppercase tracking-[0.24em] text-[#050706] shadow-[0_16px_36px_rgba(212,175,55,0.22)] transition hover:brightness-110 disabled:opacity-60"
-          >
-            {submitting ? "Criando..." : "Criar acesso inicial"}
-          </button>
+        <button
+          type="submit"
+          disabled={submitting || configLoading || !isConfigured}
+          className="w-full rounded-xl bg-[linear-gradient(90deg,#D4AF37,#A67C00)] px-4 py-4 text-sm font-semibold uppercase tracking-[0.24em] text-[#050706] shadow-[0_16px_36px_rgba(212,175,55,0.22)] transition hover:brightness-110 disabled:opacity-60"
+        >
+          {submitting ? "Criando..." : "Criar acesso inicial"}
+        </button>
 
-          <div className="flex flex-col gap-3 text-sm text-[#D8D1C6]/70 md:flex-row md:items-center md:justify-between">
-            <Link href="/interno/login" className="text-[#D4AF37] transition hover:text-[#F3D98B]">
-              Voltar para o login
-            </Link>
-            <span>Rota off-menu para homologacao do onboarding</span>
-          </div>
-        </form>
-      )}
+        <div className="flex flex-col gap-3 text-sm text-[#D8D1C6]/70 md:flex-row md:items-center md:justify-between">
+          <Link href="/interno/login" className="text-[#D4AF37] transition hover:text-[#F3D98B]">
+            Voltar para o login
+          </Link>
+          <span>Rota off-menu para homologacao do onboarding</span>
+        </div>
+      </form>
     </AuthLayout>
   );
 }

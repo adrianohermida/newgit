@@ -44,17 +44,18 @@ export default function RecuperarSenhaPage() {
         "Fluxo separado da home enquanto a homologacao interna avanca.",
       ]}
     >
-      {configLoading ? (
-        <div className="rounded-2xl border border-[#1f3a2f] bg-[rgba(12,39,28,0.42)] px-4 py-3 text-sm text-[#D7F3E4]">
-          Carregando configuracao segura do acesso interno...
-        </div>
-      ) : !isConfigured ? (
-        <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] px-4 py-3 text-sm text-[#F9D2D2]">
-          Defina <code>SUPABASE_URL</code> e <code>SUPABASE_ANON_KEY</code> para habilitar a recuperacao.
-        </div>
-      ) : (
-        <form className="space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-[24px] border border-[#1BD473]/15 bg-[#F7FAF8] p-6 text-[#0F1F18] shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
+      <form className="space-y-6" onSubmit={handleSubmit}>
+        {configLoading ? (
+          <div className="rounded-2xl border border-[#1f3a2f] bg-[rgba(12,39,28,0.42)] px-4 py-3 text-sm text-[#D7F3E4]">
+            Carregando configuracao segura do acesso interno...
+          </div>
+        ) : !isConfigured ? (
+          <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] px-4 py-3 text-sm text-[#F9D2D2]">
+            Defina <code>SUPABASE_URL</code> e <code>SUPABASE_ANON_KEY</code> para habilitar a recuperacao.
+          </div>
+        ) : null}
+
+        <div className="rounded-[24px] border border-[#1BD473]/15 bg-[#F7FAF8] p-6 text-[#0F1F18] shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
             <div className="mb-6 text-center">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#11D473]/12 text-2xl text-[#0C9C55]">
                 @
@@ -79,24 +80,23 @@ export default function RecuperarSenhaPage() {
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || configLoading || !isConfigured}
               className="mt-6 w-full rounded-xl bg-[#11D473] px-4 py-4 text-sm font-bold text-[#092014] transition hover:brightness-95 disabled:opacity-60"
             >
               {submitting ? "Enviando..." : "Enviar instrucoes de recuperacao"}
             </button>
           </div>
 
-          {error ? <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] px-4 py-3 text-sm text-[#FCA5A5]">{error}</div> : null}
-          {message ? <div className="rounded-2xl border border-[#0C9C55]/30 bg-[#0C9C55]/10 px-4 py-3 text-sm text-[#C8F3DD]">{message}</div> : null}
+        {error ? <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] px-4 py-3 text-sm text-[#FCA5A5]">{error}</div> : null}
+        {message ? <div className="rounded-2xl border border-[#0C9C55]/30 bg-[#0C9C55]/10 px-4 py-3 text-sm text-[#C8F3DD]">{message}</div> : null}
 
-          <div className="flex flex-col gap-3 text-sm text-[#D8D1C6]/70 md:flex-row md:items-center md:justify-between">
-            <Link href="/interno/login" className="text-[#11D473] transition hover:text-[#7DE5B1]">
-              Voltar para o login
-            </Link>
-            <span>Suporte interno disponivel durante a homologacao</span>
-          </div>
-        </form>
-      )}
+        <div className="flex flex-col gap-3 text-sm text-[#D8D1C6]/70 md:flex-row md:items-center md:justify-between">
+          <Link href="/interno/login" className="text-[#11D473] transition hover:text-[#7DE5B1]">
+            Voltar para o login
+          </Link>
+          <span>Suporte interno disponivel durante a homologacao</span>
+        </div>
+      </form>
     </AuthLayout>
   );
 }
