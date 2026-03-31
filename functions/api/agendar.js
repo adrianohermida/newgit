@@ -1,6 +1,6 @@
 import { getGoogleAccessToken } from '../lib/google-auth.js';
 import { MINIMUM_LEAD_HOURS, isSlotBookable } from '../lib/slot-policy.js';
-import { getCleanEnvValue, getSupabaseServerKey, inspectSupabaseKey } from '../lib/env.js';
+import { getSupabaseBaseUrl, getSupabaseServerKey, inspectSupabaseKey } from '../lib/env.js';
 import { buildActionLinks, formatAgendamentoDate, INTERNAL_RECIPIENTS, sendTransactionalEmail, getSiteUrl } from '../lib/agendamento-helpers.js';
 
 // Função simples para gerar uuidv4-like (suficiente para ambiente Cloudflare)
@@ -89,7 +89,7 @@ export async function onRequestPost(context) {
   const adminTokenRemarcacao = uuidv4();
 
   // Persistir no Supabase (inclui token de confirmação)
-  const supabaseUrl = getCleanEnvValue(env.NEXT_PUBLIC_SUPABASE_URL);
+  const supabaseUrl = getSupabaseBaseUrl(env);
   const supabaseKey = getSupabaseServerKey(env);
   const supabaseKeyMeta = inspectSupabaseKey(supabaseKey);
   if (!supabaseUrl || !supabaseKey) {

@@ -1,4 +1,4 @@
-import { getCleanEnvValue, getSupabaseApiKey, getSupabaseServerKey } from "./env.js";
+import { getSupabaseApiKey, getSupabaseBaseUrl, getSupabaseServerKey } from "./env.js";
 import { fetchSupabaseAdmin } from "./supabase-rest.js";
 
 function getBearerToken(request) {
@@ -10,7 +10,7 @@ function getBearerToken(request) {
 }
 
 async function getSupabaseUser(env, accessToken) {
-  const baseUrl = getCleanEnvValue(env.NEXT_PUBLIC_SUPABASE_URL);
+  const baseUrl = getSupabaseBaseUrl(env);
   const apiKey = getSupabaseApiKey(env);
 
   if (!baseUrl || !apiKey) {

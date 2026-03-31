@@ -1,7 +1,7 @@
-import { getCleanEnvValue, getSupabaseServerKey } from "./env.js";
+import { getSupabaseBaseUrl, getSupabaseServerKey } from "./env.js";
 
 function buildSupabaseUrl(env, path) {
-  const baseUrl = getCleanEnvValue(env.NEXT_PUBLIC_SUPABASE_URL);
+  const baseUrl = getSupabaseBaseUrl(env);
   const apiKey = getSupabaseServerKey(env);
 
   if (!baseUrl || !apiKey) {

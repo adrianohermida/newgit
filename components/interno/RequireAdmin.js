@@ -31,7 +31,7 @@ export default function RequireAdmin({ children }) {
     return (
       <MessageState
         title="Configuracao do dashboard pendente"
-        body="Defina NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY para habilitar o login interno com Supabase."
+        body="Defina SUPABASE_URL e SUPABASE_ANON_KEY para habilitar o login interno com Supabase."
       />
     );
   }

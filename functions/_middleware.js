@@ -19,7 +19,7 @@ const VARS_POR_ROTA = {
   },
   '/api/agendar': {
     required: [
-      'NEXT_PUBLIC_SUPABASE_URL',
+      'SUPABASE_URL',
       'SUPABASE_SERVICE_ROLE_KEY',
       'RESEND_API_KEY',
     ],
@@ -30,7 +30,7 @@ const VARS_POR_ROTA = {
   },
   '/api/confirmar': {
     required: [
-      'NEXT_PUBLIC_SUPABASE_URL',
+      'SUPABASE_URL',
       'SUPABASE_SERVICE_ROLE_KEY',
       'RESEND_API_KEY',
     ],
@@ -38,7 +38,7 @@ const VARS_POR_ROTA = {
   },
   '/api/cancelar': {
     required: [
-      'NEXT_PUBLIC_SUPABASE_URL',
+      'SUPABASE_URL',
       'SUPABASE_SERVICE_ROLE_KEY',
       'RESEND_API_KEY',
     ],
@@ -49,7 +49,7 @@ const VARS_POR_ROTA = {
   },
   '/api/remarcar': {
     required: [
-      'NEXT_PUBLIC_SUPABASE_URL',
+      'SUPABASE_URL',
       'SUPABASE_SERVICE_ROLE_KEY',
       'RESEND_API_KEY',
     ],
@@ -67,34 +67,34 @@ const VARS_POR_ROTA = {
   },
   '/api/admin-agendamentos': {
     required: [
-      'NEXT_PUBLIC_SUPABASE_URL',
+      'SUPABASE_URL',
       'SUPABASE_SERVICE_ROLE_KEY',
     ],
     oneOf: [
-      ['NEXT_PUBLIC_SUPABASE_ANON_KEY'],
       ['SUPABASE_ANON_KEY'],
+      ['NEXT_PUBLIC_SUPABASE_ANON_KEY'],
     ],
   },
   '/api/admin-posts': {
     required: [
-      'NEXT_PUBLIC_SUPABASE_URL',
+      'SUPABASE_URL',
       'SUPABASE_SERVICE_ROLE_KEY',
     ],
     oneOf: [
-      ['NEXT_PUBLIC_SUPABASE_ANON_KEY'],
       ['SUPABASE_ANON_KEY'],
+      ['NEXT_PUBLIC_SUPABASE_ANON_KEY'],
     ],
   },
   '/api/admin-leads': {
     required: [
-      'NEXT_PUBLIC_SUPABASE_URL',
+      'SUPABASE_URL',
       'SUPABASE_SERVICE_ROLE_KEY',
       'FRESHDESK_DOMAIN',
       'FRESHDESK_BASIC_TOKEN',
     ],
     oneOf: [
-      ['NEXT_PUBLIC_SUPABASE_ANON_KEY'],
       ['SUPABASE_ANON_KEY'],
+      ['NEXT_PUBLIC_SUPABASE_ANON_KEY'],
     ],
   },
 };

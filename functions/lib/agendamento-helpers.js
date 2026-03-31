@@ -1,4 +1,4 @@
-import { getCleanEnvValue, getSupabaseServerKey, inspectSupabaseKey } from './env.js';
+import { getCleanEnvValue, getSupabaseBaseUrl, getSupabaseServerKey, inspectSupabaseKey } from './env.js';
 import { getGoogleAccessToken } from './google-auth.js';
 import { MINIMUM_LEAD_HOURS, isSlotBookable } from './slot-policy.js';
 
@@ -52,7 +52,7 @@ export function buildActionLinks(siteUrl, row) {
 }
 
 export function getSupabaseContext(env) {
-  const supabaseUrl = getCleanEnvValue(env.NEXT_PUBLIC_SUPABASE_URL);
+  const supabaseUrl = getSupabaseBaseUrl(env);
   const supabaseKey = getSupabaseServerKey(env);
   const supabaseKeyMeta = inspectSupabaseKey(supabaseKey);
 

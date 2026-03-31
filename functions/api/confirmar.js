@@ -1,4 +1,4 @@
-import { getCleanEnvValue, getSupabaseServerKey, inspectSupabaseKey } from '../lib/env.js';
+import { getSupabaseBaseUrl, getSupabaseServerKey, inspectSupabaseKey } from '../lib/env.js';
 import { INTERNAL_RECIPIENTS, buildActionLinks, formatAgendamentoDate, getSiteUrl, sendTransactionalEmail } from '../lib/agendamento-helpers.js';
 
 // Cloudflare Pages Function para confirmação de agendamento via link seguro
@@ -31,7 +31,7 @@ export async function onRequestGet(context) {
   }
 
   // Buscar agendamento no Supabase pelo token (id ou campo token_confirmacao)
-  const supabaseUrl = getCleanEnvValue(env.NEXT_PUBLIC_SUPABASE_URL);
+  const supabaseUrl = getSupabaseBaseUrl(env);
   const supabaseKey = getSupabaseServerKey(env);
   const supabaseKeyMeta = inspectSupabaseKey(supabaseKey);
   if (!supabaseUrl || !supabaseKey || supabaseKeyMeta.format === 'malformed_jwt') {

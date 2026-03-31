@@ -65,7 +65,7 @@ export default function AtualizarSenhaPage() {
     >
       {!isSupabaseConfigured() ? (
         <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] px-4 py-3 text-sm text-[#F9D2D2]">
-          Defina <code>NEXT_PUBLIC_SUPABASE_URL</code> e <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> para habilitar a atualizacao.
+          Defina <code>SUPABASE_URL</code> e <code>SUPABASE_ANON_KEY</code> para habilitar a atualizacao.
         </div>
       ) : (
         <form className="space-y-6" onSubmit={handleSubmit}>

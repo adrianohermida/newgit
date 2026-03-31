@@ -10,6 +10,14 @@ export function getCleanEnvValue(value) {
   return trimmed;
 }
 
+export function getSupabaseBaseUrl(env) {
+  return (
+    getCleanEnvValue(env.SUPABASE_URL) ||
+    getCleanEnvValue(env.NEXT_PUBLIC_SUPABASE_URL) ||
+    null
+  );
+}
+
 export function normalizeSupabaseKey(value) {
   const key = getCleanEnvValue(value);
   if (!key || typeof key !== 'string') {
@@ -76,8 +84,8 @@ export function inspectSupabaseKey(value) {
 export function getSupabaseApiKey(env) {
   return (
     normalizeSupabaseKey(env.SUPABASE_SERVICE_ROLE_KEY).key ||
-    getCleanEnvValue(env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
     getCleanEnvValue(env.SUPABASE_ANON_KEY) ||
+    getCleanEnvValue(env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
     null
   );
 }
