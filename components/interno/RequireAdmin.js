@@ -41,10 +41,14 @@ export default function RequireAdmin({ children }) {
   }
 
   if (error) {
+    const detail = String(error?.message || "");
+    const body = detail.includes("404") || detail.includes("admin_profiles")
+      ? "A autenticacao foi concluida, mas a tabela ou o registro em admin_profiles ainda nao esta disponivel neste projeto Supabase. Aplique a migration de bootstrap do superadmin e tente novamente."
+      : "O login foi identificado, mas houve falha ao carregar o perfil administrativo no Supabase.";
     return (
       <MessageState
         title="Nao foi possivel validar o acesso"
-        body="O login foi identificado, mas houve falha ao carregar o perfil administrativo no Supabase."
+        body={body}
       />
     );
   }
