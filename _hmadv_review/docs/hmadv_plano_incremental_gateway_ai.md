@@ -58,3 +58,11 @@ Usar o worker Cloudflare AI em [index.ts](/D:/Github/newgit/workers/hmadv-proces
 - perceber inconsistencias
 - criar anotacoes automaticas no account
 - criar tarefas e prazos preditivos a partir de publicacoes associadas
+
+### Integracao operacional
+
+- O worker expõe `POST /reconcile/process` para reanalisar um processo específico após nova publicação ou novo andamento.
+- O [sync-worker](/D:/Github/newgit/_hmadv_review/supabase/functions/sync-worker/index.ts) deve chamar esse endpoint depois de exportar activities para o Freshsales.
+- Variáveis necessárias no runtime do Supabase:
+  - `PROCESS_AI_BASE`
+  - `HMDAV_AI_SHARED_SECRET`

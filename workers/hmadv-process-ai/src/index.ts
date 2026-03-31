@@ -163,9 +163,20 @@ async function reconcile(env: Env, limit = 20) {
     env,
     `processos?select=id,numero_cnj,account_id_freshsales,status_atual_processo,instancia,data_ultimo_movimento,data_ultima_movimentacao&account_id_freshsales=not.is.null&limit=${limit}&order=updated_at.desc`
   );
+  return reconcileRows(env, processos as Json[]);
+}
 
+async function reconcileSingle(env: Env, processoId: string) {
+  const processos = await supabaseGet(
+    env,
+    `processos?select=id,numero_cnj,account_id_freshsales,status_atual_processo,instancia,data_ultimo_movimento,data_ultima_movimentacao&id=eq.${processoId}&limit=1`
+  );
+  return reconcileRows(env, processos as Json[]);
+}
+
+async function reconcileRows(env: Env, processos: Json[]) {
   const results: Json[] = [];
-  for (const processo of processos as Json[]) {
+  for (const processo of processos) {
     const processoId = String(processo.id ?? '');
     const accountId = String(processo.account_id_freshsales ?? '');
     if (!processoId || !accountId) continue;
@@ -237,6 +248,14 @@ export default {
       const body = (await parseBody(req)) as Json | null;
       const limit = Number(body?.limit ?? 20);
       return json(await reconcile(env, Math.max(1, Math.min(limit, 50))));
+    }
+    if (req.method === 'POST' && url.pathname === '/reconcile/process') {
+      const body = (await parseBody(req)) as Json | null;
+      const processoId = String(body?.processo_id ?? '').trim();
+      if (!processoId) {
+        return json({ ok: false, error: 'processo_id_required' }, 400);
+      }
+      return json(await reconcileSingle(env, processoId));
     }
     return json({ ok: false, error: 'not_found' }, 404);
   },

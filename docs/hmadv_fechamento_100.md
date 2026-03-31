@@ -97,6 +97,40 @@ Aceite:
 - carga anual da TPU fica repetivel a partir dos dumps reais `ITENS`;
 - complementos e temporalidade ficam disponiveis para movimentos e futuras regras de audiencia/prazo.
 
+### Fase 5.4 - Gateway TPU detalhado
+
+- `tpu-sync` deve consultar:
+  - `/api/v1/publico/consulta/detalhada/movimentos?codigo=...`
+  - `/api/v1/publico/consulta/detalhada/classes?codigo=...`
+  - `/api/v1/publico/consulta/detalhada/assuntos?codigo=...`
+  - `/api/v1/publico/consulta/detalhada/documentos?codigo=...`
+- actions esperadas:
+  - `resolver_movimento_detalhado`
+  - `sync_movimentos_gateway`
+  - `sync_classes_gateway`
+  - `sync_assuntos_gateway`
+  - `sync_documentos_gateway`
+
+### Fase 5.5 - Persistencia dos campos ricos do Gateway
+
+- `visibilidade_externa`
+- `flg_eletronico`
+- `monocratico`
+- `colegiado`
+- `presidente_vice`
+- `glossario`
+- `complementos_detalhados`
+- `gateway_payload`
+
+### Fase 5.6 - Sinais de negocio a partir da TPU
+
+- detectar audiencia
+- detectar publicacao relevante
+- detectar conclusao
+- detectar remessa
+- detectar decisao
+- detectar despacho
+
 ## Fase 6 - Camada institucional CNJ
 
 Arquivos base:
@@ -119,6 +153,25 @@ Aceite:
 - `advise-sync`: incremental diario
 - `fs-account-repair`: janelas pequenas ate estabilizar os accounts
 - `tpu-sync`: diario ou semanal, depois da carga anual
+- `hmadv-process-ai`: cron no Cloudflare para reconciliacao e resumos
+
+## Fase 7 - Cloudflare AI
+
+Arquivos:
+
+- [wrangler.toml](/D:/Github/newgit/workers/hmadv-process-ai/wrangler.toml)
+- [index.ts](/D:/Github/newgit/workers/hmadv-process-ai/src/index.ts)
+- [prompts.ts](/D:/Github/newgit/workers/hmadv-process-ai/src/prompts.ts)
+- [hmadv_cloudflare_ai_rollout.md](/D:/Github/newgit/docs/hmadv_cloudflare_ai_rollout.md)
+
+Aceite:
+
+- worker publicado no Cloudflare;
+- `POST /reconcile/process` funcionando;
+- novas publicacoes e andamentos disparam reconciliacao inteligente;
+- anotacoes automaticas no Freshsales;
+- tarefas e prazos preditivos a partir de publicacoes;
+- apoio a status, fase, instancia e inconsistencias.
 
 ## Indicadores de pronto
 
@@ -138,4 +191,5 @@ Aceite:
 5. Rodar a carga anual da TPU
 6. Resolver backlog historico via `tpu-sync`
 7. Concluir camada institucional
-8. Fechar reconciliacao diaria Freshsales x Supabase
+8. Publicar e integrar o Cloudflare Worker IA
+9. Fechar reconciliacao diaria Freshsales x Supabase
