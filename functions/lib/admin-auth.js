@@ -1,5 +1,6 @@
 import { getSupabaseApiKey, getSupabaseBaseUrl, getSupabaseServerKey } from "./env.js";
 import { fetchSupabaseAdmin } from "./supabase-rest.js";
+import { getFallbackSuperadminProfile, isFallbackSuperadminIdentity } from "./superadmin.js";
 
 function getBearerToken(request) {
   const header = request.headers.get("authorization") || request.headers.get("Authorization");
@@ -32,12 +33,20 @@ async function getSupabaseUser(env, accessToken) {
 }
 
 async function getAdminProfile(env, userId) {
-  const rows = await fetchSupabaseAdmin(
-    env,
-    `admin_profiles?select=id,email,full_name,role,is_active&id=eq.${encodeURIComponent(userId)}&limit=1`
-  );
+  try {
+    const rows = await fetchSupabaseAdmin(
+      env,
+      `admin_profiles?select=id,email,full_name,role,is_active&id=eq.${encodeURIComponent(userId)}&limit=1`
+    );
 
-  return Array.isArray(rows) ? rows[0] || null : null;
+    return Array.isArray(rows) ? rows[0] || null : null;
+  } catch (error) {
+    if (String(error?.message || "").includes("404")) {
+      return null;
+    }
+
+    throw error;
+  }
 }
 
 export async function requireAdminAccess(request, env) {
@@ -58,6 +67,14 @@ export async function requireAdminAccess(request, env) {
   }
 
   const profile = await getAdminProfile(env, user.id);
+  if ((!profile || !profile.is_active) && isFallbackSuperadminIdentity(user)) {
+    return {
+      ok: true,
+      user,
+      profile: getFallbackSuperadminProfile(),
+    };
+  }
+
   if (!profile || !profile.is_active) {
     return { ok: false, status: 403, error: "Usuario autenticado sem perfil administrativo ativo." };
   }
