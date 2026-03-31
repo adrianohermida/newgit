@@ -17,6 +17,7 @@ export async function onRequestGet(context) {
   try {
     const url = new URL(request.url);
     const id = url.searchParams.get("id");
+
     if (id) {
       const item = await getAgendamentoForDashboard(env, id);
       return new Response(JSON.stringify({ ok: true, item }), {
@@ -25,37 +26,29 @@ export async function onRequestGet(context) {
       });
     }
 
-    const status = url.searchParams.get("status") || undefined;
-    const dateFrom = url.searchParams.get("dateFrom") || undefined;
-    const dateTo = url.searchParams.get("dateTo") || undefined;
-    const limit = url.searchParams.get("limit") || "20";
-
     const items = await listAgendamentosForDashboard(env, {
-      status,
-      dateFrom,
-      dateTo,
-      limit: Number(limit) || 20,
+      status: url.searchParams.get("status") || undefined,
+      dateFrom: url.searchParams.get("dateFrom") || undefined,
+      dateTo: url.searchParams.get("dateTo") || undefined,
+      limit: Number(url.searchParams.get("limit") || "50"),
     });
 
+    return new Response(JSON.stringify({ ok: true, items: Array.isArray(items) ? items : [] }), {
+      status: 200,
+      headers: JSON_HEADERS,
+    });
+  } catch (error) {
     return new Response(
       JSON.stringify({
-        ok: true,
-        items,
-        profile: {
-          id: auth.profile.id,
-          email: auth.profile.email,
-          role: auth.profile.role,
-        },
+        ok: false,
+        error:
+          error.message ||
+          "A leitura administrativa de agendamentos nao conseguiu consultar o projeto Supabase atual.",
       }),
       {
-        status: 200,
+        status: 500,
         headers: JSON_HEADERS,
       }
     );
-  } catch (error) {
-    return new Response(JSON.stringify({ ok: false, error: error.message || "Falha ao carregar agendamentos." }), {
-      status: 500,
-      headers: JSON_HEADERS,
-    });
   }
 }

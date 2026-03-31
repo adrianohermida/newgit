@@ -7,7 +7,10 @@ export async function listFreshdeskTickets(env, filters = {}) {
   const token = env.FRESHDESK_BASIC_TOKEN;
 
   if (!domain || !token) {
-    throw new Error("Configuracao do Freshdesk incompleta no ambiente.");
+    return {
+      items: [],
+      warning: "Configuracao incompleta no servidor. Variaveis do Freshdesk ausentes.",
+    };
   }
 
   const params = new URLSearchParams();
@@ -30,5 +33,9 @@ export async function listFreshdeskTickets(env, filters = {}) {
     throw new Error(detail || `Freshdesk request failed with status ${response.status}`);
   }
 
-  return response.json();
+  const items = await response.json();
+  return {
+    items: Array.isArray(items) ? items : [],
+    warning: null,
+  };
 }

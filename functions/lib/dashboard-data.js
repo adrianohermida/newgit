@@ -4,7 +4,7 @@ function buildAgendamentosQuery(filters = {}) {
   const params = new URLSearchParams();
   params.set(
     "select",
-    "id,nome,email,telefone,area,data,hora,status,observacoes,google_event_id,token_confirmacao,token_cancelamento,token_remarcacao,admin_token_confirmacao,admin_token_cancelamento,admin_token_remarcacao,created_at,updated_at,confirmed_at,cancelled_at,cancelled_by,rescheduled_at,rescheduled_by,original_data,original_hora"
+    "id,nome,email,telefone,area,data,hora,status,observacoes,google_event_id,created_at,updated_at"
   );
   params.set("order", "data.desc,hora.desc");
 
@@ -32,12 +32,29 @@ export async function listAgendamentosForDashboard(env, filters = {}) {
 }
 
 export async function getAgendamentoForDashboard(env, id) {
-  const rows = await fetchSupabaseAdmin(
-    env,
-    `agendamentos?select=${encodeURIComponent(
-      "id,nome,email,telefone,area,data,hora,status,observacoes,google_event_id,token_confirmacao,token_cancelamento,token_remarcacao,admin_token_confirmacao,admin_token_cancelamento,admin_token_remarcacao,created_at,updated_at,confirmed_at,cancelled_at,cancelled_by,rescheduled_at,rescheduled_by,original_data,original_hora"
-    )}&id=eq.${encodeURIComponent(id)}&limit=1`
-  );
+  const selectVariants = [
+    "id,nome,email,telefone,area,data,hora,status,observacoes,google_event_id,token_confirmacao,token_cancelamento,token_remarcacao,admin_token_confirmacao,admin_token_cancelamento,admin_token_remarcacao,created_at,updated_at,confirmed_at,cancelled_at,cancelled_by,rescheduled_at,rescheduled_by,original_data,original_hora",
+    "id,nome,email,telefone,area,data,hora,status,observacoes,google_event_id,created_at,updated_at",
+  ];
+
+  let rows = null;
+  let lastError = null;
+
+  for (const select of selectVariants) {
+    try {
+      rows = await fetchSupabaseAdmin(
+        env,
+        `agendamentos?select=${encodeURIComponent(select)}&id=eq.${encodeURIComponent(id)}&limit=1`
+      );
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (!rows && lastError) {
+    throw lastError;
+  }
 
   return Array.isArray(rows) ? rows[0] || null : null;
 }

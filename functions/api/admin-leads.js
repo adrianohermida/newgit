@@ -20,8 +20,8 @@ export async function onRequestGet(context) {
     const perPage = Number(url.searchParams.get("perPage") || "30");
     const email = url.searchParams.get("email") || undefined;
 
-    const items = await listFreshdeskTickets(env, { page, perPage, email });
-    return new Response(JSON.stringify({ ok: true, items }), {
+    const result = await listFreshdeskTickets(env, { page, perPage, email });
+    return new Response(JSON.stringify({ ok: true, items: result.items || [], warning: result.warning || null }), {
       status: 200,
       headers: JSON_HEADERS,
     });

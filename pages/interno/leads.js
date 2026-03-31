@@ -29,7 +29,7 @@ function countByStatus(items, status) {
 
 export default function InternoLeadsPage() {
   const [filters, setFilters] = useState({ email: "" });
-  const [state, setState] = useState({ loading: true, error: null, items: [] });
+  const [state, setState] = useState({ loading: true, error: null, warning: null, items: [] });
 
   return (
     <RequireAdmin>
@@ -60,11 +60,11 @@ function LeadsContent({ filters, setFilters, state, setState }) {
 
         const payload = await adminFetch(`/api/admin-leads?${params.toString()}`);
         if (!cancelled) {
-          setState({ loading: false, error: null, items: payload.items || [] });
+          setState({ loading: false, error: null, warning: payload.warning || null, items: payload.items || [] });
         }
       } catch (error) {
         if (!cancelled) {
-          setState({ loading: false, error: error.message, items: [] });
+          setState({ loading: false, error: error.message, warning: null, items: [] });
         }
       }
     }
@@ -122,6 +122,10 @@ function LeadsContent({ filters, setFilters, state, setState }) {
 
       {!state.loading && state.error ? (
         <div className="border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] p-6 text-sm">{state.error}</div>
+      ) : null}
+
+      {!state.loading && !state.error && state.warning ? (
+        <div className="mb-6 border border-[#6E5630] bg-[rgba(76,57,26,0.22)] p-6 text-sm">{state.warning}</div>
       ) : null}
 
       {!state.loading && !state.error && !state.items.length ? (
