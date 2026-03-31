@@ -15,7 +15,7 @@ export async function onRequestGet(context) {
   }
 
   const payload = await listClientTickets(env, auth.profile.email);
-  return new Response(JSON.stringify({ ok: true, items: payload.items, warning: payload.warning || null }), {
+  return new Response(JSON.stringify({ ok: true, items: payload.items, warning: payload.warning || null, urls: payload.urls || null }), {
     status: 200,
     headers: JSON_HEADERS,
   });

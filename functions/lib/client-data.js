@@ -5,6 +5,62 @@ function normalizeFreshdeskDomain(value) {
   return String(value || "").replace(/\/+$/, "");
 }
 
+function buildFreshdeskAuthHeader(env) {
+  const basicToken = String(env.FRESHDESK_BASIC_TOKEN || "").trim();
+  if (basicToken) {
+    return basicToken.startsWith("Basic ") ? basicToken : `Basic ${basicToken}`;
+  }
+
+  const apiKey = String(env.FRESHDESK_API_KEY || "").trim();
+  if (!apiKey) {
+    return null;
+  }
+
+  return `Basic ${btoa(`${apiKey}:X`)}`;
+}
+
+function buildFreshdeskPortalUrls(env, ticketId = null) {
+  const domain = normalizeFreshdeskDomain(env.FRESHDESK_DOMAIN);
+  if (!domain) {
+    return {
+      portal_home_url: null,
+      new_ticket_url: null,
+      ticket_url: null,
+      agent_ticket_url: null,
+    };
+  }
+
+  const baseTicketUrl = String(env.FRESHDESK_PORTAL_TICKET_BASE_URL || "").trim() || `${domain}/support/tickets`;
+  const newTicketUrl = String(env.FRESHDESK_NEW_TICKET_URL || "").trim() || `${domain}/support/tickets/new`;
+
+  return {
+    portal_home_url: `${domain}/support/home`,
+    new_ticket_url: newTicketUrl,
+    ticket_url: ticketId ? `${baseTicketUrl}/${ticketId}` : null,
+    agent_ticket_url: ticketId ? `${domain}/a/tickets/${ticketId}` : null,
+  };
+}
+
+function mapFreshdeskStatus(value) {
+  const statusMap = {
+    2: "Aberto",
+    3: "Pendente",
+    4: "Resolvido",
+    5: "Fechado",
+  };
+  return statusMap[value] || String(value || "Indefinido");
+}
+
+function mapFreshdeskPriority(value) {
+  const priorityMap = {
+    1: "Baixa",
+    2: "Media",
+    3: "Alta",
+    4: "Urgente",
+  };
+  return priorityMap[value] || String(value || "Nao definida");
+}
+
 function safeJsonParse(value, fallback = {}) {
   if (!value) return fallback;
   if (typeof value === "object") return value;
@@ -180,12 +236,13 @@ export async function listClientFinanceiro(env, email) {
 
 export async function listClientTickets(env, email) {
   const domain = normalizeFreshdeskDomain(env.FRESHDESK_DOMAIN);
-  const token = env.FRESHDESK_BASIC_TOKEN;
+  const token = buildFreshdeskAuthHeader(env);
 
   if (!domain || !token) {
     return {
       items: [],
       warning: "Suporte do portal ainda nao foi conectado ao Freshdesk neste ambiente.",
+      urls: buildFreshdeskPortalUrls(env),
     };
   }
 
@@ -194,6 +251,9 @@ export async function listClientTickets(env, email) {
     params.set("per_page", "30");
     params.set("page", "1");
     params.set("email", email);
+    params.set("order_by", "updated_at");
+    params.set("order_type", "desc");
+    params.set("include", "description");
 
     const response = await fetch(`${domain}/api/v2/tickets?${params.toString()}`, {
       headers: {
@@ -206,6 +266,7 @@ export async function listClientTickets(env, email) {
       return {
         items: [],
         warning: "Nao foi possivel listar os tickets do cliente via Freshdesk neste ambiente.",
+        urls: buildFreshdeskPortalUrls(env),
       };
     }
 
@@ -215,26 +276,31 @@ export async function listClientTickets(env, email) {
         ? payload.map((item) => ({
             id: item.id,
             subject: item.subject || "Sem assunto",
-            status: item.status,
-            priority: item.priority,
+            status: mapFreshdeskStatus(item.status),
+            status_code: item.status,
+            priority: mapFreshdeskPriority(item.priority),
+            priority_code: item.priority,
             created_at: item.created_at,
             updated_at: item.updated_at,
             description_text: item.description_text || "",
+            urls: buildFreshdeskPortalUrls(env, item.id),
           }))
         : [],
       warning: null,
+      urls: buildFreshdeskPortalUrls(env),
     };
   } catch {
     return {
       items: [],
       warning: "Nao foi possivel listar os tickets do cliente via Freshdesk neste ambiente.",
+      urls: buildFreshdeskPortalUrls(env),
     };
   }
 }
 
 export async function createClientTicket(env, profile, payload) {
   const domain = normalizeFreshdeskDomain(env.FRESHDESK_DOMAIN);
-  const token = env.FRESHDESK_BASIC_TOKEN;
+  const token = buildFreshdeskAuthHeader(env);
 
   if (!domain || !token) {
     throw new Error("Suporte do portal ainda nao foi conectado ao Freshdesk neste ambiente.");
@@ -265,7 +331,12 @@ export async function createClientTicket(env, profile, payload) {
     throw new Error(body?.description || body?.message || "Nao foi possivel abrir o ticket do cliente.");
   }
 
-  return body;
+  return {
+    ...body,
+    urls: buildFreshdeskPortalUrls(env, body?.id),
+    status_label: mapFreshdeskStatus(body?.status),
+    priority_label: mapFreshdeskPriority(body?.priority),
+  };
 }
 
 export async function getClientSummary(env, profile) {

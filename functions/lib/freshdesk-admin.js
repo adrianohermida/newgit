@@ -2,9 +2,23 @@ function normalizeDomain(value) {
   return String(value || "").replace(/\/+$/, "");
 }
 
+function buildFreshdeskAuthHeader(env) {
+  const basicToken = String(env.FRESHDESK_BASIC_TOKEN || "").trim();
+  if (basicToken) {
+    return basicToken.startsWith("Basic ") ? basicToken : `Basic ${basicToken}`;
+  }
+
+  const apiKey = String(env.FRESHDESK_API_KEY || "").trim();
+  if (!apiKey) {
+    return null;
+  }
+
+  return `Basic ${btoa(`${apiKey}:X`)}`;
+}
+
 export async function listFreshdeskTickets(env, filters = {}) {
   const domain = normalizeDomain(env.FRESHDESK_DOMAIN);
-  const token = env.FRESHDESK_BASIC_TOKEN;
+  const token = buildFreshdeskAuthHeader(env);
 
   if (!domain || !token) {
     return {
