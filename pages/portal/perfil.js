@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
 import { clientFetch } from "../../lib/client/api";
+import { useSupabaseBrowser } from "../../lib/supabase";
 
 export default function PortalPerfilPage() {
   const [state, setState] = useState({ loading: true, saving: false, error: null, message: null, profile: null });
@@ -22,6 +23,8 @@ export default function PortalPerfilPage() {
 }
 
 function PerfilContent({ state, setState }) {
+  const { supabase } = useSupabaseBrowser();
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -59,6 +62,10 @@ function PerfilContent({ state, setState }) {
           communication_consent: formData.get("communication_consent") === "on",
         }),
       });
+
+      if (supabase) {
+        await supabase.auth.refreshSession();
+      }
 
       setState({ loading: false, saving: false, error: null, message: "Perfil atualizado com sucesso.", profile: payload.profile });
     } catch (error) {

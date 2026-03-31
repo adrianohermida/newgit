@@ -47,6 +47,33 @@ async function getClientProfile(env, userId) {
   }
 }
 
+function normalizeMetadata(value) {
+  if (!value) return {};
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return {};
+  }
+}
+
+export function buildFallbackClientProfile(user) {
+  const metadata = normalizeMetadata(user?.user_metadata);
+  return {
+    id: user?.id || null,
+    email: user?.email || "",
+    full_name: metadata.full_name || metadata.name || "",
+    is_active: metadata.is_active !== false,
+    whatsapp: metadata.whatsapp || "",
+    cpf: metadata.cpf || "",
+    metadata: {
+      consent_lgpd: metadata.consent_lgpd === true,
+      communication_consent: metadata.communication_consent === true,
+      office_whatsapp: metadata.office_whatsapp || null,
+    },
+  };
+}
+
 export function isClientProfileComplete(profile) {
   if (!profile) return false;
   const metadata = profile.metadata || {};
@@ -77,9 +104,9 @@ export async function requireClientAccess(request, env, options = {}) {
     return { ok: false, status: 401, error: "Sessao do portal invalida ou expirada." };
   }
 
-  const profile = await getClientProfile(env, user.id);
+  const profile = (await getClientProfile(env, user.id)) || buildFallbackClientProfile(user);
 
-  if (!profile && allowMissingProfile) {
+  if (!profile?.email && allowMissingProfile) {
     return {
       ok: true,
       user,
@@ -88,7 +115,7 @@ export async function requireClientAccess(request, env, options = {}) {
     };
   }
 
-  if (!profile) {
+  if (!profile?.email) {
     return { ok: false, status: 403, error: "Usuario autenticado sem perfil do cliente ativo." };
   }
 

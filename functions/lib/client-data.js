@@ -1,5 +1,5 @@
 import { fetchSupabaseAdmin } from "./supabase-rest.js";
-import { isClientProfileComplete } from "./client-auth.js";
+import { buildFallbackClientProfile, isClientProfileComplete } from "./client-auth.js";
 
 function normalizeFreshdeskDomain(value) {
   return String(value || "").replace(/\/+$/, "");
@@ -16,23 +16,24 @@ function safeJsonParse(value, fallback = {}) {
 }
 
 export function buildClientDraftProfile(user, profile = null) {
-  const metadata = safeJsonParse(profile?.metadata, {});
+  const fallback = buildFallbackClientProfile(user);
+  const metadata = safeJsonParse(profile?.metadata, fallback.metadata || {});
   return {
-    id: profile?.id || user?.id || null,
-    email: profile?.email || user?.email || "",
-    full_name: profile?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || "",
-    is_active: profile?.is_active ?? true,
-    whatsapp: profile?.whatsapp || "",
-    cpf: profile?.cpf || "",
+    id: profile?.id || fallback.id,
+    email: profile?.email || fallback.email,
+    full_name: profile?.full_name || fallback.full_name,
+    is_active: profile?.is_active ?? fallback.is_active,
+    whatsapp: profile?.whatsapp || fallback.whatsapp,
+    cpf: profile?.cpf || fallback.cpf,
     metadata,
     onboarding_required: !isClientProfileComplete({
       ...profile,
       ...{
-        full_name: profile?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || "",
-        whatsapp: profile?.whatsapp || "",
-        cpf: profile?.cpf || "",
+        full_name: profile?.full_name || fallback.full_name,
+        whatsapp: profile?.whatsapp || fallback.whatsapp,
+        cpf: profile?.cpf || fallback.cpf,
         metadata,
-        is_active: profile?.is_active ?? true,
+        is_active: profile?.is_active ?? fallback.is_active,
       },
     }),
   };

@@ -4,6 +4,7 @@ import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
 import { clientFetch } from "../../lib/client/api";
 import { useClientSession } from "../../lib/client/useClientSession";
+import { useSupabaseBrowser } from "../../lib/supabase";
 
 export default function PortalOnboardingPage() {
   const router = useRouter();
@@ -33,6 +34,7 @@ export default function PortalOnboardingPage() {
 
 function OnboardingContent({ state, setState }) {
   const router = useRouter();
+  const { supabase } = useSupabaseBrowser();
 
   useEffect(() => {
     let cancelled = false;
@@ -71,6 +73,10 @@ function OnboardingContent({ state, setState }) {
           communication_consent: formData.get("communication_consent") === "on",
         }),
       });
+
+      if (supabase) {
+        await supabase.auth.refreshSession();
+      }
 
       router.replace("/portal");
     } catch (error) {
