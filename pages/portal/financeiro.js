@@ -311,6 +311,9 @@ function MappingInsightCard({ mapping }) {
               <p className="text-sm font-semibold">{card.title}</p>
               <p className="mt-3 text-lg">{card.field.label}</p>
               <p className="mt-1 text-xs opacity-55">{card.field.key}</p>
+              <p className="mt-1 text-[11px] uppercase tracking-[0.14em] opacity-45">
+                {card.field.source === "config" ? "Travado por configuracao" : "Selecionado por inferencia"}
+              </p>
               <p className="mt-3 text-sm opacity-68">{card.helper}</p>
             </article>
           ))}

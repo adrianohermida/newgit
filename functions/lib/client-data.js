@@ -75,6 +75,20 @@ function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function getEnvString(env, key) {
+  const value = env?.[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function parseEnvList(env, key) {
+  const value = getEnvString(env, key);
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function toNumber(value) {
   if (value == null || value === "") return null;
   const normalized = String(value).replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", ".");
@@ -292,9 +306,33 @@ function selectBestFieldCandidate(candidates, preferredKeys = []) {
   return candidates[0];
 }
 
-function inferStatusSemantics(snapshots) {
+function selectConfiguredFieldCandidate(candidates, configuredKeys = [], fallbackKeys = []) {
+  if (configuredKeys.length) {
+    const configured = candidates.find((item) => configuredKeys.includes(item.key));
+    if (configured) {
+      return {
+        ...configured,
+        source: "config",
+      };
+    }
+  }
+
+  const inferred = selectBestFieldCandidate(candidates, fallbackKeys);
+  return inferred
+    ? {
+        ...inferred,
+        source: "inferred",
+      }
+    : null;
+}
+
+function inferStatusSemantics(snapshots, env) {
   const candidates = getFieldValuesByCandidate(snapshots, ["estagio", "estágio", "stage", "status", "situacao", "situação"]);
-  const selected = selectBestFieldCandidate(candidates, ["deal_stage_id", "status", "cf_status"]);
+  const selected = selectConfiguredFieldCandidate(
+    candidates,
+    parseEnvList(env, "FRESHSALES_FINANCE_DEAL_STAGE_FIELDS"),
+    ["deal_stage_id", "status", "cf_status"]
+  );
 
   if (!selected) {
     return {
@@ -332,6 +370,7 @@ function inferStatusSemantics(snapshots) {
       key: selected.key,
       label: selected.label,
       count: selected.count,
+      source: selected.source || "inferred",
     },
     values: selected.values,
     semantics,
@@ -360,18 +399,30 @@ function snapshotHasEmail(snapshot, email) {
   return corpus.toLowerCase().includes(normalizedEmail);
 }
 
-function findAccountProcessReference(accountSnapshot) {
-  const candidate = getSnapshotFieldText(accountSnapshot, ({ key, entry }) =>
-    textIncludesAny(`${key} ${entry?.label || ""}`, ["processo", "numero do processo", "numero processo", "cnj"])
-  );
+function findAccountProcessReference(accountSnapshot, processFieldKeys = []) {
+  const candidate = processFieldKeys.length
+    ? getSnapshotFieldText(accountSnapshot, ({ key }) => processFieldKeys.includes(key))
+    : getSnapshotFieldText(accountSnapshot, ({ key, entry }) =>
+        textIncludesAny(`${key} ${entry?.label || ""}`, ["processo", "numero do processo", "numero processo", "cnj"])
+      );
   return candidate || accountSnapshot?.display_name || null;
 }
 
-function buildFinanceItem(dealSnapshot, accountSnapshot = null) {
+function buildFinanceItem(dealSnapshot, accountSnapshot = null, mapping = null) {
   const summary = safeJsonParse(dealSnapshot?.summary, {});
   const relationships = safeJsonParse(dealSnapshot?.relationships, {});
   const timestamps = safeJsonParse(dealSnapshot?.timestamps, {});
-  const kind = inferDealKind(dealSnapshot, accountSnapshot);
+  const configuredTypeValue = mapping?.deal_type_field?.key
+    ? getSnapshotFieldText(dealSnapshot, ({ key }) => key === mapping.deal_type_field.key)
+    : null;
+  const inferredKind = inferDealKind(dealSnapshot, accountSnapshot);
+  const kind = configuredTypeValue
+    ? textIncludesAny(configuredTypeValue, ["assinatura", "subscription", "mensal", "mensalidade", "plano", "recorrente"])
+      ? "subscription"
+      : textIncludesAny(configuredTypeValue, ["fatura", "invoice", "boleto", "parcela", "honorario", "cobranca", "cobranÃ§a"])
+        ? "invoice"
+        : inferredKind
+    : inferredKind;
   const amount = toNumber(summary.amount)
     ?? toNumber(getSnapshotFieldText(dealSnapshot, ({ key, entry }) => textIncludesAny(`${key} ${entry?.label || ""}`, ["valor", "amount", "preco", "price"])))
     ?? null;
@@ -385,7 +436,9 @@ function buildFinanceItem(dealSnapshot, accountSnapshot = null) {
     dealSnapshot?.status ||
     null;
   const status = mapFinanceStatus(stageText || "", kind);
-  const processReference = accountSnapshot ? findAccountProcessReference(accountSnapshot) : null;
+  const processReference = accountSnapshot
+    ? findAccountProcessReference(accountSnapshot, mapping?.process_reference_field?.key ? [mapping.process_reference_field.key] : [])
+    : null;
   const accountStatus = accountSnapshot
     ? getSnapshotFieldText(accountSnapshot, ({ key, entry }) => textIncludesAny(`${key} ${entry?.label || ""}`, ["status", "situacao", "situação"]))
     : null;
@@ -420,18 +473,18 @@ function buildFinanceItem(dealSnapshot, accountSnapshot = null) {
   };
 }
 
-function buildFinanceMapping(relatedDeals, accounts) {
+function buildFinanceMapping(relatedDeals, accounts, env) {
   const dealTypeCandidates = getFieldValuesByCandidate(relatedDeals, [
     "tipo", "type", "categoria", "modalidade", "produto", "assinatura", "subscription", "fatura", "invoice", "plano",
   ]);
   const processCandidates = getFieldValuesByCandidate(accounts, ["processo", "cnj", "numero do processo", "numero processo", "número do processo", "número processo"]);
   const accountStatusCandidates = getFieldValuesByCandidate(accounts, ["status", "situacao", "situação"]);
-  const stageSemantics = inferStatusSemantics(relatedDeals);
+  const stageSemantics = inferStatusSemantics(relatedDeals, env);
 
   return {
-    deal_type_field: selectBestFieldCandidate(dealTypeCandidates, ["cf_tipo", "cf_categoria", "cf_modalidade", "cf_produto", "type"]),
-    process_reference_field: selectBestFieldCandidate(processCandidates, ["cf_processo", "name"]),
-    account_status_field: selectBestFieldCandidate(accountStatusCandidates, ["cf_status", "status"]),
+    deal_type_field: selectConfiguredFieldCandidate(dealTypeCandidates, parseEnvList(env, "FRESHSALES_FINANCE_DEAL_TYPE_FIELDS"), ["cf_tipo", "cf_categoria", "cf_modalidade", "cf_produto", "type"]),
+    process_reference_field: selectConfiguredFieldCandidate(processCandidates, parseEnvList(env, "FRESHSALES_FINANCE_ACCOUNT_PROCESS_FIELDS"), ["cf_processo", "name"]),
+    account_status_field: selectConfiguredFieldCandidate(accountStatusCandidates, parseEnvList(env, "FRESHSALES_FINANCE_ACCOUNT_STATUS_FIELDS"), ["cf_status", "status"]),
     deal_stage_field: stageSemantics.field,
     deal_stage_values: stageSemantics.values,
     stage_semantics: stageSemantics.semantics,
@@ -833,14 +886,14 @@ export async function listClientFinanceiro(env, email) {
       });
     });
 
-    const mapping = buildFinanceMapping(relatedDeals, accounts);
+    const mapping = buildFinanceMapping(relatedDeals, accounts, env);
 
     const items = relatedDeals
       .map((deal) => {
         const relationships = safeJsonParse(deal.relationships, {});
         const accountId = String(relationships.sales_account_id || "").trim();
         const account = accountId ? accountsById.get(accountId) || null : null;
-        return buildFinanceItem(deal, account);
+        return buildFinanceItem(deal, account, mapping);
       })
       .sort((left, right) => {
         const leftTime = left.due_date ? new Date(left.due_date).getTime() : 0;
