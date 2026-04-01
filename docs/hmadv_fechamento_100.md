@@ -179,6 +179,21 @@ Aceite:
 - apoio a status, fase, instancia e inconsistencias;
 - `Consulta` registra solicitacao, sucesso e eventos relevantes do processo.
 
+## Fase 8 - Prazos Processuais
+
+Arquivos:
+
+- [hmadv_prazos_implantacao.md](/D:/Github/newgit/docs/hmadv_prazos_implantacao.md)
+
+Aceite:
+
+- biblioteca normativa de prazos carregada;
+- feriados nacionais, estaduais e municipais carregados;
+- controle de calendarios forenses e atos de suspensao operacional;
+- calculo automatico de prazo a partir de publicacoes, movimentos e audiencias;
+- `Tasks` no Freshsales vinculadas ao processo;
+- IA preenchendo descricoes e contexto das tasks de prazo e audiencia.
+
 ## Indicadores de pronto
 
 - `processos.sem_account = 0`
@@ -187,6 +202,7 @@ Aceite:
 - `processos_sem_polos` em queda sustentada
 - `audiencias` detectadas e prontas para exportacao
 - `movimentos` com TPU em cobertura aceitavel
+- `prazos_calculados` com tasks geradas para eventos elegiveis
 
 ## Ordem recomendada
 
@@ -198,4 +214,6 @@ Aceite:
 6. Resolver backlog historico via `tpu-sync`
 7. Concluir camada institucional
 8. Publicar e integrar o Cloudflare Worker IA
-9. Fechar reconciliacao diaria Freshsales x Supabase
+9. Destravar audiencias e appointments
+10. Implantar motor de prazos processuais
+11. Fechar reconciliacao diaria Freshsales x Supabase
