@@ -58,6 +58,8 @@ Usar o worker Cloudflare AI em [index.ts](/D:/Github/newgit/workers/hmadv-proces
 - perceber inconsistencias
 - criar anotacoes automaticas no account
 - criar tarefas e prazos preditivos a partir de publicacoes associadas
+- apoiar o registro em `Consulta` de solicitacao, sucesso e eventos relevantes
+- apoiar criacao de `Reunioes/Appointments` para audiencias futuras
 
 ### Integracao operacional
 
@@ -66,3 +68,4 @@ Usar o worker Cloudflare AI em [index.ts](/D:/Github/newgit/workers/hmadv-proces
 - Variáveis necessárias no runtime do Supabase:
   - `PROCESS_AI_BASE`
   - `HMDAV_AI_SHARED_SECRET`
+- O rollout operacional de `Consulta`, `Andamentos`, `Publicações`, `Audiências` e `Reuniões` está descrito em [hmadv_freshsales_consulta_rollout.md](/D:/Github/newgit/docs/hmadv_freshsales_consulta_rollout.md).

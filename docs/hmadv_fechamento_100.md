@@ -40,6 +40,7 @@ Aceite:
 - `LEILAO_IGNORADO` aparece apenas nos casos de leilao;
 - publicacoes validas criam activity unica no Freshsales;
 - account recalcula `Diario`, `Publicacao em`, `Conteudo publicacao`.
+- cada publicacao nova relevante tambem gera registro correspondente em `Consulta`.
 
 ## Fase 3 - Partes por publicacoes
 
@@ -62,13 +63,16 @@ Arquivos:
 - [hmadv_fase4_audiencias_schema.sql](/D:/Github/newgit/docs/hmadv_fase4_audiencias_schema.sql)
 - [hmadv_reconciliar_audiencias.ps1](/D:/Github/newgit/docs/hmadv_reconciliar_audiencias.ps1)
 - [hmadv_fase4_audiencias.md](/D:/Github/newgit/docs/hmadv_fase4_audiencias.md)
+- [hmadv_freshsales_consulta_rollout.md](/D:/Github/newgit/docs/hmadv_freshsales_consulta_rollout.md)
 
 Aceite:
 
 - `judiciario.audiencias` aplicada;
 - candidatas auditadas;
 - `sales_activity_type_id` de Audiencias definido no Freshsales;
-- exportacao idempotente pronta para entrar no `sync-worker`.
+- exportacao idempotente pronta para entrar no `sync-worker`;
+- audiencias futuras criam `Reuniões/Appointments` automaticamente quando possivel;
+- cada nova audiencia relevante tambem gera registro correspondente em `Consulta`.
 
 ## Fase 5 - TPU / SGT
 
@@ -171,7 +175,8 @@ Aceite:
 - novas publicacoes e andamentos disparam reconciliacao inteligente;
 - anotacoes automaticas no Freshsales;
 - tarefas e prazos preditivos a partir de publicacoes;
-- apoio a status, fase, instancia e inconsistencias.
+- apoio a status, fase, instancia e inconsistencias;
+- `Consulta` registra solicitacao, sucesso e eventos relevantes do processo.
 
 ## Indicadores de pronto
 
