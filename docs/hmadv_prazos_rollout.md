@@ -20,9 +20,10 @@ Sem pular etapas:
 4. aplicar [hmadv_prazos_schema.sql](/D:/Github/newgit/docs/hmadv_prazos_schema.sql)
    Migracao versionada: [008_hmadv_prazos_core.sql](/D:/Github/newgit/_hmadv_review/supabase/migrations/008_hmadv_prazos_core.sql)
 5. rodar [hmadv_prazos_importacao.md](/D:/Github/newgit/docs/hmadv_prazos_importacao.md)
-6. rodar [hmadv_prazos_validacao.md](/D:/Github/newgit/docs/hmadv_prazos_validacao.md)
-7. portar o motor deterministico
-8. integrar com `sync-worker`, `tpu-sync` e worker IA
+6. rodar [hmadv_prazos_alias.md](/D:/Github/newgit/docs/hmadv_prazos_alias.md)
+7. rodar [hmadv_prazos_validacao.md](/D:/Github/newgit/docs/hmadv_prazos_validacao.md)
+8. portar o motor deterministico
+9. integrar com `sync-worker`, `tpu-sync` e worker IA
 
 ## Estruturas criadas
 

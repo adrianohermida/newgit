@@ -209,6 +209,8 @@ Arquivos:
 - [hmadv_prazos_rollout.md](/D:/Github/newgit/docs/hmadv_prazos_rollout.md)
 - [hmadv_import_prazos_base.ps1](/D:/Github/newgit/docs/hmadv_import_prazos_base.ps1)
 - [hmadv_prazos_importacao.md](/D:/Github/newgit/docs/hmadv_prazos_importacao.md)
+- [hmadv_seed_prazo_alias.ps1](/D:/Github/newgit/docs/hmadv_seed_prazo_alias.ps1)
+- [hmadv_prazos_alias.md](/D:/Github/newgit/docs/hmadv_prazos_alias.md)
 - [hmadv_prazos_validacao.ps1](/D:/Github/newgit/docs/hmadv_prazos_validacao.ps1)
 - [hmadv_prazos_validacao.md](/D:/Github/newgit/docs/hmadv_prazos_validacao.md)
 
