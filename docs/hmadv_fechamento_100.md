@@ -188,6 +188,8 @@ Arquivos:
 - [hmadv_fase8_contacts_status_validacao.ps1](/D:/Github/newgit/docs/hmadv_fase8_contacts_status_validacao.ps1)
 - [hmadv_fase8_contacts_status_rollout.md](/D:/Github/newgit/docs/hmadv_fase8_contacts_status_rollout.md)
 - [hmadv_fase8_contacts_status_regras.md](/D:/Github/newgit/docs/hmadv_fase8_contacts_status_regras.md)
+- [hmadv_reconciliar_contacts_status.ps1](/D:/Github/newgit/docs/hmadv_reconciliar_contacts_status.ps1)
+- [hmadv_fase8_reconciliacao.md](/D:/Github/newgit/docs/hmadv_fase8_reconciliacao.md)
 
 Aceite:
 
