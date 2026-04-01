@@ -205,6 +205,8 @@ Aceite:
 Arquivos:
 
 - [hmadv_prazos_implantacao.md](/D:/Github/newgit/docs/hmadv_prazos_implantacao.md)
+- [hmadv_prazos_schema.sql](/D:/Github/newgit/docs/hmadv_prazos_schema.sql)
+- [hmadv_prazos_rollout.md](/D:/Github/newgit/docs/hmadv_prazos_rollout.md)
 
 Aceite:
 
