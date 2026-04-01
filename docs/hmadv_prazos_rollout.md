@@ -19,12 +19,7 @@ Sem pular etapas:
 3. concluir `Contacts + Polos + Status`
 4. aplicar [hmadv_prazos_schema.sql](/D:/Github/newgit/docs/hmadv_prazos_schema.sql)
    Migracao versionada: [008_hmadv_prazos_core.sql](/D:/Github/newgit/_hmadv_review/supabase/migrations/008_hmadv_prazos_core.sql)
-5. preparar importadores para:
-   - regras normativas
-   - estados
-   - municipios
-   - feriados
-   - mapa de diarios Advise
+5. rodar [hmadv_prazos_importacao.md](/D:/Github/newgit/docs/hmadv_prazos_importacao.md)
 6. portar o motor deterministico
 7. integrar com `sync-worker`, `tpu-sync` e worker IA
 
