@@ -163,6 +163,8 @@ Invoke-RestMethod -Method Get `
 
 ### 6. Audiências e reuniões
 
+Se `sync-worker?action=inspect_audiencias` responder `permission denied for table audiencias`, aplicar antes [005_hmadv_audiencias_grants.sql](/D:/Github/newgit/_hmadv_review/supabase/migrations/005_hmadv_audiencias_grants.sql).
+
 Depois que houver registros em `judiciario.audiencias` sem `freshsales_activity_id`:
 
 - rodar `sync-worker`
