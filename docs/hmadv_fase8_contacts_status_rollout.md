@@ -10,14 +10,16 @@ Executar esta fase somente após:
 ## Ordem
 
 1. Aplicar [hmadv_fase8_contacts_status_schema.sql](/D:/Github/newgit/docs/hmadv_fase8_contacts_status_schema.sql)
-2. Rodar [hmadv_fase8_contacts_status_validacao.ps1](/D:/Github/newgit/docs/hmadv_fase8_contacts_status_validacao.ps1)
-3. Implementar reconciliador de:
+2. Revisar a baseline em [hmadv_fase8_baseline_2026-04-01.md](/D:/Github/newgit/docs/hmadv_fase8_baseline_2026-04-01.md)
+3. Rodar [hmadv_fase8_contacts_status_validacao.ps1](/D:/Github/newgit/docs/hmadv_fase8_contacts_status_validacao.ps1)
+4. Implementar reconciliador de:
    - cliente principal
    - contacts relacionados
    - polos
    - status processual
-4. Rodar novo backfill de account no Freshsales
-5. Homologar `Contacts + cf_polo_ativo + cf_parte_adversa + cf_status`
+5. Garantir persistência em `judiciario.processos`, não só no Freshsales
+6. Rodar novo backfill de account no Freshsales
+7. Homologar `Contacts + cf_polo_ativo + cf_parte_adversa + cf_status`
 
 ## Regras mínimas
 
