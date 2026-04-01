@@ -184,6 +184,9 @@ Aceite:
 Arquivos:
 
 - [hmadv_contacts_status_implantacao.md](/D:/Github/newgit/docs/hmadv_contacts_status_implantacao.md)
+- [hmadv_fase8_contacts_status_schema.sql](/D:/Github/newgit/docs/hmadv_fase8_contacts_status_schema.sql)
+- [hmadv_fase8_contacts_status_validacao.ps1](/D:/Github/newgit/docs/hmadv_fase8_contacts_status_validacao.ps1)
+- [hmadv_fase8_contacts_status_rollout.md](/D:/Github/newgit/docs/hmadv_fase8_contacts_status_rollout.md)
 
 Aceite:
 
