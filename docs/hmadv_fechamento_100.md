@@ -64,6 +64,7 @@ Arquivos:
 - [hmadv_reconciliar_audiencias.ps1](/D:/Github/newgit/docs/hmadv_reconciliar_audiencias.ps1)
 - [hmadv_fase4_audiencias.md](/D:/Github/newgit/docs/hmadv_fase4_audiencias.md)
 - [hmadv_freshsales_consulta_rollout.md](/D:/Github/newgit/docs/hmadv_freshsales_consulta_rollout.md)
+- [hmadv_deploy_homologacao.md](/D:/Github/newgit/docs/hmadv_deploy_homologacao.md)
 
 Aceite:
 
