@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+
+<html lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Dashboard Hermida Maia - Advocacia de Elite</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "primary": "#11d473",
+                "background-light": "#f6f8f7",
+                "background-dark": "#102219",
+              },
+              fontFamily: {
+                "display": ["Public Sans"]
+              },
+              borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+            },
+          },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Public Sans', sans-serif;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100">
+<div class="flex min-h-screen">
+<!-- Sidebar -->
+<aside class="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col fixed h-full z-50">
+<div class="p-6 flex items-center gap-3">
+<div class="bg-primary size-10 rounded-lg flex items-center justify-center text-white">
+<span class="material-symbols-outlined">gavel</span>
+</div>
+<div class="flex flex-col">
+<h1 class="text-slate-900 dark:text-white text-lg font-bold leading-tight">Hermida Maia</h1>
+<p class="text-primary text-xs font-semibold uppercase tracking-wider">Advocacia de Elite</p>
+</div>
+</div>
+<nav class="flex-1 px-4 mt-4 space-y-2">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary font-medium" href="#">
+<span class="material-symbols-outlined">home</span>
+<span>Home</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">description</span>
+<span>Processos</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">folder_open</span>
+<span>Documentos</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span>Financeiro</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">support_agent</span>
+<span>Suporte</span>
+</a>
+</nav>
+<div class="p-4 border-t border-slate-200 dark:border-slate-800">
+<button class="w-full bg-primary hover:bg-primary/90 text-slate-900 font-bold py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all">
+<span class="material-symbols-outlined text-[20px]">add_circle</span>
+                    Novo Chamado
+                </button>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 ml-64">
+<!-- Header -->
+<header class="h-20 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-8 flex items-center justify-between sticky top-0 z-40">
+<div class="flex items-center gap-4">
+<h2 class="text-xl font-bold dark:text-white">Dashboard do Cliente</h2>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative hidden md:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+<input class="bg-slate-100 dark:bg-slate-800 border-none rounded-lg pl-10 pr-4 py-2 text-sm w-64 focus:ring-2 focus:ring-primary/50" placeholder="Pesquisar processos..." type="text"/>
+</div>
+<div class="flex items-center gap-3">
+<button class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 size-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
+</button>
+<button class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+<div class="h-8 w-px bg-slate-200 dark:border-slate-800"></div>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="text-sm font-bold dark:text-white">Dr. Ricardo Silva</p>
+<p class="text-xs text-slate-500">Cliente Premium</p>
+</div>
+<img class="size-10 rounded-full object-cover border-2 border-primary/20" data-alt="Professional portrait of a male lawyer" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAStOmeqAiu_rnFqCBvi7o5XUFqEHukQhOLZnVdVjDBsffC9W-Myj0zzV8pKbfJRquiTF9FLrG0Yyn54RPoa_UvskfcGkG3fcrdnVWavk2MkaCVlMM3QLkbmruN2BKc58RGrx-d5dJvko0uaLumOmNF-zdNWcLqrtDkOOHDzv371WiYic2CfcQIIx0IEpPVnaID6SB212KkfrVMuR2yfrqlXfOlZpCSjAvOYoCrOzUpp5XKBtBz8u6UrKnMiOEW_XJdEVMYNTh8vpc4"/>
+</div>
+</div>
+</header>
+<!-- Dashboard Content -->
+<div class="p-8 max-w-7xl mx-auto space-y-8">
+<!-- Welcome -->
+<div>
+<h3 class="text-3xl font-black tracking-tight text-slate-900 dark:text-white">Olá, Dr. Silva</h3>
+<p class="text-slate-500 mt-1">Bem-vindo ao seu painel de acompanhamento jurídico exclusivo.</p>
+</div>
+<!-- Stats Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
+<div class="flex justify-between items-start mb-4">
+<span class="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-lg material-symbols-outlined">sync</span>
+<span class="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-full">+5.2%</span>
+</div>
+<p class="text-sm font-medium text-slate-500">Status do Processo</p>
+<h4 class="text-2xl font-bold mt-1 text-slate-900 dark:text-white">Em Andamento</h4>
+<p class="text-xs text-slate-400 mt-2">Fase de instrução processual</p>
+</div>
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
+<div class="flex justify-between items-start mb-4">
+<span class="p-2 bg-primary/10 text-primary rounded-lg material-symbols-outlined">event</span>
+</div>
+<p class="text-sm font-medium text-slate-500">Próxima Etapa</p>
+<h4 class="text-xl font-bold mt-1 text-slate-900 dark:text-white">Audiência de Conciliação</h4>
+<p class="text-sm font-semibold text-primary mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">schedule</span>
+                            15 Out, 2023 - 14:30
+                        </p>
+</div>
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
+<div class="flex justify-between items-start mb-4">
+<span class="p-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-lg material-symbols-outlined">priority_high</span>
+</div>
+<p class="text-sm font-medium text-slate-500">Documentos Pendentes</p>
+<h4 class="text-2xl font-bold mt-1 text-slate-900 dark:text-white">2 arquivos</h4>
+<p class="text-xs text-red-500 font-bold mt-2 uppercase">Urgente - Prazo 48h</p>
+</div>
+</div>
+<!-- Case Timeline -->
+<section class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-8">
+<div class="flex items-center justify-between mb-10">
+<h3 class="text-xl font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">timeline</span>
+                            Resumo do Caso - Timeline do Processo
+                        </h3>
+<button class="text-sm font-bold text-primary hover:underline">Ver Detalhes do Caso</button>
+</div>
+<div class="relative">
+<!-- Connecting Line -->
+<div class="absolute top-5 left-6 right-6 h-0.5 bg-slate-100 dark:bg-slate-800 hidden md:block"></div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-8 relative z-10">
+<!-- Step 1 -->
+<div class="flex flex-col items-center text-center">
+<div class="size-10 rounded-full bg-primary text-slate-900 flex items-center justify-center font-bold mb-4 shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-[20px]">check</span>
+</div>
+<h5 class="font-bold text-sm">Abertura do Processo</h5>
+<p class="text-xs text-slate-500 mt-1">12 Jan, 2023</p>
+<span class="mt-2 text-[10px] font-bold uppercase py-1 px-2 bg-slate-100 dark:bg-slate-800 rounded text-slate-400">Concluído</span>
+</div>
+<!-- Step 2 -->
+<div class="flex flex-col items-center text-center">
+<div class="size-10 rounded-full bg-primary text-slate-900 flex items-center justify-center font-bold mb-4 shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-[20px]">check</span>
+</div>
+<h5 class="font-bold text-sm">Citação do Réu</h5>
+<p class="text-xs text-slate-500 mt-1">05 Mar, 2023</p>
+<span class="mt-2 text-[10px] font-bold uppercase py-1 px-2 bg-slate-100 dark:bg-slate-800 rounded text-slate-400">Concluído</span>
+</div>
+<!-- Step 3 -->
+<div class="flex flex-col items-center text-center">
+<div class="size-10 rounded-full bg-primary ring-4 ring-primary/20 text-slate-900 flex items-center justify-center font-bold mb-4">
+<span class="material-symbols-outlined text-[20px]">pending</span>
+</div>
+<h5 class="font-bold text-sm text-primary">Fase de Instrução</h5>
+<p class="text-xs text-slate-500 mt-1">Em andamento</p>
+<span class="mt-2 text-[10px] font-bold uppercase py-1 px-2 bg-primary/20 rounded text-primary">Atual</span>
+</div>
+<!-- Step 4 -->
+<div class="flex flex-col items-center text-center opacity-40">
+<div class="size-10 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-400 flex items-center justify-center font-bold mb-4">
+                                    4
+                                </div>
+<h5 class="font-bold text-sm">Sentença Final</h5>
+<p class="text-xs text-slate-500 mt-1">Previsão Dez/23</p>
+<span class="mt-2 text-[10px] font-bold uppercase py-1 px-2 bg-slate-100 dark:bg-slate-800 rounded text-slate-400">Pendente</span>
+</div>
+</div>
+</div>
+</section>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+<!-- Recent Updates -->
+<section class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6">
+<h3 class="text-lg font-bold mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">history</span>
+                            Atualizações Recentes
+                        </h3>
+<div class="space-y-6">
+<div class="flex gap-4">
+<div class="size-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+<span class="material-symbols-outlined">edit_document</span>
+</div>
+<div>
+<p class="text-sm font-bold dark:text-white">Petição de réplica protocolada</p>
+<p class="text-xs text-slate-500">Há 2 horas • Dr. Marcos Aurélio</p>
+</div>
+</div>
+<div class="flex gap-4">
+<div class="size-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 shrink-0">
+<span class="material-symbols-outlined">visibility</span>
+</div>
+<div>
+<p class="text-sm font-bold dark:text-white">Movimentação: Concluso para despacho</p>
+<p class="text-xs text-slate-500">Ontem às 16:45 • Tribunal de Justiça</p>
+</div>
+</div>
+<div class="flex gap-4">
+<div class="size-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 shrink-0">
+<span class="material-symbols-outlined">attachment</span>
+</div>
+<div>
+<p class="text-sm font-bold dark:text-white">Novo documento anexado: Laudo Pericial</p>
+<p class="text-xs text-slate-500">14 Ago, 2023 • Secretaria Judiciária</p>
+</div>
+</div>
+</div>
+<button class="w-full mt-6 py-2 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                            Ver Histórico Completo
+                        </button>
+</section>
+<!-- Financial Summary -->
+<section class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6">
+<h3 class="text-lg font-bold mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">payments</span>
+                            Resumo Financeiro
+                        </h3>
+<div class="space-y-4">
+<div class="p-4 rounded-lg bg-background-light dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex justify-between items-center">
+<div>
+<p class="text-xs text-slate-500 uppercase font-bold tracking-wider">Honorários Mensais</p>
+<p class="text-xl font-bold dark:text-white">R$ 4.500,00</p>
+</div>
+<span class="bg-primary/20 text-primary text-[10px] font-bold px-2 py-1 rounded">PAGO</span>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="p-4 rounded-lg border border-slate-100 dark:border-slate-800">
+<p class="text-xs text-slate-500">Custas Processuais</p>
+<p class="text-lg font-bold dark:text-white">R$ 842,50</p>
+</div>
+<div class="p-4 rounded-lg border border-slate-100 dark:border-slate-800">
+<p class="text-xs text-slate-500">Saldo Provisionado</p>
+<p class="text-lg font-bold text-primary">R$ 15.000,00</p>
+</div>
+</div>
+</div>
+<div class="mt-6 flex gap-3">
+<button class="flex-1 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 py-2 rounded-lg text-sm font-bold hover:opacity-90">Emitir Boleto</button>
+<button class="flex-1 border border-slate-200 dark:border-slate-800 py-2 rounded-lg text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800">Ver Notas Fiscais</button>
+</div>
+</section>
+</div>
+</div>
+</main>
+</div>
+</body></html>

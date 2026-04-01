@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#11d473",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#102219",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Public Sans', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="layout-container flex flex-col min-h-screen">
+<!-- Navigation Bar -->
+<header class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-4 lg:px-20">
+<div class="flex items-center gap-4">
+<div class="text-primary size-8 flex items-center justify-center">
+<span class="material-symbols-outlined text-3xl">gavel</span>
+</div>
+<h2 class="text-slate-900 dark:text-white text-xl font-bold tracking-tight">Hermida Maia</h2>
+</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-slate-600 dark:text-slate-300 text-sm font-medium hover:text-primary transition-colors" href="#">Início</a>
+<a class="text-primary text-sm font-bold border-b-2 border-primary pb-1" href="#">Processos</a>
+<a class="text-slate-600 dark:text-slate-300 text-sm font-medium hover:text-primary transition-colors" href="#">Documentos</a>
+<a class="text-slate-600 dark:text-slate-300 text-sm font-medium hover:text-primary transition-colors" href="#">Mensagens</a>
+</nav>
+<div class="flex items-center gap-4">
+<button class="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden border-2 border-primary">
+<img alt="Avatar" data-alt="User profile picture showing a professional person" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAgFDcoyUCgBR-xRGHZUuEhCklFbDDJFCZyIIRM9AWJyDKNBEZxa8kKF_Fx2hd3jdH3S97mw4u-K35zD9NUK-EWw9JOfSQFiGo0pSrC0ZVmsnKtJgC5ELGyqLsG7lWLX6fMBCPKRCHrQn6YRYUFed8eHweo1XhJsFYi0DjTAsK9N43rPfA6o2RlIGUfCIRJbkmm_5keyiic9RVq_58rFB3s3YIzn6KENlwt7tNSR-F9BlN0sPE5073zmHdw__qIQmuGPLhK_K2CFrqE"/>
+</div>
+</div>
+</header>
+<main class="flex-1 max-w-7xl mx-auto w-full p-4 lg:p-10">
+<!-- Breadcrumbs -->
+<div class="flex items-center gap-2 text-sm text-slate-500 mb-6">
+<span>Processos</span>
+<span class="material-symbols-outlined text-xs">chevron_right</span>
+<span class="text-primary font-medium tracking-tight">0001234-56.2023.8.19.0001</span>
+</div>
+<!-- Header Section -->
+<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
+<div>
+<h1 class="text-3xl font-black text-slate-900 dark:text-white mb-2">Detalhes do Processo - Linha do Tempo IA</h1>
+<p class="text-slate-500 dark:text-slate-400">Acompanhe o andamento jurídico de forma clara e simplificada utilizando inteligência jurídica.</p>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 bg-primary text-slate-900 px-6 py-2.5 rounded-lg font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all">
+<span class="material-symbols-outlined text-lg">download</span>
+                        Baixar PDF
+                    </button>
+</div>
+</div>
+<!-- Quick Stats/Info Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+<div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">NPU (DataJud)</p>
+<p class="text-slate-900 dark:text-white font-bold">0001234-56.2023.8.19.0001</p>
+</div>
+<div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm border-l-4 border-l-primary">
+<p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Fase Atual</p>
+<p class="text-slate-900 dark:text-white font-bold">Pré-processual - CEJUSC</p>
+</div>
+<div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Tribunal / Órgão</p>
+<p class="text-slate-900 dark:text-white font-bold">TJRJ | 2ª Vara Cível</p>
+</div>
+<div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Autoridade</p>
+<p class="text-slate-900 dark:text-white font-bold">Dr. Aloísio Mendes da Silva</p>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Left Column: AI Summary & Timeline -->
+<div class="lg:col-span-2 space-y-8">
+<!-- AI Summary -->
+<section class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+<div class="bg-primary/10 px-6 py-4 border-b border-primary/20 flex items-center justify-between">
+<div class="flex items-center gap-2 text-primary font-bold">
+<span class="material-symbols-outlined">psychology</span>
+<h2>Resumo da IA (Leitor de Andamento)</h2>
+</div>
+<span class="text-[10px] bg-primary/20 text-primary-dark font-bold px-2 py-1 rounded uppercase">Atualizado agora</span>
+</div>
+<div class="p-6">
+<p class="text-slate-700 dark:text-slate-300 leading-relaxed text-lg italic">
+                                "Seu processo está na fase inicial de negociação baseada na <strong>Lei do Superendividamento (Lei 14.181/2021)</strong>. Atualmente, o tribunal agendou uma audiência de conciliação onde todos os seus credores serão convocados para apresentar um plano de pagamento conjunto. O próximo passo é apenas comparecer à reunião virtual no dia marcado. Não há riscos imediatos de penhora neste momento."
+                            </p>
+</div>
+</section>
+<!-- Interactive Timeline -->
+<section class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
+<div class="flex items-center gap-3 mb-8">
+<span class="material-symbols-outlined text-primary">timeline</span>
+<h2 class="text-xl font-bold">Linha do Tempo de Andamentos</h2>
+</div>
+<div class="relative space-y-10 before:absolute before:inset-0 before:ml-5 before:h-full before:w-0.5 before:-translate-x-px before:bg-gradient-to-b before:from-primary before:via-slate-200 before:to-slate-100 dark:before:via-slate-700 dark:before:to-slate-800">
+<!-- Event 1 (Upcoming) -->
+<div class="relative flex items-start gap-6 group">
+<div class="absolute left-0 mt-1.5 size-10 flex items-center justify-center rounded-full bg-primary text-slate-900 shadow-[0_0_15px_rgba(17,212,115,0.4)] z-10">
+<span class="material-symbols-outlined text-xl">event_upcoming</span>
+</div>
+<div class="ml-14 flex-1">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
+<span class="text-xs font-bold text-primary uppercase bg-primary/10 px-2 py-0.5 rounded">Agendado para 25/10/2023</span>
+<span class="text-xs text-slate-400">ID: #DTJ-9821</span>
+</div>
+<div class="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 border border-slate-100 dark:border-slate-700 transition-all hover:border-primary/50">
+<h3 class="font-bold text-slate-900 dark:text-white mb-1">Audiência de Conciliação - CEJUSC</h3>
+<p class="text-sm text-slate-500 mb-3"><span class="font-semibold">Original:</span> Designação de Audiência de Conciliação e Mediação (Art. 334 CPC)</p>
+<div class="flex items-start gap-2 bg-white dark:bg-slate-900 p-3 rounded border-l-4 border-l-primary">
+<span class="material-symbols-outlined text-primary text-sm mt-1">translate</span>
+<p class="text-sm text-slate-600 dark:text-slate-300"><strong>Tradução:</strong> Reunião marcada para tentar um acordo com os bancos. Nossos advogados estarão com você.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Event 2 (Past) -->
+<div class="relative flex items-start gap-6">
+<div class="absolute left-0 mt-1.5 size-10 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500 z-10">
+<span class="material-symbols-outlined text-xl">description</span>
+</div>
+<div class="ml-14 flex-1">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
+<span class="text-xs font-bold text-slate-400 uppercase">Realizado em 10/10/2023</span>
+</div>
+<div class="bg-white dark:bg-slate-900 rounded-lg p-4 border border-slate-100 dark:border-slate-800">
+<h3 class="font-bold text-slate-900 dark:text-white mb-1">Petição de Juntada de Documentos</h3>
+<p class="text-sm text-slate-500 mb-3"><span class="font-semibold">Original:</span> Protocolizada Petição de Juntada de Provas e Listagem de Credores.</p>
+<div class="flex items-start gap-2 bg-slate-50 dark:bg-slate-800/50 p-3 rounded border-l-4 border-l-slate-300">
+<span class="material-symbols-outlined text-slate-400 text-sm mt-1">translate</span>
+<p class="text-sm text-slate-600 dark:text-slate-300"><strong>Tradução:</strong> Enviamos ao juiz a lista de todas as suas dívidas e comprovantes de renda.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Event 3 (Past) -->
+<div class="relative flex items-start gap-6">
+<div class="absolute left-0 mt-1.5 size-10 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500 z-10">
+<span class="material-symbols-outlined text-xl">input</span>
+</div>
+<div class="ml-14 flex-1">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
+<span class="text-xs font-bold text-slate-400 uppercase">Realizado em 05/10/2023</span>
+</div>
+<div class="bg-white dark:bg-slate-900 rounded-lg p-4 border border-slate-100 dark:border-slate-800">
+<h3 class="font-bold text-slate-900 dark:text-white mb-1">Distribuição do Processo</h3>
+<p class="text-sm text-slate-500 mb-3"><span class="font-semibold">Original:</span> Distribuição por Sorteio - Ação de Repactuação de Dívidas.</p>
+<div class="flex items-start gap-2 bg-slate-50 dark:bg-slate-800/50 p-3 rounded border-l-4 border-l-slate-300">
+<span class="material-symbols-outlined text-slate-400 text-sm mt-1">translate</span>
+<p class="text-sm text-slate-600 dark:text-slate-300"><strong>Tradução:</strong> O seu processo foi oficialmente entregue ao tribunal e agora tem um número oficial.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Right Column: Alerts & Actions -->
+<div class="space-y-6">
+<!-- Alerts Section -->
+<section class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
+<h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-amber-500">warning</span>
+                            Alertas e Pendências
+                        </h2>
+<div class="space-y-4">
+<div class="p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/30">
+<p class="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-1">Urgente</p>
+<p class="text-sm text-amber-900 dark:text-amber-200 font-medium mb-3">Audiência de Conciliação em 5 dias. Por favor, confirme sua presença.</p>
+<button class="w-full bg-amber-500 text-white py-2 rounded font-bold text-sm">Confirmar Presença</button>
+</div>
+<div class="p-4 rounded-lg bg-primary/10 border border-primary/20">
+<p class="text-xs font-bold text-primary uppercase tracking-wide mb-1">Documentação</p>
+<p class="text-sm text-slate-800 dark:text-slate-200 font-medium mb-3">Necessário assinar a procuração atualizada para o CEJUSC.</p>
+<button class="w-full bg-primary text-slate-900 py-2 rounded font-bold text-sm">Assinar via Gov.br</button>
+</div>
+</div>
+</section>
+<!-- Context Card -->
+<section class="bg-slate-900 text-white rounded-xl p-6 shadow-xl relative overflow-hidden">
+<div class="relative z-10">
+<div class="size-10 bg-primary rounded flex items-center justify-center mb-4">
+<span class="material-symbols-outlined text-slate-900">info</span>
+</div>
+<h3 class="font-bold text-lg mb-2">Fundamentação Legal</h3>
+<p class="text-slate-400 text-sm leading-relaxed mb-4">Este processo segue o rito da <strong>Lei 14.181/2021</strong>, protegendo seu mínimo existencial e permitindo a repactuação de dívidas de consumo.</p>
+<a class="text-primary text-sm font-bold flex items-center gap-1 hover:underline" href="#">
+                                Ler sobre a Lei
+                                <span class="material-symbols-outlined text-sm">open_in_new</span>
+</a>
+</div>
+<div class="absolute top-0 right-0 -mr-8 -mt-8 size-40 bg-primary/10 rounded-full blur-3xl"></div>
+</section>
+<!-- Contact/Support -->
+<section class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
+<h3 class="font-bold mb-4">Falar com Advogado</h3>
+<div class="flex items-center gap-3 mb-6">
+<div class="size-12 rounded-full overflow-hidden">
+<img alt="Lawyer" data-alt="Professional lawyer profile portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAEJNhvL-0nLBy2nbs5lVXXhRgM7zK-sphq9Dwy1bOK_C0qwEYYnM0xvA8jU7JIzygLo4Yv6RpuJ-Lp7itmLVPRomhdeWT_a7Na_o8M_Sm47uDpxZ8_v7ZVYnLbppyx4HMdeEdE1HKA83uX4JBhOJ65M-BDZk2B8M4Qe3G64o7MGRkBCfXsuyFsIv165ROYtGU710f9AhKzf684UWhsICxfybYIjeUmZcMTFeJE-1KbWQ71uISchbsIvNckIfg8HVqXMRZrLC_oRuPQ"/>
+</div>
+<div>
+<p class="font-bold text-sm">Dr. Roberto Maia</p>
+<p class="text-xs text-slate-500">Especialista em Cível</p>
+</div>
+</div>
+<button class="w-full flex items-center justify-center gap-2 border-2 border-primary text-primary font-bold py-2.5 rounded-lg hover:bg-primary/5 transition-colors">
+<span class="material-symbols-outlined text-lg">chat</span>
+                            Abrir Chat
+                        </button>
+</section>
+</div>
+</div>
+</main>
+<footer class="mt-auto border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-6 py-6 lg:px-20">
+<div class="flex flex-col md:flex-row justify-between items-center gap-4">
+<p class="text-slate-500 text-xs">© 2023 Hermida Maia Sociedade de Advogados. Todos os direitos reservados.</p>
+<div class="flex gap-6">
+<a class="text-slate-400 hover:text-primary text-xs transition-colors" href="#">Privacidade</a>
+<a class="text-slate-400 hover:text-primary text-xs transition-colors" href="#">Termos de Uso</a>
+<a class="text-slate-400 hover:text-primary text-xs transition-colors" href="#">Suporte</a>
+</div>
+</div>
+</footer>
+</div>
+</body></html>

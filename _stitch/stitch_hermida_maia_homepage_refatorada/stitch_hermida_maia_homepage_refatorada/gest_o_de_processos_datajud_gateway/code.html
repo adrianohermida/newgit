@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Gestão Jurídica - DataJud Gateway</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#10b981", // Emerald Deep Primary
+                        "primary-dark": "#064e3b",
+                        "background-light": "#f8f9fa",
+                        "background-dark": "#020617",
+                        "neutral-light": "#f1f5f9",
+                        "neutral-dark": "#1e293b",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased">
+<div class="flex h-screen overflow-hidden">
+<!-- SideNavBar -->
+<aside class="w-64 flex-shrink-0 bg-primary-dark text-white flex flex-col justify-between py-6">
+<div class="px-6 flex flex-col gap-8">
+<div class="flex flex-col">
+<div class="flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined text-primary text-3xl">balance</span>
+<h1 class="text-lg font-bold leading-none uppercase tracking-wider">Jurídico AI</h1>
+</div>
+<p class="text-primary/70 text-xs font-medium uppercase tracking-widest">DataJud Gateway</p>
+</div>
+<nav class="flex flex-col gap-2">
+<a class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/10 transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-xl bg-primary text-white" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1">gavel</span>
+<span class="text-sm font-medium">Processos</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/10 transition-colors" href="#">
+<span class="material-symbols-outlined">handshake</span>
+<span class="text-sm font-medium">Negociações</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/10 transition-colors" href="#">
+<span class="material-symbols-outlined">event</span>
+<span class="text-sm font-medium">Audiências</span>
+</a>
+</nav>
+</div>
+<div class="px-6 flex flex-col gap-4">
+<button class="flex items-center justify-center gap-2 w-full bg-primary py-3 rounded-xl font-bold text-sm shadow-lg shadow-black/20 hover:bg-primary/90 transition-all">
+<span class="material-symbols-outlined text-sm">add</span>
+                Novo Processo
+            </button>
+<div class="flex items-center gap-3 pt-6 border-t border-white/10">
+<div class="w-10 h-10 rounded-full bg-slate-200 border-2 border-primary/30 flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="User profile picture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDOgiIKsjTBK38vFwfIHhUEqwiWjVwztFFv70hnZJBLC_63LITzAwuvHJg9a8mAxYF524MrPCDeHcSX1SGcWxo-zvMRm3VqcOrWy-V7V677k74ofzQ_6OrvhZrEwuX1FLInzQ-DKg50iWa_I6KqhCGF4U24YG7J_tFZ_VH8NiTiadBw_NPzElAeYsQKIBf1AQ6BrZE4xKAeUH00U5MpwQwPcIb2oz83H9VSP4G5HbZ0jv5UklkxBBNd8hVffb0U4wrY_cd1KZqoT9MJ"/>
+</div>
+<div class="flex flex-col">
+<p class="text-sm font-bold">Dr. Ricardo M.</p>
+<p class="text-[10px] text-white/50 uppercase">OAB/SP 123.456</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col overflow-hidden">
+<!-- Header -->
+<header class="h-20 flex items-center justify-between px-8 bg-white dark:bg-neutral-dark border-b border-slate-200 dark:border-slate-800">
+<div class="flex items-center gap-4">
+<h2 class="text-2xl font-black text-slate-800 dark:text-white tracking-tight">Gestão de Processos</h2>
+<span class="px-2 py-1 bg-primary/10 text-primary text-[10px] font-bold rounded uppercase tracking-wider">Live Sync</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative w-72">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-900 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/50" placeholder="Pesquisar NPU, Nome ou CPF..." type="text"/>
+</div>
+<div class="flex gap-2">
+<button class="p-2 rounded-xl bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 rounded-xl bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Filters & Actions -->
+<section class="p-8 pb-4 flex flex-wrap items-center justify-between gap-4">
+<div class="flex items-center gap-3">
+<div class="flex bg-white dark:bg-neutral-dark p-1 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<button class="px-4 py-1.5 text-xs font-bold rounded-lg bg-primary text-white">Todos</button>
+<button class="px-4 py-1.5 text-xs font-bold rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-50">CEJUSC</button>
+<button class="px-4 py-1.5 text-xs font-bold rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-50">PROCON</button>
+<button class="px-4 py-1.5 text-xs font-bold rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-50">Judicial</button>
+</div>
+<button class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-neutral-dark border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold shadow-sm">
+                    Justiça Estadual <span class="material-symbols-outlined text-sm">expand_more</span>
+</button>
+<button class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-neutral-dark border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold shadow-sm">
+                    Fase Processual <span class="material-symbols-outlined text-sm">filter_list</span>
+</button>
+</div>
+<button class="flex items-center gap-2 px-6 py-2.5 bg-primary-dark text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors shadow-lg">
+<span class="material-symbols-outlined text-xl">smart_toy</span>
+                Consultar Novo Processo
+            </button>
+</section>
+<!-- Process List Table -->
+<section class="px-8 flex-1 overflow-auto">
+<div class="bg-white dark:bg-neutral-dark rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead class="bg-slate-50 dark:bg-slate-900/50">
+<tr>
+<th class="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Tipo</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Número NPU</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Tribunal</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Status AI</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Última Movimentação</th>
+<th class="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-primary">Próximo Passo AI</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+<!-- Row 1 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors cursor-pointer group">
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded uppercase">JUDICIAL</span>
+</td>
+<td class="px-6 py-4">
+<p class="text-sm font-bold group-hover:text-primary transition-colors">1054321-45.2023.8.26.0100</p>
+<p class="text-[10px] text-slate-400">Ação Indenizatória</p>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
+<span class="material-symbols-outlined text-xs text-slate-500">account_balance</span>
+</div>
+<span class="text-xs font-bold text-slate-600 dark:text-slate-300">TJSP</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="flex items-center gap-1.5 text-xs font-medium text-amber-600">
+<span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                                    Em Instrução
+                                </span>
+</td>
+<td class="px-6 py-4">
+<p class="text-xs font-medium text-slate-600 dark:text-slate-300">Expedição de Mandado</p>
+<p class="text-[10px] text-slate-400 uppercase">Há 2 horas</p>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2 px-3 py-1.5 bg-primary/5 rounded-lg border border-primary/10">
+<span class="material-symbols-outlined text-primary text-sm">auto_awesome</span>
+<span class="text-xs font-bold text-primary">Protocolar Réplica</span>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors cursor-pointer group">
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded uppercase">CEJUSC</span>
+</td>
+<td class="px-6 py-4">
+<p class="text-sm font-bold group-hover:text-primary transition-colors">0001452-11.2024.5.15.0001</p>
+<p class="text-[10px] text-slate-400">Conciliação Prévia</p>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
+<span class="material-symbols-outlined text-xs text-slate-500">account_balance</span>
+</div>
+<span class="text-xs font-bold text-slate-600 dark:text-slate-300">TRT15</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="flex items-center gap-1.5 text-xs font-medium text-green-600">
+<span class="w-2 h-2 rounded-full bg-green-500"></span>
+                                    Audiência Agendada
+                                </span>
+</td>
+<td class="px-6 py-4">
+<p class="text-xs font-medium text-slate-600 dark:text-slate-300">Designação de Conciliação</p>
+<p class="text-[10px] text-slate-400 uppercase">Ontem</p>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2 px-3 py-1.5 bg-primary/5 rounded-lg border border-primary/10">
+<span class="material-symbols-outlined text-primary text-sm">auto_awesome</span>
+<span class="text-xs font-bold text-primary">Preparar Proposta</span>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors cursor-pointer group">
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded uppercase">PROCON</span>
+</td>
+<td class="px-6 py-4">
+<p class="text-sm font-bold group-hover:text-primary transition-colors">PRC-2024/004562-1</p>
+<p class="text-[10px] text-slate-400">Reclamação Consumidor</p>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
+<span class="material-symbols-outlined text-xs text-slate-500">support_agent</span>
+</div>
+<span class="text-xs font-bold text-slate-600 dark:text-slate-300">PROCON-SP</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+<span class="w-2 h-2 rounded-full bg-slate-400"></span>
+                                    Prazo em Aberto
+                                </span>
+</td>
+<td class="px-6 py-4">
+<p class="text-xs font-medium text-slate-600 dark:text-slate-300">CIP Enviada</p>
+<p class="text-[10px] text-slate-400 uppercase">Há 3 dias</p>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2 px-3 py-1.5 bg-primary/5 rounded-lg border border-primary/10">
+<span class="material-symbols-outlined text-primary text-sm">auto_awesome</span>
+<span class="text-xs font-bold text-primary">Enviar Defesa</span>
+</div>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors cursor-pointer group">
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded uppercase">JUDICIAL</span>
+</td>
+<td class="px-6 py-4">
+<p class="text-sm font-bold group-hover:text-primary transition-colors">5001234-98.2024.4.03.6100</p>
+<p class="text-[10px] text-slate-400">Mandado de Segurança</p>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
+<span class="material-symbols-outlined text-xs text-slate-500">account_balance</span>
+</div>
+<span class="text-xs font-bold text-slate-600 dark:text-slate-300">TRF3</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="flex items-center gap-1.5 text-xs font-medium text-rose-600">
+<span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                                    Pendente Liminar
+                                </span>
+</td>
+<td class="px-6 py-4">
+<p class="text-xs font-medium text-slate-600 dark:text-slate-300">Concluso para Decisão</p>
+<p class="text-[10px] text-slate-400 uppercase">Há 4 horas</p>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2 px-3 py-1.5 bg-primary/5 rounded-lg border border-primary/10">
+<span class="material-symbols-outlined text-primary text-sm">auto_awesome</span>
+<span class="text-xs font-bold text-primary">Aguardar Decisão</span>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<!-- Pagination -->
+<div class="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+<p class="text-xs font-medium text-slate-500">Mostrando 4 de 1.240 processos</p>
+<div class="flex gap-1">
+<button class="w-8 h-8 flex items-center justify-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs">1</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold">2</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Footer Stats -->
+<footer class="h-12 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-neutral-dark px-8 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Gateway Operacional</span>
+</div>
+<div class="h-4 w-px bg-slate-200 dark:bg-slate-700"></div>
+<p class="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Última atualização: 14:32:01</p>
+</div>
+<div class="flex items-center gap-4">
+<p class="text-[10px] font-bold text-slate-500 uppercase">Processados por IA (Mês): 4.290</p>
+</div>
+</footer>
+</main>
+</div>
+<!-- Modal Background (Hidden by default, shown here conceptually for design) -->
+<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity">
+<div class="bg-white dark:bg-neutral-dark w-full max-w-lg rounded-2xl shadow-2xl border border-white/10 overflow-hidden transform scale-95 transition-transform">
+<div class="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">smart_toy</span>
+<h3 class="font-black text-lg">Consulta DataJud Gateway</h3>
+</div>
+<button class="text-slate-400 hover:text-slate-600">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<div class="p-8">
+<p class="text-sm text-slate-500 mb-6 leading-relaxed">Insira o número NPU ou anexe um documento para que nosso Agente IA realize a busca avançada e triagem automática.</p>
+<div class="space-y-4">
+<label class="block">
+<span class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">Número do Processo (NPU)</span>
+<input class="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl focus:ring-primary py-3" placeholder="0000000-00.0000.0.00.0000" type="text"/>
+</label>
+<div class="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-8 flex flex-col items-center justify-center text-slate-400 gap-2 hover:bg-slate-50 transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-3xl">upload_file</span>
+<p class="text-xs font-bold">Arraste a Petição ou Decisão para triagem</p>
+</div>
+</div>
+<button class="w-full mt-8 bg-primary text-white py-4 rounded-xl font-bold text-sm shadow-xl shadow-primary/20 hover:bg-primary/90 transition-all flex items-center justify-center gap-2">
+                Iniciar Busca Inteligente
+                <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</body></html>

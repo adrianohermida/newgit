@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+
+<html lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#11d473",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#102219",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Public Sans', sans-serif; }
+        .sidebar-item-active { @apply bg-primary/10 text-primary border-r-4 border-primary; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased">
+<div class="relative flex min-h-screen w-full">
+<!-- Sidebar -->
+<aside class="w-64 border-r border-primary/10 bg-white dark:bg-slate-950 flex flex-col sticky top-0 h-screen">
+<div class="p-6 flex items-center gap-3">
+<img class="size-10 rounded-lg bg-primary/20 p-1" data-alt="Hermida Maia Corporate Logo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDGBEV1_r9IRzzcj2DW79-Ti2dbaW4iCX-mLMKAHYgNIesRiLqD_IZY1d8AVxdV1czK3MqXk0-KqKEpaz3C4rOKYSxpUnpE02Lc-aWJ11CYw-pLLtQxNNx9HFybRVRiuY_VU2A8LHsxBVe5xdZXYzOUeWAnbkBI4NPgIbH04_G8Rqg7rsCtDfEiOHjzycgaE8VBM_-sDIT244zuU7hHNjC5skQVsD5dbl8In13GkjcVlff5KANouXdlDnGWQ8i7ASmaumD2WplCchRf"/>
+<h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Hermida Maia</h1>
+</div>
+<nav class="flex-1 px-4 space-y-2 mt-4">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/5 transition-colors sidebar-item-active" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/5 transition-colors" href="#">
+<span class="material-symbols-outlined">api</span>
+<span class="font-medium">Serviços API</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/5 transition-colors" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span class="font-medium">Minha Carteira</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/5 transition-colors" href="#">
+<span class="material-symbols-outlined">history</span>
+<span class="font-medium">Histórico</span>
+</a>
+<div class="pt-4 pb-2 px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Configurações</div>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/5 transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-medium">Ajustes</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-primary/5 transition-colors" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="font-medium">Documentação</span>
+</a>
+</nav>
+<div class="p-4 border-t border-primary/10">
+<div class="bg-primary/5 rounded-xl p-4">
+<p class="text-xs text-slate-500 mb-1">Saldo Atual</p>
+<p class="text-lg font-bold text-slate-900 dark:text-white leading-none">R$ 1.250,00</p>
+<button class="mt-3 w-full bg-primary text-white font-bold py-2 rounded-lg text-sm hover:opacity-90 transition-opacity">
+                    Recarregar
+                </button>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col min-w-0 overflow-hidden">
+<!-- Top Nav -->
+<header class="h-16 border-b border-primary/10 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-10">
+<div class="flex items-center bg-slate-100 dark:bg-slate-900 rounded-full px-4 py-1.5 w-96 border border-primary/5">
+<span class="material-symbols-outlined text-slate-400 text-lg">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-full placeholder:text-slate-400" placeholder="Buscar serviços ou faturas..." type="text"/>
+</div>
+<div class="flex items-center gap-4">
+<button class="size-10 flex items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900 relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 size-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-950"></span>
+</button>
+<div class="h-8 w-[1px] bg-primary/10 mx-2"></div>
+<div class="flex items-center gap-3">
+<div class="text-right hidden sm:block">
+<p class="text-sm font-semibold text-slate-900 dark:text-white leading-none">Carlos Eduardo</p>
+<p class="text-xs text-slate-500 mt-1">Plano Enterprise</p>
+</div>
+<div class="size-10 rounded-full bg-primary/20 border border-primary/30 overflow-hidden">
+<img class="size-full object-cover" data-alt="User profile avatar portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBFAqKLjj58_0EaXsz3dSENzLMp5rFi3HUpThgWL93lDJLO5-f2oNel09TKlRBaec2T87hjE9NgCP9F-3Kexz4LQdVPcCT2bFu_GKNvoDl2xd_HVpZANxakNREeX8xiw5H_iu9hb4YQHFGajpfKiEtGFFXRwGIe07ruTLZUSLCTriKU3_wQP6YBwOZCE6gwqYC_vEhwgCRUVwBcdVAYN0xY21fr5VAtgFI0jnUTVcO0WSeDgeoDeMI9jxTlUmqDgE-iPMNkFj_1fgk-"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Content Area -->
+<div class="p-8 space-y-8 overflow-y-auto">
+<!-- Hero Stats -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-primary/10 shadow-sm">
+<div class="flex items-center justify-between mb-4">
+<div class="size-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+</div>
+<span class="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded">+12.5%</span>
+</div>
+<h3 class="text-slate-500 text-sm font-medium">Saldo em Carteira</h3>
+<p class="text-2xl font-black text-slate-900 dark:text-white mt-1">R$ 1.250,00</p>
+</div>
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-primary/10 shadow-sm">
+<div class="flex items-center justify-between mb-4">
+<div class="size-10 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-500">
+<span class="material-symbols-outlined">bolt</span>
+</div>
+<span class="text-xs font-bold text-blue-500 bg-blue-500/10 px-2 py-1 rounded">Ativo</span>
+</div>
+<h3 class="text-slate-500 text-sm font-medium">Consumo Mensal (API)</h3>
+<p class="text-2xl font-black text-slate-900 dark:text-white mt-1">R$ 432,50</p>
+</div>
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-primary/10 shadow-sm">
+<div class="flex items-center justify-between mb-4">
+<div class="size-10 bg-amber-500/10 rounded-lg flex items-center justify-center text-amber-500">
+<span class="material-symbols-outlined">data_usage</span>
+</div>
+<span class="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">24/30 dias</span>
+</div>
+<h3 class="text-slate-500 text-sm font-medium">Requisições Restantes</h3>
+<p class="text-2xl font-black text-slate-900 dark:text-white mt-1">15.842</p>
+</div>
+</div>
+<!-- API Services Section -->
+<section>
+<div class="flex items-center justify-between mb-6">
+<div>
+<h2 class="text-2xl font-bold text-slate-900 dark:text-white">Serviços de API</h2>
+<p class="text-slate-500 mt-1">Contrate automações jurídicas de alta performance.</p>
+</div>
+<button class="text-primary font-semibold text-sm hover:underline">Ver todos os serviços</button>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+<!-- Service 1 -->
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-primary/10 shadow-sm flex gap-6 hover:border-primary/40 transition-all cursor-pointer group">
+<div class="size-16 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+<span class="material-symbols-outlined text-3xl">folder_copy</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h3 class="text-lg font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">Obtenção de Cópia de Processo Eletrônico</h3>
+<span class="text-primary font-bold">R$ 15,00<small class="text-[10px] text-slate-400 font-normal">/unid</small></span>
+</div>
+<p class="text-sm text-slate-500 mt-2 leading-relaxed">
+                                Automação completa para extração de PDFs integrais de processos nos sistemas PJe, e-SAJ e Projudi em segundos.
+                            </p>
+<div class="mt-4 flex items-center gap-3">
+<button class="bg-primary text-white text-xs font-bold px-4 py-2 rounded-lg">Contratar Agora</button>
+<button class="text-slate-500 text-xs font-bold px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-800">Ver Specs</button>
+</div>
+</div>
+</div>
+<!-- Service 2 -->
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-primary/10 shadow-sm flex gap-6 hover:border-primary/40 transition-all cursor-pointer group">
+<div class="size-16 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+<span class="material-symbols-outlined text-3xl">visibility</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h3 class="text-lg font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">Monitoramento Avançado</h3>
+<span class="text-primary font-bold">R$ 250,00<small class="text-[10px] text-slate-400 font-normal">/mês</small></span>
+</div>
+<p class="text-sm text-slate-500 mt-2 leading-relaxed">
+                                Rastreio inteligente de movimentações em tempo real com alertas via Webhook para sistemas internos.
+                            </p>
+<div class="mt-4 flex items-center gap-3">
+<button class="bg-primary text-white text-xs font-bold px-4 py-2 rounded-lg">Ativar Módulo</button>
+<button class="text-slate-500 text-xs font-bold px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-800">Ver Docs</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Checkout & Wallet Section -->
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+<!-- Transaction History -->
+<div class="xl:col-span-2 space-y-6">
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-primary/10 overflow-hidden">
+<div class="p-6 border-b border-primary/10 flex justify-between items-center">
+<h3 class="font-bold text-slate-900 dark:text-white">Histórico Recente</h3>
+<button class="material-symbols-outlined text-slate-400">filter_list</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-sm text-left">
+<thead class="bg-slate-50 dark:bg-slate-800/50 text-slate-500 font-medium">
+<tr>
+<th class="px-6 py-4">Data</th>
+<th class="px-6 py-4">Serviço/Operação</th>
+<th class="px-6 py-4">Status</th>
+<th class="px-6 py-4 text-right">Valor</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-primary/5">
+<tr class="hover:bg-primary/5 transition-colors">
+<td class="px-6 py-4 text-slate-500">Hoje, 14:20</td>
+<td class="px-6 py-4 font-medium">Recarga de Créditos (PIX)</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 py-1 px-2.5 rounded-full text-xs font-medium bg-primary/20 text-primary">Concluído</span>
+</td>
+<td class="px-6 py-4 text-right font-bold text-primary">+ R$ 500,00</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors">
+<td class="px-6 py-4 text-slate-500">Ontem, 09:15</td>
+<td class="px-6 py-4 font-medium">Extração Proc. 00234-89</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 py-1 px-2.5 rounded-full text-xs font-medium bg-primary/20 text-primary">Concluído</span>
+</td>
+<td class="px-6 py-4 text-right font-bold text-red-500">- R$ 15,00</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors">
+<td class="px-6 py-4 text-slate-500">12 Out, 2023</td>
+<td class="px-6 py-4 font-medium">Mensalidade Monitoramento</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 py-1 px-2.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Pendente</span>
+</td>
+<td class="px-6 py-4 text-right font-bold text-slate-900 dark:text-white">R$ 250,00</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-4 border-t border-primary/10 text-center">
+<button class="text-sm font-semibold text-primary">Carregar mais transações</button>
+</div>
+</div>
+</div>
+<!-- Secure Recharge -->
+<div class="space-y-6">
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-primary/10 shadow-sm">
+<h3 class="font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">security</span>
+                            Recarga Segura
+                        </h3>
+<div class="space-y-4">
+<label class="block">
+<span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Valor da Recarga</span>
+<div class="mt-2 relative">
+<span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400 font-bold">R$</span>
+<input class="block w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-primary font-bold text-lg" type="number" value="500"/>
+</div>
+</label>
+<div class="grid grid-cols-2 gap-2">
+<button class="py-2 rounded-lg border border-primary/20 text-xs font-bold hover:bg-primary hover:text-white transition-colors">R$ 100</button>
+<button class="py-2 rounded-lg bg-primary text-white text-xs font-bold">R$ 500</button>
+<button class="py-2 rounded-lg border border-primary/20 text-xs font-bold hover:bg-primary hover:text-white transition-colors">R$ 1.000</button>
+<button class="py-2 rounded-lg border border-primary/20 text-xs font-bold hover:bg-primary hover:text-white transition-colors">Outro</button>
+</div>
+<div class="pt-4 space-y-3">
+<p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Método de Pagamento</p>
+<div class="flex gap-4">
+<button class="flex-1 p-3 rounded-xl border-2 border-primary bg-primary/5 flex flex-col items-center gap-2">
+<span class="material-symbols-outlined text-primary">qr_code_2</span>
+<span class="text-[10px] font-bold">PIX Instantâneo</span>
+</button>
+<button class="flex-1 p-3 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center gap-2 grayscale opacity-60">
+<span class="material-symbols-outlined">credit_card</span>
+<span class="text-[10px] font-bold">Cartão (Crédito)</span>
+</button>
+</div>
+</div>
+<div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-primary/10">
+<div class="flex justify-between text-sm mb-2">
+<span class="text-slate-500">Subtotal</span>
+<span class="font-bold">R$ 500,00</span>
+</div>
+<div class="flex justify-between text-sm mb-4">
+<span class="text-slate-500">Taxas</span>
+<span class="text-primary font-bold">R$ 0,00</span>
+</div>
+<div class="flex justify-between text-lg font-black border-t border-slate-200 dark:border-slate-700 pt-3">
+<span>Total</span>
+<span class="text-primary">R$ 500,00</span>
+</div>
+</div>
+<button class="w-full bg-primary text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">bolt</span>
+                                Gerar QR Code PIX
+                            </button>
+<p class="text-[10px] text-center text-slate-400">
+                                Checkout processado por Hermida Payments. <br/> Ambiente criptografado SSL de 256 bits.
+                            </p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer -->
+<footer class="p-8 border-t border-primary/10 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-500">
+<p>© 2023 Hermida Maia - SaaS de Elite Jurídica. Todos os direitos reservados.</p>
+<div class="flex gap-6">
+<a class="hover:text-primary transition-colors" href="#">Termos de Uso</a>
+<a class="hover:text-primary transition-colors" href="#">Privacidade</a>
+<a class="hover:text-primary transition-colors" href="#">Status da API</a>
+<a class="hover:text-primary transition-colors" href="#">Suporte 24/7</a>
+</div>
+</footer>
+</main>
+</div>
+</body></html>

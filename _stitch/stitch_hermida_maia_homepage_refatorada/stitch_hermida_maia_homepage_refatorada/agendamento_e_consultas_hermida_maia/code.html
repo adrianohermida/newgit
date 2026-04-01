@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#11d473",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#102219",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>Hermida Maia Advocacia - Agendamento Premium</title>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="layout-container flex flex-col h-full">
+<!-- TopNavBar -->
+<header class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-4 sticky top-0 z-50">
+<div class="flex items-center gap-4">
+<div class="size-10 flex items-center justify-center bg-primary/10 rounded-lg">
+<img alt="Hermida Maia Logo" class="size-8" data-alt="Logotipo minimalista Hermida Maia Advocacia" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBr9Fh9L7BsaSDf-uFILoowd8Vy3LXggjjHgIXRWsNfp1uHrUAwnOHGTFHIyM31W32nvYSJffQeM8kvfLECOizoOm_FFHmBx77fUhAF3oJyFTBhDRlfkT00I8odcDcI1604S1zlmdZIUva4pd7IgQeF6ON332X_5RA46m9DGor8jZOZyK5druhK4XPqKpyQJAsf528XVextw3X-Q9tiIiANrcs8eJOagmw76QDnhAv-xLPCYb95Zq8bXeB5I7kBfKON9iToGZ8UiiWB"/>
+</div>
+<h2 class="text-slate-900 dark:text-white text-xl font-bold leading-tight tracking-tight">Hermida Maia <span class="text-primary font-medium text-sm block">Advocacia</span></h2>
+</div>
+<div class="flex items-center gap-6">
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-sm font-semibold text-primary border-b-2 border-primary pb-1" href="#">Agendamentos</a>
+<a class="text-sm font-medium text-slate-500 hover:text-primary transition-colors" href="#">Processos</a>
+<a class="text-sm font-medium text-slate-500 hover:text-primary transition-colors" href="#">Faturamento</a>
+</nav>
+<div class="flex gap-3 border-l border-slate-200 dark:border-slate-800 pl-6">
+<button class="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="flex items-center gap-3 ml-2">
+<div class="text-right hidden sm:block">
+<p class="text-xs font-bold">Dr. Ricardo Maia</p>
+<p class="text-[10px] text-slate-500 uppercase tracking-widest">Sócio Sênior</p>
+</div>
+<div class="bg-primary/20 rounded-full size-10 flex items-center justify-center overflow-hidden border-2 border-primary">
+<img class="w-full h-full object-cover" data-alt="Avatar do advogado Dr. Ricardo Maia" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC4ZKEpy7cZnmKbcRz0xLjpFCnXulYQR8n8YUU9cAFswMAncVqDdDSKEnbJnsRfGHHhhDj8cpONSZ7EqaxiKZ7kQEuDdXIeEUqIX9m0cj8vhwJwfrNi3ZSzxkj9F4R_r6hxCSCyLXzyn7T1pYgp4sxlzPbFFSUMuDiYtjR2EHRetWfqS4e1d_TpoVrN81FVP7X3U8bFp-TYfOv6i4MZcieesktlPzTL01VMhEuVdEA5tquSHzpiG2oBWRvNIzhw4el-Opi501FvYjou"/>
+</div>
+</div>
+</div>
+</div>
+</header>
+<main class="max-w-7xl mx-auto w-full p-4 lg:p-8 grid grid-cols-12 gap-8">
+<!-- Sidebar / Specialists -->
+<aside class="col-span-12 lg:col-span-3 space-y-6">
+<section class="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+<h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">groups</span>
+                        Especialistas
+                    </h3>
+<div class="space-y-4">
+<button class="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-primary bg-primary/5 text-left">
+<div class="size-10 rounded-full bg-slate-200" data-alt="Foto da Dra. Ana Silva" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBdoWTL-cj-DyQb-7Wp03zDWDAMY0QPUDqP-Q3cp_85mjImUb3OV2OL0L_qabOQoVL3vxzfspmgiDwb2fhcG6Y47plM6f8B_WP3Kwq20Tc69I32iULmPW8basKuARG5q-kuRJiry9frxdThNMlq_ArD1yasT2l0JCFomrDpZZNGNBEfEHyxcqIAbLStZa4I5Q17zgg2dj7socHyFO3sOyBcTN_AuMvCR_wQ3hKhBMZGi_s66hH8tQ8Wk_ybNOE3ShKNjIPjXLV_mL9-"); background-size: cover;'></div>
+<div>
+<p class="text-sm font-bold">Dra. Ana Silva</p>
+<p class="text-xs text-slate-500">Direito Digital</p>
+</div>
+</button>
+<button class="w-full flex items-center gap-3 p-3 rounded-lg border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-left transition-colors">
+<div class="size-10 rounded-full bg-slate-200" data-alt="Foto do Dr. Marcos Souza" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBiYr-FIvheoTXIIOWAXWzSl8Mb_RfzyHLGWp0N_Kz_NrizZo-sQ8Ymm9eVBwaQYzf4w-2BBHTaBi_Z1MdyyBvbadato_nfu0dkNtma8GVdjueubp4bpAzo2B3a0GwoULkb4Wj_IX045hw4ym-kvGNo2kGquTmfEHsFSrNLaU9XoGHWgbwoHTfug9WRdax3tUE4wlwjpOm-uis8Ji7ALaDkYJZo8Plv2wwouCDEG_JcH7MPFReEl2dK_moKFotrV4sEnTLlqlliOcoZ"); background-size: cover;'></div>
+<div>
+<p class="text-sm font-bold">Dr. Marcos Souza</p>
+<p class="text-xs text-slate-500">Tributário</p>
+</div>
+</button>
+<button class="w-full flex items-center gap-3 p-3 rounded-lg border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-left transition-colors">
+<div class="size-10 rounded-full bg-slate-200" data-alt="Foto da Dra. Carla Lins" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAif7KuDvL6uCLDBvB8i5M4BsYbS4qgV2804O2Yf_2FcKmO0MAw1IWmrpbEf9zzmhuI_KObwV1opIXnhJsuCGYZnAtIMFAxluYu4k5y5szsURAq74ox26rQujJdM7VFq6G2ctHP-cAOucCzq59ESUSlts99ta_57toVMll8Imk3SHi2PkUCMqUnc-tyCWSrfyIQrbybtL7AzwIeBx8y5VO6m-YGpODQSopPFZzCxy_tQxmPxU5w76ej1AdWEOVg7XEshjROk4S460YK"); background-size: cover;'></div>
+<div>
+<p class="text-sm font-bold">Dra. Carla Lins</p>
+<p class="text-xs text-slate-500">Civil &amp; Família</p>
+</div>
+</button>
+</div>
+</section>
+<section class="bg-background-dark text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
+<div class="relative z-10">
+<p class="text-primary text-xs font-bold uppercase tracking-widest mb-2">Suporte Prioritário</p>
+<p class="text-sm leading-relaxed mb-4">Precisa de um horário urgente ou atendimento personalizado?</p>
+<button class="w-full py-2 bg-primary text-slate-900 font-bold rounded-lg text-sm hover:brightness-110 transition-all">Falar com Consultor</button>
+</div>
+<div class="absolute -right-4 -bottom-4 opacity-10">
+<span class="material-symbols-outlined text-9xl">gavel</span>
+</div>
+</section>
+</aside>
+<!-- Main Interactive Area -->
+<div class="col-span-12 lg:col-span-6 space-y-6">
+<!-- Calendar Header -->
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+<div class="flex items-center justify-between mb-8">
+<div>
+<h1 class="text-2xl font-black tracking-tight">Agendar Consulta</h1>
+<p class="text-slate-500 text-sm">Selecione a melhor data para sua consultoria premium.</p>
+</div>
+<div class="flex gap-2">
+<button class="p-2 rounded bg-slate-100 dark:bg-slate-800 hover:bg-primary/20"><span class="material-symbols-outlined">chevron_left</span></button>
+<button class="p-2 rounded bg-slate-100 dark:bg-slate-800 hover:bg-primary/20"><span class="material-symbols-outlined">chevron_right</span></button>
+</div>
+</div>
+<!-- Simplified Interactive Calendar -->
+<div class="grid grid-cols-7 gap-2 text-center mb-6">
+<span class="text-[10px] font-bold text-slate-400 uppercase">Dom</span>
+<span class="text-[10px] font-bold text-slate-400 uppercase">Seg</span>
+<span class="text-[10px] font-bold text-slate-400 uppercase">Ter</span>
+<span class="text-[10px] font-bold text-slate-400 uppercase">Qua</span>
+<span class="text-[10px] font-bold text-slate-400 uppercase">Qui</span>
+<span class="text-[10px] font-bold text-slate-400 uppercase">Sex</span>
+<span class="text-[10px] font-bold text-slate-400 uppercase">Sab</span>
+<!-- Calendar Days Example -->
+<div class="py-3 text-slate-300 cursor-not-allowed">28</div>
+<div class="py-3 text-slate-300 cursor-not-allowed">29</div>
+<div class="py-3 text-slate-300 cursor-not-allowed">30</div>
+<div class="py-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg hover:border-primary border border-transparent cursor-pointer font-bold">1</div>
+<div class="py-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg hover:border-primary border border-transparent cursor-pointer font-bold">2</div>
+<div class="py-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg hover:border-primary border border-transparent cursor-pointer font-bold">3</div>
+<div class="py-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg hover:border-primary border border-transparent cursor-pointer font-bold">4</div>
+<div class="py-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg hover:border-primary border border-transparent cursor-pointer font-bold">5</div>
+<div class="py-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg hover:border-primary border border-transparent cursor-pointer font-bold">6</div>
+<div class="py-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg hover:border-primary border border-transparent cursor-pointer font-bold">7</div>
+<div class="py-3 bg-primary text-slate-900 rounded-lg font-black shadow-lg shadow-primary/20">8</div>
+<div class="py-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg hover:border-primary border border-transparent cursor-pointer font-bold">9</div>
+<div class="py-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg hover:border-primary border border-transparent cursor-pointer font-bold">10</div>
+<div class="py-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg hover:border-primary border border-transparent cursor-pointer font-bold">11</div>
+</div>
+<div class="mt-8 border-t border-slate-100 dark:border-slate-800 pt-6">
+<h4 class="text-sm font-bold mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">schedule</span>
+                            Horários Disponíveis (08 de Outubro)
+                        </h4>
+<div class="grid grid-cols-3 sm:grid-cols-4 gap-3">
+<button class="py-2 px-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium hover:border-primary hover:text-primary transition-all">09:00</button>
+<button class="py-2 px-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium hover:border-primary hover:text-primary transition-all">10:30</button>
+<button class="py-2 px-3 bg-primary/20 border-2 border-primary text-slate-900 dark:text-white rounded-lg text-sm font-bold">14:00</button>
+<button class="py-2 px-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium hover:border-primary hover:text-primary transition-all">15:30</button>
+<button class="py-2 px-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium hover:border-primary hover:text-primary transition-all">17:00</button>
+<button class="py-2 px-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium opacity-40 cursor-not-allowed line-through">18:30</button>
+</div>
+</div>
+</div>
+<!-- Appointment History Section -->
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+<h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">history</span>
+                        Histórico Recente
+                    </h3>
+<div class="divide-y divide-slate-100 dark:divide-slate-800">
+<div class="py-4 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="size-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">event_available</span>
+</div>
+<div>
+<p class="text-sm font-bold">Consultoria Direito Digital</p>
+<p class="text-xs text-slate-500">24 Set 2023 • Dra. Ana Silva</p>
+</div>
+</div>
+<span class="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-[10px] font-bold rounded uppercase">Concluído</span>
+</div>
+<div class="py-4 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="size-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">event_note</span>
+</div>
+<div>
+<p class="text-sm font-bold">Análise de Contrato Social</p>
+<p class="text-xs text-slate-500">12 Ago 2023 • Dr. Marcos Souza</p>
+</div>
+</div>
+<span class="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-[10px] font-bold rounded uppercase">Concluído</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Billing / Summary (Right) -->
+<aside class="col-span-12 lg:col-span-3 space-y-6">
+<section class="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 sticky top-28">
+<h3 class="text-lg font-bold mb-6">Resumo da Reserva</h3>
+<div class="space-y-4 mb-6">
+<div class="flex justify-between text-sm">
+<span class="text-slate-500">Especialista</span>
+<span class="font-bold">Dra. Ana Silva</span>
+</div>
+<div class="flex justify-between text-sm">
+<span class="text-slate-500">Data</span>
+<span class="font-bold">08 Out, 2023</span>
+</div>
+<div class="flex justify-between text-sm">
+<span class="text-slate-500">Horário</span>
+<span class="font-bold">14:00 - 15:00</span>
+</div>
+<div class="flex justify-between text-sm">
+<span class="text-slate-500">Modalidade</span>
+<span class="font-bold">Online (Google Meet)</span>
+</div>
+</div>
+<div class="border-t border-slate-100 dark:border-slate-800 pt-4 mb-8">
+<div class="flex justify-between items-center mb-1">
+<span class="text-slate-500 text-sm">Honorários</span>
+<span class="text-lg font-black">R$ 450,00</span>
+</div>
+<p class="text-[10px] text-slate-400">Sujeito a retenção de impostos conforme legislação vigente.</p>
+</div>
+<!-- Stripe Integration Preview -->
+<div class="space-y-3">
+<p class="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Pagamento Seguro via Stripe</p>
+<button class="w-full flex items-center justify-center gap-2 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg font-bold hover:opacity-90 transition-all">
+<span class="material-symbols-outlined text-lg">credit_card</span>
+                            Pagar Agora
+                        </button>
+<button class="w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg font-bold text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
+                            Faturar Depois (Boleto)
+                        </button>
+</div>
+<div class="mt-6 flex items-center justify-center gap-4 grayscale opacity-40">
+<img alt="Visa" data-alt="Visa logo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBSaNozamckeY1hFAa5b17Fj0lK7_nCblCuyqlploKJSclfeuH0wDqoPMKkTLncySr8CvtrRSEadQBitl7gw3scxIvnjluys0HmUkAoqZaiDptsV6NTlqN-WcVMqMj8mxZfHE5AS_PrZKQacv3vKMadwDbZAs3ClVyP7AHhq9XVwB8RrXTrMX4cAzjNFsvp6kkz0nn0MDUQLV-_OW7T0c6DaJ5iiMBWS0pf_H79aSazwBgq2B1YC1FxPjCxcC0oOq5jnLdBTNpW_y0D"/>
+<img alt="Mastercard" data-alt="Mastercard logo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAKwuk4rdnBE_UrEhG4v3uQlHAlt50Trd0j32tQ7yx8SDO-DHYUdu8QedV9AS9KrTgbf1qnS9n-vKuuhcgEg52rwfKGKESv3Gao3aG1AhuFh1eg9_hPM3mORXybk-LCYkPNF7ChGZzEclfUROmZZuGxGVzd2gMR2QeasHAIsdMyRh2bQ1-vb0p1IXM5OyDDh9224ReCi4FeykDbJ2M6ZV0nFFS1iCJGirsuMCrKSLfyNPCatO1TVy8ZO6DWlHs2642I2CwcrrD0A2f2"/>
+<img alt="Pix" data-alt="Pix logo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB3ojx7IvqvQeBLXBobco9Y1nPWTnnyLn4lE4aulv79tyyaPsZq3kPTIvZYW6i-SwkvUeBSYCNrONLxXAXRAforK1KVSwrsrfQVnLfYMZczGmQeIN6_BjAxS8k6VHzD6ZpPkqINBJbBr_w8flx87HOJTcL-y6-ICsvoT6KB917KE_GsvipsQqtFhNnr28KzWfAczZIiRnASMnRb1ojwZMzXYkG8PI2eqPyqpIq641dy-jGTNztHRdGx5RMdYhRzhyrgFH3Dr6CyJ2je"/>
+</div>
+</section>
+<div class="p-4 bg-primary/10 border border-primary/20 rounded-lg">
+<div class="flex gap-3">
+<span class="material-symbols-outlined text-primary">verified_user</span>
+<div>
+<p class="text-xs font-bold text-slate-900 dark:text-white">Garantia Hermida Maia</p>
+<p class="text-[10px] text-slate-600 dark:text-slate-400 mt-1">Reagendamento gratuito com até 24h de antecedência.</p>
+</div>
+</div>
+</div>
+</aside>
+</main>
+<!-- Footer -->
+<footer class="mt-auto border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-8">
+<div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="flex items-center gap-2">
+<img alt="Logo" class="size-6 grayscale opacity-50" data-alt="Logotipo Hermida Maia em escala de cinza" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBI6-1FYUZOn5uvFBMOgzm_32eDWgnjw8z_Nld7L8b3EJvAdVTvrT99shLNN7St_GM31S_mAcbKsbERiYxi45YYBUYCpEbzm5EjQJByGYIKSI1r8oXpaj4Yvw3pp-sOhxKZ-cxO93MfdAQ6maTTe0_t55FCLoNgCiqu0rB13bq3p5UwavFBuvthZr9b844_F_q-xK5bDqD_EZNuMoM9-5k34dgwD8vUkzXLoXkC381tWjj3NGBc6Y7LQKsa128y22g05aYafqJ6sIPF"/>
+<p class="text-xs text-slate-500 font-medium">© 2023 Hermida Maia Advocacia. Todos os direitos reservados.</p>
+</div>
+<div class="flex gap-6">
+<a class="text-xs text-slate-500 hover:text-primary underline decoration-primary/30" href="#">Termos de Uso</a>
+<a class="text-xs text-slate-500 hover:text-primary underline decoration-primary/30" href="#">Privacidade</a>
+<a class="text-xs text-slate-500 hover:text-primary underline decoration-primary/30" href="#">Portal do Cliente</a>
+</div>
+</div>
+</footer>
+</div>
+</body></html>

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#11d473",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#102219",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Public Sans', sans-serif;
+        }
+    </style>
+<title>Redefinir Senha | Hermida Maia Advocacia</title>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="layout-container flex h-full grow flex-col">
+<!-- Top Navigation Bar -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-slate-200 dark:border-slate-800 px-6 md:px-20 lg:px-40 py-4 bg-white dark:bg-slate-900">
+<div class="flex items-center gap-4">
+<div class="size-8 text-primary">
+<img alt="Logo Hermida Maia Advocacia" class="h-full w-full object-contain" data-alt="Logotipo moderno da Hermida Maia Advocacia em tons verdes" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBvWntwomp0ECSWQDIZm0uyhOPm6nkOQIWiqrfBk3NV6JIPqREsp_YK0GH11CblbZHxawI9l4hE8GJHRZ0NJAlD4h48LupYnYigdvKyTzRpfE2Ag5Q4wccPIgkYyZLrnxPJlVteSS32uVlfZnz0ofNte5V5QIEi1okYNqYSlT4XW3qlUzX9w0l6_otHmKgfRL0jKqzNsq_VKGd3LmdQdV94VrE23gs8a_CnLPU7gv8DHmVrqqg4cuCx00J2yhL3gIY30t7xG_NuTin2"/>
+</div>
+<h2 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight tracking-tight">Hermida Maia Advocacia</h2>
+</div>
+<div class="flex flex-1 justify-end items-center gap-4">
+<span class="text-sm font-medium text-slate-600 dark:text-slate-400 hidden sm:inline">Portal do Cliente</span>
+<div class="bg-primary/20 rounded-full size-10 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">account_balance</span>
+</div>
+</div>
+</header>
+<main class="flex flex-1 justify-center py-12 px-6">
+<div class="layout-content-container flex flex-col max-w-[480px] flex-1">
+<!-- Header Section -->
+<div class="flex flex-col gap-3 mb-8">
+<h1 class="text-slate-900 dark:text-slate-100 text-4xl font-black leading-tight tracking-tight">Redefinir Senha</h1>
+<p class="text-slate-600 dark:text-slate-400 text-base font-normal leading-normal">
+                        Crie uma nova senha segura para acessar seu portal jurídico e acompanhar seus processos.
+                    </p>
+</div>
+<!-- Reset Password Form -->
+<form class="flex flex-col gap-6">
+<div class="flex flex-col gap-4">
+<label class="flex flex-col w-full">
+<p class="text-slate-900 dark:text-slate-100 text-base font-semibold leading-normal pb-2">Nova Senha</p>
+<div class="flex w-full items-stretch rounded-lg shadow-sm">
+<input class="form-input flex w-full min-w-0 flex-1 rounded-l-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary focus:border-primary h-14 px-4 text-base" placeholder="Digite sua nova senha" type="password"/>
+<button class="text-slate-500 bg-white dark:bg-slate-800 border-y border-r border-slate-300 dark:border-slate-700 px-4 rounded-r-lg hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined">visibility</span>
+</button>
+</div>
+</label>
+<label class="flex flex-col w-full">
+<p class="text-slate-900 dark:text-slate-100 text-base font-semibold leading-normal pb-2">Confirmar Nova Senha</p>
+<div class="flex w-full items-stretch rounded-lg shadow-sm">
+<input class="form-input flex w-full min-w-0 flex-1 rounded-l-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary focus:border-primary h-14 px-4 text-base" placeholder="Repita a nova senha" type="password"/>
+<button class="text-slate-500 bg-white dark:bg-slate-800 border-y border-r border-slate-300 dark:border-slate-700 px-4 rounded-r-lg hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined">visibility</span>
+</button>
+</div>
+</label>
+</div>
+<!-- Visual Validators -->
+<div class="bg-primary/5 dark:bg-primary/10 p-4 rounded-xl border border-primary/20">
+<h3 class="text-slate-900 dark:text-slate-100 text-sm font-bold uppercase tracking-wider mb-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg">verified_user</span>
+                            Segurança da Senha
+                        </h3>
+<ul class="space-y-2">
+<li class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+<span class="material-symbols-outlined text-primary text-base">check_circle</span>
+                                Mínimo de 8 caracteres
+                            </li>
+<li class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 opacity-60">
+<span class="material-symbols-outlined text-slate-400 text-base">radio_button_unchecked</span>
+                                Incluir uma letra maiúscula
+                            </li>
+<li class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 opacity-60">
+<span class="material-symbols-outlined text-slate-400 text-base">radio_button_unchecked</span>
+                                Incluir um número ou caractere especial
+                            </li>
+<li class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 opacity-60">
+<span class="material-symbols-outlined text-slate-400 text-base">radio_button_unchecked</span>
+                                Senhas devem ser idênticas
+                            </li>
+</ul>
+</div>
+<button class="w-full bg-primary hover:bg-primary/90 text-slate-900 font-bold py-4 px-6 rounded-lg transition-all shadow-lg shadow-primary/20 text-lg" type="submit">
+                        Atualizar Senha
+                    </button>
+<div class="flex justify-center pt-2">
+<a class="text-primary font-semibold text-sm hover:underline flex items-center gap-1" href="#">
+<span class="material-symbols-outlined text-base">arrow_back</span>
+                            Voltar para o Login
+                        </a>
+</div>
+</form>
+<!-- Safety Tips Section -->
+<div class="mt-12 pt-8 border-t border-slate-200 dark:border-slate-800">
+<h3 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight mb-4">Dicas de Segurança</h3>
+<div class="grid grid-cols-1 gap-4">
+<div class="flex gap-4 items-start p-3 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors">
+<div class="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg shrink-0">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">vpn_key</span>
+</div>
+<div>
+<h4 class="font-bold text-slate-900 dark:text-slate-100 text-sm">Não reutilize senhas</h4>
+<p class="text-xs text-slate-500 dark:text-slate-400">Evite usar a mesma senha de outros serviços, como e-mail ou redes sociais.</p>
+</div>
+</div>
+<div class="flex gap-4 items-start p-3 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors">
+<div class="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg shrink-0">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">lock_reset</span>
+</div>
+<div>
+<h4 class="font-bold text-slate-900 dark:text-slate-100 text-sm">Troca periódica</h4>
+<p class="text-xs text-slate-500 dark:text-slate-400">Recomendamos atualizar sua senha a cada 90 dias para manter seus dados seguros.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="py-10 px-6 text-center text-slate-500 dark:text-slate-500 text-xs">
+<p>© 2024 Hermida Maia Advocacia. Todos os direitos reservados.</p>
+<p class="mt-2">OAB/SP 123.456 | Política de Privacidade | Termos de Uso</p>
+</footer>
+</div>
+</body></html>

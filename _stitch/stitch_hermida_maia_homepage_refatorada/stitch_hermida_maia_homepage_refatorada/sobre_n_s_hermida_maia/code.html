@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#11d473",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#102219",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Public Sans', sans-serif; }
+        .glass-effect { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100">
+<div class="layout-container flex h-full grow flex-col">
+<!-- Navigation -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-primary/10 px-6 md:px-20 py-4 bg-white dark:bg-background-dark sticky top-0 z-50">
+<div class="flex items-center gap-4 text-slate-900 dark:text-slate-100">
+<div class="size-6 text-primary">
+<svg fill="none" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path d="M4 42.4379C4 42.4379 14.0962 36.0744 24 41.1692C35.0664 46.8624 44 42.2078 44 42.2078L44 7.01134C44 7.01134 35.068 11.6577 24.0031 5.96913C14.0971 0.876274 4 7.27094 4 7.27094L4 42.4379Z" fill="currentColor"></path>
+</svg>
+</div>
+<h2 class="text-slate-900 dark:text-slate-100 text-xl font-bold leading-tight tracking-tight">Hermida Maia</h2>
+</div>
+<div class="hidden md:flex flex-1 justify-end gap-8">
+<div class="flex items-center gap-9">
+<a class="text-slate-700 dark:text-slate-300 text-sm font-medium hover:text-primary transition-colors" href="#">Início</a>
+<a class="text-slate-700 dark:text-slate-300 text-sm font-medium hover:text-primary transition-colors" href="#">Áreas de Atuação</a>
+<a class="text-primary text-sm font-bold transition-colors" href="#">Sobre Nós</a>
+<a class="text-slate-700 dark:text-slate-300 text-sm font-medium hover:text-primary transition-colors" href="#">Equipe</a>
+<a class="text-slate-700 dark:text-slate-300 text-sm font-medium hover:text-primary transition-colors" href="#">Contato</a>
+</div>
+<button class="flex min-w-[120px] cursor-pointer items-center justify-center rounded-lg h-10 px-5 bg-primary text-background-dark text-sm font-bold tracking-wide hover:opacity-90 transition-opacity">
+                    Fale Conosco
+                </button>
+</div>
+<div class="md:hidden">
+<span class="material-symbols-outlined text-3xl">menu</span>
+</div>
+</header>
+<main class="flex-1">
+<!-- Hero Section -->
+<section class="relative h-[60vh] min-h-[400px] flex flex-col justify-center px-6 md:px-40 overflow-hidden">
+<div class="absolute inset-0 z-0">
+<div class="absolute inset-0 bg-gradient-to-r from-background-dark/90 via-background-dark/60 to-transparent z-10"></div>
+<div class="w-full h-full bg-cover bg-center" data-alt="Escritório de advocacia moderno e luxuoso com mesa de madeira" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCKcE33crNFq7opWwExWyF-tP89sP1HOF5DEH4wKgFhfC8jSJS9xCtToxK3WcEebLr2PT2BKeFp9W9r1LXZhAK1Q3_nBvcjMraA_qmHEc3xJ_q0xSAMlvqp7G3LryKtdcMpUvaMv2iy_o7A5AhGxPOgzELVktYJwuGJ2akqi5-R02jZ-JaUNtE23hO-JKSj-f_82S1flbnu-VZYSw5IYcs_LtKv1WU8dcnNc-07FEsW-xvEaC6v8MbMRVDUQlWhOQrTPGMrcFH1NYix");'></div>
+</div>
+<div class="relative z-20 max-w-2xl">
+<span class="text-primary font-bold tracking-widest text-xs uppercase mb-4 block">Excelência em Advocacia</span>
+<h1 class="text-white text-5xl md:text-6xl font-black leading-tight mb-6">Tradição que molda o futuro jurídico.</h1>
+<p class="text-slate-300 text-lg md:text-xl font-normal max-w-lg">
+                        Fundado com o propósito de redefinir o padrão de atendimento jurídico premium, o Hermida Maia combina rigor técnico e inovação constante.
+                    </p>
+</div>
+</section>
+<!-- Mission, Vision, Values -->
+<section class="py-20 px-6 md:px-40 bg-white dark:bg-background-dark">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<div class="group p-8 rounded-xl bg-background-light dark:bg-slate-900/50 border border-primary/5 hover:border-primary/30 transition-all">
+<div class="bg-primary/10 w-14 h-14 rounded-lg flex items-center justify-center mb-6 text-primary group-hover:bg-primary group-hover:text-background-dark transition-all">
+<span class="material-symbols-outlined text-3xl">gavel</span>
+</div>
+<h3 class="text-2xl font-bold mb-4">Missão</h3>
+<p class="text-slate-600 dark:text-slate-400 leading-relaxed">
+                            Prestar assistência jurídica de alta performance, garantindo segurança estratégica e resultados excepcionais para nossos clientes através de uma advocacia artesanal e personalizada.
+                        </p>
+</div>
+<div class="group p-8 rounded-xl bg-background-light dark:bg-slate-900/50 border border-primary/5 hover:border-primary/30 transition-all">
+<div class="bg-primary/10 w-14 h-14 rounded-lg flex items-center justify-center mb-6 text-primary group-hover:bg-primary group-hover:text-background-dark transition-all">
+<span class="material-symbols-outlined text-3xl">visibility</span>
+</div>
+<h3 class="text-2xl font-bold mb-4">Visão</h3>
+<p class="text-slate-600 dark:text-slate-400 leading-relaxed">
+                            Ser reconhecido como o parceiro jurídico indispensável para negócios complexos, liderando o mercado pela inovação tecnológica e autoridade intelectual no cenário nacional.
+                        </p>
+</div>
+<div class="group p-8 rounded-xl bg-background-light dark:bg-slate-900/50 border border-primary/5 hover:border-primary/30 transition-all">
+<div class="bg-primary/10 w-14 h-14 rounded-lg flex items-center justify-center mb-6 text-primary group-hover:bg-primary group-hover:text-background-dark transition-all">
+<span class="material-symbols-outlined text-3xl">verified_user</span>
+</div>
+<h3 class="text-2xl font-bold mb-4">Valores</h3>
+<p class="text-slate-600 dark:text-slate-400 leading-relaxed">
+                            Ética inegociável, transparência radical, meritocracia técnica e compromisso absoluto com o sucesso sustentável de cada parceiro que confia em nosso trabalho.
+                        </p>
+</div>
+</div>
+</section>
+<!-- History Section -->
+<section class="py-20 px-6 md:px-40 bg-background-light dark:bg-slate-900/30">
+<div class="flex flex-col md:flex-row items-center gap-16">
+<div class="w-full md:w-1/2">
+<div class="relative">
+<div class="absolute -top-4 -left-4 w-24 h-24 bg-primary/20 rounded-lg -z-10"></div>
+<div class="w-full h-[500px] rounded-2xl overflow-hidden shadow-2xl">
+<img alt="Advogado assinando documentos importantes" class="w-full h-full object-cover" data-alt="Advogado sênior revisando documentos jurídicos em mesa de madeira" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA3JVvENNm2FsCvshcqDoXo1hO6Cdk7Z1H7x-V_baOONdOCJdRTeng_UPgBqL9Ky0MXIbCmMFFLMU_P-RCjviOlWLw4j8Kben8MhI9yJ-XIQRz-NpjyKop7syIFrPo-oIAhfsd0S_EL_S89X4jil1kW4f_RYbJFHwm6-1k_Wz12rnZ8Lp8F8bYuzb5MNBH2Y0RHUEpT8Lvdif4pBMeeVlx7VftmoHagKVS8AKig1lPwoxjud0V9yQkRjPnsIL67SiqOh3j_A_szHDvs"/>
+</div>
+<div class="absolute -bottom-6 -right-6 bg-primary p-6 rounded-xl text-background-dark">
+<p class="text-4xl font-black">+15</p>
+<p class="text-sm font-bold uppercase tracking-wider">Anos de História</p>
+</div>
+</div>
+</div>
+<div class="w-full md:w-1/2">
+<h2 class="text-primary font-bold tracking-widest text-xs uppercase mb-4">Nossa Trajetória</h2>
+<h3 class="text-4xl font-black mb-8 leading-tight">Uma história construída sobre pilares de confiança e sucesso.</h3>
+<div class="space-y-6 text-slate-600 dark:text-slate-400 leading-relaxed text-lg">
+<p>
+                                O escritório Hermida Maia nasceu da união de profissionais que compartilhavam uma visão comum: a de que o Direito deve ser um facilitador de negócios e uma ferramenta de proteção social robusta.
+                            </p>
+<p>
+                                Ao longo de mais de uma década, expandimos nossa atuação para os principais centros econômicos do país, mantendo sempre o atendimento próximo que caracteriza nossa fundação.
+                            </p>
+<p>
+                                Hoje, somos referência em áreas complexas, atendendo desde startups em escala global até grandes corporações consolidadas, sempre com o mesmo rigor técnico que nos trouxe até aqui.
+                            </p>
+</div>
+</div>
+</div>
+</section>
+<!-- Team Section -->
+<section class="py-20 px-6 md:px-40 bg-white dark:bg-background-dark">
+<div class="text-center max-w-3xl mx-auto mb-16">
+<h2 class="text-primary font-bold tracking-widest text-xs uppercase mb-4">Corpo Jurídico</h2>
+<h3 class="text-4xl font-black mb-4">Liderança e Expertise</h3>
+<p class="text-slate-600 dark:text-slate-400">Nossa equipe é formada por especialistas renomados, mestres e doutores dedicados a encontrar soluções inovadoras para os desafios jurídicos mais complexos.</p>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+<!-- Partner 1 -->
+<div class="flex flex-col group">
+<div class="w-full aspect-[4/5] overflow-hidden rounded-xl mb-4 relative">
+<img alt="Sócio Fundador" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" data-alt="Retrato profissional de um advogado sênior sorrindo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAYzEp75jfHNyyQjXok22XOqSJIKHf8CkokENzWexsI7Biesml6--sRKjfFJJI1YyxcYtk3zAaw71yCZ4bAEcLF0Jwp-SmAPMfqgBW0NXo6y8RI8zrknueqD7_N5qQX8WYUL_ZqD6eL57qUBmN7D84kjSBRKyWDzm__86c0FUXhnwMEsK5F3brqxpFR0u4RpUCQ6NM02N6Mm_rg3JEX5g4hZgrB7KiTS-D_JXind4arNp30h-_rzuam8iEhYEuI1pXJMlaCMsNSP0_-"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background-dark/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
+<div class="flex gap-4 text-white">
+<span class="material-symbols-outlined cursor-pointer hover:text-primary">share</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-primary">mail</span>
+</div>
+</div>
+</div>
+<h4 class="text-xl font-bold">Dr. Ricardo Maia</h4>
+<p class="text-primary text-sm font-semibold uppercase tracking-wider mb-2">Sócio Fundador</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm">Especialista em Direito Corporativo e Tributário com 20 anos de atuação.</p>
+</div>
+<!-- Partner 2 -->
+<div class="flex flex-col group">
+<div class="w-full aspect-[4/5] overflow-hidden rounded-xl mb-4 relative">
+<img alt="Sócia Gestora" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" data-alt="Retrato profissional de uma advogada sênior com postura confiante" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA1ohpghk3gkKIb8zj2nH1vJ1m-s78wlfooQRa7HBpaeLtXNy3XKlF4zSRcKGE16pryf9we7NC1WCB2WtycCRFE7ENvud5pJ125-1AEvFfr3dehsZ8FA2S21LlD0P-sj5YHmVMm-stenemVuZb7gYIN1hEq6mA74RDFL_DD0u01cltrtHC6ZZC5w9aGe6YrOJkzDrc6ip3J2Ty2pnrxl6ySEnAhEj1RrcFaL7uBYTL2J7Nj0QOW8efzTxfVaD9ixG9EXlO2otgLqZWn"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background-dark/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
+<div class="flex gap-4 text-white">
+<span class="material-symbols-outlined cursor-pointer hover:text-primary">share</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-primary">mail</span>
+</div>
+</div>
+</div>
+<h4 class="text-xl font-bold">Dra. Helena Hermida</h4>
+<p class="text-primary text-sm font-semibold uppercase tracking-wider mb-2">Sócia Diretora</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm">Referência nacional em Direito Civil e Resolução de Conflitos estratégicos.</p>
+</div>
+<!-- Partner 3 -->
+<div class="flex flex-col group">
+<div class="w-full aspect-[4/5] overflow-hidden rounded-xl mb-4 relative">
+<img alt="Sócio Internacional" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" data-alt="Retrato de advogado jovem e dinâmico" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCVMTh2G_6H9wnW6UYa5AKzL9Ir7aXNB5b2yrCa9A5UxMPInlWrFaMcUTFOnkt41T2vdYSFPT468kveCAN1lPHbyEKp4HrXyDIWUvOfwyVPakN_C69pPEEEk2Yu6c201zTYl5AKJcXpghpRFHhk8kqRc8YanDttbjdR6o8biH-tsoZMfwn62FGD3k_RJH6OPqv3nUY1GiZCN8wh7ytCEoaC01mVLsB9Ggz09xOXJH9Rgjnsn9o09SH99geqNPbtSvIJnIh73Svi9XjU"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background-dark/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
+<div class="flex gap-4 text-white">
+<span class="material-symbols-outlined cursor-pointer hover:text-primary">share</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-primary">mail</span>
+</div>
+</div>
+</div>
+<h4 class="text-xl font-bold">Dr. André Santos</h4>
+<p class="text-primary text-sm font-semibold uppercase tracking-wider mb-2">Sócio Internacional</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm">Especialista em M&amp;A e Direito Digital com foco em expansão global.</p>
+</div>
+<!-- Partner 4 -->
+<div class="flex flex-col group">
+<div class="w-full aspect-[4/5] overflow-hidden rounded-xl mb-4 relative">
+<img alt="Sócia Trabalhista" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" data-alt="Retrato profissional de uma advogada especialista" src="https://lh3.googleusercontent.com/aida-public/AB6AXuASMT7fBoADYSAL15NL1-qnD_w9uyua8aQD-8dV6wNV2rAZiATN0GM_H9969cWlCYhOKn0QWZqv8lp2ttSPkaDCvxbZ7dOQ-VDaCUTLWBAIt2lnVjXm4_OzYRhkHBkRhtdHIHjEU-_Og-dinfxMrzKGsg1lZcPsofPq7QtTdNHmmIjBTwlXuY1GCLLkPiEh4u6LuPI-DieOF399rGEAv3L4JCug2nYHrS6vlK00kbWruGy3AGKYk1UIXBZRHKzPfQRicu5vyzPsK73y"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background-dark/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
+<div class="flex gap-4 text-white">
+<span class="material-symbols-outlined cursor-pointer hover:text-primary">share</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-primary">mail</span>
+</div>
+</div>
+</div>
+<h4 class="text-xl font-bold">Dra. Beatriz Luz</h4>
+<p class="text-primary text-sm font-semibold uppercase tracking-wider mb-2">Coordenadora Trabalhista</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm">Expert em Compliance Trabalhista e Gestão de Passivos Empresariais.</p>
+</div>
+</div>
+</section>
+<!-- CTA Section -->
+<section class="py-20 px-6 md:px-40">
+<div class="bg-primary rounded-2xl p-12 md:p-20 text-center relative overflow-hidden">
+<div class="absolute top-0 right-0 w-64 h-64 bg-background-dark/5 rounded-full -mr-32 -mt-32"></div>
+<div class="relative z-10">
+<h2 class="text-background-dark text-4xl md:text-5xl font-black mb-6">Pronto para uma assessoria de alto nível?</h2>
+<p class="text-background-dark/80 text-lg mb-10 max-w-2xl mx-auto">
+                            Entre em contato conosco hoje mesmo e descubra como nossa expertise jurídica pode impulsionar e proteger seus interesses.
+                        </p>
+<div class="flex flex-col sm:flex-row justify-center gap-4">
+<button class="bg-background-dark text-primary px-8 py-4 rounded-lg font-bold text-lg hover:scale-105 transition-transform">
+                                Agendar Consultoria
+                            </button>
+<button class="border-2 border-background-dark text-background-dark px-8 py-4 rounded-lg font-bold text-lg hover:bg-background-dark hover:text-primary transition-all">
+                                Ver Áreas de Atuação
+                            </button>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-background-dark text-white py-16 px-6 md:px-40 border-t border-primary/20">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
+<div class="col-span-1 md:col-span-1">
+<div class="flex items-center gap-4 text-primary mb-6">
+<div class="size-6">
+<svg fill="none" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path d="M4 42.4379C4 42.4379 14.0962 36.0744 24 41.1692C35.0664 46.8624 44 42.2078 44 42.2078L44 7.01134C44 7.01134 35.068 11.6577 24.0031 5.96913C14.0971 0.876274 4 7.27094 4 7.27094L4 42.4379Z" fill="currentColor"></path>
+</svg>
+</div>
+<h2 class="text-xl font-bold tracking-tight">Hermida Maia</h2>
+</div>
+<p class="text-slate-400 text-sm leading-relaxed">
+                        Compromisso com a ética e excelência jurídica em cada detalhe. Transformando desafios complexos em soluções seguras.
+                    </p>
+</div>
+<div>
+<h4 class="font-bold mb-6 text-primary">Links Úteis</h4>
+<ul class="space-y-4 text-slate-400 text-sm">
+<li><a class="hover:text-primary" href="#">Nossa História</a></li>
+<li><a class="hover:text-primary" href="#">Áreas de Prática</a></li>
+<li><a class="hover:text-primary" href="#">Publicações Jurídicas</a></li>
+<li><a class="hover:text-primary" href="#">Portal do Cliente</a></li>
+</ul>
+</div>
+<div>
+<h4 class="font-bold mb-6 text-primary">Contatos</h4>
+<ul class="space-y-4 text-slate-400 text-sm">
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-sm">call</span>
+                            +55 (11) 4004-0000
+                        </li>
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-sm">mail</span>
+                            contato@hermidamaia.com
+                        </li>
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-sm">location_on</span>
+                            Av. Paulista, 1000 - São Paulo, SP
+                        </li>
+</ul>
+</div>
+<div>
+<h4 class="font-bold mb-6 text-primary">Localização</h4>
+<div class="w-full h-32 bg-slate-800 rounded-lg overflow-hidden grayscale">
+<img alt="Mapa de São Paulo" class="w-full h-full object-cover" data-alt="Mapa da região da Avenida Paulista em São Paulo" data-location="São Paulo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCowfnJTDrlkUo6CZwE2VcQzw20OvbHdwVEE9y18T78Co544RA3l6uVvWJ1ZJ5Uu8T2K8y-TeHThuJfaB_AFEhrfVH0M-18U4KsnoNLOgSYXc4WnoLq0xsFePz1pXlaAIIw8NZ1ZsvCgCmXchcF07g4GKPO598drYPUvwnEd1ndnVxgxhtiZfxFzN143pttHlK3gok6rE4u0VgUKTjI_KaxcG8XdThbjCtQW-3JeP_4Kkp_v6PExMcab4rFw2-nfj9UcXdilC6nP_8I"/>
+</div>
+</div>
+</div>
+<div class="border-t border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-500">
+<p>© 2024 Hermida Maia Sociedade de Advogados. Todos os direitos reservados.</p>
+<div class="flex gap-8">
+<a class="hover:text-primary" href="#">Privacidade</a>
+<a class="hover:text-primary" href="#">Termos de Uso</a>
+<a class="hover:text-primary" href="#">Compliance</a>
+</div>
+</div>
+</footer>
+</div>
+</body></html>

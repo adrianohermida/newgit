@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+
+<html lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#11d473",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#102219",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: "Public Sans", sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100">
+<!-- Top Navigation Bar -->
+<header class="sticky top-0 z-50 w-full border-b border-primary/10 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md">
+<div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-12">
+<div class="flex items-center gap-3">
+<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-background-dark">
+<span class="material-symbols-outlined text-2xl">gavel</span>
+</div>
+<h2 class="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Hermida Maia <span class="text-primary">Advocacia</span></h2>
+</div>
+<nav class="hidden items-center gap-8 md:flex">
+<a class="text-sm font-semibold transition-colors hover:text-primary" href="#">Início</a>
+<a class="text-sm font-semibold transition-colors hover:text-primary" href="#">Áreas de Atuação</a>
+<a class="text-sm font-semibold transition-colors hover:text-primary" href="#">Sobre Nós</a>
+<a class="text-sm font-semibold transition-colors hover:text-primary" href="#">Blog</a>
+<a class="text-sm font-semibold transition-colors hover:text-primary" href="#">Contato</a>
+</nav>
+<button class="flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-background-dark transition-all hover:bg-primary/90">
+                Agendar Consulta
+            </button>
+</div>
+</header>
+<main>
+<!-- Hero Section -->
+<section class="relative h-[400px] w-full overflow-hidden">
+<div class="absolute inset-0 bg-gradient-to-r from-background-dark/90 to-background-dark/40 z-10"></div>
+<img alt="Escritório de advocacia elegante e moderno" class="h-full w-full object-cover" data-alt="Modern high-end law office interior architecture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCayc2IvugC8qA_5Q74IXJ8phbA4DvfSKB12FuWZsOuPdxm56LCvcQss5EdhQSROGHny9mSGHW-eEhzEC9t-yWF8GPwEBgDDAADavh5WYORa9vmLW9nZpy97hCDp3D0-PhGi0hN3U2Okcbb77Pnbm6jHMz1wWZIAmBzKEkUU3VTdldPYYNgNPLCDYG6eT0psi03SQbFm3Qm7Hh27IyoJb4txA6heB5QcU6AOjtku833uHngEfWSQ6LSWAD0bDGYLMHcJz1aCR-1MHrI"/>
+<div class="relative z-20 flex h-full flex-col items-center justify-center px-6 text-center">
+<h1 class="text-4xl font-black tracking-tight text-white md:text-6xl">Fale Conosco</h1>
+<p class="mt-4 max-w-2xl text-lg text-slate-200">
+                    Estamos à disposição para oferecer consultoria jurídica especializada e soluções estratégicas para o seu caso. Excelência e discrição em cada atendimento.
+                </p>
+<div class="mt-8 flex gap-4">
+<a class="rounded-lg bg-primary px-8 py-3 font-bold text-background-dark" href="#form">Iniciar Contato</a>
+<a class="rounded-lg border border-white/30 bg-white/10 px-8 py-3 font-bold text-white backdrop-blur-sm" href="#map">Ver Endereço</a>
+</div>
+</div>
+</section>
+<!-- Contact Content Grid -->
+<section class="mx-auto grid max-w-7xl gap-12 px-6 py-20 lg:grid-cols-2 lg:px-12">
+<!-- Contact Form -->
+<div class="rounded-2xl bg-white p-8 shadow-xl shadow-primary/5 dark:bg-background-dark/50 border border-primary/10" id="form">
+<h2 class="mb-6 text-2xl font-bold">Envie uma Mensagem</h2>
+<form class="space-y-4">
+<div class="grid gap-4 md:grid-cols-2">
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Nome Completo</label>
+<input class="rounded-lg border-slate-200 bg-background-light p-3 focus:border-primary focus:ring-primary dark:border-slate-800 dark:bg-background-dark" placeholder="Seu nome" type="text"/>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold text-slate-600 dark:text-slate-400">E-mail Corporativo</label>
+<input class="rounded-lg border-slate-200 bg-background-light p-3 focus:border-primary focus:ring-primary dark:border-slate-800 dark:bg-background-dark" placeholder="exemplo@email.com" type="email"/>
+</div>
+</div>
+<div class="grid gap-4 md:grid-cols-2">
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Telefone (WhatsApp)</label>
+<input class="rounded-lg border-slate-200 bg-background-light p-3 focus:border-primary focus:ring-primary dark:border-slate-800 dark:bg-background-dark" placeholder="(00) 00000-0000" type="tel"/>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Assunto</label>
+<select class="rounded-lg border-slate-200 bg-background-light p-3 focus:border-primary focus:ring-primary dark:border-slate-800 dark:bg-background-dark">
+<option>Revisão de Dívidas</option>
+<option>Recuperação Judicial</option>
+<option>LGPD</option>
+<option>Outros Assuntos</option>
+</select>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Sua Mensagem</label>
+<textarea class="rounded-lg border-slate-200 bg-background-light p-3 focus:border-primary focus:ring-primary dark:border-slate-800 dark:bg-background-dark" placeholder="Como podemos ajudar?" rows="4"></textarea>
+</div>
+<button class="w-full rounded-lg bg-primary py-4 font-bold text-background-dark transition-transform hover:scale-[1.02]" type="submit">
+                        Enviar Mensagem com Segurança
+                    </button>
+</form>
+</div>
+<!-- Direct Contact Info -->
+<div class="flex flex-col justify-center space-y-10">
+<div>
+<h3 class="text-3xl font-bold tracking-tight">Canais de Atendimento</h3>
+<p class="mt-4 text-slate-600 dark:text-slate-400">Prefere um contato direto? Utilize nossos canais oficiais ou visite nossa sede.</p>
+</div>
+<div class="space-y-6">
+<div class="flex items-start gap-4">
+<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary">
+<span class="material-symbols-outlined">location_on</span>
+</div>
+<div>
+<p class="font-bold">Endereço</p>
+<p class="text-slate-600 dark:text-slate-400">Av. Paulista, 1000 - 15º Andar<br/>Bela Vista, São Paulo - SP, 01310-100</p>
+</div>
+</div>
+<div class="flex items-start gap-4">
+<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary">
+<span class="material-symbols-outlined">call</span>
+</div>
+<div>
+<p class="font-bold">Telefone e WhatsApp</p>
+<p class="text-slate-600 dark:text-slate-400">+55 (11) 4003-0000</p>
+</div>
+</div>
+<div class="flex items-start gap-4">
+<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary">
+<span class="material-symbols-outlined">mail</span>
+</div>
+<div>
+<p class="font-bold">E-mail</p>
+<p class="text-slate-600 dark:text-slate-400">contato@hermidamaia.adv.br</p>
+</div>
+</div>
+</div>
+<div>
+<p class="mb-4 font-bold uppercase tracking-widest text-primary">Siga-nos</p>
+<div class="flex gap-4">
+<a class="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-200 transition-colors hover:bg-primary dark:bg-slate-800" href="#">
+<span class="material-symbols-outlined text-xl">share</span>
+</a>
+<a class="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-200 transition-colors hover:bg-primary dark:bg-slate-800" href="#">
+<span class="material-symbols-outlined text-xl">public</span>
+</a>
+<a class="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-200 transition-colors hover:bg-primary dark:bg-slate-800" href="#">
+<span class="material-symbols-outlined text-xl">work</span>
+</a>
+</div>
+</div>
+</div>
+</section>
+<!-- Map Section -->
+<section class="w-full h-[450px] bg-slate-200 dark:bg-slate-900 relative" id="map">
+<div class="absolute inset-0 grayscale opacity-60">
+<img alt="Mapa de localização em São Paulo" class="w-full h-full object-cover" data-alt="Monochromatic city map of Sao Paulo area" data-location="Sao Paulo, Brazil" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBF5DjMyp1RaLFV1nu83K9tOzmGvYbkTaFd0LsalWI6cnWOqmv7YyNVQ-lbkDPGYqyr8SM8ST0dn-Iw4pbJDCnDMW-VAh2Snt5FLCuRDKv9IZZeyeBdAWVb8aGSb8jOG33qUIImlOnrHyJSuBJtzuQszA9MMJF4HEX_6E-TZYKGKIvEicD4blr-UR6sbuPAnkHRfpCkjY56xQ_vjsDG59SdEKG5kPzQW6nGHseDV9P0jEl27mdcXSEyA4ct3sPK7lrfuaiSO_nLghqk"/>
+</div>
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="bg-white dark:bg-background-dark p-6 rounded-xl shadow-2xl flex flex-col items-center gap-2 border border-primary/20 z-20">
+<span class="material-symbols-outlined text-primary text-4xl">location_on</span>
+<p class="font-bold text-center">Nossa Sede</p>
+<p class="text-xs text-slate-500">Estamos aqui para recebê-lo.</p>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-background-dark py-16 text-white border-t border-primary/10">
+<div class="mx-auto max-w-7xl px-6 lg:px-12">
+<div class="grid gap-12 lg:grid-cols-4">
+<div class="col-span-2">
+<div class="flex items-center gap-3">
+<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-background-dark">
+<span class="material-symbols-outlined text-2xl">gavel</span>
+</div>
+<h2 class="text-xl font-bold tracking-tight text-white">Hermida Maia <span class="text-primary">Advocacia</span></h2>
+</div>
+<p class="mt-6 max-w-md text-slate-400">
+                        Compromisso com a ética, excelência jurídica e resultados estratégicos. Atuamos nacionalmente com foco em advocacia corporativa e digital.
+                    </p>
+</div>
+<div>
+<h4 class="mb-6 font-bold">Navegação</h4>
+<ul class="space-y-4 text-slate-400">
+<li><a class="hover:text-primary" href="#">Início</a></li>
+<li><a class="hover:text-primary" href="#">Áreas de Atuação</a></li>
+<li><a class="hover:text-primary" href="#">Sobre Nós</a></li>
+<li><a class="hover:text-primary" href="#">Blog</a></li>
+</ul>
+</div>
+<div>
+<h4 class="mb-6 font-bold">Jurídico</h4>
+<ul class="space-y-4 text-slate-400">
+<li><a class="hover:text-primary" href="#">Termos de Uso</a></li>
+<li><a class="hover:text-primary" href="#">Privacidade (LGPD)</a></li>
+<li><a class="hover:text-primary" href="#">OAB/SP 123.456</a></li>
+</ul>
+</div>
+</div>
+<div class="mt-16 border-t border-white/10 pt-8 text-center text-sm text-slate-500">
+<p>© 2024 Hermida Maia Advocacia. Todos os direitos reservados.</p>
+</div>
+</div>
+</footer>
+</body></html>

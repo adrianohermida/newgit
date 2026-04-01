@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Ranking - Academia Hermida Maia</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#11d473",
+                        "emerald-deep": "#013220",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#102219",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Public Sans', sans-serif; }
+        .podium-1 { height: 160px; }
+        .podium-2 { height: 130px; }
+        .podium-3 { height: 110px; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen">
+<!-- Header Navigation -->
+<header class="sticky top-0 z-50 bg-emerald-deep text-white border-b border-white/10 px-4 md:px-10 py-3 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="size-10 bg-primary/20 rounded-lg flex items-center justify-center">
+<img alt="Logo Hermida Maia Advocacia" class="size-8 object-contain" data-alt="Logotipo sofisticado da Hermida Maia Advocacia" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBVACq8rxUjzXQf8OxDPE-7rvjdx4SWs7Lqakz636Y68r6D8PctcDOxjnMgzIXjhWZcWxzRT9_sFrOXn2oMGZJfUamgWMsa5O0hfvc3mdmdvzVLuVWFa6hsVirDF0zBuyxSajmvYIYMgSX6Vm89aq70BDmi7Pn47w0-qwajY0MowJ2TwxtvdOwB7dXwSQB1B0cOhimwKDO2J-cFt8-g04LW86ptl_igrhpEvrzzBkTLcGuA5xbYahRWuS3dVk87Z1_Fao0sev7g2DoS"/>
+</div>
+<div class="flex flex-col">
+<h1 class="text-lg font-bold leading-tight tracking-tight">Academia Hermida Maia</h1>
+<p class="text-primary text-xs font-medium uppercase tracking-widest">Excelência Jurídica</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="p-2 hover:bg-white/10 rounded-lg transition-colors relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 size-2 bg-primary rounded-full"></span>
+</button>
+<div class="h-8 w-[1px] bg-white/10 mx-1"></div>
+<div class="flex items-center gap-3 pl-2">
+<div class="text-right hidden sm:block">
+<p class="text-xs font-bold">Dr. Ricardo Silva</p>
+<p class="text-[10px] text-primary">Nível 12 • Ouro</p>
+</div>
+<div class="size-10 rounded-full border-2 border-primary overflow-hidden">
+<img alt="Foto de perfil do usuário" class="w-full h-full object-cover" data-alt="Retrato profissional de um advogado sorrindo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCNS9C7hs8Qe6u3DbyquTZmNybld0hBFxjylSyOrUnl4Vvz1y8tS6xgoNd8BI0TPIU-xEln2Wjg88f2pWZ3Bl2EHoB8m9kmqCQSRX-RUk9H2XS9GaUY4y669udIZeThMhY1Az3RJ8TRgghBv4nIbrgJFNYZJK5120ZyymN3oVqke4Nq2Eg_S-CGtV5fv2tFsKDyDvhfmRWESSEXV-tgMbst7cN5vpqJ_RTsZXcPQFd4RxZPXLTrZvZLTGUuh_N6ck6YwSxeiAWj9UCA"/>
+</div>
+</div>
+</div>
+</header>
+<main class="max-w-5xl mx-auto p-4 md:p-8">
+<!-- Title & Filters -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+<div>
+<h2 class="text-3xl md:text-4xl font-black text-emerald-deep dark:text-primary tracking-tight">Ranking da Elite</h2>
+<p class="text-slate-500 dark:text-slate-400 mt-1">Os advogados com maior engajamento e performance técnica.</p>
+</div>
+<div class="flex bg-slate-200 dark:bg-emerald-deep/50 p-1 rounded-xl">
+<button class="px-6 py-2 bg-white dark:bg-primary text-emerald-deep font-bold rounded-lg shadow-sm text-sm">Semanal</button>
+<button class="px-6 py-2 text-slate-600 dark:text-slate-300 font-semibold text-sm hover:text-emerald-deep">Mensal</button>
+<button class="px-6 py-2 text-slate-600 dark:text-slate-300 font-semibold text-sm hover:text-emerald-deep">Geral</button>
+</div>
+</div>
+<!-- Podium Section -->
+<div class="grid grid-cols-3 items-end gap-2 md:gap-8 mb-16 max-w-3xl mx-auto pt-10">
+<!-- 2nd Place -->
+<div class="flex flex-col items-center">
+<div class="relative mb-4">
+<div class="size-16 md:size-24 rounded-full border-4 border-slate-300 overflow-hidden shadow-xl">
+<img alt="2º lugar" class="w-full h-full object-cover" data-alt="Avatar de mulher profissional em destaque" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAZVv40WxZrvimSXfJW9L3_uJIp8YarcC7agia2T6fLMRdQJzPkRJADtfmXPIJownIf-Lv_ruFf0828jnRscRWiM7YRDjN5A0Ag2ETvojnL5RcsRwd2Raw8nvreyLX_pOe8Mbx0XOEGI8q8tvh65amYjIc_ZDVW75ybtVxPTjqKy8G1u-ny5xszagg5yDi-l75XzD8BP_jhZlhWFlWjElVtm0t3XIip5IlXrm63MG400zC0IuWrUyxQEZxpkWp7-xj_1SMejkkrNBao"/>
+</div>
+<div class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-slate-300 text-emerald-deep size-8 rounded-full flex items-center justify-center font-bold border-4 border-background-light dark:border-background-dark">2</div>
+</div>
+<p class="font-bold text-sm md:text-base text-center truncate w-full">Dra. Beatriz Costa</p>
+<p class="text-primary text-xs font-bold mb-4">12.450 XP</p>
+<div class="podium-2 w-full bg-slate-300/40 dark:bg-slate-300/10 rounded-t-2xl flex items-end justify-center pb-4">
+<span class="material-symbols-outlined text-slate-400 text-4xl opacity-50">workspace_premium</span>
+</div>
+</div>
+<!-- 1st Place -->
+<div class="flex flex-col items-center scale-110 md:scale-125 z-10">
+<div class="relative mb-6">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 animate-bounce">
+<span class="material-symbols-outlined text-yellow-500 text-4xl fill-1">military_tech</span>
+</div>
+<div class="size-20 md:size-28 rounded-full border-4 border-yellow-500 overflow-hidden shadow-[0_0_25px_rgba(250,204,21,0.4)]">
+<img alt="1º lugar" class="w-full h-full object-cover" data-alt="Avatar de homem executivo de sucesso" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9G2j1AJIfzJcsSIkKDfCgh75M_7jqnoVv71va8zNfae50wzsu_UgZuEkLmBxQ4buTJMNbRe6t7MwmE6i5vRzmi_t3SlHPU4vaVXzpWk6mPH6Cjfor4JrdRSrxh9qpM9Zg1uq-Rwgdb7uM7RGBkMSN1Tr9J02LDvf0jYkYY6FGLOCkmqRV7QNOp1aOxz_yg2H2EeuGL8sLuQN1k8lQwe4CjK6NT3-RlAdc_amIjbldBs5JEpGCRjN8WM4Z6S2yhjaEXp2pESY0lkIq"/>
+</div>
+<div class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-yellow-500 text-emerald-deep size-9 rounded-full flex items-center justify-center font-black border-4 border-background-light dark:border-background-dark">1</div>
+</div>
+<p class="font-bold text-base md:text-lg text-center truncate w-full">Dr. Marcos Viana</p>
+<p class="text-primary text-xs font-black mb-4">15.820 XP</p>
+<div class="podium-1 w-full bg-gradient-to-t from-yellow-600/20 to-yellow-500/40 rounded-t-2xl flex items-end justify-center pb-6">
+<span class="material-symbols-outlined text-yellow-600 text-5xl">trophy</span>
+</div>
+</div>
+<!-- 3rd Place -->
+<div class="flex flex-col items-center">
+<div class="relative mb-4">
+<div class="size-16 md:size-24 rounded-full border-4 border-amber-700/50 overflow-hidden shadow-xl">
+<img alt="3º lugar" class="w-full h-full object-cover" data-alt="Avatar de advogada sênior sorrindo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDnXZInZFIW0SnS2mpZy1g-9O1Fdzw7o2jvWXWH8xSGhWiWXhq1LUQtPtXfC1T2sfuofeWD1DURAjJQuv4XnssAl5fl23uIHNcymmJngQujc_3dHppxsxF35w34EwqeOfe8cD3CD8yfXyxC_D7MeTTf76NhTWnZaOvFvXOfQqjdobFg_ANYnMUiHBYsnMagYwo9IAEszbaVWLY6CqIajDS7Bj54eUS8Ktx8UrPCNEkpzLxGbxDln7lzDDt83nVik7SDv9veG-APxLUj"/>
+</div>
+<div class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-amber-700/70 text-white size-8 rounded-full flex items-center justify-center font-bold border-4 border-background-light dark:border-background-dark">3</div>
+</div>
+<p class="font-bold text-sm md:text-base text-center truncate w-full">Dra. Heloísa Lins</p>
+<p class="text-primary text-xs font-bold mb-4">11.900 XP</p>
+<div class="podium-3 w-full bg-amber-700/20 dark:bg-amber-700/10 rounded-t-2xl flex items-end justify-center pb-4">
+<span class="material-symbols-outlined text-amber-700/40 text-4xl opacity-50">stars</span>
+</div>
+</div>
+</div>
+<!-- User Position Highlight -->
+<div class="mb-10">
+<h3 class="text-sm font-bold uppercase tracking-widest text-slate-500 mb-4 px-2">Minha Posição</h3>
+<div class="bg-emerald-deep text-white rounded-2xl p-5 flex items-center justify-between border-l-8 border-primary shadow-lg">
+<div class="flex items-center gap-5">
+<div class="text-2xl font-black text-primary">12º</div>
+<div class="size-12 rounded-full border-2 border-primary/50 overflow-hidden">
+<img alt="Minha foto" class="w-full h-full object-cover" data-alt="Foto de perfil do usuário logado" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCSzl5XixDyHoV0kc5cs9ECNg-KChtzux7rFI5bz0dSLK2w0McSsxi2ZDAF0kWznTvVGTBXGs2DLd5lY0OiBMMaqMap2QEbjGBXOqwcUIJZeUxgApTYmqF9I04jt1ODhrb0NMKcNlD4hDF9Unw2SS4CF0cZLfCO7hF_OPj8fraDs3IcXpVHWtvHEda83l8giEd0TEOqIZoE-2Dvnz8YxFTvfs9teLvydPOJj6Vr_LfgBNiGOzonZdL6bNWDBxw3njOo6riD9iq99GW1"/>
+</div>
+<div>
+<p class="font-bold text-lg">Dr. Ricardo Silva (Você)</p>
+<p class="text-primary/80 text-sm">Bacharel Consciente • Nível 12</p>
+</div>
+</div>
+<div class="text-right">
+<p class="text-2xl font-black">8.420 <span class="text-xs font-normal text-white/60">XP</span></p>
+<p class="text-[10px] uppercase tracking-tighter text-white/50">Faltam 580 XP para o Top 10</p>
+</div>
+</div>
+</div>
+<!-- Full Ranking List -->
+<div class="bg-white dark:bg-emerald-deep/20 rounded-2xl shadow-sm border border-slate-200 dark:border-white/5 overflow-hidden">
+<div class="grid grid-cols-12 gap-4 p-4 border-b border-slate-100 dark:border-white/5 text-[10px] uppercase font-bold tracking-widest text-slate-400">
+<div class="col-span-1 text-center">Pos</div>
+<div class="col-span-5 md:col-span-6 pl-2">Estudante / Cliente</div>
+<div class="col-span-3 md:col-span-3 text-center">Conquistas</div>
+<div class="col-span-3 md:col-span-2 text-right pr-4">Pontuação</div>
+</div>
+<!-- List Item 4 -->
+<div class="grid grid-cols-12 gap-4 p-4 items-center border-b border-slate-50 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+<div class="col-span-1 text-center font-bold text-slate-500">4</div>
+<div class="col-span-5 md:col-span-6 flex items-center gap-3">
+<div class="size-10 rounded-full overflow-hidden hidden sm:block">
+<img alt="Aluno" class="w-full h-full object-cover" data-alt="Retrato de um jovem advogado" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDaEs2iDo98UWvrD5IpQJCgXQ3L6fTumLUnNG8O0OoagUvuTRliKpvT5YpexgsC2eF_CBVIK-O7R8Fj4b0n4Rbxck1O4Wi9WAnHKAkjdlQQ4WqZKM2c22rzggkeK8sjaa_RTU1iNKAghxruuQx-pgLHNl6KJ5NCBZziIXGuYVtQx2N46mlIx_iAgddDccOjcdTRZmkV064xdZNIJqaVgHPQkI4dZk1KYDEpN7bjVllJ8qH9wdq4zAZSJbwfaLbBVi93byFyJfL-_51f"/>
+</div>
+<div>
+<p class="font-bold text-sm">Dr. André Santos</p>
+<p class="text-xs text-slate-500 dark:text-slate-400">Estrategista Jurídico</p>
+</div>
+</div>
+<div class="col-span-3 md:col-span-3 flex justify-center gap-1">
+<span class="material-symbols-outlined text-primary text-xl" title="Mestre de Petições">description</span>
+<span class="material-symbols-outlined text-blue-400 text-xl" title="Assíduo">calendar_month</span>
+<span class="material-symbols-outlined text-yellow-500 text-xl" title="Top Comentarista">forum</span>
+</div>
+<div class="col-span-3 md:col-span-2 text-right pr-4">
+<p class="font-black text-emerald-deep dark:text-primary">10.150 <span class="text-[10px] font-normal">XP</span></p>
+</div>
+</div>
+<!-- List Item 5 -->
+<div class="grid grid-cols-12 gap-4 p-4 items-center border-b border-slate-50 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+<div class="col-span-1 text-center font-bold text-slate-500">5</div>
+<div class="col-span-5 md:col-span-6 flex items-center gap-3">
+<div class="size-10 rounded-full overflow-hidden hidden sm:block">
+<img alt="Aluno" class="w-full h-full object-cover" data-alt="Retrato de uma profissional de óculos" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAKfXH1iPClHx3RYxsslWn48thwrhwenPShfwWI3V_eGEFnWBWhDS7eIL7Y-q7ayyXEpYoXvr7--hM8s_PyJaSbzW5gHpWOOa-M9_W8VR-Sf2RYBmPGDAltPcZo3rIZcdSLCRB6Y1NzEbMALnwIENse6pkHPT3v8TnfZbbqCIaSsGWuRWymU6DZmoQvwJ07_dhrtMJZ9qp7cQNFQjsZyoko0KrZuQND_Vn-0_BjFvOEwwjD9RY4-UyniKKn7hxut1JVORoZTdkzD_5R"/>
+</div>
+<div>
+<p class="font-bold text-sm">Dra. Patrícia Mendes</p>
+<p class="text-xs text-slate-500 dark:text-slate-400">Bacharel Consciente</p>
+</div>
+</div>
+<div class="col-span-3 md:col-span-3 flex justify-center gap-1">
+<span class="material-symbols-outlined text-purple-400 text-xl" title="Pesquisadora">search</span>
+<span class="material-symbols-outlined text-primary text-xl" title="Cursos Completos">school</span>
+</div>
+<div class="col-span-3 md:col-span-2 text-right pr-4">
+<p class="font-black text-emerald-deep dark:text-primary">9.820 <span class="text-[10px] font-normal">XP</span></p>
+</div>
+</div>
+<!-- List Item 6 -->
+<div class="grid grid-cols-12 gap-4 p-4 items-center border-b border-slate-50 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+<div class="col-span-1 text-center font-bold text-slate-500">6</div>
+<div class="col-span-5 md:col-span-6 flex items-center gap-3">
+<div class="size-10 rounded-full overflow-hidden hidden sm:block">
+<img alt="Aluno" class="w-full h-full object-cover" data-alt="Avatar masculino moderno" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAyk8jFUuEKp13R6w8wNGgaFcXZqoYf9TRwDkKiU8P4X_nzvh4uz-QSjYStY82nd3FBU1CtiZmGftFElIk1Ah6wxicYDWDa-MSBviJ0PqMjof4rMx0zfI6uJbGrXC2Zsvkaj5mz3e9Jmh4kDlv46HOiNTAYNNgth4yMSfDN8DPMTPeO89CjsexLZgh6d1V8P0nlBQ-24oL5hAjO1b0cdsQC0R_pfNb6nsifnCHCrb9plj7l9h61Xah02T_l_06mS4XSY1szH4LNEd7x"/>
+</div>
+<div>
+<p class="font-bold text-sm">Dr. Felipe Arantes</p>
+<p class="text-xs text-slate-500 dark:text-slate-400">Iniciante Promissor</p>
+</div>
+</div>
+<div class="col-span-3 md:col-span-3 flex justify-center gap-1">
+<span class="material-symbols-outlined text-orange-400 text-xl" title="Fogo no Prazo">speed</span>
+</div>
+<div class="col-span-3 md:col-span-2 text-right pr-4">
+<p class="font-black text-emerald-deep dark:text-primary">9.300 <span class="text-[10px] font-normal">XP</span></p>
+</div>
+</div>
+<!-- Pagination/Footer -->
+<div class="p-6 flex justify-center">
+<button class="flex items-center gap-2 text-primary font-bold hover:gap-3 transition-all">
+<span>Ver lista completa</span>
+<span class="material-symbols-outlined">arrow_downward</span>
+</button>
+</div>
+</div>
+</main>
+<!-- Footer Mobile Navigation (Optional but helpful for gamification context) -->
+<nav class="fixed bottom-0 left-0 right-0 bg-white dark:bg-emerald-deep border-t border-slate-200 dark:border-white/10 px-6 py-3 flex justify-between md:hidden">
+<button class="flex flex-col items-center gap-1 text-slate-400">
+<span class="material-symbols-outlined">home</span>
+<span class="text-[10px] font-bold">Home</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-primary">
+<span class="material-symbols-outlined fill-1">trophy</span>
+<span class="text-[10px] font-bold">Ranking</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-slate-400">
+<span class="material-symbols-outlined">menu_book</span>
+<span class="text-[10px] font-bold">Cursos</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-slate-400">
+<span class="material-symbols-outlined">ads_click</span>
+<span class="text-[10px] font-bold">Desafios</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-slate-400">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px] font-bold">Perfil</span>
+</button>
+</nav>
+</body></html>

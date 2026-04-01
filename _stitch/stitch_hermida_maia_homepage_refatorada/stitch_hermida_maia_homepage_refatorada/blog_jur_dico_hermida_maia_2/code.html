@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+
+<html lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,100..900;1,100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#11d473",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#102219",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>Blog Hermida Maia - Informação Jurídica</title>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100">
+<div class="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden">
+<div class="layout-container flex h-full grow flex-col">
+<!-- Top Navigation Bar -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-slate-200 dark:border-slate-800 px-10 py-3 bg-white dark:bg-slate-900">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-4 text-slate-900 dark:text-slate-100">
+<div class="size-6 text-primary">
+<span class="material-symbols-outlined text-3xl">gavel</span>
+</div>
+<h2 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight tracking-[-0.015em]">Hermida Maia</h2>
+</div>
+<nav class="hidden md:flex items-center gap-9">
+<a class="text-slate-700 dark:text-slate-300 text-sm font-medium leading-normal hover:text-primary transition-colors" href="#">Início</a>
+<a class="text-slate-700 dark:text-slate-300 text-sm font-medium leading-normal hover:text-primary transition-colors" href="#">Sobre</a>
+<a class="text-primary text-sm font-bold leading-normal" href="#">Blog</a>
+<a class="text-slate-700 dark:text-slate-300 text-sm font-medium leading-normal hover:text-primary transition-colors" href="#">Contato</a>
+</nav>
+</div>
+<div class="flex flex-1 justify-end gap-4 items-center">
+<label class="hidden sm:flex flex-col min-w-40 h-10 max-w-64">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full overflow-hidden">
+<div class="text-slate-500 bg-slate-100 dark:bg-slate-800 flex items-center justify-center pl-4">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 border-none bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-0 placeholder:text-slate-500 px-4 pl-2 text-sm font-normal" placeholder="Pesquisar no blog..." value=""/>
+</div>
+</label>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border-2 border-primary" data-alt="Foto de perfil do advogado responsável" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCZw7Qo-2p6c2H6ph0HrurJruvRguqzSbAVJTu1hQvT-gXdeo4NZ710l5KXccsUUt0QFo2xn9bb3lizmslUAAd3sDYLKnodZhKuzWtEol3RviuLlU_w6-ypSmGw3fu0RzuuiepNkmOvX957ejaVdUyRlC75kuf_xJ0Lo-3CsA-OtlIoCQD6Rtuf3Ys4KsL3IUDBfuPa2IcN82TEsGRbw6eMg0Hz8pUztD0Cavnrx7Vt8DxCxx6xGU9Sot_6LVK14gx2Yf_fxxAfJXPD");'></div>
+</div>
+</header>
+<main class="flex-1 max-w-[1200px] mx-auto w-full px-4 sm:px-10 py-8">
+<!-- Hero Section / Page Title -->
+<div class="flex flex-col gap-4 mb-10">
+<h1 class="text-slate-900 dark:text-slate-100 text-4xl sm:text-5xl font-black leading-tight tracking-[-0.033em]">Blog Hermida Maia</h1>
+<p class="text-slate-600 dark:text-slate-400 text-lg font-normal max-w-2xl">
+                        Informação jurídica de qualidade, atualizada por especialistas para auxiliar em suas decisões estratégicas.
+                    </p>
+</div>
+<!-- Categories Filter -->
+<div class="flex gap-3 mb-10 overflow-x-auto pb-2 no-scrollbar">
+<button class="flex h-10 shrink-0 items-center justify-center gap-x-2 rounded-full bg-primary text-slate-900 px-6 text-sm font-bold shadow-sm">Todas as categorias</button>
+<button class="flex h-10 shrink-0 items-center justify-center gap-x-2 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-6 text-sm font-medium hover:bg-primary/20 transition-colors">
+                        Direito do Consumidor
+                    </button>
+<button class="flex h-10 shrink-0 items-center justify-center gap-x-2 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-6 text-sm font-medium hover:bg-primary/20 transition-colors">
+                        Finanças
+                    </button>
+<button class="flex h-10 shrink-0 items-center justify-center gap-x-2 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-6 text-sm font-medium hover:bg-primary/20 transition-colors">
+                        Legislação
+                    </button>
+<button class="flex h-10 shrink-0 items-center justify-center gap-x-2 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-6 text-sm font-medium hover:bg-primary/20 transition-colors">
+                        Direito Civil
+                    </button>
+</div>
+<!-- Featured Post -->
+<div class="mb-12 @container">
+<div class="group flex flex-col items-stretch justify-start rounded-xl overflow-hidden @3xl:flex-row shadow-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 transition-all hover:shadow-xl">
+<div class="w-full @3xl:w-3/5 bg-center bg-no-repeat aspect-video bg-cover" data-alt="Martelo da justiça sobre mesa de madeira" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAmP6mJnHeie8Dr0wP0pVLt42ZFMGzsbC0FNz8RL-PP1cQd25e15D1BdyKuJvxzZ2F9mNUB_C_PjrlRyCj5A7xytzHQ_stpJ-eipj0k2I9yGYquvnEv54fK-uSDzHKYyjE5W0_125zBgCAvypb_Sph-2zQTFmG_TnWCuJ6NjSxbMknzKxGxazhPhamkUAiyqFim61A1zlkLS3HOkAx24gNKxjOSlAPSByc17tv8LIisiGzFxNkrvgeX2aRAXkB4GtY-HVovYmt7CvlP");'></div>
+<div class="flex w-full @3xl:w-2/5 flex-col items-stretch justify-center gap-4 p-8">
+<span class="text-primary text-sm font-bold uppercase tracking-wider">Destaque • Direito do Consumidor</span>
+<h3 class="text-slate-900 dark:text-slate-100 text-2xl font-bold leading-tight">Principais mudanças na Legislação Consumerista em 2024</h3>
+<p class="text-slate-600 dark:text-slate-400 text-base font-normal">
+                                Entenda como as novas normas impactam diretamente a relação entre empresas e clientes finais no mercado digital.
+                            </p>
+<div class="flex items-center gap-4 mt-2">
+<div class="size-8 rounded-full bg-slate-200" data-alt="Avatar do autor" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDQMdHm46q40ARTRUU0PZw0UeBdwBvZvfkMta1YUjqOJMzXWqfwG4259jY3BB1_mHVj28rsrIaK5s8DXbR51Kh3d26GYtqWD2SbTKpyG0cx1qth4hJtfM6vy62GiH4NfGrqdfkDnitKc1BDpsBjtGm7jq-LyU9Ybz7xyY68HgZhoZocPfM3sTmThNsOD_6Vq241JiIqCD2CI502ieowQ-SsItE5QcW6kAfwsq4YVGpHK-bfv1HS4ETJ5bWy9McyYaqjMm-hYDxBvgxk'); background-size: cover;"></div>
+<div class="text-xs">
+<p class="font-bold text-slate-900 dark:text-slate-100">Dr. Ricardo Maia</p>
+<p class="text-slate-500">15 Jan 2024 • 8 min leitura</p>
+</div>
+</div>
+<a class="mt-4 flex w-full items-center justify-center rounded-lg h-12 bg-primary text-slate-900 text-sm font-bold hover:brightness-110 transition-all" href="#">Ler artigo na íntegra</a>
+</div>
+</div>
+</div>
+<!-- Articles Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+<!-- Card 1 -->
+<div class="flex flex-col rounded-xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 transition-all hover:-translate-y-1 hover:shadow-lg">
+<div class="h-48 w-full bg-center bg-no-repeat bg-cover" data-alt="Pessoa analisando planilhas financeiras" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDA5F9dM0TR-UhjfI1kNVZT5KZyPoGNdyK4TThoVVQg0OYBAPx3-yVNHOYCBbheWVHp-SmFgMERHEOT-7F_bex_YiAuLUlPEvH_6fkg8BqltaIem84xd-HrMTVq0WUFRFiJ7fAuhkP2gL-uQSksS-AgYSu5D3gmwrUD74GOAwwZyD8rtce3wumRbdbMQY8ZT-Z4Qe0mfC4yoDEH6y_vL8VC_X3oinaKllCztAaNe5d6wLIUtlCBUHXvhCJQ2hHjRWEtl_yhAkpbZb-g");'></div>
+<div class="flex flex-1 flex-col p-6 gap-3">
+<span class="text-primary text-xs font-bold uppercase">Finanças</span>
+<h4 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight">Planejamento Financeiro e Sucessório: Por onde começar?</h4>
+<p class="text-slate-600 dark:text-slate-400 text-sm line-clamp-3">
+                                Guia prático sobre como organizar suas finanças e proteger seu patrimônio familiar através de holdings e testamentos.
+                            </p>
+<div class="mt-auto pt-4 flex items-center justify-between">
+<span class="text-slate-400 text-xs italic">12 Jan 2024</span>
+<a class="text-primary text-sm font-bold flex items-center gap-1 hover:underline" href="#">Continuar lendo <span class="material-symbols-outlined text-sm">arrow_forward</span></a>
+</div>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="flex flex-col rounded-xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 transition-all hover:-translate-y-1 hover:shadow-lg">
+<div class="h-48 w-full bg-center bg-no-repeat bg-cover" data-alt="Livros de direito e balança da justiça" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCqJVwMXSYN9Tc1cn7D8SukwvJyHWfI4RPci80KQdQYVE0qA6b1qkJj5tSxBNhXwh2l6hrtTyVdGMHI5s0Gk5h8GfqC-8UCNZWWM2a0WPZfgj_ExOBXjkHY7cNzF2OrZKCpBpWwuELlMieWqJkwxJVbcLLgIahFgvmJ20mRnqsgYoxgC4ua1lOFgnDhF8tu1VdPPsw3w3SHM9Iu-so0TqYsw1AWhThuSS5g-YIkGUnMTQsNk15qdMXAJWjl6J3XI6bJrmdEml08BjEz");'></div>
+<div class="flex flex-1 flex-col p-6 gap-3">
+<span class="text-primary text-xs font-bold uppercase">Legislação</span>
+<h4 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight">Atualizações na Lei Geral de Proteção de Dados (LGPD)</h4>
+<p class="text-slate-600 dark:text-slate-400 text-sm line-clamp-3">
+                                O que mudou na fiscalização de dados pessoais e como sua empresa deve se adequar para evitar multas pesadas.
+                            </p>
+<div class="mt-auto pt-4 flex items-center justify-between">
+<span class="text-slate-400 text-xs italic">08 Jan 2024</span>
+<a class="text-primary text-sm font-bold flex items-center gap-1 hover:underline" href="#">Continuar lendo <span class="material-symbols-outlined text-sm">arrow_forward</span></a>
+</div>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="flex flex-col rounded-xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 transition-all hover:-translate-y-1 hover:shadow-lg">
+<div class="h-48 w-full bg-center bg-no-repeat bg-cover" data-alt="Aperto de mãos simbolizando acordo comercial" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuD8ufaPRlYk0BNSY5QV1l-wjF5faz5xYhVnIda9eSob-lKD1W8K8o7D4TlPlvBXQSfEAPQ0CyKSyXEoX69oXH5LbEBIQ3RwCVOkTw_zxbdlaWNZ3umltW9xJCT55BuhMuday5KUUF7MdYA-BwqyjnxMmjIzsVQmgFVgM1vT5tttMxE3aynM3QEXGgoxIIPdh7SFISWYZzcpyaNt4cmEPQz5vHWRVUMGnrDCZlQnG3bAf1-NX6R7vp32BHQB8AaciGWzOTN9NkIAtdLi");'></div>
+<div class="flex flex-1 flex-col p-6 gap-3">
+<span class="text-primary text-xs font-bold uppercase">Direito Civil</span>
+<h4 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight">Contratos Inteligentes: A validade jurídica no Brasil</h4>
+<p class="text-slate-600 dark:text-slate-400 text-sm line-clamp-3">
+                                Uma análise profunda sobre o uso de blockchain para execução de contratos e sua aceitação nos tribunais brasileiros.
+                            </p>
+<div class="mt-auto pt-4 flex items-center justify-between">
+<span class="text-slate-400 text-xs italic">05 Jan 2024</span>
+<a class="text-primary text-sm font-bold flex items-center gap-1 hover:underline" href="#">Continuar lendo <span class="material-symbols-outlined text-sm">arrow_forward</span></a>
+</div>
+</div>
+</div>
+<!-- Card 4 -->
+<div class="flex flex-col rounded-xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 transition-all hover:-translate-y-1 hover:shadow-lg">
+<div class="h-48 w-full bg-center bg-no-repeat bg-cover" data-alt="Ambiente corporativo de trabalho" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBLL5ApqRQQ-b2WUITfEyVf9XtHQLPP_u3vmD_jyjhyyMJlxsV6c7Q_bZQslb1aErG3UfFzdNB5oqaqyU5ErI4AOXome8cgmrfwiOrUyR4AJxjRjICfmyXLkEXTqOyFbp4z6X7iinyFEXto4yjTqiDghAuMHw6BdmH3U9RfDam76ZAHuvvIQ1KPjlmN7bie-W9jFVIG2sjNjuF7ERARa89rLWKx3KwS-i6nTJkFiC35MPAH4a5JLS68550MuCsQCXRFEQz3_EiUIDwU");'></div>
+<div class="flex flex-1 flex-col p-6 gap-3">
+<span class="text-primary text-xs font-bold uppercase">Empresarial</span>
+<h4 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight">Recuperação Judicial: Quando é a melhor estratégia?</h4>
+<p class="text-slate-600 dark:text-slate-400 text-sm line-clamp-3">
+                                Entenda os critérios para protocolar um pedido de recuperação judicial e como salvar sua empresa em momentos de crise.
+                            </p>
+<div class="mt-auto pt-4 flex items-center justify-between">
+<span class="text-slate-400 text-xs italic">02 Jan 2024</span>
+<a class="text-primary text-sm font-bold flex items-center gap-1 hover:underline" href="#">Continuar lendo <span class="material-symbols-outlined text-sm">arrow_forward</span></a>
+</div>
+</div>
+</div>
+<!-- Card 5 -->
+<div class="flex flex-col rounded-xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 transition-all hover:-translate-y-1 hover:shadow-lg">
+<div class="h-48 w-full bg-center bg-no-repeat bg-cover" data-alt="Imagem abstrata de rede de conexões" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAF6-bH5YREudv8m8_uraXkAEcn68R97rQbXQbUr_6J--8ag1ssah-qRcZdsvMu4XKLSIYhVYE1tjOacLOWwMh_l7gBMcroOeKaZ6cUQGBW-2Gve77ejiECSevfgHnCdIthb_UTB5xYt6DZWKVNhn4HokWRWZCtvRA28gQ_jmPGy8qSClnGg8INMHAplim4rvpr-EaxROsj0wIdRAdbY8F2UAPXXnxp8H1yUjB8pekjMltWxfuMC2TxudUddtb4rrGdv7wGy9yoZijj");'></div>
+<div class="flex flex-1 flex-col p-6 gap-3">
+<span class="text-primary text-xs font-bold uppercase">Finanças</span>
+<h4 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight">Criptoativos e IRPF: O que você precisa saber</h4>
+<p class="text-slate-600 dark:text-slate-400 text-sm line-clamp-3">
+                                Esclareça suas dúvidas sobre a declaração de Bitcoin e outras criptomoedas no Imposto de Renda deste ano.
+                            </p>
+<div class="mt-auto pt-4 flex items-center justify-between">
+<span class="text-slate-400 text-xs italic">28 Dez 2023</span>
+<a class="text-primary text-sm font-bold flex items-center gap-1 hover:underline" href="#">Continuar lendo <span class="material-symbols-outlined text-sm">arrow_forward</span></a>
+</div>
+</div>
+</div>
+<!-- Card 6 -->
+<div class="flex flex-col rounded-xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 transition-all hover:-translate-y-1 hover:shadow-lg">
+<div class="h-48 w-full bg-center bg-no-repeat bg-cover" data-alt="Pessoas em reunião amigável" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBWUE_2wUJJHGyBHNxYJFPqKOPICejvHCVFA_mInxpIexLK1Fc5JOFLE1wYH--ujTFL5E6b1t9gqiOsbDrZCZgFaEnuBS7lCV9-lNBcBKDGNfMNjH-e_6aWg8kQHu-LLf_3t4-5wXjasxu8YKlSZREsUjMrQAkP3WkBNL3FHQA7gn-AQ47UH3Nl3FPb993f8kRhZTMuU0JpnSwO8dEx9kA9fRW_hQwLhc3M8qB6c9AHm0femSune1XNBbsuOSDxZnlAwqwibFN8zTa-");'></div>
+<div class="flex flex-1 flex-col p-6 gap-3">
+<span class="text-primary text-xs font-bold uppercase">Direito do Consumidor</span>
+<h4 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight">Atraso em Voos: Seus direitos e como reclamar</h4>
+<p class="text-slate-600 dark:text-slate-400 text-sm line-clamp-3">
+                                Saiba quais são as obrigações das companhias aéreas em caso de atrasos superiores a 4 horas e cancelamentos.
+                            </p>
+<div class="mt-auto pt-4 flex items-center justify-between">
+<span class="text-slate-400 text-xs italic">20 Dez 2023</span>
+<a class="text-primary text-sm font-bold flex items-center gap-1 hover:underline" href="#">Continuar lendo <span class="material-symbols-outlined text-sm">arrow_forward</span></a>
+</div>
+</div>
+</div>
+</div>
+<!-- Pagination -->
+<div class="flex justify-center items-center gap-2 mt-16">
+<button class="size-10 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<button class="size-10 flex items-center justify-center rounded-lg bg-primary text-slate-900 font-bold">1</button>
+<button class="size-10 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800">2</button>
+<button class="size-10 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800">3</button>
+<span class="px-2">...</span>
+<button class="size-10 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800">12</button>
+<button class="size-10 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+<!-- Newsletter Section -->
+<div class="mt-20 p-8 sm:p-12 rounded-2xl bg-slate-900 dark:bg-slate-800 text-white relative overflow-hidden">
+<div class="relative z-10 flex flex-col md:flex-row items-center gap-8">
+<div class="flex-1 text-center md:text-left">
+<h3 class="text-2xl sm:text-3xl font-bold mb-4">Fique por dentro das novidades</h3>
+<p class="text-slate-300">Inscreva-se na nossa newsletter e receba as notícias jurídicas mais importantes diretamente no seu e-mail.</p>
+</div>
+<div class="w-full md:w-auto flex flex-col sm:flex-row gap-3">
+<input class="flex-1 min-w-[280px] h-12 rounded-lg border-none bg-slate-800 dark:bg-slate-700 text-white placeholder:text-slate-400 px-4 focus:ring-2 focus:ring-primary" placeholder="Seu melhor e-mail" type="email"/>
+<button class="h-12 px-8 rounded-lg bg-primary text-slate-900 font-bold hover:brightness-110 transition-all whitespace-nowrap">Cadastrar e-mail</button>
+</div>
+</div>
+<!-- Abstract Background Pattern -->
+<div class="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full -mr-24 -mt-24 blur-3xl"></div>
+<div class="absolute bottom-0 left-0 w-32 h-32 bg-primary/20 rounded-full -ml-12 -mb-12 blur-2xl"></div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-12 px-10">
+<div class="max-w-[1200px] mx-auto grid grid-cols-1 md:grid-cols-4 gap-12">
+<div class="col-span-1 md:col-span-2">
+<div class="flex items-center gap-4 text-slate-900 dark:text-slate-100 mb-6">
+<div class="size-6 text-primary">
+<span class="material-symbols-outlined text-3xl">gavel</span>
+</div>
+<h2 class="text-lg font-bold">Hermida Maia</h2>
+</div>
+<p class="text-slate-600 dark:text-slate-400 max-w-sm">
+                            Escritório especializado em consultoria jurídica estratégica, com foco em resultados sólidos e atendimento personalizado.
+                        </p>
+</div>
+<div>
+<h4 class="font-bold mb-6">Links Úteis</h4>
+<ul class="flex flex-col gap-4 text-sm text-slate-600 dark:text-slate-400"><li class="flex items-center gap-2"><span class="material-symbols-outlined text-primary text-lg">call</span> (11) 4002-8922</li><li class="flex items-center gap-2"><span class="material-symbols-outlined text-primary text-lg">mail</span> contato@hermidamaia.com.br</li><li class="flex items-center gap-2"><span class="material-symbols-outlined text-primary text-lg">location_on</span> São Paulo, SP</li></ul>
+</div>
+<div>
+<h4 class="font-bold mb-6">Contato</h4>
+<ul class="flex flex-col gap-4 text-sm text-slate-600 dark:text-slate-400"><li class="flex items-center gap-2"><span class="material-symbols-outlined text-primary text-lg">call</span> (11) 4002-8922</li><li class="flex items-center gap-2"><span class="material-symbols-outlined text-primary text-lg">mail</span> contato@hermidamaia.com.br</li><li class="flex items-center gap-2"><span class="material-symbols-outlined text-primary text-lg">location_on</span> São Paulo, SP</li></ul>
+</div>
+</div>
+<div class="max-w-[1200px] mx-auto mt-12 pt-8 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-slate-500">
+<p>© 2024 Hermida Maia Advogados Associados. Todos os direitos reservados.</p>
+<div class="flex gap-6">
+<a class="hover:text-primary" href="#">LinkedIn</a>
+<a class="hover:text-primary" href="#">Instagram</a>
+<a class="hover:text-primary" href="#">Facebook</a>
+</div>
+</div>
+</footer>
+</div>
+</div>
+</body></html>

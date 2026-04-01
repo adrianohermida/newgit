@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+
+<html lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#11d473",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#102219",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>Hermida Maia - Recarga de Créditos</title>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="flex h-screen overflow-hidden">
+<!-- Sidebar -->
+<aside class="w-64 flex-shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col">
+<div class="p-6 flex items-center gap-3">
+<img alt="Logo Hermida Maia Portal Jurídico" class="h-10 w-auto" data-alt="Official Hermida Maia legal portal logo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDin0GtETQqP9MshylAECtvrcjcsUHQ2-w3NKmgnfvF8awhpnA6abUIy2tTcIJdGMRJhkOQyh4sW8A0bVIF_iPBYlq7r8zK19GYOoMk9198g_Pp4aBnwnjCg_inrc6twbBzisf9pWp1zK2qeWMKdU2H8ZuNoEwU3dpcZ994QuwlFaGcA6yr582Ta8AeNhutg6oOFeMqrz2cLynsXDiEpl_BBJKxXKieqOzPB_hr3c6_kWcrTCL7TscTki0mxXvROhOlfbAQt_lzxrZH"/>
+<div class="flex flex-col">
+<span class="text-sm font-bold tracking-tight text-slate-900 dark:text-white uppercase">Hermida Maia</span>
+<span class="text-[10px] text-primary font-semibold uppercase tracking-widest">Portal Jurídico</span>
+</div>
+</div>
+<nav class="flex-1 px-4 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined text-[22px]">dashboard</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined text-[22px]">balance</span>
+<span class="text-sm font-medium">Processos</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 bg-primary/10 text-primary rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined text-[22px]">account_balance_wallet</span>
+<span class="text-sm font-bold">Recarga de Créditos</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined text-[22px]">history</span>
+<span class="text-sm font-medium">Histórico Financeiro</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined text-[22px]">settings</span>
+<span class="text-sm font-medium">Configurações</span>
+</a>
+</nav>
+<div class="p-4 mt-auto border-t border-slate-200 dark:border-slate-800">
+<button class="w-full flex items-center justify-center gap-2 bg-primary text-slate-900 font-bold py-3 rounded-lg hover:brightness-110 transition-all text-sm">
+<span class="material-symbols-outlined text-lg">support_agent</span>
+                    Falar com Consultor
+                </button>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col overflow-y-auto">
+<!-- Header -->
+<header class="h-16 flex-shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 sticky top-0 z-10">
+<div class="flex items-center gap-2">
+<h1 class="text-lg font-bold text-slate-900 dark:text-white">Recarga de Créditos</h1>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-4 border-r border-slate-200 dark:border-slate-800 pr-6">
+<button class="relative text-slate-500 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-0 right-0 h-2 w-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
+</button>
+<button class="text-slate-500 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">help</span>
+</button>
+</div>
+<div class="flex items-center gap-3">
+<div class="text-right hidden sm:block">
+<p class="text-xs font-bold text-slate-900 dark:text-white">Dr. Ricardo Hermida</p>
+<p class="text-[10px] text-slate-500 font-medium uppercase tracking-wider">OAB/SP 123.456</p>
+</div>
+<div class="h-10 w-10 rounded-full bg-slate-200 border-2 border-primary overflow-hidden">
+<div class="w-full h-full bg-cover bg-center" data-alt="User profile avatar placeholder" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCNGspWm9wyqr1b7_YzlWuLl8lLyqoGy_fOwfrSqa1iBFYEnbUgplQDAHm1Y8CsUUeUs02NpGOCYYGJXjP1ZFydgbhQrtgKuNjV5lFqpa0GiD7v1tMbwsZ5jZxpVKY8oHDVtDKEv3rtBilDPuOitHB9X5TGhNdry88YnEng6QpbvyevOXGTw1M-pJOULc8wzNdx0lTxcxY_Ow4yU91jPMoiU4-0yNhU3gjW8kuLbsFYkfqjz-Ic0m67HPf024_lx8b5JH27kiT8zY0p')"></div>
+</div>
+</div>
+</div>
+</header>
+<div class="p-8 max-w-7xl mx-auto w-full">
+<!-- Balance & Summary Banner -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+<div class="lg:col-span-1 bg-primary/10 border border-primary/20 p-6 rounded-xl flex flex-col justify-between">
+<div>
+<p class="text-sm font-semibold text-primary uppercase tracking-wider mb-1">Saldo Atual</p>
+<h2 class="text-4xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+<span class="text-2xl font-bold opacity-60">R$</span> 1.250,00
+                            </h2>
+</div>
+<div class="mt-4 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-sm">schedule</span>
+                            Última recarga em 15/10/2023
+                        </div>
+</div>
+<div class="lg:col-span-2 bg-slate-900 text-white p-6 rounded-xl relative overflow-hidden flex flex-col justify-center">
+<div class="relative z-10">
+<h3 class="text-xl font-bold mb-2">Por que utilizar o sistema de créditos?</h3>
+<div class="grid grid-cols-2 gap-4">
+<div class="flex items-start gap-2">
+<span class="material-symbols-outlined text-primary text-lg">bolt</span>
+<p class="text-xs text-slate-300"><span class="font-bold text-white">Agilidade:</span> Liberação instantânea de cópias de processos e consultas de API.</p>
+</div>
+<div class="flex items-start gap-2">
+<span class="material-symbols-outlined text-primary text-lg">savings</span>
+<p class="text-xs text-slate-300"><span class="font-bold text-white">Economia:</span> Pacotes maiores reduzem o custo unitário por consulta.</p>
+</div>
+<div class="flex items-start gap-2">
+<span class="material-symbols-outlined text-primary text-lg">inventory_2</span>
+<p class="text-xs text-slate-300"><span class="font-bold text-white">Centralização:</span> Faturamento único mensal para facilitar sua contabilidade.</p>
+</div>
+<div class="flex items-start gap-2 text-xs text-slate-300">
+<span class="material-symbols-outlined text-primary text-lg">lock</span>
+<p class="text-xs text-slate-300"><span class="font-bold text-white">Segurança:</span> Transações via Gateway Operacional blindado.</p>
+</div>
+</div>
+</div>
+<div class="absolute -right-8 -bottom-8 opacity-10">
+<span class="material-symbols-outlined text-[160px]">shield</span>
+</div>
+</div>
+</div>
+<h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-6">Selecione seu Pacote</h2>
+<!-- Packages Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-12">
+<!-- Essential -->
+<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl flex flex-col hover:border-primary/50 transition-all group">
+<div class="mb-6">
+<h4 class="text-lg font-bold text-slate-900 dark:text-white">Iniciante</h4>
+<p class="text-xs text-slate-500 mb-4">Ideal para pequenos escritórios</p>
+<div class="flex items-baseline gap-1">
+<span class="text-3xl font-black text-slate-900 dark:text-white">R$ 200</span>
+</div>
+<p class="text-xs font-semibold text-primary mt-1">Ganha 200 créditos</p>
+</div>
+<ul class="space-y-3 mb-8 flex-1">
+<li class="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-primary text-lg">check_circle</span>
+                                APIs Jurídicas Básicas
+                            </li>
+<li class="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-primary text-lg">check_circle</span>
+                                Cópias de Processos
+                            </li>
+</ul>
+<button class="w-full py-2.5 px-4 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-sm hover:bg-primary transition-all">Selecionar</button>
+</div>
+<!-- Recommended -->
+<div class="bg-white dark:bg-slate-900 border-2 border-primary p-6 rounded-xl flex flex-col relative shadow-xl shadow-primary/5">
+<div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-slate-900 text-[10px] font-black uppercase px-3 py-1 rounded-full tracking-wider">Mais Popular</div>
+<div class="mb-6">
+<h4 class="text-lg font-bold text-slate-900 dark:text-white">Profissional</h4>
+<p class="text-xs text-slate-500 mb-4">Escala média de processos</p>
+<div class="flex items-baseline gap-1">
+<span class="text-3xl font-black text-slate-900 dark:text-white">R$ 750</span>
+</div>
+<p class="text-xs font-semibold text-primary mt-1">Ganha 850 créditos (+100 Bônus)</p>
+</div>
+<ul class="space-y-3 mb-8 flex-1">
+<li class="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-primary text-lg">check_circle</span>
+                                APIs Premium (IA)
+                            </li>
+<li class="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-primary text-lg">check_circle</span>
+                                Suporte Prioritário
+                            </li>
+<li class="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-primary text-lg">check_circle</span>
+                                Monitoramento Ilimitado
+                            </li>
+</ul>
+<button class="w-full py-2.5 px-4 rounded-lg bg-primary text-slate-900 font-bold text-sm hover:brightness-110 transition-all">Selecionar</button>
+</div>
+<!-- Enterprise -->
+<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl flex flex-col hover:border-primary/50 transition-all group">
+<div class="mb-6">
+<h4 class="text-lg font-bold text-slate-900 dark:text-white">Escritório Plus</h4>
+<p class="text-xs text-slate-500 mb-4">Volume industrial mensal</p>
+<div class="flex items-baseline gap-1">
+<span class="text-3xl font-black text-slate-900 dark:text-white">R$ 1.500</span>
+</div>
+<p class="text-xs font-semibold text-primary mt-1">Ganha 1.800 créditos (+300 Bônus)</p>
+</div>
+<ul class="space-y-3 mb-8 flex-1">
+<li class="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-primary text-lg">check_circle</span>
+                                Customização Total de API
+                            </li>
+<li class="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-primary text-lg">check_circle</span>
+                                Gerente de Conta Dedicado
+                            </li>
+<li class="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-primary text-lg">check_circle</span>
+                                Relatórios Customizados
+                            </li>
+</ul>
+<button class="w-full py-2.5 px-4 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-sm hover:bg-primary transition-all">Selecionar</button>
+</div>
+<!-- Custom -->
+<div class="bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-300 dark:border-slate-700 p-6 rounded-xl flex flex-col items-center justify-center text-center">
+<span class="material-symbols-outlined text-4xl text-slate-400 mb-3">edit_note</span>
+<h4 class="text-lg font-bold text-slate-900 dark:text-white">Valor Customizado</h4>
+<p class="text-xs text-slate-500 mb-6">Precisa de um volume específico? Defina seu valor.</p>
+<div class="w-full mb-6">
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">R$</span>
+<input class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg pl-10 py-2 focus:ring-primary focus:border-primary text-sm font-bold" placeholder="0,00" type="number"/>
+</div>
+</div>
+<button class="w-full py-2.5 px-4 rounded-lg bg-slate-900 dark:bg-slate-700 text-white font-bold text-sm hover:bg-primary transition-all">Continuar</button>
+</div>
+</div>
+<!-- Payment Method Selection -->
+<div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8">
+<div class="flex items-center justify-between mb-8">
+<div>
+<h3 class="text-xl font-bold text-slate-900 dark:text-white">Método de Pagamento</h3>
+<p class="text-sm text-slate-500">Processamento seguro via Gateway Operacional Hermida Maia</p>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">security</span>
+<span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Ambiente Criptografado</span>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<label class="relative cursor-pointer">
+<input checked="" class="peer sr-only" name="payment" type="radio"/>
+<div class="p-4 border-2 border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-900 peer-checked:border-primary peer-checked:bg-primary/5 transition-all flex items-center gap-4">
+<div class="h-10 w-10 bg-white dark:bg-slate-800 rounded-lg flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-slate-700 dark:text-slate-300">payments</span>
+</div>
+<div class="flex-1">
+<p class="text-sm font-bold text-slate-900 dark:text-white">PIX</p>
+<p class="text-[10px] text-primary font-bold">Liberação em 5 segundos</p>
+</div>
+<div class="h-4 w-4 rounded-full border-2 border-slate-300 peer-checked:border-primary flex items-center justify-center">
+<div class="h-2 w-2 rounded-full bg-primary hidden peer-checked:block"></div>
+</div>
+</div>
+</label>
+<label class="relative cursor-pointer">
+<input class="peer sr-only" name="payment" type="radio"/>
+<div class="p-4 border-2 border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-900 peer-checked:border-primary peer-checked:bg-primary/5 transition-all flex items-center gap-4">
+<div class="h-10 w-10 bg-white dark:bg-slate-800 rounded-lg flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-slate-700 dark:text-slate-300">credit_card</span>
+</div>
+<div class="flex-1">
+<p class="text-sm font-bold text-slate-900 dark:text-white">Cartão de Crédito</p>
+<p class="text-[10px] text-slate-500">Até 6x sem juros</p>
+</div>
+<div class="h-4 w-4 rounded-full border-2 border-slate-300 peer-checked:border-primary flex items-center justify-center">
+<div class="h-2 w-2 rounded-full bg-primary hidden peer-checked:block"></div>
+</div>
+</div>
+</label>
+<label class="relative cursor-pointer">
+<input class="peer sr-only" name="payment" type="radio"/>
+<div class="p-4 border-2 border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-900 peer-checked:border-primary peer-checked:bg-primary/5 transition-all flex items-center gap-4">
+<div class="h-10 w-10 bg-white dark:bg-slate-800 rounded-lg flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-slate-700 dark:text-slate-300">receipt</span>
+</div>
+<div class="flex-1">
+<p class="text-sm font-bold text-slate-900 dark:text-white">Boleto Bancário</p>
+<p class="text-[10px] text-slate-500">Compensação em até 48h</p>
+</div>
+<div class="h-4 w-4 rounded-full border-2 border-slate-300 peer-checked:border-primary flex items-center justify-center">
+<div class="h-2 w-2 rounded-full bg-primary hidden peer-checked:block"></div>
+</div>
+</div>
+</label>
+</div>
+<div class="mt-10 flex flex-col md:flex-row items-center justify-between gap-6 pt-8 border-t border-slate-100 dark:border-slate-800">
+<div class="flex items-center gap-4">
+<div class="h-12 w-12 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400">verified_user</span>
+</div>
+<p class="text-xs text-slate-500 max-w-xs leading-relaxed">
+                                Ao prosseguir, você concorda com nossos termos de serviço e política de uso de créditos. Seus dados estão protegidos por criptografia de ponta a ponta.
+                            </p>
+</div>
+<div class="flex items-center gap-8 w-full md:w-auto">
+<div class="text-right">
+<p class="text-xs font-semibold text-slate-500 uppercase tracking-widest">Total a pagar</p>
+<p class="text-3xl font-black text-slate-900 dark:text-white">R$ 750,00</p>
+</div>
+<button class="flex-1 md:flex-none min-w-[240px] bg-primary text-slate-900 font-black py-4 rounded-xl hover:brightness-110 shadow-lg shadow-primary/20 transition-all uppercase tracking-widest text-sm">
+                                Finalizar Recarga
+                            </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer Small -->
+<footer class="mt-auto py-6 px-8 flex justify-between items-center text-[10px] text-slate-400 font-medium uppercase tracking-widest border-t border-slate-200 dark:border-slate-800">
+<p>© 2023 Hermida Maia Portal Jurídico - Todos os direitos reservados</p>
+<div class="flex gap-4">
+<a class="hover:text-primary transition-colors" href="#">Termos de Uso</a>
+<a class="hover:text-primary transition-colors" href="#">Privacidade</a>
+</div>
+</footer>
+</main>
+</div>
+</body></html>

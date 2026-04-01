@@ -111,7 +111,15 @@ async function fetchGatewayDetailed(kind: 'movimentos' | 'classes' | 'assuntos' 
   return await res.json();
 }
 
+function normalizeGatewayItem(payload: any) {
+  if (Array.isArray(payload)) return payload[0] ?? null;
+  if (payload && Array.isArray(payload.data)) return payload.data[0] ?? null;
+  return payload ?? null;
+}
+
 async function upsertGatewayMovimento(payload: any) {
+  payload = normalizeGatewayItem(payload);
+  if (!payload) throw new Error('gateway_payload_empty:movimento');
   const row = {
     codigo_cnj: toNumber(payload.id ?? payload.cod_item),
     codigo_pai_cnj: toNumber(payload.cod_item_pai),
@@ -152,6 +160,8 @@ async function upsertGatewayMovimento(payload: any) {
 }
 
 async function upsertGatewayClasse(payload: any) {
+  payload = normalizeGatewayItem(payload);
+  if (!payload) throw new Error('gateway_payload_empty:classe');
   const row = {
     codigo_cnj: toNumber(payload.cod_item),
     codigo_pai_cnj: toNumber(payload.cod_item_pai),
@@ -181,6 +191,8 @@ async function upsertGatewayClasse(payload: any) {
 }
 
 async function upsertGatewayAssunto(payload: any) {
+  payload = normalizeGatewayItem(payload);
+  if (!payload) throw new Error('gateway_payload_empty:assunto');
   const row = {
     codigo_cnj: toNumber(payload.cod_item),
     nome: payload.nome ?? null,
@@ -207,6 +219,8 @@ async function upsertGatewayAssunto(payload: any) {
 }
 
 async function upsertGatewayDocumento(payload: any) {
+  payload = normalizeGatewayItem(payload);
+  if (!payload) throw new Error('gateway_payload_empty:documento');
   const row = {
     codigo_cnj: toNumber(payload.cod_item),
     nome: payload.nome ?? null,
@@ -232,7 +246,9 @@ async function upsertGatewayDocumento(payload: any) {
 }
 
 async function resolverMovimentoDetalhado(codigoCnj: number) {
-  const payload = await fetchGatewayDetailed('movimentos', codigoCnj);
+  const rawPayload = await fetchGatewayDetailed('movimentos', codigoCnj);
+  const payload = normalizeGatewayItem(rawPayload);
+  if (!payload) throw new Error('gateway_payload_empty:resolver_movimento_detalhado');
   const saved = await upsertGatewayMovimento(payload);
   await registrarLogSync({
     fonte: 'gateway_tpu',

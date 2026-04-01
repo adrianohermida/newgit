@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#11d473",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#102219",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<title>Portal Hermida Maia - Detalhes do Processo</title>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="layout-container flex h-full grow flex-col">
+<!-- Top Navigation -->
+<header class="flex items-center justify-between border-b border-primary/10 bg-white dark:bg-slate-900 px-4 lg:px-20 py-3 sticky top-0 z-50">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3 text-primary">
+<span class="material-symbols-outlined text-3xl">balance</span>
+<h2 class="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-tight">Hermida Maia</h2>
+</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-slate-600 dark:text-slate-400 text-sm font-medium hover:text-primary transition-colors" href="#">Processos</a>
+<a class="text-slate-600 dark:text-slate-400 text-sm font-medium hover:text-primary transition-colors" href="#">Clientes</a>
+<a class="text-slate-600 dark:text-slate-400 text-sm font-medium hover:text-primary transition-colors" href="#">Documentos</a>
+<a class="text-slate-600 dark:text-slate-400 text-sm font-medium hover:text-primary transition-colors" href="#">Relatórios</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="hidden sm:flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg px-3 py-1.5 border border-transparent focus-within:border-primary/50 transition-all">
+<span class="material-symbols-outlined text-slate-400 text-xl">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-48 placeholder:text-slate-400" placeholder="Buscar processo..." type="text"/>
+</div>
+<button class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden border border-primary/20">
+<img class="w-full h-full object-cover" data-alt="Avatar do usuário advogado" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCgw4ntA_0k-CZr2k7Ui6m3ECEsg3q-eP5nxaSmjhakDRDc9uZq3oQPg1LDTQzkhUtbSKKJ2sr0Lg2jbUr5yNEyRkSYGRvGOwUtqM8rmKaV5TDrdwXOwZ0nanp-H-0dAj5_4Jbu5M2-CEnhDKyEGmVVgeDPBMF3oYR8Eauyedjpli0tgrw2TD62_cGa3b76LjAMGbpE-DDDcMsRksuinpAYVag5tZ3wjRVNdOf-UiDr0OxZAaHApQ6JOCrOkBLwlj4BqbntSD0CpkWw"/>
+</div>
+</div>
+</header>
+<main class="px-4 lg:px-20 py-8 max-w-[1440px] mx-auto w-full">
+<!-- Breadcrumbs -->
+<div class="flex items-center gap-2 text-sm text-slate-500 mb-6">
+<a class="hover:text-primary" href="#">Início</a>
+<span class="material-symbols-outlined text-xs">chevron_right</span>
+<a class="hover:text-primary" href="#">Meus Processos</a>
+<span class="material-symbols-outlined text-xs">chevron_right</span>
+<span class="text-slate-900 dark:text-slate-200 font-semibold">Detalhes do Caso</span>
+</div>
+<!-- Case Header Card -->
+<div class="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm mb-8">
+<div class="flex flex-col lg:flex-row justify-between items-start gap-6">
+<div class="space-y-2">
+<div class="flex items-center gap-3">
+<span class="px-2 py-1 rounded bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider">Fase de Instrução</span>
+<span class="text-slate-400 text-sm">Lei 14.181/2021 (Superendividamento)</span>
+</div>
+<h1 class="text-2xl lg:text-3xl font-black text-slate-900 dark:text-white tracking-tight">Processo NPU: 1024567-89.2023.8.26.0100</h1>
+<p class="text-slate-500 flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">account_balance</span>
+                            2ª Vara Cível da Comarca de São Paulo - Foro Central Cível
+                        </p>
+</div>
+<div class="flex flex-wrap gap-3">
+<button class="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white font-bold text-sm hover:brightness-110 transition-all shadow-md shadow-primary/20">
+<span class="material-symbols-outlined text-lg">chat_bubble</span> Falar com Advogado
+                        </button>
+<button class="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-sm hover:bg-slate-200 transition-all">
+<span class="material-symbols-outlined text-lg">download</span> Baixar PDF
+                        </button>
+</div>
+</div>
+<!-- AI Status Summary Card -->
+<div class="mt-8 p-5 bg-primary/5 border border-primary/20 rounded-xl flex gap-4">
+<div class="p-3 bg-primary/20 rounded-lg h-fit">
+<span class="material-symbols-outlined text-primary text-2xl">auto_awesome</span>
+</div>
+<div>
+<h3 class="text-primary font-bold text-base mb-1">Resumo da IA: Status Atual</h3>
+<p class="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">
+                            O processo encontra-se na fase onde o juiz analisa as provas apresentadas. O banco apresentou a defesa (contestação) e agora estamos aguardando o agendamento da audiência de conciliação obrigatória prevista na Lei do Superendividamento para repactuação das dívidas.
+                        </p>
+</div>
+</div>
+<!-- Progress Bar -->
+<div class="mt-10">
+<div class="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 px-1">
+<span>CEJUSC / PROCON</span>
+<span class="text-primary">Judicial (Instrução)</span>
+<span>Sentença / Acordo</span>
+<span>Repactuação Final</span>
+</div>
+<div class="relative h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+<div class="absolute top-0 left-0 h-full bg-primary rounded-full" style="width: 45%;"></div>
+<div class="absolute top-0 left-[45%] h-full w-1 bg-white/50"></div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Main Content: AI Timeline -->
+<div class="lg:col-span-2 space-y-6">
+<div class="flex items-center justify-between mb-4">
+<h2 class="text-xl font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">timeline</span> Linha do Tempo IA
+                        </h2>
+<button class="text-sm font-semibold text-primary flex items-center gap-1 hover:underline">
+                            Ver original no TJSP <span class="material-symbols-outlined text-sm">open_in_new</span>
+</button>
+</div>
+<!-- Timeline Feed -->
+<div class="relative space-y-8 before:absolute before:left-[19px] before:top-4 before:h-[calc(100%-16px)] before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
+<!-- Timeline Item 1 -->
+<div class="relative pl-12 group">
+<div class="absolute left-0 top-1 size-10 rounded-full bg-primary flex items-center justify-center text-white ring-4 ring-background-light dark:ring-background-dark z-10 shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined">gavel</span>
+</div>
+<div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all hover:border-primary/30">
+<div class="flex justify-between items-start mb-3">
+<span class="text-xs font-bold text-slate-400">15 OUT 2023 - 14:30</span>
+<span class="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Decisão Judicial</span>
+</div>
+<div class="mb-4">
+<h4 class="text-sm font-semibold text-slate-500 uppercase mb-1">Movimentação no Tribunal:</h4>
+<p class="text-sm italic text-slate-600 dark:text-slate-400">"Vistos. Deferida a gratuidade de justiça. Designe-se audiência nos termos do Art. 104-A do CDC."</p>
+</div>
+<div class="bg-primary/5 rounded-lg p-4 border-l-4 border-primary">
+<h4 class="text-xs font-black text-primary uppercase mb-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">auto_awesome</span> IA Explica
+                                    </h4>
+<p class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                                        O juiz aceitou seu pedido para não pagar as custas do processo (Gratuidade) e mandou marcar a data para a reunião de negociação com todos os seus credores de uma só vez.
+                                    </p>
+</div>
+<div class="mt-4 flex gap-3">
+<button class="text-xs font-bold text-slate-500 flex items-center gap-1 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-base">description</span> Ver Despacho
+                                    </button>
+</div>
+</div>
+</div>
+<!-- Timeline Item 2 -->
+<div class="relative pl-12 group">
+<div class="absolute left-0 top-1 size-10 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-500 ring-4 ring-background-light dark:ring-background-dark z-10 shadow-sm">
+<span class="material-symbols-outlined">upload_file</span>
+</div>
+<div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all hover:border-primary/30">
+<div class="flex justify-between items-start mb-3">
+<span class="text-xs font-bold text-slate-400">10 OUT 2023 - 09:15</span>
+<span class="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Petição Inicial</span>
+</div>
+<div class="mb-4">
+<h4 class="text-sm font-semibold text-slate-500 uppercase mb-1">Movimentação no Tribunal:</h4>
+<p class="text-sm italic text-slate-600 dark:text-slate-400">"Protocolada Petição Inicial de Superendividamento c/c pedido de tutela antecipada."</p>
+</div>
+<div class="bg-primary/5 rounded-lg p-4 border-l-4 border-primary">
+<h4 class="text-xs font-black text-primary uppercase mb-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">auto_awesome</span> IA Explica
+                                    </h4>
+<p class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                                        Nós demos entrada oficialmente no seu processo pedindo ao juiz que limitem os descontos no seu salário para que você consiga pagar suas contas básicas.
+                                    </p>
+</div>
+</div>
+</div>
+<!-- Timeline Item 3 -->
+<div class="relative pl-12 group opacity-60">
+<div class="absolute left-0 top-1 size-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 ring-4 ring-background-light dark:ring-background-dark z-10">
+<span class="material-symbols-outlined">history</span>
+</div>
+<div class="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+<span class="text-xs font-bold text-slate-400">02 OUT 2023</span>
+<p class="text-sm text-slate-500 mt-1">Fase Pré-Processual: Tentativa de conciliação administrativa via Procon concluída sem êxito.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Side Panel -->
+<div class="space-y-6">
+<!-- Quick Info Card -->
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+<div class="bg-slate-50 dark:bg-slate-800/50 px-5 py-3 border-b border-slate-200 dark:border-slate-800">
+<h3 class="font-bold text-sm uppercase tracking-wider text-slate-500">Dados do Caso</h3>
+</div>
+<div class="p-5 space-y-4">
+<div>
+<label class="text-[10px] font-bold text-slate-400 uppercase">Partes</label>
+<div class="flex flex-col gap-1 mt-1">
+<p class="text-sm font-semibold flex items-center gap-2"><span class="material-symbols-outlined text-sm text-primary">person</span> Maria Silva (Autora)</p>
+<p class="text-sm font-semibold flex items-center gap-2"><span class="material-symbols-outlined text-sm text-red-400">business</span> Banco Itaú S/A (Réu)</p>
+</div>
+</div>
+<div>
+<label class="text-[10px] font-bold text-slate-400 uppercase">Valor da Causa</label>
+<p class="text-lg font-black text-slate-900 dark:text-white mt-0.5">R$ 145.280,00</p>
+</div>
+<div>
+<label class="text-[10px] font-bold text-slate-400 uppercase">Advogado Responsável</label>
+<div class="flex items-center gap-2 mt-1">
+<div class="size-6 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Foto do advogado responsável" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBjidMgegn5iHN95qwz_GNX8Ih-LYGyJEoGHzyh_A3MtUvZO9qdi93_AkUGbr058R2gxvpirrGbiH9BgaxY9mCZ9qUGmg37xW1LHmD5zrWULXyqtjukZVTlCFRbLkvGFb8GIb1QGBAnCPrIRNQAgtpO9_M0xo2pClJCQk3Uf_K74NXoFRGKFEagrpiG4R2KJTGYiaUAslalDhEP4Hu1mVz8XbkCkhN-n8bY1pPI4eDl7CUor9TfJvT4QSTqizo4LpIBWOHPwlu0_0Iy"/>
+</div>
+<p class="text-sm font-medium">Dr. Henrique Maia</p>
+</div>
+</div>
+</div>
+</div>
+<!-- AI Prediction Card -->
+<div class="bg-slate-900 text-white rounded-xl p-5 shadow-xl relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-6xl">query_stats</span>
+</div>
+<h3 class="text-primary font-bold text-xs uppercase tracking-widest mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">psychology</span> Predição IA Hermida
+                        </h3>
+<p class="text-sm font-bold mb-1">Próximo passo provável:</p>
+<p class="text-xl font-black text-white leading-tight mb-4">Agendamento de Audiência de Conciliação</p>
+<div class="flex items-center gap-2 mb-4">
+<div class="h-1.5 w-full bg-white/20 rounded-full overflow-hidden">
+<div class="h-full bg-primary" style="width: 82%;"></div>
+</div>
+<span class="text-xs font-bold text-primary">82%</span>
+</div>
+<p class="text-[11px] text-slate-400 leading-relaxed italic">
+                            Com base em 1.420 casos similares nesta vara, a decisão deve ocorrer nos próximos 12-18 dias.
+                        </p>
+</div>
+<!-- Actions -->
+<div class="space-y-3">
+<button class="w-full flex items-center justify-between px-5 py-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-primary transition-all group shadow-sm">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary">upload_file</span>
+<span class="text-sm font-bold text-slate-700 dark:text-slate-200">Enviar Comprovante</span>
+</div>
+<span class="material-symbols-outlined text-slate-300">chevron_right</span>
+</button>
+<button class="w-full flex items-center justify-between px-5 py-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-primary transition-all group shadow-sm">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-primary">schedule</span>
+<span class="text-sm font-bold text-slate-700 dark:text-slate-200">Ver Agenda do Caso</span>
+</div>
+<span class="material-symbols-outlined text-slate-300">chevron_right</span>
+</button>
+</div>
+<!-- Quick Support -->
+<div class="p-6 rounded-xl bg-gradient-to-br from-primary/10 to-primary/20 border border-primary/20 text-center">
+<span class="material-symbols-outlined text-primary text-4xl mb-3">help</span>
+<h4 class="font-bold text-slate-900 dark:text-white mb-2">Dúvidas sobre o status?</h4>
+<p class="text-xs text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">Nossa equipe está disponível via chat para explicar qualquer detalhe técnico.</p>
+<button class="w-full py-2 bg-white dark:bg-slate-800 text-primary font-bold text-sm rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                            Iniciar Chat Online
+                        </button>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="mt-auto py-10 px-4 lg:px-20 border-t border-slate-200 dark:border-slate-800 flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="flex items-center gap-3 text-slate-400">
+<span class="material-symbols-outlined">balance</span>
+<span class="text-sm font-medium">© 2024 Hermida Maia Sociedade de Advogados. Todos os direitos reservados.</span>
+</div>
+<div class="flex gap-6 text-sm text-slate-500 font-medium">
+<a class="hover:text-primary" href="#">Privacidade</a>
+<a class="hover:text-primary" href="#">Termos de Uso</a>
+<a class="hover:text-primary" href="#">Ajuda</a>
+</div>
+</footer>
+</div>
+</body></html>

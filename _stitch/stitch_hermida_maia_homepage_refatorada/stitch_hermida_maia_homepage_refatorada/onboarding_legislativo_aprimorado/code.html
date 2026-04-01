@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#11d473",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#102219",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>Hermida Maia - Onboarding de Superendividamento</title>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden">
+<div class="layout-container flex h-full grow flex-col">
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-primary/10 px-6 py-3 bg-white dark:bg-background-dark/50">
+<div class="flex items-center gap-4 text-slate-900 dark:text-slate-100">
+<div class="size-8 text-primary">
+<span class="material-symbols-outlined text-4xl">gavel</span>
+</div>
+<h2 class="text-lg font-bold leading-tight tracking-tight">Hermida Maia</h2>
+</div>
+<div class="flex flex-1 justify-end gap-8 items-center">
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Dashboard</a>
+<a class="text-sm font-medium hover:text-primary transition-colors border-b-2 border-primary" href="#">Processos</a>
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Configurações</a>
+</nav>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border-2 border-primary/20" data-alt="Foto de perfil do advogado responsável" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCyzJZlce5ufY20q_-albYkerXXzV2hpR6LpGM8Q2wRkg2twY3qKEsJl5kCguKyjRphlql4dpm_9XPp_iTaplcaCd3gXI-DXSHFXG7yHVkKW8JQHV1D9vmanqrL8C0R12UGY6vS4JRbCXlnNpvZ-eBgVQCMFeEQqaA295y51ASI0jML3qFcqIrTwCcRYvLKfHLUYkESOHJrYGj2uJSIg1ei1jDX--yl7mZ53mbZaMoQeybjQQ6w63j4lzdsqmu9HihtjJfrNLQwmdHR");'></div>
+</div>
+</header>
+<main class="flex-1 flex flex-col md:flex-row max-w-[1440px] mx-auto w-full">
+<aside class="w-full md:w-64 p-6 border-r border-primary/10 bg-white/50 dark:bg-background-dark/30">
+<div class="flex flex-col gap-6">
+<div class="flex flex-col gap-2">
+<h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Etapas do Processo</h3>
+<div class="flex flex-col gap-1 mt-2">
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary border border-primary/20">
+<span class="material-symbols-outlined text-sm">payments</span>
+<p class="text-sm font-bold">1. Renda e Mínimo</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 opacity-60">
+<span class="material-symbols-outlined text-sm">account_balance_wallet</span>
+<p class="text-sm font-medium">2. Cadastro de Dívidas</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 opacity-60">
+<span class="material-symbols-outlined text-sm">verified_user</span>
+<p class="text-sm font-medium">3. Declaração de Boa-fé</p>
+</div>
+</div>
+</div>
+<div class="p-4 rounded-xl bg-primary/5 border border-primary/10">
+<div class="flex items-center gap-2 text-primary mb-2">
+<span class="material-symbols-outlined text-sm">info</span>
+<span class="text-xs font-bold uppercase">Base Legal</span>
+</div>
+<p class="text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                                Lei 14.181/2021: Atualiza o Código de Defesa do Consumidor para prevenir o superendividamento.
+                            </p>
+</div>
+</div>
+</aside>
+<section class="flex-1 p-6 md:p-10">
+<div class="max-w-3xl mx-auto">
+<div class="mb-8">
+<div class="flex justify-between items-end mb-4">
+<div>
+<h1 class="text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100">Renda e Mínimo Existencial</h1>
+<p class="text-slate-500 mt-1">Primeiro passo para o plano de repactuação de dívidas.</p>
+</div>
+<span class="text-primary font-bold text-sm bg-primary/10 px-3 py-1 rounded-full">33% concluído</span>
+</div>
+<div class="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+<div class="bg-primary h-full transition-all duration-500" style="width: 33%"></div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+<div class="md:col-span-2 space-y-6">
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<label class="block text-sm font-bold mb-4">Qual sua renda mensal líquida?</label>
+<div class="relative">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">R$</span>
+<input class="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all text-lg font-semibold" placeholder="0,00" type="number"/>
+</div>
+<p class="text-xs text-slate-500 mt-3 italic">* Considere o valor que efetivamente cai na sua conta após descontos obrigatórios.</p>
+</div>
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<label class="block text-sm font-bold mb-4">Gastos básicos mensais (Saúde e Alimentação)</label>
+<div class="relative mb-4">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">R$</span>
+<input class="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all text-lg font-semibold" placeholder="0,00" type="number"/>
+</div>
+<div class="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
+<span class="material-symbols-outlined text-blue-500 mt-0.5">help</span>
+<p class="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
+                                            Estes valores são fundamentais para calcular a sua <strong>preservação de dignidade</strong> conforme o Decreto 11.150/2022.
+                                        </p>
+</div>
+</div>
+</div>
+<div class="space-y-4">
+<div class="bg-primary/5 border border-primary/20 p-5 rounded-xl">
+<h4 class="text-sm font-bold text-primary flex items-center gap-2 mb-3">
+<span class="material-symbols-outlined">menu_book</span>
+                                        Educação Jurídica
+                                    </h4>
+<div class="space-y-4">
+<div>
+<p class="text-xs font-bold uppercase text-slate-500 mb-1">Mínimo Existencial</p>
+<p class="text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                                                É a quantia mínima da renda necessária para o pagamento de despesas básicas para sua sobrevivência digna. A lei impede que suas dívidas consumam essa parcela.
+                                            </p>
+</div>
+<div class="pt-3 border-t border-primary/10">
+<p class="text-xs font-bold uppercase text-slate-500 mb-1">Exclusão Social</p>
+<p class="text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                                                O objetivo da Lei 14.181 é evitar que o devedor seja marginalizado, garantindo o direito de voltar a consumir de forma consciente.
+                                            </p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between pt-6 border-t border-slate-200 dark:border-slate-800">
+<button class="px-6 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">arrow_back</span>
+                                Voltar
+                            </button>
+<button class="px-10 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-slate-900 font-bold transition-all shadow-lg shadow-primary/20 flex items-center gap-2">
+                                Próximo Passo: Dívidas
+                                <span class="material-symbols-outlined text-lg">arrow_forward</span>
+</button>
+</div>
+</div>
+</section>
+</main>
+<footer class="p-6 border-t border-primary/10 bg-white dark:bg-background-dark/80">
+<div class="max-w-[1440px] mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+<div class="flex items-center gap-2 text-slate-400 text-xs">
+<span class="material-symbols-outlined text-sm">security</span>
+                        Seus dados estão protegidos sob sigilo jurídico e LGPD.
+                    </div>
+<div class="flex gap-6">
+<a class="text-xs text-slate-400 hover:text-primary transition-colors underline" href="#">Termos de Uso</a>
+<a class="text-xs text-slate-400 hover:text-primary transition-colors underline" href="#">Política de Privacidade</a>
+</div>
+</div>
+</footer>
+</div>
+</div>
+<div class="fixed bottom-6 right-6 z-50">
+<button class="size-14 rounded-full bg-primary text-slate-900 shadow-2xl flex items-center justify-center hover:scale-105 transition-transform group relative">
+<span class="material-symbols-outlined text-2xl">support_agent</span>
+<span class="absolute right-full mr-4 bg-slate-900 text-white text-xs py-2 px-4 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                Precisa de ajuda jurídica?
+            </span>
+</button>
+</div>
+</body></html>

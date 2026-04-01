@@ -1,0 +1,926 @@
+🧠 PROMPT APRIMORADO – ENRIQUECIMENTO DO CNJParse
+Módulo: DataJud → Camada Institucional CNJ
+CONTEXTO GERAL
+
+Você está evoluindo o CNJParse, responsável por interpretar, normalizar e enriquecer dados oriundos do DataJud (CNJ).
+O objetivo é superar a limitação da TPU (Tabela Processual Unificada), incorporando tabelas institucionais essenciais para garantir:
+
+correta identificação do órgão julgador
+
+vínculo territorial e administrativo
+
+interoperabilidade com tribunais estaduais (ex.: TJSP)
+
+base confiável para prazos, competência, estatística e BI jurídico
+
+🎯 OBJETIVO DO APRIMORAMENTO
+
+O CNJParse deve:
+
+Resolver ambiguidades estruturais do DataJud
+
+Normalizar órgãos, juízos e serventias
+
+Criar chaves institucionais estáveis
+
+Permitir importação manual e massiva de dados oficiais
+
+Servir de base para:
+
+contagem de prazos
+
+distribuição por competência
+
+relatórios por vara/foro/juízo
+
+🧩 TABELAS ESSENCIAIS (ALÉM DA TPU)
+1️⃣ Schema — ServentiaCNJ (OBRIGATÓRIO)
+
+Representa a unidade judiciária física/administrativa (vara, juizado, cartório, câmara etc.)
+
+📌 Finalidade jurídica
+
+Base para competência
+
+Localização territorial
+
+Contagem correta de prazos (feriados locais)
+
+Relacionamento com juízo e foro
+
+📐 Schema (Zod – já validado)
+
+✔️ Este schema deve ser tratado como tabela de domínio institucional, não como cadastro simples.
+
+ServentiaCNJ {
+  id,
+  tribunal,
+  uf,
+  municipio,
+  codigo_municipio_ibge,
+  numero_serventia,
+  nome_serventia,
+  tipo_orgao,
+  competencia,
+  telefone,
+  email,
+  endereco,
+  cep,
+  geolocalizacao,
+  horario_funcionamento,
+  ativa
+}
+
+2️⃣ Schema — JuizoCNJ
+
+Representa o juízo jurisdicional (autoridade judicante), distinto da serventia física.
+
+JuizoCNJ {
+  id,
+  tribunal,
+  grau: primeiro | segundo | superior,
+  orgao_julgador,
+  competencia,
+  codigo_cnj,
+  serventiaId
+}
+
+
+📌 Regra fundamental
+
+Um juízo pode existir independentemente da serventia, mas nunca o contrário.
+
+3️⃣ Schema — CodigoForoTJSP (Exemplo de tabela estadual)
+
+Resolve o problema clássico do TJSP: foro ≠ comarca ≠ município
+
+CodigoForoTJSP {
+  id,
+  codigo_foro,
+  nome_foro,
+  comarca,
+  municipio,
+  uf,
+  tribunal: "TJSP"
+}
+
+
+📌 Essa tabela deve ser plugável, permitindo:
+
+outros TJs
+
+outros códigos locais (TRT, TRE, etc.)
+
+🔁 RELACIONAMENTO ENTRE TABELAS
+TPU
+ └── Processo
+      └── JuizoCNJ
+           └── ServentiaCNJ
+                └── CodigoForo (quando aplicável)
+
+🧠 PAPEL DO CNJParse (APÓS APRIMORAMENTO)
+
+O CNJParse deve:
+
+Receber dados brutos do DataJud
+
+Normalizar:
+
+órgão julgador
+
+tribunal
+
+competência
+
+Resolver:
+
+serventia correta
+
+juízo correspondente
+
+Criar vínculos estáveis entre processo ↔ estrutura judiciária
+
+Registrar inconsistências (fallback manual)
+
+📥 IMPORTADOR OFICIAL DE SERVENTIAS CNJ
+OBJETIVO DO IMPORTADOR
+
+Criar um importador institucional, capaz de:
+
+importar tabelas oficiais do CNJ
+
+aceitar CSV / XLSX
+
+validar com schema jurídico
+
+permitir auditoria
+
+evitar duplicidade estrutural
+
+🧩 Componente: ServentiasCSVImporter
+Requisitos funcionais (OBRIGATÓRIOS)
+
+Upload de arquivo oficial (CNJ / TJ)
+
+Extração estruturada via ExtractDataFromUploadedFile
+
+Validação contra ServentiaCNJSchema
+
+Pré-visualização dos dados
+
+Importação em lote (bulkCreate)
+
+Controle de progresso
+
+Log de erros por linha
+
+Possibilidade de reimportação idempotente
+
+🔐 Regras de Negócio do Importador
+
+❌ Não sobrescrever registros ativos sem confirmação
+
+✅ Normalizar tribunal, UF e município
+
+✅ Permitir coexistência de serventias homônimas
+
+❌ Nunca excluir fisicamente (soft delete)
+
+✅ Registrar origem do dado (CNJ, TJSP, manual)
+
+🧾 Metadados obrigatórios no importador
+{
+  origem: "CNJ" | "TJ" | "Manual",
+  arquivoOriginal,
+  dataImportacao,
+  responsavel
+}
+
+✅ RESULTADO ESPERADO
+
+Após esse aprimoramento, o sistema terá:
+
+Uma base institucional confiável do Judiciário
+
+CNJParse capaz de interpretar corretamente o DataJud
+
+Eliminação de erros clássicos de vara/foro
+
+Base sólida para:
+
+prazos
+
+competência
+
+BI jurídico
+
+contencioso em escala
+
+🎯 Conclusão técnica (direta)
+
+Dr. Adriano, isso não é só um importador.
+É a fundação institucional do sistema jurídico.
+
+Sem essas tabelas:
+
+o prazo erra,
+
+a competência erra,
+
+o BI mente,
+
+e o risco jurídico explode.
+
+Se quiser, no próximo passo posso:
+
+🔷 Criar o schema SQL / Prisma / Supabase
+
+🔷 Especificar o CNJParse step-by-step
+
+🔷 Criar o importador de Juízo e Foro
+
+🔷 Integrar isso ao motor de prazos e feriados
+
+É só indicar como prefere avançar.
+
+JuizoCNJCSVImporter.txt
+Documento
+JuizoCNJSchema.jsx
+JavaScript
+JuizoCNJCSVImporter.jsx
+JavaScript
+faça o mesmo parao JuizoCNJ
+
+Perfeito, Dr. Adriano.
+Vou replicar e aprofundar o mesmo nível de especificação que fizemos para ServentiaCNJ, agora focado exclusivamente no JuizoCNJ, tratando-o corretamente como entidade jurisdicional (e não administrativa) dentro do CNJParse / DataJud.
+
+A ideia é que este texto já sirva como prompt direto para Base44 / IA de engenharia, sem ambiguidade conceitual.
+
+🧠 PROMPT APRIMORADO – JUÍZO CNJ
+Módulo: DataJud → CNJParse → Camada Jurisdicional
+CONTEXTO GERAL
+
+Você está evoluindo o CNJParse, no contexto do DataJud, para estruturar corretamente a dimensão jurisdicional do Judiciário brasileiro.
+
+O Juízo CNJ representa a autoridade jurisdicional competente (órgão julgador), sendo conceitualmente distinto de:
+
+Serventia (estrutura administrativa)
+
+Foro / Comarca (estrutura territorial)
+
+Tribunal (estrutura institucional)
+
+O sistema deve refletir essa separação de forma explícita, auditável e reutilizável.
+
+🎯 OBJETIVO DO MÓDULO JuizoCNJ
+
+O módulo JuizoCNJ deve:
+
+Representar corretamente o órgão jurisdicional
+
+Resolver ambiguidades do DataJud (ex.: nomes genéricos)
+
+Servir de base para:
+
+competência
+
+estatística judicial
+
+distribuição de processos
+
+regras de prazo por grau de jurisdição
+
+Conectar processos à estrutura correta do Judiciário
+
+Permitir importação oficial e gestão manual
+
+🧩 CONCEITO JURÍDICO FUNDAMENTAL
+
+Juízo ≠ Serventia
+
+Juízo → função jurisdicional (quem julga)
+
+Serventia → unidade administrativa (onde tramita)
+
+📌 Um Juízo pode existir sem serventia própria
+📌 Uma Serventia sempre deve apontar para um Juízo
+
+1️⃣ Schema — JuizoCNJ (ENTIDADE NÚCLEO)
+Finalidade
+
+Normalizar e identificar de forma única o órgão julgador informado pelo CNJ/DataJud.
+
+📐 Schema lógico obrigatório
+JuizoCNJ {
+  id,
+  tribunal,                  // TJSP, TRF1, TRT15, STJ etc.
+  uf,
+  grau: primeiro | segundo | superior,
+  orgao_julgador,             // Ex: 1ª Vara Cível, 3ª Câmara
+  competencia,                // Cível, Criminal, Família etc.
+  codigo_cnj,                 // Quando existente
+  area_direito,               // civil, penal, trabalhista etc.
+  serventiaId,                // FK opcional
+  ativo
+}
+
+🔐 Regras estruturais
+
+codigo_cnj não é obrigatório (nem sempre existe)
+
+orgao_julgador não pode ser tratado como string solta
+
+grau impacta diretamente:
+
+prazos
+
+recursos
+
+estatística
+
+ativo deve ser soft state (nunca delete físico)
+
+2️⃣ Papel do JuizoCNJ no CNJParse
+
+O CNJParse, ao processar dados do DataJud, deve:
+
+Extrair:
+
+órgão julgador
+
+tribunal
+
+grau
+
+Resolver:
+
+Juízo existente
+
+ou criar novo Juízo (modo controlado)
+
+Vincular:
+
+Processo → JuizoCNJ
+
+Logar inconsistências:
+
+órgão não reconhecido
+
+conflito de competência
+
+divergência tribunal/UF
+
+3️⃣ Relacionamento com outras entidades
+Processo (DataJud)
+ └── JuizoCNJ
+      ├── ServentiaCNJ (opcional)
+      ├── CodigoForo (quando aplicável)
+      └── Tribunal
+
+
+📌 Nunca vincular Processo diretamente à Serventia sem Juízo intermediário.
+
+4️⃣ Importador Oficial de Juízos CNJ
+OBJETIVO
+
+Criar um JuizoCNJCSVImporter, institucional, com as mesmas garantias do importador de serventias.
+
+Requisitos funcionais
+
+Upload de CSV / XLSX oficial
+
+Extração estruturada via IA
+
+Validação com JuizoCNJSchema
+
+Pré-visualização dos dados
+
+Importação em lote
+
+Controle de duplicidade
+
+Auditoria completa
+
+Campos mínimos esperados no arquivo
+tribunal,uf,grau,orgao_julgador,competencia,codigo_cnj,area_direito
+
+Regras de importação
+
+Normalizar:
+
+tribunal
+
+grau
+
+competência
+
+Permitir coexistência de órgãos homônimos em tribunais distintos
+
+Não sobrescrever juízo ativo sem confirmação
+
+Registrar origem do dado
+
+📥 Metadados obrigatórios do importador
+{
+  origem: "CNJ" | "TJ" | "Manual",
+  arquivoOriginal,
+  dataImportacao,
+  responsavel
+}
+
+5️⃣ Integração com Prazos e Competência
+
+O JuizoCNJ deve ser utilizado para:
+
+Definir regra de prazo por grau
+
+Identificar feriados locais aplicáveis
+
+Determinar recesso específico
+
+Resolver exceções (ex.: competência delegada)
+
+📌 Prazo nunca deve depender apenas da Serventia.
+
+6️⃣ Gestão Manual (Backoffice)
+
+O sistema deve permitir:
+
+Criar Juízo manualmente
+
+Vincular/desvincular Serventias
+
+Ajustar competência
+
+Inativar (sem excluir)
+
+Justificar alterações (log jurídico)
+
+7️⃣ Logs e Auditoria (Obrigatórios)
+
+Cada alteração em JuizoCNJ deve registrar:
+
+{
+  juizoId,
+  campoAlterado,
+  valorAnterior,
+  novoValor,
+  data,
+  usuario,
+  motivo
+}
+
+✅ RESULTADO ESPERADO
+
+Após a implementação:
+
+CNJParse interpreta corretamente o DataJud
+
+Juízo deixa de ser texto solto
+
+Competência e prazos ficam juridicamente confiáveis
+
+Base sólida para BI jurídico e contencioso em escala
+
+Redução drástica de erro estrutural
+
+🧠 PROMPT APRIMORADO – TPU AMPLIADA
+Módulo: DataJud → CNJParse → Camada Semântica Processual
+CONTEXTO GERAL
+
+Você está evoluindo o CNJParse para transformar o DataJud em uma base semântica processual confiável, superando o uso ingênuo da TPU como simples enumeração.
+
+A TPU (Tabela Processual Unificada) deve ser tratada como um sistema vivo de classificação jurídica, composto por Classes, Assuntos e Movimentos, cada qual com papel próprio no ciclo de vida do processo.
+
+🎯 OBJETIVO DO APRIMORAMENTO
+
+O módulo TPU ampliado deve:
+
+Normalizar classe, assunto e movimento
+
+Resolver ambiguidades textuais do DataJud
+
+Permitir busca inteligente e assistida
+
+Servir de base para:
+
+estatísticas confiáveis
+
+filtros jurídicos
+
+automações (prazos, alertas, IA)
+
+Garantir versionamento e auditoria
+
+🧩 VISÃO CONCEITUAL (MUITO IMPORTANTE)
+
+Classe ≠ Assunto ≠ Movimento
+
+Classe → natureza jurídica do processo
+
+Assunto → tema jurídico discutido
+
+Movimento → ato processual praticado
+
+Misturar isso quebra prazo, BI e automação.
+
+1️⃣ Schema — ClasseProcessualCNJ
+Finalidade
+
+Identificar o tipo de processo, conforme TPU oficial.
+
+ClasseProcessualCNJ {
+  id,
+  codigo_cnj,
+  nome,
+  descricao,
+  area_direito,
+  grau_permitido,
+  ativa
+}
+
+
+📌 Exemplos:
+
+Procedimento Comum
+
+Execução Fiscal
+
+Mandado de Segurança
+
+2️⃣ Schema — AssuntoProcessualCNJ
+Finalidade
+
+Representar o conteúdo jurídico do litígio.
+
+AssuntoProcessualCNJ {
+  id,
+  codigo_cnj,
+  nome,
+  descricao,
+  area_direito,
+  hierarquia_pai_id,
+  ativa
+}
+
+
+📌 Regras essenciais:
+
+Estrutura hierárquica
+
+Um processo pode ter vários assuntos
+
+Assunto impacta competência e estatística
+
+3️⃣ Schema — MovimentoProcessualCNJ
+Finalidade
+
+Representar atos processuais relevantes.
+
+MovimentoProcessualCNJ {
+  id,
+  codigo_cnj,
+  nome,
+  descricao,
+  tipo: despacho | decisao | sentenca | ato_ordinatorio | outro,
+  gera_prazo: boolean,
+  prazo_sugerido_dias,
+  ativa
+}
+
+
+⚖️ Regra crítica:
+
+Movimento não é texto livre — é evento jurídico.
+
+4️⃣ Papel do CNJParse (TPU Ampliada)
+
+Ao processar dados do DataJud, o CNJParse deve:
+
+Resolver códigos TPU
+
+Normalizar descrições divergentes
+
+Vincular:
+
+Processo → Classe
+
+Processo → Assuntos
+
+Processo → Movimentos
+
+Registrar inconsistências
+
+Permitir fallback manual
+
+5️⃣ Rotinas de Sincronização (SYNC)
+📌 SYNC Classes
+Fonte: CNJ (TPU oficial)
+Periodicidade: sob demanda ou agendada
+Regra: versionar, nunca sobrescrever histórico
+
+📌 SYNC Assuntos
+Hierarquia obrigatória
+Preservar relacionamento pai/filho
+Marcar inativos sem exclusão física
+
+📌 SYNC Movimentos
+Atualização frequente
+Controle de impacto em prazos
+Flag obrigatória: gera_prazo
+
+6️⃣ Importadores Institucionais (CNJ)
+
+Cada SYNC deve:
+
+aceitar CSV / XLSX / JSON
+
+validar com schema próprio
+
+suportar bulk upsert
+
+registrar origem e versão
+
+{
+  origem: "CNJ",
+  versao_tpu,
+  data_sync,
+  responsavel
+}
+
+7️⃣ Widget de Busca TPU (Frontend)
+Componente: TPUBuscaWidget
+Objetivos:
+
+Busca unificada:
+
+Classes
+
+Assuntos
+
+Movimentos
+
+Autocomplete inteligente
+
+Exibição hierárquica
+
+Retorno com metadados jurídicos
+
+📌 Nunca retornar apenas string.
+
+8️⃣ Integração com Prazos e Automação
+
+A TPU ampliada deve alimentar:
+
+sugestão de prazo (movimento)
+
+alertas automáticos
+
+classificação de risco
+
+dashboards jurídicos
+
+📌 Exemplo:
+
+Movimento = “Intimação para contestar”
+→ Sugere prazo padrão + base legal
+
+9️⃣ Auditoria e Versionamento (OBRIGATÓRIO)
+
+Cada alteração deve registrar:
+
+{
+  entidade: classe | assunto | movimento,
+  codigo_cnj,
+  versao_anterior,
+  versao_nova,
+  data,
+  origem
+}
+
+✅ RESULTADO ESPERADO
+
+Após a implementação:
+
+TPU deixa de ser “lista”
+
+CNJParse passa a entender o processo
+
+Estatísticas ficam confiáveis
+
+IA jurídica passa a funcionar
+
+Prazos podem ser inferidos corretamente
+
+🎯 Conclusão técnica direta
+
+Dr. Adriano, TPU não é cadastro.
+É a linguagem do Judiciário.
+
+Sem esse tratamento:
+
+o sistema só armazena texto
+Com esse tratamento:
+
+o sistema compreende o processo
+
+🧠 PROMPT DE IMPORTAÇÃO – CÓDIGO FORO TJSP
+Módulo: DataJud → CNJParse → Camada Territorial / Administrativa
+CONTEXTO GERAL
+
+Você está implementando a tabela institucional CodigoForoTJSP, destinada a resolver uma das maiores ambiguidades estruturais do Tribunal de Justiça de São Paulo:
+
+Foro ≠ Comarca ≠ Município ≠ Vara
+
+O objetivo é permitir que o CNJParse e os módulos dependentes (Processos, Juízo, Serventia, Prazos, BI) consigam identificar corretamente o foro administrativo, conforme padronização interna do TJSP.
+
+🎯 OBJETIVO DO IMPORTADOR
+
+O importador da planilha CodigoForoTJSP deve:
+
+Importar a tabela oficial do TJSP
+
+Normalizar os códigos de foro
+
+Garantir unicidade institucional
+
+Permitir versionamento e auditoria
+
+Servir de base para vínculo com:
+
+ServentiaCNJ
+
+JuizoCNJ
+
+Processos DataJud
+
+📄 FORMATO DA PLANILHA (ENTRADA)
+
+A planilha possui estrutura simples, porém alto impacto jurídico:
+
+codigo,nome,tipo,ativo
+
+Exemplo:
+001,São Paulo Central,Foro,true
+034,Santo Amaro,Foro,true
+900,Foro Digital,Foro,false
+
+1️⃣ Schema — CodigoForoTJSP
+📐 Schema lógico obrigatório
+CodigoForoTJSP {
+  id,
+  codigo,                // Código oficial TJSP
+  nome,                  // Nome do foro
+  tipo,                  // Foro, Foro Regional, Foro Digital etc.
+  ativo,                 // boolean
+  tribunal: "TJSP"
+}
+
+
+📌 Regras estruturais obrigatórias
+
+codigo é chave institucional, não pode ser alterado
+
+ativo não autoriza exclusão física
+
+tribunal deve ser fixo = TJSP
+
+nome não precisa ser único isoladamente
+
+2️⃣ Regras de Validação (IMPORTAÇÃO)
+
+Durante a importação, o sistema deve:
+
+Validar presença de:
+
+codigo
+
+nome
+
+Normalizar:
+
+espaços
+
+capitalização
+
+Converter ativo para boolean real
+
+Rejeitar linhas sem código
+
+Permitir reimportação idempotente
+
+3️⃣ Regras de Negócio (CRÍTICAS)
+
+❌ Nunca excluir registros existentes
+
+✅ Atualizar apenas:
+
+nome
+
+tipo
+
+ativo
+
+❌ Nunca sobrescrever codigo
+
+✅ Manter histórico de alterações
+
+✅ Registrar origem e versão da planilha
+
+4️⃣ Importador – Fluxo Obrigatório
+Passo a passo:
+
+Upload da planilha (CSV / XLSX)
+
+Extração estruturada dos campos:
+
+codigo
+
+nome
+
+tipo
+
+ativo
+
+Validação contra schema
+
+Pré-visualização dos registros
+
+Importação em lote (bulkUpsert)
+
+Log de inconsistências
+
+Atualização da base institucional
+
+5️⃣ Metadados Obrigatórios da Importação
+
+Cada importação deve registrar:
+
+{
+  origem: "TJSP",
+  arquivoOriginal,
+  dataImportacao,
+  versaoTabela,
+  responsavel
+}
+
+6️⃣ Integração com CNJParse
+
+Após importado, o CodigoForoTJSP deve ser utilizado para:
+
+Resolver foro de processos do TJSP
+
+Normalizar dados do DataJud
+
+Apoiar vínculo com ServentiaCNJ
+
+Determinar feriados locais
+
+Apoiar regras de competência territorial
+
+📌 CNJParse nunca deve inferir foro apenas por município.
+
+7️⃣ Auditoria e Governança
+
+Qualquer alteração em CodigoForoTJSP deve gerar log:
+
+{
+  codigoForo,
+  campoAlterado,
+  valorAnterior,
+  novoValor,
+  data,
+  usuario,
+  origem
+}
+
+✅ RESULTADO ESPERADO
+
+Após a importação:
+
+O sistema passa a entender a malha administrativa do TJSP
+
+Elimina erros clássicos de foro/comarca
+
+Aumenta a confiabilidade de:
+
+prazos
+
+competência
+
+estatística
+
+Fortalece o CNJParse como camada institucional real
+
+🎯 CONCLUSÃO TÉCNICA
+
+Dr. Adriano, essa planilha pode parecer simples, mas:
+
+sem o Código de Foro TJSP, qualquer sistema jurídico erra em São Paulo.
+
+Com esse importador:
+
+o sistema deixa de “adivinhar”
+
+e passa a reconhecer oficialmente o Judiciário paulista.
+

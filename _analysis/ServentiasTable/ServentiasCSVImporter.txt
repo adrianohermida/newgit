@@ -1,0 +1,6 @@
+// ServentiasCSVImporter Component - Placeholder
+import React from 'react';
+
+export default function ServentiasCSVImporter() {
+  return <div>{/* Serventias CSV Importer */}</div>;
+}

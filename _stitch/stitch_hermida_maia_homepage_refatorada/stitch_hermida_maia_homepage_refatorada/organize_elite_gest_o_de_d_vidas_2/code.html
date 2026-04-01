@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#11d473",
+                        "gold": "#D4AF37",
+                        "elite-bg-start": "#1B4332",
+                        "elite-bg-end": "#050706",
+                        "elite-text": "#F5F1EA",
+                        "background-dark": "#050706",
+                        "emerald-dark": "#004d40",
+                        "card-dark": "#0A0F0D",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>Organize - Gestão de Dívidas | Hermida Maia Advocacia</title>
+<style>
+        body {
+            background: linear-gradient(135deg, #1B4332 0%, #050706 100%);
+            background-attachment: fixed;
+            color: #F5F1EA;
+        }
+        .elite-card {
+            background: rgba(10, 15, 13, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(212, 175, 55, 0.1);
+        }
+        .elite-input:focus {
+            border-color: #D4AF37 !important;
+            box-shadow: 0 0 0 1px #D4AF37;
+        }
+    </style>
+</head>
+<body class="font-display">
+<div class="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden">
+<div class="layout-container flex h-full grow flex-col">
+<!-- Header -->
+<header class="flex items-center justify-between border-b border-gold/10 bg-black/40 backdrop-blur-md px-6 md:px-20 py-4 sticky top-0 z-50">
+<div class="flex items-center gap-4">
+<img alt="Hermida Maia Advocacia" class="h-12 w-auto object-contain brightness-110" src="data:image/png;base64,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EAAAAAAwIAAAAABgQAAAAADAgAAAAACAAQEAAAAAAwIAAAAABgQAAAAADAgAAAAAGBAAAAAAMCAAAAAAYEAAAAAAwIAAAAAAgAEBAAAAAAMCAAAAAAYEAAAAAAwIAAAAABgQAAAAADAgAAAAAGBAAAAAAMCAAAAAAIABAQAAAAADAgAAAAAGBAAAAAAMCAAAAAAYEAAAAAAwIAAAAABgQAAAAADAgAAAAACAAQEAAAAAAwIAAAAABgQAAAAADAgAAAAAGBAAAAAAMCAAAAAAYEAAAAAAwIAAAAAAgAEBAAAAAAMCAAAAAAYEAAAAAAwIAAAAABgQAAAAADAgAAAAAGBAAAAAAMCAAAAAAIABAQAAAAADAgAAAAAGBAAAAAAMCAAAAAAYEAAAAAAwIAAAAABgQAAAAADAgAAAAACAAQEAAAAAAwIAAAAABgQAAAAADAgAAAAAGBAAAAAAMCAAAAAAYEAAAAAAwIAAAAAAgAEBAAAAAAMCAAAAAAYCAAD//+zYgQAAAACAIH/rQS6MBAAAAAAMCAAAAAAYEAAAAAAwIAAAAABgQAAAAADAgAAAAACAAQEAAAAAAwIAAAAABgQAAAAADAgAAAAAGBAAAAAAMCAAAAAAYEAAAAAAwIAAAAAAgAEBAAAAAAMCAAAAAAYEAAAAAAwIAAAAABgQAAAAADAgAAAAAGBAAAAAAMCAAAAAAIABAQAAAAADAgAAAAAGBAAAAAAMCAAAAAAYEAAAAAAwIAAAAABgQAAAAADAgAAAAACAAQEAAAAAAwIAAAAABgQAAAAADAgAAAAAGBAAAAAAMCAAAAAAYEAAAAAAwIAAAAAAgAEBAAAAAAMCAAAAAAYEAAAAAAwIAAAAABgQAAAAADAgAAAAAGBAAAAAAMCAAAAAAIABAQAAAAADAgAAAAAGBAAAAAAMCAAAAAAYEAAAAAAwIAAAAABgQAAAAADAgAAAAACAAQEAAAAAAwIAAAAABgQAAAAADAgAAAAAGBAAAAAAMCAAAAAAYEAAAAAAwIAAAAAAgAEBAAAAAAMCAAAAAAYCAAD//+zYgQAAAACAIH/rQS6MBAAAAAAMCAAAAAAYEAAAAAAwIAAAAABgQAAAAADAgAAAAACAAQEAAAAAAwIAAAAABgQAAAAADAgAAAAAGBAAAAAAMCAAAAAAYEAAAAAAwIAAAAAAgAEBAAAA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)"/>
+<div class="hidden md:block">
+<h2 class="text-gold text-xl font-black leading-tight tracking-tight uppercase">Hermida Maia</h2>
+<p class="text-[10px] font-bold tracking-[0.2em] text-primary uppercase">Advocacia Premium</p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="flex items-center justify-center rounded-lg h-10 w-10 bg-white/5 border border-gold/20 text-gold">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="h-10 w-10 rounded-full bg-elite-bg-start flex items-center justify-center text-gold font-bold border-2 border-gold/30">
+                        JD
+                    </div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<!-- Sidebar -->
+<aside class="hidden lg:flex w-64 flex-col border-r border-gold/10 bg-black/20 p-6 gap-6">
+<nav class="flex flex-col gap-2">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-elite-text/60 hover:bg-white/5 transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-sm font-semibold">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg bg-gold/10 text-gold font-bold border border-gold/20" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span class="text-sm">Gestão de Dívidas</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-elite-text/60 hover:bg-white/5 transition-colors" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="text-sm font-semibold">Documentos</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-elite-text/60 hover:bg-white/5 transition-colors" href="#">
+<span class="material-symbols-outlined">gavel</span>
+<span class="text-sm font-semibold">Processos</span>
+</a>
+</nav>
+<div class="mt-auto p-4 rounded-xl border border-gold/20 bg-elite-bg-start/50">
+<p class="text-xs font-medium text-gold/80">Suporte Premium</p>
+<p class="text-sm font-bold mt-1 text-elite-text">Falar com Advogado</p>
+<button class="mt-3 w-full py-2 bg-gold text-black text-xs font-black rounded-lg uppercase tracking-wider hover:bg-white transition-colors">WhatsApp</button>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 overflow-y-auto p-6 md:p-10 bg-transparent">
+<div class="max-w-6xl mx-auto space-y-8">
+<!-- Title Section -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div>
+<h1 class="text-3xl font-black text-elite-text tracking-tight">Organize - Gestão de Dívidas</h1>
+<p class="text-elite-text/60 mt-1">Controle estratégico de passivos e proteção do mínimo existencial.</p>
+<div class="mt-2 flex items-center gap-2 text-[10px] font-bold text-gold/60 uppercase tracking-widest italic">
+<span class="material-symbols-outlined text-sm">sync</span>
+                                    Sincronização de Dados Ativa via Gateway Operacional
+                                </div>
+</div>
+<button class="flex items-center gap-2 bg-gold text-black px-6 py-3 rounded-lg font-bold hover:bg-white transition-all shadow-lg shadow-gold/10">
+<span class="material-symbols-outlined">add</span>
+                                Nova Dívida
+                            </button>
+</div>
+<!-- 1. Diagnóstico de Endividamento -->
+<section>
+<h2 class="text-lg font-bold text-gold mb-4 flex items-center gap-2 uppercase tracking-widest text-sm">
+<span class="material-symbols-outlined">analytics</span>
+                                Diagnóstico de Endividamento
+                            </h2>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="elite-card p-6 rounded-xl shadow-xl">
+<p class="text-[10px] font-black text-elite-text/40 uppercase tracking-widest">Dívida Total Estimada</p>
+<div class="mt-2 flex items-baseline gap-2">
+<span class="text-3xl font-black text-elite-text">R$ 125.400,00</span>
+</div>
+<div class="mt-4 flex items-center gap-1 text-red-400 text-sm font-bold">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span>+2.1% este mês</span>
+</div>
+</div>
+<div class="elite-card p-6 rounded-xl shadow-xl">
+<p class="text-[10px] font-black text-elite-text/40 uppercase tracking-widest">Comprometimento de Renda</p>
+<div class="mt-2 flex items-baseline gap-2">
+<span class="text-3xl font-black text-elite-text">45%</span>
+<span class="text-elite-text/40 text-sm">/ limite 30%</span>
+</div>
+<div class="mt-4 w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+<div class="bg-gold h-full w-[45%]"></div>
+</div>
+</div>
+<div class="elite-card p-6 rounded-xl shadow-xl relative overflow-hidden">
+<div class="absolute top-0 right-0 p-4">
+<span class="material-symbols-outlined text-gold/10 text-4xl">verified_user</span>
+</div>
+<p class="text-[10px] font-black text-elite-text/40 uppercase tracking-widest">Mínimo Existencial</p>
+<div class="mt-2">
+<span class="px-3 py-1 bg-gold/10 text-gold text-[10px] font-black rounded-full uppercase border border-gold/20">Preservado</span>
+</div>
+<p class="mt-4 text-xs text-elite-text/60 italic leading-relaxed">Sua renda básica para subsistência está protegida judicialmente (Lei 14.181/2021).</p>
+</div>
+</div>
+</section>
+<!-- 2. Minhas Dívidas & 3. Análise de Abusividades -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+<!-- Listagem de Dívidas -->
+<section class="flex flex-col gap-4">
+<div class="flex items-center justify-between">
+<h2 class="text-lg font-bold text-gold flex items-center gap-2 uppercase tracking-widest text-sm">
+<span class="material-symbols-outlined">list_alt</span>
+                                        Minhas Dívidas
+                                    </h2>
+<button class="text-gold/60 text-[10px] font-black uppercase tracking-widest hover:text-gold">Ver todas</button>
+</div>
+<div class="space-y-3">
+<!-- Item Dívida -->
+<div class="elite-card p-4 rounded-xl flex items-center justify-between group hover:bg-white/5 transition-all">
+<div class="flex items-center gap-4">
+<div class="size-10 rounded-lg bg-gold/5 border border-gold/20 flex items-center justify-center text-gold">
+<span class="material-symbols-outlined">account_balance</span>
+</div>
+<div>
+<p class="font-bold text-elite-text">Empréstimo Consignado - Banco Itaú</p>
+<p class="text-[10px] uppercase font-bold text-elite-text/40">Próxima parcela: 05/11 • R$ 1.200,00</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-black text-gold">R$ 42.000,00</p>
+<span class="text-[9px] font-black uppercase text-elite-text/30">Total Devido</span>
+</div>
+</div>
+<!-- Item Dívida -->
+<div class="elite-card p-4 rounded-xl flex items-center justify-between group hover:bg-white/5 transition-all">
+<div class="flex items-center gap-4">
+<div class="size-10 rounded-lg bg-gold/5 border border-gold/20 flex items-center justify-center text-gold">
+<span class="material-symbols-outlined">credit_card</span>
+</div>
+<div>
+<p class="font-bold text-elite-text">Cartão de Crédito - Santander</p>
+<p class="text-[10px] uppercase font-bold text-elite-text/40">Rotativo • Juros 14.5% a.m.</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-black text-gold">R$ 8.450,00</p>
+<span class="text-[9px] font-black uppercase text-elite-text/30">Total Devido</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Análise de Abusividades -->
+<section class="flex flex-col gap-4">
+<h2 class="text-lg font-bold text-gold flex items-center gap-2 uppercase tracking-widest text-sm">
+<span class="material-symbols-outlined">shield_with_heart</span>
+                                    Análise de Abusividades
+                                </h2>
+<div class="bg-black/40 border border-gold/20 rounded-xl p-5 space-y-4 shadow-2xl shadow-gold/5">
+<div class="flex gap-4">
+<div class="text-gold">
+<span class="material-symbols-outlined text-3xl">error</span>
+</div>
+<div>
+<p class="font-bold text-gold">Juros Abusivos Detectados</p>
+<p class="text-xs text-elite-text/60 leading-relaxed">Taxa do contrato "Banco Itaú" está 15% acima da média do BACEN para o período.</p>
+</div>
+</div>
+<div class="flex gap-4 border-t border-white/5 pt-4">
+<div class="text-gold/60">
+<span class="material-symbols-outlined text-3xl">contract_edit</span>
+</div>
+<div>
+<p class="font-bold text-elite-text/80">Cláusula de Venda Casada</p>
+<p class="text-xs text-elite-text/50 leading-relaxed">Possível irregularidade no Seguro Prestamista obrigatório vinculado ao empréstimo.</p>
+</div>
+</div>
+<button class="w-full py-3 bg-white/5 border border-gold/30 text-gold font-black uppercase tracking-widest rounded-lg text-[10px] hover:bg-gold hover:text-black transition-all">
+                                        Solicitar Revisão Jurídica
+                                    </button>
+</div>
+</section>
+</div>
+<!-- 4. Central de Documentos -->
+<section>
+<h2 class="text-lg font-bold text-gold mb-4 flex items-center gap-2 uppercase tracking-widest text-sm">
+<span class="material-symbols-outlined">cloud_upload</span>
+                                Central de Documentos
+                            </h2>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Area de Drop -->
+<div class="lg:col-span-1">
+<div class="border-2 border-dashed border-gold/20 rounded-2xl p-8 flex flex-col items-center justify-center text-center bg-black/20 hover:bg-gold/5 transition-all cursor-pointer group">
+<div class="size-16 rounded-full bg-gold/10 flex items-center justify-center text-gold group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-4xl">upload_file</span>
+</div>
+<p class="mt-4 font-bold text-elite-text">Upload de Documentos</p>
+<p class="text-[10px] text-elite-text/40 mt-2 px-4 leading-relaxed uppercase tracking-wider">Contratos, extratos bancários (PDF, JPG, PNG)</p>
+<div class="mt-6 px-6 py-2 bg-gold text-black text-[10px] font-black rounded-full uppercase tracking-widest hover:bg-white">Selecionar Arquivos</div>
+</div>
+</div>
+<!-- Tabela de Documentos -->
+<div class="lg:col-span-2">
+<div class="elite-card rounded-xl overflow-hidden shadow-2xl">
+<table class="w-full text-left text-xs">
+<thead class="bg-black/40 text-gold font-black uppercase text-[9px] tracking-[0.2em] border-b border-gold/10">
+<tr>
+<th class="px-6 py-5">Arquivo</th>
+<th class="px-6 py-5">Tipo</th>
+<th class="px-6 py-5">Status</th>
+<th class="px-6 py-5">Ação</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-white/5 text-elite-text/80">
+<tr class="hover:bg-white/5 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-gold/40">picture_as_pdf</span>
+<span class="font-medium">Contrato_Itau_Consignado.pdf</span>
+</div>
+</td>
+<td class="px-6 py-4 text-elite-text/40 uppercase font-bold text-[9px]">Contrato</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black bg-gold/10 text-gold border border-gold/20 uppercase tracking-widest">
+<span class="size-1 rounded-full bg-gold"></span>
+                                                            Verificado
+                                                        </span>
+</td>
+<td class="px-6 py-4 text-gold">
+<button class="hover:text-white transition-colors"><span class="material-symbols-outlined">visibility</span></button>
+</td>
+</tr>
+<tr class="hover:bg-white/5 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-gold/40">picture_as_pdf</span>
+<span class="font-medium">Extrato_Santander_Setembro.pdf</span>
+</div>
+</td>
+<td class="px-6 py-4 text-elite-text/40 uppercase font-bold text-[9px]">Extrato</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black bg-white/5 text-white/60 border border-white/10 uppercase tracking-widest">
+<span class="size-1 rounded-full bg-white/40 animate-pulse"></span>
+                                                            Análise
+                                                        </span>
+</td>
+<td class="px-6 py-4 text-gold">
+<button class="hover:text-white transition-colors"><span class="material-symbols-outlined">visibility</span></button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</section>
+<!-- Elite Form Example (Conceptual for inputs) -->
+<section class="elite-card p-10 rounded-2xl">
+<h3 class="text-gold font-black uppercase text-xs tracking-[0.3em] mb-8 text-center">Consultoria Personalizada</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="space-y-2">
+<label class="text-[10px] uppercase font-black text-gold/60 tracking-widest">Nome do Contrato</label>
+<input class="elite-input w-full bg-black/60 border border-gold/10 rounded-lg p-3 text-elite-text placeholder-elite-text/20 focus:outline-none focus:ring-0 transition-all" placeholder="Ex: Financiamento Imobiliário" type="text"/>
+</div>
+<div class="space-y-2">
+<label class="text-[10px] uppercase font-black text-gold/60 tracking-widest">Valor das Parcelas</label>
+<input class="elite-input w-full bg-black/60 border border-gold/10 rounded-lg p-3 text-elite-text placeholder-elite-text/20 focus:outline-none focus:ring-0 transition-all" placeholder="R$ 0,00" type="text"/>
+</div>
+</div>
+<div class="mt-8 flex justify-center">
+<div class="flex items-center gap-6">
+<div class="flex flex-col items-center gap-2">
+<div class="size-8 rounded-full bg-gold border-4 border-gold/20 flex items-center justify-center text-black font-black text-xs">1</div>
+<span class="text-[8px] font-black uppercase text-gold tracking-widest">Dados</span>
+</div>
+<div class="h-px w-12 bg-gold/20"></div>
+<div class="flex flex-col items-center gap-2">
+<div class="size-8 rounded-full bg-black border border-gold/20 flex items-center justify-center text-gold/40 font-black text-xs">2</div>
+<span class="text-[8px] font-black uppercase text-gold/40 tracking-widest">Revisão</span>
+</div>
+<div class="h-px w-12 bg-gold/20"></div>
+<div class="flex flex-col items-center gap-2">
+<div class="size-8 rounded-full bg-black border border-gold/20 flex items-center justify-center text-gold/40 font-black text-xs">3</div>
+<span class="text-[8px] font-black uppercase text-gold/40 tracking-widest">Conclusão</span>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Footer Copyright -->
+<footer class="mt-20 pt-8 border-t border-gold/10 text-center text-gold/30 text-[10px] font-bold uppercase tracking-[0.2em] pb-10">
+<p>© 2024 Hermida Maia Advocacia. Elite Asset &amp; Debt Management. Em conformidade com a Lei 14.181/2021.</p>
+</footer>
+</main>
+</div>
+</div>
+</div>
+</body></html>

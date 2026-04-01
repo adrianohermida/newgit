@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ec5b13",
+                        "background-light": "#f8f6f6",
+                        "background-dark": "#221610",
+                        "emerald-deep": "#064e3b",
+                        "navy-deep": "#0f172a",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Public Sans', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="layout-container flex h-full grow flex-col">
+<!-- Header / Navigation -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-background-dark px-6 md:px-10 py-4 sticky top-0 z-50">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3 text-emerald-deep dark:text-primary">
+<div class="size-8 bg-emerald-deep dark:bg-primary rounded-lg flex items-center justify-center text-white">
+<span class="material-symbols-outlined text-2xl">account_balance_wallet</span>
+</div>
+<h2 class="text-slate-900 dark:text-slate-100 text-xl font-bold leading-tight tracking-tight">Gerenciador de Planos</h2>
+</div>
+<div class="hidden md:flex items-center gap-6 ml-4">
+<a class="text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary text-sm font-semibold transition-colors" href="#">Dashboard</a>
+<a class="text-primary text-sm font-bold border-b-2 border-primary pb-1" href="#">Planos</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary text-sm font-semibold transition-colors" href="#">Relatórios</a>
+</div>
+</div>
+<div class="flex flex-1 justify-end gap-4 items-center">
+<label class="hidden lg:flex flex-col min-w-64">
+<div class="flex w-full items-stretch rounded-xl h-10 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+<div class="text-slate-400 flex items-center justify-center pl-3">
+<span class="material-symbols-outlined text-xl">search</span>
+</div>
+<input class="form-input w-full bg-transparent border-none focus:ring-0 text-sm placeholder:text-slate-400" placeholder="Buscar planos ou clientes..."/>
+</div>
+</label>
+<div class="flex gap-2">
+<button class="flex items-center justify-center rounded-xl size-10 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="flex items-center justify-center rounded-xl size-10 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+<div class="bg-slate-200 dark:bg-slate-700 rounded-full size-10 overflow-hidden border border-slate-300 dark:border-slate-600">
+<img class="w-full h-full object-cover" data-alt="Avatar do usuário administrador do sistema" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBDHpm7T1aA46VlYm3VF6ZJb7RpF6S8C95FOStHMtOyzqquB-hTNQ_pluqay7tncYKmnur0tPbHRC3v7NldnH7j023BEC3-8bZNEMVk-WA6oq3e5yBi3WEhN3P6lGDyk7bJwovfG03H4KZqPPKSRACvWnBdS4HUFO6upEaf3n6lFdkwwKUd_koA1JyxWcTAFaZW5J2g3UGJuw6V9pWznw8vsGp4yk2Zk41ua4Q1Mz8jnHOyGaNBT52mg9eQ-FaxUmDI3ru-4U0KAAoc"/>
+</div>
+</div>
+</header>
+<main class="max-w-7xl mx-auto w-full p-4 md:p-8 space-y-8">
+<!-- KPI Section -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="flex flex-col gap-2 rounded-xl p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
+<div class="flex justify-between items-start">
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Taxa Média de Desconto</p>
+<span class="material-symbols-outlined text-emerald-deep dark:text-primary/70">percent</span>
+</div>
+<p class="text-slate-900 dark:text-slate-100 text-3xl font-bold">15.4%</p>
+<div class="flex items-center gap-1 text-red-500 text-xs font-bold">
+<span class="material-symbols-outlined text-sm">trending_down</span>
+<span>-2.1% este mês</span>
+</div>
+</div>
+<div class="flex flex-col gap-2 rounded-xl p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="flex justify-between items-start">
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Valor Total Repactuado</p>
+<span class="material-symbols-outlined text-emerald-deep dark:text-primary/70">payments</span>
+</div>
+<p class="text-slate-900 dark:text-slate-100 text-3xl font-bold">R$ 1.250k</p>
+<div class="flex items-center gap-1 text-emerald-600 text-xs font-bold">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span>+12.4% este mês</span>
+</div>
+</div>
+<div class="flex flex-col gap-2 rounded-xl p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="flex justify-between items-start">
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Taxa de Sucesso</p>
+<span class="material-symbols-outlined text-emerald-deep dark:text-primary/70">check_circle</span>
+</div>
+<p class="text-slate-900 dark:text-slate-100 text-3xl font-bold">88.5%</p>
+<div class="flex items-center gap-1 text-emerald-600 text-xs font-bold">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span>+0.5% este mês</span>
+</div>
+</div>
+<div class="flex flex-col gap-2 rounded-xl p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="flex justify-between items-start">
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Planos Ativos</p>
+<span class="material-symbols-outlined text-emerald-deep dark:text-primary/70">description</span>
+</div>
+<p class="text-slate-900 dark:text-slate-100 text-3xl font-bold">142</p>
+<div class="flex items-center gap-1 text-emerald-600 text-xs font-bold">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span>+8 novos</span>
+</div>
+</div>
+</div>
+<!-- Filters Section -->
+<div class="space-y-4">
+<details class="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm" open="">
+<summary class="flex cursor-pointer items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">filter_list</span>
+<span class="text-slate-900 dark:text-slate-100 font-semibold">Filtros Avançados</span>
+</div>
+<span class="material-symbols-outlined transition-transform group-open:rotate-180">expand_more</span>
+</summary>
+<div class="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 items-end border-t border-slate-100 dark:border-slate-800">
+<div class="space-y-2">
+<label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Cliente</label>
+<select class="form-select w-full rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:border-primary focus:ring-primary">
+<option>Todos os Clientes</option>
+<option>Construtora Alpha</option>
+<option>Logística Express</option>
+<option>Varejo Global</option>
+</select>
+</div>
+<div class="space-y-2">
+<label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Consultor</label>
+<select class="form-select w-full rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:border-primary focus:ring-primary">
+<option>Selecionar Consultor</option>
+<option>Ricardo Silva</option>
+<option>Amanda Oliveira</option>
+<option>Carlos Santos</option>
+</select>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 bg-primary text-white font-bold py-2.5 px-4 rounded-lg hover:bg-primary/90 transition-colors">
+                                Aplicar Filtros
+                            </button>
+<button class="px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+                                Limpar
+                            </button>
+</div>
+</div>
+</details>
+</div>
+<!-- Table/Grid Actions Bar -->
+<div class="flex flex-col md:flex-row gap-4 items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="flex items-center gap-4 w-full md:w-auto">
+<div class="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+<button class="px-4 py-1.5 rounded-md bg-white dark:bg-slate-700 shadow-sm text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">list</span> Lista
+                        </button>
+<button class="px-4 py-1.5 rounded-md text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">grid_view</span> Grid
+                        </button>
+</div>
+<div class="h-6 w-px bg-slate-200 dark:border-slate-700"></div>
+<div class="flex gap-2">
+<button class="flex items-center gap-2 text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 px-3 py-1.5 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-lg">delete</span> Excluir
+                        </button>
+<button class="flex items-center gap-2 text-sm font-bold text-emerald-deep dark:text-primary hover:bg-slate-50 dark:hover:bg-slate-800 px-3 py-1.5 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-lg">download</span> Exportar
+                        </button>
+</div>
+</div>
+<button class="w-full md:w-auto flex items-center justify-center gap-2 bg-emerald-deep text-white font-bold px-6 py-2.5 rounded-lg hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined">add</span> Novo Plano
+                </button>
+</div>
+<!-- Table Section -->
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+<th class="p-4 w-10">
+<input class="rounded border-slate-300 text-primary focus:ring-primary" type="checkbox"/>
+</th>
+<th class="p-4 text-sm font-bold text-slate-700 dark:text-slate-300">Cliente</th>
+<th class="p-4 text-sm font-bold text-slate-700 dark:text-slate-300">Valor Original</th>
+<th class="p-4 text-sm font-bold text-slate-700 dark:text-slate-300">Valor Acordado</th>
+<th class="p-4 text-sm font-bold text-slate-700 dark:text-slate-300">Desconto</th>
+<th class="p-4 text-sm font-bold text-slate-700 dark:text-slate-300">Status</th>
+<th class="p-4 text-sm font-bold text-slate-700 dark:text-slate-300 text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+<!-- Row 1 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="p-4">
+<input class="rounded border-slate-300 text-primary focus:ring-primary" type="checkbox"/>
+</td>
+<td class="p-4">
+<div class="flex items-center gap-3">
+<div class="size-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-primary">CA</div>
+<div>
+<p class="font-bold text-slate-900 dark:text-slate-100 text-sm">Construtora Alpha</p>
+<p class="text-xs text-slate-500">Ricardo Silva</p>
+</div>
+</div>
+</td>
+<td class="p-4 text-sm text-slate-600 dark:text-slate-400 font-medium">R$ 45.000,00</td>
+<td class="p-4 text-sm text-slate-900 dark:text-slate-100 font-bold">R$ 38.250,00</td>
+<td class="p-4">
+<span class="inline-flex items-center px-2 py-1 rounded text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">15%</span>
+</td>
+<td class="p-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400">
+<span class="size-1.5 rounded-full bg-blue-500"></span>
+                                        Em Negociação
+                                    </span>
+</td>
+<td class="p-4 text-right">
+<div class="flex justify-end gap-2">
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors" title="Visualizar Detalhes">
+<span class="material-symbols-outlined text-xl">visibility</span>
+</button>
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors" title="Gerar PDF">
+<span class="material-symbols-outlined text-xl">picture_as_pdf</span>
+</button>
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors" title="Notificar Cliente">
+<span class="material-symbols-outlined text-xl">send</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="p-4">
+<input class="rounded border-slate-300 text-primary focus:ring-primary" type="checkbox"/>
+</td>
+<td class="p-4">
+<div class="flex items-center gap-3">
+<div class="size-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-primary">LE</div>
+<div>
+<p class="font-bold text-slate-900 dark:text-slate-100 text-sm">Logística Express</p>
+<p class="text-xs text-slate-500">Amanda Oliveira</p>
+</div>
+</div>
+</td>
+<td class="p-4 text-sm text-slate-600 dark:text-slate-400 font-medium">R$ 120.000,00</td>
+<td class="p-4 text-sm text-slate-900 dark:text-slate-100 font-bold">R$ 96.000,00</td>
+<td class="p-4">
+<span class="inline-flex items-center px-2 py-1 rounded text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">20%</span>
+</td>
+<td class="p-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
+<span class="size-1.5 rounded-full bg-amber-500"></span>
+                                        Aguardando Homologação
+                                    </span>
+</td>
+<td class="p-4 text-right">
+<div class="flex justify-end gap-2">
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors" title="Visualizar Detalhes">
+<span class="material-symbols-outlined text-xl">visibility</span>
+</button>
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors" title="Gerar PDF">
+<span class="material-symbols-outlined text-xl">picture_as_pdf</span>
+</button>
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors" title="Notificar Cliente">
+<span class="material-symbols-outlined text-xl">send</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="p-4">
+<input class="rounded border-slate-300 text-primary focus:ring-primary" type="checkbox"/>
+</td>
+<td class="p-4">
+<div class="flex items-center gap-3">
+<div class="size-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-primary">VG</div>
+<div>
+<p class="font-bold text-slate-900 dark:text-slate-100 text-sm">Varejo Global</p>
+<p class="text-xs text-slate-500">Carlos Santos</p>
+</div>
+</div>
+</td>
+<td class="p-4 text-sm text-slate-600 dark:text-slate-400 font-medium">R$ 12.500,00</td>
+<td class="p-4 text-sm text-slate-900 dark:text-slate-100 font-bold">R$ 11.250,00</td>
+<td class="p-4">
+<span class="inline-flex items-center px-2 py-1 rounded text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">10%</span>
+</td>
+<td class="p-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
+<span class="size-1.5 rounded-full bg-emerald-500"></span>
+                                        Pago
+                                    </span>
+</td>
+<td class="p-4 text-right">
+<div class="flex justify-end gap-2">
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors" title="Visualizar Detalhes">
+<span class="material-symbols-outlined text-xl">visibility</span>
+</button>
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors" title="Gerar PDF">
+<span class="material-symbols-outlined text-xl">picture_as_pdf</span>
+</button>
+<button class="p-1.5 text-slate-400 hover:text-primary transition-colors" title="Notificar Cliente">
+<span class="material-symbols-outlined text-xl">send</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="p-4 bg-slate-50 dark:bg-slate-800/50 flex flex-col md:flex-row items-center justify-between gap-4 border-t border-slate-200 dark:border-slate-700">
+<p class="text-sm text-slate-500 dark:text-slate-400">Mostrando 1-10 de 142 planos</p>
+<div class="flex items-center gap-1">
+<button class="size-8 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 text-slate-400 hover:bg-white dark:hover:bg-slate-700 transition-colors">
+<span class="material-symbols-outlined text-lg">chevron_left</span>
+</button>
+<button class="size-8 flex items-center justify-center rounded bg-primary text-white font-bold text-xs shadow-sm">1</button>
+<button class="size-8 flex items-center justify-center rounded text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold text-xs transition-colors">2</button>
+<button class="size-8 flex items-center justify-center rounded text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold text-xs transition-colors">3</button>
+<button class="size-8 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 text-slate-400 hover:bg-white dark:hover:bg-slate-700 transition-colors">
+<span class="material-symbols-outlined text-lg">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="mt-auto py-6 px-10 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-background-dark text-center">
+<p class="text-slate-400 text-sm font-medium">© 2024 Multi-tenant Plano Manager • Sistema de Gerenciamento Financeiro</p>
+</footer>
+</div>
+</body></html>

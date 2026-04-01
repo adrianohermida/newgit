@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Hermida Maia - Gestão de Dívidas (Lei 14.181/2021)</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#004d40", // Deep professional emerald green
+              "primary-light": "#00695c",
+              "background-light": "#fcfcfc",
+              "background-dark": "#0a0a0a",
+            },
+            fontFamily: {
+              "display": ["Public Sans", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.5rem", "lg": "0.75rem", "xl": "1rem", "full": "9999px"},
+          },
+        },
+      }</script>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="relative flex min-h-screen w-full flex-col">
+<!-- Top Navigation -->
+<header class="sticky top-0 z-50 w-full border-b border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-background-dark/95 backdrop-blur-md px-6 lg:px-20 py-5 flex items-center justify-between shadow-sm">
+<div class="flex items-center gap-3"><div class="bg-primary p-2.5 rounded-xl text-white shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-2xl">balance</span>
+</div>
+<div class="flex flex-col">
+<h2 class="text-primary dark:text-white text-xl font-extrabold tracking-tight">HERMIDA MAIA</h2>
+<p class="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] leading-tight">Advocacia Premium</p>
+</div></div>
+<div class="hidden md:flex items-center gap-8">
+<nav class="flex items-center gap-6">
+<a class="text-sm font-semibold text-primary border-b-2 border-primary pb-1" href="#">Gestão de Dívidas</a>
+<a class="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-primary transition-colors" href="#">Meus Processos</a>
+<a class="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-primary transition-colors" href="#">Suporte</a>
+</nav>
+<div class="h-8 w-px bg-slate-200 dark:bg-slate-700"></div>
+<button class="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">account_circle</span>
+<span class="text-sm font-semibold">Dr. Ricardo Maia</span>
+</button>
+</div>
+</header>
+<main class="flex-1 max-w-7xl mx-auto w-full px-6 py-12">
+<!-- Stepper Progress -->
+<div class="mb-12"><div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+<div>
+<h1 class="text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-2">Plano de Repactuação</h1>
+<p class="text-slate-500 dark:text-slate-400 font-medium">Gestão de Dívidas sob a Lei 14.181/2021</p>
+</div>
+<div class="flex flex-col items-end gap-3">
+<span class="text-xs font-bold text-primary dark:text-primary-light bg-primary/5 dark:bg-primary/20 px-4 py-1.5 rounded-full border border-primary/10">
+ETAPA 1 DE 3: CREDOR
+</span>
+<div class="flex gap-1.5">
+<div class="h-1.5 w-12 rounded-full bg-primary"></div>
+<div class="h-1.5 w-12 rounded-full bg-slate-200 dark:bg-slate-800"></div>
+<div class="h-1.5 w-12 rounded-full bg-slate-200 dark:bg-slate-800"></div>
+</div>
+</div>
+</div></div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
+<!-- Form Section -->
+<div class="lg:col-span-2 space-y-8">
+<section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-10 shadow-sm transition-all hover:shadow-md">
+<div class="flex items-center gap-3 mb-6">
+<span class="material-symbols-outlined text-primary">account_balance</span>
+<h3 class="text-xl font-bold">Detalhes da Instituição Credora</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="flex flex-col gap-2">
+<label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Nome da Instituição</label>
+<input class="w-full rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 focus:ring-primary/20 focus:border-primary py-3.5 px-4 text-sm transition-all" placeholder="Ex: Banco Central do Brasil" type="text"/>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">CNPJ do Credor</label>
+<input class="w-full rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 focus:ring-primary/20 focus:border-primary py-3.5 px-4 text-sm transition-all" placeholder="00.000.000/0000-00" type="text"/>
+</div>
+<div class="flex flex-col gap-2 md:col-span-2">
+<label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Tipo de Dívida</label>
+<select class="w-full rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 focus:ring-primary/20 focus:border-primary py-3.5 px-4 text-sm transition-all">
+<option>Empréstimo Consignado</option>
+<option>Cartão de Crédito</option>
+<option>Cheque Especial</option>
+<option>Financiamento de Veículo</option>
+<option>Outros</option>
+</select>
+</div>
+</div>
+</section>
+<section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-10 shadow-sm transition-all hover:shadow-md">
+<div class="flex items-center gap-3 mb-6">
+<span class="material-symbols-outlined text-primary">payments</span>
+<h3 class="text-xl font-bold">Valores e Encargos</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="flex flex-col gap-2">
+<label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Valor Original da Dívida</label>
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold">R$</span>
+<input class="w-full rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 focus:ring-primary/20 focus:border-primary py-3.5 px-4 text-sm transition-all" placeholder="0,00" type="number"/>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Taxa de Juros Anual (%)</label>
+<input class="w-full rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 focus:ring-primary/20 focus:border-primary py-3.5 px-4 text-sm transition-all" placeholder="0.00" type="number"/>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Data do Início do Débito</label>
+<input class="w-full rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 focus:ring-primary/20 focus:border-primary py-3.5 px-4 text-sm transition-all" type="date"/>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Multas/Mora Acumuladas</label>
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold">R$</span>
+<input class="w-full rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 focus:ring-primary/20 focus:border-primary py-3.5 px-4 text-sm transition-all" placeholder="0,00" type="number"/>
+</div>
+</div>
+</div>
+</section>
+<div class="flex items-center justify-between pt-8">
+<button class="px-10 py-4 rounded-xl text-slate-500 font-bold hover:text-slate-900 hover:bg-slate-100 transition-all">
+                            Voltar
+                        </button>
+<button class="px-12 py-4 rounded-xl bg-primary text-white font-bold hover:bg-primary-light transition-all flex items-center gap-3 shadow-xl shadow-primary/20 group">
+                            Próxima Etapa
+                            <span class="material-symbols-outlined text-lg transition-transform group-hover:translate-x-1">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Sidebar / Summary Card -->
+<div class="space-y-6">
+<div class="bg-primary text-white rounded-2xl p-8 shadow-2xl relative overflow-hidden">
+<!-- Decorative elements -->
+<div class="absolute -right-8 -bottom-8 opacity-10">
+<span class="material-symbols-outlined text-[180px]">gavel</span>
+</div>
+<div class="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+<h4 class="text-xl font-bold mb-8 relative z-10 flex items-center gap-3">
+<span class="material-symbols-outlined">receipt_long</span>
+        Resumo do Plano
+    </h4>
+<div class="space-y-6 relative z-10">
+<div class="flex flex-col gap-1 border-b border-white/10 pb-4">
+<span class="text-white/60 text-[10px] font-bold uppercase tracking-wider">Instituição Credora</span>
+<span class="font-medium text-lg">-</span>
+</div>
+<div class="flex flex-col gap-1 border-b border-white/10 pb-4">
+<span class="text-white/60 text-[10px] font-bold uppercase tracking-wider">Montante de Dívida Estimado</span>
+<span class="font-bold text-2xl tracking-tight">R$ 0,00</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="text-white/60 text-[10px] font-bold uppercase tracking-wider">Reserva Mínimo Existencial</span>
+<span class="font-bold text-xl text-emerald-300">R$ 600,00</span>
+</div>
+<div class="pt-4 mt-4 border-t border-white/10">
+<div class="flex gap-3">
+<span class="material-symbols-outlined text-white/40 text-sm">verified_user</span>
+<p class="text-[11px] text-white/60 leading-relaxed">
+                    Cálculos processados conforme as diretrizes de proteção ao consumidor da <strong>Lei 14.181/2021</strong>.
+                </p>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-8 shadow-sm">
+<h5 class="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">Suporte Especializado</h5>
+<div class="flex items-center gap-4 mb-4">
+<div class="size-12 rounded-full overflow-hidden bg-slate-200">
+<img class="w-full h-full object-cover" data-alt="Foto de um advogado profissional da Hermida Maia" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCS6qCMKncEF3b6pvOUFfU5Kudi3fu-HJsMxBjlwwLndE4QyEy7isyK_px4_Cdku-tAdZxXc5iOVpj1DXkS28tCreyMZsESay5JQA8kWa7Llag9uAZs8x8E-IKx4HFKQnRqtf7czMTSnS_Kf7R4j37_Z0eFngymeaWSObzAn_7H3SmjZ90-VGHkDBuTeHW5Y1ph75-HdTPy4kpK2H_LOSMEc4zybFFg2B63OHu1tkmLOqn-wZVJ5pjZfNjSIxMW0TKz1T0H89m6-il6"/>
+</div>
+<div>
+<p class="font-bold text-sm">Atendimento Prioritário</p>
+<p class="text-xs text-slate-500">Online agora</p>
+</div>
+</div>
+<button class="w-full py-2.5 rounded-lg border border-primary text-primary font-bold text-sm hover:bg-primary hover:text-white transition-all">Falar com Consultor Senior</button>
+</div>
+<div class="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl p-8">
+<div class="flex gap-3">
+<span class="material-symbols-outlined text-primary">info</span>
+<div class="space-y-2">
+<p class="text-sm font-bold text-primary">Lei do Superendividamento</p>
+<p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                                    A Lei 14.181/2021 garante o direito à repactuação de dívidas para garantir sua subsistência básica.
+                                </p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-white dark:bg-background-dark border-t border-slate-200 dark:border-slate-800 py-8 px-6 lg:px-20 mt-12">
+<div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="text-center md:text-left">
+<p class="text-sm font-bold text-slate-900 dark:text-white">Hermida Maia Advocacia</p>
+<p class="text-xs text-slate-500">© 2024 Todos os direitos reservados. OAB/SP 000.000</p>
+</div>
+<div class="flex gap-6">
+<a class="text-xs font-medium text-slate-500 hover:text-primary" href="#">Termos de Uso</a>
+<a class="text-xs font-medium text-slate-500 hover:text-primary" href="#">Privacidade</a>
+<a class="text-xs font-medium text-slate-500 hover:text-primary" href="#">Compliance</a>
+</div>
+</div>
+</footer>
+</div>
+</body></html>

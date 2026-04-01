@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#11d473",
+                        "emerald-deep": "#064e3b",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#102219",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Public Sans', sans-serif; }
+        .material-symbols-outlined { font-size: 20px; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="layout-container flex h-full grow flex-col">
+<!-- Header -->
+<header class="flex items-center justify-between border-b border-emerald-deep/10 bg-white dark:bg-background-dark px-6 md:px-40 py-4 sticky top-0 z-50">
+<div class="flex items-center gap-3">
+<div class="size-10 bg-emerald-deep flex items-center justify-center rounded-lg text-primary">
+<img alt="Hermida Maia Logo" data-alt="Minimalist legal firm logo emerald theme" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDJXBuxoUwOOuCma1dXWCWtYFg8Mln9UArYi6FpeD5hK8DGORZAl9SZZRFQxPI2vQPoTQegucF58Ln-8w4gERHAe3Cv1DjfCQz7A6wovhb_HANmv3I69pPRsMhxnTuNqP1_cH9zcFc2gb0VNvigAGjbufyiI-2NE3_UDn73NAovH7r3dOm88J1Z6zT-myjr7K9891aSZM3a_99LrWdnobFyiP3Z5i_0s5ZKFo7sfDsgJgcbwc_sdi98ZR3wzF9UNnKzMDn4fXekR23y"/>
+</div>
+<div class="flex flex-col">
+<h1 class="text-emerald-deep dark:text-primary text-xl font-bold leading-tight tracking-tight">Hermida Maia</h1>
+<span class="text-[10px] uppercase tracking-widest text-emerald-deep/60 dark:text-slate-400 font-bold">Advocacia &amp; Tecnologia</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="hidden md:flex flex-col items-end mr-4">
+<span class="text-xs text-slate-500">Saldo em Carteira</span>
+<span class="text-sm font-bold text-emerald-deep dark:text-primary">R$ 1.250,00</span>
+</div>
+<button class="flex items-center justify-center rounded-full size-10 bg-emerald-deep/5 text-emerald-deep hover:bg-emerald-deep hover:text-white transition-colors">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</div>
+</header>
+<main class="px-6 md:px-40 py-8 flex flex-col lg:flex-row gap-8 max-w-[1440px] mx-auto w-full">
+<!-- Left Column: Checkout Details -->
+<div class="flex-1 flex flex-col gap-8">
+<!-- Breadcrumbs -->
+<nav class="flex items-center gap-2 text-sm text-slate-500">
+<a class="hover:text-emerald-deep transition-colors" href="#">Serviços</a>
+<span class="material-symbols-outlined !text-xs">chevron_right</span>
+<a class="hover:text-emerald-deep transition-colors" href="#">Carrinho</a>
+<span class="material-symbols-outlined !text-xs">chevron_right</span>
+<span class="text-emerald-deep font-semibold">Pagamento</span>
+</nav>
+<!-- Order Summary Section -->
+<section>
+<h2 class="text-2xl font-bold text-emerald-deep dark:text-slate-100 mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">description</span>
+                        Resumo da Solicitação
+                    </h2>
+<div class="bg-white dark:bg-emerald-deep/5 border border-emerald-deep/10 rounded-xl p-6 shadow-sm">
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+<div class="space-y-1">
+<span class="text-[10px] font-bold text-primary uppercase tracking-wider">Serviço API Jurídica</span>
+<h3 class="text-lg font-bold text-slate-900 dark:text-slate-100 leading-tight">Obtenção de Cópia Integral (PJe/e-SAJ)</h3>
+<p class="text-sm text-slate-500 flex items-center gap-1">
+<span class="material-symbols-outlined !text-sm">gavel</span>
+                                    Processo: <span class="font-mono font-medium">0800123-45.2023.8.19.0001</span>
+</p>
+</div>
+<div class="text-right">
+<span class="text-2xl font-bold text-emerald-deep dark:text-primary">R$ 15,00</span>
+<p class="text-[10px] text-slate-400">Preço unitário por processo</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Payment Methods -->
+<section>
+<h2 class="text-2xl font-bold text-emerald-deep dark:text-slate-100 mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">account_balance_wallet</span>
+                        Método de Pagamento
+                    </h2>
+<div class="space-y-3">
+<!-- Option 1: Credits -->
+<label class="relative flex items-center p-4 bg-white dark:bg-emerald-deep/5 border-2 border-primary rounded-xl cursor-pointer transition-all hover:shadow-md">
+<input checked="" class="w-5 h-5 text-primary focus:ring-primary border-slate-300" name="payment" type="radio"/>
+<div class="ml-4 flex-1">
+<div class="flex justify-between items-center">
+<span class="font-bold text-slate-900 dark:text-slate-100">Créditos da Conta</span>
+<span class="text-primary font-bold">R$ 1.250,00 disponíveis</span>
+</div>
+<p class="text-xs text-slate-500">O valor será debitado instantaneamente do seu saldo.</p>
+</div>
+</label>
+<!-- Option 2: Credit Card -->
+<label class="relative flex items-center p-4 bg-white dark:bg-emerald-deep/5 border border-emerald-deep/10 rounded-xl cursor-pointer hover:border-primary/50 transition-all">
+<input class="w-5 h-5 text-primary focus:ring-primary border-slate-300" name="payment" type="radio"/>
+<div class="ml-4 flex-1">
+<div class="flex justify-between items-center">
+<span class="font-bold text-slate-900 dark:text-slate-100">Cartão de Crédito</span>
+<div class="flex gap-1">
+<span class="material-symbols-outlined text-slate-400">credit_card</span>
+</div>
+</div>
+<div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+<div class="col-span-full border-b border-slate-200 dark:border-emerald-deep/20 pb-2">
+<p class="text-[10px] font-bold uppercase text-slate-400">Informações Seguras (Stripe)</p>
+</div>
+<input class="w-full text-sm rounded-lg border-slate-200 dark:bg-emerald-deep/10 dark:border-emerald-deep/20 focus:ring-primary focus:border-primary px-3 py-2" placeholder="Número do Cartão" type="text"/>
+<div class="flex gap-2">
+<input class="w-1/2 text-sm rounded-lg border-slate-200 dark:bg-emerald-deep/10 dark:border-emerald-deep/20 focus:ring-primary focus:border-primary px-3 py-2" placeholder="MM/AA" type="text"/>
+<input class="w-1/2 text-sm rounded-lg border-slate-200 dark:bg-emerald-deep/10 dark:border-emerald-deep/20 focus:ring-primary focus:border-primary px-3 py-2" placeholder="CVC" type="text"/>
+</div>
+</div>
+</div>
+</label>
+<!-- Option 3: PIX -->
+<label class="relative flex items-center p-4 bg-white dark:bg-emerald-deep/5 border border-emerald-deep/10 rounded-xl cursor-pointer hover:border-primary/50 transition-all">
+<input class="w-5 h-5 text-primary focus:ring-primary border-slate-300" name="payment" type="radio"/>
+<div class="ml-4 flex-1 flex justify-between items-center">
+<div>
+<span class="font-bold text-slate-900 dark:text-slate-100">PIX Instantâneo</span>
+<p class="text-xs text-slate-500">Confirmação em poucos segundos.</p>
+</div>
+<span class="material-symbols-outlined text-primary">qr_code_2</span>
+</div>
+</label>
+</div>
+</section>
+</div>
+<!-- Right Column: Order Breakdown & Footer -->
+<aside class="w-full lg:w-[380px] space-y-6">
+<div class="bg-emerald-deep text-white rounded-2xl p-8 shadow-xl relative overflow-hidden">
+<!-- Decorative element -->
+<div class="absolute -top-12 -right-12 size-32 bg-primary/20 rounded-full blur-3xl"></div>
+<h3 class="text-lg font-bold mb-6 border-b border-white/10 pb-4">Detalhes da Fatura</h3>
+<div class="space-y-4 text-sm">
+<div class="flex justify-between items-center">
+<span class="text-white/70">Subtotal</span>
+<span class="font-medium">R$ 15,00</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-white/70">Taxas de Serviço</span>
+<span class="font-medium">R$ 0,00</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-white/70">Descontos</span>
+<span class="text-primary">- R$ 0,00</span>
+</div>
+<div class="pt-4 border-t border-white/10 flex justify-between items-end">
+<span class="text-base font-bold">Total</span>
+<div class="text-right">
+<span class="text-3xl font-black text-primary block leading-none">R$ 15,00</span>
+<span class="text-[10px] text-white/50 uppercase">Impostos inclusos</span>
+</div>
+</div>
+</div>
+<button class="w-full mt-8 bg-primary hover:bg-primary/90 text-emerald-deep font-bold py-4 rounded-xl shadow-lg transition-transform active:scale-[0.98] flex items-center justify-center gap-2">
+                        Confirmar e Contratar
+                        <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+<div class="mt-6 flex items-center justify-center gap-4 border-t border-white/5 pt-6">
+<div class="flex flex-col items-center">
+<span class="material-symbols-outlined text-primary !text-3xl mb-1">verified_user</span>
+<span class="text-[10px] uppercase font-bold text-white/40">Seguro SSL</span>
+</div>
+<div class="h-8 w-px bg-white/10"></div>
+<div class="flex flex-col items-center">
+<span class="material-symbols-outlined text-primary !text-3xl mb-1">payments</span>
+<span class="text-[10px] uppercase font-bold text-white/40">via Stripe</span>
+</div>
+</div>
+</div>
+<!-- Legal notice -->
+<div class="p-4 rounded-xl bg-slate-100 dark:bg-emerald-deep/10 text-[11px] text-slate-500 leading-relaxed text-center">
+                    Ao confirmar este pagamento, você concorda com nossos <a class="underline text-emerald-deep dark:text-primary" href="#">Termos de Uso</a> e autoriza a Hermida Maia Advocacia a realizar a busca e extração de cópia do processo mencionado.
+                </div>
+</aside>
+</main>
+<footer class="mt-auto px-6 md:px-40 py-10 bg-white dark:bg-background-dark border-t border-emerald-deep/10">
+<div class="flex flex-col md:flex-row justify-between items-center gap-6 max-w-[1440px] mx-auto w-full">
+<div class="flex items-center gap-6">
+<img alt="Stripe Badge" class="grayscale opacity-50" data-alt="Stripe secure payment badge" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDR7ntRtuHaClo7dDVq_8Sp_4GuSs9wuWqVXYzhqCHw_lPBKmDPaJpHMTPbTJTIeSmw6IUufAxdtoZkjRMskW8XZEivYBZq9kTpBnHDFYe1PHEsq3tmwOdz8_o9gS6ZYHTke7NfoYEmJ8QHhSfY6X6TROAW11vlS76QjpB8qgQcCQudsVG4GWETEAFSJu5ofZnMAWlxzDDeZFFPn9nsPM5AfRUstmXB8wnsHjodXeeX6j-BxiYnoMG2NkJxIBwT36AlugcIJrwU2yXj"/>
+<div class="flex items-center gap-2 text-slate-400">
+<span class="material-symbols-outlined !text-sm">lock</span>
+<span class="text-[10px] font-bold uppercase tracking-widest">Pagamento Seguro via Stripe</span>
+</div>
+</div>
+<div class="text-slate-400 text-xs">
+                    © 2024 Hermida Maia Advocacia. Todos os direitos reservados.
+                </div>
+</div>
+</footer>
+</div>
+</body></html>

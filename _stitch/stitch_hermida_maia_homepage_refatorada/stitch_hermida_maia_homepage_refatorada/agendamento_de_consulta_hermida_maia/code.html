@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#11d473",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#102219",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Public Sans', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100">
+<div class="layout-container flex h-full grow flex-col">
+<!-- Header -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-primary/10 px-6 md:px-20 py-4 bg-white dark:bg-background-dark">
+<div class="flex items-center gap-4">
+<img alt="Logo" class="size-10" data-alt="Logotipo sofisticado da Hermida Maia Advocacia" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCnJV-7V9VWsEgEyFjR1BWSD6uX60JcCyn_6E6WIp5TnkqRbzhBvH5pgV79aWo9AcaRIY1lxAUm8-xk-xghflUlFsc83Wa6KU-ToG5bovmpx7wiFz4ubcuFJHLdE_6iAKM8C5gTWmOZ3fl94zwv74rinu-u_65ewUJfxcGRSVwLLuVidTdDKKQcVw-2OUL6ct5aEUWMxCpZTUHAq6I8hway3uR2JEJy8W4SCQtGAp4lXqpGvAK_fTeTRSuGYdDgFWni5UooovlFX6tv"/>
+<h2 class="text-slate-900 dark:text-slate-100 text-xl font-bold leading-tight tracking-tight">Hermida Maia Advocacia</h2>
+</div>
+<div class="hidden md:flex flex-1 justify-end gap-8">
+<nav class="flex items-center gap-9">
+<a class="text-slate-700 dark:text-slate-300 text-sm font-medium hover:text-primary transition-colors" href="#">Início</a>
+<a class="text-slate-700 dark:text-slate-300 text-sm font-medium hover:text-primary transition-colors" href="#">Áreas de Atuação</a>
+<a class="text-slate-700 dark:text-slate-300 text-sm font-medium hover:text-primary transition-colors" href="#">Sobre</a>
+<a class="text-slate-700 dark:text-slate-300 text-sm font-medium hover:text-primary transition-colors" href="#">Contato</a>
+</nav>
+</div>
+<button class="md:hidden text-slate-900 dark:text-slate-100">
+<span class="material-symbols-outlined">menu</span>
+</button>
+</header>
+<main class="flex-1 max-w-6xl mx-auto w-full px-4 md:px-10 py-10">
+<!-- Hero / Title Section -->
+<div class="mb-10">
+<h1 class="text-4xl md:text-5xl font-black text-slate-900 dark:text-slate-100 mb-4 tracking-tight">Agendamento de Consulta</h1>
+<p class="text-slate-600 dark:text-slate-400 text-lg max-w-2xl">Reserve seu horário para um atendimento jurídico especializado e exclusivo com nossa equipe.</p>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Left Column: Selection & Calendar -->
+<div class="lg:col-span-2 space-y-8">
+<!-- Section 1: Expertise -->
+<section class="bg-white dark:bg-slate-900/50 p-6 rounded-xl border border-primary/10 shadow-sm">
+<div class="flex items-center gap-2 mb-6">
+<span class="material-symbols-outlined text-primary">account_balance</span>
+<h2 class="text-xl font-bold">1. Selecione a Área de Especialidade</h2>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+<label class="relative flex cursor-pointer rounded-lg border border-primary/20 p-4 shadow-sm focus:outline-none hover:bg-primary/5 transition-colors has-[:checked]:border-primary has-[:checked]:ring-1 has-[:checked]:ring-primary">
+<input checked="" class="sr-only" name="expertise" type="radio" value="superendividamento"/>
+<div class="flex flex-col">
+<span class="text-sm font-bold text-slate-900 dark:text-slate-100">Superendividamento</span>
+<span class="text-xs text-slate-500">Recuperação financeira e judicial</span>
+</div>
+</label>
+<label class="relative flex cursor-pointer rounded-lg border border-primary/20 p-4 shadow-sm focus:outline-none hover:bg-primary/5 transition-colors has-[:checked]:border-primary has-[:checked]:ring-1 has-[:checked]:ring-primary">
+<input class="sr-only" name="expertise" type="radio" value="bancario"/>
+<div class="flex flex-col">
+<span class="text-sm font-bold text-slate-900 dark:text-slate-100">Direito Bancário</span>
+<span class="text-xs text-slate-500">Revisão de contratos e juros</span>
+</div>
+</label>
+<label class="relative flex cursor-pointer rounded-lg border border-primary/20 p-4 shadow-sm focus:outline-none hover:bg-primary/5 transition-colors has-[:checked]:border-primary has-[:checked]:ring-1 has-[:checked]:ring-primary">
+<input class="sr-only" name="expertise" type="radio" value="civil"/>
+<div class="flex flex-col">
+<span class="text-sm font-bold text-slate-900 dark:text-slate-100">Direito Civil</span>
+<span class="text-xs text-slate-500">Causas gerais e contratos</span>
+</div>
+</label>
+<label class="relative flex cursor-pointer rounded-lg border border-primary/20 p-4 shadow-sm focus:outline-none hover:bg-primary/5 transition-colors has-[:checked]:border-primary has-[:checked]:ring-1 has-[:checked]:ring-primary">
+<input class="sr-only" name="expertise" type="radio" value="outros"/>
+<div class="flex flex-col">
+<span class="text-sm font-bold text-slate-900 dark:text-slate-100">Outros Assuntos</span>
+<span class="text-xs text-slate-500">Consultoria diversificada</span>
+</div>
+</label>
+</div>
+</section>
+<!-- Section 2: Calendar & Times -->
+<section class="bg-white dark:bg-slate-900/50 p-6 rounded-xl border border-primary/10 shadow-sm">
+<div class="flex items-center gap-2 mb-6">
+<span class="material-symbols-outlined text-primary">calendar_month</span>
+<h2 class="text-xl font-bold">2. Escolha Data e Horário</h2>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<!-- Mock Calendar -->
+<div class="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+<div class="flex items-center justify-between mb-4">
+<button class="p-1 hover:bg-primary/10 rounded-full"><span class="material-symbols-outlined text-sm">chevron_left</span></button>
+<span class="font-bold text-sm">Novembro 2024</span>
+<button class="p-1 hover:bg-primary/10 rounded-full"><span class="material-symbols-outlined text-sm">chevron_right</span></button>
+</div>
+<div class="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-400 uppercase mb-2">
+<div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div>
+</div>
+<div class="grid grid-cols-7 gap-1 text-center">
+<div class="p-2 text-slate-300 italic">30</div>
+<div class="p-2 text-slate-300 italic">31</div>
+<button class="p-2 hover:bg-primary/20 rounded-lg text-sm">1</button>
+<button class="p-2 hover:bg-primary/20 rounded-lg text-sm">2</button>
+<button class="p-2 hover:bg-primary/20 rounded-lg text-sm">3</button>
+<button class="p-2 hover:bg-primary/20 rounded-lg text-sm">4</button>
+<button class="p-2 hover:bg-primary/20 rounded-lg text-sm">5</button>
+<button class="p-2 bg-primary text-white rounded-lg text-sm font-bold">6</button>
+<button class="p-2 hover:bg-primary/20 rounded-lg text-sm">7</button>
+<button class="p-2 hover:bg-primary/20 rounded-lg text-sm">8</button>
+<button class="p-2 hover:bg-primary/20 rounded-lg text-sm">9</button>
+<button class="p-2 hover:bg-primary/20 rounded-lg text-sm">10</button>
+<button class="p-2 hover:bg-primary/20 rounded-lg text-sm">11</button>
+<button class="p-2 hover:bg-primary/20 rounded-lg text-sm">12</button>
+<!-- More days truncated -->
+<div class="col-span-7 py-2 text-xs text-primary font-medium">Dias disponíveis em verde</div>
+</div>
+</div>
+<!-- Times -->
+<div class="space-y-3">
+<p class="text-sm font-bold text-slate-500 uppercase tracking-wider">Horários Disponíveis</p>
+<div class="grid grid-cols-2 gap-2">
+<button class="py-2 px-3 border border-primary/30 rounded text-sm hover:bg-primary/10 transition-colors">09:00</button>
+<button class="py-2 px-3 border border-primary/30 rounded text-sm hover:bg-primary/10 transition-colors">10:30</button>
+<button class="py-2 px-3 bg-primary/20 border border-primary rounded text-sm font-bold text-primary">14:00</button>
+<button class="py-2 px-3 border border-primary/30 rounded text-sm hover:bg-primary/10 transition-colors">15:30</button>
+<button class="py-2 px-3 border border-primary/30 rounded text-sm hover:bg-primary/10 transition-colors">17:00</button>
+<button class="py-2 px-3 border border-primary/30 rounded text-sm hover:bg-primary/10 transition-colors">18:30</button>
+</div>
+<p class="text-xs text-slate-500 mt-4 italic">* Fuso horário: Brasília (GMT-3)</p>
+</div>
+</div>
+</section>
+</div>
+<!-- Right Column: Sidebar (Summary & Profile) -->
+<div class="space-y-6">
+<!-- Professional Profile -->
+<div class="bg-white dark:bg-slate-900/50 p-6 rounded-xl border border-primary/10 shadow-sm text-center">
+<div class="relative inline-block mb-4">
+<img alt="Dr. Ricardo Maia" class="size-32 rounded-full border-4 border-primary/20 object-cover" data-alt="Retrato profissional do Dr. Ricardo Maia" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDnffPeDiBJACQl1y5KQRpOxjduGovEVK-DMxWGRaCzA1wPwZzxDTjXcpnl9-XHCY7-_RW-ARppsLdQBjnPYLSTmlmjrUsdR0LqlszbSeSUDFx6e2FJOM2rSEMMwfQSzkh2pK9WHIWc71XRDgAQTagFM7CGx4u3Du3NinVeavyizdYKLhI_BR7cF5Yac-E2eXyb5kwbDbrlqcdUne_mBZ5c5_BUkCpEdBl6qCThG6AgBns_Xwd8KziN3KqsIvKmt52UlLjolupFPZkc"/>
+<div class="absolute bottom-1 right-1 bg-primary size-6 rounded-full border-2 border-white flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-[12px]">verified</span>
+</div>
+</div>
+<h3 class="text-xl font-bold text-slate-900 dark:text-slate-100">Dr. Ricardo Maia</h3>
+<p class="text-sm text-primary font-medium mb-3">Sócio Fundador | OAB/SP 000.000</p>
+<p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                            Especialista em Direito Bancário e do Consumidor, com mais de 15 anos de atuação protegendo o patrimônio de famílias e empresas.
+                        </p>
+</div>
+<!-- Summary Card -->
+<div class="bg-primary/5 p-6 rounded-xl border-2 border-primary shadow-sm space-y-4">
+<h4 class="font-bold text-lg text-slate-900 dark:text-slate-100">Resumo da Consulta</h4>
+<div class="space-y-3">
+<div class="flex justify-between items-center text-sm">
+<span class="text-slate-600 dark:text-slate-400">Duração Estimada</span>
+<span class="font-semibold">60 minutos</span>
+</div>
+<div class="flex justify-between items-center text-sm">
+<span class="text-slate-600 dark:text-slate-400">Modalidade</span>
+<span class="font-semibold">Online (Vídeo)</span>
+</div>
+<div class="flex justify-between items-center text-sm">
+<span class="text-slate-600 dark:text-slate-400">Valor do Investimento</span>
+<span class="font-bold text-primary text-lg">R$ 450,00</span>
+</div>
+</div>
+<div class="pt-4 border-t border-primary/20">
+<button class="w-full bg-primary hover:bg-primary/90 text-background-dark font-bold py-4 rounded-lg flex items-center justify-center gap-2 transition-all transform active:scale-95 shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined">event_available</span>
+                                Agendar Consulta
+                            </button>
+</div>
+<p class="text-[10px] text-center text-slate-500 uppercase tracking-widest font-bold">Pagamento Seguro via Stripe</p>
+</div>
+<!-- Trust Indicators -->
+<div class="flex flex-col gap-3 px-4">
+<div class="flex items-center gap-3 text-xs text-slate-500">
+<span class="material-symbols-outlined text-primary text-sm">lock</span>
+                            Seus dados estão protegidos pela LGPD.
+                        </div>
+<div class="flex items-center gap-3 text-xs text-slate-500">
+<span class="material-symbols-outlined text-primary text-sm">history</span>
+                            Cancelamento gratuito até 24h antes.
+                        </div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-white dark:bg-background-dark border-t border-primary/10 mt-20">
+<div class="max-w-6xl mx-auto px-6 md:px-10 py-12">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-10">
+<div class="col-span-1 md:col-span-2">
+<div class="flex items-center gap-3 mb-4">
+<img alt="Logo Footer" class="size-8" data-alt="Logotipo simplificado" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCl0Ti3SXQcVBrkGmQFbv27QBjFbquYmgbdA0RGJmXZrMyojT9YPsxpQo0CvxnDXd7yfPX8JEHfrPkufsxHuLEKngEvxrfm54ESW46FVCaMmD-uhYEaAfziGb1WIQl_8xEHEcHzVtQ6KCow8hkWEh7d7FA-yYbGzCkBV4eeyMqxpV7P8HNxqJQa_MMg43n7tsoQo05ivOkZt4JX-pAcJwBKP4duM1PAXM4Blp7jsygdvWSrauhhIbQHAd5Lpmz4JJEcn9n78BZ6LF2R"/>
+<span class="font-bold text-lg">Hermida Maia Advocacia</span>
+</div>
+<p class="text-sm text-slate-600 dark:text-slate-400 max-w-sm mb-6">
+                            Excelência jurídica com foco em resultados reais. Especialistas em proteger seus direitos contra abusos financeiros e bancários.
+                        </p>
+<div class="flex gap-4">
+<a class="text-slate-400 hover:text-primary" href="#"><span class="material-symbols-outlined">share</span></a>
+<a class="text-slate-400 hover:text-primary" href="#"><span class="material-symbols-outlined">chat</span></a>
+<a class="text-slate-400 hover:text-primary" href="#"><span class="material-symbols-outlined">mail</span></a>
+</div>
+</div>
+<div>
+<h5 class="font-bold mb-4 text-sm uppercase tracking-widest text-primary">Links Rápidos</h5>
+<ul class="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+<li><a class="hover:text-primary" href="#">Início</a></li>
+<li><a class="hover:text-primary" href="#">Especialidades</a></li>
+<li><a class="hover:text-primary" href="#">Quem Somos</a></li>
+<li><a class="hover:text-primary" href="#">Blog Jurídico</a></li>
+</ul>
+</div>
+<div>
+<h5 class="font-bold mb-4 text-sm uppercase tracking-widest text-primary">Contato</h5>
+<ul class="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+<li class="flex items-center gap-2"><span class="material-symbols-outlined text-xs">call</span> (11) 99999-9999</li>
+<li class="flex items-center gap-2"><span class="material-symbols-outlined text-xs">location_on</span> São Paulo, SP</li>
+</ul>
+</div>
+</div>
+<div class="border-t border-primary/5 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] text-slate-500 uppercase font-bold tracking-tighter">
+<p>© 2024 Hermida Maia Advocacia. Todos os direitos reservados.</p>
+<div class="flex gap-6">
+<a class="hover:text-primary" href="#">Termos de Uso</a>
+<a class="hover:text-primary" href="#">Privacidade</a>
+</div>
+</div>
+</div>
+</footer>
+</div>
+</body></html>

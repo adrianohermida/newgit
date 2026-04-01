@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#11d473",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#102219",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>Hermida Maia - Gestão de Documentos</title>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100">
+<div class="flex h-screen overflow-hidden">
+<!-- Sidebar -->
+<aside class="w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col">
+<div class="p-6 flex items-center gap-3">
+<div class="bg-primary/10 p-2 rounded-lg">
+<span class="material-symbols-outlined text-primary text-3xl">balance</span>
+</div>
+<div>
+<h1 class="text-lg font-bold leading-tight">Hermida Maia</h1>
+<p class="text-xs text-slate-500 uppercase tracking-wider font-semibold">Advocacia Premium</p>
+</div>
+</div>
+<nav class="flex-1 px-4 space-y-2 mt-4">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-primary/5 hover:text-primary rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-medium text-sm">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-primary/5 hover:text-primary rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">folder_open</span>
+<span class="font-medium text-sm">Meus Processos</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-primary/10 text-primary rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined text-fill-1">description</span>
+<span class="font-medium text-sm">Documentos</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-primary/5 hover:text-primary rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">chat_bubble</span>
+<span class="font-medium text-sm">Mensagens</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-primary/5 hover:text-primary rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="font-medium text-sm">Financeiro</span>
+</a>
+</nav>
+<div class="p-4 border-t border-slate-200 dark:border-slate-800">
+<div class="flex items-center gap-3 p-2">
+<div class="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden border-2 border-primary/30">
+<img class="h-full w-full object-cover" data-alt="Foto de perfil do advogado" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDthrmTCl82u2Cr_B8wvFnxzS8SzWo-Pkm3wAgx0e8qKpUb8THVEJeLfindcKQ0SNp23NruZiRXaDBiN9C5ZZ-fXIONi1sjh7_tDjTH_RY3zelPb9ZwAFA9TGpD8u6kmigoNyWzN7NHXPxv6uGrWl7eXE_KYRzRbfZqA4g8Nf94pi7vFUqve_ytppgYWc_Yu5pB3-VVasD3nZXm0X7fCBbpbwuwLu7s7_WoK-KhgWgVAwivlHR_1dFtNVeIGbX5ReF2i8rL4Q96Juvi"/>
+</div>
+<div class="flex-1 overflow-hidden">
+<p class="text-sm font-bold truncate">Dr. Ricardo Maia</p>
+<p class="text-xs text-slate-500 truncate">Sócio Senior</p>
+</div>
+<button class="text-slate-400 hover:text-slate-600">
+<span class="material-symbols-outlined text-lg">settings</span>
+</button>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col overflow-y-auto">
+<!-- Header -->
+<header class="h-20 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 sticky top-0 z-10">
+<div class="flex items-center gap-4">
+<h2 class="text-xl font-bold">Gestão de Documentos</h2>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative w-96">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border-none rounded-lg focus:ring-2 focus:ring-primary text-sm" placeholder="Pesquisar documentos..." type="text"/>
+</div>
+<div class="flex items-center gap-3">
+<button class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
+</button>
+<button class="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-primary/90 transition-all"><span class="material-symbols-outlined text-lg">cloud_upload</span> Novo Documento</button>
+</div>
+</div>
+</header>
+<div class="p-8 space-y-8">
+<!-- Stats Summary -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="flex items-center justify-between mb-4">
+<span class="text-slate-500 text-sm font-medium">Documentos Totais</span>
+<div class="p-2 bg-primary/10 rounded-lg">
+<span class="material-symbols-outlined text-primary">description</span>
+</div>
+</div>
+<div class="flex items-baseline gap-2">
+<h3 class="text-3xl font-bold">1.248</h3>
+<span class="text-primary text-sm font-bold">+12%</span>
+</div>
+<p class="text-xs text-slate-400 mt-2">Arquivos ativos no sistema</p>
+</div>
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="flex items-center justify-between mb-4">
+<span class="text-slate-500 text-sm font-medium">Pendentes</span>
+<div class="p-2 bg-amber-500/10 rounded-lg">
+<span class="material-symbols-outlined text-amber-500">pending_actions</span>
+</div>
+</div>
+<div class="flex items-baseline gap-2">
+<h3 class="text-3xl font-bold">24</h3>
+<span class="text-amber-500 text-sm font-bold">Atenção</span>
+</div>
+<p class="text-xs text-slate-400 mt-2">Aguardando assinatura ou revisão</p>
+</div>
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="flex items-center justify-between mb-4">
+<span class="text-slate-500 text-sm font-medium">Espaço Utilizado</span>
+<div class="p-2 bg-blue-500/10 rounded-lg">
+<span class="material-symbols-outlined text-blue-500">storage</span>
+</div>
+</div>
+<div class="flex items-baseline gap-2">
+<h3 class="text-3xl font-bold">4.2 GB</h3>
+<span class="text-slate-400 text-sm font-medium">/ 10 GB</span>
+</div>
+<div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full mt-4">
+<div class="bg-primary h-full rounded-full" style="width: 42%"></div>
+</div>
+</div>
+</div>
+<!-- Content Area -->
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+<!-- Filters Bar -->
+<div class="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap gap-3">
+<button class="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium">Todos</button>
+<button class="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors">PDFs</button>
+<button class="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors">Imagens</button>
+<button class="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors">Assinados</button>
+<button class="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors">Pendentes</button>
+</div>
+<!-- Document List Table -->
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-50 dark:bg-slate-800/50">
+<th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Nome do Documento</th>
+<th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Data de Upload</th>
+<th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Tipo</th>
+<th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Status</th>
+<th class="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+<!-- Row 1 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="text-red-500 bg-red-50 dark:bg-red-500/10 p-2 rounded">
+<span class="material-symbols-outlined">picture_as_pdf</span>
+</div>
+<div>
+<p class="text-sm font-bold text-slate-700 dark:text-slate-200">Contrato_Prestacao_Servicos_v2.pdf</p>
+<p class="text-xs text-slate-400">Processo: #4920-2023</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-sm text-slate-500">14 Out 2023</td>
+<td class="px-6 py-4 text-sm text-slate-500">Documento PDF</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                                        Validado
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2">
+<button class="p-2 text-slate-400 hover:text-primary transition-colors" title="Visualizar">
+<span class="material-symbols-outlined text-xl">visibility</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-primary transition-colors" title="Baixar">
+<span class="material-symbols-outlined text-xl">download</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-primary transition-colors" title="Mais opções">
+<span class="material-symbols-outlined text-xl">more_vert</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="text-blue-500 bg-blue-50 dark:bg-blue-500/10 p-2 rounded">
+<span class="material-symbols-outlined">image</span>
+</div>
+<div>
+<p class="text-sm font-bold text-slate-700 dark:text-slate-200">RG_Digitalizado_Frente.jpg</p>
+<p class="text-xs text-slate-400">Identificação Civil</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-sm text-slate-500">12 Out 2023</td>
+<td class="px-6 py-4 text-sm text-slate-500">Imagem JPEG</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/10 text-blue-500">
+<span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                                        Em Análise
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2">
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-xl">visibility</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-xl">download</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-xl">more_vert</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="text-amber-500 bg-amber-50 dark:bg-amber-500/10 p-2 rounded">
+<span class="material-symbols-outlined">draw</span>
+</div>
+<div>
+<p class="text-sm font-bold text-slate-700 dark:text-slate-200">Procuracao_Ad_Judicia.docx</p>
+<p class="text-xs text-slate-400">Documento Legal</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-sm text-slate-500">10 Out 2023</td>
+<td class="px-6 py-4 text-sm text-slate-500">Documento Word</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-500"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Pendente de Assinatura</span>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2">
+<button class="flex items-center gap-1 bg-primary/10 text-primary text-xs font-bold px-3 py-1.5 rounded hover:bg-primary hover:text-white transition-all"><span class="material-symbols-outlined text-sm">edit</span> Assinar</button>
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-xl">download</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-xl">more_vert</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+<p class="text-sm text-slate-500">Mostrando 1 a 10 de 128 documentos</p>
+<div class="flex gap-2">
+<button class="p-2 border border-slate-200 dark:border-slate-800 rounded hover:bg-slate-50 transition-colors">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</button>
+<button class="px-3 py-1 bg-primary text-white rounded text-sm font-bold">1</button>
+<button class="px-3 py-1 hover:bg-slate-50 text-sm font-medium">2</button>
+<button class="px-3 py-1 hover:bg-slate-50 text-sm font-medium">3</button>
+<button class="p-2 border border-slate-200 dark:border-slate-800 rounded hover:bg-slate-50 transition-colors">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Drag & Drop Zone -->
+<div class="bg-primary/5 border-2 border-dashed border-primary/30 rounded-xl p-12 text-center flex flex-col items-center justify-center gap-4">
+<div class="h-16 w-16 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center shadow-md">
+<span class="material-symbols-outlined text-primary text-3xl">upload_file</span>
+</div>
+<div>
+<h4 class="text-lg font-bold">Clique ou arraste arquivos para fazer upload</h4>
+<p class="text-sm text-slate-500">PDF, PNG, JPG ou DOCX (Tamanho máx. 25MB)</p>
+</div>
+<button class="bg-primary text-white px-6 py-2 rounded-lg font-bold hover:bg-primary/90 transition-all">Selecionar Arquivos</button>
+</div>
+</div>
+</main>
+</div>
+</body></html>

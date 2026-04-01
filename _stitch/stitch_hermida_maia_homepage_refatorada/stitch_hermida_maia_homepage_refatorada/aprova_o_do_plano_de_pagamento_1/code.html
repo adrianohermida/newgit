@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#11d473",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#102219",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>Aprovação de Plano - Hermida Maia</title>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 transition-colors duration-300">
+<div class="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden">
+<div class="layout-container flex h-full grow flex-col">
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-primary/10 px-6 py-4 lg:px-40 bg-white dark:bg-background-dark/50 backdrop-blur-md sticky top-0 z-50">
+<div class="flex items-center gap-4 text-slate-900 dark:text-slate-100">
+<div class="size-8 flex items-center justify-center rounded-lg bg-primary text-white">
+<span class="material-symbols-outlined">balance</span>
+</div>
+<h2 class="text-lg font-bold leading-tight tracking-tight">Hermida Maia</h2>
+</div>
+<div class="flex gap-4">
+<button class="flex size-10 cursor-pointer items-center justify-center rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="flex size-10 cursor-pointer items-center justify-center rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</div>
+</header>
+<main class="flex-1 px-4 py-8 lg:px-40">
+<div class="max-w-[960px] mx-auto space-y-8">
+<div class="flex flex-col gap-3">
+<div class="flex items-center gap-2 text-primary font-semibold">
+<span class="material-symbols-outlined text-sm">verified_user</span>
+<span class="text-sm uppercase tracking-wider">Etapa Final de Renegociação</span>
+</div>
+<h1 class="text-4xl font-black leading-tight tracking-tight text-slate-900 dark:text-slate-100">Aprovação do Plano de Pagamento</h1>
+<p class="text-slate-600 dark:text-slate-400 text-lg">Revise os detalhes da sua renegociação judicial sob a égide da <b>Lei 14.181/2021 (Lei do Superendividamento)</b>.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="flex flex-col gap-2 rounded-xl p-8 bg-white dark:bg-slate-900 border border-primary/10 shadow-sm relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-6xl text-primary">money_off</span>
+</div>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-medium uppercase tracking-wide">Dívida Total Original</p>
+<p class="text-slate-400 line-through text-2xl font-semibold">R$ 45.320,00</p>
+<div class="mt-4 flex items-center gap-2">
+<span class="bg-red-100 text-red-600 px-2 py-1 rounded text-xs font-bold">- 59% DE DESCONTO</span>
+</div>
+</div>
+<div class="flex flex-col gap-2 rounded-xl p-8 bg-primary/5 dark:bg-primary/10 border-2 border-primary/30 shadow-md relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-20 group-hover:scale-110 transition-transform text-primary">
+<span class="material-symbols-outlined text-6xl">savings</span>
+</div>
+<p class="text-primary text-sm font-bold uppercase tracking-wide">Valor Final Repactuado</p>
+<p class="text-primary text-4xl font-black">R$ 18.500,00</p>
+<p class="text-slate-600 dark:text-slate-400 text-sm mt-2 font-medium italic">Economia real de R$ 26.820,00</p>
+</div>
+</div>
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-primary/10 overflow-hidden shadow-sm">
+<div class="p-6 border-b border-primary/10 flex justify-between items-center">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">calendar_month</span>
+<h2 class="text-xl font-bold">Cronograma de Parcelamento</h2>
+</div>
+<span class="text-xs font-bold bg-primary/10 text-primary px-3 py-1 rounded-full uppercase tracking-tighter">Fluxo Garantido</span>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-background-light dark:bg-slate-800/50">
+<tr>
+<th class="px-6 py-4 text-sm font-bold text-slate-500 uppercase">Descrição</th>
+<th class="px-6 py-4 text-sm font-bold text-slate-500 uppercase">Nº Parcelas</th>
+<th class="px-6 py-4 text-sm font-bold text-slate-500 uppercase">Vlr. Mensal</th>
+<th class="px-6 py-4 text-sm font-bold text-slate-500 uppercase text-right">Primeiro Vcto.</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-primary/5">
+<tr class="hover:bg-primary/5 transition-colors">
+<td class="px-6 py-4 font-medium italic">Parcelas Fixas</td>
+<td class="px-6 py-4">60x</td>
+<td class="px-6 py-4 font-bold text-primary">R$ 308,33</td>
+<td class="px-6 py-4 text-right">10/11/2023</td>
+</tr>
+<tr class="bg-primary/5">
+<td class="px-6 py-3 text-xs text-slate-500 italic" colspan="4">
+                                            * Valores calculados com base na preservação do <b>Mínimo Existencial</b> de R$ 600,00 conforme Decreto Federal nº 11.150/2022.
+                                        </td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 p-6 rounded-r-xl space-y-3">
+<div class="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+<span class="material-symbols-outlined">gavel</span>
+<h3 class="font-bold">Informações Jurídicas Importantes</h3>
+</div>
+<p class="text-sm leading-relaxed text-blue-900/80 dark:text-blue-200/80">
+                            Este plano foi elaborado considerando a <b>Lei 14.181/2021</b>, garantindo que o pagamento das suas dívidas não comprometa o seu sustento básico. A aceitação deste termo implica na repactuação das dívidas listadas no processo judicial nº 100xxxx-xx.xxxx.8.26.0100. Em caso de descumprimento, o plano poderá ser rescindido pelos credores conforme as condições contratuais.
+                        </p>
+</div>
+<div class="flex flex-col md:flex-row gap-4 pt-6">
+<button class="flex-1 flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-background-dark font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95">
+<span class="material-symbols-outlined">check_circle</span>
+                            Confirmar e Aprovar Plano
+                        </button>
+<div class="flex gap-2 w-full md:w-auto">
+<button class="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold py-4 px-6 rounded-xl transition-all">
+<span class="material-symbols-outlined">picture_as_pdf</span>
+                                PDF
+                            </button>
+<button class="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold py-4 px-6 rounded-xl transition-all">
+<span class="material-symbols-outlined">support_agent</span>
+                                Suporte
+                            </button>
+</div>
+</div>
+<div class="flex items-center justify-center py-10 opacity-50 grayscale">
+<div class="flex items-center gap-12">
+<div class="flex flex-col items-center">
+<span class="material-symbols-outlined text-4xl">security</span>
+<span class="text-[10px] font-bold uppercase mt-1">SSL Seguro</span>
+</div>
+<div class="flex flex-col items-center">
+<span class="material-symbols-outlined text-4xl">fingerprint</span>
+<span class="text-[10px] font-bold uppercase mt-1">LGPD Compliance</span>
+</div>
+<div class="flex flex-col items-center">
+<span class="material-symbols-outlined text-4xl">verified</span>
+<span class="text-[10px] font-bold uppercase mt-1">OAB Certificado</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<footer class="px-6 py-8 lg:px-40 bg-white dark:bg-background-dark border-t border-primary/10">
+<div class="max-w-[960px] mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-500">
+<p>© 2023 Hermida Maia Advogados Associados. Todos os direitos reservados.</p>
+<nav class="flex gap-6">
+<a class="hover:text-primary transition-colors" href="#">Termos de Uso</a>
+<a class="hover:text-primary transition-colors" href="#">Privacidade</a>
+</nav>
+</div>
+</footer>
+</div>
+</div>
+</body></html>

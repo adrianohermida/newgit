@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#11d473",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#102219",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>Portal do Cliente - Detalhes do Processo</title>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100">
+<div class="layout-container flex h-full grow flex-col">
+<!-- Header / Navigation -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-primary/10 bg-white dark:bg-slate-900 px-4 md:px-10 py-3 sticky top-0 z-50">
+<div class="flex items-center gap-4 text-slate-900 dark:text-slate-100">
+<div class="size-8 bg-primary rounded-lg flex items-center justify-center text-white">
+<span class="material-symbols-outlined">balance</span>
+</div>
+<h2 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight tracking-[-0.015em]">Portal Jurídico</h2>
+</div>
+<div class="flex flex-1 justify-end gap-4">
+<div class="flex gap-2">
+<button class="flex size-10 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-primary/10 text-primary transition-colors hover:bg-primary/20">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="flex size-10 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-primary/10 text-primary transition-colors hover:bg-primary/20">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</div>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border-2 border-primary/20" data-alt="User profile avatar placeholder" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDtHhPlEZRrYgaLbnVneMIzVNa-E9UICDDVdNEbf5ST5HuNcmZ3ZOXXMOdMOEihms-T8Dv4STviwoXL_FKfWvPjSI9og1EMytqtJT7359Vw1F1fycuUJB3XHSd-Mphk7Qj5MUX_wWZ_qUfEIExnVjhAAun1tHlQrUWcxQRPDBb-YRYi5FoyBxBdPRIme4o98KHbRbchqHF0YDWmGw3LC8SXQS6QI4vtHQ6Db1T2OsJa-dtRBe9aQKrsHpheYMOnrkQrFEnYU3N_-Hip");'></div>
+</div>
+</header>
+<main class="flex-1 max-w-5xl mx-auto w-full px-4 py-8">
+<!-- Title and Top Actions -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
+<div class="flex flex-col gap-1">
+<h1 class="text-slate-900 dark:text-white text-3xl md:text-4xl font-black leading-tight tracking-[-0.033em]">Detalhes do Processo</h1>
+<div class="flex items-center gap-2 text-primary font-medium">
+<span class="material-symbols-outlined text-sm">auto_awesome</span>
+<p class="text-base">Linha do Tempo com IA</p>
+</div>
+</div>
+<div class="flex flex-wrap gap-2">
+<button class="flex items-center justify-center rounded-lg h-10 px-4 bg-primary text-slate-900 text-sm font-bold transition-transform hover:scale-105">
+<span class="material-symbols-outlined mr-2">chat</span>
+                        Falar com Advogado
+                    </button>
+<button class="flex items-center justify-center rounded-lg h-10 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold hover:bg-slate-50 transition-colors">
+<span class="material-symbols-outlined mr-2">download</span>
+                        Baixar Certidão
+                    </button>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<!-- Main Content (Timeline & Insights) -->
+<div class="lg:col-span-2 space-y-6">
+<!-- Summary Card -->
+<div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-primary/10 overflow-hidden">
+<div class="p-6">
+<div class="flex flex-col md:flex-row gap-6">
+<div class="flex-1">
+<div class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/20 text-slate-800 dark:text-slate-200 mb-3">
+<span class="material-symbols-outlined text-xs mr-1">gavel</span>
+                                        Fase de Conciliação
+                                    </div>
+<h3 class="text-xl font-bold text-slate-900 dark:text-white mb-1">NPU: 1029384-55.2023.8.26.0100</h3>
+<p class="text-slate-500 dark:text-slate-400 text-sm mb-4">Tribunal de Justiça de São Paulo (TJSP)</p>
+<div class="bg-primary/5 rounded-lg p-4 border border-primary/20">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-primary">psychology</span>
+<p class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">AI Insight: O que aconteceu?</p>
+</div>
+<p class="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">
+                                            O juiz agendou uma audiência para tentativa de acordo. Isso é positivo pois pode agilizar o encerramento do caso sem a necessidade de um julgamento longo. 
+                                            <span class="font-semibold text-primary">Próximo passo:</span> Aguardar a data da audiência no CEJUSC.
+                                        </p>
+</div>
+</div>
+<div class="w-full md:w-48 flex flex-col gap-2">
+<button class="w-full flex items-center justify-center rounded-lg h-9 px-4 bg-slate-900 dark:bg-primary text-white dark:text-slate-900 text-xs font-bold">
+<span class="material-symbols-outlined text-sm mr-2">description</span>
+                                        Ver Documentos
+                                    </button>
+<div class="aspect-video w-full rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700 relative">
+<div class="absolute inset-0 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400 text-4xl">map</span>
+</div>
+<div class="w-full h-full bg-slate-200 dark:bg-slate-700 opacity-20" data-alt="Map showing the court location in São Paulo" data-location="São Paulo, Brazil" style=""></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- AI Timeline -->
+<div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 p-6">
+<h4 class="text-lg font-bold text-slate-900 dark:text-white mb-8 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">timeline</span>
+                            Linha do Tempo Inteligente
+                        </h4>
+<div class="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-primary before:via-primary/30 before:to-transparent">
+<!-- Current Stage -->
+<div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+<div class="flex items-center justify-center w-10 h-10 rounded-full border border-white dark:border-slate-900 bg-primary text-slate-900 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
+<span class="material-symbols-outlined text-xl">event_upcoming</span>
+</div>
+<div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl bg-primary/10 border border-primary/20 shadow-sm">
+<div class="flex items-center justify-between space-x-2 mb-1">
+<div class="font-bold text-slate-900 dark:text-white">Audiência Designada</div>
+<time class="text-xs font-medium text-primary">12 Out 2023</time>
+</div>
+<div class="text-slate-600 dark:text-slate-400 text-sm">
+                                        Uma reunião foi marcada para tentar resolver o problema amigavelmente. É a sua chance de encerrar o processo mais rápido.
+                                    </div>
+</div>
+</div>
+<!-- Judicial Phase -->
+<div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+<div class="flex items-center justify-center w-10 h-10 rounded-full border border-white dark:border-slate-900 bg-slate-200 dark:bg-slate-800 text-slate-500 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
+<span class="material-symbols-outlined text-xl">gavel</span>
+</div>
+<div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm">
+<div class="flex items-center justify-between space-x-2 mb-1">
+<div class="font-bold text-slate-900 dark:text-white">Início do Processo Judicial</div>
+<time class="text-xs font-medium text-slate-400">25 Set 2023</time>
+</div>
+<div class="text-slate-600 dark:text-slate-400 text-sm">
+                                        Como não houve acordo inicial, levamos o caso ao Juiz do TJSP para análise oficial.
+                                    </div>
+</div>
+</div>
+<!-- Pre-Procedural Phase -->
+<div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+<div class="flex items-center justify-center w-10 h-10 rounded-full border border-white dark:border-slate-900 bg-slate-200 dark:bg-slate-800 text-slate-500 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
+<span class="material-symbols-outlined text-xl">handshake</span>
+</div>
+<div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm">
+<div class="flex items-center justify-between space-x-2 mb-1">
+<div class="font-bold text-slate-900 dark:text-white">Tentativa Extrajudicial (PROCON)</div>
+<time class="text-xs font-medium text-slate-400">10 Ago 2023</time>
+</div>
+<div class="text-slate-600 dark:text-slate-400 text-sm">
+                                        Tentamos contato direto com a empresa através dos órgãos de defesa do consumidor para resolver sem justiça.
+                                    </div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Sidebar Content -->
+<div class="space-y-6">
+<!-- Related Debt Card -->
+<div class="bg-slate-900 rounded-xl p-6 text-white">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-primary">payments</span>
+<h4 class="font-bold">Dados da Dívida</h4>
+</div>
+<div class="space-y-4">
+<div>
+<p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Valor Questionado</p>
+<p class="text-2xl font-bold">R$ 4.520,80</p>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div>
+<p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Credor</p>
+<p class="text-sm font-medium">Banco Itau S/A</p>
+</div>
+<div>
+<p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Vencimento</p>
+<p class="text-sm font-medium">15/05/2023</p>
+</div>
+</div>
+<div class="pt-4 border-t border-slate-800">
+<div class="flex items-center justify-between text-sm">
+<span class="text-slate-400">Status no Serasa</span>
+<span class="px-2 py-0.5 bg-red-500/20 text-red-400 rounded text-xs font-bold uppercase">Negativado</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Client Support / FAQ -->
+<div class="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-100 dark:border-slate-800">
+<h4 class="font-bold text-slate-900 dark:text-white mb-4">Dúvidas Frequentes</h4>
+<div class="space-y-4">
+<div class="group cursor-pointer">
+<p class="text-sm font-semibold text-slate-700 dark:text-slate-300 group-hover:text-primary transition-colors">Quanto tempo demora?</p>
+<p class="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-snug">Casos de conciliação no TJSP levam em média de 6 a 12 meses.</p>
+</div>
+<div class="group cursor-pointer pt-3 border-t border-slate-100 dark:border-slate-800">
+<p class="text-sm font-semibold text-slate-700 dark:text-slate-300 group-hover:text-primary transition-colors">Preciso ir pessoalmente?</p>
+<p class="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-snug">Atualmente, a maioria das audiências são virtuais por vídeo.</p>
+</div>
+</div>
+<button class="w-full mt-6 py-2 border-2 border-primary/30 text-primary hover:bg-primary/5 transition-colors rounded-lg text-sm font-bold uppercase tracking-wider">
+                            Central de Ajuda
+                        </button>
+</div>
+<!-- App Promotion or similar -->
+<div class="rounded-xl p-6 bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
+<div class="flex flex-col items-center text-center">
+<span class="material-symbols-outlined text-primary text-4xl mb-2">smartphone</span>
+<h5 class="text-slate-900 dark:text-white font-bold text-sm">Acompanhe pelo Celular</h5>
+<p class="text-slate-600 dark:text-slate-400 text-xs mt-1 mb-4">Receba notificações em tempo real a cada novo movimento.</p>
+<div class="flex gap-2">
+<div class="h-8 w-24 bg-slate-900 rounded flex items-center justify-center border border-slate-700" data-alt="App Store button placeholder">
+<span class="text-[8px] text-white">App Store</span>
+</div>
+<div class="h-8 w-24 bg-slate-900 rounded flex items-center justify-center border border-slate-700" data-alt="Google Play button placeholder">
+<span class="text-[8px] text-white">Google Play</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<footer class="mt-12 border-t border-slate-200 dark:border-slate-800 py-8 bg-white dark:bg-slate-900">
+<div class="max-w-5xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
+<div class="flex items-center gap-2 opacity-50">
+<span class="material-symbols-outlined">verified_user</span>
+<span class="text-xs font-medium">Dados protegidos pela LGPD • Protocolo de Segurança 256-bit</span>
+</div>
+<div class="flex gap-6">
+<a class="text-xs text-slate-500 hover:text-primary" href="#">Termos de Uso</a>
+<a class="text-xs text-slate-500 hover:text-primary" href="#">Privacidade</a>
+<a class="text-xs text-slate-500 hover:text-primary" href="#">Suporte</a>
+</div>
+</div>
+</footer>
+</div>
+</body></html>
