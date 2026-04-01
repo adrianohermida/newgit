@@ -1,0 +1,102 @@
+param(
+  [string]$CloudflareAccountId = $env:CLOUDFLARE_WORKER_ACCOUNT_ID,
+  [string]$CloudflareApiToken = $env:CLOUDFLARE_WORKER_API_TOKEN,
+  [string]$SupabaseProjectRef = 'sspvizogbcyigquqycsz',
+  [string]$SupabaseUrl = $env:SUPABASE_URL,
+  [string]$SupabaseServiceRoleKey = $env:SUPABASE_SERVICE_ROLE_KEY,
+  [string]$FreshsalesApiBase = $env:FRESHSALES_API_BASE,
+  [string]$FreshsalesApiKey = $env:FRESHSALES_API_KEY,
+  [string]$FreshsalesOwnerId = $env:FRESHSALES_OWNER_ID,
+  [string]$FreshsalesActivityTypeNotaProcessual = $env:FRESHSALES_ACTIVITY_TYPE_NOTA_PROCESSUAL,
+  [string]$FreshsalesActivityTypeAudiencia = $env:FRESHSALES_ACTIVITY_TYPE_AUDIENCIA,
+  [string]$CloudflareWorkersAiModel = $env:CLOUDFLARE_WORKERS_AI_MODEL,
+  [string]$SharedSecret = $env:HMDAV_AI_SHARED_SECRET,
+  [string]$ProcessAiBase = $env:PROCESS_AI_BASE,
+  [switch]$SkipDeploy,
+  [switch]$SkipSupabaseSecrets
+)
+
+$ErrorActionPreference = 'Stop'
+
+function Require-Value([string]$Name, [string]$Value) {
+  if ([string]::IsNullOrWhiteSpace($Value)) {
+    throw "Defina $Name."
+  }
+}
+
+function Mask-Value([string]$Value) {
+  if ([string]::IsNullOrWhiteSpace($Value)) { return '' }
+  if ($Value.Length -le 8) { return ('*' * $Value.Length) }
+  return $Value.Substring(0, 4) + ('*' * ($Value.Length - 8)) + $Value.Substring($Value.Length - 4)
+}
+
+function Put-WranglerSecret([string]$Name, [string]$Value) {
+  if ([string]::IsNullOrWhiteSpace($Value)) { return }
+  Write-Host "Gravando secret no Worker: $Name"
+  $Value | npx wrangler secret put $Name --config workers/hmadv-process-ai/wrangler.toml
+}
+
+if ([string]::IsNullOrWhiteSpace($SharedSecret)) {
+  $bytes = New-Object byte[] 48
+  [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+  $SharedSecret = [Convert]::ToBase64String($bytes)
+  Write-Host "HMDAV_AI_SHARED_SECRET gerado automaticamente."
+}
+
+Require-Value 'CLOUDFLARE_WORKER_ACCOUNT_ID' $CloudflareAccountId
+Require-Value 'CLOUDFLARE_WORKER_API_TOKEN' $CloudflareApiToken
+Require-Value 'SUPABASE_URL' $SupabaseUrl
+Require-Value 'SUPABASE_SERVICE_ROLE_KEY' $SupabaseServiceRoleKey
+Require-Value 'FRESHSALES_API_BASE' $FreshsalesApiBase
+Require-Value 'FRESHSALES_API_KEY' $FreshsalesApiKey
+Require-Value 'FRESHSALES_OWNER_ID' $FreshsalesOwnerId
+Require-Value 'FRESHSALES_ACTIVITY_TYPE_NOTA_PROCESSUAL' $FreshsalesActivityTypeNotaProcessual
+Require-Value 'FRESHSALES_ACTIVITY_TYPE_AUDIENCIA' $FreshsalesActivityTypeAudiencia
+
+if ([string]::IsNullOrWhiteSpace($CloudflareWorkersAiModel)) {
+  $CloudflareWorkersAiModel = '@cf/meta/llama-3.1-8b-instruct'
+}
+
+$env:CLOUDFLARE_ACCOUNT_ID = $CloudflareAccountId
+$env:CLOUDFLARE_API_TOKEN = $CloudflareApiToken
+
+Push-Location 'D:\Github\newgit'
+try {
+  if (-not $SkipDeploy) {
+    Write-Host 'Publicando worker Cloudflare AI...'
+    npx wrangler deploy --config workers/hmadv-process-ai/wrangler.toml
+    Write-Host ''
+    Write-Host 'Se o wrangler exibiu a URL final do worker, use-a em PROCESS_AI_BASE.'
+  }
+
+  Put-WranglerSecret 'SUPABASE_URL' $SupabaseUrl
+  Put-WranglerSecret 'SUPABASE_SERVICE_ROLE_KEY' $SupabaseServiceRoleKey
+  Put-WranglerSecret 'FRESHSALES_API_BASE' $FreshsalesApiBase
+  Put-WranglerSecret 'FRESHSALES_API_KEY' $FreshsalesApiKey
+  Put-WranglerSecret 'FRESHSALES_OWNER_ID' $FreshsalesOwnerId
+  Put-WranglerSecret 'FRESHSALES_ACTIVITY_TYPE_NOTA_PROCESSUAL' $FreshsalesActivityTypeNotaProcessual
+  Put-WranglerSecret 'FRESHSALES_ACTIVITY_TYPE_AUDIENCIA' $FreshsalesActivityTypeAudiencia
+  Put-WranglerSecret 'HMDAV_AI_SHARED_SECRET' $SharedSecret
+  Put-WranglerSecret 'CLOUDFLARE_WORKERS_AI_MODEL' $CloudflareWorkersAiModel
+
+  if (-not $SkipSupabaseSecrets) {
+    if ([string]::IsNullOrWhiteSpace($ProcessAiBase)) {
+      Write-Warning 'PROCESS_AI_BASE nao foi informado. Configure a URL final do worker no HMADV depois do deploy.'
+    } else {
+      Write-Host 'Gravando secrets no projeto HMADV...'
+      npx supabase secrets set `
+        PROCESS_AI_BASE="$ProcessAiBase" `
+        HMDAV_AI_SHARED_SECRET="$SharedSecret" `
+        --project-ref $SupabaseProjectRef
+    }
+  }
+
+  Write-Host ''
+  Write-Host 'Resumo:'
+  Write-Host "  CLOUDFLARE_WORKER_ACCOUNT_ID = $(Mask-Value $CloudflareAccountId)"
+  Write-Host "  PROCESS_AI_BASE = $ProcessAiBase"
+  Write-Host "  HMDAV_AI_SHARED_SECRET = $(Mask-Value $SharedSecret)"
+}
+finally {
+  Pop-Location
+}

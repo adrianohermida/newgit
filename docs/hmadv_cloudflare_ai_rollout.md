@@ -45,6 +45,41 @@ Se as credenciais de deploy estiverem no shell:
 npm run deploy:hmadv-ai
 ```
 
+## Setup automatizado
+
+Existe um caminho unico para:
+
+- publicar o worker
+- gravar os secrets no Cloudflare
+- configurar `PROCESS_AI_BASE` e `HMDAV_AI_SHARED_SECRET` no HMADV
+
+Uso:
+
+```powershell
+$env:CLOUDFLARE_WORKER_ACCOUNT_ID = "SEU_ACCOUNT_ID"
+$env:CLOUDFLARE_WORKER_API_TOKEN = "SEU_API_TOKEN"
+$env:SUPABASE_URL = "https://sspvizogbcyigquqycsz.supabase.co"
+$env:SUPABASE_SERVICE_ROLE_KEY = "SUA_SERVICE_ROLE"
+$env:FRESHSALES_API_BASE = "https://hmadv-org.myfreshworks.com/crm/sales"
+$env:FRESHSALES_API_KEY = "SUA_FRESHSALES_API_KEY"
+$env:FRESHSALES_OWNER_ID = "31000147944"
+$env:FRESHSALES_ACTIVITY_TYPE_NOTA_PROCESSUAL = "31001147751"
+$env:FRESHSALES_ACTIVITY_TYPE_AUDIENCIA = "31001147752"
+
+npm run setup:hmadv-ai
+```
+
+Se voce ja souber a URL final do worker:
+
+```powershell
+$env:PROCESS_AI_BASE = "https://hmadv-process-ai.seu-subdominio.workers.dev"
+$env:HMDAV_AI_SHARED_SECRET = "seu-segredo-forte"
+npm run setup:hmadv-ai
+```
+
+Se nao informar `HMDAV_AI_SHARED_SECRET`, o script gera um automaticamente.
+Se nao informar `PROCESS_AI_BASE`, o script publica o worker e avisa para voce gravar a URL final no HMADV depois.
+
 ## Validacoes minimas
 
 1. `npx wrangler deploy --config workers/hmadv-process-ai/wrangler.toml --dry-run`
