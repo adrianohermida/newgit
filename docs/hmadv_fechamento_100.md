@@ -179,7 +179,21 @@ Aceite:
 - apoio a status, fase, instancia e inconsistencias;
 - `Consulta` registra solicitacao, sucesso e eventos relevantes do processo.
 
-## Fase 8 - Prazos Processuais
+## Fase 8 - Contatos, Polos e Status
+
+Arquivos:
+
+- [hmadv_contacts_status_implantacao.md](/D:/Github/newgit/docs/hmadv_contacts_status_implantacao.md)
+
+Aceite:
+
+- todo `Sales Account` tem contatos relacionados consistentes;
+- a parte cliente do Dr. Adriano é identificada;
+- `polo_ativo` e `polo_passivo` ficam corretamente preenchidos;
+- `cf_status` reflete `Ativo`, `Baixado` ou `Suspenso`;
+- na ausência de evento de baixa/suspensão, o processo permanece `Ativo`.
+
+## Fase 9 - Prazos Processuais
 
 Arquivos:
 
@@ -202,6 +216,7 @@ Aceite:
 - `processos_sem_polos` em queda sustentada
 - `audiencias` detectadas e prontas para exportacao
 - `movimentos` com TPU em cobertura aceitavel
+- `contacts` relacionados consistentes por processo
 - `prazos_calculados` com tasks geradas para eventos elegiveis
 
 ## Ordem recomendada
@@ -215,5 +230,6 @@ Aceite:
 7. Concluir camada institucional
 8. Publicar e integrar o Cloudflare Worker IA
 9. Destravar audiencias e appointments
-10. Implantar motor de prazos processuais
-11. Fechar reconciliacao diaria Freshsales x Supabase
+10. Implantar contatos, polos e status processual
+11. Implantar motor de prazos processuais
+12. Fechar reconciliacao diaria Freshsales x Supabase
