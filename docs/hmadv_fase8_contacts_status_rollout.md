@@ -12,15 +12,17 @@ Executar esta fase somente após:
 1. Aplicar [hmadv_fase8_contacts_status_schema.sql](/D:/Github/newgit/docs/hmadv_fase8_contacts_status_schema.sql)
    Arquivo de migração versionado: [006_hmadv_contacts_status.sql](/D:/Github/newgit/_hmadv_review/supabase/migrations/006_hmadv_contacts_status.sql)
 2. Revisar a baseline em [hmadv_fase8_baseline_2026-04-01.md](/D:/Github/newgit/docs/hmadv_fase8_baseline_2026-04-01.md)
-3. Rodar [hmadv_fase8_contacts_status_validacao.ps1](/D:/Github/newgit/docs/hmadv_fase8_contacts_status_validacao.ps1)
-4. Implementar reconciliador de:
+3. Revisar as regras operacionais em [hmadv_fase8_contacts_status_regras.md](/D:/Github/newgit/docs/hmadv_fase8_contacts_status_regras.md)
+4. Rodar [hmadv_fase8_contacts_status_validacao.ps1](/D:/Github/newgit/docs/hmadv_fase8_contacts_status_validacao.ps1)
+   O script agora funciona antes e depois da migração `006`: quando colunas novas ainda não existirem, ele devolve aviso em vez de falhar.
+5. Implementar reconciliador de:
    - cliente principal
    - contacts relacionados
    - polos
    - status processual
-5. Garantir persistência em `judiciario.processos`, não só no Freshsales
-6. Rodar novo backfill de account no Freshsales
-7. Homologar `Contacts + cf_polo_ativo + cf_parte_adversa + cf_status`
+6. Garantir persistência em `judiciario.processos`, não só no Freshsales
+7. Rodar novo backfill de account no Freshsales
+8. Homologar `Contacts + cf_polo_ativo + cf_parte_adversa + cf_status`
 
 ## Regras mínimas
 
