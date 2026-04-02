@@ -191,6 +191,7 @@ Arquivos:
 - [hmadv_reconciliar_contacts_status.ps1](/D:/Github/newgit/docs/hmadv_reconciliar_contacts_status.ps1)
 - [hmadv_fase8_reconciliacao.md](/D:/Github/newgit/docs/hmadv_fase8_reconciliacao.md)
 - [hmadv_fase8_rules_seed.md](/D:/Github/newgit/docs/hmadv_fase8_rules_seed.md)
+- [hmadv_phase8_prazos_grants.md](/D:/Github/newgit/docs/hmadv_phase8_prazos_grants.md)
 
 Aceite:
 
@@ -213,6 +214,7 @@ Arquivos:
 - [hmadv_prazos_alias.md](/D:/Github/newgit/docs/hmadv_prazos_alias.md)
 - [hmadv_prazos_validacao.ps1](/D:/Github/newgit/docs/hmadv_prazos_validacao.ps1)
 - [hmadv_prazos_validacao.md](/D:/Github/newgit/docs/hmadv_prazos_validacao.md)
+- [hmadv_phase8_prazos_grants.md](/D:/Github/newgit/docs/hmadv_phase8_prazos_grants.md)
 
 Aceite:
 

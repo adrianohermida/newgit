@@ -159,8 +159,9 @@ function Invoke-Upsert($table, $rows, $conflict) {
   for ($i = 0; $i -lt $rows.Count; $i += $BatchSize) {
     $batch = @($rows[$i..([Math]::Min($i + $BatchSize - 1, $rows.Count - 1))])
     $json = $batch | ConvertTo-Json -Depth 10 -Compress
+    $body = [System.Text.Encoding]::UTF8.GetBytes($json)
     $uri = "$base/$table?on_conflict=$conflict"
-    Invoke-RestMethod -Method Post -Uri $uri -Headers ($headers + @{ Prefer = "resolution=merge-duplicates" }) -Body $json -TimeoutSec 120 | Out-Null
+    Invoke-RestMethod -Method Post -Uri $uri -Headers ($headers + @{ Prefer = "resolution=merge-duplicates" }) -Body $body -TimeoutSec 120 -ErrorAction Stop | Out-Null
     $importadas += $batch.Count
   }
 

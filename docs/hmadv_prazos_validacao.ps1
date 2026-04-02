@@ -17,9 +17,14 @@ $headers = @{
 function Get-Count($url) {
   try {
     $res = Invoke-WebRequest -Method Get -Uri $url -Headers $headers -TimeoutSec 60
-    $cr = ($res.Headers["Content-Range"] -join "")
-    $m = [regex]::Match($cr, "/(\d+)$")
-    if ($m.Success) { return [int]$m.Groups[1].Value }
+    $contentRange = $null
+    if ($res.Headers -and $null -ne $res.Headers["Content-Range"]) {
+      $contentRange = ($res.Headers["Content-Range"] -join "")
+    }
+    if ($contentRange) {
+      $m = [regex]::Match($contentRange, "/(\d+)$")
+      if ($m.Success) { return [int]$m.Groups[1].Value }
+    }
     if ($res.Content) {
       $parsed = $res.Content | ConvertFrom-Json
       if ($parsed -is [System.Array]) { return $parsed.Count }
