@@ -562,6 +562,54 @@ function normalizePublicationRow(row) {
   };
 }
 
+function inferDocumentCategory(row = {}) {
+  const corpus = flattenToStrings([
+    row.nome,
+    row.titulo,
+    row.tipo,
+    row.categoria,
+    row.classificacao,
+    row.descricao,
+    row.metadata,
+  ]).join(" | ");
+
+  if (textIncludesAny(corpus, ["contrato", "procuracao", "procuração", "assinatura"])) return "cadastro";
+  if (textIncludesAny(corpus, ["peticao", "petição", "manifestacao", "manifestação", "inicial"])) return "peticao";
+  if (textIncludesAny(corpus, ["sentenca", "sentença", "acordao", "acórdão", "decisao", "decisão"])) return "decisao";
+  if (textIncludesAny(corpus, ["boleto", "fatura", "financeiro", "pagamento"])) return "financeiro";
+  return "geral";
+}
+
+function mapDocumentStatus(value) {
+  const normalized = normalizeText(value);
+  if (!normalized) return "disponivel";
+  if (textIncludesAny(normalized, ["pendente", "aguardando", "processando"])) return "pendente";
+  if (textIncludesAny(normalized, ["assinado", "concluido", "concluído", "finalizado"])) return "concluido";
+  if (textIncludesAny(normalized, ["expirado", "cancelado"])) return "expirado";
+  return "disponivel";
+}
+
+function mapDocumentStatusLabel(status) {
+  const labels = {
+    disponivel: "Disponivel",
+    pendente: "Pendente",
+    concluido: "Concluido",
+    expirado: "Expirado",
+  };
+  return labels[status] || "Disponivel";
+}
+
+function mapDocumentCategoryLabel(category) {
+  const labels = {
+    cadastro: "Cadastro",
+    peticao: "Peca processual",
+    decisao: "Decisao judicial",
+    financeiro: "Financeiro",
+    geral: "Geral",
+  };
+  return labels[category] || "Geral";
+}
+
 function toTimestamp(value) {
   if (!value) return 0;
   const parsed = new Date(value).getTime();
@@ -925,25 +973,37 @@ export async function listClientPublicacoes(env, profile) {
 export async function listClientDocumentos(env, email) {
   const result = await tryFetchOptional(env, [
     {
-      path: `documentos?select=id,nome,status,created_at,updated_at,arquivo_url,cliente_email&cliente_email=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=20`,
+      path: `documentos?select=id,nome,status,created_at,updated_at,arquivo_url,cliente_email,tipo,categoria,descricao,metadata,processo_id,numero_cnj&cliente_email=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=20`,
       mapRow: (row) => ({
         id: row.id,
         name: row.nome || "Documento",
-        status: row.status || "disponivel",
+        status: mapDocumentStatus(row.status),
+        status_label: mapDocumentStatusLabel(mapDocumentStatus(row.status)),
+        category: inferDocumentCategory(row),
+        category_label: mapDocumentCategoryLabel(inferDocumentCategory(row)),
         created_at: row.created_at || null,
         updated_at: row.updated_at || null,
+        reference_date: row.updated_at || row.created_at || null,
         url: row.arquivo_url || null,
+        process_id: row.processo_id || row.numero_cnj || null,
+        summary: row.descricao || null,
       }),
     },
     {
-      path: `documentos?select=id,titulo,status,created_at,updated_at,file_url,cliente_email&cliente_email=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=20`,
+      path: `documentos?select=id,titulo,status,created_at,updated_at,file_url,cliente_email,tipo,categoria,descricao,metadata,processo_id,numero_cnj&cliente_email=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=20`,
       mapRow: (row) => ({
         id: row.id,
         name: row.titulo || "Documento",
-        status: row.status || "disponivel",
+        status: mapDocumentStatus(row.status),
+        status_label: mapDocumentStatusLabel(mapDocumentStatus(row.status)),
+        category: inferDocumentCategory(row),
+        category_label: mapDocumentCategoryLabel(inferDocumentCategory(row)),
         created_at: row.created_at || null,
         updated_at: row.updated_at || null,
+        reference_date: row.updated_at || row.created_at || null,
         url: row.file_url || null,
+        process_id: row.processo_id || row.numero_cnj || null,
+        summary: row.descricao || null,
       }),
     },
   ]);
@@ -951,11 +1011,30 @@ export async function listClientDocumentos(env, email) {
   if (!result.items.length) {
     return {
       items: [],
+      summary: {
+        total: 0,
+        pendentes: 0,
+        disponiveis: 0,
+        categorias: {},
+      },
       warning: "Estante documental em ativacao neste projeto.",
     };
   }
 
-  return result;
+  const categories = result.items.reduce((acc, item) => {
+    acc[item.category] = (acc[item.category] || 0) + 1;
+    return acc;
+  }, {});
+
+  return {
+    ...result,
+    summary: {
+      total: result.items.length,
+      pendentes: result.items.filter((item) => item.status === "pendente").length,
+      disponiveis: result.items.filter((item) => item.status === "disponivel" || item.status === "concluido").length,
+      categorias: categories,
+    },
+  };
 }
 
 export async function listClientFinanceiro(env, email) {
