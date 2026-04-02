@@ -11,6 +11,7 @@ import {
   sendTransactionalEmail,
   upsertGoogleEvent,
 } from '../lib/agendamento-helpers.js';
+import { runAgendamentoStatusIntegrations } from '../lib/agendamento-integrations.js';
 
 const TOKEN_MAPPINGS = [
   { field: 'token_remarcacao', actor: 'cliente' },
@@ -120,6 +121,17 @@ export async function onRequestPost(context) {
     return jsonResponse(500, { ok: false, status: 'erro', message: 'Erro ao atualizar agendamento no Supabase.', detail: error.message });
   }
 
+  const integrationResult = await runAgendamentoStatusIntegrations(
+    env,
+    supabase,
+    { ...updated, remarcacao_clicked_at: nowIso },
+    'rescheduled'
+  );
+  const integrationWarnings = integrationResult.warnings;
+  if (integrationResult.zoomSnapshot) {
+    updated = { ...updated, ...integrationResult.zoomSnapshot };
+  }
+
   const siteUrl = getSiteUrl(env);
   const actionLinks = buildActionLinks(siteUrl, updated);
   const dataFormatada = formatAgendamentoDate(updated.data, '12:00');
@@ -133,6 +145,7 @@ export async function onRequestPost(context) {
   <table style="width:100%;border-collapse:collapse;margin:24px 0">
     <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Horário anterior</td><td style="padding:8px">${originalDataFormatada} às ${row.hora}</td></tr>
     <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Novo horário</td><td style="padding:8px">${dataFormatada} às ${updated.hora}</td></tr>
+    ${updated.zoom_join_url ? `<tr><td style="padding:8px;color:#C5A059;font-weight:bold">Sala virtual</td><td style="padding:8px"><a href="${updated.zoom_join_url}" style="color:#C5A059">Entrar na reunião do Zoom</a></td></tr>` : ''}
   </table>
   <div style="margin:20px 0">
     <a href="${actionLinks.cliente.confirmar}" style="display:inline-block;background:#C5A059;color:#050706;font-weight:bold;padding:14px 28px;border-radius:8px;text-decoration:none;margin:8px 8px 8px 0">Confirmar</a>
@@ -153,5 +166,11 @@ export async function onRequestPost(context) {
     sendTransactionalEmail(env, INTERNAL_RECIPIENTS, `Agendamento remarcado — ${updated.nome}`, emailInternoHtml),
   ]);
 
-  return jsonResponse(200, { ok: true, status: 'remarcado', message: 'Agendamento remarcado com sucesso.' });
+  return jsonResponse(200, {
+    ok: true,
+    status: 'remarcado',
+    message: 'Agendamento remarcado com sucesso.',
+    zoomJoinUrl: updated.zoom_join_url || null,
+    integrationWarnings: integrationWarnings.length ? integrationWarnings : undefined,
+  });
 }

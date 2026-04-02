@@ -1,5 +1,6 @@
 import { getSupabaseBaseUrl, getSupabaseServerKey, inspectSupabaseKey } from '../lib/env.js';
 import { INTERNAL_RECIPIENTS, buildActionLinks, formatAgendamentoDate, getSiteUrl, sendTransactionalEmail } from '../lib/agendamento-helpers.js';
+import { runAgendamentoStatusIntegrations } from '../lib/agendamento-integrations.js';
 
 // Cloudflare Pages Function para confirmação de agendamento via link seguro
 // Endpoint: /functions/api/confirmar.js
@@ -123,7 +124,18 @@ export async function onRequestGet(context) {
     }
     return new Response('Erro ao confirmar agendamento.', { status: 500 });
   }
-  const agendamentoConfirmado = updatedRows[0];
+  let agendamentoConfirmado = updatedRows[0];
+  let integrationWarnings = [];
+  const integrationResult = await runAgendamentoStatusIntegrations(
+    env,
+    { supabaseUrl, supabaseKey },
+    { ...agendamentoConfirmado, confirmation_clicked_at: confirmedAt },
+    'confirmed'
+  );
+  integrationWarnings = integrationResult.warnings;
+  if (integrationResult.zoomSnapshot) {
+    agendamentoConfirmado = { ...agendamentoConfirmado, ...integrationResult.zoomSnapshot };
+  }
 
   // Montar e-mails de confirmação
   const dataFormatada = formatAgendamentoDate(agendamento.data, '12:00');
@@ -137,6 +149,7 @@ export async function onRequestGet(context) {
     <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Área</td><td style="padding:8px">${agendamento.area}</td></tr>
     <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Data</td><td style="padding:8px">${dataFormatada}</td></tr>
     <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Horário</td><td style="padding:8px">${agendamento.hora}</td></tr>
+    ${agendamentoConfirmado.zoom_join_url ? `<tr><td style="padding:8px;color:#C5A059;font-weight:bold">Sala virtual</td><td style="padding:8px"><a href="${agendamentoConfirmado.zoom_join_url}" style="color:#C5A059">Entrar na reunião do Zoom</a></td></tr>` : ''}
   </table>
   <div style="margin:20px 0">
     <a href="${actionLinks.cliente.remarcar}" style="display:inline-block;background:#111827;color:#F4F1EA;font-weight:bold;padding:14px 28px;border-radius:8px;text-decoration:none;margin:8px 8px 8px 0;border:1px solid #C5A059">Remarcar</a>
@@ -157,6 +170,7 @@ export async function onRequestGet(context) {
     <tr><td style="padding:6px;font-weight:bold">Hora</td><td style="padding:6px">${agendamento.hora}</td></tr>
     <tr><td style="padding:6px;font-weight:bold">Observações</td><td style="padding:6px">${agendamento.observacoes || '—'}</td></tr>
     <tr><td style="padding:6px;font-weight:bold">Google Event ID</td><td style="padding:6px;font-size:12px">${agendamento.google_event_id || '—'}</td></tr>
+    ${agendamentoConfirmado.zoom_join_url ? `<tr><td style="padding:6px;font-weight:bold">Zoom</td><td style="padding:6px"><a href="${agendamentoConfirmado.zoom_join_url}">${agendamentoConfirmado.zoom_join_url}</a></td></tr>` : ''}
   </table>
 </div>`;
 
@@ -171,6 +185,7 @@ export async function onRequestGet(context) {
       status: 'confirmado',
       message: 'Sua consulta foi confirmada com sucesso.',
       confirmedAt,
+      integrationWarnings: integrationWarnings.length ? integrationWarnings : undefined,
     });
   }
 

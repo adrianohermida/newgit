@@ -9,6 +9,7 @@ import {
   deleteGoogleEvent,
 } from '../lib/agendamento-helpers.js';
 import { getGoogleAccessToken } from '../lib/google-auth.js';
+import { runAgendamentoStatusIntegrations } from '../lib/agendamento-integrations.js';
 
 const TOKEN_MAPPINGS = [
   { field: 'token_cancelamento', actor: 'cliente' },
@@ -110,6 +111,14 @@ export async function onRequestPost(context) {
     return jsonResponse(500, { ok: false, status: 'erro', message: 'Erro ao cancelar agendamento.', detail: error.message });
   }
 
+  const integrationResult = await runAgendamentoStatusIntegrations(
+    env,
+    supabase,
+    { ...updated, cancellation_clicked_at: cancelledAt },
+    'cancelled'
+  );
+  const integrationWarnings = integrationResult.warnings;
+
   const dataFormatada = formatAgendamentoDate(updated.data, '12:00');
   const emailClienteHtml = `
 <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#050706;color:#F4F1EA;padding:32px;border-radius:12px">
@@ -131,5 +140,10 @@ export async function onRequestPost(context) {
     sendTransactionalEmail(env, INTERNAL_RECIPIENTS, `Agendamento cancelado — ${updated.nome}`, emailInternoHtml),
   ]);
 
-  return jsonResponse(200, { ok: true, status: 'cancelado', message: 'Agendamento cancelado com sucesso.' });
+  return jsonResponse(200, {
+    ok: true,
+    status: 'cancelado',
+    message: 'Agendamento cancelado com sucesso.',
+    integrationWarnings: integrationWarnings.length ? integrationWarnings : undefined,
+  });
 }

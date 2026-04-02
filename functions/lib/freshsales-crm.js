@@ -1,0 +1,202 @@
+import { getCleanEnvValue } from "./env.js";
+import { buildFreshsalesAppointmentPayload, buildFreshsalesJourneyUpdate } from "./freshsales-journey.js";
+
+function splitName(fullName) {
+  const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) {
+    return { first_name: "Cliente", last_name: "Site" };
+  }
+  if (parts.length === 1) {
+    return { first_name: parts[0], last_name: "Site" };
+  }
+  return {
+    first_name: parts[0],
+    last_name: parts.slice(1).join(" "),
+  };
+}
+
+function buildCandidates(env) {
+  const raw =
+    getCleanEnvValue(env.FRESHSALES_API_BASE) ||
+    getCleanEnvValue(env.FRESHSALES_BASE_URL) ||
+    getCleanEnvValue(env.FRESHSALES_DOMAIN);
+
+  if (!raw) return [];
+  const base = raw.startsWith("http") ? raw.replace(/\/+$/, "") : `https://${raw.replace(/\/+$/, "")}`;
+
+  if (base.includes("/crm/sales/api")) return [base];
+  if (base.includes("/api")) return [base];
+  return [`${base}/crm/sales/api`, `${base}/api`];
+}
+
+function getAuthHeaders(env) {
+  const apiKey = getCleanEnvValue(env.FRESHSALES_API_KEY);
+  const accessToken = getCleanEnvValue(env.FRESHSALES_ACCESS_TOKEN);
+  return [
+    apiKey ? { Authorization: `Token token=${apiKey}` } : null,
+    accessToken ? { Authorization: `Bearer ${accessToken}` } : null,
+  ].filter(Boolean);
+}
+
+async function freshsalesRequest(env, path, init = {}) {
+  const candidates = buildCandidates(env);
+  const authHeaders = getAuthHeaders(env);
+  if (!candidates.length || !authHeaders.length) {
+    throw new Error("Credenciais do Freshsales ausentes no ambiente.");
+  }
+
+  let lastError = null;
+  for (const base of candidates) {
+    for (const authHeader of authHeaders) {
+      const response = await fetch(`${base}${path}`, {
+        ...init,
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...authHeader,
+          ...(init.headers || {}),
+        },
+      }).catch((error) => {
+        lastError = error;
+        return null;
+      });
+
+      if (!response) continue;
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        lastError = new Error(payload.message || payload.error || `Freshsales request failed with status ${response.status}`);
+        continue;
+      }
+
+      return {
+        payload,
+        base,
+      };
+    }
+  }
+
+  throw lastError || new Error("Falha ao conectar no Freshsales.");
+}
+
+export async function upsertFreshsalesContactForAgendamento(env, agendamento, eventType = "booked") {
+  const { first_name, last_name } = splitName(agendamento.nome);
+  const stageUpdate = buildFreshsalesJourneyUpdate(eventType, agendamento, env);
+
+  const contactPayload = {
+    unique_identifier: { emails: agendamento.email },
+    contact: {
+      first_name,
+      last_name,
+      mobile_number: agendamento.telefone || null,
+      emails: [agendamento.email],
+      custom_field: stageUpdate.contact_update || {},
+    },
+  };
+
+  const { payload, base } = await freshsalesRequest(env, "/contacts/upsert", {
+    method: "POST",
+    body: JSON.stringify(contactPayload),
+  });
+
+  return {
+    base,
+    contact: payload.contact || payload,
+    stageUpdate,
+  };
+}
+
+export async function createFreshsalesAppointmentForAgendamento(env, agendamento, contactId, zoomSnapshot = null) {
+  const appointmentPayload = buildFreshsalesAppointmentPayload(agendamento, zoomSnapshot, env);
+  if (contactId) {
+    appointmentPayload.appointment.targetable_type = "Contact";
+    appointmentPayload.appointment.targetable_id = String(contactId);
+    appointmentPayload.appointment.appointment_attendees_attributes = [
+      {
+        attendee_type: "Contact",
+        attendee_id: String(contactId),
+      },
+    ];
+  }
+
+  const { payload, base } = await freshsalesRequest(env, "/appointments", {
+    method: "POST",
+    body: JSON.stringify(appointmentPayload),
+  });
+
+  return {
+    base,
+    appointment: payload.appointment || payload,
+    requestPayload: appointmentPayload,
+  };
+}
+
+export async function updateFreshsalesAppointmentForAgendamento(env, appointmentId, agendamento, contactId, zoomSnapshot = null) {
+  const appointmentPayload = buildFreshsalesAppointmentPayload(agendamento, zoomSnapshot, env);
+  if (contactId) {
+    appointmentPayload.appointment.targetable_type = "Contact";
+    appointmentPayload.appointment.targetable_id = String(contactId);
+    appointmentPayload.appointment.appointment_attendees_attributes = [
+      {
+        attendee_type: "Contact",
+        attendee_id: String(contactId),
+      },
+    ];
+  }
+
+  const { payload, base } = await freshsalesRequest(env, `/appointments/${encodeURIComponent(String(appointmentId))}`, {
+    method: "PUT",
+    body: JSON.stringify(appointmentPayload),
+  });
+
+  return {
+    base,
+    appointment: payload.appointment || payload,
+    requestPayload: appointmentPayload,
+  };
+}
+
+export async function deleteFreshsalesAppointment(env, appointmentId) {
+  const { payload, base } = await freshsalesRequest(env, `/appointments/${encodeURIComponent(String(appointmentId))}`, {
+    method: "DELETE",
+  });
+
+  return {
+    base,
+    payload,
+  };
+}
+
+export async function syncAgendamentoToFreshsales(env, agendamento, eventType, zoomSnapshot = null) {
+  const contactResult = await upsertFreshsalesContactForAgendamento(env, agendamento, eventType);
+  const contactId = contactResult?.contact?.id || agendamento.freshsales_contact_id || null;
+
+  let appointmentResult = null;
+  if (eventType === "cancelled") {
+    if (agendamento.freshsales_appointment_id) {
+      appointmentResult = await deleteFreshsalesAppointment(env, agendamento.freshsales_appointment_id);
+    }
+  } else if (agendamento.freshsales_appointment_id) {
+    appointmentResult = await updateFreshsalesAppointmentForAgendamento(
+      env,
+      agendamento.freshsales_appointment_id,
+      agendamento,
+      contactId,
+      zoomSnapshot
+    );
+  } else {
+    appointmentResult = await createFreshsalesAppointmentForAgendamento(env, agendamento, contactId, zoomSnapshot);
+  }
+
+  return {
+    contactId: contactId ? String(contactId) : null,
+    appointmentId: appointmentResult?.appointment?.id ? String(appointmentResult.appointment.id) : agendamento.freshsales_appointment_id || null,
+    base: appointmentResult?.base || contactResult?.base || null,
+    payload: {
+      eventType,
+      contact: contactResult?.contact || null,
+      appointment: appointmentResult?.appointment || null,
+      stageUpdate: contactResult?.stageUpdate || null,
+    },
+  };
+}

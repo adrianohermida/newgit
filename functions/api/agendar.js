@@ -2,6 +2,7 @@ import { getGoogleAccessToken } from '../lib/google-auth.js';
 import { MINIMUM_LEAD_HOURS, isSlotBookable } from '../lib/slot-policy.js';
 import { getSupabaseBaseUrl, getSupabaseServerKey, inspectSupabaseKey } from '../lib/env.js';
 import { buildActionLinks, formatAgendamentoDate, INTERNAL_RECIPIENTS, sendTransactionalEmail, getSiteUrl } from '../lib/agendamento-helpers.js';
+import { runAgendamentoBookedIntegrations } from '../lib/agendamento-integrations.js';
 
 // Função simples para gerar uuidv4-like (suficiente para ambiente Cloudflare)
 // Função para gerar uuidv4 (Cloudflare)
@@ -194,6 +195,7 @@ export async function onRequestPost(context) {
   }
   const eventData = await eventResp.json();
   const googleEventId = eventData.id || null;
+  const integrationWarnings = [];
 
   // Atualizar registro no Supabase com o ID do evento do Google Calendar
   if (googleEventId) {
@@ -250,6 +252,28 @@ export async function onRequestPost(context) {
     }
   }
 
+  let zoomSnapshot = null;
+  if (googleEventId) {
+    const integrationResult = await runAgendamentoBookedIntegrations(
+      env,
+      { supabaseUrl, supabaseKey },
+      {
+        id: agendamentoId,
+        nome,
+        email,
+        telefone,
+        area,
+        data,
+        hora,
+        observacoes: observacoes || null,
+        status: 'pendente',
+        google_event_id: googleEventId,
+      }
+    );
+    zoomSnapshot = integrationResult.zoomSnapshot;
+    integrationWarnings.push(...integrationResult.warnings);
+  }
+
   // Envio de e-mail via Resend (https://resend.com)
   const siteUrl = getSiteUrl(env);
   const actionLinks = buildActionLinks(siteUrl, {
@@ -272,6 +296,7 @@ export async function onRequestPost(context) {
     <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Área</td><td style="padding:8px">${area}</td></tr>
     <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Data</td><td style="padding:8px">${dataFormatada}</td></tr>
     <tr><td style="padding:8px;color:#C5A059;font-weight:bold">Horário</td><td style="padding:8px">${hora}</td></tr>
+    ${zoomSnapshot?.zoom_join_url ? `<tr><td style="padding:8px;color:#C5A059;font-weight:bold">Sala virtual</td><td style="padding:8px"><a href="${zoomSnapshot.zoom_join_url}" style="color:#C5A059">Acessar reunião no Zoom</a></td></tr>` : ''}
   </table>
   <div style="margin:20px 0">
     <a href="${actionLinks.cliente.confirmar}" style="display:inline-block;background:#C5A059;color:#050706;font-weight:bold;padding:14px 28px;border-radius:8px;text-decoration:none;margin:8px 8px 8px 0">Confirmar</a>
@@ -294,6 +319,7 @@ export async function onRequestPost(context) {
     <tr><td style="padding:6px;font-weight:bold">Data</td><td style="padding:6px">${data}</td></tr>
     <tr><td style="padding:6px;font-weight:bold">Hora</td><td style="padding:6px">${hora}</td></tr>
     <tr><td style="padding:6px;font-weight:bold">Observações</td><td style="padding:6px">${observacoes || '—'}</td></tr>
+    ${zoomSnapshot?.zoom_join_url ? `<tr><td style="padding:6px;font-weight:bold">Zoom</td><td style="padding:6px"><a href="${zoomSnapshot.zoom_join_url}">${zoomSnapshot.zoom_join_url}</a></td></tr>` : ''}
   </table>
   <div style="margin:20px 0">
     <a href="${actionLinks.advogado.confirmar}" style="display:inline-block;background:#C5A059;color:#050706;font-weight:bold;padding:14px 28px;border-radius:8px;text-decoration:none;margin:8px 8px 8px 0">Confirmar</a>
@@ -312,8 +338,11 @@ export async function onRequestPost(context) {
     ok: true,
     eventId: eventData.id,
     agendamentoId,
+    zoomMeetingId: zoomSnapshot?.zoom_meeting_id || null,
+    zoomJoinUrl: zoomSnapshot?.zoom_join_url || null,
     authSource: authMeta?.source,
     warning: authMeta?.warning || undefined,
+    integrationWarnings: integrationWarnings.length ? integrationWarnings : undefined,
   }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
