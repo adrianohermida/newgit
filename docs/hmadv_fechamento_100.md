@@ -195,6 +195,7 @@ Arquivos:
 - [hmadv_backfill_polos_status.ps1](/D:/Github/newgit/docs/hmadv_backfill_polos_status.ps1)
 - [hmadv_fase8_backfill.md](/D:/Github/newgit/docs/hmadv_fase8_backfill.md)
 - [hmadv_postgrest_schema_reload.md](/D:/Github/newgit/docs/hmadv_postgrest_schema_reload.md)
+- [hmadv_post_reload_smoketest.md](/D:/Github/newgit/docs/hmadv_post_reload_smoketest.md)
 
 Aceite:
 
@@ -219,6 +220,7 @@ Arquivos:
 - [hmadv_prazos_validacao.md](/D:/Github/newgit/docs/hmadv_prazos_validacao.md)
 - [hmadv_phase8_prazos_grants.md](/D:/Github/newgit/docs/hmadv_phase8_prazos_grants.md)
 - [hmadv_postgrest_schema_reload.md](/D:/Github/newgit/docs/hmadv_postgrest_schema_reload.md)
+- [hmadv_post_reload_smoketest.md](/D:/Github/newgit/docs/hmadv_post_reload_smoketest.md)
 
 Aceite:
 
