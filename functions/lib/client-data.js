@@ -435,7 +435,12 @@ function buildFinanceItem(dealSnapshot, accountSnapshot = null, mapping = null) 
     getSnapshotFieldText(dealSnapshot, ({ key, entry }) => textIncludesAny(`${key} ${entry?.label || ""}`, ["estagio", "estágio", "stage", "status"])) ||
     dealSnapshot?.status ||
     null;
-  const status = mapFinanceStatus(stageText || "", kind);
+  const normalizedStageText =
+    (mapping?.deal_stage_field?.key
+      ? getSnapshotFieldText(dealSnapshot, ({ key }) => key === mapping.deal_stage_field.key)
+      : null) ||
+    stageText;
+  const status = mapFinanceStatus(normalizedStageText || "", kind);
   const processReference = accountSnapshot
     ? findAccountProcessReference(accountSnapshot, mapping?.process_reference_field?.key ? [mapping.process_reference_field.key] : [])
     : null;
@@ -455,7 +460,7 @@ function buildFinanceItem(dealSnapshot, accountSnapshot = null, mapping = null) 
     due_date: dueDate,
     created_at: timestamps.created_at || null,
     updated_at: timestamps.updated_at || null,
-    stage: stageText,
+    stage: normalizedStageText,
     process_account: accountSnapshot
       ? {
           id: accountSnapshot.source_id,
