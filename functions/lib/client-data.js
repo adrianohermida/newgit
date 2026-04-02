@@ -1283,6 +1283,47 @@ export async function getClientSummary(env, profile) {
     .slice(0, 6);
 
   const warnings = [tickets.warning, processos.warning, documentos.warning, financeiro.warning, publicacoes.warning].filter(Boolean);
+  const attentionItems = [
+    ...financeiro.items
+      .filter((item) => ["atrasado", "nao_pago", "aberto"].includes(item.status))
+      .slice(0, 3)
+      .map((item) => ({
+        id: `financeiro-${item.id}`,
+        tone: item.status === "atrasado" ? "critical" : item.status === "nao_pago" ? "warning" : "info",
+        title: item.kind_label || "Financeiro",
+        helper: `${item.status_label}${item.amount_label ? ` • ${item.amount_label}` : ""}`,
+        href: "/portal/financeiro",
+      })),
+    ...processos.items
+      .flatMap((item) => (item.alerts || []).slice(0, 1).map((alert) => ({
+        id: `processo-alerta-${item.id}-${alert.label}`,
+        tone: alert.tone === "highlight" ? "warning" : alert.tone === "info" ? "info" : "muted",
+        title: item.title || item.number || "Processo",
+        helper: `${alert.label} • ${alert.helper}`,
+        href: `/portal/processos/detalhe?id=${encodeURIComponent(item.id)}`,
+      })))
+      .slice(0, 3),
+    ...tickets.items
+      .filter((item) => ["Aberto", "Pendente"].includes(item.status))
+      .slice(0, 2)
+      .map((item) => ({
+        id: `ticket-${item.id}`,
+        tone: "info",
+        title: item.subject || "Chamado de suporte",
+        helper: `${item.status}${item.priority ? ` • ${item.priority}` : ""}`,
+        href: "/portal/tickets",
+      })),
+    ...consultas
+      .filter((item) => item.status && !String(item.status).toLowerCase().includes("cancel"))
+      .slice(0, 2)
+      .map((item) => ({
+        id: `consulta-${item.id}`,
+        tone: "muted",
+        title: item.area || "Consulta agendada",
+        helper: `${item.data || ""} ${item.hora || ""}`.trim() || item.status || "Consulta",
+        href: "/portal/consultas",
+      })),
+  ].slice(0, 6);
 
   return {
     summary: {
@@ -1294,6 +1335,7 @@ export async function getClientSummary(env, profile) {
       publicacoes: publicacoes.items.length,
     },
     recentActivity,
+    attentionItems,
     warnings,
   };
 }

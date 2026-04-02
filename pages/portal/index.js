@@ -15,7 +15,7 @@ function StatCard({ label, value, helper }) {
 }
 
 export default function PortalHomePage() {
-  const [state, setState] = useState({ loading: true, summary: null, warnings: [], recentActivity: [], error: null });
+  const [state, setState] = useState({ loading: true, summary: null, warnings: [], recentActivity: [], attentionItems: [], error: null });
 
   return (
     <RequireClient>
@@ -44,12 +44,13 @@ function OverviewContent({ state, setState }) {
             summary: payload.summary,
             warnings: payload.warnings || [],
             recentActivity: payload.recentActivity || [],
+            attentionItems: payload.attentionItems || [],
             error: null,
           });
         }
       } catch (error) {
         if (!cancelled) {
-          setState({ loading: false, summary: null, warnings: [], recentActivity: [], error: error.message });
+          setState({ loading: false, summary: null, warnings: [], recentActivity: [], attentionItems: [], error: error.message });
         }
       }
     }
@@ -89,6 +90,30 @@ function OverviewContent({ state, setState }) {
           </div>
         </section>
       ) : null}
+
+      <section className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
+        <div className="flex flex-col gap-3 border-b border-[#20332D] pb-5 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Sua atencao agora</p>
+            <h3 className="mt-3 font-serif text-3xl">Prioridades do seu portal</h3>
+          </div>
+          <Link href="/portal/processos" prefetch={false} className="text-sm text-[#C49C56]">
+            Abrir acompanhamento
+          </Link>
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-3">
+          {!state.attentionItems.length ? (
+            <p className="text-sm leading-6 opacity-62">Quando houver alguma pendencia, publicacao recente ou cobranca em aberto, ela aparece aqui.</p>
+          ) : null}
+          {state.attentionItems.map((item) => (
+            <Link key={item.id} href={item.href} prefetch={false} className={`rounded-[24px] border p-5 transition hover:border-[#C49C56] ${attentionTone(item.tone)}`}>
+              <p className="text-sm font-semibold">{item.title}</p>
+              <p className="mt-2 text-sm opacity-75">{item.helper}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {[
@@ -155,4 +180,11 @@ function formatDate(value) {
     month: "2-digit",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function attentionTone(tone) {
+  if (tone === "critical") return "border-[#8A2E2E] bg-[rgba(138,46,46,0.14)]";
+  if (tone === "warning") return "border-[#7A5C20] bg-[rgba(122,92,32,0.18)]";
+  if (tone === "info") return "border-[#375B78] bg-[rgba(31,67,96,0.18)]";
+  return "border-[#20332D] bg-[rgba(255,255,255,0.02)]";
 }
