@@ -196,6 +196,7 @@ Arquivos:
 - [hmadv_fase8_backfill.md](/D:/Github/newgit/docs/hmadv_fase8_backfill.md)
 - [hmadv_postgrest_schema_reload.md](/D:/Github/newgit/docs/hmadv_postgrest_schema_reload.md)
 - [hmadv_post_reload_smoketest.md](/D:/Github/newgit/docs/hmadv_post_reload_smoketest.md)
+- [hmadv_after_reload_runbook.md](/D:/Github/newgit/docs/hmadv_after_reload_runbook.md)
 
 Aceite:
 
@@ -221,6 +222,7 @@ Arquivos:
 - [hmadv_phase8_prazos_grants.md](/D:/Github/newgit/docs/hmadv_phase8_prazos_grants.md)
 - [hmadv_postgrest_schema_reload.md](/D:/Github/newgit/docs/hmadv_postgrest_schema_reload.md)
 - [hmadv_post_reload_smoketest.md](/D:/Github/newgit/docs/hmadv_post_reload_smoketest.md)
+- [hmadv_after_reload_runbook.md](/D:/Github/newgit/docs/hmadv_after_reload_runbook.md)
 
 Aceite:
 
