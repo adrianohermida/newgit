@@ -1,38 +1,77 @@
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
-function normalizeDomain(value) {
-  const raw = String(value || "").trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
-  if (!raw) return "";
-  if (raw.includes("myfreshworks.com")) return raw;
-  return raw.replace(/\.freshsales\.io$/i, ".myfreshworks.com");
+function getCleanValue(value) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
-function authHeader(env) {
-  const key = String(env.FRESHSALES_API_KEY || "").trim().replace(/^Token token=/i, "").replace(/^Bearer /i, "");
-  if (!key) return null;
-  return `Token token=${key}`;
+function buildFreshsalesBaseCandidates(env) {
+  const raw =
+    getCleanValue(env.FRESHSALES_API_BASE) ||
+    getCleanValue(env.FRESHSALES_BASE_URL) ||
+    getCleanValue(env.FRESHSALES_DOMAIN);
+
+  if (!raw) return [];
+
+  const base = raw.startsWith("http") ? raw.replace(/\/+$/, "") : `https://${raw.replace(/\/+$/, "")}`;
+
+  if (base.includes("/crm/sales/api")) return [base];
+  if (base.includes("/api")) return [base];
+
+  const host = base.replace(/^https?:\/\//i, "");
+  const normalizedHost = host.includes("myfreshworks.com")
+    ? host
+    : host.replace(/\.freshsales\.io$/i, ".myfreshworks.com");
+
+  return [
+    `${base}/crm/sales/api`,
+    `${base}/api`,
+    `https://${normalizedHost}/crm/sales/api`,
+    `https://${normalizedHost}/api`,
+  ].filter((value, index, list) => list.indexOf(value) === index);
 }
 
 async function fetchFreshsalesJson(env, path) {
-  const domain = normalizeDomain(env.FRESHSALES_DOMAIN);
-  const authorization = authHeader(env);
-  if (!domain || !authorization) {
+  const candidates = buildFreshsalesBaseCandidates(env);
+  const apiKey = getCleanValue(env.FRESHSALES_API_KEY).replace(/^Token token=/i, "").replace(/^Bearer /i, "");
+  const accessToken = getCleanValue(env.FRESHSALES_ACCESS_TOKEN).replace(/^Bearer /i, "");
+  const authHeaders = [
+    apiKey ? { Authorization: `Token token=${apiKey}` } : null,
+    accessToken ? { Authorization: `Bearer ${accessToken}` } : null,
+  ].filter(Boolean);
+
+  if (!candidates.length || !authHeaders.length) {
     throw new Error("Freshsales nao configurado neste runtime.");
   }
 
-  const response = await fetch(`https://${domain}/crm/sales/api/${path}`, {
-    headers: {
-      Authorization: authorization,
-      Accept: "application/json",
-    },
-  });
+  let lastError = null;
+  for (const base of candidates) {
+    for (const auth of authHeaders) {
+      const response = await fetch(`${base}/${path}`, {
+        headers: {
+          ...auth,
+          Accept: "application/json",
+        },
+      }).catch((error) => {
+        lastError = error;
+        return null;
+      });
 
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(`Freshsales ${path} retornou ${response.status}: ${JSON.stringify(payload).slice(0, 400)}`);
+      if (!response) continue;
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        lastError = new Error(`Freshsales ${path} retornou ${response.status}: ${JSON.stringify(payload).slice(0, 400)}`);
+        continue;
+      }
+
+      return {
+        payload,
+        base,
+      };
+    }
   }
 
-  return payload;
+  throw lastError || new Error("Falha ao consultar o Freshsales.");
 }
 
 function toArray(value) {
@@ -66,17 +105,17 @@ export async function onRequestGet(context) {
   const { env } = context;
 
   try {
-    const [dealsRaw, accountsRaw] = await Promise.all([
+    const [dealsResult, accountsResult] = await Promise.all([
       fetchFreshsalesJson(env, "settings/deals/fields"),
       fetchFreshsalesJson(env, "settings/sales_accounts/fields"),
     ]);
 
-    const dealsFields = toArray(dealsRaw.fields).map(simplifyField);
-    const salesAccountFields = toArray(accountsRaw.fields).map(simplifyField);
+    const dealsFields = toArray(dealsResult.payload.fields).map(simplifyField);
+    const salesAccountFields = toArray(accountsResult.payload.fields).map(simplifyField);
 
     return new Response(JSON.stringify({
       ok: true,
-      domain_used: normalizeDomain(env.FRESHSALES_DOMAIN),
+      base_used: dealsResult.base,
       deals_fields_total: dealsFields.length,
       sales_accounts_fields_total: salesAccountFields.length,
       candidates: {

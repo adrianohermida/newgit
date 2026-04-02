@@ -1,6 +1,6 @@
 # Copie este arquivo para .dev.vars e preencha com os valores reais
 # O wrangler carrega .dev.vars automaticamente em modo de desenvolvimento local
-# NUNCA commite .dev.vars — ele já está no .gitignore
+# NUNCA commite .dev.vars - ele ja esta no .gitignore
 
 GOOGLE_CLIENT_ID=seu-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-...
@@ -18,10 +18,10 @@ FRESHDESK_API_KEY=seu_api_key_freshdesk
 FRESHDESK_BASIC_TOKEN=Basic base64_token
 FRESHDESK_PORTAL_TICKET_BASE_URL=https://sua-conta.freshdesk.com/support/tickets
 FRESHDESK_NEW_TICKET_URL=https://sua-conta.freshdesk.com/support/tickets/new
-FRESHSALES_FINANCE_DEAL_TYPE_FIELDS=cf_tipo,cf_categoria
-FRESHSALES_FINANCE_ACCOUNT_PROCESS_FIELDS=cf_processo,name
+FRESHSALES_FINANCE_DEAL_TYPE_FIELDS=deal_type_id,cf_tipo_fatura,cf_categoria
+FRESHSALES_FINANCE_ACCOUNT_PROCESS_FIELDS=cf_processo,cf_processo_tj,website,name
 FRESHSALES_FINANCE_ACCOUNT_STATUS_FIELDS=cf_status,status
-FRESHSALES_FINANCE_DEAL_STAGE_FIELDS=deal_stage_id,status
+FRESHSALES_FINANCE_DEAL_STAGE_FIELDS=deal_payment_status_id,deal_stage_id,status
 NEXT_PUBLIC_SUPPORT_CHANNEL=whatsapp
 NEXT_PUBLIC_FRESHWORKS_WIDGET_SCRIPT_URL=//eu.fw-cdn.com/10713913/375987.js
 NEXT_PUBLIC_FRESHWORKS_WIDGET_CHAT=false
@@ -38,7 +38,9 @@ FRESHSALES_CONTACT_MEETING_FIELD=cf_reuniao_status
 FRESHSALES_CONTACT_NEGOTIATION_FIELD=cf_negociacao_status
 FRESHSALES_CONTACT_CLOSING_FIELD=cf_fechamento_status
 FRESHSALES_CONTACT_CLIENT_FIELD=cf_cliente_status
-FRESHSALES_STAGE_VALUE_MAP={"lifecycle":{"Triagem":"Triagem","Conectado":"Conectado"},"meeting":{"Agendamento":"Agendamento","Confirmação de presença":"Confirmação de presença","Reagendamento":"Reagendamento","Cancelamento de reunião":"Cancelamento de reunião","Ausência":"Ausência"}}
+FRESHSALES_STAGE_VALUE_MAP={"lifecycle":{"Triagem":"Triagem","Novo":"Novo","Conectado":"Conectado","Retorno":"Retorno","Pedido de retorno":"Pedido de retorno","Visitante":"Visitante","Fornecedor":"Fornecedor","Não qualificado":"Não qualificado"},"meeting":{"Agendamento":"Agendamento","Confirmação de presença":"Confirmação de presença","Reagendamento":"Reagendamento","Cancelamento de reunião":"Cancelamento de reunião","Ausência":"Ausência"}}
+FRESHSALES_ACTIVITY_TYPE_BY_EVENT={"booked":"31001147755","confirmed":"31001147756","rescheduled":"31001147757","cancelled":"31001147758"}
+FRESHSALES_APPOINTMENT_FIELD_MAP={"crm_event_source":"cf_origem_evento","crm_event_status":"cf_status_evento","crm_meeting_stage":"cf_etapa_reuniao","zoom_join_url":"cf_zoom_link","zoom_meeting_id":"cf_zoom_meeting_id","action_confirm_url":"cf_link_confirmacao","action_cancel_url":"cf_link_cancelamento","action_reschedule_url":"cf_link_remarcacao"}
 ZOOM_ACCOUNT_ID=seu_zoom_account_id
 ZOOM_CLIENT_ID=seu_zoom_client_id
 ZOOM_CLIENT_SECRET=seu_zoom_client_secret

@@ -331,7 +331,7 @@ function inferStatusSemantics(snapshots, env) {
   const selected = selectConfiguredFieldCandidate(
     candidates,
     parseEnvList(env, "FRESHSALES_FINANCE_DEAL_STAGE_FIELDS"),
-    ["deal_stage_id", "status", "cf_status"]
+    ["deal_payment_status_id", "deal_stage_id", "status", "cf_status"]
   );
 
   if (!selected) {
@@ -487,8 +487,8 @@ function buildFinanceMapping(relatedDeals, accounts, env) {
   const stageSemantics = inferStatusSemantics(relatedDeals, env);
 
   return {
-    deal_type_field: selectConfiguredFieldCandidate(dealTypeCandidates, parseEnvList(env, "FRESHSALES_FINANCE_DEAL_TYPE_FIELDS"), ["cf_tipo", "cf_categoria", "cf_modalidade", "cf_produto", "type"]),
-    process_reference_field: selectConfiguredFieldCandidate(processCandidates, parseEnvList(env, "FRESHSALES_FINANCE_ACCOUNT_PROCESS_FIELDS"), ["cf_processo", "name"]),
+    deal_type_field: selectConfiguredFieldCandidate(dealTypeCandidates, parseEnvList(env, "FRESHSALES_FINANCE_DEAL_TYPE_FIELDS"), ["deal_type_id", "cf_tipo_fatura", "cf_categoria", "cf_tipo", "cf_modalidade", "cf_produto", "type"]),
+    process_reference_field: selectConfiguredFieldCandidate(processCandidates, parseEnvList(env, "FRESHSALES_FINANCE_ACCOUNT_PROCESS_FIELDS"), ["cf_processo", "cf_processo_tj", "website", "name"]),
     account_status_field: selectConfiguredFieldCandidate(accountStatusCandidates, parseEnvList(env, "FRESHSALES_FINANCE_ACCOUNT_STATUS_FIELDS"), ["cf_status", "status"]),
     deal_stage_field: stageSemantics.field,
     deal_stage_values: stageSemantics.values,
