@@ -178,21 +178,24 @@ function formatCurrencyBRL(value) {
 
 function mapFinanceStatus(text, kind = "financeiro") {
   const normalized = normalizeText(text);
-  if (!normalized) return kind === "subscription" ? "ativa" : "em_aberto";
+  if (!normalized) return kind === "subscription" ? "ativa" : "aberto";
   if (textIncludesAny(normalized, ["pago", "quitado", "recebido", "ganho", "won", "paid", "recebida"])) return "pago";
+  if (textIncludesAny(normalized, ["nao pago", "não pago", "unpaid"])) return "nao_pago";
+  if (textIncludesAny(normalized, ["aberto", "open"])) return "aberto";
   if (textIncludesAny(normalized, ["ativo", "ativa", "vigente", "recorrente", "active", "renewed"])) return "ativa";
-  if (textIncludesAny(normalized, ["vencido", "atrasado", "overdue"])) return "vencido";
+  if (textIncludesAny(normalized, ["fatura atrasada", "atrasado", "atrasada", "overdue", "vencido", "vencida"])) return "atrasado";
   if (textIncludesAny(normalized, ["cancelado", "cancelada", "encerrado", "lost", "perdido", "closed"])) return "encerrado";
-  if (textIncludesAny(normalized, ["pendente", "aberto", "open", "draft", "novo"])) return "em_aberto";
-  return kind === "subscription" ? "ativa" : "em_aberto";
+  if (textIncludesAny(normalized, ["pendente", "draft", "novo", "faturar", "fatura enviada"])) return "aberto";
+  return kind === "subscription" ? "ativa" : "aberto";
 }
 
 function mapFinanceStatusLabel(status) {
   const labels = {
     pago: "Pago",
     ativa: "Ativa",
-    em_aberto: "Em aberto",
-    vencido: "Vencido",
+    aberto: "Aberto",
+    nao_pago: "Nao pago",
+    atrasado: "Atrasado",
     encerrado: "Encerrado",
   };
   return labels[status] || "Em analise";

@@ -34,7 +34,9 @@ function formatDate(value) {
 function statusStyle(status) {
   if (status === "pago") return "border-[#0B6B53] bg-[rgba(11,107,83,0.16)] text-[#B9F3E0]";
   if (status === "ativa") return "border-[#1D4ED8] bg-[rgba(29,78,216,0.16)] text-[#DBEAFE]";
-  if (status === "vencido") return "border-[#8A2E2E] bg-[rgba(138,46,46,0.16)] text-[#FECACA]";
+  if (status === "atrasado") return "border-[#8A2E2E] bg-[rgba(138,46,46,0.16)] text-[#FECACA]";
+  if (status === "nao_pago") return "border-[#7C3A10] bg-[rgba(124,58,16,0.18)] text-[#FCD9B6]";
+  if (status === "aberto") return "border-[#6E5630] bg-[rgba(76,57,26,0.22)] text-[#FDE68A]";
   if (status === "encerrado") return "border-[#3B4A45] bg-[rgba(59,74,69,0.2)] text-[#D1D5DB]";
   return "border-[#6E5630] bg-[rgba(76,57,26,0.22)] text-[#FDE68A]";
 }
