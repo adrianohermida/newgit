@@ -66,6 +66,60 @@ Para exportar as pendências de match, duplicidade e validação:
 node scripts/export-hmadv-reconciliation-report.js
 ```
 
+## Reconciliação assistida
+
+Para gerar sugestões automáticas de match de contato por nome e telefone:
+
+```bash
+node scripts/reconcile-hmadv-contacts.js --limit 1000 --topn 3
+```
+
+Para aplicar automaticamente apenas sugestões acima do score mínimo:
+
+```bash
+node scripts/reconcile-hmadv-contacts.js --apply --min-score 0.72
+```
+
+## Reprocessamento incremental
+
+Depois de reconciliar contatos pendentes, rode:
+
+```bash
+node scripts/reprocess-hmadv-billing.js --workspace-id <uuid> --limit 1000
+```
+
+Isso materializa apenas linhas já reconciliadas que ainda não viraram `receivable` e deixa prontas para nova publicação de deals.
+
+## Retry e relatório operacional
+
+Para tentar novamente deals que falharam na publicação:
+
+```bash
+node scripts/retry-hmadv-deals.js 20
+```
+
+Para gerar um relatório operacional consolidado:
+
+```bash
+node scripts/report-hmadv-ops.js
+```
+
+## Preflight
+
+Antes de rodar publicação real, valide o ambiente:
+
+```bash
+node scripts/preflight-hmadv-billing.js
+```
+
+## Descoberta de campos financeiros no Freshsales
+
+Para sugerir o `FRESHSALES_BILLING_DEAL_FIELD_MAP` a partir do tenant real:
+
+```bash
+node scripts/discover-freshsales-billing-fields.js
+```
+
 ## Regras já implementadas
 
 - matching de contato por `e-mail`

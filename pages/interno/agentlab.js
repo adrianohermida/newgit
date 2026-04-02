@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../components/interno/agentlab/AgentLabModuleNav";
@@ -58,6 +59,34 @@ function AgentLabContent({ state }) {
   const data = state.data || {};
   const overview = data.overview || {};
   const warnings = data.warnings || [];
+  const actionQueue = data.crm?.actionQueue || [];
+  const dispatchRuns = data.crm?.dispatchRuns || [];
+  const automationRuns = data.crm?.automationRuns || [];
+  const actionQueueSummary = useMemo(() => {
+    return actionQueue.reduce((acc, item) => {
+      const key = item.status || "unknown";
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+  }, [actionQueue]);
+  const dispatchSummary = useMemo(() => {
+    return dispatchRuns.reduce((acc, item) => {
+      const key = item.status || "unknown";
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+  }, [dispatchRuns]);
+  const automationByEvent = useMemo(() => {
+    const counts = automationRuns.reduce((acc, item) => {
+      const key = item.event_key || "unknown";
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+    return Object.entries(counts)
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6);
+  }, [automationRuns]);
 
   return (
     <div className="space-y-8">
@@ -98,6 +127,40 @@ function AgentLabContent({ state }) {
             <p>Runs de sync: {overview.syncRuns || 0}</p>
             <p>Perfis configurados: {overview.configuredProfiles || 0}</p>
             <p>Fila de melhoria: {overview.queueItems || 0}</p>
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-3">
+        <Panel title="Fila operacional CRM" eyebrow="Sequences e journeys">
+          <div className="space-y-3 text-sm opacity-75">
+            <p>Ready: {actionQueueSummary.ready || 0}</p>
+            <p>Pending: {actionQueueSummary.pending || 0}</p>
+            <p>Missing mapping: {actionQueueSummary.missing_mapping || 0}</p>
+            <p>Done: {actionQueueSummary.done || 0}</p>
+            <p>Failed: {actionQueueSummary.failed || 0}</p>
+          </div>
+        </Panel>
+
+        <Panel title="Fila de dispatch" eyebrow="Email e WhatsApp">
+          <div className="space-y-3 text-sm opacity-75">
+            <p>Pending approval: {dispatchSummary.pending_approval || 0}</p>
+            <p>Approved: {dispatchSummary.approved || 0}</p>
+            <p>Sent: {dispatchSummary.sent || 0}</p>
+            <p>Failed: {dispatchSummary.failed || 0}</p>
+            <p>Skipped: {dispatchSummary.skipped || 0}</p>
+          </div>
+        </Panel>
+
+        <Panel title="Top eventos CRM" eyebrow="Automacao">
+          <div className="space-y-3 text-sm opacity-75">
+            {automationByEvent.length ? (
+              automationByEvent.map((item) => (
+                <p key={item.label}>{item.label}: {item.value}</p>
+              ))
+            ) : (
+              <p>Nenhum evento automatizado consolidado ainda.</p>
+            )}
           </div>
         </Panel>
       </div>

@@ -11,6 +11,7 @@ $headers = @{
   apikey = $ServiceRole
   Authorization = "Bearer $ServiceRole"
   "Accept-Profile" = "judiciario"
+  "Content-Profile" = "judiciario"
   Prefer = "count=exact"
 }
 

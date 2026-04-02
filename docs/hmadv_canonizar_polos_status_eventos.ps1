@@ -103,15 +103,27 @@ function Get-ActiveRules() {
 }
 
 function Get-ProcessParts($processId) {
-  return @(Invoke-GetJson "$restBase/partes?processo_id=eq.$processId&select=id,nome,polo,fonte,cliente_hmadv,representada_pelo_escritorio,principal_no_account&limit=200" | Where-Object { -not $_.erro })
+  try {
+    return @(Invoke-RestMethod -Method Get -Uri "$restBase/partes?processo_id=eq.$processId&select=id,nome,polo,fonte,cliente_hmadv,representada_pelo_escritorio,principal_no_account&limit=200" -Headers $readHeaders -TimeoutSec 120)
+  } catch {
+    return @()
+  }
 }
 
 function Get-ProcessMovements($processId) {
-  return @(Invoke-GetJson "$restBase/movimentos?processo_id=eq.$processId&select=id,codigo,descricao,data_movimento&order=data_movimento.desc.nullslast&limit=$LimiteEventos" | Where-Object { -not $_.erro })
+  try {
+    return @(Invoke-RestMethod -Method Get -Uri "$restBase/movimentos?processo_id=eq.$processId&select=id,codigo,descricao,data_movimento&order=data_movimento.desc.nullslast&limit=$LimiteEventos" -Headers $readHeaders -TimeoutSec 120)
+  } catch {
+    return @()
+  }
 }
 
 function Get-ProcessPublications($processId) {
-  return @(Invoke-GetJson "$restBase/publicacoes?processo_id=eq.$processId&select=id,conteudo,diario,data_publicacao,raw_payload&order=data_publicacao.desc.nullslast&limit=$LimiteEventos" | Where-Object { -not $_.erro })
+  try {
+    return @(Invoke-RestMethod -Method Get -Uri "$restBase/publicacoes?processo_id=eq.$processId&select=id,conteudo,diario,data_publicacao,raw_payload&order=data_publicacao.desc.nullslast&limit=$LimiteEventos" -Headers $readHeaders -TimeoutSec 120)
+  } catch {
+    return @()
+  }
 }
 
 function Infer-PolosFromTitulo([string]$titulo) {
@@ -201,9 +213,21 @@ function Infer-PolosFromPublications($publications, $rules) {
   }
 }
 
-function Find-StatusEvidence($movements, $publications, $rules) {
+function Get-StatusMatches($movements, $publications, $rules) {
   $matches = @()
   $statusRules = @($rules | Where-Object { $_.tipo -eq "status" })
+  $strongPatterns = @(
+    @{ fonte = "publicacao"; valor = "Baixado"; prioridade = 1; termo = "julgo extinta" },
+    @{ fonte = "publicacao"; valor = "Baixado"; prioridade = 1; termo = "julgo extinto" },
+    @{ fonte = "publicacao"; valor = "Baixado"; prioridade = 2; termo = "extingo o processo" },
+    @{ fonte = "publicacao"; valor = "Baixado"; prioridade = 2; termo = "execucao extinta" },
+    @{ fonte = "publicacao"; valor = "Baixado"; prioridade = 3; termo = "arquivem-se os autos" },
+    @{ fonte = "publicacao"; valor = "Suspenso"; prioridade = 1; termo = "declaro suspensa" },
+    @{ fonte = "publicacao"; valor = "Suspenso"; prioridade = 1; termo = "declaro suspenso" },
+    @{ fonte = "publicacao"; valor = "Suspenso"; prioridade = 2; termo = "sobreste-se o feito" },
+    @{ fonte = "publicacao"; valor = "Suspenso"; prioridade = 2; termo = "suspensao do tramite processual" },
+    @{ fonte = "publicacao"; valor = "Suspenso"; prioridade = 2; termo = "defiro a suspensao do tramite processual" }
+  )
 
   foreach ($mov in $movements) {
     $text = Normalize-Text $mov.descricao
@@ -226,6 +250,19 @@ function Find-StatusEvidence($movements, $publications, $rules) {
   foreach ($pub in $publications) {
     $text = Normalize-Text $pub.conteudo
     if (-not $text) { continue }
+    foreach ($pattern in $strongPatterns) {
+      if ($text -like "*$($pattern.termo)*") {
+        $matches += [pscustomobject]@{
+          fonte = $pattern.fonte
+          valor = $pattern.valor
+          prioridade = [int]$pattern.prioridade
+          termo = $pattern.termo
+          evento_id = $pub.id
+          evento_data = $pub.data_publicacao
+          texto = if ($pub.conteudo.Length -gt 180) { $pub.conteudo.Substring(0, 180) } else { $pub.conteudo }
+        }
+      }
+    }
     foreach ($rule in $statusRules | Where-Object { $_.categoria -eq "publicacao" }) {
       if (Text-MatchesRule $text $rule.termo) {
         $matches += [pscustomobject]@{
@@ -241,6 +278,11 @@ function Find-StatusEvidence($movements, $publications, $rules) {
     }
   }
 
+  return @($matches)
+}
+
+function Find-StatusEvidence($movements, $publications, $rules) {
+  $matches = Get-StatusMatches $movements $publications $rules
   if ($matches.Count -eq 0) { return $null }
   return @($matches | Sort-Object -Property prioridade, @{ Expression = { [datetime]($_.evento_data) }; Descending = $true })[0]
 }
@@ -288,7 +330,11 @@ function Build-Patch($proc, $parts, $movements, $publications, $rules) {
     $evidence["polo_fonte"] = $poloFonte
   }
 
-  $statusEvidence = Find-StatusEvidence $movements $publications $rules
+  $statusMatches = Get-StatusMatches $movements $publications $rules
+  $statusEvidence = $null
+  if ($statusMatches.Count -gt 0) {
+    $statusEvidence = @($statusMatches | Sort-Object -Property prioridade, @{ Expression = { [datetime]($_.evento_data) }; Descending = $true })[0]
+  }
   if ($statusEvidence) {
     if ($proc.status_atual_processo -ne $statusEvidence.valor -or $proc.status_fonte -eq "fallback" -or -not $proc.status_fonte) {
       $patch["status_atual_processo"] = $statusEvidence.valor
@@ -311,6 +357,24 @@ function Build-Patch($proc, $parts, $movements, $publications, $rules) {
   return @{
     patch = $patch
     evidence = $evidence
+    debug = @{
+      publicacoes_tipo = if ($null -eq $publications) { "null" } else { $publications.GetType().FullName }
+      movimentos_tipo = if ($null -eq $movements) { "null" } else { $movements.GetType().FullName }
+      movimentos_lidos = @($movements).Count
+      publicacoes_lidas = @($publications).Count
+      status_matches = @($statusMatches).Count
+      status_match_sample = @($statusMatches | Select-Object -First 5)
+      publicacao_sample = if (@($publications).Count -gt 0 -and @($publications)[0].conteudo) {
+        $normPub = Normalize-Text @($publications)[0].conteudo
+        if ($normPub.Length -gt 220) { $normPub.Substring(0, 220) } else { $normPub }
+      } else { $null }
+      publicacao_props = if (@($publications).Count -gt 0) { @(@($publications)[0].PSObject.Properties.Name) } else { @() }
+      movimento_sample = if (@($movements).Count -gt 0 -and @($movements)[0].descricao) {
+        $normMov = Normalize-Text @($movements)[0].descricao
+        if ($normMov.Length -gt 220) { $normMov.Substring(0, 220) } else { $normMov }
+      } else { $null }
+      movimento_props = if (@($movements).Count -gt 0) { @(@($movements)[0].PSObject.Properties.Name) } else { @() }
+    }
   }
 }
 
@@ -331,7 +395,6 @@ foreach ($proc in $processes) {
   $publications = Get-ProcessPublications $proc.id
   $decision = Build-Patch $proc $parts $movements $publications $rules
   $patch = $decision.patch
-  if ($patch.Keys.Count -eq 0) { continue }
 
   $entry = [ordered]@{
     processo_id = $proc.id
@@ -339,7 +402,10 @@ foreach ($proc in $processes) {
     titulo = $proc.titulo
     patch = $patch
     evidence = $decision.evidence
+    debug = $decision.debug
   }
+
+  if ($patch.Keys.Count -eq 0 -and (-not $ProcessoIds -or $ProcessoIds.Count -eq 0)) { continue }
 
   if ($Aplicar) {
     try {

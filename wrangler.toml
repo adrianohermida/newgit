@@ -37,6 +37,10 @@ pages_build_output_dir = "out"
 #   ZOOM_CLIENT_SECRET
 #   ZOOM_USER_ID
 #   ZOOM_DEFAULT_TIMEZONE
+#   WHATSAPP_PROVIDER
+#   WHATSAPP_CLOUD_API_TOKEN
+#   WHATSAPP_PHONE_NUMBER_ID
+#   WHATSAPP_CLOUD_API_VERSION
 #   As variaveis abaixo sao credenciais de deploy para o wrangler,
 #   nao substituem as variaveis de runtime do worker HMADV IA.
 #   CLOUDFLARE_WORKER_ACCOUNT_ID

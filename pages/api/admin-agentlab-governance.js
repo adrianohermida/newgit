@@ -1,5 +1,14 @@
 import { requireAdminNode } from "../../lib/admin/node-auth.js";
-import { upsertCrmAutomationRule, updateAgentLabProfile, updateImprovementQueueItem } from "../../lib/agentlab/server.js";
+import {
+  executeCrmDispatchRun,
+  upsertCrmAutomationRule,
+  upsertCrmResourceMap,
+  upsertMessageTemplate,
+  updateAgentLabProfile,
+  updateCrmActionQueueItem,
+  updateCrmDispatchRun,
+  updateImprovementQueueItem,
+} from "../../lib/agentlab/server.js";
 
 export default async function handler(req, res) {
   const auth = await requireAdminNode(req);
@@ -26,6 +35,31 @@ export default async function handler(req, res) {
 
     if (action === "upsert_crm_rule") {
       const item = await upsertCrmAutomationRule(process.env, req.body || {});
+      return res.status(200).json({ ok: true, item });
+    }
+
+    if (action === "upsert_crm_resource") {
+      const item = await upsertCrmResourceMap(process.env, req.body || {});
+      return res.status(200).json({ ok: true, item });
+    }
+
+    if (action === "upsert_message_template") {
+      const item = await upsertMessageTemplate(process.env, req.body || {});
+      return res.status(200).json({ ok: true, item });
+    }
+
+    if (action === "update_dispatch_run") {
+      const item = await updateCrmDispatchRun(process.env, req.body || {});
+      return res.status(200).json({ ok: true, item });
+    }
+
+    if (action === "execute_dispatch_run") {
+      const item = await executeCrmDispatchRun(process.env, req.body || {});
+      return res.status(200).json({ ok: true, item });
+    }
+
+    if (action === "update_action_queue_item") {
+      const item = await updateCrmActionQueueItem(process.env, req.body || {});
       return res.status(200).json({ ok: true, item });
     }
 

@@ -17,22 +17,28 @@ Executar esta fase somente apos:
 5. Rodar [hmadv_fase8_contacts_status_validacao.ps1](/D:/Github/newgit/docs/hmadv_fase8_contacts_status_validacao.ps1)
    O script funciona antes e depois da migracao `006`: quando colunas novas ainda nao existirem, ele devolve aviso em vez de falhar.
 6. Rodar a canonizacao por eventos em [hmadv_fase8_canonizacao_eventos.md](/D:/Github/newgit/docs/hmadv_fase8_canonizacao_eventos.md)
-7. Rodar a trilha operacional em [hmadv_fase8_reconciliacao.md](/D:/Github/newgit/docs/hmadv_fase8_reconciliacao.md)
-8. Rodar o backfill inicial em [hmadv_fase8_backfill.md](/D:/Github/newgit/docs/hmadv_fase8_backfill.md)
-9. Implementar reconciliador de:
+7. Popular `public.freshsales_contacts` pela trilha direta em [hmadv_sync_freshsales_contacts.md](/D:/Github/newgit/docs/hmadv_sync_freshsales_contacts.md)
+8. Rodar a frente de cliente principal e contacts em [hmadv_fase8_cliente_contacts.md](/D:/Github/newgit/docs/hmadv_fase8_cliente_contacts.md)
+9. Medir cobertura em [hmadv_fase8_cliente_contacts_cobertura.md](/D:/Github/newgit/docs/hmadv_fase8_cliente_contacts_cobertura.md)
+10. Rodar a trilha operacional em [hmadv_fase8_reconciliacao.md](/D:/Github/newgit/docs/hmadv_fase8_reconciliacao.md)
+11. Rodar o backfill inicial em [hmadv_fase8_backfill.md](/D:/Github/newgit/docs/hmadv_fase8_backfill.md)
+12. Implementar reconciliador de:
    - cliente principal
    - contacts relacionados
    - polos
    - status processual
-10. Garantir persistencia em `judiciario.processos`, nao so no Freshsales
-11. Rodar novo backfill de account no Freshsales
-12. Homologar `Contacts + cf_polo_ativo + cf_parte_adversa + cf_status`
+13. Garantir persistencia em `judiciario.processos`, nao so no Freshsales
+14. Rodar novo backfill de account no Freshsales
+15. Homologar `Contacts + cf_polo_ativo + cf_parte_adversa + cf_status`
 
 ## Regras minimas
 
 ### Cliente principal
 
 - identificar a parte representada pelo escritorio
+- preferir marcador estruturado de escritorio em:
+  - `publicacoes.raw_payload.nomeCliente`
+  - `publicacoes.raw_payload.nomeUsuarioCliente`
 - vincular ou criar `Contact` no Freshsales
 - marcar um principal por processo quando houver evidencia suficiente
 
@@ -62,3 +68,4 @@ powershell -ExecutionPolicy Bypass -File "D:\Github\newgit\docs\hmadv_fase8_cont
 - `cliente_hmadv` aparece em `judiciario.partes`
 - `processo_contato_sync` comeca a ser preenchida
 - `cf_status` fica restrito a `Ativo`, `Baixado`, `Suspenso`
+- `freshsales_contacts` deixa de ficar vazio no HMADV

@@ -7,8 +7,9 @@ loadLocalEnv();
 
 async function main() {
   const limit = Number(process.argv[2] || '50');
+  const specificReceivableId = process.argv[3] || null;
   const base = resolveFreshsalesBase();
-  const receivables = await loadReceivables(limit);
+  const receivables = await loadReceivables(limit, specificReceivableId);
 
   if (!receivables.length) {
     console.log('Nenhum receivable apto para publicar em deals.');
@@ -80,11 +81,11 @@ function freshsalesHeaders() {
   throw new Error('Credenciais do Freshsales ausentes');
 }
 
-async function loadReceivables(limit) {
+async function loadReceivables(limit, specificReceivableId = null) {
   const query = [
     'billing_receivables?select=id,contract_id,contact_id,product_id,freshsales_deal_id,invoice_number,description,issue_date,due_date,status,currency,amount_original,payment_amount,amount_principal,correction_index_name,correction_amount,amount_corrected,late_fee_amount,interest_mora_amount,interest_compensatory_amount,balance_due,balance_due_corrected,raw_payload,contracts:billing_contracts(id,workspace_id,title,external_reference,freshsales_contact_id,contact_id,process_reference,product_id),products:freshsales_products(id,name,billing_type,freshsales_product_id),registry:freshsales_deals_registry(id,freshsales_deal_id,last_sync_status)',
-    'order=created_at.asc',
-    `limit=${limit}`,
+    specificReceivableId ? `id=eq.${encodeURIComponent(String(specificReceivableId))}` : 'order=created_at.asc',
+    specificReceivableId ? null : `limit=${limit}`,
   ].join('&');
 
   const rows = await supabaseRequest(query);

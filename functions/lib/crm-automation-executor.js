@@ -1,4 +1,5 @@
 import { AGENTLAB_CRM_AUTOMATION_RULES } from "../../lib/agentlab/catalog.js";
+import { dispatchCrmAutomation } from "./crm-dispatcher.js";
 
 function cleanEnvValue(value) {
   if (typeof value !== "string") return value ?? null;
@@ -112,6 +113,139 @@ function generateRunId() {
   return crypto.randomUUID();
 }
 
+async function loadResourceMap(env) {
+  try {
+    const rows = await supabaseRequest(
+      env,
+      "agentlab_crm_resource_map?select=*&order=resource_type.asc,resource_key.asc"
+    );
+    return Array.isArray(rows) ? rows : [];
+  } catch (error) {
+    if (isMissingSourceError(error)) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+function slugifyKey(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function resolveResource(resourceMap, resourceType, resourceName) {
+  const normalizedName = String(resourceName || "").trim().toLowerCase();
+  const desiredKey = `crm.${resourceType}.${slugifyKey(resourceName)}`;
+  return (
+    resourceMap.find((item) => item.resource_type === resourceType && String(item.resource_key || "").toLowerCase() === desiredKey) ||
+    resourceMap.find((item) => item.resource_type === resourceType && String(item.resource_name || "").trim().toLowerCase() === normalizedName) ||
+    null
+  );
+}
+
+async function persistActionQueue(env, rows) {
+  if (!rows.length) return { persisted: false, warnings: [] };
+
+  try {
+    await supabaseRequest(env, "agentlab_crm_action_queue", {
+      method: "POST",
+      body: JSON.stringify(rows),
+      headers: { Prefer: "return=representation" },
+    });
+    return { persisted: true, warnings: [] };
+  } catch (error) {
+    if (isMissingSourceError(error)) {
+      return {
+        persisted: false,
+        warnings: ["A tabela agentlab_crm_action_queue ainda nao existe. Sequences e journeys foram planejadas, mas nao persistidas."],
+      };
+    }
+    throw error;
+  }
+}
+
+async function createActionQueueFromRuns(env, runs) {
+  if (!runs.length) {
+    return { actionQueue: [], warnings: [], persisted: false };
+  }
+
+  const resourceMap = await loadResourceMap(env);
+  const nowIso = new Date().toISOString();
+  const rows = [];
+
+  for (const run of runs) {
+    if (run.sequence_name) {
+      const resource = resolveResource(resourceMap, "sequence", run.sequence_name);
+      rows.push({
+        id: generateRunId(),
+        automation_run_id: run.id,
+        source_ref: run.source_ref || null,
+        event_key: run.event_key,
+        action_type: "execute_sequence",
+        resource_type: "sequence",
+        resource_key: resource?.resource_key || `crm.sequence.${slugifyKey(run.sequence_name)}`,
+        resource_id: resource?.resource_id || null,
+        resource_name: resource?.resource_name || run.sequence_name,
+        status: resource?.resource_id ? "ready" : "missing_mapping",
+        execution_mode: run.execution_mode || "semi_auto",
+        detail: resource?.resource_id
+          ? `Sequence pronta para execucao guiada: ${resource.resource_name || run.sequence_name}.`
+          : `Sequence sem mapeamento salvo no AgentLab: ${run.sequence_name}.`,
+        payload: {
+          event_key: run.event_key,
+          source_ref: run.source_ref || null,
+          rule_id: run.rule_id || null,
+          planned_action: "sequence",
+          resource_metadata: resource?.metadata || {},
+        },
+        created_at: nowIso,
+        updated_at: nowIso,
+      });
+    }
+
+    if (run.journey_name) {
+      const resource = resolveResource(resourceMap, "journey", run.journey_name);
+      rows.push({
+        id: generateRunId(),
+        automation_run_id: run.id,
+        source_ref: run.source_ref || null,
+        event_key: run.event_key,
+        action_type: "execute_journey",
+        resource_type: "journey",
+        resource_key: resource?.resource_key || `crm.journey.${slugifyKey(run.journey_name)}`,
+        resource_id: resource?.resource_id || null,
+        resource_name: resource?.resource_name || run.journey_name,
+        status: resource?.resource_id ? "ready" : "missing_mapping",
+        execution_mode: run.execution_mode || "semi_auto",
+        detail: resource?.resource_id
+          ? `Journey pronta para execucao guiada: ${resource.resource_name || run.journey_name}.`
+          : `Journey sem mapeamento salvo no AgentLab: ${run.journey_name}.`,
+        payload: {
+          event_key: run.event_key,
+          source_ref: run.source_ref || null,
+          rule_id: run.rule_id || null,
+          planned_action: "journey",
+          resource_metadata: resource?.metadata || {},
+        },
+        created_at: nowIso,
+        updated_at: nowIso,
+      });
+    }
+  }
+
+  const persistence = await persistActionQueue(env, rows);
+  return {
+    actionQueue: rows,
+    warnings: persistence.warnings,
+    persisted: persistence.persisted,
+  };
+}
+
 export async function executeCrmAutomationRules(env, eventKey, context = {}) {
   const rules = await loadAutomationRules(env);
   const matchedRules = rules.filter((rule) => String(rule.event_key || "") === String(eventKey || "") && rule.enabled !== false);
@@ -149,11 +283,21 @@ export async function executeCrmAutomationRules(env, eventKey, context = {}) {
   }));
 
   const persistence = await persistAutomationRuns(env, runs);
+  const actionQueue = await createActionQueueFromRuns(env, runs);
+  const dispatch = await dispatchCrmAutomation(env, runs, context).catch((error) => ({
+    dispatchRuns: [],
+    warnings: [error.message],
+    persisted: false,
+  }));
 
   return {
     rulesMatched: matchedRules.length,
     runs,
-    warnings: persistence.warnings,
+    actionQueue: actionQueue.actionQueue,
+    dispatchRuns: dispatch.dispatchRuns,
+    warnings: [...persistence.warnings, ...actionQueue.warnings, ...dispatch.warnings],
     persisted: persistence.persisted,
+    actionQueuePersisted: actionQueue.persisted,
+    dispatchPersisted: dispatch.persisted,
   };
 }

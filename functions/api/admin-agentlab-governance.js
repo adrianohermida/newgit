@@ -1,8 +1,13 @@
 import { requireAdminAccess } from "../lib/admin-auth.js";
 import {
+  executeCrmDispatchRun,
   jsonError,
   jsonOk,
   upsertCrmAutomationRule,
+  upsertCrmResourceMap,
+  upsertMessageTemplate,
+  updateCrmActionQueueItem,
+  updateCrmDispatchRun,
   updateAgentLabProfile,
   updateImprovementQueueItem,
 } from "../../lib/agentlab/server.js";
@@ -29,6 +34,31 @@ export async function onRequestPatch(context) {
 
     if (action === "upsert_crm_rule") {
       const item = await upsertCrmAutomationRule(context.env, body);
+      return jsonOk({ item });
+    }
+
+    if (action === "upsert_crm_resource") {
+      const item = await upsertCrmResourceMap(context.env, body);
+      return jsonOk({ item });
+    }
+
+    if (action === "upsert_message_template") {
+      const item = await upsertMessageTemplate(context.env, body);
+      return jsonOk({ item });
+    }
+
+    if (action === "update_dispatch_run") {
+      const item = await updateCrmDispatchRun(context.env, body);
+      return jsonOk({ item });
+    }
+
+    if (action === "execute_dispatch_run") {
+      const item = await executeCrmDispatchRun(context.env, body);
+      return jsonOk({ item });
+    }
+
+    if (action === "update_action_queue_item") {
+      const item = await updateCrmActionQueueItem(context.env, body);
       return jsonOk({ item });
     }
 
