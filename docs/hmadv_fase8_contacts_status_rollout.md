@@ -17,14 +17,15 @@ Executar esta fase somente após:
 5. Rodar [hmadv_fase8_contacts_status_validacao.ps1](/D:/Github/newgit/docs/hmadv_fase8_contacts_status_validacao.ps1)
    O script agora funciona antes e depois da migração `006`: quando colunas novas ainda não existirem, ele devolve aviso em vez de falhar.
 6. Rodar a trilha operacional em [hmadv_fase8_reconciliacao.md](/D:/Github/newgit/docs/hmadv_fase8_reconciliacao.md)
-7. Implementar reconciliador de:
+7. Rodar o backfill inicial em [hmadv_fase8_backfill.md](/D:/Github/newgit/docs/hmadv_fase8_backfill.md)
+8. Implementar reconciliador de:
    - cliente principal
    - contacts relacionados
    - polos
    - status processual
-8. Garantir persistência em `judiciario.processos`, não só no Freshsales
-9. Rodar novo backfill de account no Freshsales
-10. Homologar `Contacts + cf_polo_ativo + cf_parte_adversa + cf_status`
+9. Garantir persistência em `judiciario.processos`, não só no Freshsales
+10. Rodar novo backfill de account no Freshsales
+11. Homologar `Contacts + cf_polo_ativo + cf_parte_adversa + cf_status`
 
 ## Regras mínimas
 

@@ -192,6 +192,8 @@ Arquivos:
 - [hmadv_fase8_reconciliacao.md](/D:/Github/newgit/docs/hmadv_fase8_reconciliacao.md)
 - [hmadv_fase8_rules_seed.md](/D:/Github/newgit/docs/hmadv_fase8_rules_seed.md)
 - [hmadv_phase8_prazos_grants.md](/D:/Github/newgit/docs/hmadv_phase8_prazos_grants.md)
+- [hmadv_backfill_polos_status.ps1](/D:/Github/newgit/docs/hmadv_backfill_polos_status.ps1)
+- [hmadv_fase8_backfill.md](/D:/Github/newgit/docs/hmadv_fase8_backfill.md)
 
 Aceite:
 
