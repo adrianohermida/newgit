@@ -220,6 +220,9 @@ function inferDealKind(snapshot, accountSnapshot = null) {
   ]);
 
   const joined = candidateTexts.join(" | ");
+  if (textIncludesAny(joined, ["reembolso", "refund"])) {
+    return "refund";
+  }
   if (textIncludesAny(joined, ["assinatura", "subscription", "mensal", "mensalidade", "plano", "recorrente"])) {
     return "subscription";
   }
@@ -434,6 +437,9 @@ function buildFinanceItem(dealSnapshot, accountSnapshot = null, mapping = null) 
     summary.expected_close ||
     timestamps.updated_at ||
     null;
+  const normalizedDueDate =
+    getSnapshotFieldText(dealSnapshot, ({ key }) => key === "cf_vencimento_da_fatura") ||
+    dueDate;
   const stageText =
     getSnapshotFieldText(dealSnapshot, ({ key, entry }) => textIncludesAny(`${key} ${entry?.label || ""}`, ["estagio", "estágio", "stage", "status"])) ||
     dealSnapshot?.status ||
@@ -455,12 +461,12 @@ function buildFinanceItem(dealSnapshot, accountSnapshot = null, mapping = null) 
     id: dealSnapshot.source_id,
     title: dealSnapshot.display_name || "Negocio financeiro",
     kind,
-    kind_label: kind === "subscription" ? "Assinatura" : kind === "invoice" ? "Fatura" : "Financeiro",
+    kind_label: kind === "subscription" ? "Assinatura" : kind === "invoice" ? "Fatura" : kind === "refund" ? "Reembolso" : "Financeiro",
     status,
     status_label: mapFinanceStatusLabel(status),
     amount,
     amount_label: formatCurrencyBRL(amount),
-    due_date: dueDate,
+    due_date: normalizedDueDate,
     created_at: timestamps.created_at || null,
     updated_at: timestamps.updated_at || null,
     stage: normalizedStageText,
@@ -911,13 +917,18 @@ export async function listClientFinanceiro(env, email) {
 
     const invoices = items.filter((item) => item.kind === "invoice");
     const subscriptions = items.filter((item) => item.kind === "subscription");
+    const refunds = items.filter((item) => item.kind === "refund");
     const others = items.filter((item) => item.kind === "other");
     const openAmount = invoices
-      .filter((item) => item.status !== "pago")
+      .filter((item) => !["pago", "encerrado"].includes(item.status))
       .reduce((sum, item) => sum + (item.amount || 0), 0);
     const recurringAmount = subscriptions
       .filter((item) => item.status !== "encerrado")
       .reduce((sum, item) => sum + (item.amount || 0), 0);
+    const statusCounts = items.reduce((acc, item) => {
+      acc[item.status] = (acc[item.status] || 0) + 1;
+      return acc;
+    }, {});
 
     const fieldCatalog = {
       deal_type_candidates: buildFieldCatalog(relatedDeals, ["tipo", "type", "categoria", "modalidade", "assinatura", "subscription", "fatura", "invoice", "plano"]),
@@ -935,8 +946,15 @@ export async function listClientFinanceiro(env, email) {
           total_items: 0,
           invoices: 0,
           subscriptions: 0,
+          refunds: 0,
           open_amount: 0,
           recurring_amount: 0,
+          status_counts: {
+            aberto: 0,
+            pago: 0,
+            atrasado: 0,
+            nao_pago: 0,
+          },
         },
         mapping,
         field_catalog: fieldCatalog,
@@ -961,8 +979,15 @@ export async function listClientFinanceiro(env, email) {
         total_items: items.length,
         invoices: invoices.length,
         subscriptions: subscriptions.length,
+        refunds: refunds.length,
         open_amount: openAmount,
         recurring_amount: recurringAmount,
+        status_counts: {
+          aberto: statusCounts.aberto || 0,
+          pago: statusCounts.pago || 0,
+          atrasado: statusCounts.atrasado || 0,
+          nao_pago: statusCounts.nao_pago || 0,
+        },
       },
       mapping,
       field_catalog: fieldCatalog,
@@ -984,8 +1009,15 @@ export async function listClientFinanceiro(env, email) {
           total_items: 0,
           invoices: 0,
           subscriptions: 0,
+          refunds: 0,
           open_amount: 0,
           recurring_amount: 0,
+          status_counts: {
+            aberto: 0,
+            pago: 0,
+            atrasado: 0,
+            nao_pago: 0,
+          },
         },
         mapping: {
           deal_type_field: null,

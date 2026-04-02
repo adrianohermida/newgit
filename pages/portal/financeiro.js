@@ -112,13 +112,20 @@ function FinanceiroContent({ state, setState }) {
   return (
     <div className="space-y-6">
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {summaryCards.map((card) => (
+      {summaryCards.map((card) => (
           <article key={card.label} className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
             <p className="text-[11px] uppercase tracking-[0.18em] opacity-45">{card.label}</p>
             <p className="mt-4 font-serif text-3xl">{card.value}</p>
             <p className="mt-2 text-sm opacity-60">{card.helper}</p>
           </article>
         ))}
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatusSummaryCard label="Abertas" value={state.summary?.status_counts?.aberto || 0} status="aberto" />
+        <StatusSummaryCard label="Pagas" value={state.summary?.status_counts?.pago || 0} status="pago" />
+        <StatusSummaryCard label="Atrasadas" value={state.summary?.status_counts?.atrasado || 0} status="atrasado" />
+        <StatusSummaryCard label="Nao pagas" value={state.summary?.status_counts?.nao_pago || 0} status="nao_pago" />
       </section>
 
       {state.warning ? (
@@ -144,6 +151,15 @@ function FinanceiroContent({ state, setState }) {
         items={state.subscriptions}
         emptyMessage="Nenhuma assinatura ativa foi identificada para este contato."
       />
+
+      {(state.summary?.refunds || 0) > 0 ? (
+        <FinanceSection
+          title="Reembolsos"
+          description="Deals classificados como reembolso no Freshsales."
+          items={state.items.filter((item) => item.kind === "refund")}
+          emptyMessage=""
+        />
+      ) : null}
 
       {state.others.length ? (
         <FinanceSection
@@ -222,6 +238,15 @@ function Metric({ label, value }) {
       <p className="text-[11px] uppercase tracking-[0.18em] opacity-45">{label}</p>
       <p className="mt-2 text-sm">{value}</p>
     </div>
+  );
+}
+
+function StatusSummaryCard({ label, value, status }) {
+  return (
+    <article className={`rounded-[24px] border p-5 ${statusStyle(status)}`}>
+      <p className="text-[11px] uppercase tracking-[0.18em] opacity-80">{label}</p>
+      <p className="mt-3 font-serif text-3xl">{value}</p>
+    </article>
   );
 }
 
