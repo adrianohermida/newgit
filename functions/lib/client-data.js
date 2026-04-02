@@ -745,6 +745,58 @@ async function tryFetchOptional(env, variants) {
   };
 }
 
+function normalizeConsultaStatus(value) {
+  const normalized = normalizeText(value);
+  if (!normalized) return "agendada";
+  if (textIncludesAny(normalized, ["cancel", "cancelada", "cancelado"])) return "cancelada";
+  if (textIncludesAny(normalized, ["confirm", "confirmada", "confirmado"])) return "confirmada";
+  if (textIncludesAny(normalized, ["realizada", "concluida", "concluida", "atendida", "finalizada"])) return "realizada";
+  if (textIncludesAny(normalized, ["remarc", "reagendada"])) return "remarcada";
+  if (textIncludesAny(normalized, ["pendente", "aguardando"])) return "pendente";
+  return "agendada";
+}
+
+function mapConsultaStatusLabel(status) {
+  const labels = {
+    agendada: "Agendada",
+    confirmada: "Confirmada",
+    pendente: "Pendente",
+    remarcada: "Remarcada",
+    realizada: "Realizada",
+    cancelada: "Cancelada",
+  };
+  return labels[status] || "Agendada";
+}
+
+function buildConsultaDateTime(item) {
+  if (!item?.data) return null;
+  const time = item.hora || "12:00";
+  const iso = `${item.data}T${time.length === 5 ? `${time}:00` : time}-03:00`;
+  const parsed = new Date(iso);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function normalizeConsultaRow(row) {
+  const status = normalizeConsultaStatus(row.status);
+  const datetime = buildConsultaDateTime(row);
+  return {
+    id: row.id,
+    name: row.nome || null,
+    email: row.email || null,
+    telefone: row.telefone || null,
+    area: row.area || "Consulta",
+    data: row.data || null,
+    hora: row.hora || null,
+    status,
+    status_label: mapConsultaStatusLabel(status),
+    observacoes: row.observacoes || null,
+    created_at: row.created_at || null,
+    updated_at: row.updated_at || null,
+    datetime_iso: datetime ? datetime.toISOString() : null,
+    is_upcoming: Boolean(datetime && datetime.getTime() >= Date.now() && status !== "cancelada"),
+  };
+}
+
 export async function listClientConsultas(env, email) {
   const params = new URLSearchParams();
   params.set("select", "id,nome,email,telefone,area,data,hora,status,observacoes,created_at,updated_at");
@@ -752,7 +804,26 @@ export async function listClientConsultas(env, email) {
   params.set("order", "data.desc,hora.desc");
   params.set("limit", "50");
   const rows = await fetchSupabaseAdmin(env, `agendamentos?${params.toString()}`);
-  return Array.isArray(rows) ? rows : [];
+  const items = Array.isArray(rows) ? rows.map(normalizeConsultaRow) : [];
+  const upcomingItems = items
+    .filter((item) => item.is_upcoming)
+    .sort((left, right) => {
+      const leftTime = left.datetime_iso ? new Date(left.datetime_iso).getTime() : Infinity;
+      const rightTime = right.datetime_iso ? new Date(right.datetime_iso).getTime() : Infinity;
+      return leftTime - rightTime;
+    });
+
+  return {
+    items,
+    next_consulta: upcomingItems[0] || null,
+    summary: {
+      total: items.length,
+      agendadas: items.filter((item) => ["agendada", "confirmada", "pendente", "remarcada"].includes(item.status)).length,
+      realizadas: items.filter((item) => item.status === "realizada").length,
+      canceladas: items.filter((item) => item.status === "cancelada").length,
+      proximas: upcomingItems.length,
+    },
+  };
 }
 
 export async function listClientProcessos(env, email) {
@@ -1326,14 +1397,15 @@ export async function getClientSummary(env, profile) {
     listClientFinanceiro(env, profile.email),
     listClientPublicacoes(env, profile),
   ]);
+  const consultaItems = Array.isArray(consultas?.items) ? consultas.items : [];
 
   const recentActivity = [
-    ...consultas.slice(0, 3).map((item) => ({
+    ...consultaItems.slice(0, 3).map((item) => ({
       id: `consulta-${item.id}`,
       type: "consulta",
       title: item.area || "Consulta agendada",
       date: item.updated_at || item.created_at || item.data || null,
-      helper: `${item.data || ""} ${item.hora || ""}`.trim() || item.status || "Consulta",
+      helper: `${item.data || ""} ${item.hora || ""}`.trim() || item.status_label || item.status || "Consulta",
       href: "/portal/consultas",
     })),
     ...processos.items.slice(0, 3).map((item) => ({
@@ -1392,14 +1464,14 @@ export async function getClientSummary(env, profile) {
         helper: `${item.status}${item.priority ? ` • ${item.priority}` : ""}`,
         href: "/portal/tickets",
       })),
-    ...consultas
-      .filter((item) => item.status && !String(item.status).toLowerCase().includes("cancel"))
+    ...consultaItems
+      .filter((item) => item.status && item.status !== "cancelada")
       .slice(0, 2)
       .map((item) => ({
         id: `consulta-${item.id}`,
         tone: "muted",
         title: item.area || "Consulta agendada",
-        helper: `${item.data || ""} ${item.hora || ""}`.trim() || item.status || "Consulta",
+        helper: `${item.data || ""} ${item.hora || ""}`.trim() || item.status_label || item.status || "Consulta",
         href: "/portal/consultas",
       })),
   ].slice(0, 6);
@@ -1408,7 +1480,7 @@ export async function getClientSummary(env, profile) {
     summary: {
       processos: processos.items.length,
       tickets: tickets.items.length,
-      consultas: consultas.length,
+      consultas: consultaItems.length,
       documentos: documentos.items.length,
       financeiro: financeiro.items.length,
       publicacoes: publicacoes.items.length,

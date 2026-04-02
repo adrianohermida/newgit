@@ -14,8 +14,8 @@ export async function onRequestGet(context) {
     });
   }
 
-  const items = await listClientConsultas(env, auth.profile.email);
-  return new Response(JSON.stringify({ ok: true, items }), {
+  const consultas = await listClientConsultas(env, auth.profile.email);
+  return new Response(JSON.stringify({ ok: true, ...consultas }), {
     status: 200,
     headers: JSON_HEADERS,
   });
