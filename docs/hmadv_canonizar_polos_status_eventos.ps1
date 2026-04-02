@@ -41,6 +41,41 @@ function Normalize-Name([string]$value) {
   return (($value -replace '\s+', ' ').Trim() -replace '^\W+|\W+$', '').Trim()
 }
 
+function Get-TermVariants([string]$term) {
+  $variants = New-Object System.Collections.Generic.HashSet[string]
+  if ([string]::IsNullOrWhiteSpace($term)) { return @() }
+  $normalized = Normalize-Text $term
+  [void]$variants.Add($normalized)
+
+  if ($normalized -match 'o$') {
+    [void]$variants.Add(($normalized -replace 'o$', 'a'))
+    [void]$variants.Add(($normalized -replace 'o$', 'os'))
+    [void]$variants.Add(($normalized -replace 'o$', 'as'))
+  }
+  if ($normalized -match 'ado$') {
+    [void]$variants.Add(($normalized -replace 'ado$', 'ada'))
+    [void]$variants.Add(($normalized -replace 'ado$', 'ados'))
+    [void]$variants.Add(($normalized -replace 'ado$', 'adas'))
+  }
+  if ($normalized -match 'ido$') {
+    [void]$variants.Add(($normalized -replace 'ido$', 'ida'))
+    [void]$variants.Add(($normalized -replace 'ido$', 'idos'))
+    [void]$variants.Add(($normalized -replace 'ido$', 'idas'))
+  }
+  if ($normalized -match 'nte$') {
+    [void]$variants.Add(($normalized -replace 'nte$', 'ntes'))
+  }
+
+  return @($variants)
+}
+
+function Text-MatchesRule([string]$text, [string]$term) {
+  foreach ($variant in (Get-TermVariants $term)) {
+    if ($text -like "*$variant*") { return $true }
+  }
+  return $false
+}
+
 function Invoke-GetJson($url) {
   try {
     $response = Invoke-RestMethod -Method Get -Uri $url -Headers $readHeaders -TimeoutSec 120
@@ -136,13 +171,13 @@ function Infer-PolosFromPublications($publications, $rules) {
     $pairs = Extract-PublicationPairs $pub.conteudo
     foreach ($pair in $pairs) {
       foreach ($rule in $activeTerms) {
-        if ($pair.papel -like "*$($rule.termo)*") {
+        if (Text-MatchesRule $pair.papel $rule.termo) {
           if (-not $ativos.ContainsKey($pair.nome)) { $ativos[$pair.nome] = 0 }
           $ativos[$pair.nome] += 1
         }
       }
       foreach ($rule in $passiveTerms) {
-        if ($pair.papel -like "*$($rule.termo)*") {
+        if (Text-MatchesRule $pair.papel $rule.termo) {
           if (-not $passivos.ContainsKey($pair.nome)) { $passivos[$pair.nome] = 0 }
           $passivos[$pair.nome] += 1
         }
@@ -174,7 +209,7 @@ function Find-StatusEvidence($movements, $publications, $rules) {
     $text = Normalize-Text $mov.descricao
     if (-not $text) { continue }
     foreach ($rule in $statusRules | Where-Object { $_.categoria -eq "movimento" }) {
-      if ($text -like "*$($rule.termo)*") {
+      if (Text-MatchesRule $text $rule.termo) {
         $matches += [pscustomobject]@{
           fonte = "movimento"
           valor = $rule.valor_resultado
@@ -192,7 +227,7 @@ function Find-StatusEvidence($movements, $publications, $rules) {
     $text = Normalize-Text $pub.conteudo
     if (-not $text) { continue }
     foreach ($rule in $statusRules | Where-Object { $_.categoria -eq "publicacao" }) {
-      if ($text -like "*$($rule.termo)*") {
+      if (Text-MatchesRule $text $rule.termo) {
         $matches += [pscustomobject]@{
           fonte = "publicacao"
           valor = $rule.valor_resultado

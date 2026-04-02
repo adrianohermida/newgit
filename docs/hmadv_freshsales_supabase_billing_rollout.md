@@ -39,6 +39,33 @@ node scripts/import-hmadv-billing-csv.js --workspace-id <uuid-do-workspace>
 node scripts/import-hmadv-billing-csv.js "D:/Downloads/HMADV - Faturas (6).csv" "D:/Downloads/HMADV - Assinaturas (1).csv"
 ```
 
+## Orquestração do pipeline
+
+Para rodar a esteira principal em sequência:
+
+```bash
+node scripts/orchestrate-hmadv-billing.js --workspace-id <uuid> --indices-file "D:/Downloads/indices.csv" --publish-limit 10 --queue-limit 50
+```
+
+Ao final, o script:
+
+- sincroniza produtos seed
+- sincroniza `contacts`
+- sincroniza `products`
+- importa índices, quando informados
+- importa os CSVs financeiros
+- materializa contratos e recebíveis
+- publica deals
+- processa a fila de CRM
+
+## Relatório de reconciliação
+
+Para exportar as pendências de match, duplicidade e validação:
+
+```bash
+node scripts/export-hmadv-reconciliation-report.js
+```
+
 ## Regras já implementadas
 
 - matching de contato por `e-mail`
