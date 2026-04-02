@@ -26,6 +26,22 @@ function statusTone(status) {
   return "border-[#20332D] bg-[rgba(255,255,255,0.04)] text-[#E7DED1]";
 }
 
+function sortByDateTimeAsc(items) {
+  return [...items].sort((left, right) => {
+    const leftTime = left.datetime_iso ? new Date(left.datetime_iso).getTime() : Infinity;
+    const rightTime = right.datetime_iso ? new Date(right.datetime_iso).getTime() : Infinity;
+    return leftTime - rightTime;
+  });
+}
+
+function sortByDateTimeDesc(items) {
+  return [...items].sort((left, right) => {
+    const leftTime = left.datetime_iso ? new Date(left.datetime_iso).getTime() : 0;
+    const rightTime = right.datetime_iso ? new Date(right.datetime_iso).getTime() : 0;
+    return rightTime - leftTime;
+  });
+}
+
 function StatCard({ label, value, helper }) {
   return (
     <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
@@ -118,6 +134,8 @@ function ConsultasContent({ state, setState }) {
   }
 
   const summary = state.summary || { total: 0, agendadas: 0, realizadas: 0, canceladas: 0, proximas: 0 };
+  const upcomingItems = sortByDateTimeAsc(state.items.filter((item) => item.is_upcoming));
+  const historyItems = sortByDateTimeDesc(state.items.filter((item) => !item.is_upcoming));
 
   return (
     <div className="space-y-8">
@@ -164,6 +182,88 @@ function ConsultasContent({ state, setState }) {
         </div>
       </section>
 
+      <section className="grid gap-4 lg:grid-cols-3">
+        {[
+          {
+            title: "Precisa ajustar o horario?",
+            helper: "Use o fluxo de agendamento para solicitar um novo horário quando for o caso.",
+            href: "/agendamento",
+            label: "Reagendar atendimento",
+          },
+          {
+            title: "Quer enviar contexto antes da consulta?",
+            helper: "Abra um chamado para registrar dúvidas, documentos ou instruções complementares.",
+            href: "/portal/tickets",
+            label: "Abrir suporte",
+          },
+          {
+            title: "Atualize seus dados de contato",
+            helper: "Seu telefone e cadastro ajudam o escritório a conduzir o atendimento com mais precisão.",
+            href: "/portal/perfil",
+            label: "Atualizar perfil",
+          },
+        ].map((item) => (
+          <a
+            key={item.href}
+            href={item.href}
+            className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6 transition hover:border-[#C49C56]"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C49C56]">Acao rapida</p>
+            <h3 className="mt-3 font-serif text-2xl">{item.title}</h3>
+            <p className="mt-3 text-sm leading-6 opacity-62">{item.helper}</p>
+            <p className="mt-5 text-sm font-semibold text-[#C49C56]">{item.label}</p>
+          </a>
+        ))}
+      </section>
+
+      <section className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
+        <div className="flex flex-col gap-3 border-b border-[#20332D] pb-5 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Agenda futura</p>
+            <h3 className="mt-3 font-serif text-3xl">O que vem pela frente</h3>
+          </div>
+          <p className="text-sm opacity-60">Consultas futuras identificadas no seu cadastro.</p>
+        </div>
+
+        <div className="mt-5 space-y-4">
+          {!upcomingItems.length ? (
+            <p className="text-sm leading-6 opacity-70">Nenhuma consulta futura localizada no momento.</p>
+          ) : null}
+          {upcomingItems.map((item) => (
+            <article key={item.id} className="rounded-[24px] border border-[#20332D] bg-black/10 p-5">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-[10px] font-semibold tracking-[0.2em] text-[#C49C56]">{item.area}</span>
+                    <span className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${statusTone(item.status)}`}>
+                      {item.status_label}
+                    </span>
+                  </div>
+                  <h4 className="mt-4 font-serif text-2xl">{formatDateTimeLabel(item)}</h4>
+                  <p className="mt-3 text-sm leading-6 opacity-70">
+                    {item.observacoes || "Use o suporte se precisar complementar informações antes do atendimento."}
+                  </p>
+                </div>
+                <div className="flex min-w-[210px] flex-col gap-3">
+                  <a
+                    href="/portal/tickets"
+                    className="rounded-2xl bg-[#C49C56] px-4 py-3 text-center text-sm font-semibold text-[#07110E] transition hover:brightness-110"
+                  >
+                    Pedir suporte
+                  </a>
+                  <a
+                    href="/agendamento"
+                    className="rounded-2xl border border-[#20332D] px-4 py-3 text-center text-sm transition hover:border-[#C49C56]"
+                  >
+                    Solicitar novo horario
+                  </a>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <section className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
         <div className="flex flex-col gap-3 border-b border-[#20332D] pb-5 md:flex-row md:items-end md:justify-between">
           <div>
@@ -174,10 +274,10 @@ function ConsultasContent({ state, setState }) {
         </div>
 
         <div className="mt-5 space-y-4">
-          {!state.items.length ? (
+          {!historyItems.length ? (
             <p className="text-sm leading-6 opacity-70">Nenhuma consulta encontrada para o seu cadastro.</p>
           ) : null}
-          {state.items.map((item) => (
+          {historyItems.map((item) => (
             <article key={item.id} className="rounded-[24px] border border-[#20332D] bg-black/10 p-5">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div>
