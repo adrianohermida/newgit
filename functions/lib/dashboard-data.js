@@ -4,7 +4,7 @@ function buildAgendamentosQuery(filters = {}) {
   const params = new URLSearchParams();
   params.set(
     "select",
-    "id,nome,email,telefone,area,data,hora,status,observacoes,google_event_id,created_at,updated_at"
+    "id,nome,email,telefone,area,data,hora,status,observacoes,google_event_id,zoom_meeting_id,zoom_join_url,created_at,updated_at"
   );
   params.set("order", "data.desc,hora.desc");
 
@@ -33,8 +33,8 @@ export async function listAgendamentosForDashboard(env, filters = {}) {
 
 export async function getAgendamentoForDashboard(env, id) {
   const selectVariants = [
-    "id,nome,email,telefone,area,data,hora,status,observacoes,google_event_id,token_confirmacao,token_cancelamento,token_remarcacao,admin_token_confirmacao,admin_token_cancelamento,admin_token_remarcacao,created_at,updated_at,confirmed_at,cancelled_at,cancelled_by,rescheduled_at,rescheduled_by,original_data,original_hora",
-    "id,nome,email,telefone,area,data,hora,status,observacoes,google_event_id,created_at,updated_at",
+    "id,nome,email,telefone,area,data,hora,status,observacoes,google_event_id,zoom_meeting_id,zoom_join_url,zoom_start_url,zoom_password,zoom_host_email,zoom_timezone,zoom_topic,zoom_status,token_confirmacao,token_cancelamento,token_remarcacao,admin_token_confirmacao,admin_token_cancelamento,admin_token_remarcacao,created_at,updated_at,confirmed_at,cancelled_at,cancelled_by,rescheduled_at,rescheduled_by,original_data,original_hora,meeting_outcome,meeting_outcome_notes,attended_at,no_show_at,proposal_sent_at,proposal_accepted_at,proposal_refused_at,contract_sent_at,client_activated_at,client_deactivated_at,crm_last_event",
+    "id,nome,email,telefone,area,data,hora,status,observacoes,google_event_id,zoom_meeting_id,zoom_join_url,created_at,updated_at",
   ];
 
   let rows = null;

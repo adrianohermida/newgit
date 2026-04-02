@@ -130,7 +130,8 @@ export async function onRequestGet(context) {
     env,
     { supabaseUrl, supabaseKey },
     { ...agendamentoConfirmado, confirmation_clicked_at: confirmedAt },
-    'confirmed'
+    'confirmed',
+    { actionLinks }
   );
   integrationWarnings = integrationResult.warnings;
   if (integrationResult.zoomSnapshot) {

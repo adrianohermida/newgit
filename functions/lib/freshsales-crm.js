@@ -1,5 +1,5 @@
 import { getCleanEnvValue } from "./env.js";
-import { buildFreshsalesAppointmentPayload, buildFreshsalesJourneyUpdate } from "./freshsales-journey.js";
+import { buildFreshsalesAppointmentPayload, buildFreshsalesJourneyUpdate, getFreshsalesJourneyConfig } from "./freshsales-journey.js";
 
 function splitName(fullName) {
   const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
@@ -79,9 +79,9 @@ async function freshsalesRequest(env, path, init = {}) {
   throw lastError || new Error("Falha ao conectar no Freshsales.");
 }
 
-export async function upsertFreshsalesContactForAgendamento(env, agendamento, eventType = "booked") {
+export async function upsertFreshsalesContactForAgendamento(env, agendamento, eventType = "booked", options = {}) {
   const { first_name, last_name } = splitName(agendamento.nome);
-  const stageUpdate = buildFreshsalesJourneyUpdate(eventType, agendamento, env);
+  const stageUpdate = buildFreshsalesJourneyUpdate(eventType, agendamento, env, options);
 
   const contactPayload = {
     unique_identifier: { emails: agendamento.email },
@@ -106,8 +106,8 @@ export async function upsertFreshsalesContactForAgendamento(env, agendamento, ev
   };
 }
 
-export async function createFreshsalesAppointmentForAgendamento(env, agendamento, contactId, zoomSnapshot = null) {
-  const appointmentPayload = buildFreshsalesAppointmentPayload(agendamento, zoomSnapshot, env);
+export async function createFreshsalesAppointmentForAgendamento(env, agendamento, contactId, zoomSnapshot = null, options = {}) {
+  const appointmentPayload = buildFreshsalesAppointmentPayload(agendamento, zoomSnapshot, env, options);
   if (contactId) {
     appointmentPayload.appointment.targetable_type = "Contact";
     appointmentPayload.appointment.targetable_id = String(contactId);
@@ -131,8 +131,8 @@ export async function createFreshsalesAppointmentForAgendamento(env, agendamento
   };
 }
 
-export async function updateFreshsalesAppointmentForAgendamento(env, appointmentId, agendamento, contactId, zoomSnapshot = null) {
-  const appointmentPayload = buildFreshsalesAppointmentPayload(agendamento, zoomSnapshot, env);
+export async function updateFreshsalesAppointmentForAgendamento(env, appointmentId, agendamento, contactId, zoomSnapshot = null, options = {}) {
+  const appointmentPayload = buildFreshsalesAppointmentPayload(agendamento, zoomSnapshot, env, options);
   if (contactId) {
     appointmentPayload.appointment.targetable_type = "Contact";
     appointmentPayload.appointment.targetable_id = String(contactId);
@@ -167,8 +167,47 @@ export async function deleteFreshsalesAppointment(env, appointmentId) {
   };
 }
 
-export async function syncAgendamentoToFreshsales(env, agendamento, eventType, zoomSnapshot = null) {
-  const contactResult = await upsertFreshsalesContactForAgendamento(env, agendamento, eventType);
+async function createFreshsalesSalesActivity(env, agendamento, contactId, eventType, options = {}) {
+  const config = getFreshsalesJourneyConfig(env);
+  const activityType = config.salesActivityTypeByEvent?.[eventType];
+  if (!activityType) {
+    return null;
+  }
+
+  const activityPayload = {
+    sales_activity: {
+      subject: `Agendamento (${eventType}) - ${agendamento.area}`,
+      note: [
+        `Cliente: ${agendamento.nome}`,
+        `E-mail: ${agendamento.email}`,
+        `Telefone: ${agendamento.telefone}`,
+        `Status local: ${agendamento.status || "pendente"}`,
+        options.actionLinks?.cliente?.confirmar ? `Confirmar: ${options.actionLinks.cliente.confirmar}` : null,
+        options.actionLinks?.cliente?.cancelar ? `Cancelar: ${options.actionLinks.cliente.cancelar}` : null,
+        options.actionLinks?.cliente?.remarcar ? `Remarcar: ${options.actionLinks.cliente.remarcar}` : null,
+      ].filter(Boolean).join("\n"),
+      activity_date: new Date(`${agendamento.data}T${agendamento.hora}:00-03:00`).toISOString(),
+      owner_id: getCleanEnvValue(env.FRESHSALES_OWNER_ID) || null,
+      targetable_type: contactId ? "Contact" : null,
+      targetable_id: contactId ? String(contactId) : null,
+      sales_activity_type_id: activityType,
+    },
+  };
+
+  const { payload, base } = await freshsalesRequest(env, "/sales_activities", {
+    method: "POST",
+    body: JSON.stringify(activityPayload),
+  });
+
+  return {
+    base,
+    activity: payload.sales_activity || payload,
+    requestPayload: activityPayload,
+  };
+}
+
+export async function syncAgendamentoToFreshsales(env, agendamento, eventType, zoomSnapshot = null, options = {}) {
+  const contactResult = await upsertFreshsalesContactForAgendamento(env, agendamento, eventType, options);
   const contactId = contactResult?.contact?.id || agendamento.freshsales_contact_id || null;
 
   let appointmentResult = null;
@@ -182,20 +221,36 @@ export async function syncAgendamentoToFreshsales(env, agendamento, eventType, z
       agendamento.freshsales_appointment_id,
       agendamento,
       contactId,
-      zoomSnapshot
+      zoomSnapshot,
+      { ...options, eventType }
     );
   } else {
-    appointmentResult = await createFreshsalesAppointmentForAgendamento(env, agendamento, contactId, zoomSnapshot);
+    appointmentResult = await createFreshsalesAppointmentForAgendamento(env, agendamento, contactId, zoomSnapshot, {
+      ...options,
+      eventType,
+    });
+  }
+
+  let activityResult = null;
+  try {
+    activityResult = await createFreshsalesSalesActivity(env, agendamento, contactId, eventType, options);
+  } catch (error) {
+    activityResult = {
+      error: error.message,
+    };
   }
 
   return {
     contactId: contactId ? String(contactId) : null,
     appointmentId: appointmentResult?.appointment?.id ? String(appointmentResult.appointment.id) : agendamento.freshsales_appointment_id || null,
-    base: appointmentResult?.base || contactResult?.base || null,
+    salesActivityId: activityResult?.activity?.id ? String(activityResult.activity.id) : null,
+    base: appointmentResult?.base || contactResult?.base || activityResult?.base || null,
     payload: {
       eventType,
       contact: contactResult?.contact || null,
       appointment: appointmentResult?.appointment || null,
+      salesActivity: activityResult?.activity || null,
+      salesActivityError: activityResult?.error || null,
       stageUpdate: contactResult?.stageUpdate || null,
     },
   };

@@ -16,6 +16,10 @@ $headers = @{
   "Content-Type" = "application/json; charset=utf-8"
 }
 
+$writeHeaders = $headers + @{
+  "Content-Profile" = "judiciario"
+}
+
 function Normalize-Text([string]$value) {
   if ([string]::IsNullOrWhiteSpace($value)) { return $null }
   return ($value -replace '\s+', ' ').Trim()
@@ -66,7 +70,7 @@ function Build-Patch($proc) {
 function Apply-Patch($procId, $patch) {
   $json = $patch | ConvertTo-Json -Depth 8 -Compress
   $body = [System.Text.Encoding]::UTF8.GetBytes($json)
-  Invoke-RestMethod -Method Patch -Uri "$base/processos?id=eq.$procId" -Headers ($headers + @{ Prefer = "return=representation" }) -Body $body -TimeoutSec 120
+  Invoke-RestMethod -Method Patch -Uri "$base/processos?id=eq.$procId" -Headers ($writeHeaders + @{ Prefer = "return=representation" }) -Body $body -TimeoutSec 120
 }
 
 $candidates = Get-Candidates

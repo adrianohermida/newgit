@@ -101,6 +101,7 @@ Transformar o fluxo de agendamento em uma jornada completa de CRM:
 - `appointments`: criar/atualizar/cancelar
 - `sales_activities`: registrar eventos auxiliares
 - `contact custom fields`: refletir ciclo de vida e estágio da reunião
+- `appointment custom fields`: guardar link Zoom, status do evento e links de confirmar/cancelar/remarcar
 - `sequences`, `campaigns` e `journeys`: reagir ao status da reunião
 
 ## Links de ação no e-mail

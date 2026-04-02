@@ -38,6 +38,15 @@ $env:HMADV_SERVICE_ROLE="SUA_SERVICE_ROLE"
 powershell -ExecutionPolicy Bypass -File "D:\Github\newgit\docs\hmadv_import_prazos_base.ps1" -Importar
 ```
 
+## Correcao incremental do calendario Advise
+
+Se a carga inicial tiver entrado com `metadata.diario = null` por leitura antiga do CSV, rode:
+
+```powershell
+$env:HMADV_SERVICE_ROLE="SUA_SERVICE_ROLE"
+powershell -ExecutionPolicy Bypass -File "D:\Github\newgit\docs\hmadv_corrigir_calendario_advise.ps1" -Aplicar
+```
+
 ## Ordem no rollout
 
 Sem pular etapas:

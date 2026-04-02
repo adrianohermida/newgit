@@ -12,7 +12,13 @@
     "setup:hmadv-ai": "powershell -ExecutionPolicy Bypass -File scripts/setup-hmadv-process-ai.ps1",
     "start": "node .next/standalone/server.js",
     "import:hmadv-billing": "node scripts/import-hmadv-billing-csv.js",
+    "import:billing-indices": "node scripts/import-billing-indices.js",
+    "materialize:hmadv-billing": "node scripts/materialize-hmadv-billing.js",
+    "process:hmadv-crm-events": "node scripts/process-hmadv-crm-events.js",
+    "publish:hmadv-deals": "node scripts/publish-hmadv-deals.js",
+    "seed:hmadv-products": "node scripts/seed-hmadv-products.js",
     "sync:freshsales-contacts": "node scripts/sync-freshsales-contacts.js",
+    "sync:freshsales-products": "node scripts/sync-freshsales-products.js",
     "gh-pages": "GITHUB_PAGES=true next build && rm -rf docs && mkdir docs && cp -r out/* docs/ && touch docs/.nojekyll",
     "test:integration": "node scripts/test-integration.js"
   },

@@ -2,7 +2,7 @@ create extension if not exists pgcrypto;
 
 create table if not exists public.freshsales_contacts (
   id uuid primary key default gen_random_uuid(),
-  workspace_id uuid references public.workspaces(id) on delete set null,
+  workspace_id uuid,
   freshsales_contact_id text not null unique,
   name text,
   email text,
@@ -31,7 +31,7 @@ create index if not exists idx_freshsales_contacts_phone_normalized
 
 create table if not exists public.freshsales_products (
   id uuid primary key default gen_random_uuid(),
-  workspace_id uuid references public.workspaces(id) on delete set null,
+  workspace_id uuid,
   freshsales_product_id text unique,
   name text not null,
   category text,
@@ -55,6 +55,9 @@ create index if not exists idx_freshsales_products_workspace_id
 create index if not exists idx_freshsales_products_category
   on public.freshsales_products (category);
 
+create unique index if not exists uq_freshsales_products_name
+  on public.freshsales_products (name);
+
 create table if not exists public.billing_indices (
   id uuid primary key default gen_random_uuid(),
   index_name text not null,
@@ -71,7 +74,7 @@ create index if not exists idx_billing_indices_name_month
 
 create table if not exists public.billing_import_runs (
   id uuid primary key default gen_random_uuid(),
-  workspace_id uuid references public.workspaces(id) on delete set null,
+  workspace_id uuid,
   source_name text not null,
   source_file text,
   status text not null default 'pending',
@@ -133,7 +136,7 @@ create index if not exists idx_billing_import_rows_dedupe_key
 
 create table if not exists public.billing_contracts (
   id uuid primary key default gen_random_uuid(),
-  workspace_id uuid references public.workspaces(id) on delete set null,
+  workspace_id uuid,
   contact_id uuid references public.freshsales_contacts(id) on delete set null,
   freshsales_contact_id text,
   product_id uuid references public.freshsales_products(id) on delete set null,
@@ -157,9 +160,13 @@ create index if not exists idx_billing_contracts_workspace_id
 create index if not exists idx_billing_contracts_contact_id
   on public.billing_contracts (contact_id);
 
+create unique index if not exists uq_billing_contracts_external_reference
+  on public.billing_contracts (external_reference)
+  where external_reference is not null;
+
 create table if not exists public.billing_receivables (
   id uuid primary key default gen_random_uuid(),
-  workspace_id uuid references public.workspaces(id) on delete set null,
+  workspace_id uuid,
   contract_id uuid references public.billing_contracts(id) on delete cascade,
   contact_id uuid references public.freshsales_contacts(id) on delete set null,
   product_id uuid references public.freshsales_products(id) on delete set null,
@@ -210,9 +217,13 @@ create index if not exists idx_billing_receivables_contact_id
 create index if not exists idx_billing_receivables_status_due_date
   on public.billing_receivables (status, due_date);
 
+create unique index if not exists uq_billing_receivables_source_import_row_id
+  on public.billing_receivables (source_import_row_id)
+  where source_import_row_id is not null;
+
 create table if not exists public.freshsales_deals_registry (
   id uuid primary key default gen_random_uuid(),
-  workspace_id uuid references public.workspaces(id) on delete set null,
+  workspace_id uuid,
   billing_receivable_id uuid references public.billing_receivables(id) on delete cascade,
   freshsales_deal_id text not null unique,
   freshsales_contact_id text,
@@ -231,7 +242,7 @@ create table if not exists public.freshsales_deals_registry (
 
 create table if not exists public.crm_event_queue (
   id uuid primary key default gen_random_uuid(),
-  workspace_id uuid references public.workspaces(id) on delete set null,
+  workspace_id uuid,
   entity_type text not null,
   entity_id uuid,
   event_type text not null,
@@ -246,6 +257,10 @@ create table if not exists public.crm_event_queue (
 
 create index if not exists idx_freshsales_deals_registry_workspace_id
   on public.freshsales_deals_registry (workspace_id);
+
+create unique index if not exists uq_freshsales_deals_registry_billing_receivable_id
+  on public.freshsales_deals_registry (billing_receivable_id)
+  where billing_receivable_id is not null;
 
 create index if not exists idx_crm_event_queue_status_scheduled
   on public.crm_event_queue (status, scheduled_at);

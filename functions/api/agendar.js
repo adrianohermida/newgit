@@ -196,6 +196,15 @@ export async function onRequestPost(context) {
   const eventData = await eventResp.json();
   const googleEventId = eventData.id || null;
   const integrationWarnings = [];
+  const siteUrl = getSiteUrl(env);
+  const actionLinks = buildActionLinks(siteUrl, {
+    token_confirmacao: tokenConfirmacao,
+    token_cancelamento: tokenCancelamento,
+    token_remarcacao: tokenRemarcacao,
+    admin_token_confirmacao: adminTokenConfirmacao,
+    admin_token_cancelamento: adminTokenCancelamento,
+    admin_token_remarcacao: adminTokenRemarcacao,
+  });
 
   // Atualizar registro no Supabase com o ID do evento do Google Calendar
   if (googleEventId) {
@@ -268,23 +277,14 @@ export async function onRequestPost(context) {
         observacoes: observacoes || null,
         status: 'pendente',
         google_event_id: googleEventId,
-      }
+      },
+      { actionLinks }
     );
     zoomSnapshot = integrationResult.zoomSnapshot;
     integrationWarnings.push(...integrationResult.warnings);
   }
 
   // Envio de e-mail via Resend (https://resend.com)
-  const siteUrl = getSiteUrl(env);
-  const actionLinks = buildActionLinks(siteUrl, {
-    token_confirmacao: tokenConfirmacao,
-    token_cancelamento: tokenCancelamento,
-    token_remarcacao: tokenRemarcacao,
-    admin_token_confirmacao: adminTokenConfirmacao,
-    admin_token_cancelamento: adminTokenCancelamento,
-    admin_token_remarcacao: adminTokenRemarcacao,
-  });
-
   const dataFormatada = formatAgendamentoDate(data, hora);
 
   const emailClienteHtml = `

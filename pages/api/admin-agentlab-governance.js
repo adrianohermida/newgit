@@ -1,5 +1,5 @@
 import { requireAdminNode } from "../../lib/admin/node-auth.js";
-import { updateAgentLabProfile, updateImprovementQueueItem } from "../../lib/agentlab/server.js";
+import { upsertCrmAutomationRule, updateAgentLabProfile, updateImprovementQueueItem } from "../../lib/agentlab/server.js";
 
 export default async function handler(req, res) {
   const auth = await requireAdminNode(req);
@@ -21,6 +21,11 @@ export default async function handler(req, res) {
 
     if (action === "update_queue_item") {
       const item = await updateImprovementQueueItem(process.env, req.body || {});
+      return res.status(200).json({ ok: true, item });
+    }
+
+    if (action === "upsert_crm_rule") {
+      const item = await upsertCrmAutomationRule(process.env, req.body || {});
       return res.status(200).json({ ok: true, item });
     }
 

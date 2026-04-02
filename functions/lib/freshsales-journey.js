@@ -1,0 +1,217 @@
+import { getCleanEnvValue } from "./env.js";
+
+export const FRESHSALES_LIFECYCLE_STAGES = [
+  "Triagem",
+  "Novo",
+  "Conectado",
+  "Retorno",
+  "Pedido de retorno",
+  "Visitante",
+  "Fornecedor",
+  "Não qualificado",
+];
+
+export const FRESHSALES_MEETING_STAGES = [
+  "Agendamento",
+  "Confirmação de presença",
+  "Ausência",
+  "Reagendamento",
+  "Cancelamento de reunião",
+];
+
+export const FRESHSALES_NEGOTIATION_STAGES = [
+  "Envio de Proposta",
+  "Pendente de aceite",
+  "Revisão de proposta",
+  "Proposta Aceita",
+  "Proposta Recusada",
+];
+
+export const FRESHSALES_CLOSING_STAGES = [
+  "Envio de contrato",
+  "Revisão de termos",
+  "Pendente de assinatura",
+  "Desistência",
+];
+
+export const FRESHSALES_CLIENT_STAGES = ["Ativo", "Inativo"];
+
+function parseJsonEnv(value, fallback = {}) {
+  const raw = getCleanEnvValue(value);
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+export function getFreshsalesJourneyConfig(env) {
+  return {
+    lifecycleField: getCleanEnvValue(env.FRESHSALES_CONTACT_LIFECYCLE_FIELD) || "cf_fase_ciclo_vida",
+    meetingField: getCleanEnvValue(env.FRESHSALES_CONTACT_MEETING_FIELD) || "cf_reuniao_status",
+    negotiationField: getCleanEnvValue(env.FRESHSALES_CONTACT_NEGOTIATION_FIELD) || "cf_negociacao_status",
+    closingField: getCleanEnvValue(env.FRESHSALES_CONTACT_CLOSING_FIELD) || "cf_fechamento_status",
+    clientField: getCleanEnvValue(env.FRESHSALES_CONTACT_CLIENT_FIELD) || "cf_cliente_status",
+    stageValueMap: parseJsonEnv(env.FRESHSALES_STAGE_VALUE_MAP, {}),
+    salesActivityTypeByEvent: parseJsonEnv(env.FRESHSALES_ACTIVITY_TYPE_BY_EVENT, {}),
+    appointmentFieldMap: parseJsonEnv(env.FRESHSALES_APPOINTMENT_FIELD_MAP, {}),
+  };
+}
+
+function mappedValue(config, fieldKey, fallback) {
+  return config.stageValueMap?.[fieldKey]?.[fallback] ?? fallback;
+}
+
+export function getEventMeetingStage(eventType, env) {
+  const config = getFreshsalesJourneyConfig(env);
+
+  switch (eventType) {
+    case "confirmed":
+    case "attended":
+      return mappedValue(config, "meeting", "Confirmação de presença");
+    case "cancelled":
+      return mappedValue(config, "meeting", "Cancelamento de reunião");
+    case "rescheduled":
+      return mappedValue(config, "meeting", "Reagendamento");
+    case "no_show":
+      return mappedValue(config, "meeting", "Ausência");
+    case "booked":
+    default:
+      return mappedValue(config, "meeting", "Agendamento");
+  }
+}
+
+export function buildFreshsalesJourneyUpdate(eventType, agendamento, env, options = {}) {
+  const config = getFreshsalesJourneyConfig(env);
+  const update = {};
+
+  switch (eventType) {
+    case "booked":
+      update[config.lifecycleField] = mappedValue(config, "lifecycle", "Triagem");
+      update[config.meetingField] = getEventMeetingStage(eventType, env);
+      break;
+    case "confirmed":
+      update[config.lifecycleField] = mappedValue(config, "lifecycle", "Conectado");
+      update[config.meetingField] = getEventMeetingStage(eventType, env);
+      break;
+    case "cancelled":
+    case "rescheduled":
+    case "no_show":
+      update[config.meetingField] = getEventMeetingStage(eventType, env);
+      break;
+    case "attended":
+      update[config.lifecycleField] = mappedValue(config, "lifecycle", "Conectado");
+      update[config.meetingField] = getEventMeetingStage(eventType, env);
+      break;
+    case "return_requested":
+      update[config.lifecycleField] = mappedValue(config, "lifecycle", "Pedido de retorno");
+      break;
+    case "return_contact":
+      update[config.lifecycleField] = mappedValue(config, "lifecycle", "Retorno");
+      break;
+    case "unqualified":
+      update[config.lifecycleField] = mappedValue(config, "lifecycle", "Não qualificado");
+      break;
+    case "proposal_sent":
+      update[config.negotiationField] = mappedValue(config, "negotiation", "Envio de Proposta");
+      break;
+    case "proposal_pending":
+      update[config.negotiationField] = mappedValue(config, "negotiation", "Pendente de aceite");
+      break;
+    case "proposal_review":
+      update[config.negotiationField] = mappedValue(config, "negotiation", "Revisão de proposta");
+      break;
+    case "proposal_accepted":
+      update[config.negotiationField] = mappedValue(config, "negotiation", "Proposta Aceita");
+      break;
+    case "proposal_refused":
+      update[config.negotiationField] = mappedValue(config, "negotiation", "Proposta Recusada");
+      break;
+    case "contract_sent":
+      update[config.closingField] = mappedValue(config, "closing", "Envio de contrato");
+      break;
+    case "terms_review":
+      update[config.closingField] = mappedValue(config, "closing", "Revisão de termos");
+      break;
+    case "signature_pending":
+      update[config.closingField] = mappedValue(config, "closing", "Pendente de assinatura");
+      break;
+    case "dropped":
+      update[config.closingField] = mappedValue(config, "closing", "Desistência");
+      break;
+    case "client_active":
+      update[config.clientField] = mappedValue(config, "client", "Ativo");
+      break;
+    case "client_inactive":
+      update[config.clientField] = mappedValue(config, "client", "Inativo");
+      break;
+    default:
+      break;
+  }
+
+  return {
+    contact_update: update,
+    metadata: {
+      appointment_subject: `Consulta Jurídica - ${agendamento.area}`,
+      appointment_notes: agendamento.observacoes || null,
+      email: agendamento.email || null,
+      phone: agendamento.telefone || null,
+      contact_name: agendamento.nome || null,
+      action_links: options.actionLinks || null,
+      meeting_stage: getEventMeetingStage(eventType, env),
+    },
+  };
+}
+
+function buildAppointmentCustomFields(config, agendamento, eventType, zoomSnapshot, actionLinks, env) {
+  const fieldMap = config.appointmentFieldMap || {};
+  const values = {
+    crm_event_source: "site_agendamento",
+    crm_event_status: agendamento.status || "pendente",
+    crm_meeting_stage: getEventMeetingStage(eventType, env),
+    zoom_join_url: zoomSnapshot?.zoom_join_url || null,
+    zoom_meeting_id: zoomSnapshot?.zoom_meeting_id || null,
+    action_confirm_url: actionLinks?.cliente?.confirmar || null,
+    action_cancel_url: actionLinks?.cliente?.cancelar || null,
+    action_reschedule_url: actionLinks?.cliente?.remarcar || null,
+  };
+
+  const customField = {};
+  for (const [sourceKey, value] of Object.entries(values)) {
+    const targetKey = fieldMap[sourceKey] || sourceKey;
+    customField[targetKey] = value;
+  }
+
+  return customField;
+}
+
+export function buildFreshsalesAppointmentPayload(agendamento, zoomSnapshot = null, env = {}, options = {}) {
+  const config = getFreshsalesJourneyConfig(env);
+  const startAt = new Date(`${agendamento.data}T${agendamento.hora}:00-03:00`).toISOString();
+  const endAt = new Date(new Date(startAt).getTime() + 60 * 60 * 1000).toISOString();
+  const eventType = options.eventType || "booked";
+  const actionLinks = options.actionLinks || null;
+
+  return {
+    appointment: {
+      title: `Consulta Jurídica - ${agendamento.area}`,
+      from_date: startAt,
+      end_date: endAt,
+      description: [
+        `Cliente: ${agendamento.nome}`,
+        `E-mail: ${agendamento.email}`,
+        `Telefone: ${agendamento.telefone}`,
+        `Área: ${agendamento.area}`,
+        zoomSnapshot?.zoom_join_url ? `Zoom: ${zoomSnapshot.zoom_join_url}` : null,
+        actionLinks?.cliente?.confirmar ? `Confirmar: ${actionLinks.cliente.confirmar}` : null,
+        actionLinks?.cliente?.cancelar ? `Cancelar: ${actionLinks.cliente.cancelar}` : null,
+        actionLinks?.cliente?.remarcar ? `Remarcar: ${actionLinks.cliente.remarcar}` : null,
+      ].filter(Boolean).join("\n"),
+      location: zoomSnapshot?.zoom_join_url || "Sala virtual a definir",
+      owner_id: getCleanEnvValue(env.FRESHSALES_OWNER_ID) || null,
+      external_id: agendamento.id || null,
+      custom_field: buildAppointmentCustomFields(config, agendamento, eventType, zoomSnapshot, actionLinks, env),
+    },
+  };
+}

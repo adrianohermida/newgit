@@ -2,6 +2,7 @@ import { requireAdminAccess } from "../lib/admin-auth.js";
 import {
   jsonError,
   jsonOk,
+  upsertCrmAutomationRule,
   updateAgentLabProfile,
   updateImprovementQueueItem,
 } from "../../lib/agentlab/server.js";
@@ -23,6 +24,11 @@ export async function onRequestPatch(context) {
 
     if (action === "update_queue_item") {
       const item = await updateImprovementQueueItem(context.env, body);
+      return jsonOk({ item });
+    }
+
+    if (action === "upsert_crm_rule") {
+      const item = await upsertCrmAutomationRule(context.env, body);
       return jsonOk({ item });
     }
 

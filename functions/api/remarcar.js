@@ -125,7 +125,8 @@ export async function onRequestPost(context) {
     env,
     supabase,
     { ...updated, remarcacao_clicked_at: nowIso },
-    'rescheduled'
+    'rescheduled',
+    { actionLinks: buildActionLinks(getSiteUrl(env), updated) }
   );
   const integrationWarnings = integrationResult.warnings;
   if (integrationResult.zoomSnapshot) {

@@ -6,6 +6,7 @@ import {
 } from "./zoom-admin.js";
 import { syncAgendamentoToFreshsales } from "./freshsales-crm.js";
 import { patchAgendamento } from "./agendamento-helpers.js";
+import { executeCrmAutomationRules } from "./crm-automation-executor.js";
 
 function isMissingColumnError(error) {
   const message = String(error?.message || "");
@@ -44,7 +45,7 @@ async function safeOptionalPatchAgendamento(supabaseUrl, supabaseKey, id, patch,
   }
 }
 
-export async function runAgendamentoBookedIntegrations(env, supabase, agendamento) {
+export async function runAgendamentoBookedIntegrations(env, supabase, agendamento, options = {}) {
   const warnings = [];
   let zoomSnapshot = null;
 
@@ -67,7 +68,21 @@ export async function runAgendamentoBookedIntegrations(env, supabase, agendament
   }
 
   try {
-    const freshsales = await syncAgendamentoToFreshsales(env, { ...agendamento, ...zoomSnapshot }, "booked", zoomSnapshot);
+    const freshsales = await syncAgendamentoToFreshsales(
+      env,
+      { ...agendamento, ...zoomSnapshot },
+      "booked",
+      zoomSnapshot,
+      options
+    );
+    const automation = await executeCrmAutomationRules(env, "booked", {
+      sourceSystem: "agendamento",
+      sourceRef: agendamento.id,
+      agendamento: { ...agendamento, ...zoomSnapshot },
+      crm: freshsales,
+      zoom: zoomSnapshot,
+    });
+    warnings.push(...automation.warnings);
     await safeOptionalPatchAgendamento(
       supabase.supabaseUrl,
       supabase.supabaseKey,
@@ -79,12 +94,13 @@ export async function runAgendamentoBookedIntegrations(env, supabase, agendament
         freshsales_sync_status: "booked",
         freshsales_sync_error: null,
         freshsales_payload: freshsales.payload,
+        crm_last_event: "booked",
         updated_at: new Date().toISOString(),
       },
       warnings,
       "freshsales_patch"
     );
-    return { warnings, zoomSnapshot, freshsales };
+    return { warnings, zoomSnapshot, freshsales, automation };
   } catch (error) {
     await safeOptionalPatchAgendamento(
       supabase.supabaseUrl,
@@ -99,11 +115,11 @@ export async function runAgendamentoBookedIntegrations(env, supabase, agendament
       "freshsales_error_patch"
     );
     warnings.push(`freshsales_booked: ${error.message}`);
-    return { warnings, zoomSnapshot, freshsales: null };
+    return { warnings, zoomSnapshot, freshsales: null, automation: null };
   }
 }
 
-export async function runAgendamentoStatusIntegrations(env, supabase, agendamento, eventType) {
+export async function runAgendamentoStatusIntegrations(env, supabase, agendamento, eventType, options = {}) {
   const warnings = [];
   let zoomSnapshot = buildCurrentZoomSnapshot(agendamento);
 
@@ -146,7 +162,21 @@ export async function runAgendamentoStatusIntegrations(env, supabase, agendament
   }
 
   try {
-    const freshsales = await syncAgendamentoToFreshsales(env, { ...agendamento, ...zoomSnapshot }, eventType, zoomSnapshot);
+    const freshsales = await syncAgendamentoToFreshsales(
+      env,
+      { ...agendamento, ...zoomSnapshot },
+      eventType,
+      zoomSnapshot,
+      options
+    );
+    const automation = await executeCrmAutomationRules(env, eventType, {
+      sourceSystem: "agendamento",
+      sourceRef: agendamento.id,
+      agendamento: { ...agendamento, ...zoomSnapshot },
+      crm: freshsales,
+      zoom: zoomSnapshot,
+    });
+    warnings.push(...automation.warnings);
     await safeOptionalPatchAgendamento(
       supabase.supabaseUrl,
       supabase.supabaseKey,
@@ -158,12 +188,13 @@ export async function runAgendamentoStatusIntegrations(env, supabase, agendament
         freshsales_sync_status: eventType,
         freshsales_sync_error: null,
         freshsales_payload: freshsales.payload,
+        crm_last_event: eventType,
         updated_at: new Date().toISOString(),
       },
       warnings,
       "freshsales_patch"
     );
-    return { warnings, zoomSnapshot, freshsales };
+    return { warnings, zoomSnapshot, freshsales, automation };
   } catch (error) {
     await safeOptionalPatchAgendamento(
       supabase.supabaseUrl,
@@ -178,6 +209,6 @@ export async function runAgendamentoStatusIntegrations(env, supabase, agendament
       "freshsales_error_patch"
     );
     warnings.push(`freshsales_${eventType}: ${error.message}`);
-    return { warnings, zoomSnapshot, freshsales: null };
+    return { warnings, zoomSnapshot, freshsales: null, automation: null };
   }
 }
