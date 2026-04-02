@@ -130,6 +130,38 @@ function ProcessDetailContent({ processId, state, setState }) {
         <StatCard label="Publicacoes" value={summary.publications} helper="Recortes e atos publicados." />
       </section>
 
+      {(state.process.latest_movement || state.process.latest_publication || state.process.alerts?.length) ? (
+        <section className="grid gap-4 xl:grid-cols-3">
+          {state.process.latest_movement ? (
+            <HighlightCard
+              label="Ultimo andamento"
+              title={state.process.latest_movement.title}
+              helper={(state.process.latest_movement.summary || "").trim() || formatDate(state.process.latest_movement.date, true)}
+            />
+          ) : null}
+          {state.process.latest_publication ? (
+            <HighlightCard
+              label="Ultima publicacao"
+              title={state.process.latest_publication.title}
+              helper={(state.process.latest_publication.summary || "").trim() || formatDate(state.process.latest_publication.date)}
+            />
+          ) : null}
+          {state.process.alerts?.length ? (
+            <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Alertas do processo</p>
+              <div className="mt-4 space-y-3">
+                {state.process.alerts.map((alert) => (
+                  <div key={alert.label} className="rounded-2xl border border-[#20332D] bg-black/10 px-4 py-3">
+                    <p className="text-sm font-semibold">{alert.label}</p>
+                    <p className="mt-1 text-sm opacity-65">{alert.helper}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
       {state.warnings.length ? (
         <section className="rounded-[28px] border border-[#6E5630] bg-[rgba(76,57,26,0.22)] p-6">
           <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.26em] text-[#F2DEB5]">Avisos da fonte</p>
@@ -248,4 +280,14 @@ function Meta({ label, value }) {
 
 function EmptyText({ children }) {
   return <p className="text-sm leading-6 opacity-62">{children}</p>;
+}
+
+function HighlightCard({ label, title, helper }) {
+  return (
+    <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">{label}</p>
+      <p className="mt-4 text-lg font-semibold">{title}</p>
+      <p className="mt-2 text-sm leading-6 opacity-65">{helper}</p>
+    </div>
+  );
 }

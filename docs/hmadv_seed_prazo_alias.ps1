@@ -21,6 +21,10 @@ $headers = @{
   "Content-Type" = "application/json; charset=utf-8"
 }
 
+$writeHeaders = $headers + @{
+  "Content-Profile" = "judiciario"
+}
+
 function Normalize-Text([string]$value) {
   if ([string]::IsNullOrWhiteSpace($value)) { return $null }
   $normalized = $value.Normalize([Text.NormalizationForm]::FormD)
@@ -35,7 +39,9 @@ function Normalize-Text([string]$value) {
 
 function Get-RegraRows {
   try {
-    return Invoke-RestMethod -Method Get -Uri "$base/prazo_regra?select=id,ato_praticado,base_legal,rito,prazo_texto_original,prazo_dias,tipo_contagem" -Headers $headers -TimeoutSec 120
+    $rows = Invoke-RestMethod -Method Get -Uri "$base/prazo_regra?select=id,ato_praticado,base_legal,rito,prazo_texto_original,prazo_dias,tipo_contagem&limit=5000" -Headers $headers -TimeoutSec 120
+    if ($null -eq $rows) { return @() }
+    return @($rows)
   } catch {
     throw "Falha ao ler prazo_regra: $($_.Exception.Message)"
   }
@@ -78,9 +84,12 @@ function New-AliasSet($regra) {
 
 function Build-AliasRows($regras) {
   $rows = @()
+  $seen = New-Object 'System.Collections.Generic.HashSet[string]'
   foreach ($regra in $regras) {
     $aliases = New-AliasSet $regra
     foreach ($alias in $aliases) {
+      $key = "{0}|{1}" -f $regra.id, $alias
+      if (-not $seen.Add($key)) { continue }
       $rows += [ordered]@{
         prazo_regra_id = $regra.id
         alias = $alias
@@ -108,19 +117,29 @@ function Invoke-UpsertAlias($rows) {
     $batch = @($rows[$i..([Math]::Min($i + $BatchSize - 1, $rows.Count - 1))])
     $json = $batch | ConvertTo-Json -Depth 10 -Compress
     $body = [System.Text.Encoding]::UTF8.GetBytes($json)
-    Invoke-RestMethod -Method Post `
-      -Uri "$base/prazo_regra_alias?on_conflict=prazo_regra_id,alias" `
-      -Headers ($headers + @{ Prefer = "resolution=merge-duplicates" }) `
-      -Body $body `
-      -TimeoutSec 120 `
-      -ErrorAction Stop | Out-Null
+    try {
+      Invoke-RestMethod -Method Post `
+        -Uri "$base/prazo_regra_alias" `
+        -Headers ($writeHeaders + @{ Prefer = "return=minimal" }) `
+        -Body $body `
+        -TimeoutSec 120 `
+        -ErrorAction Stop | Out-Null
+    } catch {
+      $message = $_.Exception.Message
+      if ($_.Exception.Response) {
+        $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+        $detail = $reader.ReadToEnd()
+        if ($detail) { $message = $detail }
+      }
+      throw "Falha no lote de aliases a partir do indice ${i}: $message"
+    }
     $importadas += $batch.Count
   }
 
   return @{ total = $rows.Count; importadas = $importadas }
 }
 
-$regras = @(Get-RegraRows)
+$regras = Get-RegraRows
 $aliasRows = @(Build-AliasRows $regras)
 
 if ($DryRun) {

@@ -116,6 +116,33 @@ function ProcessosContent({ state, setState }) {
                 <Meta label="Atualizado em" value={formatDate(item.updated_at)} />
               </div>
 
+              {(item.latest_movement || item.latest_publication) ? (
+                <div className="mt-5 grid gap-3 md:grid-cols-2">
+                  {item.latest_movement ? (
+                    <InsightCard
+                      label="Ultimo andamento"
+                      title={item.latest_movement.title}
+                      helper={item.latest_movement.summary || formatDate(item.latest_movement.date)}
+                    />
+                  ) : null}
+                  {item.latest_publication ? (
+                    <InsightCard
+                      label="Ultima publicacao"
+                      title={item.latest_publication.title}
+                      helper={item.latest_publication.summary || formatDate(item.latest_publication.date)}
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+
+              {item.alerts?.length ? (
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {item.alerts.slice(0, 3).map((alert) => (
+                    <AlertPill key={`${item.id}-${alert.label}`} alert={alert} />
+                  ))}
+                </div>
+              ) : null}
+
               <div className="mt-5 text-sm font-semibold text-[#C49C56]">Abrir detalhe do processo</div>
             </Link>
           ))}
@@ -141,5 +168,30 @@ function Meta({ label, value }) {
       <p className="text-[10px] uppercase tracking-[0.18em] opacity-45">{label}</p>
       <p className="mt-2 leading-6">{value}</p>
     </div>
+  );
+}
+
+function InsightCard({ label, title, helper }) {
+  return (
+    <div className="rounded-[22px] border border-[#20332D] bg-[rgba(6,10,9,0.45)] p-4">
+      <p className="text-[10px] uppercase tracking-[0.18em] opacity-45">{label}</p>
+      <p className="mt-2 text-sm font-semibold">{title}</p>
+      {helper ? <p className="mt-2 text-xs leading-5 opacity-62">{helper}</p> : null}
+    </div>
+  );
+}
+
+function AlertPill({ alert }) {
+  const toneClass =
+    alert.tone === "highlight"
+      ? "border-[#7A5C20] bg-[rgba(122,92,32,0.22)] text-[#F3DEAD]"
+      : alert.tone === "info"
+        ? "border-[#375B78] bg-[rgba(31,67,96,0.22)] text-[#C9E7FF]"
+        : "border-[#31463F] bg-[rgba(32,51,45,0.22)] text-[#D9DFDB]";
+
+  return (
+    <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.15em] ${toneClass}`}>
+      {alert.label}
+    </span>
   );
 }

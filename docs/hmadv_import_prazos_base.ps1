@@ -29,9 +29,23 @@ $headers = @{
   "Content-Type" = "application/json; charset=utf-8"
 }
 
+$writeHeaders = $headers + @{
+  "Content-Profile" = "judiciario"
+}
+
 function Normalize-Text([string]$value) {
   if ([string]::IsNullOrWhiteSpace($value)) { return $null }
   return $value.Trim()
+}
+
+function Get-CsvValue($row, [string[]]$names) {
+  foreach ($name in $names) {
+    $prop = $row.PSObject.Properties[$name]
+    if ($null -ne $prop -and -not [string]::IsNullOrWhiteSpace([string]$prop.Value)) {
+      return [string]$prop.Value
+    }
+  }
+  return $null
 }
 
 function Parse-PrazoDias([string]$value) {
@@ -150,6 +164,29 @@ function Build-AdviseRows($csvPath) {
   })
 }
 
+function Build-AdviseRowsFixed($csvPath) {
+  return @(Import-Csv $csvPath | ForEach-Object {
+    $diario = Normalize-Text (Get-CsvValue $_ @("Diário", "DiÃ¡rio", "Diario"))
+    $estado = Normalize-Text (Get-CsvValue $_ @("Estado"))
+    $tribunais = Normalize-Text (Get-CsvValue $_ @("Tribunais Abrangidos", "Tribunais Abrangidos "))
+    [ordered]@{
+      nome = if ($diario) { "Advise $diario" } else { "Advise" }
+      tribunal_sigla = $null
+      estado_uf = $null
+      municipio_codigo_ibge = $null
+      tipo = "advise_dje"
+      url_fonte = $null
+      vigencia_inicio = $null
+      vigencia_fim = $null
+      metadata = @{
+        estado = $estado
+        diario = $diario
+        tribunais_abrangidos = $tribunais
+      }
+    }
+  })
+}
+
 function Invoke-Upsert($table, $rows, $conflict) {
   if (-not $rows -or $rows.Count -eq 0) {
     return @{ tabela = $table; total = 0; importadas = 0 }
@@ -160,8 +197,9 @@ function Invoke-Upsert($table, $rows, $conflict) {
     $batch = @($rows[$i..([Math]::Min($i + $BatchSize - 1, $rows.Count - 1))])
     $json = $batch | ConvertTo-Json -Depth 10 -Compress
     $body = [System.Text.Encoding]::UTF8.GetBytes($json)
-    $uri = "$base/$table?on_conflict=$conflict"
-    Invoke-RestMethod -Method Post -Uri $uri -Headers ($headers + @{ Prefer = "resolution=merge-duplicates" }) -Body $body -TimeoutSec 120 -ErrorAction Stop | Out-Null
+    $uri = if ($conflict) { "$base/$table?on_conflict=$conflict" } else { "$base/$table" }
+    $prefer = if ($conflict) { "resolution=merge-duplicates" } else { "return=minimal" }
+    Invoke-RestMethod -Method Post -Uri $uri -Headers ($writeHeaders + @{ Prefer = $prefer }) -Body $body -TimeoutSec 120 -ErrorAction Stop | Out-Null
     $importadas += $batch.Count
   }
 
@@ -178,7 +216,7 @@ $payload = [ordered]@{
   estado_ibge = Build-EstadoRows $CsvEstados
   municipio_ibge = Build-MunicipioRows $CsvMunicipios
   feriado_forense = Build-FeriadoRows $CsvFeriados
-  calendario_forense_fonte = Build-AdviseRows $CsvAdvise
+  calendario_forense_fonte = Build-AdviseRowsFixed $CsvAdvise
 }
 
 if ($DryRun) {
@@ -197,11 +235,11 @@ if ($DryRun) {
 }
 
 $results = @()
-$results += Invoke-Upsert "prazo_regra" $payload.prazo_regra "ato_praticado,base_legal,artigo,rito"
+$results += Invoke-Upsert "prazo_regra" $payload.prazo_regra $null
 $results += Invoke-Upsert "estado_ibge" $payload.estado_ibge "codigo_ibge"
 $results += Invoke-Upsert "municipio_ibge" $payload.municipio_ibge "codigo_ibge"
-$results += Invoke-Upsert "feriado_forense" $payload.feriado_forense "nome,data_feriado,tipo,coalesce(estado_uf,''),coalesce(municipio_codigo_ibge,''),coalesce(tribunal_sigla,'')"
-$results += Invoke-Upsert "calendario_forense_fonte" $payload.calendario_forense_fonte "nome,tipo"
+$results += Invoke-Upsert "feriado_forense" $payload.feriado_forense $null
+$results += Invoke-Upsert "calendario_forense_fonte" $payload.calendario_forense_fonte $null
 
 [ordered]@{
   modo = "importacao"

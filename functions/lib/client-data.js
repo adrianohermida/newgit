@@ -562,6 +562,78 @@ function normalizePublicationRow(row) {
   };
 }
 
+function toTimestamp(value) {
+  if (!value) return 0;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function diffInDays(value) {
+  const timestamp = toTimestamp(value);
+  if (!timestamp) return null;
+  const diff = Date.now() - timestamp;
+  return Math.max(0, Math.floor(diff / 86400000));
+}
+
+function summarizeProcessInsights(process, movements = [], publications = []) {
+  const latestMovement = movements.length ? [...movements].sort((a, b) => toTimestamp(b.date) - toTimestamp(a.date))[0] : null;
+  const latestPublication = publications.length ? [...publications].sort((a, b) => toTimestamp(b.date) - toTimestamp(a.date))[0] : null;
+  const latestActivityDate = [process?.updated_at, latestMovement?.date, latestPublication?.date]
+    .filter(Boolean)
+    .sort((left, right) => toTimestamp(right) - toTimestamp(left))[0] || null;
+  const staleDays = diffInDays(latestActivityDate);
+
+  const alerts = [];
+  if (latestPublication && diffInDays(latestPublication.date) <= 7) {
+    alerts.push({
+      tone: "highlight",
+      label: "Nova publicacao",
+      helper: latestPublication.title || latestPublication.source || "Publicacao recente identificada.",
+    });
+  }
+  if (latestMovement && diffInDays(latestMovement.date) <= 7) {
+    alerts.push({
+      tone: "info",
+      label: "Andamento recente",
+      helper: latestMovement.title || "Movimentacao recente sincronizada.",
+    });
+  }
+  if (staleDays != null && staleDays >= 30) {
+    alerts.push({
+      tone: "muted",
+      label: "Sem atualizacao recente",
+      helper: `Ultima atividade visivel ha ${staleDays} dias.`,
+    });
+  }
+  if (String(process?.status || "").toLowerCase().includes("arquiv")) {
+    alerts.push({
+      tone: "muted",
+      label: "Processo arquivado",
+      helper: "O status atual indica arquivo ou encerramento.",
+    });
+  }
+
+  return {
+    latest_movement: latestMovement
+      ? {
+          date: latestMovement.date || null,
+          title: latestMovement.title || "Movimentacao recente",
+          summary: latestMovement.body || latestMovement.source || null,
+        }
+      : null,
+    latest_publication: latestPublication
+      ? {
+          date: latestPublication.date || null,
+          title: latestPublication.title || "Publicacao recente",
+          summary: latestPublication.summary || latestPublication.source || null,
+        }
+      : null,
+    latest_activity_at: latestActivityDate,
+    stale_days: staleDays,
+    alerts,
+  };
+}
+
 function buildProcessIdentifierCandidates(process, processId) {
   const values = [processId, process?.id, process?.number, process?.raw?.id, process?.raw?.numero_cnj, process?.raw?.numero];
   return [...new Set(values.filter(Boolean).map((value) => String(value).trim()).filter(Boolean))];
@@ -658,7 +730,24 @@ export async function listClientProcessos(env, email) {
     };
   }
 
-  return result;
+  const enrichedItems = await Promise.all(
+    result.items.map(async (process) => {
+      const candidates = buildProcessIdentifierCandidates(process, process.id);
+      const [movements, publications] = await Promise.all([
+        listClientProcessMovements(env, candidates[0]),
+        listClientProcessPublications(env, candidates[0]),
+      ]);
+      return {
+        ...process,
+        ...summarizeProcessInsights(process, movements.slice(0, 5), publications.slice(0, 5)),
+      };
+    })
+  );
+
+  return {
+    ...result,
+    items: enrichedItems,
+  };
 }
 
 async function getClientProcessBase(env, email, processId) {
@@ -792,9 +881,13 @@ export async function getClientProcessDetails(env, profile, processId) {
   if (!parts.length) warnings.push("As partes do processo ainda nao estao visiveis nesta fonte.");
   if (!movements.length) warnings.push("Os andamentos ainda nao foram sincronizados para este processo.");
   if (!publications.length) warnings.push("Ainda nao ha publicacoes vinculadas a este processo no portal.");
+  const insights = summarizeProcessInsights(process, movements, publications);
 
   return {
-    process,
+    process: {
+      ...process,
+      ...insights,
+    },
     parts,
     movements,
     publications,

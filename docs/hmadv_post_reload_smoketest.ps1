@@ -14,6 +14,10 @@ $headers = @{
   "Content-Type" = "application/json"
 }
 
+$writeHeaders = $headers + @{
+  "Content-Profile" = "judiciario"
+}
+
 function Invoke-Test($name, [scriptblock]$action) {
   try {
     $result = & $action
@@ -38,12 +42,12 @@ $tests = @()
 
 $tests += Invoke-Test "patch_processos_status" {
   $body = [System.Text.Encoding]::UTF8.GetBytes('{"status_atual_processo":"Ativo","status_fonte":"fallback","status_evento_origem":"smoketest"}')
-  Invoke-RestMethod -Method Patch -Uri "$base/processos?id=eq.$processoId" -Headers ($headers + @{ Prefer = "return=representation" }) -Body $body -TimeoutSec 120
+  Invoke-RestMethod -Method Patch -Uri "$base/processos?id=eq.$processoId" -Headers ($writeHeaders + @{ Prefer = "return=representation" }) -Body $body -TimeoutSec 120
 }
 
 $tests += Invoke-Test "post_prazo_regra" {
   $body = [System.Text.Encoding]::UTF8.GetBytes('[{"ato_praticado":"Teste prazo smoketest","base_legal":"HMADV","artigo":"1","prazo_texto_original":"5","prazo_dias":5,"tipo_contagem":"dias_corridos","ramo":"civel","rito":"teste","aplica_ia":false,"ativo":true,"metadata":{"origem":"smoketest"}}]')
-  Invoke-RestMethod -Method Post -Uri "$base/prazo_regra" -Headers ($headers + @{ Prefer = "return=representation" }) -Body $body -TimeoutSec 120
+  Invoke-RestMethod -Method Post -Uri "$base/prazo_regra" -Headers ($writeHeaders + @{ Prefer = "return=representation" }) -Body $body -TimeoutSec 120
 }
 
 $tests += Invoke-Test "get_prazo_regra" {
@@ -57,7 +61,7 @@ $tests += Invoke-Test "post_prazo_regra_alias" {
   }
   $regraId = $regra[0].id
   $body = [System.Text.Encoding]::UTF8.GetBytes(("[{{""prazo_regra_id"":""{0}"",""alias"":""teste prazo smoketest"",""peso"":10,""origem"":""smoketest"",""metadata"":{{}}}}]" -f $regraId))
-  Invoke-RestMethod -Method Post -Uri "$base/prazo_regra_alias" -Headers ($headers + @{ Prefer = "return=representation" }) -Body $body -TimeoutSec 120
+  Invoke-RestMethod -Method Post -Uri "$base/prazo_regra_alias" -Headers ($writeHeaders + @{ Prefer = "return=representation" }) -Body $body -TimeoutSec 120
 }
 
 [ordered]@{

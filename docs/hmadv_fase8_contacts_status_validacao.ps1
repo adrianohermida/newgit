@@ -16,23 +16,10 @@ $headers = @{
 
 function Get-Count($url) {
   try {
-    $res = Invoke-WebRequest -Method Get -Uri $url -Headers $headers -TimeoutSec 60
-    $contentRange = $null
-    if ($res.Headers -and $null -ne $res.Headers["Content-Range"]) {
-      $contentRange = ($res.Headers["Content-Range"] -join "")
-    }
-    if ($contentRange) {
-      $m = [regex]::Match($contentRange, "/(\d+)$")
-      if ($m.Success) { return [int]$m.Groups[1].Value }
-    }
-
-    if ($res.Content) {
-      $parsed = $res.Content | ConvertFrom-Json
-      if ($parsed -is [System.Array]) { return $parsed.Count }
-      if ($null -ne $parsed) { return 1 }
-    }
-
-    return 0
+    $countUrl = if ($url -match "limit=") { $url } elseif ($url -match "\?") { "$url&limit=5000" } else { "$url?limit=5000" }
+    $rows = Invoke-RestMethod -Method Get -Uri $countUrl -Headers $headers -TimeoutSec 60
+    if ($null -eq $rows) { return 0 }
+    return @($rows).Count
   } catch {
     return @{
       erro = $_.Exception.Message
