@@ -326,6 +326,7 @@ export default function AITaskModule({ profile, routePath }) {
   const missionInputRef = useRef(null);
   const runEventIdsRef = useRef(new Set());
   const pollingInFlightRef = useRef(false);
+  const lastEventCursorRef = useRef(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -428,11 +429,14 @@ export default function AITaskModule({ profile, routePath }) {
         const payload = await adminFetch("/api/admin-dotobot-chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "task_run_get", runId }),
+          body: JSON.stringify({ action: "task_run_get", runId, sinceEventId: lastEventCursorRef.current || undefined }),
         });
 
         const run = payload?.data?.run || null;
         const events = Array.isArray(payload?.data?.events) ? payload.data.events : [];
+        if (payload?.data?.eventsCursor) {
+          lastEventCursorRef.current = payload.data.eventsCursor;
+        }
         for (const event of events.slice(-20)) {
           const eventId = event?.id;
           if (!eventId || runEventIdsRef.current.has(eventId)) continue;
@@ -548,6 +552,7 @@ export default function AITaskModule({ profile, routePath }) {
     const localRunId = `${Date.now()}_run`;
     setError(null);
     runEventIdsRef.current.clear();
+    lastEventCursorRef.current = null;
     setAutomation("running");
     setPaused(false);
     pauseRef.current = false;
@@ -641,6 +646,11 @@ export default function AITaskModule({ profile, routePath }) {
           result: event?.message || "Evento sem mensagem.",
         });
       });
+      if (payload?.data?.eventsCursor) {
+        lastEventCursorRef.current = payload.data.eventsCursor;
+      } else if (backendEvents.length) {
+        lastEventCursorRef.current = backendEvents[backendEvents.length - 1]?.id || null;
+      }
 
       const backendSteps = Array.isArray(payload?.data?.steps) ? payload.data.steps : [];
       if (backendSteps.length) {
@@ -815,6 +825,7 @@ export default function AITaskModule({ profile, routePath }) {
     setPaused(false);
     setAutomation("stopped");
     runEventIdsRef.current.clear();
+    lastEventCursorRef.current = null;
     setActiveRun(null);
     setTasks((current) =>
       current.map((task) => (task.status === "running" ? { ...task, status: "failed", updated_at: nowIso(), logs: [...(task.logs || []), "Interrompido pelo operador."] } : task))
@@ -841,6 +852,7 @@ export default function AITaskModule({ profile, routePath }) {
       setError(null);
       setAutomation("running");
       runEventIdsRef.current.clear();
+      lastEventCursorRef.current = null;
       const payload = await adminFetch("/api/admin-dotobot-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
