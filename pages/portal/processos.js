@@ -4,6 +4,8 @@ import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
 import { clientFetch } from "../../lib/client/api";
 
+const PAGE_SIZE = 8;
+
 function formatDate(value) {
   if (!value) return "Sem atualizacao";
   return new Intl.DateTimeFormat("pt-BR", {
@@ -14,7 +16,14 @@ function formatDate(value) {
 }
 
 export default function PortalProcessosPage() {
-  const [state, setState] = useState({ loading: true, error: null, warning: null, items: [] });
+  const [state, setState] = useState({
+    loading: true,
+    loadingMore: false,
+    error: null,
+    warning: null,
+    items: [],
+    pagination: { page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 0, hasMore: false },
+  });
 
   return (
     <RequireClient>
@@ -36,13 +45,27 @@ function ProcessosContent({ state, setState }) {
     let cancelled = false;
     async function load() {
       try {
-        const payload = await clientFetch("/api/client-processos");
+        const payload = await clientFetch(`/api/client-processos?page=1&pageSize=${PAGE_SIZE}`);
         if (!cancelled) {
-          setState({ loading: false, error: null, warning: payload.warning || null, items: payload.items || [] });
+          setState({
+            loading: false,
+            loadingMore: false,
+            error: null,
+            warning: payload.warning || null,
+            items: payload.items || [],
+            pagination: payload.pagination || { page: 1, pageSize: PAGE_SIZE, total: payload.items?.length || 0, totalPages: 1, hasMore: false },
+          });
         }
       } catch (error) {
         if (!cancelled) {
-          setState({ loading: false, error: error.message, warning: null, items: [] });
+          setState({
+            loading: false,
+            loadingMore: false,
+            error: error.message,
+            warning: null,
+            items: [],
+            pagination: { page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 0, hasMore: false },
+          });
         }
       }
     }
@@ -52,9 +75,31 @@ function ProcessosContent({ state, setState }) {
     };
   }, [setState]);
 
+  async function loadMore() {
+    if (state.loadingMore || !state.pagination?.hasMore) return;
+
+    setState((current) => ({ ...current, loadingMore: true }));
+
+    try {
+      const nextPage = (state.pagination?.page || 1) + 1;
+      const payload = await clientFetch(`/api/client-processos?page=${nextPage}&pageSize=${state.pagination?.pageSize || PAGE_SIZE}`);
+      setState((current) => ({
+        ...current,
+        loading: false,
+        loadingMore: false,
+        error: null,
+        warning: payload.warning || current.warning || null,
+        items: [...current.items, ...(payload.items || [])],
+        pagination: payload.pagination || current.pagination,
+      }));
+    } catch (error) {
+      setState((current) => ({ ...current, loadingMore: false, error: error.message }));
+    }
+  }
+
   const stats = useMemo(() => {
     return {
-      total: state.items.length,
+      total: state.pagination?.total || state.items.length,
       active: state.items.filter((item) => !String(item.status || "").toLowerCase().includes("arquiv")).length,
       withActs: state.items.filter((item) => item.movement_count > 0).length,
     };
@@ -84,69 +129,88 @@ function ProcessosContent({ state, setState }) {
       ) : null}
 
       {state.items.length ? (
-        <div className="grid gap-4 xl:grid-cols-2">
-          {state.items.map((item) => (
-            <Link
-              key={item.id}
-              href={`/portal/processos/detalhe?id=${encodeURIComponent(item.id)}`}
-              prefetch={false}
-              className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6 transition hover:border-[#C49C56]"
-            >
-              <div className="mb-4 flex flex-wrap items-center gap-3">
-                <span className="text-[10px] font-semibold tracking-[0.2em]" style={{ color: "#C49C56" }}>
-                  {item.court || "Tribunal"}
-                </span>
-                <span className="rounded-full border border-[#31463F] px-3 py-1 text-[10px] uppercase tracking-[0.15em] opacity-70">
-                  {item.status}
-                </span>
-                {item.movement_count ? (
-                  <span className="rounded-full border border-[#375B78] bg-[rgba(31,67,96,0.22)] px-3 py-1 text-[10px] uppercase tracking-[0.15em] text-[#C9E7FF]">
-                    {item.movement_count} atos
+        <>
+          <p className="text-sm opacity-62">
+            Exibindo {state.items.length} de {state.pagination?.total || state.items.length} processo(s).
+          </p>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            {state.items.map((item) => (
+              <Link
+                key={item.id}
+                href={`/portal/processos/detalhe?id=${encodeURIComponent(item.id)}`}
+                prefetch={false}
+                className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6 transition hover:border-[#C49C56]"
+              >
+                <div className="mb-4 flex flex-wrap items-center gap-3">
+                  <span className="text-[10px] font-semibold tracking-[0.2em]" style={{ color: "#C49C56" }}>
+                    {item.court || "Tribunal"}
                   </span>
+                  <span className="rounded-full border border-[#31463F] px-3 py-1 text-[10px] uppercase tracking-[0.15em] opacity-70">
+                    {item.status}
+                  </span>
+                  {item.movement_count ? (
+                    <span className="rounded-full border border-[#375B78] bg-[rgba(31,67,96,0.22)] px-3 py-1 text-[10px] uppercase tracking-[0.15em] text-[#C9E7FF]">
+                      {item.movement_count} atos
+                    </span>
+                  ) : null}
+                </div>
+
+                <h3 className="font-serif text-2xl">{item.title || item.number || "Processo"}</h3>
+                <p className="mt-2 font-mono text-sm opacity-55">{item.number || "Numero nao disponivel"}</p>
+
+                <div className="mt-5 grid gap-4 text-sm md:grid-cols-2">
+                  <Meta label="Polo ativo" value={item.polo_ativo || "Nao identificado"} />
+                  <Meta label="Polo passivo" value={item.polo_passivo || "Nao identificado"} />
+                  <Meta label="Classe" value={item.classe || item.area || "Nao informada"} />
+                  <Meta label="Atualizado em" value={formatDate(item.updated_at)} />
+                </div>
+
+                {(item.latest_movement || item.latest_publication) ? (
+                  <div className="mt-5 grid gap-3 md:grid-cols-2">
+                    {item.latest_movement ? (
+                      <InsightCard
+                        label="Ultimo andamento"
+                        title={item.latest_movement.title}
+                        helper={item.latest_movement.summary || formatDate(item.latest_movement.date)}
+                      />
+                    ) : null}
+                    {item.latest_publication ? (
+                      <InsightCard
+                        label="Ultima publicacao"
+                        title={item.latest_publication.title}
+                        helper={item.latest_publication.summary || formatDate(item.latest_publication.date)}
+                      />
+                    ) : null}
+                  </div>
                 ) : null}
-              </div>
 
-              <h3 className="font-serif text-2xl">{item.title || item.number || "Processo"}</h3>
-              <p className="mt-2 font-mono text-sm opacity-55">{item.number || "Numero nao disponivel"}</p>
+                {item.alerts?.length ? (
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {item.alerts.slice(0, 3).map((alert) => (
+                      <AlertPill key={`${item.id}-${alert.label}`} alert={alert} />
+                    ))}
+                  </div>
+                ) : null}
 
-              <div className="mt-5 grid gap-4 md:grid-cols-2 text-sm">
-                <Meta label="Polo ativo" value={item.polo_ativo || "Nao identificado"} />
-                <Meta label="Polo passivo" value={item.polo_passivo || "Nao identificado"} />
-                <Meta label="Classe" value={item.classe || item.area || "Nao informada"} />
-                <Meta label="Atualizado em" value={formatDate(item.updated_at)} />
-              </div>
+                <div className="mt-5 text-sm font-semibold text-[#C49C56]">Abrir detalhe do processo</div>
+              </Link>
+            ))}
+          </div>
 
-              {(item.latest_movement || item.latest_publication) ? (
-                <div className="mt-5 grid gap-3 md:grid-cols-2">
-                  {item.latest_movement ? (
-                    <InsightCard
-                      label="Ultimo andamento"
-                      title={item.latest_movement.title}
-                      helper={item.latest_movement.summary || formatDate(item.latest_movement.date)}
-                    />
-                  ) : null}
-                  {item.latest_publication ? (
-                    <InsightCard
-                      label="Ultima publicacao"
-                      title={item.latest_publication.title}
-                      helper={item.latest_publication.summary || formatDate(item.latest_publication.date)}
-                    />
-                  ) : null}
-                </div>
-              ) : null}
-
-              {item.alerts?.length ? (
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {item.alerts.slice(0, 3).map((alert) => (
-                    <AlertPill key={`${item.id}-${alert.label}`} alert={alert} />
-                  ))}
-                </div>
-              ) : null}
-
-              <div className="mt-5 text-sm font-semibold text-[#C49C56]">Abrir detalhe do processo</div>
-            </Link>
-          ))}
-        </div>
+          {state.pagination?.hasMore ? (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={state.loadingMore}
+                className="rounded-2xl border border-[#20332D] px-5 py-3 text-sm transition hover:border-[#C49C56] hover:text-[#C49C56] disabled:cursor-not-allowed disabled:opacity-55"
+              >
+                {state.loadingMore ? "Carregando mais processos..." : "Carregar mais processos"}
+              </button>
+            </div>
+          ) : null}
+        </>
       ) : null}
     </div>
   );

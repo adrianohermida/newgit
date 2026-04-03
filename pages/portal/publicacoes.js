@@ -4,6 +4,8 @@ import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
 import { clientFetch } from "../../lib/client/api";
 
+const PAGE_SIZE = 10;
+
 function formatDate(value) {
   if (!value) return "Sem data";
   return new Intl.DateTimeFormat("pt-BR", {
@@ -14,7 +16,14 @@ function formatDate(value) {
 }
 
 export default function PortalPublicacoesPage() {
-  const [state, setState] = useState({ loading: true, error: null, warning: null, items: [] });
+  const [state, setState] = useState({
+    loading: true,
+    loadingMore: false,
+    error: null,
+    warning: null,
+    items: [],
+    pagination: { page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 0, hasMore: false },
+  });
 
   return (
     <RequireClient>
@@ -36,13 +45,27 @@ function PublicacoesContent({ state, setState }) {
     let cancelled = false;
     async function load() {
       try {
-        const payload = await clientFetch("/api/client-publicacoes");
+        const payload = await clientFetch(`/api/client-publicacoes?page=1&pageSize=${PAGE_SIZE}`);
         if (!cancelled) {
-          setState({ loading: false, error: null, warning: payload.warning || null, items: payload.items || [] });
+          setState({
+            loading: false,
+            loadingMore: false,
+            error: null,
+            warning: payload.warning || null,
+            items: payload.items || [],
+            pagination: payload.pagination || { page: 1, pageSize: PAGE_SIZE, total: payload.items?.length || 0, totalPages: 1, hasMore: false },
+          });
         }
       } catch (error) {
         if (!cancelled) {
-          setState({ loading: false, error: error.message, warning: null, items: [] });
+          setState({
+            loading: false,
+            loadingMore: false,
+            error: error.message,
+            warning: null,
+            items: [],
+            pagination: { page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 0, hasMore: false },
+          });
         }
       }
     }
@@ -51,6 +74,28 @@ function PublicacoesContent({ state, setState }) {
       cancelled = true;
     };
   }, [setState]);
+
+  async function loadMore() {
+    if (state.loadingMore || !state.pagination?.hasMore) return;
+
+    setState((current) => ({ ...current, loadingMore: true }));
+
+    try {
+      const nextPage = (state.pagination?.page || 1) + 1;
+      const payload = await clientFetch(`/api/client-publicacoes?page=${nextPage}&pageSize=${state.pagination?.pageSize || PAGE_SIZE}`);
+      setState((current) => ({
+        ...current,
+        loading: false,
+        loadingMore: false,
+        error: null,
+        warning: payload.warning || current.warning || null,
+        items: [...current.items, ...(payload.items || [])],
+        pagination: payload.pagination || current.pagination,
+      }));
+    } catch (error) {
+      setState((current) => ({ ...current, loadingMore: false, error: error.message }));
+    }
+  }
 
   if (state.loading) return <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">Carregando publicacoes...</div>;
   if (state.error) return <div className="rounded-[28px] border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] p-6 text-sm">{state.error}</div>;
@@ -67,6 +112,12 @@ function PublicacoesContent({ state, setState }) {
             Assim que o schema judiciario expuser esse historico, as publicacoes passarao a aparecer aqui com data, fonte e atalho para o processo relacionado.
           </p>
         </div>
+      ) : null}
+
+      {state.items.length ? (
+        <p className="text-sm opacity-62">
+          Exibindo {state.items.length} de {state.pagination?.total || state.items.length} publicacao(oes).
+        </p>
       ) : null}
 
       {state.items.map((item) => (
@@ -112,6 +163,19 @@ function PublicacoesContent({ state, setState }) {
           </div>
         </article>
       ))}
+
+      {state.pagination?.hasMore ? (
+        <div className="flex justify-center pt-2">
+          <button
+            type="button"
+            onClick={loadMore}
+            disabled={state.loadingMore}
+            className="rounded-2xl border border-[#20332D] px-5 py-3 text-sm transition hover:border-[#C49C56] hover:text-[#C49C56] disabled:cursor-not-allowed disabled:opacity-55"
+          >
+            {state.loadingMore ? "Carregando mais publicacoes..." : "Carregar mais publicacoes"}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

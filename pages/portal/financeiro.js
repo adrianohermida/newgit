@@ -17,6 +17,8 @@ const INITIAL_STATE = {
   fieldCatalog: null,
 };
 
+const SECTION_PAGE_SIZE = 6;
+
 function formatMoney(value) {
   if (value == null || value === "") return "A definir";
   const parsed = typeof value === "number" ? value : Number(value);
@@ -60,6 +62,13 @@ export default function PortalFinanceiroPage() {
 }
 
 function FinanceiroContent({ state, setState }) {
+  const [visibleCounts, setVisibleCounts] = useState({
+    invoices: SECTION_PAGE_SIZE,
+    subscriptions: SECTION_PAGE_SIZE,
+    refunds: SECTION_PAGE_SIZE,
+    others: SECTION_PAGE_SIZE,
+  });
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -143,6 +152,8 @@ function FinanceiroContent({ state, setState }) {
         description="Deals financeiros vinculados a processos/accounts do CRM."
         items={state.invoices}
         emptyMessage="Nenhuma fatura vinculada apareceu para este contato."
+        visibleCount={visibleCounts.invoices}
+        onLoadMore={() => setVisibleCounts((current) => ({ ...current, invoices: current.invoices + SECTION_PAGE_SIZE }))}
       />
 
       <FinanceSection
@@ -150,6 +161,8 @@ function FinanceiroContent({ state, setState }) {
         description="Negocios recorrentes ou planos reconhecidos pelo catalogo de campos do Freshsales."
         items={state.subscriptions}
         emptyMessage="Nenhuma assinatura ativa foi identificada para este contato."
+        visibleCount={visibleCounts.subscriptions}
+        onLoadMore={() => setVisibleCounts((current) => ({ ...current, subscriptions: current.subscriptions + SECTION_PAGE_SIZE }))}
       />
 
       {(state.summary?.refunds || 0) > 0 ? (
@@ -158,6 +171,8 @@ function FinanceiroContent({ state, setState }) {
           description="Deals classificados como reembolso no Freshsales."
           items={state.items.filter((item) => item.kind === "refund")}
           emptyMessage=""
+          visibleCount={visibleCounts.refunds}
+          onLoadMore={() => setVisibleCounts((current) => ({ ...current, refunds: current.refunds + SECTION_PAGE_SIZE }))}
         />
       ) : null}
 
@@ -167,6 +182,8 @@ function FinanceiroContent({ state, setState }) {
           description="Deals ainda sem classificacao segura entre fatura e assinatura."
           items={state.others}
           emptyMessage=""
+          visibleCount={visibleCounts.others}
+          onLoadMore={() => setVisibleCounts((current) => ({ ...current, others: current.others + SECTION_PAGE_SIZE }))}
         />
       ) : null}
 
@@ -176,7 +193,10 @@ function FinanceiroContent({ state, setState }) {
   );
 }
 
-function FinanceSection({ title, description, items, emptyMessage }) {
+function FinanceSection({ title, description, items, emptyMessage, visibleCount = SECTION_PAGE_SIZE, onLoadMore }) {
+  const visibleItems = items.slice(0, visibleCount);
+  const hasMore = visibleItems.length < items.length;
+
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
@@ -193,7 +213,7 @@ function FinanceSection({ title, description, items, emptyMessage }) {
 
       {items.length ? (
         <div className="grid gap-4 xl:grid-cols-2">
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <article key={item.id} className="rounded-[30px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -226,6 +246,18 @@ function FinanceSection({ title, description, items, emptyMessage }) {
               ) : null}
             </article>
           ))}
+        </div>
+      ) : null}
+
+      {hasMore ? (
+        <div className="flex justify-center pt-1">
+          <button
+            type="button"
+            onClick={onLoadMore}
+            className="rounded-2xl border border-[#20332D] px-5 py-3 text-sm transition hover:border-[#C49C56] hover:text-[#C49C56]"
+          >
+            Carregar mais itens
+          </button>
         </div>
       ) : null}
     </section>
