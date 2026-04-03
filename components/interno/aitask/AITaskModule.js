@@ -324,6 +324,8 @@ export default function AITaskModule({ profile, routePath }) {
   const logViewportRef = useRef(null);
   const chatViewportRef = useRef(null);
   const missionInputRef = useRef(null);
+  const runEventIdsRef = useRef(new Set());
+  const pollingInFlightRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -399,6 +401,101 @@ export default function AITaskModule({ profile, routePath }) {
     }, entry);
   }
 
+  useEffect(() => {
+    const runId = activeRun?.id;
+    if (!runId) return undefined;
+
+    const terminalStates = new Set(["done", "failed", "stopped"]);
+    if (terminalStates.has(automation)) return undefined;
+
+    let disposed = false;
+    const poll = async () => {
+      if (disposed || pollingInFlightRef.current) return;
+      pollingInFlightRef.current = true;
+      try {
+        const payload = await adminFetch("/api/admin-dotobot-chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "task_run_get", runId }),
+        });
+
+        const run = payload?.data?.run || null;
+        const events = Array.isArray(payload?.data?.events) ? payload.data.events : [];
+        for (const event of events.slice(-20)) {
+          const eventId = event?.id;
+          if (!eventId || runEventIdsRef.current.has(eventId)) continue;
+          runEventIdsRef.current.add(eventId);
+          pushLog({
+            type: "backend",
+            action: event?.type || "task_run_event",
+            result: event?.message || "Evento sem mensagem.",
+          });
+        }
+
+        const runStatus = run?.status;
+        if (run?.result?.resultText) {
+          setLatestResult(run.result.resultText);
+        }
+
+        if (runStatus === "completed" || runStatus === "failed" || runStatus === "canceled") {
+          setAutomation(runStatus === "completed" ? "done" : runStatus === "canceled" ? "stopped" : "failed");
+          setActiveRun(null);
+          setMissionHistory((current) =>
+            current.map((item) =>
+              item.id === runId
+                ? {
+                    ...item,
+                    status: runStatus === "completed" ? "done" : "failed",
+                    updated_at: nowIso(),
+                    result: run?.result?.status || runStatus,
+                    error: run?.error || item.error,
+                  }
+                : item
+            )
+          );
+
+          if (runStatus === "completed") {
+            setTasks((current) =>
+              current.map((task) =>
+                task.status === "pending" || task.status === "running"
+                  ? { ...task, status: "done", updated_at: nowIso() }
+                  : task
+              )
+            );
+          }
+
+          if (runStatus === "failed" || runStatus === "canceled") {
+            setTasks((current) =>
+              current.map((task) =>
+                task.status === "pending" || task.status === "running"
+                  ? { ...task, status: "failed", updated_at: nowIso(), logs: [...(task.logs || []), run?.error || "Execucao interrompida."] }
+                  : task
+              )
+            );
+          }
+        }
+      } catch (pollError) {
+        if (!disposed) {
+          pushLog({
+            type: "warning",
+            action: "Polling TaskRun",
+            result: pollError?.message || "Falha ao consultar status da execucao.",
+          });
+        }
+      } finally {
+        pollingInFlightRef.current = false;
+      }
+    };
+
+    const intervalId = setInterval(poll, 2500);
+    poll();
+
+    return () => {
+      disposed = true;
+      clearInterval(intervalId);
+    };
+  }, [activeRun?.id, automation]);
+
   async function executeMission(overrideMission = mission) {
     const normalizedMission = normalizeMission(overrideMission);
     if (!normalizedMission) return;
@@ -408,6 +505,7 @@ export default function AITaskModule({ profile, routePath }) {
     const blueprint = buildBlueprint(normalizedMission, profile, mode, provider);
     const localRunId = `${Date.now()}_run`;
     setError(null);
+    runEventIdsRef.current.clear();
     setAutomation("running");
     setPaused(false);
     pauseRef.current = false;
@@ -494,6 +592,7 @@ export default function AITaskModule({ profile, routePath }) {
 
       const backendEvents = Array.isArray(payload?.data?.events) ? payload.data.events : [];
       backendEvents.slice(-12).forEach((event) => {
+        if (event?.id) runEventIdsRef.current.add(event.id);
         pushLog({
           type: "backend",
           action: event?.type || "task_run_event",
@@ -665,6 +764,7 @@ export default function AITaskModule({ profile, routePath }) {
     pauseRef.current = false;
     setPaused(false);
     setAutomation("stopped");
+    runEventIdsRef.current.clear();
     setActiveRun(null);
     setTasks((current) =>
       current.map((task) => (task.status === "running" ? { ...task, status: "failed", updated_at: nowIso(), logs: [...(task.logs || []), "Interrompido pelo operador."] } : task))
