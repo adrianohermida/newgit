@@ -42,8 +42,26 @@ function Invoke-JsonGet([string]$url) {
 
 function Invoke-JsonPost([string]$table, $payload) {
   $json = $payload | ConvertTo-Json -Depth 10 -Compress
-  $resp = Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$restBase/$table" -Headers ($writeHeaders + @{ Prefer = "return=representation" }) -Body $json -TimeoutSec 120
-  if ($resp.Content) { return $resp.Content | ConvertFrom-Json }
+  Add-Type -AssemblyName System.Net.Http
+  $handler = New-Object System.Net.Http.HttpClientHandler
+  $client = New-Object System.Net.Http.HttpClient($handler)
+  $client.Timeout = [TimeSpan]::FromSeconds(120)
+  foreach ($kv in $writeHeaders.GetEnumerator()) {
+    if ([string]$kv.Key -eq 'Content-Type') { continue }
+    [void]$client.DefaultRequestHeaders.TryAddWithoutValidation([string]$kv.Key, [string]$kv.Value)
+  }
+  [void]$client.DefaultRequestHeaders.TryAddWithoutValidation('Prefer', 'return=representation')
+  $content = New-Object System.Net.Http.StringContent($json, [System.Text.Encoding]::UTF8, 'application/json')
+  $resp = $client.PostAsync("$restBase/$table", $content).GetAwaiter().GetResult()
+  $raw = $resp.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+  if ([int]$resp.StatusCode -eq 409) {
+    if ($raw) { return $raw | ConvertFrom-Json }
+    return $null
+  }
+  if (-not $resp.IsSuccessStatusCode) {
+    throw "POST $table falhou: $([int]$resp.StatusCode) $raw"
+  }
+  if ($raw) { return $raw | ConvertFrom-Json }
   return $null
 }
 
@@ -223,7 +241,7 @@ foreach ($proc in @($processos)) {
       numero_cnj = $proc.numero_cnj
       titulo_processo = $proc.titulo
       publicacoes_lidas = $publicacoes.Count
-      audiencias_existentes = $existentes.Count
+      audiencias_existentes = @($existentes).Count
       audiencias_novas = $novas
     }
   }

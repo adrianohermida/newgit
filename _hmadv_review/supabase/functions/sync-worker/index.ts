@@ -31,6 +31,9 @@ const FS_TYPE_CONSULTA    = Number(Deno.env.get('FRESHSALES_ACTIVITY_TYPE_CONSUL
 const FS_TYPE_ANDAMENTOS  = 31001147751;
 const FS_TYPE_PUBLICACOES = 31001147699;
 const FS_TYPE_AUDIENCIAS  = Number(Deno.env.get('FRESHSALES_ACTIVITY_TYPE_AUDIENCIA') ?? '31001147752');
+const FS_TYPE_AUDIENCIAS_FALLBACK = Number(
+  Deno.env.get('FRESHSALES_ACTIVITY_TYPE_AUDIENCIA_FALLBACK') ?? String(FS_TYPE_CONSULTA),
+);
 const FS_MIN_INTERVAL_MS  = Number(Deno.env.get('FRESHSALES_MIN_INTERVAL_MS') ?? '4500');
 let fsLastRequestAt = 0;
 
@@ -120,6 +123,20 @@ function publicacaoNegativaPorKeyword(p: Record<string, unknown>): boolean {
   } catch {
     return false;
   }
+}
+
+function freshsalesSafeText(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFC')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isRemovedActivityType(status: number, data: unknown): boolean {
+  if (status !== 400) return false;
+  const blob = JSON.stringify(data ?? {});
+  return /nao existe mais|não existe mais|does not exist|invalid sales activity type/i.test(blob);
 }
 
 function firstDefined(obj: Record<string, unknown>, keys: string[]): unknown {
@@ -430,10 +447,10 @@ async function registrarConsultaEvento(accountId: string, title: string, notes: 
         targetable_id: Number(accountId),
         owner_id: FS_OWNER_ID,
         sales_activity_type_id: FS_TYPE_CONSULTA,
-        title,
+        title: freshsalesSafeText(title),
         start_date: freshsalesDate(eventAt, 'start'),
         end_date: freshsalesDate(df, 'end'),
-        notes: notes.slice(0, 65000),
+        notes: freshsalesSafeText(notes).slice(0, 65000),
       },
     });
     log(status === 200 || status === 201 ? 'info' : 'warn', 'consulta_evt', { accountId, title, status });
@@ -448,13 +465,13 @@ async function criarAppointmentAudiencia(accountId: string, title: string, descr
   try {
     const { status, data } = await fsPost('appointments', {
       appointment: {
-        title,
-        description,
+        title: freshsalesSafeText(title),
+        description: freshsalesSafeText(description),
         owner_id: FS_OWNER_ID,
         targetable_type: 'SalesAccount',
         targetable_id: Number(accountId),
-        from_date: startAt.toISOString(),
-        end_date: endAt.toISOString(),
+        from_date: freshsalesDate(startAt, 'start'),
+        end_date: freshsalesDate(endAt, 'end'),
       },
     });
     const id = String(((data as Record<string, Record<string, unknown>>).appointment?.id) ?? '');
@@ -491,6 +508,37 @@ async function chamarProcessAiReconcile(processoId: string): Promise<boolean> {
 async function tentarMarcarAudienciaSync(id: string, payload: Record<string, unknown>): Promise<void> {
   const { error } = await db.from('audiencias').update(payload).eq('id', id);
   if (error) log('warn', 'audiencia_sync_update', { id, erro: error.message });
+}
+
+async function criarAudienciaActivity(
+  accountId: string,
+  title: string,
+  notes: string,
+  startDate: string,
+  endDate: string,
+): Promise<{ status: number; data: unknown; tipoUsado: number }> {
+  const buildPayload = (activityTypeId: number) => ({
+    sales_activity: {
+      targetable_type: 'SalesAccount',
+      targetable_id: Number(accountId),
+      owner_id: FS_OWNER_ID,
+      sales_activity_type_id: activityTypeId,
+      title: freshsalesSafeText(title),
+      start_date: startDate,
+      end_date: endDate,
+      notes: freshsalesSafeText(notes),
+    },
+  });
+  let result = await fsPost('sales_activities', buildPayload(FS_TYPE_AUDIENCIAS));
+  if (isRemovedActivityType(result.status, result.data) && FS_TYPE_AUDIENCIAS_FALLBACK !== FS_TYPE_AUDIENCIAS) {
+    log('warn', 'audiencia_type_fallback', {
+      configured: FS_TYPE_AUDIENCIAS,
+      fallback: FS_TYPE_AUDIENCIAS_FALLBACK,
+    });
+    result = await fsPost('sales_activities', buildPayload(FS_TYPE_AUDIENCIAS_FALLBACK));
+    return { ...result, tipoUsado: FS_TYPE_AUDIENCIAS_FALLBACK };
+  }
+  return { ...result, tipoUsado: FS_TYPE_AUDIENCIAS };
 }
 
 // --- Lote D: Andamentos DataJud -> FS ---
@@ -857,6 +905,85 @@ async function loteAudienciasCompat(limite = 10): Promise<{ enviados: number; re
   }
 }
 
+async function loteAudienciasCompatV2(limite = 10): Promise<{ enviados: number; reunioes: number; total: number }> {
+  try {
+    const { rows: auds, erro } = await listarAudienciasPendentes(limite);
+    if (erro) {
+      log('warn', 'audiencias_select_compat_v2', { erro });
+      return { enviados: 0, reunioes: 0, total: 0 };
+    }
+    if (!auds?.length) return { enviados: 0, reunioes: 0, total: 0 };
+    const pids = [...new Set(auds.map((a) => audienciaProcessoId(a)).filter(Boolean))];
+    const { data: procs } = await db.from('processos').select('id,account_id_freshsales,numero_cnj').in('id', pids);
+    const procMap = new Map<string, { account: string; cnj: string }>();
+    for (const p of procs ?? []) {
+      if (p.account_id_freshsales) procMap.set(p.id, { account: String(p.account_id_freshsales), cnj: String(p.numero_cnj ?? '') });
+    }
+    let enviados = 0;
+    let reunioes = 0;
+    for (const aud of auds) {
+      const procId = audienciaProcessoId(aud);
+      const proc = procMap.get(procId);
+      if (!proc) continue;
+      if (audienciaFreshsalesId(aud)) continue;
+      const dt = audienciaDate(aud);
+      if (!dt) continue;
+      const df = new Date(dt);
+      df.setHours(df.getHours() + 1);
+      const title = freshsalesSafeText(audienciaTitulo(aud, dt) || `Audiencia em ${fmtDataBr(dt)}`);
+      const descricao = freshsalesSafeText(audienciaDescricao(aud));
+      const notes = [
+        'Nova audiencia sincronizada com sucesso.',
+        `Data: ${fmtDataBr(dt)}`,
+        descricao || null,
+      ].filter(Boolean).join('\n');
+      const { status, data, tipoUsado } = await criarAudienciaActivity(
+        proc.account,
+        title,
+        notes,
+        freshsalesDate(dt, 'start'),
+        freshsalesDate(df, 'end'),
+      );
+      if (status === 200 || status === 201) {
+        const activityId = String(((data as Record<string, Record<string, unknown>>).sales_activity?.id) ?? '');
+        if (!activityId) continue;
+        const metadataAtual = ((aud.metadata as Record<string, unknown> | null) ?? {});
+        await tentarMarcarAudienciaSync(String(aud.id ?? ''), {
+          freshsales_activity_id: activityId,
+          metadata: {
+            ...metadataAtual,
+            freshsales_activity_type_id: tipoUsado,
+          },
+        });
+        await registrarConsultaEvento(proc.account, `Nova audiencia identificada - ${title}`, notes, dt);
+        if (dt.getTime() > Date.now()) {
+          const appointment = await criarAppointmentAudiencia(proc.account, title, notes, dt);
+          if (appointment.ok) {
+            reunioes++;
+            await tentarMarcarAudienciaSync(String(aud.id ?? ''), {
+              metadata: {
+                ...metadataAtual,
+                freshsales_activity_type_id: tipoUsado,
+                appointment_id: appointment.id ?? null,
+              },
+            });
+          }
+        }
+        await repararAccountProcesso(procId);
+        await chamarProcessAiReconcile(procId);
+        enviados++;
+      } else {
+        log('warn', 'audiencia_activity_failed', { procId, status, data });
+      }
+      await sleep(80);
+    }
+    return { enviados, reunioes, total: auds.length };
+  } catch (e) {
+    log('warn', 'loteAudiencias_compat_v2_exc', { erro: String(e) });
+    return { enviados: 0, reunioes: 0, total: 0 };
+  }
+}
+
 // --- Loop ---
 async function loop(): Promise<Record<string,unknown>> {
   const g = { r:0,accounts_reparadas:0,criadas:0,movs_advise:0,andamentos_dj:0,publicacoes:0,audiencias:0,reunioes:0,leilao:0,sync_sb:0,sync_fs:0,pend0:0,pendN:0,motivo:'' };
@@ -890,7 +1017,7 @@ async function loop(): Promise<Record<string,unknown>> {
     const p4 = await pendencias();
     if (p4.pubs>0) { const res = await loteE(LOTE_PUBS); g.publicacoes+=res.e; g.leilao+=res.l; }
     // E2: audiencias
-    const aud = await loteAudienciasCompat(10);
+    const aud = await loteAudienciasCompatV2(10);
     g.audiencias += aud.enviados;
     g.reunioes += aud.reunioes;
     // F: datajud-worker
