@@ -1,0 +1,7 @@
+{
+  "session_id": "d058bfd354ba489ea54849ab98dc0162",
+  "entries": [
+    "user_query: Summarize workspace",
+    "final_output: {'status': 'ok', 'tool': None, 'payload': {'query': 'Summarize workspace', 'step': 'Summarize workspace', 'context': {'rag': {'enabled': False, 'vault_path': None, 'memory_dir': None, 'matches': [], 'error': None}}, 'memory': [], 'rag': []}, 'message': 'No tool selected; step processed as reasoning-only action.'}"
+  ]
+}

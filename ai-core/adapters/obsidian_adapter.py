@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 import os
 import re
+import unicodedata
 
 
 _OBSIDIAN_ENV_KEYS = (
@@ -15,7 +16,7 @@ _OBSIDIAN_ENV_KEYS = (
     "OBSIDIAN_VAULT_PATH",
 )
 
-_TOKEN_PATTERN = re.compile(r"[\wÀ-ÿ]+", re.UNICODE)
+_TOKEN_PATTERN = re.compile(r"[a-z0-9_]+")
 
 
 @dataclass(frozen=True)
@@ -69,7 +70,9 @@ def build_obsidian_memory_dir(vault_path: Path | None = None) -> Path | None:
 
 
 def _tokenize(text: str) -> tuple[str, ...]:
-    return tuple(token.lower() for token in _TOKEN_PATTERN.findall(text or ""))
+    normalized = unicodedata.normalize("NFKD", text or "")
+    stripped = "".join(char for char in normalized if not unicodedata.combining(char))
+    return tuple(token.lower() for token in _TOKEN_PATTERN.findall(stripped.lower()))
 
 
 def _embed_text(text: str, dimensions: int = 128) -> list[float]:
@@ -79,10 +82,10 @@ def _embed_text(text: str, dimensions: int = 128) -> list[float]:
         return vector
 
     for token in tokens:
-      digest = sha256(token.encode("utf-8")).digest()
-      bucket = int.from_bytes(digest[:4], "big") % len(vector)
-      weight = 1.0 + min(len(token), 12) / 12.0
-      vector[bucket] += weight
+        digest = sha256(token.encode("utf-8")).digest()
+        bucket = int.from_bytes(digest[:4], "big") % len(vector)
+        weight = 1.0 + min(len(token), 12) / 12.0
+        vector[bucket] += weight
 
     norm = sqrt(sum(value * value for value in vector))
     if norm:
@@ -198,7 +201,7 @@ def write_obsidian_memory_note(
         session_id=session_id,
         source_key=source_key,
         route=str((context or {}).get("route") or "/interno"),
-        role=str((context or {}).get("profile", {}).get("role") or ""),
+        role=str(((context or {}).get("profile") or {}).get("role") or ""),
         summary=title,
         context=context,
         rag_matches=rag_matches,
