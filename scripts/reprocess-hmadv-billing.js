@@ -8,9 +8,6 @@ loadLocalEnv();
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const workspaceId = args.workspaceId || process.env.HMADV_WORKSPACE_ID || null;
-  if (!workspaceId) {
-    throw new Error('workspace_id obrigatorio. Use --workspace-id <uuid> ou HMADV_WORKSPACE_ID.');
-  }
 
   const rows = await loadReprocessableRows(args.limit);
   if (!rows.length) {

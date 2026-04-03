@@ -14,19 +14,19 @@ async function main() {
   const publishLimit = String(args.publishLimit || 10);
   const queueLimit = String(args.queueLimit || 50);
 
-  if (!workspaceId) {
-    throw new Error('workspace_id obrigatorio. Use --workspace-id <uuid> ou HMADV_WORKSPACE_ID.');
-  }
+  const workspaceArgs = workspaceId ? [workspaceId] : [];
 
-  runStep('Seed produtos', ['node', 'scripts/seed-hmadv-products.js', workspaceId]);
-  runStep('Sync contacts', ['node', 'scripts/sync-freshsales-contacts.js', workspaceId]);
-  runStep('Sync products', ['node', 'scripts/sync-freshsales-products.js', workspaceId]);
+  runStep('Seed produtos', ['node', 'scripts/seed-hmadv-products.js', ...workspaceArgs]);
+  runStep('Sync contacts', ['node', 'scripts/sync-freshsales-contacts.js', ...workspaceArgs]);
+  runStep('Sync products', ['node', 'scripts/sync-freshsales-products.js', ...workspaceArgs]);
 
   if (indicesFile) {
     runStep('Import indices', ['node', 'scripts/import-billing-indices.js', indicesFile, 'IGP-M', 'csv']);
   }
 
-  const importArgs = ['node', 'scripts/import-hmadv-billing-csv.js', '--workspace-id', workspaceId, ...files];
+  const importArgs = workspaceId
+    ? ['node', 'scripts/import-hmadv-billing-csv.js', '--workspace-id', workspaceId, ...files]
+    : ['node', 'scripts/import-hmadv-billing-csv.js', ...files];
   runStep('Import billing CSV', importArgs);
 
   const importRunId = findLatestImportRunId();
@@ -34,7 +34,12 @@ async function main() {
     throw new Error('Nao foi possivel localizar o ultimo import_run apos a importacao.');
   }
 
-  runStep('Materialize billing', ['node', 'scripts/materialize-hmadv-billing.js', importRunId, workspaceId]);
+  runStep(
+    'Materialize billing',
+    workspaceId
+      ? ['node', 'scripts/materialize-hmadv-billing.js', importRunId, workspaceId]
+      : ['node', 'scripts/materialize-hmadv-billing.js', importRunId]
+  );
   runStep('Publish deals', ['node', 'scripts/publish-hmadv-deals.js', publishLimit]);
   runStep('Process CRM queue', ['node', 'scripts/process-hmadv-crm-events.js', queueLimit]);
 

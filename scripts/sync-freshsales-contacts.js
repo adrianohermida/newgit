@@ -134,6 +134,10 @@ async function fetchFreshsalesContactsLive() {
     const response = await fetch(`${base}/contacts/view/1?page=${page}&per_page=100`, { headers });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
+      if (response.status === 403) {
+        console.warn('Freshsales contacts request returned 403. Pulando sync direto de contacts neste ambiente.');
+        return [];
+      }
       throw new Error(payload.message || payload.error || `Freshsales contacts request failed: ${response.status}`);
     }
     const batch = Array.isArray(payload.contacts) ? payload.contacts : [];
