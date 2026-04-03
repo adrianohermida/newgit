@@ -49,6 +49,24 @@ export default function App({ Component, pageProps }) {
       return undefined;
     }
 
+    // SW deve atuar apenas no portal; fora dele, remove registros/caches legados
+    // para evitar servir HTML cacheado no lugar de chunks do Next.
+    if (!isPortalRoute) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => registration.unregister().catch(() => null));
+      }).catch(() => null);
+
+      if ('caches' in window) {
+        caches.keys().then((keys) => {
+          keys
+            .filter((key) => key.startsWith('hmadv-portal-'))
+            .forEach((key) => caches.delete(key).catch(() => null));
+        }).catch(() => null);
+      }
+
+      return undefined;
+    }
+
     const registerWorker = () => {
       navigator.serviceWorker.register('/sw.js').catch(() => null);
     };
@@ -60,7 +78,7 @@ export default function App({ Component, pageProps }) {
 
     window.addEventListener('load', registerWorker, { once: true });
     return () => window.removeEventListener('load', registerWorker);
-  }, []);
+  }, [isPortalRoute]);
 
   return (
     <>

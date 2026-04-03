@@ -56,7 +56,13 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  if (url.pathname.startsWith("/_next/") || url.pathname.startsWith("/images/") || MANIFEST_URLS.includes(url.pathname)) {
+  // Nunca interceptar chunks do Next para evitar mismatch de MIME por cache stale.
+  if (url.pathname.startsWith("/_next/")) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
+  if (url.pathname.startsWith("/images/") || MANIFEST_URLS.includes(url.pathname)) {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;
@@ -75,8 +81,11 @@ self.addEventListener("fetch", (event) => {
         }
 
         return fetch(request).then((response) => {
-          const clone = response.clone();
-          caches.open(SHELL_CACHE).then((cache) => cache.put(request, clone)).catch(() => null);
+          const contentType = response.headers.get("content-type") || "";
+          if (response.ok && !contentType.includes("text/html")) {
+            const clone = response.clone();
+            caches.open(SHELL_CACHE).then((cache) => cache.put(request, clone)).catch(() => null);
+          }
           return response;
         });
       })
