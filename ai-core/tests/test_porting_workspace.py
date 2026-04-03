@@ -243,6 +243,16 @@ class PortingWorkspaceTests(unittest.TestCase):
         self.assertIn('mode=direct-connect', direct_result.stdout)
         self.assertIn('mode=deep-link', deep_link_result.stdout)
 
+    def test_orchestrate_cli_runs(self) -> None:
+        result = subprocess.run(
+            [sys.executable, '-m', 'src.main', 'orchestrate', 'summarize workspace', '--context', '{"channel":"cli"}'],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        self.assertIn('"status"', result.stdout)
+        self.assertIn('"steps"', result.stdout)
+
 
 if __name__ == '__main__':
     unittest.main()
