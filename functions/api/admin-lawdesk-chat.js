@@ -1,6 +1,7 @@
 import { requireAdminAccess } from "../lib/admin-auth.js";
 import { runLawdeskChat } from "../../lib/lawdesk/chat.js";
 import { buildDotobotRepositoryContext } from "../../lib/lawdesk/capabilities.js";
+import { detectSkillFromQuery, enrichContextWithSkill } from "../../lib/lawdesk/skill_registry.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -34,25 +35,47 @@ export async function onRequestPost(context) {
 
   try {
     const repositoryContext = buildDotobotRepositoryContext(body?.context || {});
+    let enhancedContext = repositoryContext;
+
+    // Detecção opcional de skill (Fase 2)
+    try {
+      const query = typeof body?.query === "string" ? body.query.trim() : "";
+      const detectedSkill = detectSkillFromQuery(query);
+      if (detectedSkill) {
+        enhancedContext = enrichContextWithSkill(repositoryContext, detectedSkill);
+      }
+    } catch (skillError) {
+      console.warn("Skill detection failed, continuing without:", skillError?.message);
+      // Continue sem skill, não quebra o fluxo
+    }
+
+    const startTime = Date.now();
     const data = await runLawdeskChat(env, {
       query,
       context: {
         ...(body?.context || {}),
-        repositoryContext,
+        repositoryContext: enhancedContext,
       },
     });
-    return new Response(JSON.stringify({ ok: true, data }), {
+    const duration = Date.now() - startTime;
+    return new Response(JSON.stringify({ ok: true, data, metadata: { duration_ms: duration } }), {
       status: 200,
       headers: JSON_HEADERS,
     });
   } catch (error) {
+    const isTimeout = error?.message?.includes("Timeout") || error?.name === "AbortError";
+    const isNetworkError = error?.message?.includes("fetch") || error?.message?.includes("connection");
+    const statusCode = isTimeout || isNetworkError ? 504 : 500;
+    const errorType = isTimeout ? "timeout" : isNetworkError ? "network" : "internal";
     return new Response(
       JSON.stringify({
         ok: false,
         error: error?.message || "Falha ao executar chat administrativo Dotobot.",
+        errorType,
+        timestamp: new Date().toISOString(),
       }),
       {
-        status: 500,
+        status: statusCode,
         headers: JSON_HEADERS,
       }
     );
