@@ -72,6 +72,8 @@ function ConversationsContent({ state, syncState, runSync }) {
   const conversations = state.data?.conversations?.primaryThreads || state.data?.conversations?.threads || [];
   const crmSignals = state.data?.conversations?.crmSignals || [];
   const recentMessages = state.data?.conversations?.messages || [];
+  const widgetEvents = state.data?.conversations?.widgetEvents || [];
+  const widgetEventSummary = state.data?.conversations?.widgetEventSummary || {};
   const incidents = state.data?.intelligence?.incidents || [];
   const summary = state.data?.conversations?.summary || {};
   const syncRuns = state.data?.intelligence?.syncRuns || [];
@@ -231,6 +233,50 @@ function ConversationsContent({ state, syncState, runSync }) {
               ) : null}
             </div>
           ))}
+        </div>
+      </Panel>
+
+      <Panel title={`Telemetria do widget (${widgetEvents.length})`}>
+        <div className="mb-4 grid gap-3 md:grid-cols-4 text-sm opacity-75">
+          <p>Eventos: {widgetEventSummary.total || 0}</p>
+          <p>Aberturas: {widgetEventSummary.openedCount || 0}</p>
+          <p>Auth: {widgetEventSummary.authCount || 0}</p>
+          <p>Falhas: {widgetEventSummary.failureCount || 0}</p>
+        </div>
+        {(widgetEventSummary.byEvent || []).length ? (
+          <div className="mb-4 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
+            {widgetEventSummary.byEvent.slice(0, 6).map((item) => (
+              <span key={item.label}>
+                {item.label}: {item.value}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        <div className="space-y-4">
+          {widgetEvents.length ? (
+            widgetEvents.map((item) => (
+              <div key={item.id} className="border border-[#2D2E2E] p-4">
+                <div className="mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
+                  <span>{item.event_name || "evento"}</span>
+                  <span>{item.identity_mode || "visitor"}</span>
+                  <span>{item.widget_state || "n/a"}</span>
+                  <span>{item.success === true ? "ok" : item.success === false ? "falha" : "neutro"}</span>
+                </div>
+                <p className="text-sm opacity-75">
+                  Rota: {item.route_path || "/"}{item.reference_id ? ` | Ref: ${item.reference_id}` : ""}
+                </p>
+                {item.created_at ? (
+                  <p className="mt-2 text-xs opacity-50">
+                    {new Date(item.created_at).toLocaleString("pt-BR")}
+                  </p>
+                ) : null}
+              </div>
+            ))
+          ) : (
+            <p className="text-sm opacity-75">
+              Ainda nao ha eventos do widget gravados. Assim que o chat abrir, autenticar ou falhar, eles aparecerao aqui.
+            </p>
+          )}
         </div>
       </Panel>
 

@@ -64,6 +64,7 @@ function AgentLabContent({ state }) {
   const dispatchRuns = data.crm?.dispatchRuns || [];
   const automationRuns = data.crm?.automationRuns || [];
   const messageSummary = data.intelligence?.messageSummary || {};
+  const widgetEventSummary = data.conversations?.widgetEventSummary || {};
   const actionQueueSummary = useMemo(() => {
     return actionQueue.reduce((acc, item) => {
       const key = item.status || "unknown";
@@ -215,6 +216,24 @@ function AgentLabContent({ state }) {
             <p>Clientes: {messageSummary.customerMessages || 0}</p>
             <p>Agente/bot: {messageSummary.agentMessages || 0}</p>
             <p>Sinais de qualidade: {messageSummary.qualityEvents || 0}</p>
+          </div>
+        </Panel>
+
+        <Panel title="Freshchat Widget" eyebrow="Telemetria do site">
+          <div className="space-y-3 text-sm opacity-75">
+            <p>Eventos: {widgetEventSummary.total || 0}</p>
+            <p>Aberturas: {widgetEventSummary.openedCount || 0}</p>
+            <p>Auth: {widgetEventSummary.authCount || 0}</p>
+            <p>Falhas: {widgetEventSummary.failureCount || 0}</p>
+            {(widgetEventSummary.byEvent || []).length ? (
+              <div className="pt-2 space-y-2">
+                {widgetEventSummary.byEvent.slice(0, 5).map((item) => (
+                  <p key={item.label}>{item.label}: {item.value}</p>
+                ))}
+              </div>
+            ) : (
+              <p>Sem telemetria consolidada do widget ainda.</p>
+            )}
           </div>
         </Panel>
 
