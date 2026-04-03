@@ -2,6 +2,7 @@ import { fetchSupabaseAdmin } from "./supabase-rest.js";
 import { buildFallbackClientProfile, isClientProfileComplete } from "./client-auth.js";
 import {
   listFreshsalesDealsFromViews,
+  listFreshsalesSalesAccountContacts,
   listFreshsalesSalesAccountsFromViews,
   listFreshsalesSalesActivities,
   lookupFreshsalesContactByEmail,
@@ -751,7 +752,46 @@ async function getFreshsalesPortalContextLive(env, email) {
       )
     ).filter(Boolean);
 
-    const accountDealRefs = accounts.flatMap((item) => (Array.isArray(item?.deals) ? item.deals : []));
+    const normalizedEmail = normalizeEmail(email);
+    let contactLinkedAccountIds = [];
+    try {
+      const contactLookups = await Promise.all(
+        accounts.map(async (account) => {
+          const accountId = String(account?.id || "").trim();
+          if (!accountId) return null;
+          const contacts = await listFreshsalesSalesAccountContacts(env, accountId).catch(() => []);
+          const hasEmail = (contacts || []).some((contact) => {
+            const emails = Array.isArray(contact?.emails) ? contact.emails : [];
+            return (
+              normalizeEmail(contact?.email) === normalizedEmail ||
+              emails.some((entry) => normalizeEmail(entry) === normalizedEmail)
+            );
+          });
+          return hasEmail ? accountId : null;
+        })
+      );
+      contactLinkedAccountIds = contactLookups.filter(Boolean);
+    } catch {
+      contactLinkedAccountIds = [];
+    }
+
+    const filteredAccounts = accounts.filter((account) => {
+      const accountId = String(account?.id || "").trim();
+      if (!accountId) return false;
+      const accountOwnerId = String(account?.owner_id || account?.user_id || "").trim();
+      if (contactLinkedAccountIds.includes(accountId)) return true;
+      if (ownerId && accountOwnerId && accountOwnerId === String(ownerId)) return true;
+      const corpus = flattenToStrings([
+        account?.name,
+        account?.website,
+        account?.display_name,
+        account?.contacts || [],
+        account?.custom_field || {},
+      ]).join(" | ").toLowerCase();
+      return normalizedEmail && corpus.includes(normalizedEmail);
+    });
+
+    const accountDealRefs = filteredAccounts.flatMap((item) => (Array.isArray(item?.deals) ? item.deals : []));
     let listedDeals = [];
     try {
       listedDeals = await listFreshsalesDealsFromViews(env, { maxPages: 4, perPage: 100 });
@@ -772,7 +812,7 @@ async function getFreshsalesPortalContextLive(env, email) {
         return acc;
       }, []);
 
-    const accountAppointments = accounts.flatMap((item) => (Array.isArray(item?.appointments) ? item.appointments : []));
+    const accountAppointments = filteredAccounts.flatMap((item) => (Array.isArray(item?.appointments) ? item.appointments : []));
     const mergedAppointments = [...appointments, ...accountAppointments].reduce((acc, item) => {
       const nextId = String(item?.id || item || "").trim();
       if (!nextId || acc.some((row) => String(row?.id || row || "").trim() === nextId)) return acc;
@@ -780,7 +820,7 @@ async function getFreshsalesPortalContextLive(env, email) {
       return acc;
     }, []);
 
-    const accountIds = accounts.map((item) => String(item?.id || "").trim()).filter(Boolean);
+    const accountIds = filteredAccounts.map((item) => String(item?.id || "").trim()).filter(Boolean);
     let accountActivities = [];
     try {
       const liveActivities = await listFreshsalesSalesActivities(env, { page: 1, perPage: 100 });
@@ -795,7 +835,7 @@ async function getFreshsalesPortalContextLive(env, email) {
 
     return {
       contact,
-      accounts,
+      accounts: filteredAccounts,
       deals,
       appointments: mergedAppointments,
       activities: [...activitiesFromContact, ...accountActivities],
@@ -1372,6 +1412,29 @@ async function tryFetchOptional(env, variants) {
   };
 }
 
+async function listJudicialProcessesByFreshsalesAccountIds(env, accountIds = []) {
+  const ids = uniqueBy(
+    (accountIds || []).map((item) => String(item || "").trim()).filter(Boolean),
+    (value) => value
+  );
+  if (!ids.length) return [];
+
+  const select =
+    "id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,account_id_freshsales";
+
+  const rows = [];
+  for (const chunk of chunkArray(ids, 20)) {
+    const filters = chunk.map((item) => `"${item}"`).join(",");
+    const chunkRows = await safeResolve(
+      () => fetchSupabaseAdmin(env, `processos?select=${select}&account_id_freshsales=in.(${filters})&limit=200`),
+      []
+    );
+    rows.push(...(Array.isArray(chunkRows) ? chunkRows.map(normalizeProcessRow) : []));
+  }
+
+  return uniqueBy(rows, (item) => String(item?.id || item?.number || "").trim());
+}
+
 function normalizeConsultaStatus(value) {
   const normalized = normalizeText(value);
   if (!normalized) return "agendada";
@@ -1526,6 +1589,7 @@ export async function listClientProcessos(env, email, options = {}) {
 
   let freshsalesWarning = null;
   let freshsalesItems = [];
+  let linkedJudicialItems = [];
   try {
     const freshsalesContext = await listFreshsalesRelatedAccounts(env, email);
     freshsalesItems = freshsalesContext.accounts.map((account) =>
@@ -1547,6 +1611,11 @@ export async function listClientProcessos(env, email, options = {}) {
       )
     );
     freshsalesItems = [...freshsalesItems, ...liveItems];
+    const linkedAccountIds = uniqueBy(
+      [...(freshsalesContext.accountIds || []), ...(liveContext.accounts || []).map((account) => String(account?.id || "").trim())].filter(Boolean),
+      (value) => value
+    );
+    linkedJudicialItems = await listJudicialProcessesByFreshsalesAccountIds(env, linkedAccountIds);
     if (freshsalesItems.length) {
       freshsalesWarning = "Parte da carteira processual foi vinculada via Freshsales, a partir dos accounts associados ao seu cadastro.";
     }
@@ -1570,12 +1639,17 @@ export async function listClientProcessos(env, email, options = {}) {
           ["cf_processo", "name"]
         )
       );
+      linkedJudicialItems = await listJudicialProcessesByFreshsalesAccountIds(
+        env,
+        (liveContext.accounts || []).map((account) => String(account?.id || "").trim()).filter(Boolean)
+      );
     } catch {
       freshsalesItems = [];
+      linkedJudicialItems = [];
     }
   }
 
-  if (!result.items.length && !freshsalesItems.length) {
+  if (!result.items.length && !freshsalesItems.length && !linkedJudicialItems.length) {
     return {
       items: [],
       warning: "Nenhum processo foi localizado nas fontes atuais do portal, incluindo o Freshsales e a base judicial.",
@@ -1583,7 +1657,7 @@ export async function listClientProcessos(env, email, options = {}) {
   }
 
   const mergedMap = new Map();
-  [...result.items, ...freshsalesItems].forEach((item) => {
+  [...result.items, ...linkedJudicialItems, ...freshsalesItems].forEach((item) => {
     const key = String(item.number || item.id || "").trim();
     if (!key) return;
     if (!mergedMap.has(key)) {
@@ -2085,7 +2159,63 @@ export async function listClientDocumentos(env, email) {
     },
   ]);
 
+  let fallbackItems = [];
   if (!result.items.length) {
+    const portfolio = await safeResolve(() => listClientProcessos(env, email), { items: [] });
+    const processCandidates = uniqueBy(
+      (portfolio.items || [])
+        .flatMap((item) => buildProcessIdentifierCandidates(item, item.id))
+        .filter(Boolean),
+      (value) => value
+    );
+
+    for (const candidate of processCandidates.slice(0, 40)) {
+      const byProcess = await tryFetchOptional(env, [
+        {
+          path: `documentos?select=id,nome,status,created_at,updated_at,arquivo_url,cliente_email,tipo,categoria,descricao,metadata,processo_id,numero_cnj&processo_id=eq.${encodeURIComponent(candidate)}&order=updated_at.desc&limit=20`,
+          mapRow: (row) => ({
+            id: row.id,
+            name: row.nome || "Documento",
+            status: mapDocumentStatus(row.status),
+            status_label: mapDocumentStatusLabel(mapDocumentStatus(row.status)),
+            category: inferDocumentCategory(row),
+            category_label: mapDocumentCategoryLabel(inferDocumentCategory(row)),
+            created_at: row.created_at || null,
+            updated_at: row.updated_at || null,
+            reference_date: row.updated_at || row.created_at || null,
+            url: row.arquivo_url || null,
+            process_id: row.processo_id || row.numero_cnj || null,
+            summary: row.descricao || null,
+          }),
+        },
+        {
+          path: `documentos?select=id,titulo,status,created_at,updated_at,file_url,cliente_email,tipo,categoria,descricao,metadata,processo_id,numero_cnj&processo_id=eq.${encodeURIComponent(candidate)}&order=updated_at.desc&limit=20`,
+          mapRow: (row) => ({
+            id: row.id,
+            name: row.titulo || "Documento",
+            status: mapDocumentStatus(row.status),
+            status_label: mapDocumentStatusLabel(mapDocumentStatus(row.status)),
+            category: inferDocumentCategory(row),
+            category_label: mapDocumentCategoryLabel(inferDocumentCategory(row)),
+            created_at: row.created_at || null,
+            updated_at: row.updated_at || null,
+            reference_date: row.updated_at || row.created_at || null,
+            url: row.file_url || null,
+            process_id: row.processo_id || row.numero_cnj || null,
+            summary: row.descricao || null,
+          }),
+        },
+      ]);
+      if (byProcess.items.length) {
+        fallbackItems.push(...byProcess.items);
+      }
+    }
+    fallbackItems = uniqueBy(fallbackItems, (item) => String(item?.id || "").trim());
+  }
+
+  const allItems = result.items.length ? result.items : fallbackItems;
+
+  if (!allItems.length) {
     return {
       items: [],
       summary: {
@@ -2098,17 +2228,18 @@ export async function listClientDocumentos(env, email) {
     };
   }
 
-  const categories = result.items.reduce((acc, item) => {
+  const categories = allItems.reduce((acc, item) => {
     acc[item.category] = (acc[item.category] || 0) + 1;
     return acc;
   }, {});
 
   return {
     ...result,
+    items: allItems,
     summary: {
-      total: result.items.length,
-      pendentes: result.items.filter((item) => item.status === "pendente").length,
-      disponiveis: result.items.filter((item) => item.status === "disponivel" || item.status === "concluido").length,
+      total: allItems.length,
+      pendentes: allItems.filter((item) => item.status === "pendente").length,
+      disponiveis: allItems.filter((item) => item.status === "disponivel" || item.status === "concluido").length,
       categorias: categories,
     },
   };

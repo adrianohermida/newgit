@@ -122,6 +122,11 @@ export async function viewFreshsalesSalesAccount(env, accountId, include = "owne
   return payload?.sales_account || payload || null;
 }
 
+export async function listFreshsalesSalesAccountContacts(env, accountId) {
+  const { payload } = await freshsalesRequest(env, `/sales_accounts/${encodeURIComponent(String(accountId))}/contacts`);
+  return Array.isArray(payload?.contacts) ? payload.contacts : Array.isArray(payload) ? payload : [];
+}
+
 export async function viewFreshsalesDeal(env, dealId) {
   const { payload } = await freshsalesRequest(env, `/deals/${encodeURIComponent(String(dealId))}`);
   return payload?.deal || payload || null;
