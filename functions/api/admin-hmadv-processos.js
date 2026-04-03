@@ -1,14 +1,23 @@
 import { requireAdminAccess } from "../lib/admin-auth.js";
 import {
   backfillAudiencias,
+  deleteProcessRelation,
+  enrichProcessesViaDatajud,
   getProcessosOverview,
   inspectAudiencias,
   jsonError,
   jsonOk,
+  listFieldGapProcesses,
+  listMonitoringProcesses,
+  listProcessRelations,
+  listProcessesWithoutMovements,
   pushOrphanAccounts,
   repairFreshsalesAccounts,
+  runProcessAudit,
   runSyncWorker,
   scanOrphanProcesses,
+  searchProcessesForRelations,
+  upsertProcessRelation,
 } from "../lib/hmadv-ops.js";
 
 function parseProcessNumbers(value) {
@@ -39,6 +48,51 @@ export async function onRequestGet(context) {
     }
     if (action === "inspect_audiencias") {
       const data = await inspectAudiencias(context.env, Number(url.searchParams.get("limit") || 10));
+      return jsonOk({ data });
+    }
+    if (action === "sem_movimentacoes") {
+      const data = await listProcessesWithoutMovements(context.env, {
+        page: Number(url.searchParams.get("page") || 1),
+        pageSize: Number(url.searchParams.get("pageSize") || 20),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "monitoramento_ativo") {
+      const data = await listMonitoringProcesses(context.env, {
+        page: Number(url.searchParams.get("page") || 1),
+        pageSize: Number(url.searchParams.get("pageSize") || 20),
+        active: true,
+      });
+      return jsonOk({ data });
+    }
+    if (action === "monitoramento_inativo") {
+      const data = await listMonitoringProcesses(context.env, {
+        page: Number(url.searchParams.get("page") || 1),
+        pageSize: Number(url.searchParams.get("pageSize") || 20),
+        active: false,
+      });
+      return jsonOk({ data });
+    }
+    if (action === "campos_orfaos") {
+      const data = await listFieldGapProcesses(context.env, {
+        page: Number(url.searchParams.get("page") || 1),
+        pageSize: Number(url.searchParams.get("pageSize") || 20),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "relacoes") {
+      const data = await listProcessRelations(context.env, {
+        query: String(url.searchParams.get("query") || ""),
+        page: Number(url.searchParams.get("page") || 1),
+        pageSize: Number(url.searchParams.get("pageSize") || 20),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "buscar_processos") {
+      const data = await searchProcessesForRelations(context.env, {
+        query: String(url.searchParams.get("query") || ""),
+        limit: Number(url.searchParams.get("limit") || 12),
+      });
       return jsonOk({ data });
     }
     return jsonError(new Error("Acao GET invalida."), 400);
@@ -77,6 +131,25 @@ export async function onRequestPost(context) {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 10),
       });
+      return jsonOk({ data });
+    }
+    if (action === "enriquecer_datajud") {
+      const data = await enrichProcessesViaDatajud(context.env, {
+        processNumbers: parseProcessNumbers(body.processNumbers),
+        limit: Number(body.limit || 10),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "auditoria_sync") {
+      const data = await runProcessAudit(context.env);
+      return jsonOk({ data });
+    }
+    if (action === "salvar_relacao") {
+      const data = await upsertProcessRelation(context.env, body);
+      return jsonOk({ data });
+    }
+    if (action === "remover_relacao") {
+      const data = await deleteProcessRelation(context.env, body.id);
       return jsonOk({ data });
     }
     return jsonError(new Error("Acao POST invalida."), 400);

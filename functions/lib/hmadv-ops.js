@@ -100,6 +100,14 @@ function buildInFilter(field, values) {
   return `${field}=in.(${items.join(",")})`;
 }
 
+function normalizeProcessNumber(value) {
+  return String(value || "").replace(/\D+/g, "").trim();
+}
+
+function buildProcessLabel(row) {
+  return row?.titulo || row?.name || row?.display_name || row?.numero_cnj || "Processo";
+}
+
 async function countTable(env, table, filters = "", schema = "judiciario") {
   const baseUrl = getSupabaseBaseUrl(env);
   const response = await fetch(`${baseUrl}/rest/v1/${table}?${filters}${filters ? "&" : ""}select=id`, {
@@ -126,6 +134,23 @@ async function countTableSafe(env, table, filters = "", schema = "judiciario", f
       message.includes("does not exist") ||
       message.includes("schema cache") ||
       message.includes("PGRST")
+    ) {
+      return fallback;
+    }
+    throw error;
+  }
+}
+
+async function listTableSafe(env, path, schema = "judiciario", fallback = []) {
+  try {
+    return await hmadvRest(env, path, {}, schema);
+  } catch (error) {
+    const message = String(error?.message || "");
+    if (
+      message.includes("does not exist") ||
+      message.includes("schema cache") ||
+      message.includes("PGRST") ||
+      message.includes("42703")
     ) {
       return fallback;
     }
@@ -379,7 +404,20 @@ export async function listPartesExtractionCandidates(env, { page = 1, pageSize =
 }
 
 export async function getProcessosOverview(env) {
-  const [syncStatus, processosTotal, processosComAccount, processosSemAccount, datajudEnriquecido, processosSemStatus, processosSemPolos, audienciasTotal] = await Promise.all([
+  const [
+    syncStatus,
+    processosTotal,
+    processosComAccount,
+    processosSemAccount,
+    datajudEnriquecido,
+    processosSemStatus,
+    processosSemPolos,
+    audienciasTotal,
+    processosSemMovimentacao,
+    monitoramentoAtivo,
+    monitoramentoInativo,
+    monitoramentoFilaPendente,
+  ] = await Promise.all([
     hmadvFunction(env, "sync-worker", { action: "status" }),
     countTable(env, "processos"),
     countTable(env, "processos", "account_id_freshsales=not.is.null"),
@@ -388,6 +426,10 @@ export async function getProcessosOverview(env) {
     countTable(env, "processos", "status_atual_processo=is.null"),
     countTable(env, "processos", "or=(polo_ativo.is.null,polo_passivo.is.null)"),
     countTable(env, "audiencias"),
+    countTableSafe(env, "processos", "or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0)"),
+    countTableSafe(env, "processos", "monitoramento_ativo=eq.true"),
+    countTableSafe(env, "processos", "monitoramento_ativo=eq.false"),
+    countTableSafe(env, "monitoramento_queue", "status=eq.pendente"),
   ]);
   return {
     processosTotal,
@@ -397,6 +439,10 @@ export async function getProcessosOverview(env) {
     processosSemStatus,
     processosSemPolos,
     audienciasTotal,
+    processosSemMovimentacao,
+    monitoramentoAtivo,
+    monitoramentoInativo,
+    monitoramentoFilaPendente,
     syncWorker: syncStatus,
   };
 }
@@ -426,6 +472,212 @@ export async function scanOrphanProcesses(env, limit = 50) {
     `processos?select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo&account_id_freshsales=is.null&limit=${limit}`
   );
   return { total: rows.length, items: rows };
+}
+
+export async function listProcessesWithoutMovements(env, { page = 1, pageSize = 20 } = {}) {
+  const safePage = Math.max(1, Number(page || 1));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  const items = await listTableSafe(
+    env,
+    `processos?select=id,numero_cnj,titulo,account_id_freshsales,quantidade_movimentacoes,monitoramento_ativo,status_atual_processo&or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0)&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
+  );
+  return {
+    page: safePage,
+    pageSize: safePageSize,
+    totalRows: await countTableSafe(env, "processos", "or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0)"),
+    items,
+  };
+}
+
+export async function listMonitoringProcesses(env, { page = 1, pageSize = 20, active = true } = {}) {
+  const safePage = Math.max(1, Number(page || 1));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  const flag = active ? "true" : "false";
+  const items = await listTableSafe(
+    env,
+    `processos?select=id,numero_cnj,titulo,account_id_freshsales,monitoramento_ativo,status_atual_processo,quantidade_movimentacoes&monitoramento_ativo=eq.${flag}&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
+  );
+  return {
+    page: safePage,
+    pageSize: safePageSize,
+    totalRows: await countTableSafe(env, "processos", `monitoramento_ativo=eq.${flag}`),
+    items,
+  };
+}
+
+export async function listFieldGapProcesses(env, { page = 1, pageSize = 20 } = {}) {
+  const safePage = Math.max(1, Number(page || 1));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  const items = await listTableSafe(
+    env,
+    `processos?select=id,numero_cnj,titulo,account_id_freshsales,classe,assunto_principal,area,data_ajuizamento,sistema,polo_ativo,polo_passivo,status_atual_processo&account_id_freshsales=not.is.null&or=(classe.is.null,assunto_principal.is.null,area.is.null,data_ajuizamento.is.null,sistema.is.null,polo_ativo.is.null,polo_passivo.is.null,status_atual_processo.is.null)&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
+  );
+  return {
+    page: safePage,
+    pageSize: safePageSize,
+    totalRows: await countTableSafe(
+      env,
+      "processos",
+      "account_id_freshsales=not.is.null&or=(classe.is.null,assunto_principal.is.null,area.is.null,data_ajuizamento.is.null,sistema.is.null,polo_ativo.is.null,polo_passivo.is.null,status_atual_processo.is.null)"
+    ),
+    items,
+  };
+}
+
+async function searchProcessRows(env, term, limit = 12) {
+  const normalized = normalizeProcessNumber(term);
+  const encodedTerm = encodeURIComponent(`*${String(term || "").trim()}*`);
+  const queries = [];
+
+  if (normalized) {
+    queries.push(
+      `processos?numero_cnj=eq.${normalized}&select=id,numero_cnj,titulo,status_atual_processo,account_id_freshsales&limit=${limit}`,
+      `processos?numero_cnj=ilike.${encodeURIComponent(`*${normalized}*`)}&select=id,numero_cnj,titulo,status_atual_processo,account_id_freshsales&limit=${limit}`
+    );
+  }
+
+  if (term) {
+    queries.push(
+      `processos?titulo=ilike.${encodedTerm}&select=id,numero_cnj,titulo,status_atual_processo,account_id_freshsales&limit=${limit}`
+    );
+  }
+
+  const seen = new Set();
+  const items = [];
+  for (const path of queries) {
+    const rows = await listTableSafe(env, path);
+    for (const row of rows) {
+      const key = String(row.id || row.numero_cnj || "").trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      items.push({
+        id: row.id,
+        numero_cnj: row.numero_cnj,
+        titulo: buildProcessLabel(row),
+        status: row.status_atual_processo || "sem_status",
+        account_id_freshsales: row.account_id_freshsales || null,
+      });
+    }
+    if (items.length >= limit) break;
+  }
+
+  return items.slice(0, limit);
+}
+
+export async function searchProcessesForRelations(env, { query = "", limit = 12 } = {}) {
+  const term = String(query || "").trim();
+  if (!term) {
+    return { items: [] };
+  }
+
+  const items = await searchProcessRows(env, term, Math.max(1, Math.min(Number(limit || 12), 25)));
+  return { items };
+}
+
+export async function listProcessRelations(env, { query = "", page = 1, pageSize = 20 } = {}) {
+  const safePage = Math.max(1, Number(page || 1));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  const normalizedQuery = normalizeProcessNumber(query);
+  let filter = "";
+
+  if (normalizedQuery) {
+    filter = `or=(numero_cnj_pai.eq.${normalizedQuery},numero_cnj_filho.eq.${normalizedQuery})`;
+  }
+
+  const path = `processo_relacoes?${filter ? `${filter}&` : ""}select=id,processo_pai_id,processo_filho_id,numero_cnj_pai,numero_cnj_filho,tipo_relacao,status,observacoes,created_at,updated_at&order=updated_at.desc&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`;
+  const rows = await listTableSafe(env, path, "judiciario", []);
+  const numbers = [...new Set(rows.flatMap((row) => [row.numero_cnj_pai, row.numero_cnj_filho]).map(normalizeProcessNumber).filter(Boolean))];
+  const relatedProcesses = numbers.length
+    ? await loadProcessesByNumbers(env, numbers)
+    : [];
+  const processMap = new Map(relatedProcesses.map((row) => [normalizeProcessNumber(row.numero_cnj), row]));
+
+  return {
+    page: safePage,
+    pageSize: safePageSize,
+    totalRows: await countTableSafe(env, "processo_relacoes", filter, "judiciario", 0),
+    items: rows.map((row) => ({
+      id: row.id,
+      tipo_relacao: row.tipo_relacao,
+      status: row.status,
+      observacoes: row.observacoes || "",
+      numero_cnj_pai: row.numero_cnj_pai,
+      numero_cnj_filho: row.numero_cnj_filho,
+      processo_pai: processMap.get(normalizeProcessNumber(row.numero_cnj_pai)) || null,
+      processo_filho: processMap.get(normalizeProcessNumber(row.numero_cnj_filho)) || null,
+      updated_at: row.updated_at || row.created_at || null,
+    })),
+  };
+}
+
+export async function upsertProcessRelation(env, payload) {
+  const numeroPai = normalizeProcessNumber(payload.numero_cnj_pai);
+  const numeroFilho = normalizeProcessNumber(payload.numero_cnj_filho);
+  const tipoRelacao = String(payload.tipo_relacao || "").trim().toLowerCase();
+  const status = String(payload.status || "ativo").trim().toLowerCase();
+
+  if (!numeroPai || !numeroFilho || !tipoRelacao) {
+    throw new Error("Informe processo pai, processo filho e tipo de relacao.");
+  }
+
+  if (numeroPai === numeroFilho) {
+    throw new Error("O processo pai deve ser diferente do processo filho.");
+  }
+
+  const [pai] = await loadProcessesByNumbers(env, [numeroPai]);
+  const [filho] = await loadProcessesByNumbers(env, [numeroFilho]);
+
+  const body = {
+    numero_cnj_pai: numeroPai,
+    numero_cnj_filho: numeroFilho,
+    processo_pai_id: pai?.id || null,
+    processo_filho_id: filho?.id || null,
+    tipo_relacao: tipoRelacao,
+    status,
+    observacoes: String(payload.observacoes || "").trim() || null,
+  };
+
+  const rows = await hmadvRest(
+    env,
+    "processo_relacoes?on_conflict=numero_cnj_pai,numero_cnj_filho,tipo_relacao",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Profile": "judiciario",
+        Prefer: "resolution=merge-duplicates,return=representation",
+      },
+      body: JSON.stringify(body),
+    },
+    "judiciario"
+  );
+
+  return {
+    relation: Array.isArray(rows) ? rows[0] || body : body,
+    processo_pai: pai || null,
+    processo_filho: filho || null,
+  };
+}
+
+export async function deleteProcessRelation(env, relationId) {
+  const id = String(relationId || "").trim();
+  if (!id) {
+    throw new Error("Informe o identificador da relacao.");
+  }
+
+  await hmadvRest(
+    env,
+    `processo_relacoes?id=eq.${encodeURIComponent(id)}`,
+    {
+      method: "DELETE",
+      headers: {
+        Prefer: "return=minimal",
+      },
+    },
+    "judiciario"
+  );
+
+  return { deleted: true, id };
 }
 
 export async function inspectAudiencias(env, limit = 20) {
@@ -585,6 +837,42 @@ export async function backfillPartesFromPublicacoes(env, { processNumbers = [], 
 
 export async function runSyncWorker(env) {
   return hmadvFunction(env, "sync-worker", { action: "run" }, { method: "POST", body: {} });
+}
+
+export async function enrichProcessesViaDatajud(env, { processNumbers = [], limit = 10 } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 10), 20));
+  const processes = processNumbers.length
+    ? await loadProcessesByNumbers(env, processNumbers)
+    : await listTableSafe(
+        env,
+        `processos?select=id,numero_cnj,titulo,quantidade_movimentacoes,account_id_freshsales&or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0)&limit=${safeLimit}`
+      );
+  const sample = [];
+  for (const proc of processes.slice(0, safeLimit)) {
+    const numero = String(proc.numero_cnj || "").replace(/\D+/g, "");
+    if (!numero) continue;
+    const result = await hmadvFunction(
+      env,
+      "datajud-search",
+      {},
+      { method: "POST", body: { numeroProcesso: numero, persistir: true } }
+    );
+    sample.push({
+      processo_id: proc.id,
+      numero_cnj: numero,
+      result,
+    });
+  }
+  return {
+    checkedAt: new Date().toISOString(),
+    processosLidos: processes.length,
+    disparados: sample.length,
+    sample,
+  };
+}
+
+export async function runProcessAudit(env) {
+  return hmadvFunction(env, "processo-sync", { action: "auditoria" }, { method: "POST", body: {} });
 }
 
 export async function createProcessesFromPublicacoes(env, { processNumbers = [], limit = 10 } = {}) {

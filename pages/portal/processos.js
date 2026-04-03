@@ -138,7 +138,7 @@ function ProcessosContent({ state, setState }) {
             {state.items.map((item) => (
               <Link
                 key={item.id}
-                href={`/portal/processos/detalhe?id=${encodeURIComponent(item.id)}`}
+                href={`/portal/processos/detalhe?id=${encodeURIComponent(item.number || item.id)}`}
                 prefetch={false}
                 className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6 transition hover:border-[#C49C56]"
               >

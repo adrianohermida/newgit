@@ -137,6 +137,14 @@ function PublicacoesContent({ state, setState }) {
               <h3 className="font-serif text-2xl">{item.title}</h3>
               <p className="mt-2 text-sm opacity-55">Publicada em {formatDate(item.date)}</p>
               {item.summary ? <p className="mt-4 max-w-3xl text-sm leading-6 opacity-65">{item.summary}</p> : null}
+              {item.content && item.content !== item.summary ? (
+                <details className="mt-4 rounded-2xl border border-[#20332D] bg-black/10 p-4">
+                  <summary className="cursor-pointer text-sm font-semibold text-[#C49C56]">
+                    Ver conteudo completo
+                  </summary>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-6 opacity-72">{item.content}</p>
+                </details>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap gap-3">

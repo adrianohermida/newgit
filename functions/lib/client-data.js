@@ -1304,11 +1304,19 @@ async function getClientProcessBase(env, email, processId) {
       path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero_cnj=eq.${encodeURIComponent(processId)}&email_cliente=eq.${encodeURIComponent(email)}&limit=1`,
       mapRow: normalizeProcessRow,
     },
-    {
-      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero=eq.${encodeURIComponent(processId)}&cliente_email=eq.${encodeURIComponent(email)}&limit=1`,
-      mapRow: normalizeProcessRow,
-    },
-  ]);
+      {
+        path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero=eq.${encodeURIComponent(processId)}&cliente_email=eq.${encodeURIComponent(email)}&limit=1`,
+        mapRow: normalizeProcessRow,
+      },
+      {
+        path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata,account_id_freshsales&account_id_freshsales=eq.${encodeURIComponent(processId)}&limit=1`,
+        mapRow: normalizeProcessRow,
+      },
+      {
+        path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata,account_id_freshsales&account_id_freshsales=eq.${encodeURIComponent(processId)}&limit=1`,
+        mapRow: normalizeProcessRow,
+      },
+    ]);
 
   if (result.items[0]) {
     return result.items[0];
@@ -1483,16 +1491,23 @@ export async function getClientProcessDetails(env, profile, processId) {
 
 export async function listClientPublicacoes(env, profile) {
   const processes = await listClientProcessos(env, profile.email);
-  const processIds = processes.items.flatMap((item) => buildProcessIdentifierCandidates(item, item.id)).filter(Boolean);
-  const liveContext = await getFreshsalesPortalContextLive(env, profile.email);
-  const livePublicacoes = (liveContext.activities || [])
-    .filter((item) => textIncludesAny(`${item?.title || ""} ${item?.notes || ""}`, ["publicacao", "publicação", "andamento"]))
-    .map(normalizeFreshsalesActivityPublicationRow);
+  const processIds = [...new Set(processes.items.flatMap((item) => buildProcessIdentifierCandidates(item, item.id)).filter(Boolean))];
+  let livePublicacoes = [];
+  let liveWarning = null;
+  try {
+    const liveContext = await getFreshsalesPortalContextLive(env, profile.email);
+    livePublicacoes = (liveContext.activities || [])
+      .filter((item) => textIncludesAny(`${item?.title || ""} ${item?.notes || ""}`, ["publicacao", "publicação", "andamento"]))
+      .map(normalizeFreshsalesActivityPublicationRow);
+  } catch {
+    livePublicacoes = [];
+    liveWarning = "O CRM nao respondeu por completo; o portal exibira as publicacoes disponiveis na base judicial.";
+  }
 
   if (!processIds.length && !livePublicacoes.length) {
     return {
       items: [],
-      warning: "Nenhuma publicacao foi localizada nas fontes atuais do portal para os processos vinculados ao seu cadastro.",
+      warning: liveWarning || "Nenhuma publicacao foi localizada nas fontes atuais do portal para os processos vinculados ao seu cadastro.",
     };
   }
 
@@ -1508,7 +1523,7 @@ export async function listClientPublicacoes(env, profile) {
 
   return {
     items,
-    warning: items.length ? null : "Ainda nao ha publicacoes judiciais sincronizadas para os seus processos.",
+    warning: items.length ? liveWarning : (liveWarning || "Ainda nao ha publicacoes judiciais sincronizadas para os seus processos."),
   };
 }
 
