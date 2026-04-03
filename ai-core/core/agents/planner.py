@@ -13,6 +13,7 @@ class PlanningContext:
     query: str
     context: dict[str, Any]
     memory_items: tuple[str, ...] = ()
+    rag_matches: tuple[dict[str, Any], ...] = ()
 
 
 class PlannerAgent:
@@ -21,10 +22,21 @@ class PlannerAgent:
     def __init__(self, query_engine: QueryEnginePort | None = None) -> None:
         self._query_engine = query_engine or QueryEnginePort.from_workspace()
 
-    def build_plan(self, query: str, context: dict[str, Any] | None = None, memory_items: tuple[str, ...] = ()) -> ExecutionPlan:
+    def build_plan(
+        self,
+        query: str,
+        context: dict[str, Any] | None = None,
+        memory_items: tuple[str, ...] = (),
+        rag_matches: tuple[dict[str, Any], ...] = (),
+    ) -> ExecutionPlan:
         normalized_context = context or {}
         engine_memory = self._query_engine.replay_user_messages()
-        planning_context = PlanningContext(query=query.strip(), context=normalized_context, memory_items=memory_items + engine_memory)
+        planning_context = PlanningContext(
+            query=query.strip(),
+            context=normalized_context,
+            memory_items=memory_items + engine_memory,
+            rag_matches=rag_matches,
+        )
         step_inputs = self._split_into_steps(planning_context.query)
         steps: list[PlanStep] = []
         for idx, step_input in enumerate(step_inputs, start=1):
@@ -44,6 +56,7 @@ class PlannerAgent:
             'step': step_input,
             'context': planning_context.context,
             'memory': list(planning_context.memory_items[-5:]),
+            'rag': list(planning_context.rag_matches[-5:]),
         }
 
     def _split_into_steps(self, query: str) -> list[str]:

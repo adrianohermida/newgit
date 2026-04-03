@@ -5,6 +5,7 @@ from typing import Any
 from uuid import uuid4
 
 from ..agents import CriticAgent, CriticVerdict, ExecutionPlan, ExecutionReport, ExecutorAgent, PlannerAgent
+from adapters.obsidian_adapter import ObsidianRagContext, search_obsidian_context, write_obsidian_memory_note
 from ..memory import FileBackedLongTermMemory, LongTermMemoryRecord, SessionMemory
 
 
@@ -26,15 +27,19 @@ class OrchestrationResult:
     logs: list[str]
     status: str
     session_id: str
+    rag: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             'result': self.result,
             'steps': self.steps,
             'logs': self.logs,
             'status': self.status,
             'session_id': self.session_id,
         }
+        if self.rag is not None:
+            payload['rag'] = self.rag
+        return payload
 
 
 class Coordinator:
@@ -54,13 +59,25 @@ class Coordinator:
         normalized_context = context or {}
         session_id = str(normalized_context.get('session_id') or uuid4().hex)
         state = OrchestrationState(session_id=session_id)
+        rag_context = search_obsidian_context(query=query, top_k=5)
+        rag_matches = tuple(match.to_dict() for match in rag_context.matches)
 
         long_term_record = self._memory_store.load(session_id)
         short_term = SessionMemory(session_id=session_id, entries=list(long_term_record.entries))
         state.logs.append(f'session={session_id}')
         state.logs.append(f'memory_loaded={len(short_term.entries)}')
+        state.logs.append(f'obsidian_rag_matches={len(rag_matches)}')
 
-        state.plan = self._planner.build_plan(query=query, context=normalized_context, memory_items=short_term.latest())
+        planner_context = {
+            **normalized_context,
+            'rag': rag_context.to_dict(),
+        }
+        state.plan = self._planner.build_plan(
+            query=query,
+            context=planner_context,
+            memory_items=short_term.latest(),
+            rag_matches=rag_matches,
+        )
         state.logs.append(f'planned_steps={len(state.plan.steps)}')
 
         state.report = self._executor.execute_plan(state.plan)
@@ -83,15 +100,37 @@ class Coordinator:
                 else:
                     state.verdict = retry_verdict
 
-        self._persist_memory(short_term=short_term, query=query, final_report=final_report)
+        self._persist_memory(short_term=short_term, query=query, final_report=final_report, rag_context=rag_context, context=normalized_context)
 
         status = state.verdict.status if state.verdict else 'fail'
         steps = [step.to_dict() for step in (final_report.results if final_report else [])]
         result_payload = final_report.final_output if final_report else {'message': 'No report produced'}
-        return OrchestrationResult(result=result_payload, steps=steps, logs=state.logs, status=status, session_id=session_id)
+        return OrchestrationResult(
+            result=result_payload,
+            steps=steps,
+            logs=state.logs,
+            status=status,
+            session_id=session_id,
+            rag=rag_context.to_dict(),
+        )
 
-    def _persist_memory(self, short_term: SessionMemory, query: str, final_report: ExecutionReport) -> None:
+    def _persist_memory(
+        self,
+        short_term: SessionMemory,
+        query: str,
+        final_report: ExecutionReport,
+        rag_context: ObsidianRagContext,
+        context: dict[str, Any],
+    ) -> None:
         short_term.append(f'user_query: {query}')
         short_term.append(f'final_output: {final_report.final_output}')
         record = LongTermMemoryRecord(session_id=short_term.session_id, entries=tuple(short_term.entries))
         self._memory_store.persist(record)
+        write_obsidian_memory_note(
+            query=query,
+            answer=str(final_report.final_output),
+            session_id=short_term.session_id,
+            context=context,
+            rag_matches=rag_context.matches,
+            title=str(final_report.final_output)[:120] if final_report.final_output else None,
+        )
