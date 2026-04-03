@@ -52,17 +52,34 @@ export default function App({ Component, pageProps }) {
     // SW deve atuar apenas no portal; fora dele, remove registros/caches legados
     // para evitar servir HTML cacheado no lugar de chunks do Next.
     if (!isPortalRoute) {
-      navigator.serviceWorker.getRegistrations().then((registrations) => {
-        registrations.forEach((registration) => registration.unregister().catch(() => null));
-      }).catch(() => null);
-
-      if ('caches' in window) {
-        caches.keys().then((keys) => {
-          keys
-            .filter((key) => key.startsWith('hmadv-portal-'))
-            .forEach((key) => caches.delete(key).catch(() => null));
-        }).catch(() => null);
-      }
+      Promise.all([
+        navigator.serviceWorker
+          .getRegistrations()
+          .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister().catch(() => null))))
+          .catch(() => null),
+        'caches' in window
+          ? caches
+              .keys()
+              .then((keys) =>
+                Promise.all(
+                  keys
+                    .filter((key) => key.startsWith('hmadv-portal-'))
+                    .map((key) => caches.delete(key).catch(() => null))
+                )
+              )
+              .catch(() => null)
+          : Promise.resolve(),
+      ]).then(() => {
+        try {
+          const marker = 'hmadv_sw_cleanup_once_v1';
+          if (window.navigator.serviceWorker.controller && window.sessionStorage.getItem(marker) !== '1') {
+            window.sessionStorage.setItem(marker, '1');
+            window.location.reload();
+          }
+        } catch {
+          // noop
+        }
+      });
 
       return undefined;
     }
