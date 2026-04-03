@@ -31,6 +31,8 @@ const FS_TYPE_CONSULTA    = Number(Deno.env.get('FRESHSALES_ACTIVITY_TYPE_CONSUL
 const FS_TYPE_ANDAMENTOS  = 31001147751;
 const FS_TYPE_PUBLICACOES = 31001147699;
 const FS_TYPE_AUDIENCIAS  = Number(Deno.env.get('FRESHSALES_ACTIVITY_TYPE_AUDIENCIA') ?? '31001147752');
+const FS_MIN_INTERVAL_MS  = Number(Deno.env.get('FRESHSALES_MIN_INTERVAL_MS') ?? '4500');
+let fsLastRequestAt = 0;
 
 function log(n: 'info'|'warn'|'error', m: string, e: Record<string,unknown> = {}) {
   console[n](JSON.stringify({ ts: new Date().toISOString(), msg: m, ...e }));
@@ -207,6 +209,10 @@ function authHdr() {
 }
 async function fsPost(path: string, body: unknown): Promise<{ status: number; data: unknown }> {
   for (let i = 1; i <= 3; i++) {
+    const now = Date.now();
+    const wait = Math.max(0, fsLastRequestAt + FS_MIN_INTERVAL_MS - now);
+    if (wait > 0) await sleep(wait);
+    fsLastRequestAt = Date.now();
     const r = await fetch(`https://${fsDomain()}/crm/sales/api/${path}`, {
       method: 'POST', headers: { Authorization: authHdr(), 'Content-Type': 'application/json' },
       body: JSON.stringify(body), signal: AbortSignal.timeout(12_000),

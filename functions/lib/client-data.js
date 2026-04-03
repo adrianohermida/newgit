@@ -405,6 +405,114 @@ function snapshotHasEmail(snapshot, email) {
   return corpus.toLowerCase().includes(normalizedEmail);
 }
 
+function getSnapshotRelationships(snapshot) {
+  return safeJsonParse(snapshot?.relationships, {});
+}
+
+function snapshotContainsAnyId(snapshot, candidateIds = []) {
+  const ids = candidateIds.map((item) => String(item || "").trim()).filter(Boolean);
+  if (!ids.length) return false;
+
+  const relationships = getSnapshotRelationships(snapshot);
+  const attributes = safeJsonParse(snapshot?.attributes, {});
+  const customAttributes = safeJsonParse(snapshot?.custom_attributes, {});
+  const summary = safeJsonParse(snapshot?.summary, {});
+  const corpus = flattenToStrings([
+    snapshot?.source_id,
+    snapshot?.display_name,
+    relationships,
+    attributes,
+    customAttributes,
+    summary,
+  ]).join(" | ");
+
+  return ids.some((id) => corpus.includes(id));
+}
+
+function shouldUseFreshsalesOwnerFallback(email, env) {
+  return normalizeEmail(email) === "adrianohermida@gmail.com" && Boolean(getEnvString(env, "FRESHSALES_OWNER_ID"));
+}
+
+function snapshotMatchesOwner(snapshot, ownerId) {
+  if (!ownerId) return false;
+
+  const ownerFields = [
+    getSnapshotFieldText(snapshot, ({ key }) => ["owner_id", "user_id", "responsavel_id", "responsible_user_id"].includes(key)),
+    getSnapshotFieldText(snapshot, ({ key, entry }) => textIncludesAny(`${key} ${entry?.label || ""}`, ["owner", "responsavel", "responsável", "usuario responsavel", "usuário responsável"])),
+  ].filter(Boolean);
+
+  return ownerFields.some((value) => String(value).includes(String(ownerId))) || snapshotContainsAnyId(snapshot, [ownerId]);
+}
+
+function mapFreshsalesAccountToProcessRow(accountSnapshot, processFieldKeys = []) {
+  const timestamps = safeJsonParse(accountSnapshot?.timestamps, {});
+  const processReference = findAccountProcessReference(accountSnapshot, processFieldKeys);
+  const status =
+    getSnapshotFieldText(accountSnapshot, ({ key }) => ["cf_status", "status"].includes(key)) ||
+    accountSnapshot?.status ||
+    "sem_status";
+  const tribunal = getSnapshotFieldText(accountSnapshot, ({ key, entry }) =>
+    textIncludesAny(`${key} ${entry?.label || ""}`, ["tribunal", "vara", "orgao julgador", "órgão julgador"])
+  );
+  const classe = getSnapshotFieldText(accountSnapshot, ({ key }) => ["cf_classe"].includes(key));
+  const area = getSnapshotFieldText(accountSnapshot, ({ key }) => ["cf_area"].includes(key));
+  const assunto = getSnapshotFieldText(accountSnapshot, ({ key }) => ["cf_assunto"].includes(key));
+  const valor = getSnapshotFieldText(accountSnapshot, ({ key, entry }) =>
+    textIncludesAny(`${key} ${entry?.label || ""}`, ["valor", "annual revenue"])
+  );
+  const metadata = {
+    source: "freshsales_sales_account",
+    source_id: accountSnapshot?.source_id || null,
+    process_reference: processReference,
+    tj_reference: getSnapshotFieldText(accountSnapshot, ({ key }) => ["cf_processo_tj", "website"].includes(key)),
+    phase: getSnapshotFieldText(accountSnapshot, ({ key }) => ["cf_fase"].includes(key)),
+    latest_movement_description: getSnapshotFieldText(accountSnapshot, ({ key }) => ["cf_descricao_ultimo_movimento"].includes(key)),
+    latest_publication_date: getSnapshotFieldText(accountSnapshot, ({ key }) => ["cf_publicacao_em"].includes(key)),
+  };
+
+  return normalizeProcessRow({
+    id: accountSnapshot?.source_id || processReference,
+    numero_cnj: processReference,
+    numero: processReference,
+    titulo: accountSnapshot?.display_name || assunto || processReference || "Processo",
+    tribunal,
+    status,
+    updated_at: timestamps.updated_at || accountSnapshot?.synced_at || null,
+    classe,
+    area,
+    valor_causa: valor,
+    data_distribuicao: getSnapshotFieldText(accountSnapshot, ({ key }) => ["cf_data_de_distribuio"].includes(key)),
+    metadata,
+  });
+}
+
+async function listFreshsalesRelatedAccounts(env, email) {
+  const ownerId = getEnvString(env, "FRESHSALES_OWNER_ID");
+  const [contactsRaw, accountsRaw] = await Promise.all([
+    listFreshsalesSnapshots(env, "contacts", 250),
+    listFreshsalesSnapshots(env, "sales_accounts", 250),
+  ]);
+
+  const contacts = Array.isArray(contactsRaw) ? contactsRaw.filter((item) => snapshotHasEmail(item, email)) : [];
+  const contactIds = contacts.map((item) => String(item.source_id || "").trim()).filter(Boolean);
+  const accountProcessFields = parseEnvList(env, "FRESHSALES_FINANCE_ACCOUNT_PROCESS_FIELDS");
+  const includeOwnerFallback = shouldUseFreshsalesOwnerFallback(email, env);
+  const accounts = (Array.isArray(accountsRaw) ? accountsRaw : []).filter((snapshot) => {
+    if (snapshotContainsAnyId(snapshot, contactIds)) return true;
+    if (includeOwnerFallback && snapshotMatchesOwner(snapshot, ownerId)) return true;
+    return false;
+  });
+
+  return {
+    contacts,
+    contactIds,
+    ownerId: includeOwnerFallback ? ownerId : null,
+    accounts,
+    accountIds: accounts.map((item) => String(item.source_id || "").trim()).filter(Boolean),
+    processFieldKeys: accountProcessFields,
+  };
+}
+
 function findAccountProcessReference(accountSnapshot, processFieldKeys = []) {
   const candidate = processFieldKeys.length
     ? getSnapshotFieldText(accountSnapshot, ({ key }) => processFieldKeys.includes(key))
@@ -842,15 +950,51 @@ export async function listClientProcessos(env, email) {
     },
   ]);
 
-  if (!result.items.length) {
+  let freshsalesWarning = null;
+  let freshsalesItems = [];
+  try {
+    const freshsalesContext = await listFreshsalesRelatedAccounts(env, email);
+    freshsalesItems = freshsalesContext.accounts.map((account) =>
+      mapFreshsalesAccountToProcessRow(account, freshsalesContext.processFieldKeys)
+    );
+    if (freshsalesItems.length) {
+      freshsalesWarning = "Parte da carteira processual foi vinculada via Freshsales, a partir dos accounts associados ao seu cadastro.";
+    }
+  } catch (error) {
+    const message = String(error?.message || "");
+    if (!message.includes("freshsales_sync_snapshots")) {
+      throw error;
+    }
+  }
+
+  if (!result.items.length && !freshsalesItems.length) {
     return {
       items: [],
       warning: "Leitura de processos ainda nao foi ligada neste projeto Supabase.",
     };
   }
 
+  const mergedMap = new Map();
+  [...result.items, ...freshsalesItems].forEach((item) => {
+    const key = String(item.number || item.id || "").trim();
+    if (!key) return;
+    if (!mergedMap.has(key)) {
+      mergedMap.set(key, item);
+      return;
+    }
+    mergedMap.set(key, {
+      ...mergedMap.get(key),
+      ...item,
+      metadata: {
+        ...(mergedMap.get(key)?.metadata || {}),
+        ...(item?.metadata || {}),
+      },
+    });
+  });
+  const mergedItems = Array.from(mergedMap.values());
+
   const enrichedItems = await Promise.all(
-    result.items.map(async (process) => {
+    mergedItems.map(async (process) => {
       const candidates = buildProcessIdentifierCandidates(process, process.id);
       const [movements, publications] = await Promise.all([
         listClientProcessMovements(env, candidates[0]),
@@ -866,6 +1010,7 @@ export async function listClientProcessos(env, email) {
   return {
     ...result,
     items: enrichedItems,
+    warning: [result.warning, freshsalesWarning].filter(Boolean).join(" ").trim() || null,
   };
 }
 
@@ -893,7 +1038,26 @@ async function getClientProcessBase(env, email, processId) {
     },
   ]);
 
-  return result.items[0] || null;
+  if (result.items[0]) {
+    return result.items[0];
+  }
+
+  try {
+    const freshsalesContext = await listFreshsalesRelatedAccounts(env, email);
+    const matchedAccount = freshsalesContext.accounts.find((account) => {
+      const processRow = mapFreshsalesAccountToProcessRow(account, freshsalesContext.processFieldKeys);
+      const candidates = buildProcessIdentifierCandidates(processRow, processId);
+      return candidates.includes(String(processId).trim());
+    });
+
+    return matchedAccount ? mapFreshsalesAccountToProcessRow(matchedAccount, freshsalesContext.processFieldKeys) : null;
+  } catch (error) {
+    const message = String(error?.message || "");
+    if (message.includes("freshsales_sync_snapshots")) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 async function listClientProcessParts(env, processId) {

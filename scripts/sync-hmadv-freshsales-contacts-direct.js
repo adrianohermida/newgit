@@ -5,6 +5,9 @@ const path = require('path');
 
 loadLocalEnv();
 
+const FRESHSALES_MIN_INTERVAL_MS = Number(process.env.FRESHSALES_MIN_INTERVAL_MS || '4500');
+let freshsalesLastRequestAt = 0;
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const workspaceId = args.workspaceId || process.env.HMADV_WORKSPACE_ID || null;
@@ -235,18 +238,35 @@ function freshsalesHeaders() {
 
 async function freshsalesRequest(pathname, init = {}) {
   const base = resolveFreshsalesBase();
-  const response = await fetch(`${base}${pathname}`, {
-    ...init,
-    headers: {
-      ...freshsalesHeaders(),
-      ...(init.headers || {}),
-    },
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    const now = Date.now();
+    const wait = Math.max(0, freshsalesLastRequestAt + FRESHSALES_MIN_INTERVAL_MS - now);
+    if (wait > 0) {
+      await sleep(wait);
+    }
+    freshsalesLastRequestAt = Date.now();
+
+    const response = await fetch(`${base}${pathname}`, {
+      ...init,
+      headers: {
+        ...freshsalesHeaders(),
+        ...(init.headers || {}),
+      },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (response.ok) {
+      return payload;
+    }
+    if ((response.status === 429 || response.status >= 500) && attempt < 4) {
+      await sleep(attempt * 5000);
+      continue;
+    }
     throw new Error(payload.message || payload.error || `Freshsales request failed: ${response.status}`);
   }
-  return payload;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function supabaseRequest(pathname, init = {}) {

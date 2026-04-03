@@ -37,6 +37,19 @@ Quando `public.freshsales_contacts` estiver populada, o reconciliador tambem pas
 - preencher `contato_freshsales_id` quando o match for unico e forte
 - manter bloqueio quando o match for ambiguo
 
+## Criacao controlada de contacts por tipo
+
+Como proxima etapa operacional, o HMADV passa a aceitar criacao de `Contacts` com apenas `nome`, desde que:
+
+- `Cliente`: somente para a parte com marcador forte do Dr. Adriano
+- `Parte Adversa`: para a parte do polo oposto
+- `Terceiro Interessado`: para demais partes sem classificacao mais forte
+
+Runbook:
+
+- [hmadv_fase8_contacts_tipo.md](/D:/Github/newgit/docs/hmadv_fase8_contacts_tipo.md)
+- [hmadv_criar_contacts_relacionados.ps1](/D:/Github/newgit/docs/hmadv_criar_contacts_relacionados.ps1)
+
 ## Script operacional
 
 - [hmadv_reconciliar_cliente_contacts.ps1](/D:/Github/newgit/docs/hmadv_reconciliar_cliente_contacts.ps1)
@@ -106,5 +119,5 @@ Depois desta etapa:
 4. medir candidatos criaveis em [hmadv_fase8_candidatos_contacts.md](/D:/Github/newgit/docs/hmadv_fase8_candidatos_contacts.md)
 5. decidir a estrategia de subida ao Freshsales:
    - vincular `Contact` existente quando houver match unico e forte
-   - criar `Contact` quando houver identificador suficiente
+   - criar `Contact` por `nome + external_id + Tipo` quando a regra de classificacao for forte
    - ou manter apenas a canonizacao no Supabase quando ainda nao houver identificador minimo

@@ -64,6 +64,7 @@ Arquivos:
 - [hmadv_reconciliar_audiencias.ps1](/D:/Github/newgit/docs/hmadv_reconciliar_audiencias.ps1)
 - [hmadv_fase4_audiencias.md](/D:/Github/newgit/docs/hmadv_fase4_audiencias.md)
 - [hmadv_freshsales_consulta_rollout.md](/D:/Github/newgit/docs/hmadv_freshsales_consulta_rollout.md)
+- [hmadv_freshsales_rate_limit.md](/D:/Github/newgit/docs/hmadv_freshsales_rate_limit.md)
 - [hmadv_deploy_homologacao.md](/D:/Github/newgit/docs/hmadv_deploy_homologacao.md)
 
 Aceite:
@@ -254,6 +255,7 @@ Aceite:
 - `movimentos` com TPU em cobertura aceitavel
 - `contacts` relacionados consistentes por processo
 - `prazos_calculados` com tasks geradas para eventos elegiveis
+- auditoria operacional de [hmadv_garantia_operacional.md](/D:/Github/newgit/docs/hmadv_garantia_operacional.md) sem pendencias criticas
 
 ## Fase 10 - Assistente Conversacional e Governanca Operacional
 
