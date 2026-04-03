@@ -1,6 +1,8 @@
 import { fetchSupabaseAdmin } from "./supabase-rest.js";
 import { buildFallbackClientProfile, isClientProfileComplete } from "./client-auth.js";
 import {
+  listFreshsalesDealsFromViews,
+  listFreshsalesSalesAccountsFromViews,
   listFreshsalesSalesActivities,
   lookupFreshsalesContactByEmail,
   viewFreshsalesContact,
@@ -700,34 +702,70 @@ async function getFreshsalesPortalContextLive(env, email) {
   try {
     const contactSummary = await lookupFreshsalesContactByEmail(env, email);
     const contactId = contactSummary?.id ? String(contactSummary.id) : null;
-    if (!contactId) {
-      return {
-        contact: null,
-        accounts: [],
-        deals: [],
-        appointments: [],
-        activities: [],
-      };
-    }
-
-    const contact = await viewFreshsalesContact(env, contactId);
+    const ownerId = getFreshsalesOwnerFallbackId(email, env);
+    const contact = contactId ? await viewFreshsalesContact(env, contactId) : null;
     const accountRefs = Array.isArray(contact?.sales_accounts) ? contact.sales_accounts : [];
     const dealRefs = Array.isArray(contact?.deals) ? contact.deals : [];
     const appointments = Array.isArray(contact?.appointments) ? contact.appointments : [];
     const activitiesFromContact = Array.isArray(contact?.sales_activities) ? contact.sales_activities : [];
 
-    const accounts = (
+    const contactAccounts = (
       await Promise.all(
         accountRefs.map((item) => viewFreshsalesSalesAccount(env, item?.id || item).catch(() => null))
       )
     ).filter(Boolean);
 
+    let fallbackAccounts = [];
+    try {
+      const listedAccounts = await listFreshsalesSalesAccountsFromViews(env, { maxPages: 4, perPage: 100 });
+      const normalizedEmail = normalizeEmail(email);
+      fallbackAccounts = listedAccounts.filter((item) => {
+        const accountOwnerId = String(item?.owner_id || item?.user_id || "").trim();
+        if (ownerId && accountOwnerId && accountOwnerId === String(ownerId)) return true;
+
+        const corpus = flattenToStrings([
+          item?.name,
+          item?.website,
+          item?.display_name,
+          item?.custom_field || {},
+          item?.contacts || [],
+          item?.team_users || [],
+        ]).join(" | ").toLowerCase();
+
+        return normalizedEmail && corpus.includes(normalizedEmail);
+      });
+    } catch {
+      fallbackAccounts = [];
+    }
+
+    const accountIdsToResolve = uniqueBy(
+      [...contactAccounts, ...fallbackAccounts]
+        .map((item) => String(item?.id || "").trim())
+        .filter(Boolean),
+      (value) => value
+    );
+
+    const accounts = (
+      await Promise.all(
+        accountIdsToResolve.map((id) => viewFreshsalesSalesAccount(env, id).catch(() => null))
+      )
+    ).filter(Boolean);
+
     const accountDealRefs = accounts.flatMap((item) => (Array.isArray(item?.deals) ? item.deals : []));
-    const deals = (
+    let listedDeals = [];
+    try {
+      listedDeals = await listFreshsalesDealsFromViews(env, { maxPages: 4, perPage: 100 });
+    } catch {
+      listedDeals = [];
+    }
+
+    const resolvedDeals = (
       await Promise.all(
         [...dealRefs, ...accountDealRefs].map((item) => viewFreshsalesDeal(env, item?.id || item).catch(() => null))
       )
-    )
+    ).filter(Boolean);
+
+    const deals = [...resolvedDeals, ...listedDeals]
       .filter(Boolean)
       .reduce((acc, item) => {
         if (!acc.some((row) => String(row?.id || "") === String(item?.id || ""))) acc.push(item);

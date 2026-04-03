@@ -8,6 +8,33 @@ const REFERENCE_ID_KEY = "hmadv:freshchat:reference-id";
 const SCRIPT_ID = "hmadv_freshchat_widget_script";
 const INIT_KEY = "hmadv:freshchat:initialized";
 
+function postWidgetEvent(payload) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const body = JSON.stringify(payload);
+  try {
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      const blob = new Blob([body], { type: "application/json" });
+      navigator.sendBeacon("/api/freshchat-widget-event", blob);
+      return;
+    }
+  } catch {
+    // fallback to fetch
+  }
+
+  fetch("/api/freshchat-widget-event", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    keepalive: true,
+    body,
+  }).catch(() => undefined);
+}
+
 function createVisitorId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -160,7 +187,15 @@ function appendWidgetScript(scriptUrl) {
     script.id = SCRIPT_ID;
     script.src = scriptUrl;
     script.async = true;
-    script.onload = () => resolve();
+    script.onload = () => {
+      postWidgetEvent({
+        event_name: "widget_script_loaded",
+        route_path: window.location.pathname,
+        identity_mode: "unknown",
+        success: true,
+      });
+      resolve();
+    };
     script.onerror = () => reject(new Error("Falha ao carregar script do Freshchat."));
     document.body.appendChild(script);
   });
@@ -199,6 +234,11 @@ export default function FreshchatWebMessenger() {
       if (cancelled) {
         return;
       }
+      const baseEvent = {
+        route_path: window.location.pathname,
+        identity_mode: identity.identityMode || "visitor",
+        reference_id: identity.referenceId || null,
+      };
 
       const authorization = identity.accessToken ? `Bearer ${identity.accessToken}` : null;
       const storedUuid = readStorage(UUID_KEY);
@@ -248,11 +288,25 @@ export default function FreshchatWebMessenger() {
         }
 
         authInFlight.current = true;
+        postWidgetEvent({
+          ...baseEvent,
+          event_name: "widget_auth_requested",
+          success: true,
+          widget_state: userData?.userState || userData?.frameState || "not_authenticated",
+        });
         try {
           let freshchatUuid = userData?.freshchat_uuid || readStorage(UUID_KEY);
           if (!freshchatUuid && widget.user?.getUUID) {
             const uuidResponse = await widget.user.getUUID();
             freshchatUuid = uuidResponse?.data?.uuid || null;
+            if (freshchatUuid) {
+              postWidgetEvent({
+                ...baseEvent,
+                event_name: "widget_uuid_received",
+                success: true,
+                widget_state: "uuid_ready",
+              });
+            }
           }
 
           if (!freshchatUuid) {
@@ -267,6 +321,13 @@ export default function FreshchatWebMessenger() {
             widget.authenticate(jwtPayload.token);
           }
         } catch (error) {
+          postWidgetEvent({
+            ...baseEvent,
+            event_name: "widget_auth_failed",
+            success: false,
+            widget_state: userData?.userState || userData?.frameState || "auth_failed",
+            message: error?.message || "Falha ao autenticar widget JWT.",
+          });
           console.warn("Freshchat: falha ao autenticar widget JWT.", error);
         } finally {
           authInFlight.current = false;
@@ -282,6 +343,12 @@ export default function FreshchatWebMessenger() {
         window[INIT_KEY] = true;
         widget.on?.("frame:statechange", (data) => {
           if (data?.success === false && data?.data?.frameState === "not_authenticated") {
+            postWidgetEvent({
+              ...baseEvent,
+              event_name: "widget_not_authenticated",
+              success: false,
+              widget_state: data?.data?.frameState || "not_authenticated",
+            });
             authenticateUser(data.data);
           }
         });
@@ -293,6 +360,22 @@ export default function FreshchatWebMessenger() {
           }
 
           if (data?.success) {
+            if (userData?.userState === "authenticated") {
+              postWidgetEvent({
+                ...baseEvent,
+                event_name: "widget_user_authenticated",
+                success: true,
+                widget_state: userData.userState,
+              });
+            }
+            if (userData?.userState === "created") {
+              postWidgetEvent({
+                ...baseEvent,
+                event_name: "widget_user_created",
+                success: true,
+                widget_state: userData.userState,
+              });
+            }
             syncIdentity();
             return;
           }
@@ -307,6 +390,24 @@ export default function FreshchatWebMessenger() {
           }
         });
 
+        widget.on?.("widget:opened", () => {
+          postWidgetEvent({
+            ...baseEvent,
+            event_name: "widget_opened",
+            success: true,
+            widget_state: "opened",
+          });
+        });
+
+        widget.on?.("widget:closed", () => {
+          postWidgetEvent({
+            ...baseEvent,
+            event_name: "widget_closed",
+            success: true,
+            widget_state: "closed",
+          });
+        });
+
         syncIdentity();
       };
 
@@ -314,6 +415,13 @@ export default function FreshchatWebMessenger() {
         syncIdentity();
         return;
       }
+
+      postWidgetEvent({
+        ...baseEvent,
+        event_name: "widget_init_started",
+        success: true,
+        widget_state: "booting",
+      });
 
       widget.init({
         token: config.messengerToken,
@@ -329,6 +437,12 @@ export default function FreshchatWebMessenger() {
           },
         },
         onInit: function onInit() {
+          postWidgetEvent({
+            ...baseEvent,
+            event_name: "widget_initialized",
+            success: true,
+            widget_state: "initialized",
+          });
           registerHandlers();
         },
       });
@@ -336,6 +450,14 @@ export default function FreshchatWebMessenger() {
 
     boot().catch((error) => {
       if (!cancelled) {
+        postWidgetEvent({
+          event_name: "widget_error",
+          route_path: window.location.pathname,
+          identity_mode: "unknown",
+          success: false,
+          widget_state: "boot_error",
+          message: error?.message || "Falha ao inicializar o Web Messenger.",
+        });
         console.warn("Freshchat: falha ao inicializar o Web Messenger.", error);
       }
     });
