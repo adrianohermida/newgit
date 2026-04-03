@@ -79,6 +79,11 @@ function ConversationsContent({ state, syncState, runSync }) {
           <div className="mb-4 border border-[#2D2E2E] p-4 text-sm opacity-75">
             <p>{environment.message}</p>
             <p className="mt-2">Neste modo, o painel mostra dados de fallback e o sync local fica desabilitado ate o schema principal estar alinhado.</p>
+            <p className="mt-2">
+              Aplique o bundle:
+              {" "}
+              [agentlab-bootstrap-supabase.sql](/D:/Github/newgit/docs/agentlab-bootstrap-supabase.sql)
+            </p>
           </div>
         ) : null}
         <div className="flex flex-wrap gap-3 mb-4">

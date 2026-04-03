@@ -98,6 +98,16 @@ function AgentLabContent({ state }) {
             {(environment.missingSources || []).length ? (
               <p>Fontes ausentes neste ambiente: {environment.missingSources.join(", ")}</p>
             ) : null}
+            <p>
+              Bootstrap recomendado:
+              {" "}
+              [agentlab-bootstrap-supabase.sql](/D:/Github/newgit/docs/agentlab-bootstrap-supabase.sql)
+            </p>
+            <p>
+              Runbook:
+              {" "}
+              [agentlab-bootstrap-supabase.md](/D:/Github/newgit/docs/agentlab-bootstrap-supabase.md)
+            </p>
           </div>
         </Panel>
       ) : null}
