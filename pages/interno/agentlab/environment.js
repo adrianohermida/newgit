@@ -45,6 +45,8 @@ function EnvironmentContent({ state }) {
   const schemaChecklist = environment.schemaChecklist || [];
   const freshchatApi = environment.freshchatApi || {};
   const freshchatWeb = environment.freshchatWeb || {};
+  const dotobotRagHealth = environment.dotobotRagHealth || {};
+  const dotobotRagReport = dotobotRagHealth.report || {};
   const widgetEventSummary = state.data?.conversations?.widgetEventSummary || {};
   const readyCount = schemaChecklist.filter((item) => item.status === "ready").length;
   const missingCount = schemaChecklist.filter((item) => item.status !== "ready").length;
@@ -138,6 +140,50 @@ function EnvironmentContent({ state }) {
               <li>JWT: {(freshchatWeb.acceptedKeys?.jwtSecret || []).join(", ") || "n/a"}</li>
             </ul>
           </div>
+        </div>
+      </Panel>
+
+      <Panel
+        title={`Healthcheck Dotobot RAG: ${dotobotRagHealth.ok ? "OK" : "Falha"}`}
+      >
+        <div className="space-y-3 text-sm opacity-75">
+          <p>
+            Status:{" "}
+            <span className={dotobotRagHealth.ok ? "text-emerald-400" : "text-amber-300"}>
+              {dotobotRagHealth.ok ? "Operacional" : "Necessita atencao"}
+            </span>
+          </p>
+          <p>Atualizado em: {dotobotRagReport.timestamp ? new Date(dotobotRagReport.timestamp).toLocaleString("pt-BR") : "nao informado"}</p>
+          <p>
+            Embedding:{" "}
+            <span className={dotobotRagReport.embedding?.ok ? "text-emerald-400" : "text-amber-300"}>
+              {dotobotRagReport.embedding?.ok ? `OK${dotobotRagReport.embedding?.dimensions ? ` (${dotobotRagReport.embedding.dimensions} dims)` : ""}` : "falhou"}
+            </span>
+          </p>
+          <p>
+            Consulta vetorial:{" "}
+            <span className={dotobotRagReport.query?.ok ? "text-emerald-400" : "text-amber-300"}>
+              {dotobotRagReport.query?.ok
+                ? `OK${typeof dotobotRagReport.query?.matches === "number" ? ` (${dotobotRagReport.query.matches} matches)` : ""}`
+                : "falhou"}
+            </span>
+          </p>
+          <p>
+            Upsert de memoria:{" "}
+            <span className={dotobotRagReport.upsert?.skipped ? "text-slate-300" : dotobotRagReport.upsert?.ok ? "text-emerald-400" : "text-amber-300"}>
+              {dotobotRagReport.upsert?.skipped ? "ignorado no dashboard" : dotobotRagReport.upsert?.ok ? "OK" : "falhou"}
+            </span>
+          </p>
+          <p className="text-xs uppercase tracking-[0.16em] opacity-50">
+            Query: {dotobotRagReport.query?.ok ? "healthcheck dotobot memory retrieval" : "verifique as secrets do RAG"}
+          </p>
+          {dotobotRagHealth.error ? <p className="text-[#f2b2b2]">{dotobotRagHealth.error}</p> : null}
+          {(dotobotRagReport.embedding?.error || dotobotRagReport.query?.error || dotobotRagReport.upsert?.error) ? (
+            <div>
+              <p className="font-semibold">Detalhe do erro:</p>
+              <p>{dotobotRagReport.embedding?.error || dotobotRagReport.query?.error || dotobotRagReport.upsert?.error}</p>
+            </div>
+          ) : null}
         </div>
       </Panel>
 
