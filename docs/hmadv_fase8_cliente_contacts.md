@@ -103,7 +103,8 @@ Depois desta etapa:
 1. popular `public.freshsales_contacts`
 2. consolidar os marcadores reais do escritorio
 3. medir cobertura de `documento` em `judiciario.partes`
-4. decidir a estrategia de subida ao Freshsales:
+4. medir candidatos criaveis em [hmadv_fase8_candidatos_contacts.md](/D:/Github/newgit/docs/hmadv_fase8_candidatos_contacts.md)
+5. decidir a estrategia de subida ao Freshsales:
    - vincular `Contact` existente quando houver match unico e forte
    - criar `Contact` quando houver identificador suficiente
    - ou manter apenas a canonizacao no Supabase quando ainda nao houver identificador minimo

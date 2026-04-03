@@ -177,7 +177,8 @@ Aceite:
 - anotacoes automaticas no Freshsales;
 - tarefas e prazos preditivos a partir de publicacoes;
 - apoio a status, fase, instancia e inconsistencias;
-- `Consulta` registra solicitacao, sucesso e eventos relevantes do processo.
+- `Consulta` registra solicitacao, sucesso e eventos relevantes do processo;
+- base pronta para futura integracao conversacional com Slack.
 
 ## Fase 8 - Contatos, Polos e Status
 
@@ -254,6 +255,26 @@ Aceite:
 - `contacts` relacionados consistentes por processo
 - `prazos_calculados` com tasks geradas para eventos elegiveis
 
+## Fase 10 - Assistente Conversacional e Governanca Operacional
+
+Arquivos base:
+
+- [hmadv_status_operacional_2026-04-02.md](/D:/Github/newgit/docs/hmadv_status_operacional_2026-04-02.md)
+- [hmadv_cloudflare_ai_rollout.md](/D:/Github/newgit/docs/hmadv_cloudflare_ai_rollout.md)
+- [hmadv_fase8_contacts_status_rollout.md](/D:/Github/newgit/docs/hmadv_fase8_contacts_status_rollout.md)
+- [hmadv_prazos_rollout.md](/D:/Github/newgit/docs/hmadv_prazos_rollout.md)
+
+Aceite:
+
+- existe snapshot operacional auditavel do que esta pronto e do que ainda falta;
+- `Fase` e `Status` ficam separados por taxonomia controlada;
+- `Contacts` passam a ter estrategia formal:
+  - vincular existente quando houver match forte
+  - criar quando houver identificador suficiente
+  - bloquear quando a evidencia for fraca
+- worker IA fica homologado para `notes`, `tasks` e suporte a reconciliacao;
+- roadmap de integracao Slack fica formalizado para consulta e acao conversacional.
+
 ## Ordem recomendada
 
 1. Aplicar P0 e estabilizar `datajud_status`
@@ -268,3 +289,4 @@ Aceite:
 10. Implantar contatos, polos e status processual
 11. Implantar motor de prazos processuais
 12. Fechar reconciliacao diaria Freshsales x Supabase
+13. Homologar o worker IA e abrir a frente conversacional via Slack

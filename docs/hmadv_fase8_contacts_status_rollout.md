@@ -55,6 +55,29 @@ Executar esta fase somente apos:
 - `Suspenso` quando houver evento de suspensao ou sobrestamento
 - `Ativo` em qualquer outro caso
 
+### Fase
+
+- nao misturar `Fase` com `Status`
+- manter em `Fase` apenas marcos de rito:
+  - `Distribuicao`
+  - `Conhecimento`
+  - `Saneamento`
+  - `Instrucao`
+  - `Audiencia`
+  - `Pericia`
+  - `Concluso para decisao`
+  - `Julgado`
+  - `Recursal`
+  - `Liquidacao`
+  - `Cumprimento de Sentenca`
+  - `Execucao`
+- manter fora de `Fase` e em `Status/Substatus`:
+  - `Arquivado Definitivamente`
+  - `Arquivamento Provisorio`
+  - `Cancelado`
+  - `Suspenso`
+  - `Sobrestado`
+
 ## Validacao
 
 ```powershell
@@ -69,3 +92,4 @@ powershell -ExecutionPolicy Bypass -File "D:\Github\newgit\docs\hmadv_fase8_cont
 - `processo_contato_sync` comeca a ser preenchida
 - `cf_status` fica restrito a `Ativo`, `Baixado`, `Suspenso`
 - `freshsales_contacts` deixa de ficar vazio no HMADV
+- `Fase` passa a obedecer taxonomia controlada e deixa de conter estados finais
