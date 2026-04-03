@@ -1,5 +1,6 @@
 import { requireAdminNode } from "../../lib/admin/node-auth.js";
 import { runLawdeskChat } from "../../lib/lawdesk/chat.js";
+import { buildDotobotRepositoryContext } from "../../lib/lawdesk/capabilities.js";
 
 export default async function handler(req, res) {
   const auth = await requireAdminNode(req);
@@ -18,9 +19,13 @@ export default async function handler(req, res) {
   }
 
   try {
+    const repositoryContext = buildDotobotRepositoryContext(req.body?.context || {});
     const data = await runLawdeskChat(process.env, {
       query,
-      context: req.body?.context || {},
+      context: {
+        ...(req.body?.context || {}),
+        repositoryContext,
+      },
     });
     return res.status(200).json({ ok: true, data });
   } catch (error) {
@@ -30,4 +35,3 @@ export default async function handler(req, res) {
     });
   }
 }
-

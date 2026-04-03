@@ -1,5 +1,6 @@
 import { requireAdminAccess } from "../lib/admin-auth.js";
 import { runLawdeskChat } from "../../lib/lawdesk/chat.js";
+import { buildDotobotRepositoryContext } from "../../lib/lawdesk/capabilities.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -32,9 +33,13 @@ export async function onRequestPost(context) {
   }
 
   try {
+    const repositoryContext = buildDotobotRepositoryContext(body?.context || {});
     const data = await runLawdeskChat(env, {
       query,
-      context: body?.context || {},
+      context: {
+        ...(body?.context || {}),
+        repositoryContext,
+      },
     });
     return new Response(JSON.stringify({ ok: true, data }), {
       status: 200,
@@ -53,4 +58,3 @@ export async function onRequestPost(context) {
     );
   }
 }
-
