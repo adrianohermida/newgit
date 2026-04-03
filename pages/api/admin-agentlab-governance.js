@@ -1,6 +1,7 @@
 import { requireAdminNode } from "../../lib/admin/node-auth.js";
 import {
   executeCrmDispatchRun,
+  createImprovementQueueItem,
   upsertIntent,
   upsertKnowledgeSource,
   upsertQuickReply,
@@ -11,6 +12,7 @@ import {
   updateAgentLabProfile,
   updateCrmActionQueueItem,
   updateCrmDispatchRun,
+  updateIncidentItem,
   updateImprovementQueueItem,
 } from "../../lib/agentlab/server.js";
 
@@ -34,6 +36,16 @@ export default async function handler(req, res) {
 
     if (action === "update_queue_item") {
       const item = await updateImprovementQueueItem(process.env, req.body || {});
+      return res.status(200).json({ ok: true, item });
+    }
+
+    if (action === "create_queue_item") {
+      const item = await createImprovementQueueItem(process.env, req.body || {});
+      return res.status(200).json({ ok: true, item });
+    }
+
+    if (action === "update_incident_item") {
+      const item = await updateIncidentItem(process.env, req.body || {});
       return res.status(200).json({ ok: true, item });
     }
 

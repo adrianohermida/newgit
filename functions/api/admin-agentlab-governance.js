@@ -1,6 +1,7 @@
 import { requireAdminAccess } from "../lib/admin-auth.js";
 import {
   executeCrmDispatchRun,
+  createImprovementQueueItem,
   jsonError,
   jsonOk,
   upsertIntent,
@@ -12,6 +13,7 @@ import {
   upsertWorkflowLibraryItem,
   updateCrmActionQueueItem,
   updateCrmDispatchRun,
+  updateIncidentItem,
   updateAgentLabProfile,
   updateImprovementQueueItem,
 } from "../../lib/agentlab/server.js";
@@ -33,6 +35,16 @@ export async function onRequestPatch(context) {
 
     if (action === "update_queue_item") {
       const item = await updateImprovementQueueItem(context.env, body);
+      return jsonOk({ item });
+    }
+
+    if (action === "create_queue_item") {
+      const item = await createImprovementQueueItem(context.env, body);
+      return jsonOk({ item });
+    }
+
+    if (action === "update_incident_item") {
+      const item = await updateIncidentItem(context.env, body);
       return jsonOk({ item });
     }
 
