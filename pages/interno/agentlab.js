@@ -57,6 +57,7 @@ function AgentLabContent({ state }) {
   }
 
   const data = state.data || {};
+  const rollout = data.rollout || {};
   const overview = data.overview || {};
   const warnings = data.warnings || [];
   const environment = data.environment || {};
@@ -65,6 +66,12 @@ function AgentLabContent({ state }) {
   const automationRuns = data.crm?.automationRuns || [];
   const messageSummary = data.intelligence?.messageSummary || {};
   const widgetEventSummary = data.conversations?.widgetEventSummary || {};
+  const providerMatrix = rollout.providerMatrix || [];
+  const evaluationRubric = rollout.evaluationRubric || [];
+  const debateModes = rollout.debateModes || [];
+  const learningLoop = rollout.learningLoop || [];
+  const ethicsGuardrails = rollout.ethicsGuardrails || [];
+  const experimentTracks = rollout.experimentTracks || [];
   const actionQueueSummary = useMemo(() => {
     return actionQueue.reduce((acc, item) => {
       const key = item.status || "unknown";
@@ -147,6 +154,18 @@ function AgentLabContent({ state }) {
           </div>
         </Panel>
       ) : null}
+
+      <Panel title="Laboratorio de inteligencia" eyebrow="Visao geral">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5 text-sm opacity-75">
+          {(rollout.phases || []).map((item) => (
+            <div key={item.id} className="border border-[#2D2E2E] p-4">
+              <p className="font-semibold">{item.title}</p>
+              <p className="mt-2 text-xs uppercase tracking-[0.15em] opacity-50">{item.id}</p>
+              <p className="mt-2">{item.focus}</p>
+            </div>
+          ))}
+        </div>
+      </Panel>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Metric label="Agentes mapeados" value={overview.mappedAgents || 0} helper="Catalogo operacional ligado ao workspace e aos perfis de treinamento." />
@@ -299,6 +318,74 @@ function AgentLabContent({ state }) {
           </div>
         </Panel>
       </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Panel title="Matriz de provedores" eyebrow="Experimentos">
+          <div className="space-y-3 text-sm opacity-75">
+            {providerMatrix.length ? providerMatrix.map((item) => (
+              <div key={item.id} className="border border-[#2D2E2E] p-4">
+                <p className="font-semibold">{item.provider}</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.15em] opacity-50">
+                  {item.mode} | fallback #{item.fallback_order}
+                </p>
+                <p className="mt-2">{(item.strengths || []).join(" · ")}</p>
+              </div>
+            )) : <p>Nenhum provedor cadastrado.</p>}
+          </div>
+        </Panel>
+
+        <Panel title="Rubrica de avaliacao" eyebrow="Qualidade">
+          <div className="space-y-3 text-sm opacity-75">
+            {evaluationRubric.length ? evaluationRubric.map((item) => (
+              <div key={item.id} className="border border-[#2D2E2E] p-4">
+                <p className="font-semibold">{item.label}</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.15em] opacity-50">{item.weight}%</p>
+                <p className="mt-2">{item.description}</p>
+              </div>
+            )) : <p>Nenhuma rubrica cadastrada.</p>}
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-3">
+        <Panel title="Modo debate" eyebrow="Experimentos">
+          <div className="space-y-3 text-sm opacity-75">
+            {debateModes.length ? debateModes.map((item) => (
+              <div key={item.id} className="border border-[#2D2E2E] p-4">
+                <p className="font-semibold">{item.title}</p>
+                <p className="mt-2">{item.description}</p>
+              </div>
+            )) : <p>Nenhum modo de debate cadastrado.</p>}
+          </div>
+        </Panel>
+
+        <Panel title="Loop de aprendizado" eyebrow="Evolucao">
+          <div className="space-y-3 text-sm opacity-75">
+            {learningLoop.length ? learningLoop.map((item, index) => (
+              <p key={`${item}-${index}`}>{index + 1}. {item}</p>
+            )) : <p>Nenhum ciclo de aprendizado definido.</p>}
+          </div>
+        </Panel>
+
+        <Panel title="Guardrails legais" eyebrow="Etica">
+          <div className="space-y-3 text-sm opacity-75">
+            {ethicsGuardrails.length ? ethicsGuardrails.map((item) => (
+              <p key={item}>{item}</p>
+            )) : <p>Nenhum guardrail cadastrado.</p>}
+          </div>
+        </Panel>
+      </div>
+
+      <Panel title="Trilhas de experimento" eyebrow="A/B e comparacao">
+        <div className="grid gap-4 md:grid-cols-3 text-sm opacity-75">
+          {experimentTracks.length ? experimentTracks.map((item) => (
+            <div key={item.id} className="border border-[#2D2E2E] p-4">
+              <p className="font-semibold">{item.title}</p>
+              <p className="mt-2">{item.description}</p>
+            </div>
+          )) : <p>Nenhuma trilha de experimento cadastrada.</p>}
+        </div>
+      </Panel>
     </div>
   );
 }

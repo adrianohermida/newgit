@@ -24,7 +24,7 @@ export default function AgentLabEvaluationPage() {
         <InternoLayout
           profile={profile}
           title="AgentLab · Avaliacao"
-          description="Fila gerencial de unanswered, poor responses, incidentes e melhoria semanal do agente."
+          description="Fila gerencial de unanswered, poor responses, incidentes, rubric de qualidade e melhoria semanal do agente."
         >
           <AgentLabModuleNav />
           <EvaluationContent state={state} message={message} setMessage={setMessage} />
@@ -139,10 +139,10 @@ function EvaluationContent({ state, message, setMessage }) {
       {message ? <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm opacity-80">{message}</div> : null}
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Panel title={`Incidentes abertos: ${summary.open || 0}`}><p className="text-sm opacity-75">Falhas em classificacao, fluxo, cobertura e operacao.</p></Panel>
-        <Panel title={`Gaps de intent: ${unresolvedThreads.length}`}><p className="text-sm opacity-75">Conversas sem intencao classificada e prontas para treino.</p></Panel>
-        <Panel title={`Backlog de avaliacao: ${backlog.length}`}><p className="text-sm opacity-75">Itens que ja viraram trabalho operacional para a sprint.</p></Panel>
-        <Panel title={`Sinais de mensagem: ${messageSummary.qualityEvents || 0}`}><p className="text-sm opacity-75">Mensagens com baixa qualidade, handoff generico ou risco operacional.</p></Panel>
+        <Panel title={`Incidentes abertos: ${summary.open || 0}`}><p className="text-sm opacity-75">Falhas em classificacao, coerencia, seguranca juridica e operacao.</p></Panel>
+        <Panel title={`Gaps de intent: ${unresolvedThreads.length}`}><p className="text-sm opacity-75">Conversas sem intencao classificada e prontas para treino ou correcao.</p></Panel>
+        <Panel title={`Backlog de avaliacao: ${backlog.length}`}><p className="text-sm opacity-75">Itens que ja viraram trabalho operacional para a sprint de evolucao.</p></Panel>
+        <Panel title={`Sinais de mensagem: ${messageSummary.qualityEvents || 0}`}><p className="text-sm opacity-75">Mensagens com baixa qualidade, handoff generico, risco operacional ou perda de contexto.</p></Panel>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">

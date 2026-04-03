@@ -7,7 +7,7 @@ const ITEMS = [
   { href: "/interno/agentlab/agents", label: "Agentes" },
   { href: "/interno/agentlab/conversations", label: "Conversas" },
   { href: "/interno/agentlab/training", label: "Treinamento" },
-  { href: "/interno/agentlab/orquestracao", label: "Orquestracao" },
+  { href: "/interno/agentlab/orquestracao", label: "Experimentos" },
   { href: "/interno/agentlab/knowledge", label: "Conhecimento" },
   { href: "/interno/agentlab/workflows", label: "Workflows" },
   { href: "/interno/agentlab/evaluation", label: "Avaliacao" },

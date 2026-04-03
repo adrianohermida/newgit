@@ -46,7 +46,7 @@ export default function AgentLabTrainingPage() {
         <InternoLayout
           profile={profile}
           title="AgentLab | Treinamento"
-          description="Centro de treinamento para chatbot e agente de IA, com cenarios juridicos, scorecards e fallback heuristico."
+          description="Centro de treinamento, avaliacao e evolucao de agentes, com cenarios juridicos, scorecards, comparacao de prompts e fallback heuristico."
         >
           <AgentLabModuleNav />
           <TrainingContent
@@ -136,9 +136,9 @@ function TrainingContent({
             </select>
           </label>
           <div className="border border-[#2D2E2E] p-4 text-sm opacity-75">
-            O AgentLab agora separa o treino do chatbot de triagem e do agente de IA mais sensivel.
+            O AgentLab separa treino, avaliacao, experimentos e refinamento do Dotobot.
             Quando o Workers AI estiver indisponivel, o painel usa uma avaliacao heuristica de contingencia
-            para continuar gerando score, recomendacoes e backlog.
+            para continuar gerando score, recomendacoes, comparacao e backlog.
           </div>
         </div>
       </Panel>
