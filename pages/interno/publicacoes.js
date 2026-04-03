@@ -56,6 +56,16 @@ function MetricCard({ label, value, helper }) {
   );
 }
 
+function QueueSummaryCard({ title, count, helper, accent = "text-[#C5A059]" }) {
+  return (
+    <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-5">
+      <p className="text-xs font-semibold tracking-[0.15em] uppercase mb-2 opacity-50">{title}</p>
+      <p className={`font-serif text-3xl mb-2 ${accent}`}>{count}</p>
+      <p className="text-sm opacity-65 leading-relaxed">{helper}</p>
+    </div>
+  );
+}
+
 function Panel({ title, eyebrow, children }) {
   return (
     <section className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
@@ -514,19 +524,24 @@ function PublicacoesContent() {
       </div>
 
       {view === "operacao" ? <div className="grid gap-6 xl:grid-cols-2">
-        <Panel title="Criacao de processos a partir das publicacoes" eyebrow="Fila paginada">
+        <Panel title="Criacao de processos a partir das publicacoes" eyebrow="Operacao orientada por fila">
           <div className="space-y-4">
-            <QueueList
-              title="Processos criaveis"
-              helper="Selecione itens da pagina para disparar a criacao do processo no HMADV via DataJud."
-              rows={processCandidates.items}
-              selected={selectedProcessKeys}
-              onToggle={(key) => toggleSelection(setSelectedProcessKeys, selectedProcessKeys, key)}
-              onTogglePage={(nextState) => togglePageSelection(setSelectedProcessKeys, selectedProcessKeys, processCandidates.items, nextState)}
-              page={processPage}
-              setPage={setProcessPage}
-              loading={processCandidates.loading}
-            />
+            <div className="grid gap-3 md:grid-cols-2">
+              <QueueSummaryCard
+                title="Processos criaveis"
+                count={processCandidates.totalRows || processCandidates.items.length || 0}
+                helper={`${selectedProcessKeys.length} selecionado(s) nesta sessao.`}
+              />
+              <QueueSummaryCard
+                title="Sem processo vinculado"
+                count={data.publicacoesSemProcesso || 0}
+                helper="Publicacoes prontas para gerar processo no HMADV."
+              />
+            </div>
+            <p className="text-sm opacity-70">
+              Use a visao <strong>Filas</strong> para selecionar processos individualmente ou por pagina.
+              Esta visao fica focada em disparar a operacao e acompanhar o lote.
+            </p>
             <label className="block">
               <span className="block text-xs font-semibold tracking-[0.15em] uppercase mb-2 opacity-50">CNJs para foco manual</span>
               <textarea
@@ -551,6 +566,13 @@ function PublicacoesContent() {
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
+                onClick={() => updateView("filas")}
+                className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059]"
+              >
+                Abrir filas
+              </button>
+              <button
+                type="button"
                 onClick={() => handleAction("criar_processos_publicacoes", false, selectedProcessNumbers)}
                 disabled={actionState.loading}
                 className="bg-[#C5A059] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#050706] disabled:opacity-50"
@@ -569,20 +591,31 @@ function PublicacoesContent() {
           </div>
         </Panel>
 
-        <Panel title="Extracao retroativa de partes" eyebrow="Fila paginada">
+        <Panel title="Extracao retroativa de partes" eyebrow="Operacao orientada por fila">
           <div className="space-y-4">
-            <QueueList
-              title="Processos com partes extraiveis"
-              helper="Selecione processos vinculados que ainda tenham partes detectadas no conteudo das publicacoes."
-              rows={partesCandidates.items}
-              selected={selectedPartesKeys}
-              onToggle={(key) => toggleSelection(setSelectedPartesKeys, selectedPartesKeys, key)}
-              onTogglePage={(nextState) => togglePageSelection(setSelectedPartesKeys, selectedPartesKeys, partesCandidates.items, nextState)}
-              page={partesPage}
-              setPage={setPartesPage}
-              loading={partesCandidates.loading}
-            />
+            <div className="grid gap-3 md:grid-cols-2">
+              <QueueSummaryCard
+                title="Partes extraiveis"
+                count={partesCandidates.totalRows || partesCandidates.items.length || 0}
+                helper={`${selectedPartesKeys.length} selecionado(s) nesta sessao.`}
+              />
+              <QueueSummaryCard
+                title="Partes totais"
+                count={data.partesTotal || 0}
+                helper="Base atual persistida em judiciario.partes."
+              />
+            </div>
+            <p className="text-sm opacity-70">
+              A extração sempre precisa enriquecer o Supabase primeiro. Selecione os processos na visao <strong>Filas</strong> e volte aqui para simular ou aplicar.
+            </p>
             <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => updateView("filas")}
+                className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
+              >
+                Abrir filas
+              </button>
               <button
                 type="button"
                 onClick={() => handleAction("backfill_partes", false, selectedPartesNumbers)}
@@ -629,7 +662,14 @@ function PublicacoesContent() {
         </Panel>
       </div> : null}
 
-      {view === "filas" ? <div className="grid gap-6 xl:grid-cols-2">
+      {view === "filas" ? <div className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <QueueSummaryCard title="Processos criaveis" count={processCandidates.totalRows || processCandidates.items.length || 0} helper="Fila para gerar processo a partir da publicacao." />
+          <QueueSummaryCard title="Partes extraiveis" count={partesCandidates.totalRows || partesCandidates.items.length || 0} helper="Fila para enriquecer judiciario.partes." />
+          <QueueSummaryCard title="Com activity" count={data.publicacoesComActivity || 0} helper="Publicacoes ja refletidas no Freshsales." />
+          <QueueSummaryCard title="Pendentes" count={data.publicacoesPendentesComAccount || 0} helper="Publicacoes ainda sem activity." />
+        </div>
+        <div className="grid gap-6 xl:grid-cols-2">
         <Panel title="Fila de processos criaveis" eyebrow="Criacao a partir das publicacoes">
           <QueueList
             title="Processos criaveis"
@@ -660,6 +700,7 @@ function PublicacoesContent() {
             pageSize={partesCandidates.pageSize}
           />
         </Panel>
+        </div>
       </div> : null}
 
       {view === "resultado" ? <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
