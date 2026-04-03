@@ -67,6 +67,9 @@ export default function InternoHomePage() {
                 <Link href="/interno/publicacoes" prefetch={false} className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
                   Abrir gestao de publicacoes
                 </Link>
+                <Link href="/interno/contacts" prefetch={false} className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
+                  Abrir gestao de contacts
+                </Link>
                 <Link href="/interno/posts" prefetch={false} className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
                   Abrir modulo de posts
                 </Link>

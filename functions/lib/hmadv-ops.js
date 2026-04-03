@@ -391,6 +391,8 @@ export async function listPartesExtractionCandidates(env, { page = 1, pageSize =
       partes_existentes: existing.length,
       partes_detectadas: uniqueParsed.length,
       partes_novas: novas.length,
+      sample_partes_novas: novas.slice(0, 4),
+      sample_partes_existentes: existing.slice(0, 4),
       sample_partes: novas.slice(0, 4),
     });
   }
@@ -493,14 +495,23 @@ export async function listMonitoringProcesses(env, { page = 1, pageSize = 20, ac
   const safePage = Math.max(1, Number(page || 1));
   const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
   const flag = active ? "true" : "false";
-  const items = await listTableSafe(
+  let items = await listTableSafe(
     env,
     `processos?select=id,numero_cnj,titulo,account_id_freshsales,monitoramento_ativo,status_atual_processo,quantidade_movimentacoes&monitoramento_ativo=eq.${flag}&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
   );
+  let totalRows = await countTableSafe(env, "processos", `monitoramento_ativo=eq.${flag}`);
+  if (active && !totalRows) {
+    items = await listTableSafe(
+      env,
+      `processos?select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo,quantidade_movimentacoes&account_id_freshsales=not.is.null&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
+    );
+    items = items.map((item) => ({ ...item, monitoramento_ativo: true, monitoramento_fallback: true }));
+    totalRows = await countTableSafe(env, "processos", "account_id_freshsales=not.is.null");
+  }
   return {
     page: safePage,
     pageSize: safePageSize,
-    totalRows: await countTableSafe(env, "processos", `monitoramento_ativo=eq.${flag}`),
+    totalRows,
     items,
   };
 }
@@ -819,9 +830,12 @@ export async function backfillPartesFromPublicacoes(env, { processNumbers = [], 
       sample.push({
         processo_id: proc.id,
         numero_cnj: proc.numero_cnj,
+        titulo: proc.titulo,
+        account_id_freshsales: proc.account_id_freshsales || null,
         publicacoes_lidas: publicacoes.length,
         partes_existentes: existentes.length,
         partes_detectadas: uniqueParsed.length,
+        partes_existentes_preview: existentes.slice(0, 4),
         partes_novas: novas,
       });
     }

@@ -39,6 +39,9 @@ function QueueList({
   loading,
 }) {
   const allSelected = rows.length > 0 && rows.every((row) => selected.includes(row.key));
+  function freshsalesUrl(accountId) {
+    return accountId ? `https://hmadv-org.myfreshworks.com/crm/sales/accounts/${accountId}` : null;
+  }
 
   return (
     <div className="space-y-4">
@@ -95,11 +98,26 @@ function QueueList({
                   {row.ultima_publicacao ? <span>Ultima publicacao: {row.ultima_publicacao}</span> : null}
                   {row.partes_novas ? <span>Partes novas: {row.partes_novas}</span> : null}
                   {row.partes_existentes !== undefined ? <span>Partes existentes: {row.partes_existentes}</span> : null}
-                  {row.account_id_freshsales ? <span>Account: {row.account_id_freshsales}</span> : null}
+                  {row.account_id_freshsales ? (
+                    <a
+                      href={freshsalesUrl(row.account_id_freshsales)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline hover:text-[#C5A059]"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      Processo: {row.numero_cnj || row.account_id_freshsales}
+                    </a>
+                  ) : null}
                 </div>
-                {row.sample_partes?.length ? (
+                {row.sample_partes_novas?.length ? (
                   <p className="text-xs opacity-60">
-                    Exemplos: {row.sample_partes.map((item) => `${item.nome} (${item.polo})`).join(" | ")}
+                    Novas: {row.sample_partes_novas.map((item) => `${item.nome} (${item.polo})`).join(" | ")}
+                  </p>
+                ) : null}
+                {row.sample_partes_existentes?.length ? (
+                  <p className="text-xs opacity-50">
+                    Ja existentes: {row.sample_partes_existentes.map((item) => `${item.nome} (${item.polo})`).join(" | ")}
                   </p>
                 ) : null}
               </div>
@@ -107,6 +125,92 @@ function QueueList({
           </label>
         ))}
       </div>
+    </div>
+  );
+}
+
+function OperationResult({ result }) {
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const rows = Array.isArray(result?.sample)
+    ? result.sample
+    : Array.isArray(result?.items)
+      ? result.items
+      : Array.isArray(result?.sample_partes)
+        ? result.sample_partes
+        : [];
+  const paged = rows.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-4 text-sm">
+        {Object.entries(result || {})
+          .filter(([, value]) => !Array.isArray(value) && (typeof value === "string" || typeof value === "number" || typeof value === "boolean"))
+          .slice(0, 8)
+          .map(([key, value]) => (
+            <div key={key} className="border border-[#2D2E2E] p-3">
+              <p className="text-[11px] uppercase tracking-[0.15em] opacity-50">{key}</p>
+              <p className="mt-1 break-all">{String(value)}</p>
+            </div>
+          ))}
+      </div>
+
+      {rows.length ? (
+        <>
+          <div className="space-y-3">
+            {paged.map((row, index) => (
+              <div key={`${row.numero_cnj || row.processo_id || index}`} className="border border-[#2D2E2E] p-4 text-sm">
+                <p className="font-semibold">{row.numero_cnj || row.processo_id || `Linha ${index + 1}`}</p>
+                {row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}
+                {row.account_id_freshsales ? (
+                  <a
+                    href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs underline opacity-70 hover:text-[#C5A059]"
+                  >
+                    Abrir account {row.account_id_freshsales}
+                  </a>
+                ) : null}
+                {row.partes_novas?.length ? (
+                  <p className="mt-2 text-xs opacity-70">
+                    Partes novas: {row.partes_novas.map((item) => `${item.nome} (${item.polo})`).join(" | ")}
+                  </p>
+                ) : null}
+                {row.partes_existentes_preview?.length ? (
+                  <p className="mt-2 text-xs opacity-50">
+                    Partes existentes: {row.partes_existentes_preview.map((item) => `${item.nome} (${item.polo})`).join(" | ")}
+                  </p>
+                ) : null}
+                {row.result ? <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs opacity-70">{JSON.stringify(row.result, null, 2)}</pre> : null}
+              </div>
+            ))}
+          </div>
+          {totalPages > 1 ? (
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPage(Math.max(1, page - 1))}
+                disabled={page <= 1}
+                className="border border-[#2D2E2E] px-3 py-2 text-sm disabled:opacity-40"
+              >
+                Anterior
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage(Math.min(totalPages, page + 1))}
+                disabled={page >= totalPages}
+                className="border border-[#2D2E2E] px-3 py-2 text-sm disabled:opacity-40"
+              >
+                Proxima
+              </button>
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <pre className="overflow-x-auto whitespace-pre-wrap text-xs opacity-80">{JSON.stringify(result, null, 2)}</pre>
+      )}
     </div>
   );
 }
@@ -354,7 +458,7 @@ function PublicacoesContent() {
         {actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}
         {actionState.error ? <p className="text-sm text-red-300">{actionState.error}</p> : null}
         {!actionState.loading && !actionState.error && actionState.result ? (
-          <pre className="overflow-x-auto whitespace-pre-wrap text-xs opacity-80">{JSON.stringify(actionState.result, null, 2)}</pre>
+          <OperationResult result={actionState.result} />
         ) : null}
         {!actionState.loading && !actionState.error && !actionState.result ? (
           <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p>
