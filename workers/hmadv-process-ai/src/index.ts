@@ -43,10 +43,17 @@ type R2BucketBinding = {
   ): Promise<unknown>;
 };
 
+type KvNamespaceBinding = {
+  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
+  get(key: string, type?: "text"): Promise<string | null>;
+  get<T = unknown>(key: string, type: "json"): Promise<T | null>;
+};
+
 export interface Env {
   AI: AiBinding;
   VECTORIZE: VectorizeBinding;
   ANALYTICS_ENGINE?: AnalyticsEngineBinding;
+  CLOUDFLARE_KV_NAMESPACE?: KvNamespaceBinding;
   hmadv_process_ai: D1Database;
   hmadv_process_ai_logs?: R2BucketBinding;
   CLOUDFLARE_WORKERS_AI_MODEL?: string;
@@ -192,6 +199,29 @@ async function persistR2Snapshot(
   await env.hmadv_process_ai_logs.put(key, JSON.stringify(payload, null, 2), {
     httpMetadata: { contentType: 'application/json; charset=utf-8' },
   });
+  return key;
+}
+
+async function persistKvSnapshot(
+  env: Env,
+  kind: string,
+  runId: string,
+  payload: Record<string, unknown>
+) {
+  if (!env.CLOUDFLARE_KV_NAMESPACE) return null;
+  const key = `runs/${kind}/${runId}`;
+  await env.CLOUDFLARE_KV_NAMESPACE.put(
+    key,
+    JSON.stringify(
+      {
+        ...payload,
+        stored_at: nowIso(),
+      },
+      null,
+      2
+    ),
+    { expirationTtl: 60 * 60 * 24 * 30 }
+  );
   return key;
 }
 
@@ -449,6 +479,13 @@ async function analyzeActivity(req: Request, env: Env) {
     retrieved_context: retrievedContext,
     created_at: nowIso(),
   }).catch(() => null);
+  await persistKvSnapshot(env, 'activity', runId, {
+    run_id: runId,
+    kind: 'activity',
+    mission: String((payload as Record<string, any>).type || 'activity'),
+    summary: String(analysis?.summary_title || analysis?.summary_note || 'activity'),
+    retrieved_context_count: retrievedContext.length,
+  }).catch(() => null);
   await persistMemoryVector(env, runId, 'activity', payload as Json, analysis).catch(() => null);
 
   return json({ ok: true, analysis, retrieved_context: retrievedContext });
@@ -511,6 +548,13 @@ async function analyzeProcess(req: Request, env: Env) {
     analysis,
     retrieved_context: retrievedContext,
     created_at: nowIso(),
+  }).catch(() => null);
+  await persistKvSnapshot(env, 'process', runId, {
+    run_id: runId,
+    kind: 'process',
+    mission: String((payload as Record<string, any>).processo?.numero_cnj || (payload as Record<string, any>).numero_cnj || 'process'),
+    summary: String(analysis?.account_note_title || analysis?.account_note_body || 'process'),
+    retrieved_context_count: retrievedContext.length,
   }).catch(() => null);
   await persistMemoryVector(env, runId, 'process', payload as Json, analysis).catch(() => null);
 
@@ -631,6 +675,14 @@ async function reconcileRows(env: Env, processos: Json[]) {
       retrieved_context: retrievedContext,
       created_at: nowIso(),
     }).catch(() => null);
+    await persistKvSnapshot(env, 'reconcile', runId, {
+      run_id: runId,
+      kind: 'reconcile',
+      mission: String(processo.numero_cnj ?? processoId),
+      summary: String(analysis?.account_note_title || analysis?.account_note_body || 'reconcile'),
+      retrieved_context_count: retrievedContext.length,
+      account_id: accountId,
+    }).catch(() => null);
 
     results.push({
       processo_id: processoId,
@@ -659,6 +711,7 @@ export default {
         now: new Date().toISOString(),
         vectorize: Boolean(env.VECTORIZE),
         analytics_engine: Boolean(env.ANALYTICS_ENGINE),
+        kv: Boolean(env.CLOUDFLARE_KV_NAMESPACE),
         d1: Boolean(env.hmadv_process_ai),
         r2: Boolean(env.hmadv_process_ai_logs),
         embedding_model: getEmbeddingModel(env),
