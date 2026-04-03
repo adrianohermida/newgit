@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/router";
 import { adminFetch } from "../../lib/admin/api";
 
 const CHAT_STORAGE_PREFIX = "dotobot_internal_chat_v3";
@@ -190,7 +191,14 @@ function getVoiceRecognition() {
   return window.SpeechRecognition || window.webkitSpeechRecognition || null;
 }
 
-export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen = false, defaultCollapsed = true }) {
+export default function DotobotPanel({
+  profile,
+  routePath,
+  initialWorkspaceOpen = false,
+  defaultCollapsed = true,
+  compactRail = false,
+}) {
+  const router = useRouter();
   const chatStorageKey = useMemo(() => buildStorageKey(CHAT_STORAGE_PREFIX, profile), [profile]);
   const taskStorageKey = useMemo(() => buildStorageKey(TASK_STORAGE_PREFIX, profile), [profile]);
   const prefStorageKey = useMemo(() => buildStorageKey(PREF_STORAGE_PREFIX, profile), [profile]);
@@ -553,8 +561,10 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
   const activeTask = getLastTask(taskHistory);
   const ragSummary = buildRagSummary(activeTask?.rag);
   const activeStatus = loading || runningCount ? "processing" : "online";
+  const activeMode = MODE_OPTIONS.find((item) => item.value === mode) || MODE_OPTIONS[0];
   const activeProviderLabel = PROVIDER_OPTIONS.find((item) => item.value === provider)?.label || "GPT";
-  const isWorkspaceShell = workspaceOpen;
+  const isWorkspaceShell = workspaceOpen && !compactRail;
+  const railCollapsed = compactRail ? true : collapsed;
 
   return (
     <>
@@ -572,20 +582,32 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
               </div>
             </div>
             <div className="flex flex-col items-end gap-2">
-              <button
-                type="button"
-                onClick={() => setWorkspaceOpen(true)}
-                className="rounded-2xl border border-[#C5A059] px-3 py-2 text-xs font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]"
-              >
-                Tela cheia
-              </button>
-              <button
-                type="button"
-                className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-                onClick={() => setCollapsed((value) => !value)}
-              >
-                {collapsed ? "Expandir" : "Compactar"}
-              </button>
+              {compactRail ? (
+                <button
+                  type="button"
+                  onClick={() => router.push("/interno/ai-task")}
+                  className="rounded-2xl border border-[#C5A059] px-3 py-2 text-xs font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]"
+                >
+                  Abrir Copilot
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setWorkspaceOpen(true)}
+                    className="rounded-2xl border border-[#C5A059] px-3 py-2 text-xs font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]"
+                  >
+                    Tela cheia
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                    onClick={() => setCollapsed((value) => !value)}
+                  >
+                    {collapsed ? "Expandir" : "Compactar"}
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -597,7 +619,36 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
           </div>
         </header>
 
-        {!collapsed ? (
+        {compactRail ? (
+          <div className="px-4 py-4">
+            <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Copilot compacto</p>
+              <p className="mt-2 text-sm leading-6 text-[#9BAEA8]">
+                Painel lateral de acesso rapido. A conversa completa, tasks e execucao em tela cheia ficam no modulo central.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => router.push("/interno/ai-task")}
+                  className="rounded-full border border-[#C5A059] px-3 py-1.5 text-[11px] font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]"
+                >
+                  Abrir Copilot
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setContextEnabled((value) => !value)}
+                  className={`rounded-full border px-3 py-1.5 text-[11px] font-medium transition ${
+                    contextEnabled
+                      ? "border-[#3E5B50] bg-[rgba(64,122,97,0.16)] text-[#A9E3C3]"
+                      : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
+                  }`}
+                >
+                  Contexto {contextEnabled ? "ON" : "OFF"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : !railCollapsed ? (
           <>
             <div className="border-b border-[#22342F] px-4 py-3">
               <div className="flex flex-wrap gap-2">
@@ -723,8 +774,8 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
         ) : null}
       </section>
 
-      {isWorkspaceShell ? (
-        <div className="fixed inset-0 z-[70] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.16),transparent_28%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.96))] text-[#F4F1EA] backdrop-blur-xl">
+        {isWorkspaceShell ? (
+          <div className="fixed inset-0 z-[70] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.16),transparent_28%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.96))] text-[#F4F1EA] backdrop-blur-xl">
           <div className="flex h-full flex-col">
             <header className="border-b border-[#22342F]/80 bg-[rgba(7,10,9,0.78)] px-4 py-4 backdrop-blur-xl md:px-5">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">

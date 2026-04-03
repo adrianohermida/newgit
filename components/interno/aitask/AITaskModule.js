@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { adminFetch } from "../../../lib/admin/api";
 
 const STORAGE_PREFIX = "ai_task_workspace_v1";
@@ -57,9 +57,9 @@ function detectModules(mission) {
   const value = mission.toLowerCase();
   const modules = [];
   if (/(lead|leads|crm|cliente|contact|contato)/i.test(value)) modules.push("CRM");
-  if (/(process|processo|peti|ação|acao|jurid)/i.test(value)) modules.push("Processos");
+  if (/(process|processo|peti|aÃ§Ã£o|acao|jurid)/i.test(value)) modules.push("Processos");
   if (/(document|pdf|docx|arquivo|file|anexo)/i.test(value)) modules.push("Documentos");
-  if (/(finance|pagamento|divida|dívida|acordo|parcel|cobranca|cobrança)/i.test(value)) modules.push("Financeiro");
+  if (/(finance|pagamento|divida|dÃ­vida|acordo|parcel|cobranca|cobranÃ§a)/i.test(value)) modules.push("Financeiro");
   if (/(agenda|agend|calend|reuni)/i.test(value)) modules.push("Agenda");
   if (!modules.length) modules.push("Geral");
   return modules;
@@ -78,7 +78,7 @@ function buildBlueprint(mission, profile, mode, provider) {
   const steps = [
     {
       id: "intake",
-      title: "Receber missão",
+      title: "Receber missÃ£o",
       description: "Interpretar o pedido, identificar urgencia e classificar a natureza da tarefa.",
       status: "pending",
       dependsOn: [],
@@ -126,9 +126,9 @@ function buildBlueprint(mission, profile, mode, provider) {
   const thinking = [
     {
       id: "thought-intake",
-      title: "Leitura da missão",
+      title: "Leitura da missÃ£o",
       timestamp: nowIso(),
-      summary: `Interpretando solicitação como tarefa ${critical ? "critica" : "operacional"} no modo ${mode}.`,
+      summary: `Interpretando solicitaÃ§Ã£o como tarefa ${critical ? "critica" : "operacional"} no modo ${mode}.`,
       details: [
         `Pedido normalizado: ${normalizedMission || "missao vazia"}`,
         `Modulos candidatos: ${modules.join(", ")}`,
@@ -574,7 +574,7 @@ export default function AITaskModule({ profile, routePath }) {
       setAutomation("done");
       pushLog({
         type: "critic",
-        action: "Validação",
+        action: "ValidaÃ§Ã£o",
         result: "Execucao concluida com trilha de auditoria disponivel.",
       });
     } catch (missionError) {
@@ -716,96 +716,65 @@ export default function AITaskModule({ profile, routePath }) {
     missionInputRef.current?.focus();
   }
 
+  const compactLogs = visibleLogs.filter((log) => {
+    if (!search.trim()) return true;
+    const value = `${log.type} ${log.action} ${log.result}`.toLowerCase();
+    return value.includes(search.toLowerCase());
+  });
+
   return (
     <div className="space-y-4">
       <header className="rounded-[30px] border border-[#22342F] bg-[rgba(10,12,11,0.98)] px-5 py-5 shadow-[0_18px_54px_rgba(0,0,0,0.24)]">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">AI TASK</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-[#F5F1E8] md:text-[40px]">
-              Core Orchestration Panel
-            </h2>
-            <p className="mt-3 max-w-4xl text-sm leading-7 text-[#9BAEA8]">
-              Supervisione um operador digital: o AI planeja, executa, valida e reporta cada movimento com trilha de auditoria e controle humano.
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">AI TASK</p>
+              <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-[#D8DEDA]">{stateLabel}</span>
+              <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-[#D8DEDA]">{provider}</span>
+              <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-[#D8DEDA]">{activeMode.label}</span>
+            </div>
+            <h2 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-[#F5F1E8] md:text-[40px]">Copilot juridico operacional</h2>
+            <p className="mt-3 max-w-4xl text-sm leading-7 text-[#9BAEA8]">Conversa central dominante, contexto recolhivel e tarefas laterais. O operador ve o que a IA pensa, faz e valida.</p>
           </div>
-
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA]">
-              Estado: <strong className="text-[#F5F1E8]">{stateLabel}</strong>
-            </span>
-            <span className="rounded-full border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA]">
-              Modelo: <strong className="text-[#F5F1E8]">{provider}</strong>
-            </span>
-            <span className="rounded-full border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA]">
-              Modo: <strong className="text-[#F5F1E8]">{activeMode.label}</strong>
-            </span>
-            <button
-              type="button"
-              onClick={handleStart}
-              className="rounded-full border border-[#C5A059] px-4 py-2 text-xs font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]"
-            >
-              Start AI
-            </button>
-            <button
-              type="button"
-              onClick={handlePause}
-              className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-            >
-              {paused ? "Resume" : "Pause"}
-            </button>
-            <button
-              type="button"
-              onClick={handleStop}
-              className="rounded-full border border-[#4f2525] px-4 py-2 text-xs text-[#f2b2b2] transition hover:border-[#f2b2b2]"
-            >
-              Stop
-            </button>
-            <button
-              type="button"
-              onClick={handleApprove}
-              className="rounded-full border border-[#234034] px-4 py-2 text-xs text-[#8FCFA9] transition hover:border-[#8FCFA9]"
-            >
-              Approve actions
-            </button>
+            <button type="button" onClick={handleStart} className="rounded-full border border-[#C5A059] px-4 py-2 text-xs font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]">Send</button>
+            <button type="button" onClick={handlePause} className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">{paused ? "Resume" : "Pause"}</button>
+            <button type="button" onClick={handleStop} className="rounded-full border border-[#4f2525] px-4 py-2 text-xs text-[#f2b2b2] transition hover:border-[#f2b2b2]">Stop</button>
+            <button type="button" onClick={handleApprove} className="rounded-full border border-[#234034] px-4 py-2 text-xs text-[#8FCFA9] transition hover:border-[#8FCFA9]">Approve</button>
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px_220px]">
+        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px_220px]">
           <label className="block">
             <span className="mb-2 block text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Mission</span>
             <textarea
               ref={missionInputRef}
               value={mission}
               onChange={(event) => handleMissionChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  handleStart();
+                }
+              }}
               rows={3}
-              placeholder="Ex: Review all new leads and classify them."
+              placeholder="Digite uma instrução juridica ou operacional..."
               className="w-full resize-none rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm text-[#F5F1E8] outline-none placeholder:text-[#60706A] focus:border-[#C5A059]"
             />
           </label>
-
           <label className="block">
             <span className="mb-2 block text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Mode</span>
-            <select
-              value={mode}
-              onChange={(event) => setMode(event.target.value)}
-              className="h-[calc(100%-1.8rem)] w-full rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
-            >
+            <select value={mode} onChange={(event) => setMode(event.target.value)} className="h-[calc(100%-1.8rem)] w-full rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
               {MODE_OPTIONS.map((item) => (
                 <option key={item.value} value={item.value}>
-                  {item.label} - {item.tone}
+                  {item.label} - {item.helper}
                 </option>
               ))}
             </select>
           </label>
-
           <label className="block">
             <span className="mb-2 block text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">LLM</span>
-            <select
-              value={provider}
-              onChange={(event) => setProvider(event.target.value)}
-              className="h-[calc(100%-1.8rem)] w-full rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
-            >
+            <select value={provider} onChange={(event) => setProvider(event.target.value)} className="h-[calc(100%-1.8rem)] w-full rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
               {PROVIDER_OPTIONS.map((item) => (
                 <option key={item.value} value={item.value}>
                   {item.label}
@@ -823,173 +792,96 @@ export default function AITaskModule({ profile, routePath }) {
         </div>
       </header>
 
-      <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1.2fr)_320px]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
         <section className="rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4 shadow-[0_16px_48px_rgba(0,0,0,0.2)]">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Thinking</p>
-              <p className="mt-1 text-sm text-[#9BAEA8]">Leitura da missão, contexto recuperado e escolha de ferramentas.</p>
-            </div>
-            <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] text-[#9BAEA8]">
-              {thinking.length} blocks
-            </span>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            {thinking.length ? (
-              thinking.map((block) => <ThinkingBlock key={block.id} block={block} />)
-            ) : (
-              <div className="rounded-[24px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm text-[#9BAEA8]">
-                O AI ainda nao recebeu uma missao para planejar.
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4 shadow-[0_16px_48px_rgba(0,0,0,0.2)]">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Task board</p>
-              <p className="mt-1 text-sm text-[#9BAEA8]">Pending, in progress, completed and failed tasks.</p>
+              <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Conversation</p>
+              <p className="mt-1 text-sm text-[#9BAEA8]">Chat central com feedback visual do planejamento e da resposta.</p>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedLogFilter("all")}
-                className={`rounded-full border px-3 py-1.5 text-[11px] transition ${
-                  selectedLogFilter === "all"
-                    ? "border-[#C5A059] text-[#C5A059]"
-                    : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
-                }`}
-              >
-                Todos
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedLogFilter("planner")}
-                className={`rounded-full border px-3 py-1.5 text-[11px] transition ${
-                  selectedLogFilter === "planner"
-                    ? "border-[#C5A059] text-[#C5A059]"
-                    : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
-                }`}
-              >
-                Planner
-              </button>
+              <button type="button" onClick={() => setShowContext((value) => !value)} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">{showContext ? "Hide context" : "Show context"}</button>
+              <button type="button" onClick={() => setShowTasks((value) => !value)} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">{showTasks ? "Hide tasks" : "Show tasks"}</button>
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
-            {Object.entries(taskColumns).map(([column, columnTasks]) => (
-              <div key={column} className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">{column}</p>
-                  <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#9BAEA8]">{columnTasks.length}</span>
-                </div>
-                <div className="space-y-3">
-                  {columnTasks.length ? (
-                    columnTasks.map((task) => (
-                      <TaskCard key={task.id} task={task} isSelected={selectedTaskId === task.id} onSelect={setSelectedTaskId} />
-                    ))
-                  ) : (
-                    <div className="rounded-[20px] border border-dashed border-[#22342F] p-3 text-sm text-[#9BAEA8]">
-                      Sem tarefas
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+          <div ref={chatViewportRef} className="mt-4 max-h-[56vh] space-y-3 overflow-y-auto pr-1">
+            {mission ? <Bubble role="user" title="Mission" body={mission} time={activeRun?.startedAt ? new Date(activeRun.startedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "now"} /> : null}
+            {thinking.length ? thinking.map((block) => <ThinkingBlock key={block.id} block={block} />) : <div className="rounded-[26px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-6 text-sm text-[#9BAEA8]">Envie uma instrucao para iniciar o fluxo.</div>}
+            {latestResult ? <Bubble role="assistant" title="Dotobot" body={typeof latestResult === "string" ? latestResult : "Resultado estruturado entregue."} details={Array.isArray(thinking) && thinking[0]?.details ? thinking[0].details : []} time={nowIso()} /> : null}
+            {activeRun ? <Bubble role="system" title="Execution" body="Execucao em andamento com trilha de auditoria ativa." details={[`Run: ${activeRun.id}`, `Mission: ${activeRun.mission}`]} time={nowIso()} /> : null}
           </div>
-
-          {selectedTask ? (
-            <div className="mt-4 rounded-[26px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Task detail</p>
-                  <h3 className="mt-2 text-lg font-semibold text-[#F5F1E8]">{selectedTask.title}</h3>
-                  <p className="mt-2 text-sm leading-7 text-[#9BAEA8]">{selectedTask.goal}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleReplay(selectedTask)}
-                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-                >
-                  Replay
-                </button>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[#9BAEA8]">
-                <span className="rounded-full border border-[#22342F] px-2.5 py-1">Agent: {selectedTask.assignedAgent}</span>
-                <span className="rounded-full border border-[#22342F] px-2.5 py-1">Priority: {selectedTask.priority}</span>
-                <span className="rounded-full border border-[#22342F] px-2.5 py-1">Status: {selectedTask.status}</span>
-              </div>
-              {selectedTask.logs?.length ? (
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-xs text-[#9BAEA8]">Task logs</summary>
-                  <pre className="mt-2 whitespace-pre-wrap rounded-[22px] border border-[#22342F] bg-[rgba(4,7,6,0.95)] p-3 text-[11px] leading-6 text-[#C6D1CC]">
-                    {selectedTask.logs.join("\n")}
-                  </pre>
-                </details>
-              ) : null}
-            </div>
-          ) : null}
         </section>
 
         <aside className="space-y-4">
           <section className="rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4 shadow-[0_16px_48px_rgba(0,0,0,0.2)]">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Control panel</p>
-              <p className="mt-1 text-sm text-[#9BAEA8]">Start, pause, stop e aprovacoes.</p>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Context drawer</p>
+                <p className="mt-1 text-sm text-[#9BAEA8]">Módulo atual, memória e documentos.</p>
+              </div>
+              <button type="button" onClick={() => setShowContext((value) => !value)} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">{showContext ? "Collapse" : "Expand"}</button>
             </div>
-            <div className="mt-4 grid gap-2">
-              {QUICK_MISSIONS.map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => handleQuickMission(value)}
-                  className="rounded-[20px] border border-[#22342F] px-3 py-2 text-left text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-                >
-                  {value}
-                </button>
-              ))}
-            </div>
-            <div className="mt-4 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={handleStart}
-                className="rounded-2xl border border-[#C5A059] px-4 py-3 text-sm font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]"
-              >
-                Start AI
-              </button>
-              <button
-                type="button"
-                onClick={handlePause}
-                className="rounded-2xl border border-[#22342F] px-4 py-3 text-sm text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-              >
-                {paused ? "Resume" : "Pause"}
-              </button>
-              <button
-                type="button"
-                onClick={handleStop}
-                className="rounded-2xl border border-[#4f2525] px-4 py-3 text-sm text-[#f2b2b2] transition hover:border-[#f2b2b2]"
-              >
-                Stop execution
-              </button>
-              <button
-                type="button"
-                onClick={handleApprove}
-                className="rounded-2xl border border-[#234034] px-4 py-3 text-sm text-[#8FCFA9] transition hover:border-[#8FCFA9]"
-              >
-                Approve actions
-              </button>
-            </div>
+            {showContext ? (
+              <div className="mt-4 space-y-3">
+                <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Current module</p>
+                  <p className="mt-2 text-sm text-[#F5F1E8]">{contextSnapshot?.module || detectModules(mission || "").join(", ")}</p>
+                  <p className="mt-1 text-xs leading-5 text-[#9BAEA8]">Route: {contextSnapshot?.route || routePath || "/interno/ai-task"}</p>
+                </div>
+                <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Memory / RAG</p>
+                  <div className="mt-3 space-y-2">
+                    {contextSnapshot?.memory?.length ? contextSnapshot.memory.slice(0, 4).map((item, index) => (
+                      <div key={item.id || `${index}`} className="rounded-2xl border border-[#22342F] bg-[rgba(4,7,6,0.7)] px-3 py-2 text-sm leading-6 text-[#C6D1CC]">
+                        {item.query || item.summary || item.title || JSON.stringify(item).slice(0, 140)}
+                      </div>
+                    )) : <p className="text-sm text-[#9BAEA8]">Nenhuma memória recuperada ainda.</p>}
+                  </div>
+                </div>
+                <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Documents</p>
+                  <div className="mt-3 space-y-2">
+                    {contextSnapshot?.documents?.length ? contextSnapshot.documents.slice(0, 4).map((doc, index) => (
+                      <div key={doc.id || `${index}`} className="rounded-2xl border border-[#22342F] bg-[rgba(4,7,6,0.7)] px-3 py-2 text-sm leading-6 text-[#C6D1CC]">
+                        {doc.title || doc.name || doc.file_name || doc.path || JSON.stringify(doc).slice(0, 140)}
+                      </div>
+                    )) : <p className="text-sm text-[#9BAEA8]">Sem documentos vinculados nesta execução.</p>}
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </section>
 
           <section className="rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4 shadow-[0_16px_48px_rgba(0,0,0,0.2)]">
-            <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Safety & control</p>
-            <div className="mt-3 space-y-2 text-sm text-[#9BAEA8]">
-              <p>Approval required for sensitive operations.</p>
-              <p>Rollback hooks and logs remain visible in the execution stream.</p>
-              <p>Manual mode disables direct execution and keeps the AI as a strategist.</p>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Tasks drawer</p>
+                <p className="mt-1 text-sm text-[#9BAEA8]">Fila secundaria com estado e replay.</p>
+              </div>
+              <button type="button" onClick={() => setShowTasks((value) => !value)} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">{showTasks ? "Collapse" : "Expand"}</button>
             </div>
+            {showTasks ? (
+              <div className="mt-4 space-y-3">
+                {tasks.length ? tasks.map((task) => <TaskCard key={task.id} task={task} selected={selectedTaskId === task.id} onSelect={setSelectedTaskId} />) : <div className="rounded-[20px] border border-dashed border-[#22342F] p-3 text-sm text-[#9BAEA8]">Sem tarefas.</div>}
+              </div>
+            ) : null}
+            {selectedTask ? (
+              <div className="mt-4 rounded-[26px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Task detail</p>
+                    <h3 className="mt-2 text-lg font-semibold text-[#F5F1E8]">{selectedTask.title}</h3>
+                    <p className="mt-2 text-sm leading-7 text-[#9BAEA8]">{selectedTask.goal}</p>
+                  </div>
+                  <button type="button" onClick={() => handleReplay(selectedTask)} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">Replay</button>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[#9BAEA8]">
+                  <span className="rounded-full border border-[#22342F] px-2.5 py-1">Agent: {selectedTask.assignedAgent}</span>
+                  <span className="rounded-full border border-[#22342F] px-2.5 py-1">Status: {selectedTask.status}</span>
+                </div>
+              </div>
+            ) : null}
           </section>
         </aside>
       </div>
@@ -997,8 +889,8 @@ export default function AITaskModule({ profile, routePath }) {
       <section className="rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4 shadow-[0_16px_48px_rgba(0,0,0,0.2)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Execution log</p>
-            <p className="mt-1 text-sm text-[#9BAEA8]">Real time trace of tool calls, validations and retries.</p>
+            <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Execution tape</p>
+            <p className="mt-1 text-sm text-[#9BAEA8]">Fila continua de eventos, validacoes e retries.</p>
           </div>
           <div className="flex items-center gap-2">
             <input
@@ -1007,22 +899,98 @@ export default function AITaskModule({ profile, routePath }) {
               placeholder="Search logs"
               className="h-10 w-56 rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none placeholder:text-[#60706A] focus:border-[#C5A059]"
             />
+            <span className="rounded-full border border-[#22342F] px-3 py-2 text-xs text-[#9BAEA8]">{compactLogs.length} events</span>
           </div>
         </div>
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+          {compactLogs.length ? compactLogs.map((log) => (
+            <div key={log.id} className="min-w-[220px] rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-2">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">{log.type}</p>
+              <p className="mt-1 text-sm text-[#F5F1E8]">{log.action}</p>
+              <p className="mt-1 text-xs leading-5 text-[#9BAEA8]">{log.result}</p>
+            </div>
+          )) : (
+            <div className="rounded-[24px] border border-dashed border-[#22342F] p-4 text-sm text-[#9BAEA8]">Nenhum log para o filtro atual.</div>
+          )}
+        </div>
+      </section>
 
-        <div ref={logViewportRef} className="mt-4 max-h-[28rem] space-y-3 overflow-y-auto pr-1">
-          {visibleLogs
-            .filter((log) => {
-              if (!search.trim()) return true;
-              const value = `${log.type} ${log.action} ${log.result}`.toLowerCase();
-              return value.includes(search.toLowerCase());
-            })
-            .map((log) => (
-              <LogRow key={log.id} log={log} />
+      <section className="rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4 shadow-[0_16px_48px_rgba(0,0,0,0.2)]">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Composer</p>
+            <p className="mt-1 text-sm text-[#9BAEA8]">Enter envia, Shift+Enter quebra linha.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {QUICK_PROMPTS.slice(0, 4).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => handleQuickMission(value)}
+                className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+              >
+                {value.split(" ").slice(0, 2).join(" ")}
+              </button>
             ))}
-          {!visibleLogs.length ? (
-            <div className="rounded-[24px] border border-dashed border-[#22342F] p-4 text-sm text-[#9BAEA8]">
-              Nenhum log para o filtro atual.
+          </div>
+        </div>
+        <div className="mt-4 rounded-[28px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+          <textarea
+            ref={missionInputRef}
+            value={mission}
+            onChange={(event) => handleMissionChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                handleStart();
+              }
+            }}
+            rows={4}
+            placeholder="Digite uma instrução juridica ou operacional..."
+            className="w-full resize-none bg-transparent text-sm leading-7 text-[#F5F1E8] outline-none placeholder:text-[#60706A]"
+          />
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <label className="cursor-pointer rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+              Upload
+              <input type="file" multiple className="hidden" onChange={handleAttachmentChange} />
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window === "undefined") return;
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognition) {
+                  setError("Voice input not supported in this browser.");
+                  return;
+                }
+                const recognition = new SpeechRecognition();
+                recognition.lang = "pt-BR";
+                recognition.interimResults = false;
+                recognition.maxAlternatives = 1;
+                recognition.onresult = (event) => {
+                  const transcript = event.results?.[0]?.[0]?.transcript || "";
+                  if (transcript) setMission((current) => `${current}${current ? " " : ""}${transcript}`);
+                };
+                recognition.start();
+              }}
+              className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+            >
+              Voice
+            </button>
+            <button type="button" onClick={() => setMission("")} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+              Clear
+            </button>
+            <button type="button" onClick={handleStart} className="rounded-full border border-[#C5A059] px-4 py-2 text-xs font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]">
+              Send
+            </button>
+          </div>
+          {attachments.length ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {attachments.map((file) => (
+                <span key={`${file.name}_${file.size}`} className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] text-[#9BAEA8]">
+                  {file.name}
+                </span>
+              ))}
             </div>
           ) : null}
         </div>

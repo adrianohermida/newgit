@@ -4,7 +4,7 @@ compatibility_date = "2026-03-31"
 workers_dev = false
 
 routes = [
-  { pattern = "ai.hermidamaia.adv.br/*", zone_name = "hermidamaia.adv.br" }
+  { pattern = "ai.hermidamaia.adv.br", custom_domain = true }
 ]
 
 [ai]
