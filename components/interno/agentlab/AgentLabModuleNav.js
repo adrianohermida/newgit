@@ -2,13 +2,13 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 
 const ITEMS = [
-  { href: "/interno/agentlab", label: "Overview" },
-  { href: "/interno/agentlab/agents", label: "Agents" },
-  { href: "/interno/agentlab/conversations", label: "Conversations" },
-  { href: "/interno/agentlab/training", label: "Training" },
-  { href: "/interno/agentlab/knowledge", label: "Knowledge" },
+  { href: "/interno/agentlab", label: "Visao geral" },
+  { href: "/interno/agentlab/agents", label: "Agentes" },
+  { href: "/interno/agentlab/conversations", label: "Conversas" },
+  { href: "/interno/agentlab/training", label: "Treinamento" },
+  { href: "/interno/agentlab/knowledge", label: "Conhecimento" },
   { href: "/interno/agentlab/workflows", label: "Workflows" },
-  { href: "/interno/agentlab/evaluation", label: "Evaluation" },
+  { href: "/interno/agentlab/evaluation", label: "Avaliacao" },
 ];
 
 export default function AgentLabModuleNav() {
