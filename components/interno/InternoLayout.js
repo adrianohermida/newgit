@@ -29,8 +29,8 @@ export default function InternoLayout({ title, description, profile, children })
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.28),transparent_30%),linear-gradient(180deg,#050706_0%,#070A09_100%)] text-[#F4F1EA]">
       <div className="w-full px-3 py-3 md:px-4 xl:px-5">
-        <div className="grid min-h-[calc(100vh-1.5rem)] gap-3 xl:grid-cols-[272px_minmax(0,1fr)_360px]">
-          <aside className="xl:sticky xl:top-3 xl:h-[calc(100vh-1.5rem)]">
+        <div className="grid min-h-[calc(100vh-1.5rem)] gap-3 lg:grid-cols-[272px_minmax(0,1fr)_360px]">
+          <aside className="lg:sticky lg:top-3 lg:h-[calc(100vh-1.5rem)]">
             <div className="flex h-full flex-col rounded-[28px] border border-[#1D2220] bg-[linear-gradient(180deg,rgba(9,11,10,0.98),rgba(7,9,8,0.94))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.24)]">
               <Link href="/interno" className="mb-8 block">
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C5A059]">Hermida Maia</p>
@@ -98,14 +98,20 @@ export default function InternoLayout({ title, description, profile, children })
             <div>{children}</div>
           </main>
 
-          <aside className="xl:h-[calc(100vh-1.5rem)]">
-            <div className="h-full overflow-y-auto rounded-[28px] border border-[#1D2220] bg-[linear-gradient(180deg,rgba(10,13,12,0.96),rgba(8,10,9,0.92))] p-3 md:p-4">
+          <aside id="dotobot-rail" className="lg:h-[calc(100vh-1.5rem)]">
+            <div className="h-full overflow-y-auto rounded-[28px] border border-[#1D2220] bg-[linear-gradient(180deg,rgba(10,13,12,0.96),rgba(8,10,9,0.92))] p-3 md:p-4 lg:sticky lg:top-3">
               <DotobotPanel profile={profile} routePath={router.pathname} />
             </div>
           </aside>
         </div>
       </div>
+
+      <a
+        href="#dotobot-rail"
+        className="fixed bottom-4 right-4 z-40 rounded-full border border-[#C5A059] bg-[rgba(8,11,10,0.95)] px-4 py-2 text-xs uppercase tracking-[0.16em] text-[#C5A059] lg:hidden"
+      >
+        Abrir Dotobot
+      </a>
     </div>
   );
 }
-
