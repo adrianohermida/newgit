@@ -6,12 +6,48 @@ const JSON_HEADERS = {
 
 const MODEL = "gte-small";
 
+function getClean(value: string | null | undefined) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
+function getExpectedSecret() {
+  return (
+    getClean(Deno.env.get("DOTOBOT_SUPABASE_EMBED_SECRET")) ||
+    getClean(Deno.env.get("HMDAV_AI_SHARED_SECRET")) ||
+    getClean(Deno.env.get("LAWDESK_AI_SHARED_SECRET"))
+  );
+}
+
+function getBearerToken(headerValue: string | null) {
+  if (!headerValue) return null;
+  const trimmed = headerValue.trim();
+  const match = trimmed.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() : trimmed || null;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ ok: false, error: "Method not allowed." }), {
       status: 405,
       headers: JSON_HEADERS,
     });
+  }
+
+  const expectedSecret = getExpectedSecret();
+  if (expectedSecret) {
+    const providedSecret =
+      getClean(req.headers.get("x-dotobot-embed-secret")) ||
+      getClean(req.headers.get("x-shared-secret")) ||
+      getBearerToken(req.headers.get("authorization"));
+
+    if (providedSecret !== expectedSecret) {
+      return new Response(JSON.stringify({ ok: false, error: "Authentication error" }), {
+        status: 401,
+        headers: JSON_HEADERS,
+      });
+    }
   }
 
   let body: { input?: unknown } = {};

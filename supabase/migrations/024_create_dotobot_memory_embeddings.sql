@@ -85,7 +85,7 @@ begin
 end;
 $$;
 
-create or replace function public.match_dotobot_memory_embeddings(
+create or replace function public.search_dotobot_memory_embeddings(
   query_embedding jsonb,
   match_count integer default 5,
   match_threshold double precision default null
