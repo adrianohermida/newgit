@@ -1,10 +1,12 @@
 """Python porting workspace for the Lawdesk rewrite effort."""
 
 from .commands import PORTED_COMMANDS, build_command_backlog
+from .coordinator import Coordinator, OrchestrationResult
 from .parity_audit import ParityAuditResult, run_parity_audit
 from .port_manifest import PortManifest, build_port_manifest
 from .query_engine import QueryEnginePort, TurnResult
 from .runtime import PortRuntime, RuntimeSession
+from .runtime_adapter import RustRuntimeBridge
 from .session_store import StoredSession, load_session, save_session
 from .system_init import build_system_init_message
 from .tools import PORTED_TOOLS, build_tool_backlog
@@ -14,6 +16,9 @@ __all__ = [
     'PortManifest',
     'PortRuntime',
     'QueryEnginePort',
+    'Coordinator',
+    'OrchestrationResult',
+    'RustRuntimeBridge',
     'RuntimeSession',
     'StoredSession',
     'TurnResult',
