@@ -39,8 +39,14 @@ function EvaluationContent({ state, message, setMessage }) {
   const queue = state.data?.governance?.queue || [];
   const threads = state.data?.conversations?.threads || [];
   const summary = state.data?.intelligence?.summary || {};
+  const messageSummary = state.data?.intelligence?.messageSummary || {};
+  const messages = state.data?.conversations?.messages || [];
   const unresolvedThreads = useMemo(() => threads.filter((item) => !item.intent_label), [threads]);
   const backlog = useMemo(() => queue.filter((item) => item.category === "evaluation"), [queue]);
+  const riskyMessages = useMemo(
+    () => messages.filter((item) => Array.isArray(item.quality_signals) && item.quality_signals.length).slice(0, 12),
+    [messages]
+  );
 
   if (state.loading) {
     return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando avaliacao...</div>;
@@ -136,7 +142,7 @@ function EvaluationContent({ state, message, setMessage }) {
         <Panel title={`Incidentes abertos: ${summary.open || 0}`}><p className="text-sm opacity-75">Falhas em classificacao, fluxo, cobertura e operacao.</p></Panel>
         <Panel title={`Gaps de intent: ${unresolvedThreads.length}`}><p className="text-sm opacity-75">Conversas sem intencao classificada e prontas para treino.</p></Panel>
         <Panel title={`Backlog de avaliacao: ${backlog.length}`}><p className="text-sm opacity-75">Itens que ja viraram trabalho operacional para a sprint.</p></Panel>
-        <Panel title={`Categorias: ${(summary.byCategory || []).length}`}><p className="text-sm opacity-75">Visao agrupada dos problemas recorrentes do agente.</p></Panel>
+        <Panel title={`Sinais de mensagem: ${messageSummary.qualityEvents || 0}`}><p className="text-sm opacity-75">Mensagens com baixa qualidade, handoff generico ou risco operacional.</p></Panel>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
@@ -221,6 +227,23 @@ function EvaluationContent({ state, message, setMessage }) {
               <p className="mt-2">{item.description}</p>
             </div>
           )) : <p>Nenhum item de avaliacao no backlog ainda.</p>}
+        </div>
+      </Panel>
+
+      <Panel title="Mensagens com risco operacional">
+        <div className="space-y-4 text-sm opacity-75">
+          {riskyMessages.length ? riskyMessages.map((item) => (
+            <div key={item.id} className="border border-[#2D2E2E] p-4">
+              <div className="mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
+                <span>{item.role}</span>
+                <span>{item.suggested_agent_ref}</span>
+                <span>{item.source_system}</span>
+                <span>{(item.quality_signals || []).join(", ")}</span>
+              </div>
+              <p className="font-semibold">{item.thread_subject || "Mensagem sem thread"}</p>
+              <p className="mt-2">{item.body_text || "Sem texto"}</p>
+            </div>
+          )) : <p>Nenhuma mensagem de risco consolidada ainda.</p>}
         </div>
       </Panel>
     </div>

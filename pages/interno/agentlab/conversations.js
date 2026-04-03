@@ -18,13 +18,13 @@ export default function AgentLabConversationsPage() {
   const state = useAgentLabData();
   const [syncState, setSyncState] = useState({ loading: false, message: null });
 
-  async function runSync(action, limit = 5) {
+  async function runSync(action, limit = 5, threadLimit = 2) {
     try {
       setSyncState({ loading: true, message: null });
       const payload = await adminFetch("/api/admin-agentlab-sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, limit }),
+        body: JSON.stringify({ action, limit, thread_limit: threadLimit }),
       });
       setSyncState({
         loading: false,
@@ -71,6 +71,7 @@ function ConversationsContent({ state, syncState, runSync }) {
 
   const conversations = state.data?.conversations?.primaryThreads || state.data?.conversations?.threads || [];
   const crmSignals = state.data?.conversations?.crmSignals || [];
+  const recentMessages = state.data?.conversations?.messages || [];
   const incidents = state.data?.intelligence?.incidents || [];
   const summary = state.data?.conversations?.summary || {};
   const syncRuns = state.data?.intelligence?.syncRuns || [];
@@ -147,6 +148,14 @@ function ConversationsContent({ state, syncState, runSync }) {
           >
             Sincronizar Freshchat
           </button>
+          <button
+            type="button"
+            disabled={syncBlocked}
+            onClick={() => runSync("sync_freshchat_messages", 20, 2)}
+            className="border border-[#2D2E2E] px-4 py-3 text-sm disabled:opacity-40"
+          >
+            Sincronizar mensagens
+          </button>
         </div>
 
         {syncState.loading ? <p className="text-sm opacity-70">Executando sync...</p> : null}
@@ -199,6 +208,31 @@ function ConversationsContent({ state, syncState, runSync }) {
           </div>
         </Panel>
       </div>
+
+      <Panel title={`Mensagens recentes do Freshchat (${recentMessages.length})`}>
+        <div className="mb-4 text-sm opacity-75">
+          Este bloco mostra mensagens reais importadas do Freshchat para treino, auditoria e analise do desempenho do chatbot e do agente de IA.
+        </div>
+        <div className="space-y-4">
+          {recentMessages.map((item) => (
+            <div key={item.id} className="border border-[#2D2E2E] p-4">
+              <div className="mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
+                <span>{item.source_system}</span>
+                <span>{item.role || item.actor_type || "unknown"}</span>
+                <span>{item.message_type || "normal"}</span>
+                <span>{item.suggested_agent_ref || "sem agente"}</span>
+                <span>{item.source_conversation_id}</span>
+              </div>
+              <p className="text-sm opacity-75">{item.body_text || "Sem texto"}</p>
+              {(item.quality_signals || []).length ? (
+                <p className="mt-2 text-xs opacity-50">
+                  Sinais: {item.quality_signals.join(", ")}
+                </p>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </Panel>
 
       <Panel title={`Sinais de CRM fora da conversa (${crmSignals.length})`}>
         <div className="mb-4 text-sm opacity-75">

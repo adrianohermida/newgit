@@ -39,7 +39,7 @@ export default function PortalLayout({ title, description, profile, children, ac
     <div className="min-h-screen bg-[#07110E] text-[#F4F1EA]">
       <div className="mx-auto grid min-h-screen max-w-7xl lg:grid-cols-[290px_1fr]">
         <aside className="border-r border-[#20332D] bg-[rgba(10,18,15,0.96)] px-6 py-8">
-          <Link href="/portal" className="block mb-10">
+          <Link href="/portal" prefetch={false} className="block mb-10">
             <p className="mb-2 text-xs font-semibold uppercase tracking-[0.28em] text-[#C49C56]">Hermida Maia</p>
             <h1 className="font-serif text-3xl">Portal do Cliente</h1>
           </Link>

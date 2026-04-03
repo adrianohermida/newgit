@@ -26,7 +26,7 @@ export default function PortalAuthLayout({ title, description, children }) {
 
           <section className="overflow-hidden rounded-[30px] border border-[#C49C56]/18 bg-[linear-gradient(180deg,rgba(7,17,14,0.96),rgba(12,20,18,0.94))] shadow-[0_40px_120px_rgba(0,0,0,0.42)]">
             <div className="border-b border-white/8 px-8 py-5">
-              <Link href="/" className="inline-flex items-center gap-3 text-sm text-[#D6D0C3]/70 transition hover:text-[#FAF5EC]">
+              <Link href="/" prefetch={false} className="inline-flex items-center gap-3 text-sm text-[#D6D0C3]/70 transition hover:text-[#FAF5EC]">
                 <span aria-hidden="true">&larr;</span>
                 Voltar ao site
               </Link>

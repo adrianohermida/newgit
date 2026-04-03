@@ -22,9 +22,11 @@ export async function onRequestGet(context) {
       invoices: payload.invoices || [],
       subscriptions: payload.subscriptions || [],
       others: payload.others || [],
+      linked_accounts: payload.linked_accounts || [],
       summary: payload.summary || null,
       mapping: payload.mapping || null,
       field_catalog: payload.field_catalog || null,
+      diagnostics: payload.diagnostics || null,
       warning: payload.warning || null,
     }), {
       status: 200,

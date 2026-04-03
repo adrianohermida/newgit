@@ -15,9 +15,18 @@ const INITIAL_STATE = {
   summary: null,
   mapping: null,
   fieldCatalog: null,
+  linkedAccounts: [],
+  diagnostics: null,
 };
 
 const SECTION_PAGE_SIZE = 6;
+const DEAL_FILTERS = [
+  { value: "all", label: "Todos" },
+  { value: "invoice", label: "Faturas" },
+  { value: "subscription", label: "Assinaturas" },
+  { value: "open", label: "Em aberto" },
+  { value: "paid", label: "Pagos" },
+];
 
 function formatMoney(value) {
   if (value == null || value === "") return "A definir";
@@ -62,11 +71,13 @@ export default function PortalFinanceiroPage() {
 }
 
 function FinanceiroContent({ state, setState }) {
+  const [activeFilter, setActiveFilter] = useState("all");
   const [visibleCounts, setVisibleCounts] = useState({
     invoices: SECTION_PAGE_SIZE,
     subscriptions: SECTION_PAGE_SIZE,
     refunds: SECTION_PAGE_SIZE,
     others: SECTION_PAGE_SIZE,
+    filtered: SECTION_PAGE_SIZE,
   });
 
   useEffect(() => {
@@ -86,6 +97,8 @@ function FinanceiroContent({ state, setState }) {
             summary: payload.summary || null,
             mapping: payload.mapping || null,
             fieldCatalog: payload.field_catalog || null,
+            linkedAccounts: payload.linked_accounts || [],
+            diagnostics: payload.diagnostics || null,
           });
         }
       } catch (error) {
@@ -109,6 +122,14 @@ function FinanceiroContent({ state, setState }) {
       { label: "Em aberto", value: formatMoney(summary.open_amount || 0), helper: "Valor pendente estimado" },
     ];
   }, [state.summary]);
+
+  const filteredDeals = useMemo(() => {
+    if (activeFilter === "invoice") return state.items.filter((item) => item.kind === "invoice");
+    if (activeFilter === "subscription") return state.items.filter((item) => item.kind === "subscription");
+    if (activeFilter === "open") return state.items.filter((item) => ["aberto", "atrasado", "nao_pago"].includes(item.status));
+    if (activeFilter === "paid") return state.items.filter((item) => item.status === "pago");
+    return state.items;
+  }, [activeFilter, state.items]);
 
   if (state.loading) {
     return <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">Carregando financeiro...</div>;
@@ -141,10 +162,74 @@ function FinanceiroContent({ state, setState }) {
         <div className="rounded-[28px] border border-[#6E5630] bg-[rgba(76,57,26,0.22)] p-6 text-sm leading-7">{state.warning}</div>
       ) : null}
 
+      <section className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm opacity-62">Filtrar negocios:</p>
+          {DEAL_FILTERS.map((option) => {
+            const active = activeFilter === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setActiveFilter(option.value)}
+                className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.15em] transition ${
+                  active
+                    ? "border-[#C49C56] bg-[#C49C56] text-[#07110E]"
+                    : "border-[#20332D] text-[#F4F1EA] hover:border-[#C49C56] hover:text-[#C49C56]"
+                }`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-sm opacity-62">Exibindo {Math.min(filteredDeals.length, visibleCounts.filtered)} de {filteredDeals.length} negocio(s) no filtro atual.</p>
+      </section>
+
+      <FinanceSection
+        title="Visao consolidada de deals"
+        description="Leitura geral com filtro rapido, lazy load e contexto dos processos/accounts associados."
+        items={filteredDeals}
+        emptyMessage="Nenhum negocio encontrado para o filtro atual."
+        visibleCount={visibleCounts.filtered}
+        onLoadMore={() => setVisibleCounts((current) => ({ ...current, filtered: current.filtered + SECTION_PAGE_SIZE }))}
+      />
+
       {!state.items.length ? (
         <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-8 text-sm opacity-75">
           Nenhum negocio financeiro apareceu para o seu contato no Freshsales neste momento.
         </div>
+      ) : null}
+
+      {(state.linkedAccounts?.length || state.diagnostics) ? (
+        <section className="rounded-[30px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
+          <div className="max-w-3xl">
+            <p className="text-[11px] uppercase tracking-[0.18em] opacity-45">Contexto do pareamento</p>
+            <h3 className="mt-3 font-serif text-3xl">Accounts vinculados ao seu portal</h3>
+            <p className="mt-3 text-sm leading-7 opacity-62">
+              Mesmo quando os deals ainda nao aparecem na grade final, o portal mostra aqui os Sales Accounts relacionados ao seu cadastro e os indicadores usados para montar o modulo financeiro.
+            </p>
+          </div>
+          {state.diagnostics ? (
+            <div className="mt-5 grid gap-4 md:grid-cols-3">
+              <Metric label="Contatos pareados" value={state.diagnostics.contacts_found || 0} />
+              <Metric label="Accounts vinculados" value={state.diagnostics.linked_accounts || 0} />
+              <Metric label="Deals localizados" value={state.diagnostics.related_deals || 0} />
+            </div>
+          ) : null}
+          <div className="mt-5 grid gap-4 xl:grid-cols-2">
+            {(state.linkedAccounts || []).map((account) => (
+              <article key={account.id} className="rounded-[24px] border border-[#20332D] bg-[rgba(6,10,9,0.45)] p-5">
+                <p className="text-sm font-semibold">{account.name}</p>
+                <p className="mt-2 text-xs opacity-60">{account.process_reference || "Sem referencia de processo"}</p>
+                <div className="mt-3 flex flex-wrap gap-3 text-xs opacity-70">
+                  {account.status ? <span>Status: {account.status}</span> : null}
+                  <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${account.id}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C49C56]">Abrir account</a>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
       ) : null}
 
       <FinanceSection
@@ -238,6 +323,7 @@ function FinanceSection({ title, description, items, emptyMessage, visibleCount 
                   <p className="mt-1 text-sm opacity-62">{item.process_account.status || item.process_account.name}</p>
                   <Link
                     href={`/portal/processos?account=${encodeURIComponent(item.process_account.id)}`}
+                    prefetch={false}
                     className="mt-4 inline-flex rounded-2xl border border-[#20332D] px-4 py-2 text-sm transition hover:border-[#C49C56] hover:text-[#C49C56]"
                   >
                     Ver area de processos

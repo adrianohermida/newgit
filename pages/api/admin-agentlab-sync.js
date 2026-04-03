@@ -2,6 +2,7 @@ import { requireAdminNode } from "../../lib/admin/node-auth.js";
 import {
   getAgentLabDashboard,
   syncFreshchatConversationsIntoAgentLab,
+  syncFreshchatMessagesIntoAgentLab,
   syncFreshsalesActivitiesIntoAgentLab,
   syncWorkspaceConversations,
 } from "../../lib/agentlab/server.js";
@@ -32,38 +33,54 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "POST") {
+    const body = req.body || {};
     try {
-      const action = String(req.body?.action || "").trim();
+      const action = String(body.action || "").trim();
       if (action === "sync_workspace_conversations") {
         const result = await syncWorkspaceConversations(process.env);
         return res.status(200).json({ ok: true, result });
       }
 
       if (action === "sync_freshsales_activities") {
-        const result = await syncFreshsalesActivitiesIntoAgentLab(process.env, Number(req.body?.limit || 5));
+        const result = await syncFreshsalesActivitiesIntoAgentLab(process.env, Number(body.limit || 5));
         return res.status(200).json({ ok: true, result });
       }
 
       if (action === "sync_freshchat_conversations") {
-        const result = await syncFreshchatConversationsIntoAgentLab(process.env, Number(req.body?.limit || 5));
+        const result = await syncFreshchatConversationsIntoAgentLab(process.env, Number(body.limit || 5));
+        return res.status(200).json({ ok: true, result });
+      }
+
+      if (action === "sync_freshchat_messages") {
+        const result = await syncFreshchatMessagesIntoAgentLab(
+          process.env,
+          Number(body.thread_limit || 2),
+          Number(body.limit || 20)
+        );
         return res.status(200).json({ ok: true, result });
       }
 
       return res.status(400).json({ ok: false, error: "Acao de sync invalida." });
     } catch (error) {
       if (isMissingSourceError(error)) {
+        const action = String(body.action || "").trim();
         return res.status(200).json({
           ok: true,
           result: {
             unavailable: true,
             mode: "schema_missing",
-            requiredSources: [
-              "agentlab_conversation_threads",
-              "agentlab_incidents",
-              "agentlab_source_sync_runs",
-            ],
+            requiredSources:
+              action === "sync_freshchat_messages"
+                ? ["agentlab_conversation_messages"]
+                : [
+                    "agentlab_conversation_threads",
+                    "agentlab_incidents",
+                    "agentlab_source_sync_runs",
+                  ],
             message:
-              "Este ambiente ainda nao possui todas as tabelas de inteligencia conversacional. O sync local foi bloqueado para evitar erro operacional.",
+              action === "sync_freshchat_messages"
+                ? "A tabela de mensagens ainda nao existe neste ambiente. Aplique a migration 022 para sincronizar mensagens do Freshchat."
+                : "Este ambiente ainda nao possui todas as tabelas de inteligencia conversacional. O sync local foi bloqueado para evitar erro operacional.",
           },
         });
       }

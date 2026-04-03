@@ -25,6 +25,8 @@ export default function PortalProcessDetailPage() {
     parts: [],
     movements: [],
     publications: [],
+    audiencias: [],
+    documents: [],
     warnings: [],
   });
 
@@ -67,6 +69,8 @@ function ProcessDetailContent({ processId, state, setState }) {
             parts: payload.parts || [],
             movements: payload.movements || [],
             publications: payload.publications || [],
+            audiencias: payload.audiencias || [],
+            documents: payload.documents || [],
             warnings: payload.warnings || [],
           });
         }
@@ -79,6 +83,8 @@ function ProcessDetailContent({ processId, state, setState }) {
             parts: [],
             movements: [],
             publications: [],
+            audiencias: [],
+            documents: [],
             warnings: [],
           });
         }
@@ -95,8 +101,10 @@ function ProcessDetailContent({ processId, state, setState }) {
       parts: state.parts.length,
       movements: state.movements.length,
       publications: state.publications.length,
+      audiencias: state.audiencias.length,
+      documents: state.documents.length,
     };
-  }, [state.movements.length, state.parts.length, state.publications.length]);
+  }, [state.audiencias.length, state.documents.length, state.movements.length, state.parts.length, state.publications.length]);
 
   if (state.loading) return <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">Carregando detalhe do processo...</div>;
   if (state.error) return <div className="rounded-[28px] border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] p-6 text-sm">{state.error}</div>;
@@ -124,10 +132,12 @@ function ProcessDetailContent({ processId, state, setState }) {
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-5">
         <StatCard label="Partes" value={summary.parts} helper="Partes processuais identificadas." />
         <StatCard label="Andamentos" value={summary.movements} helper="Atos e movimentacoes sincronizados." />
         <StatCard label="Publicacoes" value={summary.publications} helper="Recortes e atos publicados." />
+        <StatCard label="Audiencias" value={summary.audiencias} helper="Audiencias vinculadas ao processo." />
+        <StatCard label="Documentos" value={summary.documents} helper="Documentos exibidos no portal." />
       </section>
 
       {state.process.total_related ? (
@@ -228,6 +238,22 @@ function ProcessDetailContent({ processId, state, setState }) {
 
         <div className="space-y-6">
           <section className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Audiencias vinculadas</p>
+            <div className="mt-5 space-y-4">
+              {!state.audiencias.length ? <EmptyText>Nenhuma audiencia vinculada a este processo.</EmptyText> : null}
+              {state.audiencias.map((audiencia) => (
+                <article key={audiencia.id} className="rounded-2xl border border-[#20332D] bg-black/10 p-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <p className="text-sm font-semibold">{audiencia.title}</p>
+                  </div>
+                  <p className="mt-2 text-[11px] uppercase tracking-[0.16em] opacity-45">{formatDate(audiencia.date, true)}</p>
+                  {audiencia.summary ? <p className="mt-3 text-sm leading-6 opacity-65">{audiencia.summary}</p> : null}
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
             <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Andamentos recentes</p>
             <div className="mt-5 space-y-5">
               {!state.movements.length ? <EmptyText>Nenhum andamento sincronizado ainda.</EmptyText> : null}
@@ -271,6 +297,28 @@ function ProcessDetailContent({ processId, state, setState }) {
                       </a>
                     ) : null}
                   </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Documentos vinculados</p>
+            <div className="mt-5 space-y-4">
+              {!state.documents.length ? <EmptyText>Nenhum documento vinculado a este processo.</EmptyText> : null}
+              {state.documents.map((document) => (
+                <article key={document.id} className="rounded-2xl border border-[#20332D] bg-black/10 p-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <p className="text-sm font-semibold">{document.name}</p>
+                    {document.status_label ? (
+                      <span className="rounded-full border border-[#31463F] px-3 py-1 text-[10px] uppercase tracking-[0.15em] opacity-70">
+                        {document.status_label}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-[11px] uppercase tracking-[0.16em] opacity-45">{formatDate(document.reference_date)}</p>
+                  {document.summary ? <p className="mt-3 text-sm leading-6 opacity-65">{document.summary}</p> : null}
+                  {document.url ? <a href={document.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-sm text-[#C49C56]">Abrir documento</a> : null}
                 </article>
               ))}
             </div>

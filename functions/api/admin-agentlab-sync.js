@@ -4,6 +4,7 @@ import {
   jsonError,
   jsonOk,
   syncFreshchatConversationsIntoAgentLab,
+  syncFreshchatMessagesIntoAgentLab,
   syncFreshsalesActivitiesIntoAgentLab,
   syncWorkspaceConversations,
 } from "../../lib/agentlab/server.js";
@@ -38,8 +39,9 @@ export async function onRequestPost(context) {
     return jsonError(new Error(auth.error), auth.status);
   }
 
+  let body = {};
   try {
-    const body = await context.request.json();
+    body = await context.request.json();
     const action = String(body.action || "").trim();
 
     if (action === "sync_workspace_conversations") {
@@ -57,20 +59,35 @@ export async function onRequestPost(context) {
       return jsonOk({ result });
     }
 
+    if (action === "sync_freshchat_messages") {
+      const result = await syncFreshchatMessagesIntoAgentLab(
+        context.env,
+        Number(body.thread_limit || 2),
+        Number(body.limit || 20)
+      );
+      return jsonOk({ result });
+    }
+
     return jsonError(new Error("Acao de sync invalida."), 400);
   } catch (error) {
     if (isMissingSourceError(error)) {
+      const action = String(body.action || "").trim();
       return jsonOk({
         result: {
           unavailable: true,
           mode: "schema_missing",
-          requiredSources: [
-            "agentlab_conversation_threads",
-            "agentlab_incidents",
-            "agentlab_source_sync_runs",
-          ],
+          requiredSources:
+            action === "sync_freshchat_messages"
+              ? ["agentlab_conversation_messages"]
+              : [
+                  "agentlab_conversation_threads",
+                  "agentlab_incidents",
+                  "agentlab_source_sync_runs",
+                ],
           message:
-            "Este ambiente ainda nao possui todas as tabelas de inteligencia conversacional. O sync local foi bloqueado para evitar erro operacional.",
+            action === "sync_freshchat_messages"
+              ? "A tabela de mensagens ainda nao existe neste ambiente. Aplique a migration 022 para sincronizar mensagens do Freshchat."
+              : "Este ambiente ainda nao possui todas as tabelas de inteligencia conversacional. O sync local foi bloqueado para evitar erro operacional.",
         },
       });
     }

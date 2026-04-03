@@ -142,6 +142,14 @@ function normalizeProcessLookupValue(value) {
   return String(value || "").replace(/\D+/g, "").trim();
 }
 
+function processMatchesStatusFilter(process, statusFilter) {
+  if (!statusFilter) return true;
+  const normalizedFilter = normalizeText(statusFilter);
+  const statusGroup = normalizeText(process?.status_group || "");
+  const status = normalizeText(process?.status || "");
+  return statusGroup === normalizedFilter || status.includes(normalizedFilter);
+}
+
 function chunkArray(values, size) {
   const chunkSize = Math.max(1, Number(size) || 1);
   const chunks = [];
@@ -1398,15 +1406,15 @@ export async function listClientProcessos(env, email, options = {}) {
   const statusFilter = String(options.status || "").trim().toLowerCase();
   const result = await tryFetchOptional(env, [
     {
-      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes&cliente_email=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=20`,
+      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,account_id_freshsales&cliente_email=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=200`,
       mapRow: normalizeProcessRow,
     },
     {
-      path: `processos?select=id,cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes&cliente_email=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=20`,
+      path: `processos?select=id,cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,account_id_freshsales&cliente_email=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=200`,
       mapRow: normalizeProcessRow,
     },
     {
-      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes&email_cliente=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=20`,
+      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,account_id_freshsales&email_cliente=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=200`,
       mapRow: normalizeProcessRow,
     },
   ]);
@@ -1518,9 +1526,7 @@ export async function listClientProcessos(env, email, options = {}) {
     })
   );
 
-  const filteredItems = statusFilter
-    ? enrichedItems.filter((item) => item.status_group === statusFilter)
-    : enrichedItems;
+  const filteredItems = enrichedItems.filter((item) => processMatchesStatusFilter(item, statusFilter));
 
   return {
     ...result,
@@ -1717,6 +1723,82 @@ async function listClientProcessPublications(env, processId) {
   return [];
 }
 
+async function listClientProcessAudiencias(env, processId) {
+  const candidates = buildProcessIdentifierCandidates(null, processId);
+  for (const candidate of candidates) {
+    const result = await tryFetchOptional(env, [
+      {
+        path: `audiencias?select=id,processo_id,numero_cnj,tipo,data_audiencia,data,descricao,observacoes,metadata,created_at&processo_id=eq.${encodeURIComponent(candidate)}&order=data_audiencia.desc.nullslast,data.desc.nullslast,created_at.desc.nullslast&limit=50`,
+        mapRow: (row) => ({
+          id: row.id,
+          process_id: row.processo_id || row.numero_cnj || null,
+          title: row.tipo || "Audiencia",
+          date: row.data_audiencia || row.data || row.created_at || null,
+          summary: row.descricao || row.observacoes || null,
+          metadata: safeJsonParse(row.metadata, {}),
+        }),
+      },
+      {
+        path: `audiencias?select=id,processo_id,numero_cnj,tipo,data_audiencia,data,descricao,observacoes,metadata,created_at&numero_cnj=eq.${encodeURIComponent(candidate)}&order=data_audiencia.desc.nullslast,data.desc.nullslast,created_at.desc.nullslast&limit=50`,
+        mapRow: (row) => ({
+          id: row.id,
+          process_id: row.processo_id || row.numero_cnj || null,
+          title: row.tipo || "Audiencia",
+          date: row.data_audiencia || row.data || row.created_at || null,
+          summary: row.descricao || row.observacoes || null,
+          metadata: safeJsonParse(row.metadata, {}),
+        }),
+      },
+    ]);
+    if (result.items.length) return result.items;
+  }
+  return [];
+}
+
+async function listClientProcessDocuments(env, email, processId) {
+  const candidates = buildProcessIdentifierCandidates(null, processId);
+  for (const candidate of candidates) {
+    const result = await tryFetchOptional(env, [
+      {
+        path: `documentos?select=id,nome,status,created_at,updated_at,arquivo_url,cliente_email,tipo,categoria,descricao,metadata,processo_id,numero_cnj&processo_id=eq.${encodeURIComponent(candidate)}&cliente_email=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=50`,
+        mapRow: (row) => ({
+          id: row.id,
+          name: row.nome || "Documento",
+          status: mapDocumentStatus(row.status),
+          status_label: mapDocumentStatusLabel(mapDocumentStatus(row.status)),
+          category: inferDocumentCategory(row),
+          category_label: mapDocumentCategoryLabel(inferDocumentCategory(row)),
+          created_at: row.created_at || null,
+          updated_at: row.updated_at || null,
+          reference_date: row.updated_at || row.created_at || null,
+          url: row.arquivo_url || null,
+          process_id: row.processo_id || row.numero_cnj || null,
+          summary: row.descricao || null,
+        }),
+      },
+      {
+        path: `documentos?select=id,titulo,status,created_at,updated_at,file_url,cliente_email,tipo,categoria,descricao,metadata,processo_id,numero_cnj&processo_id=eq.${encodeURIComponent(candidate)}&cliente_email=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=50`,
+        mapRow: (row) => ({
+          id: row.id,
+          name: row.titulo || "Documento",
+          status: mapDocumentStatus(row.status),
+          status_label: mapDocumentStatusLabel(mapDocumentStatus(row.status)),
+          category: inferDocumentCategory(row),
+          category_label: mapDocumentCategoryLabel(inferDocumentCategory(row)),
+          created_at: row.created_at || null,
+          updated_at: row.updated_at || null,
+          reference_date: row.updated_at || row.created_at || null,
+          url: row.file_url || null,
+          process_id: row.processo_id || row.numero_cnj || null,
+          summary: row.descricao || null,
+        }),
+      },
+    ]);
+    if (result.items.length) return result.items;
+  }
+  return [];
+}
+
 async function listClientPublicationsFromJudicialBase(env, processItems = []) {
   const identifiers = uniqueBy(
     processItems.flatMap((item) => buildProcessIdentifierCandidates(item, item.id)).filter(Boolean),
@@ -1736,7 +1818,17 @@ async function listClientPublicationsFromJudicialBase(env, processItems = []) {
 }
 
 export async function getClientProcessDetails(env, profile, processId) {
-  const process = await safeResolve(() => getClientProcessBase(env, profile.email, processId), null);
+  let process = await safeResolve(() => getClientProcessBase(env, profile.email, processId), null);
+
+  if (!process) {
+    const portfolio = await safeResolve(() => listClientProcessos(env, profile.email), { items: [] });
+    const rawProcessId = String(processId || "").trim();
+    const normalizedProcessId = normalizeProcessLookupValue(rawProcessId);
+    process = (portfolio.items || []).find((item) => {
+      const candidates = buildProcessIdentifierCandidates(item, rawProcessId);
+      return candidates.includes(rawProcessId) || (normalizedProcessId ? candidates.includes(normalizedProcessId) : false);
+    }) || null;
+  }
 
   if (!process) {
     return {
@@ -1744,6 +1836,8 @@ export async function getClientProcessDetails(env, profile, processId) {
       parts: [],
       movements: [],
       publications: [],
+      audiencias: [],
+      documents: [],
       warnings: ["O processo solicitado nao foi encontrado para o cadastro autenticado."],
     };
   }
@@ -1753,16 +1847,20 @@ export async function getClientProcessDetails(env, profile, processId) {
   const treeMap = await safeResolve(() => buildProcessTreeMap(env, [process]), new Map());
 
   const processCandidates = buildProcessIdentifierCandidates(process, processId);
-  const [parts, movements, publications] = await Promise.all([
+  const [parts, movements, publications, audiencias, documents] = await Promise.all([
     embeddedParts.length ? embeddedParts : safeResolve(() => listClientProcessParts(env, processCandidates[0]), []),
     embeddedMovements.length ? embeddedMovements : safeResolve(() => listClientProcessMovements(env, processCandidates[0]), []),
     safeResolve(() => listClientProcessPublications(env, processCandidates[0]), []),
+    safeResolve(() => listClientProcessAudiencias(env, processCandidates[0]), []),
+    safeResolve(() => listClientProcessDocuments(env, profile.email, processCandidates[0]), []),
   ]);
 
   const warnings = [];
   if (!parts.length) warnings.push("As partes do processo ainda nao estao visiveis nesta fonte.");
   if (!movements.length) warnings.push("Os andamentos ainda nao foram sincronizados para este processo.");
   if (!publications.length) warnings.push("Ainda nao ha publicacoes vinculadas a este processo no portal.");
+  if (!audiencias.length) warnings.push("Nenhuma audiencia vinculada foi localizada para este processo.");
+  if (!documents.length) warnings.push("Nenhum documento vinculado foi localizado para este processo.");
   const insights = summarizeProcessInsights(process, movements, publications);
 
   return {
@@ -1779,6 +1877,8 @@ export async function getClientProcessDetails(env, profile, processId) {
     parts,
     movements,
     publications,
+    audiencias,
+    documents,
     warnings,
   };
 }
@@ -2050,6 +2150,12 @@ export async function listClientFinanceiro(env, email) {
         invoices: [],
         subscriptions: [],
         others: [],
+        linked_accounts: accounts.map((account) => ({
+          id: account.source_id,
+          name: account.display_name || "Sales Account",
+          process_reference: findAccountProcessReference(account, mapping?.process_reference_field?.key ? [mapping.process_reference_field.key] : []),
+          status: getSnapshotFieldText(account, ({ key }) => ["cf_status", "status"].includes(key)) || account.status || null,
+        })),
         summary: {
           total_items: 0,
           invoices: 0,
@@ -2066,6 +2172,11 @@ export async function listClientFinanceiro(env, email) {
         },
         mapping,
         field_catalog: fieldCatalog,
+        diagnostics: {
+          contacts_found: contacts.length,
+          linked_accounts: accounts.length,
+          related_deals: relatedDeals.length,
+        },
         warning: "Nenhum deal financeiro do Freshsales foi pareado ao seu contato neste ambiente.",
       };
     }
@@ -2086,6 +2197,12 @@ export async function listClientFinanceiro(env, email) {
       invoices,
       subscriptions,
       others,
+      linked_accounts: accounts.map((account) => ({
+        id: account.source_id,
+        name: account.display_name || "Sales Account",
+        process_reference: findAccountProcessReference(account, mapping?.process_reference_field?.key ? [mapping.process_reference_field.key] : []),
+        status: getSnapshotFieldText(account, ({ key }) => ["cf_status", "status"].includes(key)) || account.status || null,
+      })),
       summary: {
         total_items: items.length,
         invoices: invoices.length,
@@ -2102,6 +2219,11 @@ export async function listClientFinanceiro(env, email) {
       },
       mapping,
       field_catalog: fieldCatalog,
+      diagnostics: {
+        contacts_found: contacts.length,
+        linked_accounts: accounts.length,
+        related_deals: relatedDeals.length,
+      },
       warning: warnings.length ? warnings.join(" ") : null,
     };
   } catch (error) {
@@ -2116,6 +2238,7 @@ export async function listClientFinanceiro(env, email) {
         invoices: [],
         subscriptions: [],
         others: [],
+        linked_accounts: [],
         summary: {
           total_items: 0,
           invoices: 0,
@@ -2142,6 +2265,11 @@ export async function listClientFinanceiro(env, email) {
           deal_type_candidates: [],
           amount_candidates: [],
           account_candidates: [],
+        },
+        diagnostics: {
+          contacts_found: 0,
+          linked_accounts: 0,
+          related_deals: 0,
         },
         warning: "Nenhum item financeiro foi localizado nas fontes atuais do Freshsales para o seu cadastro.",
       };

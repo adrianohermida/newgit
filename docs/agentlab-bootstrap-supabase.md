@@ -9,6 +9,7 @@ Aplicar este arquivo SQL no projeto correto:
 - `agentlab_agent_profiles`
 - `agentlab_improvement_queue`
 - `agentlab_conversation_threads`
+- `agentlab_conversation_messages`
 - `agentlab_incidents`
 - `agentlab_source_sync_runs`
 - `agentlab_training_scenarios`

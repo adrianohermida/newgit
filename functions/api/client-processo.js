@@ -27,7 +27,7 @@ export async function onRequestGet(context) {
   try {
     const payload = await getClientProcessDetails(env, auth.profile, processId);
     return new Response(JSON.stringify({ ok: true, ...payload }), {
-      status: payload.process ? 200 : 404,
+      status: 200,
       headers: JSON_HEADERS,
     });
   } catch (error) {

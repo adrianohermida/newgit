@@ -63,6 +63,7 @@ function AgentLabContent({ state }) {
   const actionQueue = data.crm?.actionQueue || [];
   const dispatchRuns = data.crm?.dispatchRuns || [];
   const automationRuns = data.crm?.automationRuns || [];
+  const messageSummary = data.intelligence?.messageSummary || {};
   const actionQueueSummary = useMemo(() => {
     return actionQueue.reduce((acc, item) => {
       const key = item.status || "unknown";
@@ -208,6 +209,15 @@ function AgentLabContent({ state }) {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
+        <Panel title="Mensagens reais" eyebrow="Freshchat intelligence">
+          <div className="space-y-3 text-sm opacity-75">
+            <p>Total: {messageSummary.total || 0}</p>
+            <p>Clientes: {messageSummary.customerMessages || 0}</p>
+            <p>Agente/bot: {messageSummary.agentMessages || 0}</p>
+            <p>Sinais de qualidade: {messageSummary.qualityEvents || 0}</p>
+          </div>
+        </Panel>
+
         <Panel title="Top intents" eyebrow="Conversation intelligence">
           <div className="space-y-3 text-sm opacity-75">
             {(data.conversations?.summary?.intents || []).length ? (
@@ -228,6 +238,32 @@ function AgentLabContent({ state }) {
               ))
             ) : (
               <p>Sem incidentes catalogados no momento.</p>
+            )}
+          </div>
+        </Panel>
+
+        <Panel title="Qualidade e roteamento" eyebrow="Mensagens">
+          <div className="space-y-3 text-sm opacity-75">
+            {(messageSummary.bySuggestedAgent || []).length ? (
+              messageSummary.bySuggestedAgent.map((item) => (
+                <p key={item.label}>{item.label}: {item.value}</p>
+              ))
+            ) : (
+              <p>Sem dados de roteamento ainda.</p>
+            )}
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Panel title="Sinais de qualidade" eyebrow="Mensagens">
+          <div className="space-y-3 text-sm opacity-75">
+            {(messageSummary.qualitySignals || []).length ? (
+              messageSummary.qualitySignals.map((item) => (
+                <p key={item.label}>{item.label}: {item.value}</p>
+              ))
+            ) : (
+              <p>Nenhum sinal de qualidade consolidado ainda.</p>
             )}
           </div>
         </Panel>

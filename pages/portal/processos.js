@@ -49,7 +49,12 @@ export default function PortalProcessosPage() {
 }
 
 function ProcessosContent({ state, setState, router }) {
-  const selectedStatus = String(router.query.status || "").trim().toLowerCase();
+  const [selectedStatus, setSelectedStatus] = useState("");
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    setSelectedStatus(String(router.query.status || "").trim().toLowerCase());
+  }, [router.isReady, router.query.status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +123,7 @@ function ProcessosContent({ state, setState, router }) {
   }, [state.items]);
 
   function handleStatusChange(nextStatus) {
+    setSelectedStatus(nextStatus);
     const nextQuery = { ...router.query };
     if (nextStatus) {
       nextQuery.status = nextStatus;
