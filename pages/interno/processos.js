@@ -141,6 +141,14 @@ function ProcessosContent() {
             </button>
             <button
               type="button"
+              onClick={() => handleAction("push_orfaos")}
+              disabled={actionState.loading}
+              className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
+            >
+              Criar accounts orfaos
+            </button>
+            <button
+              type="button"
               onClick={loadAll}
               className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059]"
             >
@@ -173,6 +181,14 @@ function ProcessosContent() {
               />
             </label>
             <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => handleAction("repair_freshsales_accounts")}
+                disabled={actionState.loading}
+                className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
+              >
+                Corrigir contas no Freshsales
+              </button>
               <button
                 type="button"
                 onClick={() => handleAction("backfill_audiencias", false)}

@@ -5,6 +5,8 @@ import {
   inspectAudiencias,
   jsonError,
   jsonOk,
+  pushOrphanAccounts,
+  repairFreshsalesAccounts,
   runSyncWorker,
   scanOrphanProcesses,
 } from "../lib/hmadv-ops.js";
@@ -64,6 +66,17 @@ export async function onRequestPost(context) {
     }
     if (action === "run_sync_worker") {
       const data = await runSyncWorker(context.env);
+      return jsonOk({ data });
+    }
+    if (action === "push_orfaos") {
+      const data = await pushOrphanAccounts(context.env, Number(body.limit || 20));
+      return jsonOk({ data });
+    }
+    if (action === "repair_freshsales_accounts") {
+      const data = await repairFreshsalesAccounts(context.env, {
+        processNumbers: parseProcessNumbers(body.processNumbers),
+        limit: Number(body.limit || 10),
+      });
       return jsonOk({ data });
     }
     return jsonError(new Error("Acao POST invalida."), 400);

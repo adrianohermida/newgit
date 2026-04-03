@@ -1,6 +1,7 @@
 import { requireAdminAccess } from "../lib/admin-auth.js";
 import {
   backfillPartesFromPublicacoes,
+  createProcessesFromPublicacoes,
   getPublicacoesOverview,
   jsonError,
   jsonOk,
@@ -49,6 +50,13 @@ export async function onRequestPost(context) {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 50),
         apply: Boolean(body.apply),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "criar_processos_publicacoes") {
+      const data = await createProcessesFromPublicacoes(context.env, {
+        processNumbers: parseProcessNumbers(body.processNumbers),
+        limit: Number(body.limit || 10),
       });
       return jsonOk({ data });
     }

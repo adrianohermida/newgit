@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
 import { useAgentLabData } from "../../../lib/agentlab/useAgentLabData";
+import { adminFetch } from "../../../lib/admin/api";
 
 function Panel({ title, children }) {
   return (
@@ -35,6 +36,13 @@ export default function AgentLabKnowledgePage() {
 function KnowledgeContent({ state }) {
   const packs = state.data?.rollout?.knowledgePacks || [];
   const knowledgeSources = state.data?.rollout?.knowledgeSources || [];
+  const [message, setMessage] = useState(null);
+  const [form, setForm] = useState({
+    source_type: "faq",
+    title: "",
+    status: "draft",
+    notes: "",
+  });
   const queue = useMemo(
     () => (state.data?.governance?.queue || []).filter((item) => ["knowledge", "evaluation", "handoff"].includes(item.category)),
     [state.data]
@@ -46,6 +54,31 @@ function KnowledgeContent({ state }) {
 
   if (state.error) {
     return <div className="border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] p-6 text-sm">{state.error}</div>;
+  }
+
+  async function handleSaveKnowledgeSource() {
+    try {
+      setMessage(null);
+      await adminFetch("/api/admin-agentlab-governance", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "upsert_knowledge_source",
+          agent_ref: "dotobot-ai",
+          ...form,
+        }),
+      });
+      setMessage("Fonte de conhecimento salva.");
+      setForm({
+        source_type: "faq",
+        title: "",
+        status: "draft",
+        notes: "",
+      });
+      state.refresh();
+    } catch (error) {
+      setMessage(error.message);
+    }
   }
 
   return (
@@ -64,6 +97,39 @@ function KnowledgeContent({ state }) {
         </Panel>
 
         <Panel title="Fontes de conhecimento sugeridas">
+          {message ? <div className="mb-4 text-sm opacity-75">{message}</div> : null}
+          <div className="grid gap-4 mb-6 md:grid-cols-2">
+            <input
+              value={form.title}
+              onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+              className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              placeholder="Titulo da fonte"
+            />
+            <input
+              value={form.source_type}
+              onChange={(event) => setForm((current) => ({ ...current, source_type: event.target.value }))}
+              className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              placeholder="faq, url, pdf, artigo"
+            />
+            <input
+              value={form.status}
+              onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
+              className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              placeholder="Status"
+            />
+            <div />
+            <textarea
+              value={form.notes}
+              onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
+              className="min-h-[100px] md:col-span-2 border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              placeholder="Notas operacionais, URL, ownership, pauta editorial..."
+            />
+            <div className="md:col-span-2">
+              <button type="button" onClick={handleSaveKnowledgeSource} className="border border-[#C5A059] px-4 py-3 text-sm">
+                Salvar fonte
+              </button>
+            </div>
+          </div>
           <div className="space-y-4 text-sm opacity-75">
             {knowledgeSources.map((item) => (
               <div key={item.id} className="border border-[#2D2E2E] p-4">

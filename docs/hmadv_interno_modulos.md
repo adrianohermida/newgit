@@ -33,6 +33,8 @@ Arquivos:
 
 - visao geral de processos, DataJud e fila do `sync-worker`
 - varredura de processos orfaos
+- criacao de `Sales Accounts` para processos orfaos
+- reparo de sincronizacao de processos ja vinculados ao Freshsales
 - leitura de audiencias persistidas
 - retroativo de audiencias a partir de publicacoes
 - disparo do `sync-worker`
@@ -40,6 +42,7 @@ Arquivos:
 ### Gestao de Publicacoes
 
 - visao geral do backlog de publicacoes
+- criacao de processos a partir de publicacoes ainda sem `processo_id`
 - leitura de publicacoes com e sem activity no Freshsales
 - leitura de publicacoes filtradas como `LEILAO_IGNORADO`
 - extracao retroativa de partes a partir do conteudo das publicacoes
@@ -77,20 +80,27 @@ As funcoes administrativas tambem dependem da autenticacao do painel interno ja 
 
 - O Freshsales trabalha com limite de `1.000` requisicoes por hora.
 - O `sync-worker` local ja foi preparado para respeitar um intervalo minimo por request via `FRESHSALES_MIN_INTERVAL_MS`.
+- O painel agora limita retroativos a lotes menores para evitar `Too many subrequests by single Worker invocation`.
 - Ao usar os modulos internos, priorizar lotes pequenos para retroativos:
   - audiencias: `10` a `50`
   - partes por publicacoes: `20` a `100`
+  - criacao de processos por publicacoes: `5` a `15`
+  - reparo de contas no Freshsales: `5` a `10`
+  - criacao de accounts orfaos: `10` a `20`
 
 ## Ordem recomendada de uso
 
 1. Abrir `Gestao de Processos` e atualizar o status.
-2. Rodar simulacao do retroativo de audiencias com CNJs alvo.
-3. Aplicar o retroativo em lotes pequenos.
-4. Abrir `Gestao de Publicacoes`.
-5. Rodar simulacao da extracao retroativa de partes.
-6. Aplicar a extracao em lotes pequenos.
-7. Rodar `sync-worker`.
-8. Validar reflexo no Freshsales.
+2. Se houver processos sem account, usar `Criar accounts orfaos`.
+3. Se houver processos com account desatualizado, usar `Corrigir contas no Freshsales`.
+4. Rodar simulacao do retroativo de audiencias com CNJs alvo.
+5. Aplicar o retroativo em lotes pequenos.
+6. Abrir `Gestao de Publicacoes`.
+7. Rodar `Criar processos das publicacoes` para reduzir `publicacoes sem processo`.
+8. Rodar simulacao da extracao retroativa de partes.
+9. Aplicar a extracao em lotes pequenos.
+10. Rodar `sync-worker`.
+11. Validar reflexo no Freshsales.
 
 ## Estado atual conhecido
 

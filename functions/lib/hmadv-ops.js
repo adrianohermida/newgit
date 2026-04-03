@@ -84,6 +84,22 @@ async function hmadvRest(env, path, init = {}, schema = "judiciario") {
   });
 }
 
+function splitIntoChunks(items, size) {
+  const output = [];
+  for (let index = 0; index < items.length; index += size) {
+    output.push(items.slice(index, index + size));
+  }
+  return output;
+}
+
+function buildInFilter(field, values) {
+  const items = values
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .map((value) => `"${value.replace(/"/g, '\\"')}"`);
+  return `${field}=in.(${items.join(",")})`;
+}
+
 async function countTable(env, table, filters = "", schema = "judiciario") {
   const baseUrl = getSupabaseBaseUrl(env);
   const response = await fetch(`${baseUrl}/rest/v1/${table}?${filters}${filters ? "&" : ""}select=id`, {
@@ -206,21 +222,66 @@ function parsePartesFromText(text) {
 
 async function loadProcessesByNumbers(env, processNumbers) {
   const output = [];
+  const exactCnjs = [];
+  const fallbackTerms = [];
   for (const raw of processNumbers) {
     const value = String(raw || "").trim();
     if (!value) continue;
     const digits = value.replace(/\D+/g, "");
-    let rows = [];
-    if (digits.length === 20) {
-      rows = await hmadvRest(env, `processos?numero_cnj=eq.${digits}&select=id,numero_cnj,titulo,account_id_freshsales&limit=1`);
+    if (digits.length === 20) exactCnjs.push(digits);
+    else fallbackTerms.push(value);
+  }
+
+  for (const chunk of splitIntoChunks([...new Set(exactCnjs)], 50)) {
+    const rows = await hmadvRest(
+      env,
+      `processos?${buildInFilter("numero_cnj", chunk)}&select=id,numero_cnj,titulo,account_id_freshsales`
+    );
+    for (const row of rows) {
+      if (!output.some((item) => item.id === row.id)) output.push(row);
     }
-    if (!rows.length) {
-      const pattern = encodeURIComponent(`*${value}*`);
-      rows = await hmadvRest(env, `processos?titulo=ilike.${pattern}&select=id,numero_cnj,titulo,account_id_freshsales&limit=1`);
-    }
-    if (rows[0] && !output.some((item) => item.id === rows[0].id)) {
-      output.push(rows[0]);
-    }
+  }
+
+  for (const value of [...new Set(fallbackTerms)]) {
+    const pattern = encodeURIComponent(`*${value}*`);
+    const rows = await hmadvRest(env, `processos?titulo=ilike.${pattern}&select=id,numero_cnj,titulo,account_id_freshsales&limit=1`);
+    if (rows[0] && !output.some((item) => item.id === rows[0].id)) output.push(rows[0]);
+  }
+  return output;
+}
+
+async function loadPublicacoesByProcessIds(env, processIds, limitPerProcess = 50) {
+  const output = [];
+  for (const chunk of splitIntoChunks(processIds, 25)) {
+    const rows = await hmadvRest(
+      env,
+      `publicacoes?${buildInFilter("processo_id", chunk)}&select=id,processo_id,conteudo,data_publicacao&order=data_publicacao.desc.nullslast&limit=${Math.max(chunk.length * limitPerProcess, chunk.length)}`
+    );
+    output.push(...rows);
+  }
+  return output;
+}
+
+async function loadAudienciasByProcessIds(env, processIds) {
+  const output = [];
+  for (const chunk of splitIntoChunks(processIds, 50)) {
+    const rows = await hmadvRest(
+      env,
+      `audiencias?${buildInFilter("processo_id", chunk)}&select=id,processo_id,origem,origem_id,tipo,data_audiencia,descricao,local,situacao,freshsales_activity_id&limit=${Math.max(chunk.length * 20, chunk.length)}`
+    );
+    output.push(...rows);
+  }
+  return output;
+}
+
+async function loadPartesByProcessIds(env, processIds) {
+  const output = [];
+  for (const chunk of splitIntoChunks(processIds, 50)) {
+    const rows = await hmadvRest(
+      env,
+      `partes?${buildInFilter("processo_id", chunk)}&select=id,processo_id,nome,polo&limit=${Math.max(chunk.length * 20, chunk.length)}`
+    );
+    output.push(...rows);
   }
   return output;
 }
@@ -249,11 +310,12 @@ export async function getProcessosOverview(env) {
 }
 
 export async function getPublicacoesOverview(env) {
-  const [publicacoesTotal, publicacoesComActivity, publicacoesPendentesComAccount, publicacoesLeilaoIgnorado, partesTotal] = await Promise.all([
+  const [publicacoesTotal, publicacoesComActivity, publicacoesPendentesComAccount, publicacoesLeilaoIgnorado, publicacoesSemProcesso, partesTotal] = await Promise.all([
     countTable(env, "publicacoes"),
     countTable(env, "publicacoes", "freshsales_activity_id=not.is.null"),
     countTable(env, "publicacoes", "freshsales_activity_id=is.null&processo_id=not.is.null"),
     countTable(env, "publicacoes", "freshsales_activity_id=eq.LEILAO_IGNORADO"),
+    countTable(env, "publicacoes", "processo_id=is.null"),
     countTable(env, "partes"),
   ]);
   return {
@@ -261,6 +323,7 @@ export async function getPublicacoesOverview(env) {
     publicacoesComActivity,
     publicacoesPendentesComAccount,
     publicacoesLeilaoIgnorado,
+    publicacoesSemProcesso,
     partesTotal,
   };
 }
@@ -278,20 +341,20 @@ export async function inspectAudiencias(env, limit = 20) {
 }
 
 export async function backfillAudiencias(env, { processNumbers = [], limit = 100, apply = false } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 10), 25));
   const processes = processNumbers.length
     ? await loadProcessesByNumbers(env, processNumbers)
-    : await hmadvRest(env, `processos?select=id,numero_cnj,titulo&limit=${limit}`);
+    : await hmadvRest(env, `processos?select=id,numero_cnj,titulo&limit=${safeLimit}`);
+  const processIds = processes.map((item) => item.id);
+  const [allPublicacoes, allExistentes] = await Promise.all([
+    processIds.length ? loadPublicacoesByProcessIds(env, processIds, 20) : Promise.resolve([]),
+    processIds.length ? loadAudienciasByProcessIds(env, processIds) : Promise.resolve([]),
+  ]);
   let inserted = 0;
   const sample = [];
   for (const proc of processes) {
-    const publicacoes = await hmadvRest(
-      env,
-      `publicacoes?processo_id=eq.${proc.id}&select=id,conteudo,data_publicacao&order=data_publicacao.desc.nullslast&limit=50`
-    );
-    const existentes = await hmadvRest(
-      env,
-      `audiencias?processo_id=eq.${proc.id}&select=id,origem,origem_id,tipo,data_audiencia,descricao,local,situacao,freshsales_activity_id&limit=200`
-    );
+    const publicacoes = allPublicacoes.filter((item) => item.processo_id === proc.id).slice(0, 50);
+    const existentes = allExistentes.filter((item) => item.processo_id === proc.id);
     const novas = [];
     for (const pub of publicacoes) {
       const txt = String(pub.conteudo || "");
@@ -358,20 +421,25 @@ export async function backfillAudiencias(env, { processNumbers = [], limit = 100
     processosLidos: processes.length,
     audienciasInseridas: inserted,
     sample: sample.slice(0, 30),
+    limitAplicado: safeLimit,
   };
 }
 
 export async function backfillPartesFromPublicacoes(env, { processNumbers = [], limit = 50, apply = false } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 20), 50));
   const processes = processNumbers.length
     ? await loadProcessesByNumbers(env, processNumbers)
-    : await hmadvRest(env, `processos?select=id,numero_cnj,titulo,account_id_freshsales,polo_ativo,polo_passivo&limit=${limit}`);
+    : await hmadvRest(env, `processos?select=id,numero_cnj,titulo,account_id_freshsales,polo_ativo,polo_passivo&limit=${safeLimit}`);
+  const processIds = processes.map((item) => item.id);
+  const [allPublicacoes, allPartes] = await Promise.all([
+    processIds.length ? loadPublicacoesByProcessIds(env, processIds, 20) : Promise.resolve([]),
+    processIds.length ? loadPartesByProcessIds(env, processIds) : Promise.resolve([]),
+  ]);
   let inserted = 0;
   const sample = [];
   for (const proc of processes) {
-    const [publicacoes, existentes] = await Promise.all([
-      hmadvRest(env, `publicacoes?processo_id=eq.${proc.id}&select=id,conteudo,data_publicacao&order=data_publicacao.desc.nullslast&limit=50`),
-      hmadvRest(env, `partes?processo_id=eq.${proc.id}&select=id,nome,polo&limit=200`),
-    ]);
+    const publicacoes = allPublicacoes.filter((item) => item.processo_id === proc.id).slice(0, 50);
+    const existentes = allPartes.filter((item) => item.processo_id === proc.id);
     const parsed = publicacoes.flatMap((pub) => parsePartesFromText(pub.conteudo));
     const uniqueParsed = parsed.reduce((acc, item) => {
       const key = `${normalizeText(item.nome)}|${item.polo}`;
@@ -419,11 +487,114 @@ export async function backfillPartesFromPublicacoes(env, { processNumbers = [], 
     processosLidos: processes.length,
     partesInseridas: inserted,
     sample: sample.slice(0, 20),
+    limitAplicado: safeLimit,
   };
 }
 
 export async function runSyncWorker(env) {
   return hmadvFunction(env, "sync-worker", { action: "run" }, { method: "POST", body: {} });
+}
+
+export async function createProcessesFromPublicacoes(env, { processNumbers = [], limit = 10 } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 10), 15));
+  let publicacoes = [];
+  if (processNumbers.length) {
+    const processes = await loadProcessesByNumbers(env, processNumbers);
+    const knownCnjs = new Set(processes.map((item) => String(item.numero_cnj || "")));
+    const rawTargets = [...new Set(processNumbers.map((item) => String(item || "").replace(/\D+/g, "")).filter(Boolean))];
+    const missingTargets = rawTargets.filter((item) => !knownCnjs.has(item));
+    if (missingTargets.length) {
+      for (const chunk of splitIntoChunks(missingTargets, 25)) {
+        const rows = await hmadvRest(
+          env,
+          `publicacoes?processo_id=is.null&${buildInFilter("numero_processo_api", chunk)}&select=id,processo_id,numero_processo_api,conteudo,data_publicacao,raw_payload&limit=${Math.max(chunk.length * 5, chunk.length)}`
+        );
+        publicacoes.push(...rows);
+      }
+    }
+  } else {
+    publicacoes = await hmadvRest(
+      env,
+      `publicacoes?processo_id=is.null&numero_processo_api=not.is.null&select=id,processo_id,numero_processo_api,conteudo,data_publicacao,raw_payload&order=data_publicacao.desc.nullslast&limit=${safeLimit}`
+    );
+  }
+
+  const uniqueTargets = [];
+  for (const pub of publicacoes) {
+    const numero = String(pub.numero_processo_api || pub.raw_payload?.numero || "").replace(/\D+/g, "");
+    if (numero.length < 15) continue;
+    if (!uniqueTargets.some((item) => item.numero === numero)) {
+      uniqueTargets.push({ numero, publication: pub });
+    }
+  }
+
+  const sample = [];
+  for (const item of uniqueTargets.slice(0, safeLimit)) {
+    const result = await hmadvFunction(
+      env,
+      "datajud-search",
+      {},
+      {
+        method: "POST",
+        body: {
+          numeroProcesso: item.numero,
+          persistir: true,
+        },
+      }
+    );
+    sample.push({
+      numero_cnj: item.numero,
+      publicacao_id: item.publication.id,
+      result,
+    });
+  }
+
+  return {
+    checkedAt: new Date().toISOString(),
+    publicacoesLidas: publicacoes.length,
+    processosDisparados: sample.length,
+    sample,
+  };
+}
+
+export async function pushOrphanAccounts(env, limit = 20) {
+  return hmadvFunction(
+    env,
+    "processo-sync",
+    { action: "push_freshsales", limite: Math.max(1, Math.min(Number(limit || 20), 100)), batch: 10 },
+    { method: "POST", body: {} }
+  );
+}
+
+export async function repairFreshsalesAccounts(env, { processNumbers = [], limit = 10 } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 10), 20));
+  const processes = processNumbers.length
+    ? await loadProcessesByNumbers(env, processNumbers)
+    : await hmadvRest(
+        env,
+        `processos?select=id,numero_cnj,titulo,account_id_freshsales&account_id_freshsales=not.is.null&limit=${safeLimit}`
+      );
+  const sample = [];
+  for (const proc of processes.slice(0, safeLimit)) {
+    const result = await hmadvFunction(
+      env,
+      "fs-account-repair",
+      { processo_id: proc.id },
+      { method: "POST", body: { processo_id: proc.id, action: "repair" } }
+    );
+    sample.push({
+      processo_id: proc.id,
+      numero_cnj: proc.numero_cnj,
+      titulo: proc.titulo,
+      result,
+    });
+  }
+  return {
+    checkedAt: new Date().toISOString(),
+    processosLidos: processes.length,
+    reparados: sample.length,
+    sample,
+  };
 }
 
 export { jsonError, jsonOk };

@@ -230,6 +230,28 @@ export default function AgentLabWorkflowsPage() {
     error: null,
     success: null,
   });
+  const [intentForm, setIntentForm] = useState({
+    label: "",
+    examples: "",
+    policy: "",
+    status: "active",
+  });
+  const [intentSaveState, setIntentSaveState] = useState({
+    loading: false,
+    error: null,
+    success: null,
+  });
+  const [workflowLibraryForm, setWorkflowLibraryForm] = useState({
+    title: "",
+    type: "workflow",
+    status: "backlog",
+    notes: "",
+  });
+  const [workflowLibrarySaveState, setWorkflowLibrarySaveState] = useState({
+    loading: false,
+    error: null,
+    success: null,
+  });
 
   async function handleSaveRule(form) {
     await adminFetch("/api/admin-agentlab-governance", {
@@ -318,6 +340,59 @@ export default function AgentLabWorkflowsPage() {
     }
   }
 
+  async function handleSaveIntent() {
+    try {
+      setIntentSaveState({ loading: true, error: null, success: null });
+      await adminFetch("/api/admin-agentlab-governance", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "upsert_intent",
+          agent_ref: "dotobot-ai",
+          label: intentForm.label,
+          examples: intentForm.examples,
+          policy: intentForm.policy,
+          status: intentForm.status,
+        }),
+      });
+      setIntentSaveState({ loading: false, error: null, success: "Intent salva com sucesso." });
+      setIntentForm({
+        label: "",
+        examples: "",
+        policy: "",
+        status: "active",
+      });
+      state.refresh();
+    } catch (error) {
+      setIntentSaveState({ loading: false, error: error.message, success: null });
+    }
+  }
+
+  async function handleSaveWorkflowLibraryItem() {
+    try {
+      setWorkflowLibrarySaveState({ loading: true, error: null, success: null });
+      await adminFetch("/api/admin-agentlab-governance", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "upsert_workflow_library_item",
+          agent_ref: "dotobot-ai",
+          ...workflowLibraryForm,
+        }),
+      });
+      setWorkflowLibrarySaveState({ loading: false, error: null, success: "Item da workflow library salvo." });
+      setWorkflowLibraryForm({
+        title: "",
+        type: "workflow",
+        status: "backlog",
+        notes: "",
+      });
+      state.refresh();
+    } catch (error) {
+      setWorkflowLibrarySaveState({ loading: false, error: error.message, success: null });
+    }
+  }
+
   async function handleUpdateDispatch(run, status) {
     await adminFetch("/api/admin-agentlab-governance", {
       method: "PATCH",
@@ -394,6 +469,42 @@ export default function AgentLabWorkflowsPage() {
           <div className="grid gap-6 mb-6 xl:grid-cols-2">
             <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
               <h3 className="font-serif text-2xl mb-4">Workflow library sugerida</h3>
+              <div className="grid gap-4 mb-6">
+                <input
+                  value={workflowLibraryForm.title}
+                  onChange={(event) => setWorkflowLibraryForm((current) => ({ ...current, title: event.target.value }))}
+                  className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                  placeholder="Titulo do workflow"
+                />
+                <div className="grid gap-4 md:grid-cols-2">
+                  <input
+                    value={workflowLibraryForm.type}
+                    onChange={(event) => setWorkflowLibraryForm((current) => ({ ...current, type: event.target.value }))}
+                    className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                    placeholder="Tipo"
+                  />
+                  <input
+                    value={workflowLibraryForm.status}
+                    onChange={(event) => setWorkflowLibraryForm((current) => ({ ...current, status: event.target.value }))}
+                    className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                    placeholder="Status"
+                  />
+                </div>
+                <textarea
+                  value={workflowLibraryForm.notes}
+                  onChange={(event) => setWorkflowLibraryForm((current) => ({ ...current, notes: event.target.value }))}
+                  rows={3}
+                  className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                  placeholder="Notas operacionais do workflow"
+                />
+                <div className="flex flex-wrap items-center gap-3">
+                  <button type="button" onClick={handleSaveWorkflowLibraryItem} className="border border-[#C5A059] px-4 py-3 text-sm">
+                    Salvar workflow
+                  </button>
+                  {workflowLibrarySaveState.success ? <p className="text-sm text-emerald-400">{workflowLibrarySaveState.success}</p> : null}
+                  {workflowLibrarySaveState.error ? <p className="text-sm text-red-300">{workflowLibrarySaveState.error}</p> : null}
+                </div>
+              </div>
               <div className="space-y-4 text-sm opacity-75">
                 {workflowLibrary.map((item) => (
                   <div key={item.id} className="border border-[#2D2E2E] p-4">
@@ -410,6 +521,35 @@ export default function AgentLabWorkflowsPage() {
 
             <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
               <h3 className="font-serif text-2xl mb-4">Catalogo de intents</h3>
+              <div className="grid gap-4 mb-6">
+                <input
+                  value={intentForm.label}
+                  onChange={(event) => setIntentForm((current) => ({ ...current, label: event.target.value }))}
+                  className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                  placeholder="Rotulo da intent"
+                />
+                <textarea
+                  value={intentForm.examples}
+                  onChange={(event) => setIntentForm((current) => ({ ...current, examples: event.target.value }))}
+                  rows={4}
+                  className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                  placeholder={"Um exemplo por linha"}
+                />
+                <textarea
+                  value={intentForm.policy}
+                  onChange={(event) => setIntentForm((current) => ({ ...current, policy: event.target.value }))}
+                  rows={3}
+                  className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                  placeholder="Politica de resposta e roteamento"
+                />
+                <div className="flex flex-wrap items-center gap-3">
+                  <button type="button" onClick={handleSaveIntent} className="border border-[#C5A059] px-4 py-3 text-sm">
+                    Salvar intent
+                  </button>
+                  {intentSaveState.success ? <p className="text-sm text-emerald-400">{intentSaveState.success}</p> : null}
+                  {intentSaveState.error ? <p className="text-sm text-red-300">{intentSaveState.error}</p> : null}
+                </div>
+              </div>
               <div className="space-y-4 text-sm opacity-75">
                 {intents.map((item) => (
                   <div key={item.id} className="border border-[#2D2E2E] p-4">
