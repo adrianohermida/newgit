@@ -643,6 +643,37 @@ async function getFreshsalesPortalContextLive(env, email) {
   }
 }
 
+export async function getClientPortalAudit(env, email) {
+  const liveContext = await getFreshsalesPortalContextLive(env, email);
+  const snapshotContext = await listFreshsalesRelatedAccounts(env, email);
+  const consultas = await listClientConsultas(env, email);
+  const processos = await listClientProcessos(env, email);
+  const financeiro = await listClientFinanceiro(env, email);
+  const publicacoes = await listClientPublicacoes(env, { email });
+
+  return {
+    email,
+    live: {
+      contact_id: liveContext.contact?.id || null,
+      accounts: (liveContext.accounts || []).map((item) => ({ id: item.id, name: item.name, website: item.website || null, processo: item.cf_processo || null })),
+      deals: (liveContext.deals || []).map((item) => ({ id: item.id, name: item.name, sales_account_id: item.sales_account_id || item.sales_account?.id || null, amount: item.amount || null })),
+      appointments: (liveContext.appointments || []).map((item) => ({ id: item.id, title: item.title || null, from_date: item.from_date || item.start_date || null })),
+      activities: (liveContext.activities || []).map((item) => ({ id: item.id, title: item.title || null, targetable_type: item.targetable_type || null, targetable_id: item.targetable_id || null })),
+    },
+    snapshots: {
+      contacts: snapshotContext.contacts?.length || 0,
+      account_ids: snapshotContext.accountIds || [],
+      related_deals: snapshotContext.relatedDeals?.map((item) => item.source_id) || [],
+    },
+    portal: {
+      consultas: consultas.summary || null,
+      processos: { total: processos.items?.length || 0, warning: processos.warning || null },
+      financeiro: { total: financeiro.items?.length || 0, warning: financeiro.warning || null },
+      publicacoes: { total: publicacoes.items?.length || 0, warning: publicacoes.warning || null },
+    },
+  };
+}
+
 function findAccountProcessReference(accountSnapshot, processFieldKeys = []) {
   const candidate = processFieldKeys.length
     ? getSnapshotFieldText(accountSnapshot, ({ key }) => processFieldKeys.includes(key))
@@ -1170,7 +1201,7 @@ export async function listClientProcessos(env, email) {
   if (!result.items.length && !freshsalesItems.length) {
     return {
       items: [],
-      warning: "Leitura de processos ainda nao foi ligada neste projeto Supabase.",
+      warning: "Nenhum processo foi localizado nas fontes atuais do portal, incluindo o Freshsales e a base judicial.",
     };
   }
 
@@ -1389,7 +1420,7 @@ export async function listClientPublicacoes(env, profile) {
   if (!processIds.length && !livePublicacoes.length) {
     return {
       items: [],
-      warning: "As publicacoes passam a aparecer quando houver processos vinculados ao seu cadastro.",
+      warning: "Nenhuma publicacao foi localizada nas fontes atuais do portal para os processos vinculados ao seu cadastro.",
     };
   }
 
@@ -1666,7 +1697,7 @@ export async function listClientFinanceiro(env, email) {
           amount_candidates: [],
           account_candidates: [],
         },
-        warning: "Modulo financeiro do cliente ainda nao possui snapshots do Freshsales conectados neste ambiente.",
+        warning: "Nenhum item financeiro foi localizado nas fontes atuais do Freshsales para o seu cadastro.",
       };
     }
 
