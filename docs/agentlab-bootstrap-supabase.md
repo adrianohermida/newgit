@@ -23,6 +23,7 @@ Aplicar este arquivo SQL no projeto correto:
 - `agentlab_intents`
 - `agentlab_knowledge_sources`
 - `agentlab_workflow_library`
+- `agentlab_source_states`
 
 **Como aplicar**
 1. Abra o projeto Supabase usado pelo Pages.

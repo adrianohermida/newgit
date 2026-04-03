@@ -173,6 +173,11 @@ export async function listClientProfileChangeRequests(env, filters = {}) {
   }
 }
 
+export async function getClientProfileChangeRequestById(env, requestId) {
+  const rows = await listClientProfileChangeRequests(env, { limit: 200 });
+  return rows.find((item) => String(item.id) === String(requestId)) || null;
+}
+
 export async function createClientProfileChangeRequest(env, { user, profile, requestedPayload }) {
   const currentSnapshot = buildClientProfileSnapshot(user, profile);
   const row = {
@@ -257,9 +262,7 @@ export async function updateClientAuthMetadata(env, userId, metadata) {
 }
 
 export async function reviewClientProfileChangeRequest(env, { requestId, decision, adminUser, adminProfile }) {
-  const [requestRow] = await listClientProfileChangeRequests(env, { limit: 1 }).then((rows) =>
-    rows.filter((item) => String(item.id) === String(requestId)).slice(0, 1)
-  );
+  const requestRow = await getClientProfileChangeRequestById(env, requestId);
 
   if (!requestRow) {
     throw new Error("Solicitacao de alteracao cadastral nao encontrada.");

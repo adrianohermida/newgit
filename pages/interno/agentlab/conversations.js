@@ -39,7 +39,7 @@ export default function AgentLabConversationsPage() {
         <InternoLayout
           profile={profile}
           title="AgentLab · Conversas"
-          description="Painel de inteligencia conversacional com sync de conversas internas e atividades do Freshsales."
+          description="Painel de inteligencia conversacional com sync de conversas internas, Freshsales e Freshchat."
         >
           <AgentLabModuleNav />
           <ConversationsContent state={state} syncState={syncState} runSync={runSync} />
@@ -92,6 +92,9 @@ function ConversationsContent({ state, syncState, runSync }) {
           </button>
           <button type="button" disabled={syncBlocked} onClick={() => runSync("sync_freshsales_activities")} className="border border-[#2D2E2E] px-4 py-3 text-sm disabled:opacity-40">
             Sincronizar Freshsales
+          </button>
+          <button type="button" disabled={syncBlocked} onClick={() => runSync("sync_freshchat_conversations")} className="border border-[#2D2E2E] px-4 py-3 text-sm disabled:opacity-40">
+            Sincronizar Freshchat
           </button>
         </div>
         {syncState.loading ? <p className="text-sm opacity-70">Executando sync...</p> : null}

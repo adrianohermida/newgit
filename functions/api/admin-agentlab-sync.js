@@ -3,6 +3,7 @@ import {
   getAgentLabDashboard,
   jsonError,
   jsonOk,
+  syncFreshchatConversationsIntoAgentLab,
   syncFreshsalesActivitiesIntoAgentLab,
   syncWorkspaceConversations,
 } from "../../lib/agentlab/server.js";
@@ -47,7 +48,12 @@ export async function onRequestPost(context) {
     }
 
     if (action === "sync_freshsales_activities") {
-      const result = await syncFreshsalesActivitiesIntoAgentLab(context.env, Number(body.limit || 25));
+      const result = await syncFreshsalesActivitiesIntoAgentLab(context.env, Number(body.limit || 10));
+      return jsonOk({ result });
+    }
+
+    if (action === "sync_freshchat_conversations") {
+      const result = await syncFreshchatConversationsIntoAgentLab(context.env, Number(body.limit || 10));
       return jsonOk({ result });
     }
 

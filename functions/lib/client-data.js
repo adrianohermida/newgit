@@ -558,7 +558,7 @@ async function listFreshsalesRelatedAccounts(env, email) {
   const accountProcessFields = parseEnvList(env, "FRESHSALES_FINANCE_ACCOUNT_PROCESS_FIELDS");
   const includeOwnerFallback = shouldUseFreshsalesOwnerFallback(email, env);
   const deals = Array.isArray(dealsRaw) ? dealsRaw : [];
-  const relatedDeals = deals.filter((snapshot) => {
+  const preRelatedDeals = deals.filter((snapshot) => {
     const relationships = getSnapshotRelationships(snapshot);
     const accountId = String(relationships.sales_account_id || "").trim();
     if (snapshotMatchesRelatedContacts(snapshot, contactIds)) return true;
@@ -567,13 +567,21 @@ async function listFreshsalesRelatedAccounts(env, email) {
     if (accountId && snapshotContainsAnyId(snapshot, contactIds)) return true;
     return false;
   });
-  const dealAccountIds = relatedDeals
+  const dealAccountIds = preRelatedDeals
     .map((snapshot) => String(getSnapshotRelationships(snapshot).sales_account_id || "").trim())
     .filter(Boolean);
   const accounts = (Array.isArray(accountsRaw) ? accountsRaw : []).filter((snapshot) => {
     if (snapshotContainsAnyId(snapshot, contactIds)) return true;
     if (dealAccountIds.includes(String(snapshot.source_id || "").trim())) return true;
     if (includeOwnerFallback && snapshotMatchesOwner(snapshot, ownerId)) return true;
+    return false;
+  });
+  const accountIds = accounts.map((item) => String(item.source_id || "").trim()).filter(Boolean);
+  const relatedDeals = deals.filter((snapshot) => {
+    const relationships = getSnapshotRelationships(snapshot);
+    const accountId = String(relationships.sales_account_id || "").trim();
+    if (preRelatedDeals.some((item) => item.id === snapshot.id || item.source_id === snapshot.source_id)) return true;
+    if (accountId && accountIds.includes(accountId)) return true;
     return false;
   });
 
@@ -583,7 +591,7 @@ async function listFreshsalesRelatedAccounts(env, email) {
     ownerId: includeOwnerFallback ? ownerId : null,
     relatedDeals,
     accounts,
-    accountIds: accounts.map((item) => String(item.source_id || "").trim()).filter(Boolean),
+    accountIds,
     processFieldKeys: accountProcessFields,
   };
 }
@@ -614,11 +622,25 @@ async function getFreshsalesPortalContextLive(env, email) {
       )
     ).filter(Boolean);
 
+    const accountDealRefs = accounts.flatMap((item) => (Array.isArray(item?.deals) ? item.deals : []));
     const deals = (
       await Promise.all(
-        dealRefs.map((item) => viewFreshsalesDeal(env, item?.id || item).catch(() => null))
+        [...dealRefs, ...accountDealRefs].map((item) => viewFreshsalesDeal(env, item?.id || item).catch(() => null))
       )
-    ).filter(Boolean);
+    )
+      .filter(Boolean)
+      .reduce((acc, item) => {
+        if (!acc.some((row) => String(row?.id || "") === String(item?.id || ""))) acc.push(item);
+        return acc;
+      }, []);
+
+    const accountAppointments = accounts.flatMap((item) => (Array.isArray(item?.appointments) ? item.appointments : []));
+    const mergedAppointments = [...appointments, ...accountAppointments].reduce((acc, item) => {
+      const nextId = String(item?.id || item || "").trim();
+      if (!nextId || acc.some((row) => String(row?.id || row || "").trim() === nextId)) return acc;
+      acc.push(item);
+      return acc;
+    }, []);
 
     const accountIds = accounts.map((item) => String(item?.id || "").trim()).filter(Boolean);
     let accountActivities = [];
@@ -637,7 +659,7 @@ async function getFreshsalesPortalContextLive(env, email) {
       contact,
       accounts,
       deals,
-      appointments,
+      appointments: mergedAppointments,
       activities: [...activitiesFromContact, ...accountActivities],
     };
   } catch {
@@ -787,6 +809,7 @@ function normalizeProcessRow(row) {
   const rawStatus = row.status || row.status_atual_processo || "sem_status";
   return {
     id: row.id || row.processo_id || row.numero_cnj || row.numero || null,
+    account_id_freshsales: row.account_id_freshsales || row.sales_account_id || null,
     number: row.numero_cnj || row.numero || row.cnj || row.processo_numero_cnj || null,
     title: row.titulo || row.title || row.assunto || row.numero_cnj || row.numero || "Processo",
     court: row.tribunal || row.tribunal_sigla || row.orgao_julgador || null,
@@ -1104,13 +1127,38 @@ async function buildProcessTreeMap(env, processes = []) {
 }
 
 function buildProcessIdentifierCandidates(process, processId) {
-  const values = [processId, process?.id, process?.number, process?.raw?.id, process?.raw?.numero_cnj, process?.raw?.numero];
+  const values = [
+    processId,
+    process?.id,
+    process?.number,
+    process?.account_id_freshsales,
+    process?.metadata?.source_id,
+    process?.metadata?.process_reference,
+    process?.raw?.id,
+    process?.raw?.numero_cnj,
+    process?.raw?.numero,
+    process?.raw?.account_id_freshsales,
+  ];
   return [...new Set(values.filter(Boolean).map((value) => String(value).trim()).filter(Boolean))];
 }
 
 export function buildClientDraftProfile(user, profile = null) {
   const fallback = buildFallbackClientProfile(user);
   const metadata = safeJsonParse(profile?.metadata, fallback.metadata || {});
+  const normalizedMetadata = {
+    ...metadata,
+    profession: metadata.profession || "",
+    marital_status: metadata.marital_status || "",
+    addresses: Array.isArray(metadata.addresses) ? metadata.addresses : [],
+    contacts: Array.isArray(metadata.contacts) ? metadata.contacts : [],
+    personal_data_locks:
+      metadata.personal_data_locks && typeof metadata.personal_data_locks === "object"
+        ? metadata.personal_data_locks
+        : {
+            cpf_verified: false,
+            full_name_verified: false,
+          },
+  };
   return {
     id: profile?.id || fallback.id,
     email: profile?.email || fallback.email,
@@ -1118,18 +1166,26 @@ export function buildClientDraftProfile(user, profile = null) {
     is_active: profile?.is_active ?? fallback.is_active,
     whatsapp: profile?.whatsapp || fallback.whatsapp,
     cpf: profile?.cpf || fallback.cpf,
-    metadata,
+    metadata: normalizedMetadata,
     onboarding_required: !isClientProfileComplete({
       ...profile,
       ...{
         full_name: profile?.full_name || fallback.full_name,
         whatsapp: profile?.whatsapp || fallback.whatsapp,
         cpf: profile?.cpf || fallback.cpf,
-        metadata,
+        metadata: normalizedMetadata,
         is_active: profile?.is_active ?? fallback.is_active,
       },
     }),
   };
+}
+
+async function safeResolve(promiseFactory, fallback) {
+  try {
+    return await promiseFactory();
+  } catch {
+    return fallback;
+  }
 }
 
 async function tryFetchOptional(env, variants) {
@@ -1394,7 +1450,7 @@ export async function listClientProcessos(env, email, options = {}) {
     });
   });
   const mergedItems = Array.from(mergedMap.values());
-  const treeMap = await buildProcessTreeMap(env, mergedItems);
+  const treeMap = await safeResolve(() => buildProcessTreeMap(env, mergedItems), new Map());
 
   const enrichedItems = await Promise.all(
     mergedItems.map(async (process) => {
@@ -1497,7 +1553,7 @@ async function getClientProcessBase(env, email, processId) {
           },
           ["cf_processo", "name"]
         );
-        const candidates = buildProcessIdentifierCandidates(processRow, processId);
+        const candidates = [...buildProcessIdentifierCandidates(processRow, processId), String(account?.id || "").trim()];
         return candidates.includes(String(processId).trim());
       });
 
@@ -1599,7 +1655,7 @@ async function listClientProcessPublications(env, processId) {
 }
 
 export async function getClientProcessDetails(env, profile, processId) {
-  const process = await getClientProcessBase(env, profile.email, processId);
+  const process = await safeResolve(() => getClientProcessBase(env, profile.email, processId), null);
 
   if (!process) {
     return {
@@ -1613,13 +1669,13 @@ export async function getClientProcessDetails(env, profile, processId) {
 
   const embeddedParts = Array.isArray(process.raw?.partes) ? process.raw.partes.map(normalizePartRow) : [];
   const embeddedMovements = Array.isArray(process.raw?.movimentacoes) ? process.raw.movimentacoes.map(normalizeMovementRow) : [];
-  const treeMap = await buildProcessTreeMap(env, [process]);
+  const treeMap = await safeResolve(() => buildProcessTreeMap(env, [process]), new Map());
 
   const processCandidates = buildProcessIdentifierCandidates(process, processId);
   const [parts, movements, publications] = await Promise.all([
-    embeddedParts.length ? embeddedParts : listClientProcessParts(env, processCandidates[0]),
-    embeddedMovements.length ? embeddedMovements : listClientProcessMovements(env, processCandidates[0]),
-    listClientProcessPublications(env, processCandidates[0]),
+    embeddedParts.length ? embeddedParts : safeResolve(() => listClientProcessParts(env, processCandidates[0]), []),
+    embeddedMovements.length ? embeddedMovements : safeResolve(() => listClientProcessMovements(env, processCandidates[0]), []),
+    safeResolve(() => listClientProcessPublications(env, processCandidates[0]), []),
   ]);
 
   const warnings = [];
@@ -1647,10 +1703,16 @@ export async function getClientProcessDetails(env, profile, processId) {
 }
 
 export async function listClientPublicacoes(env, profile) {
-  const processes = await listClientProcessos(env, profile.email);
-  const processIds = [...new Set(processes.items.flatMap((item) => buildProcessIdentifierCandidates(item, item.id)).filter(Boolean))];
+  const processes = await safeResolve(
+    () => listClientProcessos(env, profile.email),
+    {
+      items: [],
+      warning: "A carteira processual nao respondeu por completo; o portal tentara exibir as publicacoes disponiveis.",
+    }
+  );
+  const processIds = [...new Set((processes.items || []).flatMap((item) => buildProcessIdentifierCandidates(item, item.id)).filter(Boolean))];
   let livePublicacoes = [];
-  let liveWarning = null;
+  let liveWarning = processes.warning || null;
   try {
     const liveContext = await getFreshsalesPortalContextLive(env, profile.email);
     livePublicacoes = (liveContext.activities || [])
@@ -1669,7 +1731,7 @@ export async function listClientPublicacoes(env, profile) {
   }
 
   const publicationBatches = await Promise.all(
-    processIds.slice(0, 20).map((processId) => listClientProcessPublications(env, processId))
+    processIds.slice(0, 20).map((processId) => safeResolve(() => listClientProcessPublications(env, processId), []))
   );
 
   const items = [...publicationBatches.flat(), ...livePublicacoes].sort((left, right) => {

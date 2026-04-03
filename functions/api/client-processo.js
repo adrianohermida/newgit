@@ -24,9 +24,19 @@ export async function onRequestGet(context) {
     });
   }
 
-  const payload = await getClientProcessDetails(env, auth.profile, processId);
-  return new Response(JSON.stringify({ ok: true, ...payload }), {
-    status: payload.process ? 200 : 404,
-    headers: JSON_HEADERS,
-  });
+  try {
+    const payload = await getClientProcessDetails(env, auth.profile, processId);
+    return new Response(JSON.stringify({ ok: true, ...payload }), {
+      status: payload.process ? 200 : 404,
+      headers: JSON_HEADERS,
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({
+      ok: false,
+      error: error?.message || "Nao foi possivel carregar o detalhe do processo.",
+    }), {
+      status: 500,
+      headers: JSON_HEADERS,
+    });
+  }
 }
