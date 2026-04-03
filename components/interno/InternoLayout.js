@@ -62,7 +62,7 @@ export default function InternoLayout({
   const initialWorkspaceOpen = router.pathname === "/interno/agentlab/conversations";
   const gridClassName = hideDotobotRail
     ? "grid min-h-[calc(100vh-1.5rem)] gap-3 lg:grid-cols-[272px_minmax(0,1fr)]"
-    : "grid min-h-[calc(100vh-1.5rem)] gap-3 lg:grid-cols-[272px_minmax(0,1fr)_360px]";
+    : "grid min-h-[calc(100vh-1.5rem)] gap-3 lg:grid-cols-[272px_minmax(0,1fr)_320px]";
 
   async function handleSignOut() {
     if (supabase) {
@@ -104,7 +104,7 @@ export default function InternoLayout({
                   <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">Workspace</p>
                   <p className="mt-2 text-sm font-medium text-[#F5F1E8]">Sidebar, modulo e Dotobot</p>
                   <p className="mt-2 text-sm leading-6 text-[#92A59F]">
-                    A barra lateral orienta. O centro executa. O Dotobot pode expandir para a tela cheia com conversa, tarefas, contexto e execucao assistida.
+                    O painel lateral serve como atalho rapido. A experiencia completa de conversa, tarefas e execucao vive no AI Task central.
                   </p>
                 </div>
 
@@ -145,21 +145,13 @@ export default function InternoLayout({
             <aside id="dotobot-rail" className="order-2 lg:order-none lg:h-[calc(100vh-1.5rem)]">
               <div className="h-full overflow-y-auto rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(10,17,15,0.96),rgba(8,14,12,0.92))] p-3 md:p-4 lg:sticky lg:top-3">
                 {rightRail || (
-                  <>
-                    <div className="mb-4 border-b border-[#1E2E29] px-1 pb-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">Dotobot AI</p>
-                      <p className="mt-2 text-sm leading-6 text-[#92A59F]">
-                        Copilot juridico interno com conversa, tarefas, contexto e execucao assistida.
-                      </p>
-                    </div>
-
-                      <DotobotPanel
-                        profile={profile}
-                        routePath={router.pathname}
-                        initialWorkspaceOpen={initialWorkspaceOpen}
-                        defaultCollapsed
-                      />
-                    </>
+                  <DotobotPanel
+                    profile={profile}
+                    routePath={router.pathname}
+                    initialWorkspaceOpen={initialWorkspaceOpen}
+                    defaultCollapsed
+                    compactRail
+                  />
                 )}
               </div>
             </aside>
