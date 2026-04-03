@@ -206,7 +206,6 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
   const [attachments, setAttachments] = useState([]);
   const [showSlashCommands, setShowSlashCommands] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [recordingSupported, setRecordingSupported] = useState(false);
   const [pendingRetrigger, setPendingRetrigger] = useState(null);
   const scrollRef = useRef(null);
   const composerRef = useRef(null);
@@ -223,9 +222,7 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
     if (savedPrefs.mode) setMode(savedPrefs.mode);
     if (savedPrefs.provider) setProvider(savedPrefs.provider);
     if (typeof savedPrefs.contextEnabled === "boolean") setContextEnabled(savedPrefs.contextEnabled);
-    if (savedPrefs.workspaceOpen && initialWorkspaceOpen) {
-      setWorkspaceOpen(true);
-    }
+    setWorkspaceOpen(Boolean(savedPrefs.workspaceOpen || initialWorkspaceOpen));
   }, [chatStorageKey, taskStorageKey, prefStorageKey, initialWorkspaceOpen]);
 
   useEffect(() => {
@@ -253,12 +250,6 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
       })
     );
   }, [mode, provider, contextEnabled, workspaceOpen, prefStorageKey]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    setRecordingSupported(Boolean(getVoiceRecognition()));
-    return undefined;
-  }, []);
 
   useEffect(() => {
     if (!workspaceOpen || typeof window === "undefined") return undefined;
@@ -563,7 +554,7 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
   const activeStatus = loading || runningCount ? "processing" : "online";
   const activeMode = MODE_OPTIONS.find((item) => item.value === mode) || MODE_OPTIONS[1];
   const activeProviderLabel = PROVIDER_OPTIONS.find((item) => item.value === provider)?.label || "GPT";
-  const isWorkspaceShell = workspaceOpen || initialWorkspaceOpen;
+  const isWorkspaceShell = workspaceOpen;
 
   return (
     <>

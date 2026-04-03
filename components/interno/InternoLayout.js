@@ -5,6 +5,7 @@ import DotobotPanel from "./DotobotPanel";
 
 const NAV_ITEMS = [
   { href: "/interno", label: "Visao geral" },
+  { href: "/interno/ai-task", label: "AI Task" },
   { href: "/interno/aprovacoes", label: "Aprovacoes" },
   { href: "/interno/processos", label: "Processos" },
   { href: "/interno/publicacoes", label: "Publicacoes" },
@@ -48,10 +49,20 @@ function RailPanel({ title, subtitle, children }) {
   );
 }
 
-export default function InternoLayout({ title, description, profile, children }) {
+export default function InternoLayout({
+  title,
+  description,
+  profile,
+  children,
+  hideDotobotRail = false,
+  rightRail,
+}) {
   const router = useRouter();
   const { supabase } = useSupabaseBrowser();
   const initialWorkspaceOpen = router.pathname === "/interno/agentlab/conversations";
+  const gridClassName = hideDotobotRail
+    ? "grid min-h-[calc(100vh-1.5rem)] gap-3 lg:grid-cols-[272px_minmax(0,1fr)]"
+    : "grid min-h-[calc(100vh-1.5rem)] gap-3 lg:grid-cols-[272px_minmax(0,1fr)_360px]";
 
   async function handleSignOut() {
     if (supabase) {
@@ -63,9 +74,7 @@ export default function InternoLayout({ title, description, profile, children })
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.24),transparent_30%),linear-gradient(180deg,#050706_0%,#070A09_100%)] text-[#F4F1EA]">
       <div className="w-full px-3 py-3 md:px-4 xl:px-5">
-        <div
-          className="grid min-h-[calc(100vh-1.5rem)] gap-3 lg:grid-cols-[272px_minmax(0,1fr)_360px]"
-        >
+          <div className={gridClassName}>
           <aside className="lg:sticky lg:top-3 lg:h-[calc(100vh-1.5rem)]">
             <div className="flex h-full flex-col rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(10,18,16,0.98),rgba(8,15,13,0.94))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.22)]">
               <Link href="/interno" prefetch={false} className="mb-8 block">
@@ -132,27 +141,33 @@ export default function InternoLayout({ title, description, profile, children })
             <div className="space-y-6">{children}</div>
           </main>
 
-          <aside id="dotobot-rail" className="order-2 lg:order-none lg:h-[calc(100vh-1.5rem)]">
-            <div className="h-full overflow-y-auto rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(10,17,15,0.96),rgba(8,14,12,0.92))] p-3 md:p-4 lg:sticky lg:top-3">
-              <div className="mb-4 border-b border-[#1E2E29] px-1 pb-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">Conversa lateral</p>
-                <p className="mt-2 text-sm leading-6 text-[#92A59F]">
-                  O Dotobot fica aqui como coluna fixa para resumo, analise operacional, comparacao e apoio continuo sem sair do contexto da tela.
-                </p>
-              </div>
+          {!hideDotobotRail ? (
+            <aside id="dotobot-rail" className="order-2 lg:order-none lg:h-[calc(100vh-1.5rem)]">
+              <div className="h-full overflow-y-auto rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(10,17,15,0.96),rgba(8,14,12,0.92))] p-3 md:p-4 lg:sticky lg:top-3">
+                {rightRail || (
+                  <>
+                    <div className="mb-4 border-b border-[#1E2E29] px-1 pb-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">Conversa lateral</p>
+                      <p className="mt-2 text-sm leading-6 text-[#92A59F]">
+                        O Dotobot fica aqui como coluna fixa para resumo, analise operacional, comparacao e apoio continuo sem sair do contexto da tela.
+                      </p>
+                    </div>
 
-              <div className="space-y-4">
-                <RailPanel
-                  title="Fluxo de trabalho"
-                  subtitle="Sidebar, modulo e conversa permanecem visiveis em conjunto."
-                >
-                  Use este painel para perguntar, resumir, comparar versoes e revisar o contexto enquanto navega pelos modulos internos.
-                </RailPanel>
+                    <div className="space-y-4">
+                      <RailPanel
+                        title="Fluxo de trabalho"
+                        subtitle="Sidebar, modulo e conversa permanecem visiveis em conjunto."
+                      >
+                        Use este painel para perguntar, resumir, comparar versoes e revisar o contexto enquanto navega pelos modulos internos.
+                      </RailPanel>
 
-                <DotobotPanel profile={profile} routePath={router.pathname} initialWorkspaceOpen={initialWorkspaceOpen} />
+                      <DotobotPanel profile={profile} routePath={router.pathname} initialWorkspaceOpen={initialWorkspaceOpen} />
+                    </div>
+                  </>
+                )}
               </div>
-            </div>
-          </aside>
+            </aside>
+          ) : null}
         </div>
       </div>
     </div>
