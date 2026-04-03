@@ -3,6 +3,49 @@ import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch } from "../../lib/admin/api";
 
+const PUBLICACOES_VIEW_ITEMS = [
+  { key: "operacao", label: "Operacao" },
+  { key: "filas", label: "Filas" },
+  { key: "resultado", label: "Resultado" },
+];
+const HISTORY_STORAGE_KEY = "hmadv:interno-publicacoes:history:v1";
+const ACTION_LABELS = {
+  criar_processos_publicacoes: "Criar processos das publicacoes",
+  backfill_partes: "Extracao retroativa de partes",
+  run_sync_worker: "Rodar sync-worker",
+};
+
+function buildHistoryPreview(result) {
+  if (!result) return "";
+  if (result.erro) return String(result.erro);
+  if (typeof result.processosCriados === "number") return `Processos criados: ${result.processosCriados}`;
+  if (typeof result.partesInseridas === "number") return `Partes inseridas: ${result.partesInseridas}`;
+  if (typeof result.publicacoes === "number") return `Publicacoes processadas: ${result.publicacoes}`;
+  if (typeof result.total === "number") return `Total: ${result.total}`;
+  if (typeof result.items?.length === "number") return `Itens retornados: ${result.items.length}`;
+  if (typeof result.sample?.length === "number") return `Amostra: ${result.sample.length}`;
+  return "Execucao concluida";
+}
+
+function loadHistoryEntries() {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(HISTORY_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistHistoryEntries(entries) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(entries.slice(0, 40)));
+  } catch {}
+}
+
 function MetricCard({ label, value, helper }) {
   return (
     <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-5">
@@ -27,6 +70,13 @@ function Panel({ title, eyebrow, children }) {
   );
 }
 
+function ViewToggle({ value, onChange }) {
+  return <div className="flex flex-wrap gap-2">{PUBLICACOES_VIEW_ITEMS.map((item) => {
+    const active = item.key === value;
+    return <button key={item.key} type="button" onClick={() => onChange(item.key)} className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.16em] transition ${active ? "border-[#C5A059] bg-[rgba(197,160,89,0.12)] text-[#F8E7B5]" : "border-[#2D2E2E] text-[#C5A059] hover:border-[#C5A059]"}`}>{item.label}</button>;
+  })}</div>;
+}
+
 function QueueList({
   title,
   helper,
@@ -37,8 +87,11 @@ function QueueList({
   page,
   setPage,
   loading,
+  totalRows = 0,
+  pageSize = 20,
 }) {
   const allSelected = rows.length > 0 && rows.every((row) => selected.includes(row.key));
+  const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / Math.max(1, pageSize)));
   function freshsalesUrl(accountId) {
     return accountId ? `https://hmadv-org.myfreshworks.com/crm/sales/accounts/${accountId}` : null;
   }
@@ -49,6 +102,7 @@ function QueueList({
         <div>
           <p className="text-sm font-semibold">{title}</p>
           {helper ? <p className="text-xs opacity-60">{helper}</p> : null}
+          {totalRows ? <p className="text-xs opacity-50 mt-1">Pagina {page} de {totalPages} · {totalRows} no total</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -69,7 +123,7 @@ function QueueList({
           <button
             type="button"
             onClick={() => setPage(page + 1)}
-            disabled={loading}
+            disabled={loading || page >= totalPages}
             className="border border-[#2D2E2E] px-3 py-2 text-xs disabled:opacity-40"
           >
             Proxima
@@ -127,6 +181,20 @@ function QueueList({
       </div>
     </div>
   );
+}
+
+function HistoryCard({ entry, onReuse }) {
+  return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div><p className="font-semibold">{entry.label}</p><p className="text-xs opacity-60">{new Date(entry.createdAt).toLocaleString("pt-BR")}</p></div>
+      <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${entry.status === "running" ? "border-[#6E5630] text-[#FDE68A]" : entry.status === "error" ? "border-[#4B2222] text-red-200" : "border-[#2D2E2E] opacity-70"}`}>{entry.status}</span>
+    </div>
+    {entry.preview ? <p className="mt-3 opacity-70">{entry.preview}</p> : null}
+    {entry.meta?.selectedCount ? <p className="mt-2 text-xs opacity-60">Itens selecionados: {entry.meta.selectedCount}</p> : null}
+    {entry.meta?.limit ? <p className="mt-1 text-xs opacity-60">Lote: {entry.meta.limit}</p> : null}
+    {entry.meta?.processNumbersPreview ? <p className="mt-2 break-all text-xs opacity-60">CNJs: {entry.meta.processNumbersPreview}</p> : null}
+    <div className="mt-3"><button type="button" onClick={() => onReuse(entry)} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">Reusar parametros</button></div>
+  </div>;
 }
 
 function OperationResult({ result }) {
@@ -232,16 +300,39 @@ export default function InternoPublicacoesPage() {
 }
 
 function PublicacoesContent() {
+  const [view, setView] = useState("operacao");
   const [overview, setOverview] = useState({ loading: true, error: null, data: null });
-  const [processCandidates, setProcessCandidates] = useState({ loading: true, error: null, items: [] });
-  const [partesCandidates, setPartesCandidates] = useState({ loading: true, error: null, items: [] });
+  const [processCandidates, setProcessCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20 });
+  const [partesCandidates, setPartesCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20 });
   const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
+  const [executionHistory, setExecutionHistory] = useState([]);
   const [processNumbers, setProcessNumbers] = useState("");
   const [limit, setLimit] = useState(10);
   const [processPage, setProcessPage] = useState(1);
   const [partesPage, setPartesPage] = useState(1);
   const [selectedProcessKeys, setSelectedProcessKeys] = useState([]);
   const [selectedPartesKeys, setSelectedPartesKeys] = useState([]);
+
+  useEffect(() => {
+    const syncViewFromLocation = () => {
+      if (typeof window === "undefined") return;
+      const url = new URL(window.location.href);
+      const queryView = url.searchParams.get("view");
+      const hashView = window.location.hash ? window.location.hash.replace("#", "") : "";
+      const nextView = PUBLICACOES_VIEW_ITEMS.some((item) => item.key === queryView)
+        ? queryView
+        : PUBLICACOES_VIEW_ITEMS.some((item) => item.key === hashView)
+          ? hashView
+          : "operacao";
+      setView(nextView);
+    };
+    syncViewFromLocation();
+    if (typeof window !== "undefined") window.addEventListener("hashchange", syncViewFromLocation);
+    return () => {
+      if (typeof window !== "undefined") window.removeEventListener("hashchange", syncViewFromLocation);
+    };
+  }, []);
+  useEffect(() => { setExecutionHistory(loadHistoryEntries()); }, []);
 
   useEffect(() => {
     loadOverview();
@@ -269,9 +360,9 @@ function PublicacoesContent() {
     setProcessCandidates((state) => ({ ...state, loading: true, error: null }));
     try {
       const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=candidatos_processos&page=${page}&pageSize=20`);
-      setProcessCandidates({ loading: false, error: null, items: payload.data.items || [] });
+      setProcessCandidates({ loading: false, error: null, items: payload.data.items || [], totalRows: payload.data.totalRows || 0, pageSize: payload.data.pageSize || 20 });
     } catch (error) {
-      setProcessCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos.", items: [] });
+      setProcessCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos.", items: [], totalRows: 0, pageSize: 20 });
     }
   }
 
@@ -279,9 +370,9 @@ function PublicacoesContent() {
     setPartesCandidates((state) => ({ ...state, loading: true, error: null }));
     try {
       const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=candidatos_partes&page=${page}&pageSize=20`);
-      setPartesCandidates({ loading: false, error: null, items: payload.data.items || [] });
+      setPartesCandidates({ loading: false, error: null, items: payload.data.items || [], totalRows: payload.data.totalRows || 0, pageSize: payload.data.pageSize || 20 });
     } catch (error) {
-      setPartesCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos de partes.", items: [] });
+      setPartesCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos de partes.", items: [], totalRows: 0, pageSize: 20 });
     }
   }
 
@@ -307,8 +398,54 @@ function PublicacoesContent() {
     [partesCandidates.items, selectedPartesKeys]
   );
 
+  function updateView(nextView) {
+    setView(nextView);
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", nextView);
+    url.hash = nextView;
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  }
+
+  function buildActionMeta(numbers = []) {
+    const explicit = numbers.length ? numbers.join("\n") : String(processNumbers || "");
+    return {
+      limit,
+      selectedCount: selectedProcessKeys.length + selectedPartesKeys.length,
+      processNumbersPreview: explicit.split(/\r?\n|,|;/).map((item) => item.trim()).filter(Boolean).slice(0, 6).join(", "),
+    };
+  }
+
+  function pushHistoryEntry(entry) {
+    setExecutionHistory((current) => {
+      const next = [entry, ...current].slice(0, 40);
+      persistHistoryEntries(next);
+      return next;
+    });
+  }
+
+  function replaceHistoryEntry(id, patch) {
+    setExecutionHistory((current) => {
+      const next = current.map((item) => item.id === id ? { ...item, ...patch } : item);
+      persistHistoryEntries(next);
+      return next;
+    });
+  }
+
   async function handleAction(action, apply = false, numbers = []) {
     setActionState({ loading: true, error: null, result: null });
+    updateView("resultado");
+    const historyId = `${action}:${Date.now()}`;
+    pushHistoryEntry({
+      id: historyId,
+      action,
+      label: ACTION_LABELS[action] || action,
+      status: "running",
+      createdAt: new Date().toISOString(),
+      preview: "Execucao iniciada",
+      meta: buildActionMeta(numbers),
+      payload: { action, apply, limit, processNumbers: numbers.length ? numbers.join("\n") : processNumbers },
+    });
     try {
       const payload = await adminFetch("/api/admin-hmadv-publicacoes", {
         method: "POST",
@@ -321,16 +458,54 @@ function PublicacoesContent() {
         }),
       });
       setActionState({ loading: false, error: null, result: payload.data });
+      replaceHistoryEntry(historyId, {
+        status: "success",
+        preview: buildHistoryPreview(payload.data),
+        result: payload.data,
+      });
       await Promise.all([loadOverview(), loadProcessCandidates(processPage), loadPartesCandidates(partesPage)]);
     } catch (error) {
       setActionState({ loading: false, error: error.message || "Falha ao executar acao.", result: null });
+      replaceHistoryEntry(historyId, {
+        status: "error",
+        preview: error.message || "Falha ao executar acao.",
+        error: error.message || "Falha ao executar acao.",
+      });
     }
   }
 
+  function reuseHistoryEntry(entry) {
+    if (entry?.payload?.processNumbers) setProcessNumbers(entry.payload.processNumbers);
+    if (entry?.payload?.limit) setLimit(Number(entry.payload.limit) || 10);
+    updateView("operacao");
+  }
+
+  function clearHistory() {
+    setExecutionHistory([]);
+    persistHistoryEntries([]);
+  }
+
   const data = overview.data || {};
+  const latestHistory = executionHistory[0] || null;
 
   return (
     <div className="space-y-8">
+      <section className="rounded-[34px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-6 py-6 md:px-7">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C5A059]">Centro de publicacoes</p>
+            <h3 className="mt-3 font-serif text-4xl leading-tight">Criacao de processos, extracao de partes e drenagem do backlog em uma trilha operacional.</h3>
+            <p className="mt-3 max-w-2xl text-sm leading-7 opacity-65">A tela foi segmentada por foco de trabalho para reduzir ruido visual e guardar memoria do que foi executado na sessao.</p>
+          </div>
+          <div className="flex flex-col gap-3 rounded-[26px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm">
+            <div className="flex items-center justify-between gap-4"><span className="opacity-60">Selecionados no momento</span><strong className="font-serif text-2xl">{selectedProcessKeys.length + selectedPartesKeys.length}</strong></div>
+            <div className="flex items-center justify-between gap-4"><span className="opacity-60">Ultima acao</span><span className="text-right text-xs uppercase tracking-[0.16em] text-[#C5A059]">{actionState.loading ? "executando" : actionState.error ? "erro" : actionState.result ? "concluida" : "aguardando"}</span></div>
+            {latestHistory ? <p className="text-xs opacity-60">{latestHistory.label}: {latestHistory.preview}</p> : null}
+          </div>
+        </div>
+        <div className="mt-6"><ViewToggle value={view} onChange={updateView} /></div>
+      </section>
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Publicacoes totais" value={data.publicacoesTotal || 0} helper="Estoque atualmente persistido no HMADV." />
         <MetricCard label="Com activity" value={data.publicacoesComActivity || 0} helper="Ja refletidas como activity no Freshsales." />
@@ -338,7 +513,7 @@ function PublicacoesContent() {
         <MetricCard label="Sem processo" value={data.publicacoesSemProcesso || 0} helper="Publicacoes ainda sem processo vinculado no HMADV." />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      {view === "operacao" ? <div className="grid gap-6 xl:grid-cols-2">
         <Panel title="Criacao de processos a partir das publicacoes" eyebrow="Fila paginada">
           <div className="space-y-4">
             <QueueList
@@ -452,18 +627,56 @@ function PublicacoesContent() {
             </div>
           ) : null}
         </Panel>
-      </div>
+      </div> : null}
 
-      <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">
-        {actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}
-        {actionState.error ? <p className="text-sm text-red-300">{actionState.error}</p> : null}
-        {!actionState.loading && !actionState.error && actionState.result ? (
-          <OperationResult result={actionState.result} />
-        ) : null}
-        {!actionState.loading && !actionState.error && !actionState.result ? (
-          <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p>
-        ) : null}
-      </Panel>
+      {view === "filas" ? <div className="grid gap-6 xl:grid-cols-2">
+        <Panel title="Fila de processos criaveis" eyebrow="Criacao a partir das publicacoes">
+          <QueueList
+            title="Processos criaveis"
+            helper="Selecione itens da pagina para disparar a criacao do processo no HMADV via DataJud."
+            rows={processCandidates.items}
+            selected={selectedProcessKeys}
+            onToggle={(key) => toggleSelection(setSelectedProcessKeys, selectedProcessKeys, key)}
+            onTogglePage={(nextState) => togglePageSelection(setSelectedProcessKeys, selectedProcessKeys, processCandidates.items, nextState)}
+            page={processPage}
+            setPage={setProcessPage}
+            loading={processCandidates.loading}
+            totalRows={processCandidates.totalRows}
+            pageSize={processCandidates.pageSize}
+          />
+        </Panel>
+        <Panel title="Fila de partes extraiveis" eyebrow="Backfill pelo conteudo das publicacoes">
+          <QueueList
+            title="Processos com partes extraiveis"
+            helper="Selecione processos vinculados que ainda tenham partes detectadas no conteudo das publicacoes."
+            rows={partesCandidates.items}
+            selected={selectedPartesKeys}
+            onToggle={(key) => toggleSelection(setSelectedPartesKeys, selectedPartesKeys, key)}
+            onTogglePage={(nextState) => togglePageSelection(setSelectedPartesKeys, selectedPartesKeys, partesCandidates.items, nextState)}
+            page={partesPage}
+            setPage={setPartesPage}
+            loading={partesCandidates.loading}
+            totalRows={partesCandidates.totalRows}
+            pageSize={partesCandidates.pageSize}
+          />
+        </Panel>
+      </div> : null}
+
+      {view === "resultado" ? <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">
+          {actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}
+          {actionState.error ? <p className="text-sm text-red-300">{actionState.error}</p> : null}
+          {!actionState.loading && !actionState.error && actionState.result ? <OperationResult result={actionState.result} /> : null}
+          {!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p> : null}
+        </Panel>
+        <Panel title="Historico de execucao" eyebrow="Memoria local da operacao">
+          <div className="mb-4 flex flex-wrap gap-3">
+            <button type="button" onClick={() => updateView("operacao")} className="border border-[#2D2E2E] px-4 py-2 text-sm hover:border-[#C5A059] hover:text-[#C5A059]">Voltar para operacao</button>
+            <button type="button" onClick={clearHistory} className="border border-[#2D2E2E] px-4 py-2 text-sm hover:border-[#C5A059] hover:text-[#C5A059]">Limpar historico</button>
+          </div>
+          {!executionHistory.length ? <p className="text-sm opacity-65">Nenhuma solicitacao registrada ainda neste navegador.</p> : <div className="space-y-3">{executionHistory.map((entry) => <HistoryCard key={entry.id} entry={entry} onReuse={reuseHistoryEntry} />)}</div>}
+        </Panel>
+      </div> : null}
     </div>
   );
 }
