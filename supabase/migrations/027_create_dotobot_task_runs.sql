@@ -17,6 +17,20 @@ create table if not exists public.dotobot_task_runs (
   updated_at timestamptz not null default now()
 );
 
+alter table public.dotobot_task_runs
+  drop constraint if exists dotobot_task_runs_status_check;
+
+alter table public.dotobot_task_runs
+  add constraint dotobot_task_runs_status_check
+  check (status in ('queued', 'executing', 'completed', 'failed', 'canceled'));
+
+alter table public.dotobot_task_runs
+  drop constraint if exists dotobot_task_runs_mode_check;
+
+alter table public.dotobot_task_runs
+  add constraint dotobot_task_runs_mode_check
+  check (mode in ('autonomous', 'assisted', 'manual'));
+
 create table if not exists public.dotobot_task_run_events (
   id text primary key,
   run_id text not null references public.dotobot_task_runs(id) on delete cascade,
@@ -34,6 +48,29 @@ create index if not exists idx_dotobot_task_runs_created_at
 
 create index if not exists idx_dotobot_task_run_events_run
   on public.dotobot_task_run_events (run_id, created_at asc);
+
+create index if not exists idx_dotobot_task_run_events_type
+  on public.dotobot_task_run_events (event_type, created_at desc);
+
+create index if not exists idx_dotobot_task_runs_route
+  on public.dotobot_task_runs (route, updated_at desc);
+
+create or replace function public.set_updated_at_dotobot_task_runs()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_dotobot_task_runs_updated_at on public.dotobot_task_runs;
+
+create trigger trg_dotobot_task_runs_updated_at
+before update on public.dotobot_task_runs
+for each row
+execute function public.set_updated_at_dotobot_task_runs();
 
 alter table public.dotobot_task_runs enable row level security;
 alter table public.dotobot_task_run_events enable row level security;
