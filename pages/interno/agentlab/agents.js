@@ -25,8 +25,8 @@ export default function AgentLabAgentsPage() {
       {(profile) => (
         <InternoLayout
           profile={profile}
-          title="AgentLab · Agents"
-          description="Centro de configuracao de persona, politicas de resposta, workflow strategy e fila viva de melhoria."
+          title="AgentLab · Agentes"
+          description="Centro de configuracao de persona, politicas de resposta, estrategia de workflow e fila viva de melhoria."
         >
           <AgentLabModuleNav />
           <AgentsContent
@@ -88,6 +88,7 @@ function AgentsContent({ state, saving, setSaving, message, setMessage, queueMes
         }),
       });
       setMessage("Perfil do agente atualizado.");
+      state.refresh();
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -108,7 +109,8 @@ function AgentsContent({ state, saving, setSaving, message, setMessage, queueMes
           priority: patch.priority || item.priority,
         }),
       });
-      setQueueMessage("Fila de melhoria atualizada. Recarregue a pagina para ver o estado novo.");
+      setQueueMessage("Fila de melhoria atualizada.");
+      state.refresh();
     } catch (error) {
       setQueueMessage(error.message);
     }

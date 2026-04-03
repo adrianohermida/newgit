@@ -120,6 +120,14 @@ Para sugerir o `FRESHSALES_BILLING_DEAL_FIELD_MAP` a partir do tenant real:
 node scripts/discover-freshsales-billing-fields.js
 ```
 
+## Bootstrap de contatos
+
+Se o tenant ainda estiver com poucos ou nenhum contato sincronizado, crie os contatos básicos a partir das linhas financeiras com e-mail:
+
+```bash
+node scripts/bootstrap-hmadv-contacts.js 100
+```
+
 ## Regras já implementadas
 
 - matching de contato por `e-mail`

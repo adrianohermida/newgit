@@ -15,6 +15,7 @@
     "import:billing-indices": "node scripts/import-billing-indices.js",
     "materialize:hmadv-billing": "node scripts/materialize-hmadv-billing.js",
     "discover:freshsales-billing-fields": "node scripts/discover-freshsales-billing-fields.js",
+    "bootstrap:hmadv-contacts": "node scripts/bootstrap-hmadv-contacts.js",
     "orchestrate:hmadv-billing": "node scripts/orchestrate-hmadv-billing.js",
     "process:hmadv-crm-events": "node scripts/process-hmadv-crm-events.js",
     "publish:hmadv-deals": "node scripts/publish-hmadv-deals.js",

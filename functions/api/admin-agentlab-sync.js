@@ -7,6 +7,16 @@ import {
   syncWorkspaceConversations,
 } from "../../lib/agentlab/server.js";
 
+function isMissingSourceError(error) {
+  const message = String(error?.message || "");
+  return (
+    message.includes("PGRST205") ||
+    message.includes("schema cache") ||
+    message.includes("Could not find the table") ||
+    message.includes("does not exist")
+  );
+}
+
 export async function onRequestGet(context) {
   const auth = await requireAdminAccess(context.request, context.env);
   if (!auth.ok) {
@@ -43,6 +53,15 @@ export async function onRequestPost(context) {
 
     return jsonError(new Error("Acao de sync invalida."), 400);
   } catch (error) {
+    if (isMissingSourceError(error)) {
+      return jsonOk({
+        result: {
+          unavailable: true,
+          message:
+            "Este ambiente ainda nao possui todas as tabelas de inteligencia conversacional. O sync local foi bloqueado para evitar erro operacional.",
+        },
+      });
+    }
     return jsonError(error, 500);
   }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
@@ -16,23 +16,7 @@ function Panel({ title, children }) {
 
 export default function AgentLabConversationsPage() {
   const state = useAgentLabData();
-  const [syncRuns, setSyncRuns] = useState([]);
   const [syncState, setSyncState] = useState({ loading: false, message: null });
-
-  useEffect(() => {
-    let cancelled = false;
-    adminFetch("/api/admin-agentlab-sync")
-      .then((payload) => {
-        if (!cancelled) setSyncRuns(payload.runs || []);
-      })
-      .catch(() => {
-        if (!cancelled) setSyncRuns([]);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   async function runSync(action) {
     try {
@@ -42,7 +26,8 @@ export default function AgentLabConversationsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
       });
-      setSyncState({ loading: false, message: JSON.stringify(payload.result) });
+      setSyncState({ loading: false, message: payload.result?.message || JSON.stringify(payload.result) });
+      state.refresh();
     } catch (error) {
       setSyncState({ loading: false, message: error.message });
     }
@@ -53,18 +38,18 @@ export default function AgentLabConversationsPage() {
       {(profile) => (
         <InternoLayout
           profile={profile}
-          title="AgentLab · Conversations"
+          title="AgentLab · Conversas"
           description="Painel de inteligencia conversacional com sync de conversas internas e atividades do Freshsales."
         >
           <AgentLabModuleNav />
-          <ConversationsContent state={state} syncRuns={syncRuns} syncState={syncState} runSync={runSync} />
+          <ConversationsContent state={state} syncState={syncState} runSync={runSync} />
         </InternoLayout>
       )}
     </RequireAdmin>
   );
 }
 
-function ConversationsContent({ state, syncRuns, syncState, runSync }) {
+function ConversationsContent({ state, syncState, runSync }) {
   if (state.loading) {
     return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando conversas...</div>;
   }
@@ -76,6 +61,7 @@ function ConversationsContent({ state, syncRuns, syncState, runSync }) {
   const conversations = state.data?.conversations?.threads || [];
   const incidents = state.data?.intelligence?.incidents || [];
   const summary = state.data?.conversations?.summary || {};
+  const syncRuns = state.data?.intelligence?.syncRuns || [];
 
   return (
     <div className="space-y-8">

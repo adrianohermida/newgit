@@ -1,12 +1,17 @@
 param(
   [string]$ServiceRole = $env:HMADV_SERVICE_ROLE,
   [string[]]$ProcessNumbers,
+  [string]$ProcessListPath,
   [int]$Limite = 100,
   [switch]$Aplicar
 )
 
 if (-not $ServiceRole) {
   throw "Defina -ServiceRole ou a env:HMADV_SERVICE_ROLE"
+}
+
+if ($ProcessListPath -and (Test-Path $ProcessListPath)) {
+  $ProcessNumbers = @(Get-Content $ProcessListPath | ForEach-Object { $_.ToString().Trim() } | Where-Object { $_ })
 }
 
 $restBase = "https://sspvizogbcyigquqycsz.supabase.co/rest/v1"
@@ -24,7 +29,15 @@ $writeHeaders = @{
 }
 
 function Invoke-JsonGet([string]$url) {
-  try { return @(Invoke-RestMethod -Method Get -Uri $url -Headers $readHeaders -TimeoutSec 120) } catch { return @() }
+  try {
+    $resp = Invoke-WebRequest -UseBasicParsing -Method Get -Uri $url -Headers $readHeaders -TimeoutSec 120
+    $parsed = if ($resp.Content) { $resp.Content | ConvertFrom-Json } else { $null }
+    if ($null -eq $parsed) { return @() }
+    if ($parsed -is [System.Array]) { return $parsed }
+    return @($parsed)
+  } catch {
+    return @()
+  }
 }
 
 function Invoke-JsonPost([string]$table, $payload) {
@@ -39,19 +52,23 @@ function Escape-IlikeValue([string]$value) {
 
 function Get-Processes() {
   if ($ProcessNumbers -and $ProcessNumbers.Count -gt 0) {
-    $rows = @()
+    $rows = New-Object 'System.Collections.Generic.List[object]'
     foreach ($n in @($ProcessNumbers | Select-Object -Unique)) {
       $raw = $n.Trim()
       $digits = ($raw -replace '[^0-9]', '')
       if ($digits.Length -eq 20) {
-        $rows += @(Invoke-JsonGet "$restBase/processos?numero_cnj=eq.$digits&select=id,numero_cnj,titulo&limit=1")
+        foreach ($row in @(Invoke-JsonGet "$restBase/processos?numero_cnj=eq.$digits&select=id,numero_cnj,titulo&limit=1")) {
+          [void]$rows.Add($row)
+        }
       }
       if (@($rows | Where-Object { $_.numero_cnj -eq $digits }).Count -eq 0) {
         $pattern = Escape-IlikeValue "*$raw*"
-        $rows += @(Invoke-JsonGet "$restBase/processos?titulo=ilike.$pattern&select=id,numero_cnj,titulo&limit=1")
+        foreach ($row in @(Invoke-JsonGet "$restBase/processos?titulo=ilike.$pattern&select=id,numero_cnj,titulo&limit=1")) {
+          [void]$rows.Add($row)
+        }
       }
     }
-    return @($rows | Sort-Object id -Unique)
+    return @(@($rows) | Sort-Object id -Unique)
   }
   return @(Invoke-JsonGet "$restBase/processos?select=id,numero_cnj,titulo&limit=$Limite")
 }

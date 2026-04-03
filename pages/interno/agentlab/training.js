@@ -29,7 +29,8 @@ export default function AgentLabTrainingPage() {
         body: JSON.stringify({ scenario_id: id }),
       });
       const score = payload.result?.run?.scores?.overall;
-      setResultMessage(`Treino executado. Score overall: ${score ?? "n/a"}`);
+      setResultMessage(`Treino executado. Score geral: ${score ?? "n/a"}`);
+      state.refresh();
     } catch (error) {
       setResultMessage(error.message);
     } finally {
@@ -42,7 +43,7 @@ export default function AgentLabTrainingPage() {
       {(profile) => (
         <InternoLayout
           profile={profile}
-          title="AgentLab · Training"
+          title="AgentLab · Treinamento"
           description="Centro de treinamento com cenarios juridicos, scorecards e uso de Workers AI como motor avaliador."
         >
           <AgentLabModuleNav />
@@ -55,7 +56,7 @@ export default function AgentLabTrainingPage() {
 
 function TrainingContent({ state, runningId, runScenario, resultMessage }) {
   if (state.loading) {
-    return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando training center...</div>;
+    return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando centro de treinamento...</div>;
   }
 
   if (state.error) {
