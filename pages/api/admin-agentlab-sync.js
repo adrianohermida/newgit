@@ -17,6 +17,15 @@ function isMissingSourceError(error) {
   );
 }
 
+function isFreshchatCredentialError(error) {
+  return String(error?.message || "").includes("Credenciais do Freshchat ausentes");
+}
+
+function isFreshsalesPayloadError(error) {
+  const message = String(error?.message || "");
+  return message.includes("Unexpected end of JSON input");
+}
+
 export default async function handler(req, res) {
   const auth = await requireAdminNode(req);
   if (!auth.ok) {
@@ -62,6 +71,29 @@ export default async function handler(req, res) {
 
       return res.status(400).json({ ok: false, error: "Acao de sync invalida." });
     } catch (error) {
+      if (isFreshchatCredentialError(error)) {
+        return res.status(200).json({
+          ok: true,
+          result: {
+            unavailable: true,
+            mode: "config_missing",
+            requiredSecrets: ["FRESHCHAT_API_BASE", "FRESHCHAT_API_KEY"],
+            message:
+              "Credenciais do Freshchat ausentes para sincronizacao viva. Configure FRESHCHAT_API_BASE e FRESHCHAT_API_KEY no Pages.",
+          },
+        });
+      }
+      if (isFreshsalesPayloadError(error)) {
+        return res.status(200).json({
+          ok: true,
+          result: {
+            unavailable: true,
+            mode: "upstream_empty",
+            message:
+              "O Freshsales respondeu sem corpo JSON nesta tentativa. Tente novamente; se persistir, revisamos a surface do endpoint ativo no tenant.",
+          },
+        });
+      }
       if (isMissingSourceError(error)) {
         const action = String(body.action || "").trim();
         return res.status(200).json({
@@ -70,17 +102,21 @@ export default async function handler(req, res) {
             unavailable: true,
             mode: "schema_missing",
             requiredSources:
-              action === "sync_freshchat_messages"
-                ? ["agentlab_conversation_messages"]
-                : [
-                    "agentlab_conversation_threads",
-                    "agentlab_incidents",
-                    "agentlab_source_sync_runs",
-                  ],
+              action === "sync_workspace_conversations"
+                ? ["conversas"]
+                : action === "sync_freshchat_messages"
+                  ? ["agentlab_conversation_messages"]
+                  : [
+                      "agentlab_conversation_threads",
+                      "agentlab_incidents",
+                      "agentlab_source_sync_runs",
+                    ],
             message:
-              action === "sync_freshchat_messages"
-                ? "A tabela de mensagens ainda nao existe neste ambiente. Aplique a migration 022 para sincronizar mensagens do Freshchat."
-                : "Este ambiente ainda nao possui todas as tabelas de inteligencia conversacional. O sync local foi bloqueado para evitar erro operacional.",
+              action === "sync_workspace_conversations"
+                ? "A tabela legado `conversas` nao existe neste ambiente. Esse sync e opcional e pode permanecer desabilitado."
+                : action === "sync_freshchat_messages"
+                  ? "A tabela de mensagens ainda nao existe neste ambiente. Aplique a migration 022 para sincronizar mensagens do Freshchat."
+                  : "Este ambiente ainda nao possui todas as tabelas de inteligencia conversacional. O sync local foi bloqueado para evitar erro operacional.",
           },
         });
       }

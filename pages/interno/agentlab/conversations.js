@@ -130,7 +130,7 @@ function ConversationsContent({ state, syncState, runSync }) {
             onClick={() => runSync("sync_workspace_conversations", 5)}
             className="border border-[#2D2E2E] px-4 py-3 text-sm disabled:opacity-40"
           >
-            Sincronizar legado
+            Sincronizar legado opcional
           </button>
           <button
             type="button"

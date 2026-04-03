@@ -82,6 +82,10 @@ function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+const FRESHSALES_OWNER_FALLBACKS = {
+  "adrianohermida@gmail.com": "31000147944",
+};
+
 function getEnvString(env, key) {
   const value = env?.[key];
   return typeof value === "string" ? value.trim() : "";
@@ -505,8 +509,13 @@ function snapshotMatchesRelatedContacts(snapshot, contactIds = []) {
   return snapshotContainsAnyId(snapshot, ids);
 }
 
+function getFreshsalesOwnerFallbackId(email, env) {
+  const normalizedEmail = normalizeEmail(email);
+  return getEnvString(env, "FRESHSALES_OWNER_ID") || FRESHSALES_OWNER_FALLBACKS[normalizedEmail] || "";
+}
+
 function shouldUseFreshsalesOwnerFallback(email, env) {
-  return normalizeEmail(email) === "adrianohermida@gmail.com" && Boolean(getEnvString(env, "FRESHSALES_OWNER_ID"));
+  return Boolean(getFreshsalesOwnerFallbackId(email, env));
 }
 
 function snapshotMatchesOwner(snapshot, ownerId) {
@@ -563,7 +572,7 @@ function mapFreshsalesAccountToProcessRow(accountSnapshot, processFieldKeys = []
 }
 
 async function listFreshsalesRelatedAccounts(env, email) {
-  const ownerId = getEnvString(env, "FRESHSALES_OWNER_ID");
+  const ownerId = getFreshsalesOwnerFallbackId(email, env);
   const safeSnapshots = async (entity, fallbackLimit) => {
     try {
       return await listFreshsalesSnapshots(env, entity, getFreshsalesSnapshotLimit(env, entity, fallbackLimit));
@@ -627,6 +636,40 @@ async function listFreshsalesRelatedAccounts(env, email) {
     accountIds,
     processFieldKeys: accountProcessFields,
   };
+}
+
+function buildFreshsalesAccountPublicationRows(accounts = [], processFieldKeys = []) {
+  return uniqueBy(
+    accounts
+      .map((account) => {
+        const publicationDate =
+          getSnapshotFieldText(account, ({ key }) => ["cf_publicacao_em"].includes(key)) ||
+          getSnapshotFieldText(account, ({ key, entry }) => textIncludesAny(`${key} ${entry?.label || ""}`, ["publicacao", "publicação"])) ||
+          null;
+        const content =
+          getSnapshotFieldText(account, ({ key }) => ["cf_contedo_publicacao", "cf_conteudo_publicacao"].includes(key)) ||
+          getSnapshotFieldText(account, ({ key, entry }) => textIncludesAny(`${key} ${entry?.label || ""}`, ["conteudo publicacao", "conteúdo publicação", "publicacao", "publicação"])) ||
+          getSnapshotFieldText(account, ({ key }) => ["cf_descricao_ultimo_movimento"].includes(key)) ||
+          null;
+        const processReference = findAccountProcessReference(account, processFieldKeys);
+
+        if (!publicationDate && !content) return null;
+
+        return {
+          id: `fs-account-publicacao-${account?.source_id || processReference || Math.random()}`,
+          date: publicationDate || account?.synced_at || account?.timestamps?.updated_at || null,
+          title: account?.display_name || processReference || "Publicacao",
+          summary: content || "Atualizacao registrada no CRM para este processo.",
+          content: content || "",
+          source: "Freshsales",
+          status: getSnapshotFieldText(account, ({ key }) => ["cf_status", "status"].includes(key)) || null,
+          url: null,
+          process_id: account?.source_id ? String(account.source_id) : processReference || null,
+        };
+      })
+      .filter(Boolean),
+    (item) => item.id
+  );
 }
 
 async function getFreshsalesPortalContextLive(env, email) {
@@ -1894,6 +1937,7 @@ export async function listClientPublicacoes(env, profile) {
   const processItems = Array.isArray(processes.items) ? processes.items : [];
   let livePublicacoes = [];
   let liveWarning = processes.warning || null;
+  let snapshotAccountPublicacoes = [];
   try {
     const liveContext = await getFreshsalesPortalContextLive(env, profile.email);
     livePublicacoes = (liveContext.activities || [])
@@ -1904,7 +1948,17 @@ export async function listClientPublicacoes(env, profile) {
     liveWarning = "O CRM nao respondeu por completo; o portal exibira as publicacoes disponiveis na base judicial.";
   }
 
-  if (!processItems.length && !livePublicacoes.length) {
+  try {
+    const freshsalesContext = await listFreshsalesRelatedAccounts(env, profile.email);
+    snapshotAccountPublicacoes = buildFreshsalesAccountPublicationRows(
+      freshsalesContext.accounts || [],
+      freshsalesContext.processFieldKeys || []
+    );
+  } catch {
+    snapshotAccountPublicacoes = [];
+  }
+
+  if (!processItems.length && !livePublicacoes.length && !snapshotAccountPublicacoes.length) {
     return {
       items: [],
       warning: liveWarning || "Nenhuma publicacao foi localizada nas fontes atuais do portal para os processos vinculados ao seu cadastro.",
@@ -1916,7 +1970,7 @@ export async function listClientPublicacoes(env, profile) {
     []
   );
 
-  const items = uniqueBy([...judicialPublicacoes, ...livePublicacoes], (item) => item.id || `${item.process_id || "proc"}-${item.date || item.title || ""}`).sort((left, right) => {
+  const items = uniqueBy([...judicialPublicacoes, ...livePublicacoes, ...snapshotAccountPublicacoes], (item) => item.id || `${item.process_id || "proc"}-${item.date || item.title || ""}`).sort((left, right) => {
     const leftTime = left.date ? new Date(left.date).getTime() : 0;
     const rightTime = right.date ? new Date(right.date).getTime() : 0;
     return rightTime - leftTime;
