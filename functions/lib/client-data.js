@@ -642,29 +642,44 @@ function buildFreshsalesAccountPublicationRows(accounts = [], processFieldKeys =
   return uniqueBy(
     accounts
       .map((account) => {
+        const normalizedAccount =
+          account?.attributes || account?.custom_attributes || account?.source_id
+            ? account
+            : {
+                source_id: account?.id || null,
+                display_name: account?.name || null,
+                status: account?.cf_status || account?.status || null,
+                synced_at: account?.updated_at || account?.created_at || null,
+                attributes: account,
+                custom_attributes: account?.custom_field || {},
+                timestamps: { updated_at: account?.updated_at || null, created_at: account?.created_at || null },
+              };
         const publicationDate =
-          getSnapshotFieldText(account, ({ key }) => ["cf_publicacao_em"].includes(key)) ||
-          getSnapshotFieldText(account, ({ key, entry }) => textIncludesAny(`${key} ${entry?.label || ""}`, ["publicacao", "publicação"])) ||
+          getSnapshotFieldText(normalizedAccount, ({ key }) => ["cf_publicacao_em", "cf_data_ultimo_movimento"].includes(key)) ||
+          getSnapshotFieldText(normalizedAccount, ({ key, entry }) => textIncludesAny(`${key} ${entry?.label || ""}`, ["publicacao", "publicação", "ultimo movimento", "último movimento"])) ||
           null;
         const content =
-          getSnapshotFieldText(account, ({ key }) => ["cf_contedo_publicacao", "cf_conteudo_publicacao"].includes(key)) ||
-          getSnapshotFieldText(account, ({ key, entry }) => textIncludesAny(`${key} ${entry?.label || ""}`, ["conteudo publicacao", "conteúdo publicação", "publicacao", "publicação"])) ||
-          getSnapshotFieldText(account, ({ key }) => ["cf_descricao_ultimo_movimento"].includes(key)) ||
+          getSnapshotFieldText(normalizedAccount, ({ key }) => ["cf_contedo_publicacao", "cf_conteudo_publicacao", "cf_descricao_ultimo_movimento"].includes(key)) ||
+          getSnapshotFieldText(normalizedAccount, ({ key, entry }) => textIncludesAny(`${key} ${entry?.label || ""}`, ["conteudo publicacao", "conteúdo publicação", "publicacao", "publicação", "ultimo movimento", "último movimento"])) ||
           null;
-        const processReference = findAccountProcessReference(account, processFieldKeys);
+        const processReference = findAccountProcessReference(normalizedAccount, processFieldKeys);
+        const movementDate = getSnapshotFieldText(normalizedAccount, ({ key }) => ["cf_data_ultimo_movimento"].includes(key));
+        const movementDescription = getSnapshotFieldText(normalizedAccount, ({ key }) => ["cf_descricao_ultimo_movimento"].includes(key));
+        const effectiveDate = publicationDate || movementDate || normalizedAccount?.synced_at || normalizedAccount?.timestamps?.updated_at || null;
+        const effectiveContent = content || movementDescription || null;
 
-        if (!publicationDate && !content) return null;
+        if (!effectiveDate && !effectiveContent) return null;
 
         return {
-          id: `fs-account-publicacao-${account?.source_id || processReference || Math.random()}`,
-          date: publicationDate || account?.synced_at || account?.timestamps?.updated_at || null,
-          title: account?.display_name || processReference || "Publicacao",
-          summary: content || "Atualizacao registrada no CRM para este processo.",
-          content: content || "",
+          id: `fs-account-publicacao-${normalizedAccount?.source_id || processReference || Math.random()}`,
+          date: effectiveDate,
+          title: normalizedAccount?.display_name || processReference || "Atualizacao do processo",
+          summary: effectiveContent || "Atualizacao registrada no CRM para este processo.",
+          content: effectiveContent || "",
           source: "Freshsales",
-          status: getSnapshotFieldText(account, ({ key }) => ["cf_status", "status"].includes(key)) || null,
+          status: getSnapshotFieldText(normalizedAccount, ({ key }) => ["cf_status", "status"].includes(key)) || null,
           url: null,
-          process_id: account?.source_id ? String(account.source_id) : processReference || null,
+          process_id: normalizedAccount?.source_id ? String(normalizedAccount.source_id) : processReference || null,
         };
       })
       .filter(Boolean),
@@ -1936,6 +1951,7 @@ export async function listClientPublicacoes(env, profile) {
   );
   const processItems = Array.isArray(processes.items) ? processes.items : [];
   let livePublicacoes = [];
+  let liveAccountPublicacoes = [];
   let liveWarning = processes.warning || null;
   let snapshotAccountPublicacoes = [];
   try {
@@ -1943,8 +1959,10 @@ export async function listClientPublicacoes(env, profile) {
     livePublicacoes = (liveContext.activities || [])
       .filter((item) => textIncludesAny(`${item?.title || ""} ${item?.notes || ""}`, ["publicacao", "publicação", "andamento"]))
       .map(normalizeFreshsalesActivityPublicationRow);
+    liveAccountPublicacoes = buildFreshsalesAccountPublicationRows(liveContext.accounts || [], ["cf_processo", "name"]);
   } catch {
     livePublicacoes = [];
+    liveAccountPublicacoes = [];
     liveWarning = "O CRM nao respondeu por completo; o portal exibira as publicacoes disponiveis na base judicial.";
   }
 
@@ -1958,7 +1976,7 @@ export async function listClientPublicacoes(env, profile) {
     snapshotAccountPublicacoes = [];
   }
 
-  if (!processItems.length && !livePublicacoes.length && !snapshotAccountPublicacoes.length) {
+  if (!processItems.length && !livePublicacoes.length && !liveAccountPublicacoes.length && !snapshotAccountPublicacoes.length) {
     return {
       items: [],
       warning: liveWarning || "Nenhuma publicacao foi localizada nas fontes atuais do portal para os processos vinculados ao seu cadastro.",
@@ -1970,7 +1988,7 @@ export async function listClientPublicacoes(env, profile) {
     []
   );
 
-  const items = uniqueBy([...judicialPublicacoes, ...livePublicacoes, ...snapshotAccountPublicacoes], (item) => item.id || `${item.process_id || "proc"}-${item.date || item.title || ""}`).sort((left, right) => {
+  const items = uniqueBy([...judicialPublicacoes, ...livePublicacoes, ...liveAccountPublicacoes, ...snapshotAccountPublicacoes], (item) => item.id || `${item.process_id || "proc"}-${item.date || item.title || ""}`).sort((left, right) => {
     const leftTime = left.date ? new Date(left.date).getTime() : 0;
     const rightTime = right.date ? new Date(right.date).getTime() : 0;
     return rightTime - leftTime;
