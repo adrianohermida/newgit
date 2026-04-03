@@ -108,6 +108,11 @@ function AgentLabContent({ state }) {
               {" "}
               [agentlab-bootstrap-supabase.md](/D:/Github/newgit/docs/agentlab-bootstrap-supabase.md)
             </p>
+            <p>
+              Diagnostico detalhado:
+              {" "}
+              [environment](/D:/Github/newgit/pages/interno/agentlab/environment.js)
+            </p>
           </div>
         </Panel>
       ) : null}

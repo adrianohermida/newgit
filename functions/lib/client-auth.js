@@ -67,9 +67,21 @@ export function buildFallbackClientProfile(user) {
     whatsapp: metadata.whatsapp || "",
     cpf: metadata.cpf || "",
     metadata: {
+      ...metadata,
       consent_lgpd: metadata.consent_lgpd === true,
       communication_consent: metadata.communication_consent === true,
       office_whatsapp: metadata.office_whatsapp || null,
+      profession: metadata.profession || "",
+      marital_status: metadata.marital_status || "",
+      addresses: Array.isArray(metadata.addresses) ? metadata.addresses : [],
+      contacts: Array.isArray(metadata.contacts) ? metadata.contacts : [],
+      personal_data_locks:
+        metadata.personal_data_locks && typeof metadata.personal_data_locks === "object"
+          ? metadata.personal_data_locks
+          : {
+              cpf_verified: false,
+              full_name_verified: false,
+            },
     },
   };
 }

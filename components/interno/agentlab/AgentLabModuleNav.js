@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 
 const ITEMS = [
   { href: "/interno/agentlab", label: "Visao geral" },
+  { href: "/interno/agentlab/environment", label: "Ambiente" },
   { href: "/interno/agentlab/agents", label: "Agentes" },
   { href: "/interno/agentlab/conversations", label: "Conversas" },
   { href: "/interno/agentlab/training", label: "Treinamento" },

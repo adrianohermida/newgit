@@ -8,7 +8,7 @@ import { useAgentLabData } from "../../../lib/agentlab/useAgentLabData";
 function Panel({ title, children }) {
   return (
     <section className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
-      <h3 className="font-serif text-2xl mb-4">{title}</h3>
+      <h3 className="mb-4 font-serif text-2xl">{title}</h3>
       {children}
     </section>
   );
@@ -86,7 +86,7 @@ function ConversationsContent({ state, syncState, runSync }) {
             </p>
           </div>
         ) : null}
-        <div className="flex flex-wrap gap-3 mb-4">
+        <div className="mb-4 flex flex-wrap gap-3">
           <button type="button" disabled={syncBlocked} onClick={() => runSync("sync_workspace_conversations")} className="border border-[#2D2E2E] px-4 py-3 text-sm disabled:opacity-40">
             Sincronizar legado
           </button>
@@ -103,13 +103,13 @@ function ConversationsContent({ state, syncState, runSync }) {
           <div className="space-y-4">
             {conversations.map((item) => (
               <div key={item.id} className="border border-[#2D2E2E] p-4">
-                <div className="flex flex-wrap gap-3 mb-2 text-xs uppercase tracking-[0.15em] opacity-50">
+                <div className="mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
                   <span>{item.channel}</span>
                   <span>{item.status}</span>
                   <span>{item.source_system}</span>
                 </div>
-                <p className="font-semibold mb-2">{item.subject || "Sem assunto"}</p>
-                <p className="text-sm opacity-75 mb-2">{item.last_message || "Sem mensagem"}</p>
+                <p className="mb-2 font-semibold">{item.subject || "Sem assunto"}</p>
+                <p className="mb-2 text-sm opacity-75">{item.last_message || "Sem mensagem"}</p>
                 <p className="text-xs opacity-50">Intent: {item.intent_label || "nao classificada"} · Gap: {item.issue_category || "n/a"}</p>
               </div>
             ))}
@@ -117,15 +117,15 @@ function ConversationsContent({ state, syncState, runSync }) {
         </Panel>
 
         <Panel title="Incidentes e runs">
-          <div className="space-y-4 mb-6">
+          <div className="mb-6 space-y-4">
             {incidents.map((item) => (
               <div key={item.id} className="border border-[#2D2E2E] p-4">
-                <div className="flex flex-wrap gap-3 mb-2 text-xs uppercase tracking-[0.15em] opacity-50">
+                <div className="mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
                   <span>{item.category}</span>
                   <span>{item.severity}</span>
                   <span>{item.status}</span>
                 </div>
-                <p className="font-semibold mb-2">{item.title}</p>
+                <p className="mb-2 font-semibold">{item.title}</p>
                 <p className="text-sm opacity-75">{item.description}</p>
               </div>
             ))}

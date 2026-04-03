@@ -258,19 +258,39 @@ async function loadProcessesByNumbers(env, processNumbers) {
   }
 
   for (const chunk of splitIntoChunks([...new Set(exactCnjs)], 50)) {
-    const rows = await hmadvRest(
-      env,
-      `processos?${buildInFilter("numero_cnj", chunk)}&select=id,numero_cnj,titulo,account_id_freshsales`
-    );
-    for (const row of rows) {
-      if (!output.some((item) => item.id === row.id)) output.push(row);
+    const candidatePaths = [
+      `processos?${buildInFilter("numero_cnj", chunk)}&select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo`,
+    ];
+    for (const numero of chunk) {
+      candidatePaths.push(
+        `processos?numero_cnj=ilike.${encodeURIComponent(`*${numero}*`)}&select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo&limit=5`,
+        `processos?titulo=ilike.${encodeURIComponent(`*${numero}*`)}&select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo&limit=5`
+      );
+    }
+    for (const path of candidatePaths) {
+      const rows = await listTableSafe(env, path);
+      for (const row of rows) {
+        if (!output.some((item) => item.id === row.id)) output.push(row);
+      }
     }
   }
 
   for (const value of [...new Set(fallbackTerms)]) {
-    const pattern = encodeURIComponent(`*${value}*`);
-    const rows = await hmadvRest(env, `processos?titulo=ilike.${pattern}&select=id,numero_cnj,titulo,account_id_freshsales&limit=1`);
-    if (rows[0] && !output.some((item) => item.id === rows[0].id)) output.push(rows[0]);
+    const normalized = value.replace(/\D+/g, "");
+    const candidatePaths = [
+      `processos?titulo=ilike.${encodeURIComponent(`*${value}*`)}&select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo&limit=5`,
+    ];
+    if (normalized) {
+      candidatePaths.push(
+        `processos?numero_cnj=ilike.${encodeURIComponent(`*${normalized}*`)}&select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo&limit=5`
+      );
+    }
+    for (const path of candidatePaths) {
+      const rows = await listTableSafe(env, path);
+      for (const row of rows) {
+        if (row && !output.some((item) => item.id === row.id)) output.push(row);
+      }
+    }
   }
   return output;
 }
