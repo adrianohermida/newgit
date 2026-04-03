@@ -1,13 +1,13 @@
 # Rust port foundation
 
-This directory contains the first compatibility-first Rust foundation for a drop-in Claude Code CLI replacement.
+This directory contains the first compatibility-first Rust foundation for a drop-in Lawdesk CLI replacement.
 
 ## Current milestone
 
 This initial milestone focuses on **harness-first scaffolding**, not full feature parity:
 
 - a Cargo workspace aligned to major upstream seams
-- a placeholder CLI crate (`rusty-claude-cli`)
+- a placeholder CLI crate (`rusty-lawdesk-cli`)
 - runtime, command, and tool registry skeleton crates
 - a `compat-harness` crate that reads the upstream TypeScript sources in `../src/`
 - tests that prove upstream manifests/bootstrap hints can be extracted from the leaked TypeScript codebase
@@ -19,7 +19,7 @@ rust/
 ├── Cargo.toml
 ├── README.md
 ├── crates/
-│   ├── rusty-claude-cli/
+│   ├── rusty-lawdesk-cli/
 │   ├── runtime/
 │   ├── commands/
 │   ├── tools/
@@ -35,9 +35,9 @@ From this directory:
 cargo fmt --all
 cargo check --workspace
 cargo test --workspace
-cargo run -p rusty-claude-cli -- --help
-cargo run -p rusty-claude-cli -- dump-manifests
-cargo run -p rusty-claude-cli -- bootstrap-plan
+cargo run -p rusty-lawdesk-cli -- --help
+cargo run -p rusty-lawdesk-cli -- dump-manifests
+cargo run -p rusty-lawdesk-cli -- bootstrap-plan
 ```
 
 ## Design notes

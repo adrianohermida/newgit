@@ -15,7 +15,7 @@ pub use compact::{
 };
 pub use config::{
     ConfigEntry, ConfigError, ConfigLoader, ConfigSource, RuntimeConfig,
-    CLAUDE_CODE_SETTINGS_SCHEMA_NAME,
+    lawdesk_CODE_SETTINGS_SCHEMA_NAME,
 };
 pub use conversation::{
     ApiClient, ApiRequest, AssistantEvent, ConversationRuntime, RuntimeError, StaticToolExecutor,

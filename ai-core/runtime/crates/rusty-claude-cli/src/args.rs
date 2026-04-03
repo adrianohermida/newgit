@@ -4,12 +4,12 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Debug, Clone, Parser, PartialEq, Eq)]
 #[command(
-    name = "rusty-claude-cli",
+    name = "rusty-lawdesk-cli",
     version,
-    about = "Rust Claude CLI prototype"
+    about = "Rust lawdesk CLI prototype"
 )]
 pub struct Cli {
-    #[arg(long, default_value = "claude-3-7-sonnet")]
+    #[arg(long, default_value = "lawdesk-3-7-sonnet")]
     pub model: String,
 
     #[arg(long, value_enum, default_value_t = PermissionMode::WorkspaceWrite)]
@@ -58,9 +58,9 @@ mod tests {
     #[test]
     fn parses_requested_flags() {
         let cli = Cli::parse_from([
-            "rusty-claude-cli",
+            "rusty-lawdesk-cli",
             "--model",
-            "claude-3-5-haiku",
+            "lawdesk-3-5-haiku",
             "--permission-mode",
             "read-only",
             "--config",
@@ -72,7 +72,7 @@ mod tests {
             "world",
         ]);
 
-        assert_eq!(cli.model, "claude-3-5-haiku");
+        assert_eq!(cli.model, "lawdesk-3-5-haiku");
         assert_eq!(cli.permission_mode, PermissionMode::ReadOnly);
         assert_eq!(
             cli.config.as_deref(),

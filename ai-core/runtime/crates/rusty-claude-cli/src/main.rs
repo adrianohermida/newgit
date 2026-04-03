@@ -121,7 +121,7 @@ fn dump_manifests() {
 }
 
 fn print_bootstrap_plan() {
-    for phase in BootstrapPlan::claude_code_default().phases() {
+    for phase in BootstrapPlan::lawdesk_code_default().phases() {
         println!("- {phase:?}");
     }
 }
@@ -179,7 +179,7 @@ fn resume_session(session_path: &Path, command: Option<String>) {
 }
 
 fn print_help() {
-    println!("rusty-claude-cli");
+    println!("rusty-lawdesk-cli");
     println!();
     println!("Current scaffold commands:");
     println!(
@@ -187,7 +187,7 @@ fn print_help() {
     );
     println!("  bootstrap-plan                   Print the current bootstrap phase skeleton");
     println!("  system-prompt [--cwd PATH] [--date YYYY-MM-DD]");
-    println!("                                   Build a Claude-style system prompt from CLAUDE.md and config files");
+    println!("                                   Build a lawdesk-style system prompt from lawdesk.md and config files");
     println!("  --resume SESSION.json [/compact] Restore a saved session and optionally run a slash command");
 }
 

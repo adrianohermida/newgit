@@ -7,8 +7,8 @@ use crate::error::ApiError;
 use crate::sse::SseParser;
 use crate::types::{MessageRequest, MessageResponse, StreamEvent};
 
-const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
-const ANTHROPIC_VERSION: &str = "2023-06-01";
+const DEFAULT_BASE_URL: &str = "http://localhost:8000";
+const LLM_VERSION: &str = "2023-06-01";
 const REQUEST_ID_HEADER: &str = "request-id";
 const ALT_REQUEST_ID_HEADER: &str = "x-request-id";
 const DEFAULT_INITIAL_BACKOFF: Duration = Duration::from_millis(200);
@@ -16,7 +16,7 @@ const DEFAULT_MAX_BACKOFF: Duration = Duration::from_secs(2);
 const DEFAULT_MAX_RETRIES: u32 = 2;
 
 #[derive(Debug, Clone)]
-pub struct AnthropicClient {
+pub struct LlmClient {
     http: reqwest::Client,
     api_key: String,
     auth_token: Option<String>,
@@ -26,7 +26,7 @@ pub struct AnthropicClient {
     max_backoff: Duration,
 }
 
-impl AnthropicClient {
+impl LlmClient {
     #[must_use]
     pub fn new(api_key: impl Into<String>) -> Self {
         Self {
@@ -42,11 +42,11 @@ impl AnthropicClient {
 
     pub fn from_env() -> Result<Self, ApiError> {
         Ok(Self::new(read_api_key(|key| std::env::var(key))?)
-            .with_auth_token(std::env::var("ANTHROPIC_AUTH_TOKEN").ok())
+            .with_auth_token(std::env::var("LLM_AUTH_TOKEN").ok())
             .with_base_url(
-                std::env::var("ANTHROPIC_BASE_URL")
+                std::env::var("LLM_BASE_URL")
                     .ok()
-                    .or_else(|| std::env::var("CLAUDE_CODE_API_BASE_URL").ok())
+                    .or_else(|| std::env::var("lawdesk_CODE_API_BASE_URL").ok())
                     .unwrap_or_else(|| DEFAULT_BASE_URL.to_string()),
             ))
     }
@@ -159,7 +159,7 @@ impl AnthropicClient {
                 self.base_url.trim_end_matches('/')
             ))
             .header("x-api-key", &self.api_key)
-            .header("anthropic-version", ANTHROPIC_VERSION)
+            .header("x-llm-version", LLM_VERSION)
             .header("content-type", "application/json");
 
         if let Some(auth_token) = &self.auth_token {
@@ -190,7 +190,7 @@ impl AnthropicClient {
 fn read_api_key(
     getter: impl FnOnce(&str) -> Result<String, std::env::VarError>,
 ) -> Result<String, ApiError> {
-    match getter("ANTHROPIC_API_KEY") {
+    match getter("LLM_API_KEY") {
         Ok(api_key) if api_key.is_empty() => Err(ApiError::MissingApiKey),
         Ok(api_key) => Ok(api_key),
         Err(std::env::VarError::NotPresent) => Err(ApiError::MissingApiKey),
@@ -255,7 +255,7 @@ async fn expect_success(response: reqwest::Response) -> Result<reqwest::Response
     }
 
     let body = response.text().await.unwrap_or_else(|_| String::new());
-    let parsed_error = serde_json::from_str::<AnthropicErrorEnvelope>(&body).ok();
+    let parsed_error = serde_json::from_str::<ProviderErrorEnvelope>(&body).ok();
     let retryable = is_retryable_status(status);
 
     Err(ApiError::Api {
@@ -276,12 +276,12 @@ const fn is_retryable_status(status: reqwest::StatusCode) -> bool {
 }
 
 #[derive(Debug, Deserialize)]
-struct AnthropicErrorEnvelope {
-    error: AnthropicErrorBody,
+struct ProviderErrorEnvelope {
+    error: ProviderErrorBody,
 }
 
 #[derive(Debug, Deserialize)]
-struct AnthropicErrorBody {
+struct ProviderErrorBody {
     #[serde(rename = "type")]
     error_type: String,
     message: String,
@@ -311,14 +311,14 @@ mod tests {
 
     #[test]
     fn with_auth_token_drops_empty_values() {
-        let client = super::AnthropicClient::new("test-key").with_auth_token(Some(String::new()));
+        let client = super::LLMClient::new("test-key").with_auth_token(Some(String::new()));
         assert!(client.auth_token.is_none());
     }
 
     #[test]
     fn message_request_stream_helper_sets_stream_true() {
         let request = MessageRequest {
-            model: "claude-3-7-sonnet-latest".to_string(),
+            model: "default-model".to_string(),
             max_tokens: 64,
             messages: vec![],
             system: None,
@@ -332,7 +332,7 @@ mod tests {
 
     #[test]
     fn backoff_doubles_until_maximum() {
-        let client = super::AnthropicClient::new("test-key").with_retry_policy(
+        let client = super::LLMClient::new("test-key").with_retry_policy(
             3,
             Duration::from_millis(10),
             Duration::from_millis(25),

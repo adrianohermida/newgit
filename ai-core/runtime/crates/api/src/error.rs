@@ -50,11 +50,11 @@ impl Display for ApiError {
             Self::MissingApiKey => {
                 write!(
                     f,
-                    "ANTHROPIC_API_KEY is not set; export it before calling the Anthropic API"
+                    "LLM_API_KEY is not set; export it before calling the LLM API"
                 )
             }
             Self::InvalidApiKeyEnv(error) => {
-                write!(f, "failed to read ANTHROPIC_API_KEY: {error}")
+                write!(f, "failed to read LLM_API_KEY: {error}")
             }
             Self::Http(error) => write!(f, "http error: {error}"),
             Self::Io(error) => write!(f, "io error: {error}"),
@@ -69,17 +69,17 @@ impl Display for ApiError {
                 (Some(error_type), Some(message)) => {
                     write!(
                         f,
-                        "anthropic api returned {status} ({error_type}): {message}"
+                        "LLM api returned {status} ({error_type}): {message}"
                     )
                 }
-                _ => write!(f, "anthropic api returned {status}: {body}"),
+                _ => write!(f, "LLM api returned {status}: {body}"),
             },
             Self::RetriesExhausted {
                 attempts,
                 last_error,
             } => write!(
                 f,
-                "anthropic api failed after {attempts} attempts: {last_error}"
+                "LLM api failed after {attempts} attempts: {last_error}"
             ),
             Self::InvalidSseFrame(message) => write!(f, "invalid sse frame: {message}"),
             Self::BackoffOverflow {

@@ -3,7 +3,7 @@ mod error;
 mod sse;
 mod types;
 
-pub use client::{AnthropicClient, MessageStream};
+pub use client::{LLMClient, MessageStream};
 pub use error::ApiError;
 pub use sse::{parse_frame, SseParser};
 pub use types::{

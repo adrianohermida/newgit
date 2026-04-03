@@ -112,7 +112,7 @@ impl CliApp {
 
     pub fn run_repl(&mut self) -> io::Result<()> {
         let editor = LineEditor::new("› ");
-        println!("Rusty Claude CLI interactive mode");
+        println!("Rusty lawdesk CLI interactive mode");
         println!("Type /help for commands. Shift+Enter or Ctrl+J inserts a newline.");
 
         while let Some(input) = editor.read_line()? {
@@ -380,13 +380,13 @@ mod tests {
     #[test]
     fn session_state_tracks_config_values() {
         let config = SessionConfig {
-            model: "claude".into(),
+            model: "lawdesk".into(),
             permission_mode: PermissionMode::WorkspaceWrite,
             config: Some(PathBuf::from("settings.toml")),
             output_format: OutputFormat::Text,
         };
 
-        assert_eq!(config.model, "claude");
+        assert_eq!(config.model, "lawdesk");
         assert_eq!(config.permission_mode, PermissionMode::WorkspaceWrite);
         assert_eq!(config.config, Some(PathBuf::from("settings.toml")));
     }
