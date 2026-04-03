@@ -269,6 +269,38 @@ function LogRow({ log }) {
   );
 }
 
+function Bubble({ role = "assistant", title, body, details = [], time }) {
+  const isUser = role === "user";
+  const isSystem = role === "system";
+  const alignClass = isUser ? "justify-end" : "justify-start";
+  const bubbleClass = isUser
+    ? "border-[#3C3320] bg-[rgba(40,32,19,0.28)] text-[#F7F1E6]"
+    : isSystem
+      ? "border-[#2E3A36] bg-[rgba(255,255,255,0.02)] text-[#9FB1AA]"
+      : "border-[#22342F] bg-[rgba(255,255,255,0.03)] text-[#F4F1EA]";
+
+  return (
+    <div className={`flex ${alignClass}`}>
+      <article className={`max-w-[min(48rem,92%)] rounded-[24px] border px-4 py-3 text-sm ${bubbleClass}`}>
+        <div className="mb-2 flex items-center justify-between gap-4 text-[10px] uppercase tracking-[0.2em] opacity-60">
+          <span>{title || (isUser ? "Mission" : isSystem ? "Execution" : "Dotobot")}</span>
+          <span>{time ? new Date(time).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "now"}</span>
+        </div>
+        <p className="whitespace-pre-wrap leading-7">{String(body || "")}</p>
+        {Array.isArray(details) && details.length ? (
+          <div className="mt-3 space-y-2">
+            {details.slice(0, 6).map((line, index) => (
+              <p key={`${index}_${line}`} className="rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.75)] px-3 py-2 text-xs leading-6 text-[#C6D1CC]">
+                {line}
+              </p>
+            ))}
+          </div>
+        ) : null}
+      </article>
+    </div>
+  );
+}
+
 export default function AITaskModule({ profile, routePath }) {
   const storageKey = useMemo(() => buildStorageKey(profile), [profile]);
   const [mission, setMission] = useState("");
@@ -864,7 +896,7 @@ export default function AITaskModule({ profile, routePath }) {
             </div>
             {showTasks ? (
               <div className="mt-4 space-y-3">
-                {tasks.length ? tasks.map((task) => <TaskCard key={task.id} task={task} selected={selectedTaskId === task.id} onSelect={setSelectedTaskId} />) : <div className="rounded-[20px] border border-dashed border-[#22342F] p-3 text-sm text-[#9BAEA8]">Sem tarefas.</div>}
+                {tasks.length ? tasks.map((task) => <TaskCard key={task.id} task={task} isSelected={selectedTaskId === task.id} onSelect={setSelectedTaskId} />) : <div className="rounded-[20px] border border-dashed border-[#22342F] p-3 text-sm text-[#9BAEA8]">Sem tarefas.</div>}
               </div>
             ) : null}
             {selectedTask ? (
