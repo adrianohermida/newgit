@@ -1206,9 +1206,27 @@ export async function listClientProcessos(env, email) {
       freshsalesWarning = "Parte da carteira processual foi vinculada via Freshsales, a partir dos accounts associados ao seu cadastro.";
     }
   } catch (error) {
-    const message = String(error?.message || "");
-    if (!message.includes("freshsales_sync_snapshots")) {
-      throw error;
+    freshsalesWarning = "O CRM nao respondeu por completo nesta leitura; o portal exibira apenas os processos que conseguir vincular com seguranca.";
+    freshsalesItems = [];
+
+    try {
+      const liveContext = await getFreshsalesPortalContextLive(env, email);
+      freshsalesItems = (liveContext.accounts || []).map((account) =>
+        mapFreshsalesAccountToProcessRow(
+          {
+            source_id: account.id,
+            display_name: account.name,
+            status: account.cf_status || account.status,
+            synced_at: account.updated_at || account.created_at,
+            attributes: account,
+            custom_attributes: account.custom_field || {},
+            timestamps: { updated_at: account.updated_at, created_at: account.created_at },
+          },
+          ["cf_processo", "name"]
+        )
+      );
+    } catch {
+      freshsalesItems = [];
     }
   }
 
@@ -1241,10 +1259,19 @@ export async function listClientProcessos(env, email) {
   const enrichedItems = await Promise.all(
     mergedItems.map(async (process) => {
       const candidates = buildProcessIdentifierCandidates(process, process.id);
-      const [movements, publications] = await Promise.all([
-        listClientProcessMovements(env, candidates[0]),
-        listClientProcessPublications(env, candidates[0]),
-      ]);
+      let movements = [];
+      let publications = [];
+
+      try {
+        [movements, publications] = await Promise.all([
+          listClientProcessMovements(env, candidates[0]),
+          listClientProcessPublications(env, candidates[0]),
+        ]);
+      } catch {
+        movements = [];
+        publications = [];
+      }
+
       return {
         ...process,
         ...summarizeProcessInsights(process, movements.slice(0, 5), publications.slice(0, 5)),
@@ -1296,12 +1323,43 @@ async function getClientProcessBase(env, email, processId) {
     });
 
     return matchedAccount ? mapFreshsalesAccountToProcessRow(matchedAccount, freshsalesContext.processFieldKeys) : null;
-  } catch (error) {
-    const message = String(error?.message || "");
-    if (message.includes("freshsales_sync_snapshots")) {
+  } catch {
+    try {
+      const liveContext = await getFreshsalesPortalContextLive(env, email);
+      const matchedAccount = (liveContext.accounts || []).find((account) => {
+        const processRow = mapFreshsalesAccountToProcessRow(
+          {
+            source_id: account.id,
+            display_name: account.name,
+            status: account.cf_status || account.status,
+            synced_at: account.updated_at || account.created_at,
+            attributes: account,
+            custom_attributes: account.custom_field || {},
+            timestamps: { updated_at: account.updated_at, created_at: account.created_at },
+          },
+          ["cf_processo", "name"]
+        );
+        const candidates = buildProcessIdentifierCandidates(processRow, processId);
+        return candidates.includes(String(processId).trim());
+      });
+
+      if (!matchedAccount) return null;
+
+      return mapFreshsalesAccountToProcessRow(
+        {
+          source_id: matchedAccount.id,
+          display_name: matchedAccount.name,
+          status: matchedAccount.cf_status || matchedAccount.status,
+          synced_at: matchedAccount.updated_at || matchedAccount.created_at,
+          attributes: matchedAccount,
+          custom_attributes: matchedAccount.custom_field || {},
+          timestamps: { updated_at: matchedAccount.updated_at, created_at: matchedAccount.created_at },
+        },
+        ["cf_processo", "name"]
+      );
+    } catch {
       return null;
     }
-    throw error;
   }
 }
 

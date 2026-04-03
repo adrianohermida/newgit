@@ -57,6 +57,12 @@ export async function onRequestPost(context) {
       return jsonOk({
         result: {
           unavailable: true,
+          mode: "schema_missing",
+          requiredSources: [
+            "agentlab_conversation_threads",
+            "agentlab_incidents",
+            "agentlab_source_sync_runs",
+          ],
           message:
             "Este ambiente ainda nao possui todas as tabelas de inteligencia conversacional. O sync local foi bloqueado para evitar erro operacional.",
         },
