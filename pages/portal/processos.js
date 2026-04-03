@@ -13,6 +13,32 @@ const STATUS_OPTIONS = [
   { value: "suspenso", label: "Suspensos" },
 ];
 
+function normalizeStatusFilterValue(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "";
+  if (["ativo", "ativos"].includes(normalized)) return "ativo";
+  if (["baixado", "baixados", "arquivado", "arquivados", "encerrado", "encerrados"].includes(normalized)) return "baixado";
+  if (["suspenso", "suspensos", "sobrestado", "sobrestados"].includes(normalized)) return "suspenso";
+  return normalized;
+}
+
+function matchesStatusFilter(item, selectedStatus) {
+  const normalizedFilter = normalizeStatusFilterValue(selectedStatus);
+  if (!normalizedFilter) return true;
+  const statusGroup = String(item?.status_group || "").trim().toLowerCase();
+  const status = String(item?.status || "").trim().toLowerCase();
+  if (normalizedFilter === "ativo") {
+    return statusGroup === "ativo" || (!statusGroup && !/(baixado|arquivad|encerrad|extint|suspens|sobrestad)/.test(status));
+  }
+  if (normalizedFilter === "baixado") {
+    return statusGroup === "baixado" || /(baixado|arquivad|encerrad|extint)/.test(status);
+  }
+  if (normalizedFilter === "suspenso") {
+    return statusGroup === "suspenso" || /(suspens|sobrestad)/.test(status);
+  }
+  return statusGroup === normalizedFilter || status.includes(normalizedFilter);
+}
+
 function formatDate(value) {
   if (!value) return "Sem atualizacao";
   return new Intl.DateTimeFormat("pt-BR", {
@@ -53,23 +79,26 @@ function ProcessosContent({ state, setState, router }) {
 
   useEffect(() => {
     if (!router.isReady) return;
-    setSelectedStatus(String(router.query.status || "").trim().toLowerCase());
+    setSelectedStatus(normalizeStatusFilterValue(router.query.status));
   }, [router.isReady, router.query.status]);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const statusParam = selectedStatus ? `&status=${encodeURIComponent(selectedStatus)}` : "";
+        const normalizedStatus = normalizeStatusFilterValue(selectedStatus);
+        const statusParam = normalizedStatus ? `&status=${encodeURIComponent(normalizedStatus)}` : "";
         const payload = await clientFetch(`/api/client-processos?page=1&pageSize=${PAGE_SIZE}${statusParam}`);
+        const incomingItems = Array.isArray(payload.items) ? payload.items : [];
+        const safeItems = incomingItems.filter((item) => matchesStatusFilter(item, normalizedStatus));
         if (!cancelled) {
           setState({
             loading: false,
             loadingMore: false,
             error: null,
             warning: payload.warning || null,
-            items: payload.items || [],
-            pagination: payload.pagination || { page: 1, pageSize: PAGE_SIZE, total: payload.items?.length || 0, totalPages: 1, hasMore: false },
+            items: safeItems,
+            pagination: payload.pagination || { page: 1, pageSize: PAGE_SIZE, total: safeItems.length, totalPages: 1, hasMore: false },
           });
         }
       } catch (error) {
@@ -98,15 +127,18 @@ function ProcessosContent({ state, setState, router }) {
 
     try {
       const nextPage = (state.pagination?.page || 1) + 1;
-      const statusParam = selectedStatus ? `&status=${encodeURIComponent(selectedStatus)}` : "";
+      const normalizedStatus = normalizeStatusFilterValue(selectedStatus);
+      const statusParam = normalizedStatus ? `&status=${encodeURIComponent(normalizedStatus)}` : "";
       const payload = await clientFetch(`/api/client-processos?page=${nextPage}&pageSize=${state.pagination?.pageSize || PAGE_SIZE}${statusParam}`);
+      const incomingItems = Array.isArray(payload.items) ? payload.items : [];
+      const safeItems = incomingItems.filter((item) => matchesStatusFilter(item, normalizedStatus));
       setState((current) => ({
         ...current,
         loading: false,
         loadingMore: false,
         error: null,
         warning: payload.warning || current.warning || null,
-        items: [...current.items, ...(payload.items || [])],
+        items: [...current.items, ...safeItems],
         pagination: payload.pagination || current.pagination,
       }));
     } catch (error) {
@@ -123,10 +155,11 @@ function ProcessosContent({ state, setState, router }) {
   }, [state.items]);
 
   function handleStatusChange(nextStatus) {
-    setSelectedStatus(nextStatus);
+    const normalizedStatus = normalizeStatusFilterValue(nextStatus);
+    setSelectedStatus(normalizedStatus);
     const nextQuery = { ...router.query };
-    if (nextStatus) {
-      nextQuery.status = nextStatus;
+    if (normalizedStatus) {
+      nextQuery.status = normalizedStatus;
     } else {
       delete nextQuery.status;
     }

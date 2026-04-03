@@ -8,6 +8,15 @@ function parsePositiveInt(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function normalizeStatusFilterValue(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "";
+  if (["ativo", "ativos"].includes(normalized)) return "ativo";
+  if (["baixado", "baixados", "arquivado", "arquivados", "encerrado", "encerrados"].includes(normalized)) return "baixado";
+  if (["suspenso", "suspensos", "sobrestado", "sobrestados"].includes(normalized)) return "suspenso";
+  return normalized;
+}
+
 export async function onRequestGet(context) {
   const { request, env } = context;
   const auth = await requireClientAccess(request, env);
@@ -23,7 +32,7 @@ export async function onRequestGet(context) {
     const url = new URL(request.url);
     const page = parsePositiveInt(url.searchParams.get("page"), 1);
     const pageSize = Math.min(parsePositiveInt(url.searchParams.get("pageSize"), 12), 50);
-    const status = String(url.searchParams.get("status") || "").trim();
+    const status = normalizeStatusFilterValue(url.searchParams.get("status"));
     const payload = await listClientProcessos(env, auth.profile.email, { status });
     const items = Array.isArray(payload.items) ? payload.items : [];
     const total = items.length;

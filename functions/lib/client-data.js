@@ -151,6 +151,15 @@ function processMatchesStatusFilter(process, statusFilter) {
   const normalizedFilter = normalizeText(statusFilter);
   const statusGroup = normalizeText(process?.status_group || "");
   const status = normalizeText(process?.status || "");
+  if (normalizedFilter === "ativo") {
+    return statusGroup === "ativo" || (!statusGroup && !textIncludesAny(status, ["baixado", "arquivado", "encerrado", "extinto", "suspenso", "sobrestado"]));
+  }
+  if (normalizedFilter === "baixado") {
+    return statusGroup === "baixado" || textIncludesAny(status, ["baixado", "arquivado", "encerrado", "extinto"]);
+  }
+  if (normalizedFilter === "suspenso") {
+    return statusGroup === "suspenso" || textIncludesAny(status, ["suspenso", "suspensa", "sobrestado"]);
+  }
   return statusGroup === normalizedFilter || status.includes(normalizedFilter);
 }
 
