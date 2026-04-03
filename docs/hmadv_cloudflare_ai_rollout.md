@@ -96,3 +96,38 @@ O runtime do Supabase precisa conhecer:
 - `HMDAV_AI_SHARED_SECRET`
 
 Sem essas duas variaveis, o `sync-worker` continua exportando activities normalmente, mas nao dispara a reconciliacao inteligente do processo.
+
+## Feature flags de rollout gradual
+
+Para liberar a nova pilha em canario (chat unificado, skills e fullscreen lateral), use as flags abaixo.
+
+### Flags de backend/chat
+
+- `ENABLE_DOTOBOT_CHAT` (default: `true`)
+- `ENABLE_SKILLS_DETECTION` (default: `true`)
+
+Quando `ENABLE_DOTOBOT_CHAT=false`, os endpoints de chat retornam `503` com `errorType=feature_disabled`.
+Quando `ENABLE_SKILLS_DETECTION=false`, o chat continua funcionando sem enriquecimento por skill.
+
+### Flag de UI
+
+- `NEXT_PUBLIC_ENABLE_AI_TASK_FULLSCREEN_SIDEBAR` (default: `false`)
+
+Quando `true`, o `AI Task` abre com painel direito expandido em modo fullscreen lateral.
+Quando `false`, o layout atual e mantido sem rail expandido.
+
+### Sequencia recomendada
+
+1. `ENABLE_DOTOBOT_CHAT=true`
+2. `ENABLE_SKILLS_DETECTION=false`
+3. Validar estabilidade em producao
+4. `ENABLE_SKILLS_DETECTION=true`
+5. `NEXT_PUBLIC_ENABLE_AI_TASK_FULLSCREEN_SIDEBAR=true` para usuarios canario
+
+### Rollback rapido
+
+1. Desligar `NEXT_PUBLIC_ENABLE_AI_TASK_FULLSCREEN_SIDEBAR`
+2. Desligar `ENABLE_SKILLS_DETECTION`
+3. Se necessario, desligar `ENABLE_DOTOBOT_CHAT`
+
+Com isso, a plataforma retorna ao comportamento anterior sem alteracao de schema.

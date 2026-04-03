@@ -131,8 +131,20 @@ async function withVectorizeRetry<T>(operation: () => Promise<T>, maxRetries = 2
     } catch (error) {
       lastError = error;
       if (attempt >= maxRetries || !shouldRetryVectorizeError(error)) {
+        console.warn('[vectorize] operation failed without retry', {
+          attempt,
+          maxRetries,
+          error: String((error as { message?: string })?.message || 'unknown_error'),
+        });
         throw error;
       }
+      console.warn('[vectorize] retrying operation', {
+        attempt,
+        nextAttempt: attempt + 1,
+        maxRetries,
+        backoffMs: Math.pow(2, attempt) * 250,
+        error: String((error as { message?: string })?.message || 'unknown_error'),
+      });
       await sleep(Math.pow(2, attempt) * 250);
     }
   }
