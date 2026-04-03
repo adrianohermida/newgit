@@ -8,6 +8,11 @@
 -- Enable RLS on memory table
 alter table public.dotobot_memory_embeddings enable row level security;
 
+drop policy if exists dotobot_memory_service_all on public.dotobot_memory_embeddings;
+drop policy if exists dotobot_memory_authenticated_read_own on public.dotobot_memory_embeddings;
+drop policy if exists dotobot_memory_authenticated_insert_own on public.dotobot_memory_embeddings;
+drop policy if exists dotobot_memory_authenticated_update_own on public.dotobot_memory_embeddings;
+
 -- Policy: service_role (backend services) can do everything
 create policy dotobot_memory_service_all
   on public.dotobot_memory_embeddings
@@ -56,6 +61,9 @@ create policy dotobot_memory_authenticated_update_own
 -- Enable RLS on conversation threads
 alter table public.agentlab_conversation_threads enable row level security;
 
+drop policy if exists agentlab_threads_service_all on public.agentlab_conversation_threads;
+drop policy if exists agentlab_threads_authenticated_read on public.agentlab_conversation_threads;
+
 -- Policy: service_role can do everything
 create policy agentlab_threads_service_all
   on public.agentlab_conversation_threads
@@ -79,6 +87,9 @@ create policy agentlab_threads_authenticated_read
 -- Enable RLS on conversation messages
 alter table public.agentlab_conversation_messages enable row level security;
 
+drop policy if exists agentlab_messages_service_all on public.agentlab_conversation_messages;
+drop policy if exists agentlab_messages_authenticated_read on public.agentlab_conversation_messages;
+
 -- Policy: service_role can do everything
 create policy agentlab_messages_service_all
   on public.agentlab_conversation_messages
@@ -92,7 +103,21 @@ create policy agentlab_messages_authenticated_read
   on public.agentlab_conversation_messages
   for select
   to authenticated
-  using (true); -- Assume access control at thread level
+  using (
+    exists (
+      select 1
+      from public.agentlab_conversation_threads t
+      where t.id = agentlab_conversation_messages.thread_id
+        and (
+          t.workspace_id = auth.uid()::uuid
+          or t.source_system = 'internal_dotobot'
+        )
+    )
+    or (
+      agentlab_conversation_messages.thread_id is null
+      and agentlab_conversation_messages.source_system = 'internal_dotobot'
+    )
+  );
 
 -- === MISSING INDEXES ===
 
@@ -110,7 +135,8 @@ create index if not exists idx_dotobot_memory_metadata_gin
 
 -- Additional: partial index on 'ok' status (common query)
 create index if not exists idx_dotobot_memory_ok_status
-  on public.dotobot_memory_embeddings (embedding)
+  on public.dotobot_memory_embeddings
+  using hnsw (embedding vector_cosine_ops)
   where status = 'ok';
 
 -- Index on message source_system for fast filtering

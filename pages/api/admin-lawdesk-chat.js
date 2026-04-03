@@ -1,6 +1,7 @@
 import { requireAdminNode } from "../../lib/admin/node-auth.js";
 import { runLawdeskChat } from "../../lib/lawdesk/chat.js";
 import { buildDotobotRepositoryContext } from "../../lib/lawdesk/capabilities.js";
+import { detectSkillFromQuery, enrichContextWithSkill } from "../../lib/lawdesk/skill_registry.js";
 
 export default async function handler(req, res) {
   const auth = await requireAdminNode(req);
@@ -20,18 +21,37 @@ export default async function handler(req, res) {
 
   try {
     const repositoryContext = buildDotobotRepositoryContext(req.body?.context || {});
+    let enhancedContext = repositoryContext;
+
+    try {
+      const detectedSkill = detectSkillFromQuery(query);
+      if (detectedSkill) {
+        enhancedContext = enrichContextWithSkill(repositoryContext, detectedSkill);
+      }
+    } catch (skillError) {
+      console.warn("Skill detection failed, continuing without:", skillError?.message);
+    }
+
+    const startTime = Date.now();
     const data = await runLawdeskChat(process.env, {
       query,
       context: {
         ...(req.body?.context || {}),
-        repositoryContext,
+        repositoryContext: enhancedContext,
       },
     });
-    return res.status(200).json({ ok: true, data });
+    const duration = Date.now() - startTime;
+    return res.status(200).json({ ok: true, data, metadata: { duration_ms: duration } });
   } catch (error) {
-    return res.status(500).json({
+    const isTimeout = error?.message?.includes("Timeout") || error?.name === "AbortError";
+    const isNetworkError = error?.message?.includes("fetch") || error?.message?.includes("connection");
+    const statusCode = isTimeout || isNetworkError ? 504 : 500;
+    const errorType = isTimeout ? "timeout" : isNetworkError ? "network" : "internal";
+    return res.status(statusCode).json({
       ok: false,
       error: error?.message || "Falha ao executar chat administrativo Dotobot.",
+      errorType,
+      timestamp: new Date().toISOString(),
     });
   }
 }
