@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import json
 
 from .bootstrap_graph import build_bootstrap_graph
 from .command_graph import build_command_graph
 from .commands import execute_command, get_command, get_commands, render_command_index
+from .coordinator import Coordinator
 from .direct_modes import run_deep_link, run_direct_connect
 from .parity_audit import run_parity_audit
 from .permissions import ToolPermissionContext
@@ -88,6 +90,11 @@ def build_parser() -> argparse.ArgumentParser:
     exec_tool_parser = subparsers.add_parser('exec-tool', help='execute a mirrored tool shim by exact name')
     exec_tool_parser.add_argument('name')
     exec_tool_parser.add_argument('payload')
+
+    orchestrate_parser = subparsers.add_parser('orchestrate', help='run the multi-agent orchestration engine')
+    orchestrate_parser.add_argument('prompt')
+    orchestrate_parser.add_argument('--context', default='{}', help='JSON object with optional orchestration context')
+    orchestrate_parser.add_argument('--session-id')
     return parser
 
 
@@ -205,6 +212,20 @@ def main(argv: list[str] | None = None) -> int:
         result = execute_tool(args.name, args.payload)
         print(result.message)
         return 0 if result.handled else 1
+    if args.command == 'orchestrate':
+        try:
+            parsed_context = json.loads(args.context)
+        except json.JSONDecodeError as exc:
+            parser.error(f'invalid JSON for --context: {exc}')
+            return 2
+        if not isinstance(parsed_context, dict):
+            parser.error('--context must decode to a JSON object')
+            return 2
+        if args.session_id:
+            parsed_context['session_id'] = args.session_id
+        outcome = Coordinator().execute(query=args.prompt, context=parsed_context)
+        print(json.dumps(outcome.to_dict(), indent=2))
+        return 0
     parser.error(f'unknown command: {args.command}')
     return 2
 

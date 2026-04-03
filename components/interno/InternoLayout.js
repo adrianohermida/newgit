@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useSupabaseBrowser } from "../../lib/supabase";
-import LawdeskCopilotPanel from "./LawdeskCopilotPanel";
+import DotobotPanel from "./DotobotPanel";
 
 const NAV_ITEMS = [
   { href: "/interno", label: "Visao Geral" },
@@ -89,7 +89,7 @@ export default function InternoLayout({ title, description, profile, children })
             </section>
 
             <aside className="xl:sticky xl:top-8 self-start">
-              <LawdeskCopilotPanel profile={profile} routePath={router.pathname} />
+              <DotobotPanel profile={profile} routePath={router.pathname} />
             </aside>
           </div>
         </main>
