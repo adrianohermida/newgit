@@ -112,6 +112,21 @@ function AgentLabContent({ state }) {
         </Panel>
       ) : null}
 
+      {(environment.schemaChecklist || []).length ? (
+        <Panel title="Checklist do schema" eyebrow="Ambiente">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 text-sm opacity-75">
+            {environment.schemaChecklist.map((item) => (
+              <div key={item.table} className="border border-[#2D2E2E] p-3">
+                <p className="font-semibold">{item.table}</p>
+                <p className={item.status === "ready" ? "text-emerald-400" : "text-amber-300"}>
+                  {item.status === "ready" ? "Disponivel" : "Ausente"}
+                </p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
+
       {warnings.length ? (
         <Panel title="Avisos de fontes" eyebrow="Operacao">
           <div className="space-y-3 text-sm opacity-75">
