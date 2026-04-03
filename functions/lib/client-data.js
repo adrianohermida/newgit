@@ -138,6 +138,14 @@ function textIncludesAny(text, needles) {
   return needles.some((needle) => haystack.includes(normalizeText(needle)));
 }
 
+function normalizeProcessStatusGroup(value) {
+  const text = normalizeText(value);
+  if (!text) return "ativo";
+  if (textIncludesAny(text, ["baixado", "arquivado", "encerrado", "extinto"])) return "baixado";
+  if (textIncludesAny(text, ["suspenso", "suspensa", "sobrestado"])) return "suspenso";
+  return "ativo";
+}
+
 function snapshotFieldEntries(snapshot) {
   const attributes = safeJsonParse(snapshot?.attributes, {});
   const customAttributes = safeJsonParse(snapshot?.custom_attributes, {});
@@ -776,12 +784,14 @@ function buildFinanceMapping(relatedDeals, accounts, env) {
 
 function normalizeProcessRow(row) {
   if (!row) return null;
+  const rawStatus = row.status || row.status_atual_processo || "sem_status";
   return {
     id: row.id || row.processo_id || row.numero_cnj || row.numero || null,
     number: row.numero_cnj || row.numero || row.cnj || row.processo_numero_cnj || null,
     title: row.titulo || row.title || row.assunto || row.numero_cnj || row.numero || "Processo",
     court: row.tribunal || row.tribunal_sigla || row.orgao_julgador || null,
-    status: row.status || "sem_status",
+    status: rawStatus,
+    status_group: normalizeProcessStatusGroup(rawStatus),
     updated_at: row.updated_at || row.data_atualizacao || row.data_ultima_movimentacao || null,
     classe: row.classe || row.classificacao || null,
     area: row.area || row.area_direito || null,
@@ -963,6 +973,134 @@ function summarizeProcessInsights(process, movements = [], publications = []) {
     stale_days: staleDays,
     alerts,
   };
+}
+
+function relationTypeLabel(value) {
+  const type = String(value || "").trim().toLowerCase();
+  const labels = {
+    dependencia: "Dependencia",
+    apenso: "Apenso",
+    incidente: "Incidente",
+    recurso: "Recurso",
+  };
+  return labels[type] || "Relacionado";
+}
+
+async function listJudiciarioProcessRelations(env, identifiers = []) {
+  const unique = [...new Set((identifiers || []).map((item) => String(item || "").trim()).filter(Boolean))];
+  if (!unique.length) return [];
+
+  const results = [];
+  for (const identifier of unique.slice(0, 30)) {
+    try {
+      const encoded = encodeURIComponent(identifier);
+      const rows = await fetchSupabaseAdmin(
+        env,
+        `processo_relacoes?or=(numero_cnj_pai.eq.${encoded},numero_cnj_filho.eq.${encoded})&select=id,processo_pai_id,processo_filho_id,numero_cnj_pai,numero_cnj_filho,tipo_relacao,status,observacoes,updated_at,created_at`,
+        {
+          headers: {
+            "Accept-Profile": "judiciario",
+          },
+        }
+      );
+      if (Array.isArray(rows)) {
+        results.push(...rows);
+      }
+    } catch (error) {
+      const message = String(error?.message || "");
+      if (
+        message.includes("PGRST205") ||
+        message.includes("Could not find the table") ||
+        message.includes("does not exist")
+      ) {
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  return results.reduce((acc, item) => {
+    if (!acc.some((row) => row.id === item.id)) acc.push(item);
+    return acc;
+  }, []);
+}
+
+async function enrichRelationProcessRefs(env, relationRows = []) {
+  const numbers = [...new Set(relationRows.flatMap((row) => [row.numero_cnj_pai, row.numero_cnj_filho]).map((item) => String(item || "").trim()).filter(Boolean))];
+  if (!numbers.length) return new Map();
+
+  const related = [];
+  for (const number of numbers.slice(0, 60)) {
+    const result = await tryFetchOptional(env, [
+      {
+        path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,status_atual_processo,updated_at,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,metadata&numero_cnj=eq.${encodeURIComponent(number)}&limit=1`,
+        mapRow: normalizeProcessRow,
+      },
+      {
+        path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,status_atual_processo,updated_at,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,metadata&numero=eq.${encodeURIComponent(number)}&limit=1`,
+        mapRow: normalizeProcessRow,
+      },
+    ]);
+    if (result.items[0]) {
+      related.push(result.items[0]);
+    }
+  }
+
+  return new Map(related.map((item) => [String(item.number || item.id || "").trim(), item]));
+}
+
+async function buildProcessTreeMap(env, processes = []) {
+  const identifiers = processes.flatMap((item) => buildProcessIdentifierCandidates(item, item.id));
+  const relationRows = await listJudiciarioProcessRelations(env, identifiers);
+  if (!relationRows.length) return new Map();
+
+  const relatedProcessMap = await enrichRelationProcessRefs(env, relationRows);
+  const processMap = new Map(processes.map((item) => [String(item.number || item.id || "").trim(), item]));
+  const treeMap = new Map();
+
+  processes.forEach((process) => {
+    const candidates = buildProcessIdentifierCandidates(process, process.id);
+    const candidateSet = new Set(candidates);
+    const relatedRows = relationRows.filter((row) => candidateSet.has(String(row.numero_cnj_pai || "").trim()) || candidateSet.has(String(row.numero_cnj_filho || "").trim()));
+    if (!relatedRows.length) return;
+
+    const parentLinks = [];
+    const childLinks = [];
+    const relationTags = [];
+
+    for (const row of relatedRows) {
+      const isParent = candidateSet.has(String(row.numero_cnj_pai || "").trim());
+      const otherNumber = isParent ? String(row.numero_cnj_filho || "").trim() : String(row.numero_cnj_pai || "").trim();
+      const otherProcess = processMap.get(otherNumber) || relatedProcessMap.get(otherNumber) || null;
+      const relation = {
+        id: row.id,
+        type: row.tipo_relacao,
+        type_label: relationTypeLabel(row.tipo_relacao),
+        status: row.status || "ativo",
+        number: otherNumber,
+        title: otherProcess?.title || otherProcess?.raw?.titulo || otherNumber,
+        status_group: otherProcess?.status_group || normalizeProcessStatusGroup(otherProcess?.status || row.status || ""),
+        process_id: otherProcess?.id || null,
+        observacoes: row.observacoes || null,
+      };
+
+      relationTags.push(relation.type_label);
+      if (isParent) {
+        childLinks.push(relation);
+      } else {
+        parentLinks.push(relation);
+      }
+    }
+
+    treeMap.set(process.id, {
+      parent_links: parentLinks,
+      child_links: childLinks,
+      relation_tags: [...new Set(relationTags)],
+      total_related: parentLinks.length + childLinks.length,
+    });
+  });
+
+  return treeMap;
 }
 
 function buildProcessIdentifierCandidates(process, processId) {
