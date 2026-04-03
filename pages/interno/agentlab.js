@@ -37,7 +37,7 @@ export default function AgentLabPage() {
         <InternoLayout
           profile={profile}
           title="AgentLab"
-          description="Laboratorio de inteligencia para evoluir agentes, treinar Dotobot, comparar provedores e transformar correcoes em melhoria continua."
+          description="Laboratorio de inteligencia para treinar agentes, comparar provedores, validar guardrails e transformar correcoes em melhoria continua."
         >
           <AgentLabModuleNav />
           <AgentLabContent state={state} />
@@ -168,10 +168,10 @@ function AgentLabContent({ state }) {
       </Panel>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Agentes mapeados" value={overview.mappedAgents || 0} helper="Catalogo operacional ligado ao workspace e aos perfis de treinamento." />
-        <Metric label="Conversas importadas" value={overview.importedConversations || 0} helper="Threads que alimentam inteligencia, handoff e melhoria continua." />
-        <Metric label="Incidentes abertos" value={overview.openIncidents || 0} helper="Erros de classificacao, falha de fluxo e gaps de atendimento." />
-        <Metric label="Score medio treino" value={`${overview.trainingAverageScore || 0}%`} helper="Media das ultimas avaliacoes do training center." />
+        <Metric label="Agentes mapeados" value={overview.mappedAgents || 0} helper="Catalogo operacional ligado ao workspace, aos perfis de treinamento e aos experimentos." />
+        <Metric label="Conversas importadas" value={overview.importedConversations || 0} helper="Threads que alimentam inteligencia, handoff, avaliacao e melhoria continua." />
+        <Metric label="Incidentes abertos" value={overview.openIncidents || 0} helper="Erros de classificacao, falha de fluxo, risco juridico e gaps de atendimento." />
+        <Metric label="Score medio treino" value={`${overview.trainingAverageScore || 0}%`} helper="Media das ultimas avaliacoes e comparacao de qualidade do agente." />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">

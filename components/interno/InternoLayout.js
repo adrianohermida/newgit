@@ -4,14 +4,14 @@ import { useSupabaseBrowser } from "../../lib/supabase";
 import DotobotPanel from "./DotobotPanel";
 
 const NAV_ITEMS = [
-  { href: "/interno", label: "Visao Geral" },
+  { href: "/interno", label: "Visao geral" },
   { href: "/interno/aprovacoes", label: "Aprovacoes" },
   { href: "/interno/processos", label: "Processos" },
   { href: "/interno/publicacoes", label: "Publicacoes" },
-  { href: "/interno/contacts", label: "Contacts" },
+  { href: "/interno/contacts", label: "Contatos" },
   { href: "/interno/agentlab", label: "AgentLab" },
-  { href: "/interno/posts", label: "Posts" },
-  { href: "/interno/agendamentos", label: "Agendamentos" },
+  { href: "/interno/posts", label: "Conteudo" },
+  { href: "/interno/agendamentos", label: "Agenda" },
   { href: "/interno/leads", label: "Leads" },
 ];
 
@@ -69,9 +69,9 @@ export default function InternoLayout({ title, description, profile, children })
             <div className="flex h-full flex-col rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(10,18,16,0.98),rgba(8,15,13,0.94))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.22)]">
               <Link href="/interno" prefetch={false} className="mb-8 block">
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C5A059]">Hermida Maia</p>
-                <h1 className="text-[32px] font-semibold tracking-[-0.03em] text-[#F5F1E8]">Painel Interno</h1>
+                <h1 className="text-[32px] font-semibold tracking-[-0.03em] text-[#F5F1E8]">Centro operacional</h1>
                 <p className="mt-3 max-w-[18rem] text-sm leading-6 text-[#8FA39C]">
-                  Workspace operacional para processos, CRM, governanca de agentes e automacoes do escritorio.
+                  Workspace operacional para processos, CRM, governanca de agentes e engenharia de inteligencia do escritorio.
                 </p>
               </Link>
 
@@ -92,9 +92,9 @@ export default function InternoLayout({ title, description, profile, children })
               <div className="mt-auto space-y-3 pt-6">
                 <div className="rounded-[22px] border border-[#1D2E29] bg-[rgba(255,255,255,0.02)] p-4">
                   <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">Workspace</p>
-                  <p className="mt-2 text-sm font-medium text-[#F5F1E8]">Sidebar, modulo, Dotobot</p>
+                  <p className="mt-2 text-sm font-medium text-[#F5F1E8]">Sidebar, modulo e Dotobot</p>
                   <p className="mt-2 text-sm leading-6 text-[#92A59F]">
-                    A barra lateral navega. O centro executa. O painel lateral apoia com contexto, conversa e acompanhamento continuo.
+                    A barra lateral orienta. O centro executa. O painel lateral apoia com contexto, conversa e acompanhamento continuo do operador juridico.
                   </p>
                 </div>
 
@@ -136,7 +136,7 @@ export default function InternoLayout({ title, description, profile, children })
               <div className="mb-4 border-b border-[#1E2E29] px-1 pb-4">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">Conversa lateral</p>
                 <p className="mt-2 text-sm leading-6 text-[#92A59F]">
-                  O Dotobot fica aqui como coluna fixa para resumo, analise operacional e apoio continuo sem sair do contexto da tela.
+                  O Dotobot fica aqui como coluna fixa para resumo, analise operacional, comparacao e apoio continuo sem sair do contexto da tela.
                 </p>
               </div>
 
@@ -145,7 +145,7 @@ export default function InternoLayout({ title, description, profile, children })
                   title="Fluxo de trabalho"
                   subtitle="Sidebar, modulo e conversa permanecem visiveis em conjunto."
                 >
-                  Use este painel para perguntar, resumir e revisar o contexto enquanto navega pelos modulos internos.
+                  Use este painel para perguntar, resumir, comparar versoes e revisar o contexto enquanto navega pelos modulos internos.
                 </RailPanel>
 
                 <DotobotPanel profile={profile} routePath={router.pathname} />
