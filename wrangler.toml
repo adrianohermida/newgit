@@ -3,6 +3,9 @@ compatibility_date = "2024-03-15"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "out"
 
+[ai]
+binding = "AI"
+
 # Este wrangler.toml representa o projeto Cloudflare Pages `newgit-pages`.
 # O recurso `newgit` nao deve ser usado como alvo de deploy deste repositorio.
 #

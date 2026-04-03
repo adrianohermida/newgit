@@ -34,11 +34,43 @@ alter table public.dotobot_task_runs
 create table if not exists public.dotobot_task_run_events (
   id text primary key,
   run_id text not null references public.dotobot_task_runs(id) on delete cascade,
+  sequence_id bigint null,
   event_type text not null,
   message text null,
   data jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
+
+create sequence if not exists public.dotobot_task_run_events_sequence_id_seq;
+
+alter sequence public.dotobot_task_run_events_sequence_id_seq
+  owned by public.dotobot_task_run_events.sequence_id;
+
+alter table public.dotobot_task_run_events
+  alter column sequence_id set default nextval('public.dotobot_task_run_events_sequence_id_seq');
+
+update public.dotobot_task_run_events
+set sequence_id = nextval('public.dotobot_task_run_events_sequence_id_seq')
+where sequence_id is null;
+
+alter table public.dotobot_task_run_events
+  alter column sequence_id set not null;
+
+do $$
+declare
+  v_max_sequence bigint;
+begin
+  select max(sequence_id)
+  into v_max_sequence
+  from public.dotobot_task_run_events;
+
+  if v_max_sequence is null then
+    perform setval('public.dotobot_task_run_events_sequence_id_seq', 1, false);
+  else
+    perform setval('public.dotobot_task_run_events_sequence_id_seq', v_max_sequence, true);
+  end if;
+end;
+$$;
 
 create index if not exists idx_dotobot_task_runs_status
   on public.dotobot_task_runs (status, updated_at desc);
@@ -48,6 +80,9 @@ create index if not exists idx_dotobot_task_runs_created_at
 
 create index if not exists idx_dotobot_task_run_events_run
   on public.dotobot_task_run_events (run_id, created_at asc);
+
+create unique index if not exists idx_dotobot_task_run_events_run_sequence
+  on public.dotobot_task_run_events (run_id, sequence_id);
 
 create index if not exists idx_dotobot_task_run_events_type
   on public.dotobot_task_run_events (event_type, created_at desc);
