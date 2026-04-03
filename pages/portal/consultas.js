@@ -192,7 +192,7 @@ function ConsultasContent({ state, setState }) {
           },
           {
             title: "Quer enviar contexto antes da consulta?",
-            helper: "Abra um chamado para registrar dúvidas, documentos ou instruções complementares.",
+            helper: "Abra uma solicitacao para registrar duvidas, documentos ou instrucoes complementares.",
             href: "/portal/tickets",
             label: "Abrir solicitacao",
           },

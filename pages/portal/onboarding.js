@@ -252,7 +252,7 @@ function OnboardingContent({ state, setState }) {
                 placeholder="000.000.000-00"
                 required
               />
-              <InfoTile title="Como usamos isso" body="Esses dados alimentam suas consultas, tickets e identificacao segura no atendimento do escritorio." />
+          <InfoTile title="Como usamos isso" body="Esses dados alimentam suas consultas, solicitacoes e identificacao segura no atendimento do escritorio." />
             </div>
           ) : null}
 

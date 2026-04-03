@@ -47,7 +47,7 @@ export default function PortalLoginPage() {
   return (
     <PortalAuthLayout
       title="Entrar no portal"
-      description="Acesse sua area autenticada para acompanhar consultas, tickets, documentos e os proximos passos do seu atendimento."
+        description="Acesse sua area autenticada para acompanhar consultas, solicitacoes, documentos e os proximos passos do seu atendimento."
     >
       <form className="space-y-6" onSubmit={handleSubmit}>
         {configLoading ? (
