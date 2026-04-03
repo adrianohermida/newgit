@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import DotobotPanel from "./DotobotPanel";
 
@@ -18,6 +19,11 @@ const NAV_ITEMS = [
 export default function InternoLayout({ title, description, profile, children }) {
   const router = useRouter();
   const { supabase } = useSupabaseBrowser();
+  const [isDotobotOpen, setIsDotobotOpen] = useState(true);
+
+  useEffect(() => {
+    setIsDotobotOpen(true);
+  }, [router.asPath]);
 
   async function handleSignOut() {
     if (supabase) {
@@ -29,7 +35,11 @@ export default function InternoLayout({ title, description, profile, children })
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.28),transparent_30%),linear-gradient(180deg,#050706_0%,#070A09_100%)] text-[#F4F1EA]">
       <div className="w-full px-3 py-3 md:px-4 xl:px-5">
-        <div className="grid min-h-[calc(100vh-1.5rem)] gap-3 lg:grid-cols-[272px_minmax(0,1fr)_360px]">
+        <div
+          className={`grid min-h-[calc(100vh-1.5rem)] gap-3 ${
+            isDotobotOpen ? "lg:grid-cols-[272px_minmax(0,1fr)_360px]" : "lg:grid-cols-[272px_minmax(0,1fr)]"
+          }`}
+        >
           <aside className="lg:sticky lg:top-3 lg:h-[calc(100vh-1.5rem)]">
             <div className="flex h-full flex-col rounded-[28px] border border-[#1D2220] bg-[linear-gradient(180deg,rgba(9,11,10,0.98),rgba(7,9,8,0.94))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.24)]">
               <Link href="/interno" className="mb-8 block">
@@ -90,19 +100,46 @@ export default function InternoLayout({ title, description, profile, children })
 
           <main className="min-w-0 rounded-[28px] border border-[#1D2220] bg-[linear-gradient(180deg,rgba(9,12,11,0.97),rgba(7,10,9,0.93))] px-5 py-5 md:px-6 xl:px-7">
             <header className="mb-6 border-b border-[#1F2624] pb-5">
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">Operacao interna</p>
-              <h2 className="text-3xl font-semibold tracking-[-0.035em] text-[#F8F4EB] md:text-[38px]">{title}</h2>
-              {description ? <p className="mt-3 max-w-3xl text-sm leading-7 text-[#99ADA6]">{description}</p> : null}
+              <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+                <div className="min-w-0">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">Operacao interna</p>
+                  <h2 className="text-3xl font-semibold tracking-[-0.035em] text-[#F8F4EB] md:text-[38px]">{title}</h2>
+                  {description ? <p className="mt-3 max-w-3xl text-sm leading-7 text-[#99ADA6]">{description}</p> : null}
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <a
+                    href="#dotobot-rail"
+                    className="rounded-2xl border border-[#22342F] px-4 py-3 text-sm text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] lg:hidden"
+                  >
+                    Ir para Dotobot
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setIsDotobotOpen((current) => !current)}
+                    className="rounded-2xl border border-[#22342F] px-4 py-3 text-sm text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                  >
+                    {isDotobotOpen ? "Fechar Dotobot" : "Abrir Dotobot"}
+                  </button>
+                </div>
+              </div>
             </header>
 
             <div>{children}</div>
           </main>
 
-          <aside id="dotobot-rail" className="lg:h-[calc(100vh-1.5rem)]">
-            <div className="h-full overflow-y-auto rounded-[28px] border border-[#1D2220] bg-[linear-gradient(180deg,rgba(10,13,12,0.96),rgba(8,10,9,0.92))] p-3 md:p-4 lg:sticky lg:top-3">
-              <DotobotPanel profile={profile} routePath={router.pathname} />
-            </div>
-          </aside>
+          {isDotobotOpen ? (
+            <aside id="dotobot-rail" className="lg:h-[calc(100vh-1.5rem)]">
+              <div className="h-full overflow-y-auto rounded-[28px] border border-[#1D2220] bg-[linear-gradient(180deg,rgba(10,13,12,0.98),rgba(8,10,9,0.94))] p-3 md:p-4 lg:sticky lg:top-3">
+                <div className="mb-3 border-b border-[#1F2624] px-1 pb-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">Conversa lateral</p>
+                  <p className="mt-2 text-sm leading-6 text-[#92A59F]">
+                    O Dotobot fica aqui para resumo, analise operacional e apoio continuo sem sair do contexto da tela.
+                  </p>
+                </div>
+                <DotobotPanel profile={profile} routePath={router.pathname} />
+              </div>
+            </aside>
+          ) : null}
         </div>
       </div>
 
