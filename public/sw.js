@@ -1,6 +1,6 @@
 const SHELL_CACHE = "hmadv-portal-shell-v1";
 const DATA_CACHE = "hmadv-portal-data-v1";
-const MANIFEST_URLS = ["/manifest.webmanifest", "/manifest.json"];
+const MANIFEST_URLS = ["/manifest.json", "/manifest.webmanifest"];
 const FALLBACK_MANIFEST = {
   name: "Portal do Cliente | Hermida Maia",
   short_name: "Portal HM",
@@ -17,7 +17,7 @@ const FALLBACK_MANIFEST = {
     },
   ],
 };
-const SHELL_ASSETS = ["/portal", "/portal/login", ...MANIFEST_URLS];
+const SHELL_ASSETS = ["/portal", "/portal/login", "/manifest.json"];
 
 function manifestResponse() {
   return new Response(JSON.stringify(FALLBACK_MANIFEST), {
