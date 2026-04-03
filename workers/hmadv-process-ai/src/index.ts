@@ -1,4 +1,4 @@
-import { buildActivityPrompt, buildProcessPrompt, SYSTEM_PROMPT } from './prompts';
+import { buildActivityPrompt, buildProcessPrompt, CONVERSATION_SYSTEM_PROMPT, SYSTEM_PROMPT } from './prompts';
 
 type Json = Record<string, unknown>;
 
@@ -84,7 +84,11 @@ function bearer(req: Request) {
 
 function assertSecret(req: Request, env: Env) {
   if (!env.HMDAV_AI_SHARED_SECRET) return null;
-  return bearer(req) === env.HMDAV_AI_SHARED_SECRET
+  const sharedSecret =
+    req.headers.get('x-shared-secret')?.trim() ||
+    req.headers.get('x-dotobot-embed-secret')?.trim() ||
+    bearer(req);
+  return sharedSecret === env.HMDAV_AI_SHARED_SECRET
     ? null
     : json({ ok: false, error: 'unauthorized' }, 401);
 }
@@ -112,6 +116,111 @@ async function runJson(env: Env, prompt: string) {
     max_tokens: 1400,
   });
   return JSON.parse(String(result.response ?? '{}'));
+}
+
+function buildConversationPrompt(query: string, context: Json, retrievedContext: Json[]) {
+  const assistant = (context as Record<string, any>)?.assistant || {};
+  const rag = (context as Record<string, any>)?.rag || {};
+  return [
+    CONVERSATION_SYSTEM_PROMPT.trim(),
+    assistant.system_prompt ? `Instrucoes adicionais do workspace:\n${String(assistant.system_prompt).trim()}` : null,
+    `Modo: ${String((assistant as Record<string, any>).mode || context?.mode || 'chat')}`,
+    `Idioma: ${String((context as Record<string, any>).locale || 'pt-BR')}`,
+    rag?.matches?.length
+      ? `Contexto RAG recuperado:\n${JSON.stringify(rag.matches.slice(0, 6), null, 2)}`
+      : null,
+    retrievedContext.length
+      ? `Memorias relacionadas:\n${JSON.stringify(retrievedContext.slice(0, 6), null, 2)}`
+      : null,
+    `Pedido do usuario:\n${query}`,
+    'Responda em texto natural e estruturado. Se houver passos, mostre-os em bullets curtos.',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+async function runConversation(env: Env, query: string, context: Json) {
+  const runId = crypto.randomUUID();
+  const retrievedContext = await queryRelatedMemory(env, `conversation\n${query}\n${JSON.stringify(context).slice(0, 1200)}`, 6).catch(() => []);
+
+  await recordRun(env, {
+    id: runId,
+    kind: 'conversation',
+    route: '/execute',
+    mission: query.slice(0, 120),
+    mode: String((context as Record<string, any>)?.assistant?.mode || context?.mode || 'chat'),
+    provider: env.CLOUDFLARE_WORKERS_AI_MODEL || '@cf/meta/llama-3.1-8b-instruct',
+    status: 'running',
+    metadata_json: JSON.stringify({ retrieved_context_count: retrievedContext.length }),
+  }).catch(() => null);
+
+  const prompt = buildConversationPrompt(query, context, retrievedContext);
+  const model = env.CLOUDFLARE_WORKERS_AI_MODEL || '@cf/meta/llama-3.1-8b-instruct';
+  const result = await env.AI.run(model, {
+    messages: [
+      { role: 'system', content: CONVERSATION_SYSTEM_PROMPT },
+      { role: 'user', content: prompt },
+    ],
+    max_tokens: 1200,
+  });
+
+  const resultText = String((result as Json)?.response || '').trim() || 'Sem resposta do Dotobot.';
+
+  await recordRun(env, {
+    id: runId,
+    kind: 'conversation',
+    route: '/execute',
+    mission: query.slice(0, 120),
+    mode: String((context as Record<string, any>)?.assistant?.mode || context?.mode || 'chat'),
+    provider: model,
+    status: 'done',
+    result: resultText,
+    metadata_json: JSON.stringify({ retrieved_context_count: retrievedContext.length }),
+  }).catch(() => null);
+  await recordEvent(env, {
+    run_id: runId,
+    type: 'reporter',
+    action: 'conversation_completed',
+    result: 'conversation reply ready',
+    payload_json: JSON.stringify({ retrieved_context_count: retrievedContext.length }),
+  }).catch(() => null);
+  await writeAnalyticsEvent(env, 'conversation', 'conversation_completed', 'done', {
+    retrieved_context_count: retrievedContext.length,
+  });
+  await persistR2Snapshot(env, 'conversation', runId, {
+    run_id: runId,
+    kind: 'conversation',
+    query,
+    context,
+    resultText,
+    retrieved_context: retrievedContext,
+    created_at: nowIso(),
+  }).catch(() => null);
+  await persistKvSnapshot(env, 'conversation', runId, {
+    run_id: runId,
+    kind: 'conversation',
+    mission: query.slice(0, 120),
+    summary: resultText.slice(0, 240),
+    retrieved_context_count: retrievedContext.length,
+  }).catch(() => null);
+
+  return {
+    ok: true,
+    status: 'ok',
+    resultText,
+    steps: [
+      { title: 'Contexto recuperado', count: retrievedContext.length },
+      { title: 'Resposta gerada', provider: model },
+    ],
+    logs: [
+      `retrieved_context_count=${retrievedContext.length}`,
+      `mode=${String((context as Record<string, any>)?.assistant?.mode || context?.mode || 'chat')}`,
+    ],
+    session_id: runId,
+    rag: {
+      retrieved_context: retrievedContext,
+    },
+  };
 }
 
 function getEmbeddingModel(env: Env) {
@@ -718,6 +827,15 @@ export default {
         r2_account_id: Boolean(env.CLOUDFLARE_R2_ACCOUNT_ID),
         s3_api_configured: Boolean(env.CLOUDFLARE_S3_API),
       });
+    }
+    if (req.method === 'POST' && url.pathname === '/execute') {
+      const body = (await parseBody(req)) as Json | null;
+      const query = String(body?.query ?? '').trim();
+      if (!query) {
+        return json({ ok: false, error: 'query_required' }, 400);
+      }
+      const context = (body?.context && typeof body.context === 'object' ? body.context : {}) as Json;
+      return json(await runConversation(env, query, context));
     }
     if (req.method === 'POST' && url.pathname === '/analyze/activity') {
       return analyzeActivity(req, env);
