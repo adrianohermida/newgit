@@ -279,7 +279,13 @@ function parseBrazilDate(value) {
   const match = text.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
   if (!match) return null;
   const [, day, month, year] = match;
-  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  const iso = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  const parsed = new Date(`${iso}T00:00:00-03:00`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const sameYear = parsed.getUTCFullYear() === Number(year);
+  const sameMonth = parsed.getUTCMonth() + 1 === Number(month);
+  const sameDay = parsed.getUTCDate() === Number(day);
+  return sameYear && sameMonth && sameDay ? iso : null;
 }
 
 function canonicalFinanceStatus(status) {

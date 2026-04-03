@@ -784,6 +784,20 @@ function normalizePublicationRow(row) {
   };
 }
 
+function normalizeFreshsalesActivityPublicationRow(row) {
+  return {
+    id: row?.id ? `fs-activity-${row.id}` : `fs-activity-${Math.random()}`,
+    date: row?.start_date || row?.created_at || row?.updated_at || null,
+    title: row?.title || "Publicacao",
+    summary: row?.notes || row?.description || "",
+    content: row?.notes || row?.description || "",
+    source: "Freshsales",
+    status: row?.sales_activity_type_id || null,
+    url: null,
+    process_id: row?.targetable_id ? String(row.targetable_id) : null,
+  };
+}
+
 function inferDocumentCategory(row = {}) {
   const corpus = flattenToStrings([
     row.nome,
@@ -1019,6 +1033,31 @@ function normalizeConsultaRow(row) {
   };
 }
 
+function normalizeFreshsalesAppointmentRow(row) {
+  const startDate = row?.from_date || row?.start_date || row?.appointment_start || null;
+  const parsed = startDate ? new Date(startDate) : null;
+  const data = parsed && !Number.isNaN(parsed.getTime())
+    ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(parsed)
+    : null;
+  const hora = parsed && !Number.isNaN(parsed.getTime())
+    ? new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hour12: false }).format(parsed)
+    : null;
+
+  return normalizeConsultaRow({
+    id: row?.id ? `fs-${row.id}` : `fs-${startDate || Math.random()}`,
+    nome: row?.title || row?.name || "Consulta",
+    email: null,
+    telefone: null,
+    area: row?.title || row?.appointment_type || "Consulta",
+    data,
+    hora,
+    status: row?.appointment_outcome_id || row?.status || row?.appointment_status || "agendada",
+    observacoes: row?.description || row?.summary || row?.location || null,
+    created_at: row?.created_at || null,
+    updated_at: row?.updated_at || null,
+  });
+}
+
 export async function listClientConsultas(env, email) {
   const params = new URLSearchParams();
   params.set("select", "id,nome,email,telefone,area,data,hora,status,observacoes,created_at,updated_at");
@@ -1026,7 +1065,22 @@ export async function listClientConsultas(env, email) {
   params.set("order", "data.desc,hora.desc");
   params.set("limit", "50");
   const rows = await fetchSupabaseAdmin(env, `agendamentos?${params.toString()}`);
-  const items = Array.isArray(rows) ? rows.map(normalizeConsultaRow) : [];
+  const localItems = Array.isArray(rows) ? rows.map(normalizeConsultaRow) : [];
+  const liveContext = await getFreshsalesPortalContextLive(env, email);
+  const appointmentItems = (liveContext.appointments || []).map(normalizeFreshsalesAppointmentRow);
+  const mergedMap = new Map();
+  [...localItems, ...appointmentItems].forEach((item) => {
+    const key = String(item.id || `${item.data}-${item.hora}-${item.area}`).trim();
+    if (!key) return;
+    if (!mergedMap.has(key)) {
+      mergedMap.set(key, item);
+    }
+  });
+  const items = Array.from(mergedMap.values()).sort((left, right) => {
+    const leftTime = left.datetime_iso ? new Date(left.datetime_iso).getTime() : 0;
+    const rightTime = right.datetime_iso ? new Date(right.datetime_iso).getTime() : 0;
+    return rightTime - leftTime;
+  });
   const upcomingItems = items
     .filter((item) => item.is_upcoming)
     .sort((left, right) => {
@@ -1071,6 +1125,22 @@ export async function listClientProcessos(env, email) {
     freshsalesItems = freshsalesContext.accounts.map((account) =>
       mapFreshsalesAccountToProcessRow(account, freshsalesContext.processFieldKeys)
     );
+    const liveContext = await getFreshsalesPortalContextLive(env, email);
+    const liveItems = (liveContext.accounts || []).map((account) =>
+      mapFreshsalesAccountToProcessRow(
+        {
+          source_id: account.id,
+          display_name: account.name,
+          status: account.cf_status || account.status,
+          synced_at: account.updated_at || account.created_at,
+          attributes: account,
+          custom_attributes: account.custom_field || {},
+          timestamps: { updated_at: account.updated_at, created_at: account.created_at },
+        },
+        freshsalesContext.processFieldKeys
+      )
+    );
+    freshsalesItems = [...freshsalesItems, ...liveItems];
     if (freshsalesItems.length) {
       freshsalesWarning = "Parte da carteira processual foi vinculada via Freshsales, a partir dos accounts associados ao seu cadastro.";
     }
