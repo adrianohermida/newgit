@@ -1899,9 +1899,15 @@ export async function listClientFinanceiro(env, email) {
   try {
     const freshsalesContext = await listFreshsalesRelatedAccounts(env, email);
     const liveContext = await getFreshsalesPortalContextLive(env, email);
+    const processPortfolio = await safeResolve(() => listClientProcessos(env, email), { items: [], warning: null });
     const normalizedEmail = normalizeEmail(email);
     const contacts = freshsalesContext.contacts || [];
     const contactIds = new Set(freshsalesContext.contactIds || []);
+    const processLinkedAccountIds = new Set(
+      (processPortfolio.items || [])
+        .map((item) => String(item?.account_id_freshsales || "").trim())
+        .filter(Boolean)
+    );
     const liveAccounts = (liveContext.accounts || []).map((account) => ({
       source_id: account.id,
       display_name: account.name,
@@ -1910,13 +1916,42 @@ export async function listClientFinanceiro(env, email) {
       custom_attributes: account.custom_field || {},
       timestamps: { created_at: account.created_at, updated_at: account.updated_at },
     }));
-    const accounts = [...(freshsalesContext.accounts || []), ...liveAccounts];
+    const missingProcessAccountIds = Array.from(processLinkedAccountIds).filter(
+      (accountId) => !liveAccounts.some((item) => String(item?.source_id || "").trim() === accountId)
+        && !(freshsalesContext.accounts || []).some((item) => String(item?.source_id || "").trim() === accountId)
+    );
+    const fetchedProcessAccounts = (
+      await Promise.all(
+        missingProcessAccountIds.slice(0, 50).map((accountId) => viewFreshsalesSalesAccount(env, accountId).catch(() => null))
+      )
+    )
+      .filter(Boolean)
+      .map((account) => ({
+        source_id: account.id,
+        display_name: account.name,
+        status: account.cf_status || account.status || null,
+        attributes: account,
+        custom_attributes: account.custom_field || {},
+        timestamps: { created_at: account.created_at, updated_at: account.updated_at },
+      }));
+    const accounts = uniqueBy(
+      [...(freshsalesContext.accounts || []), ...liveAccounts, ...fetchedProcessAccounts],
+      (item) => String(item?.source_id || "").trim()
+    );
     const relatedAccountIds = new Set([
       ...(freshsalesContext.accountIds || []),
       ...(liveContext.accounts || []).map((item) => String(item?.id || "").trim()).filter(Boolean),
+      ...Array.from(processLinkedAccountIds),
     ]);
     const ownerId = freshsalesContext.ownerId || null;
     const accountsById = new Map(accounts.map((item) => [String(item.source_id || "").trim(), item]));
+    const missingDealsFromAccounts = Array.from(
+      new Set(
+        accounts.flatMap((account) =>
+          Array.isArray(account?.attributes?.deals) ? account.attributes.deals.map((item) => String(item?.id || item || "").trim()).filter(Boolean) : []
+        )
+      )
+    );
     const liveDeals = (liveContext.deals || []).map((deal) => ({
       source_id: deal.id,
       display_name: deal.name,
@@ -1931,7 +1966,27 @@ export async function listClientFinanceiro(env, email) {
       summary: { amount: deal.amount, expected_close: deal.expected_close },
       timestamps: { created_at: deal.created_at, updated_at: deal.updated_at },
     }));
-    const relatedDeals = [...(freshsalesContext.relatedDeals || []), ...liveDeals].filter((deal) => {
+    const fetchedAccountDeals = (
+      await Promise.all(
+        missingDealsFromAccounts.slice(0, 100).map((dealId) => viewFreshsalesDeal(env, dealId).catch(() => null))
+      )
+    )
+      .filter(Boolean)
+      .map((deal) => ({
+        source_id: deal.id,
+        display_name: deal.name,
+        status: deal.status || null,
+        relationships: {
+          sales_account_id: deal.sales_account_id || deal.sales_account?.id || null,
+          targetable_id: liveContext.contact?.id || null,
+          targetable_type: deal.targetable_type || "SalesAccount",
+        },
+        attributes: deal,
+        custom_attributes: deal.custom_field || {},
+        summary: { amount: deal.amount, expected_close: deal.expected_close },
+        timestamps: { created_at: deal.created_at, updated_at: deal.updated_at },
+      }));
+    const relatedDeals = uniqueBy([...(freshsalesContext.relatedDeals || []), ...liveDeals, ...fetchedAccountDeals], (deal) => String(deal?.source_id || deal?.id || "").trim()).filter((deal) => {
       const relationships = safeJsonParse(deal.relationships, {});
       const targetType = normalizeText(relationships.targetable_type || "");
       const targetId = String(relationships.targetable_id || "").trim();
@@ -2021,6 +2076,9 @@ export async function listClientFinanceiro(env, email) {
     }
     if (!contacts.length) {
       warnings.push("Nao encontramos snapshot de contato do Freshsales para o e-mail autenticado; o pareamento foi feito por heuristica.");
+    }
+    if (processLinkedAccountIds.size) {
+      warnings.push(`Pareamento financeiro reforcado por ${processLinkedAccountIds.size} processo(s) com Sales Account vinculado no HMADV.`);
     }
 
     return {
