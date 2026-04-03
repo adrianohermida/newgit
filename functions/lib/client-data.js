@@ -1,6 +1,7 @@
 import { fetchSupabaseAdmin } from "./supabase-rest.js";
 import { buildFallbackClientProfile, isClientProfileComplete } from "./client-auth.js";
 import {
+  listFreshsalesAppointmentsFromViews,
   listFreshsalesDealsFromViews,
   listFreshsalesSalesAccountContacts,
   listFreshsalesSalesAccountsFromViews,
@@ -1412,6 +1413,17 @@ async function tryFetchOptional(env, variants) {
   };
 }
 
+async function fetchSupabaseJudiciario(env, path, init = {}) {
+  return fetchSupabaseAdmin(env, path, {
+    ...init,
+    headers: {
+      "Accept-Profile": "judiciario",
+      "Content-Profile": "judiciario",
+      ...(init.headers || {}),
+    },
+  });
+}
+
 async function listJudicialProcessesByFreshsalesAccountIds(env, accountIds = []) {
   const ids = uniqueBy(
     (accountIds || []).map((item) => String(item || "").trim()).filter(Boolean),
@@ -1433,6 +1445,57 @@ async function listJudicialProcessesByFreshsalesAccountIds(env, accountIds = [])
   }
 
   return uniqueBy(rows, (item) => String(item?.id || item?.number || "").trim());
+}
+
+async function listJudicialProcessesByIds(env, processIds = []) {
+  const ids = uniqueBy(
+    (processIds || []).map((item) => String(item || "").trim()).filter(Boolean),
+    (value) => value
+  );
+  if (!ids.length) return [];
+
+  const select =
+    "id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,account_id_freshsales";
+
+  const rows = [];
+  for (const chunk of chunkArray(ids, 20)) {
+    const filters = chunk.map((item) => `"${item}"`).join(",");
+    const chunkRows = await safeResolve(
+      () => fetchSupabaseJudiciario(env, `processos?select=${select}&id=in.(${filters})&limit=200`),
+      []
+    );
+    rows.push(...(Array.isArray(chunkRows) ? chunkRows.map(normalizeProcessRow) : []));
+  }
+
+  return uniqueBy(rows, (item) => String(item?.id || item?.number || "").trim());
+}
+
+async function listJudicialProcessesByFreshsalesContactIds(env, contactIds = []) {
+  const ids = uniqueBy(
+    (contactIds || []).map((item) => String(item || "").trim()).filter(Boolean),
+    (value) => value
+  );
+  if (!ids.length) return { processes: [], processIds: [] };
+
+  const partes = [];
+  for (const chunk of chunkArray(ids, 20)) {
+    const filters = chunk.map((item) => `"${item}"`).join(",");
+    const chunkRows = await safeResolve(
+      () => fetchSupabaseJudiciario(env, `partes?select=id,processo_id,contato_freshsales_id,nome,polo,principal_no_account&contato_freshsales_id=in.(${filters})&limit=500`),
+      []
+    );
+    partes.push(...(Array.isArray(chunkRows) ? chunkRows : []));
+  }
+
+  const processIds = uniqueBy(
+    partes.map((item) => String(item?.processo_id || "").trim()).filter(Boolean),
+    (value) => value
+  );
+
+  return {
+    processIds,
+    processes: await listJudicialProcessesByIds(env, processIds),
+  };
 }
 
 function normalizeConsultaStatus(value) {

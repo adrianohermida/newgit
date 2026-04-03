@@ -26,6 +26,72 @@ function truncate(value, max = 2000) {
   return normalized.length > max ? normalized.slice(0, max) : normalized;
 }
 
+async function ensureWidgetIncident(baseUrl, apiKey, eventPayload) {
+  const isFailureEvent =
+    eventPayload.success === false ||
+    ["widget_auth_failed", "widget_error"].includes(eventPayload.event_name);
+  if (!isFailureEvent) return;
+
+  const category =
+    eventPayload.event_name === "widget_auth_failed" ? "widget_auth_failure" : "widget_runtime_failure";
+
+  const existingResponse = await fetch(
+    `${baseUrl}/rest/v1/agentlab_incidents?select=id,status&category=eq.${encodeURIComponent(category)}&status=eq.open&limit=1`,
+    {
+      headers: {
+        apikey: apiKey,
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
+      },
+    }
+  );
+
+  const existing = existingResponse.ok ? await existingResponse.json().catch(() => []) : [];
+  if (Array.isArray(existing) && existing[0]?.id) return;
+
+  const nowIso = new Date().toISOString();
+  const incident = {
+    id: uuidv4(),
+    source_system: "freshchat-widget",
+    category,
+    severity: "media",
+    status: "open",
+    title:
+      category === "widget_auth_failure"
+        ? "Falha de autenticacao no Freshchat Web Messenger"
+        : "Falha operacional no Freshchat Web Messenger",
+    description:
+      category === "widget_auth_failure"
+        ? "O widget registrou falha de autenticacao JWT ou identificacao do usuario."
+        : "O widget registrou erro em runtime no carregamento ou operacao do chat.",
+    agent_ref: "dotobot-chatbot",
+    conversation_id: null,
+    metadata: {
+      event_name: eventPayload.event_name,
+      route_path: eventPayload.route_path || "/",
+      identity_mode: eventPayload.identity_mode || "visitor",
+      reference_id: eventPayload.reference_id || null,
+      widget_state: eventPayload.widget_state || null,
+      widget_event_id: eventPayload.id,
+      details: eventPayload.metadata || {},
+    },
+    occurred_at: nowIso,
+    created_at: nowIso,
+    updated_at: nowIso,
+  };
+
+  await fetch(`${baseUrl}/rest/v1/agentlab_incidents`, {
+    method: "POST",
+    headers: {
+      apikey: apiKey,
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify(incident),
+  });
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -84,6 +150,8 @@ export default async function handler(req, res) {
       }
       return res.status(500).json({ ok: false, error: detail || "Falha ao salvar telemetria do widget." });
     }
+
+    await ensureWidgetIncident(baseUrl, apiKey, payload);
 
     return res.status(200).json({ ok: true });
   } catch (error) {

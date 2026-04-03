@@ -45,6 +45,7 @@ function EnvironmentContent({ state }) {
   const schemaChecklist = environment.schemaChecklist || [];
   const freshchatApi = environment.freshchatApi || {};
   const freshchatWeb = environment.freshchatWeb || {};
+  const widgetEventSummary = state.data?.conversations?.widgetEventSummary || {};
   const readyCount = schemaChecklist.filter((item) => item.status === "ready").length;
   const missingCount = schemaChecklist.filter((item) => item.status !== "ready").length;
 
@@ -138,6 +139,26 @@ function EnvironmentContent({ state }) {
             </ul>
           </div>
         </div>
+      </Panel>
+
+      <Panel title="Saude do widget em producao">
+        <div className="grid gap-3 md:grid-cols-4 text-sm opacity-75">
+          <p>Eventos: {widgetEventSummary.total || 0}</p>
+          <p>Aberturas: {widgetEventSummary.openedCount || 0}</p>
+          <p>Auth: {widgetEventSummary.authCount || 0}</p>
+          <p>Falhas: {widgetEventSummary.failureCount || 0}</p>
+        </div>
+        {(widgetEventSummary.byEvent || []).length ? (
+          <div className="mt-4 space-y-2 text-sm opacity-75">
+            {widgetEventSummary.byEvent.slice(0, 8).map((item) => (
+              <p key={item.label}>{item.label}: {item.value}</p>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-4 text-sm opacity-75">
+            Ainda nao existem eventos suficientes do widget para analise. Abra e autentique o chat no site para popular esta visao.
+          </p>
+        )}
       </Panel>
 
       <Panel title="Checklist do schema">

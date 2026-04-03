@@ -200,6 +200,21 @@ export async function listFreshsalesDealsFromViews(env, { maxPages = 4, perPage 
   return pages;
 }
 
+export async function listFreshsalesAppointmentsFromViews(env, { maxPages = 4, perPage = 100 } = {}) {
+  const filters = await listFreshsalesFilters(env, "appointments");
+  const selected = pickPreferredFilter(filters, ["All Appointments", "My Appointments", "All appointments", "My appointments"]);
+  if (!selected?.id) return [];
+
+  const pages = [];
+  for (let page = 1; page <= maxPages; page += 1) {
+    const items = await listFreshsalesView(env, "appointments", selected.id, { page, perPage });
+    pages.push(...items);
+    if (items.length < perPage) break;
+  }
+
+  return pages;
+}
+
 export async function upsertFreshsalesContactForAgendamento(env, agendamento, eventType = "booked", options = {}) {
   const { first_name, last_name } = splitName(agendamento.nome);
   const stageUpdate = buildFreshsalesJourneyUpdate(eventType, agendamento, env, options);

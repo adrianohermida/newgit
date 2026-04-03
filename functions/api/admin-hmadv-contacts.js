@@ -1,12 +1,19 @@
 import { requireAdminAccess } from "../lib/admin-auth.js";
 import {
+  createContact,
   createOrUpdateContactByNameOnly,
+  deleteContact,
   enrichContactViaCep,
   enrichContactViaDirectData,
   getContactDetail,
   getContactsOverview,
   listContacts,
+  listDuplicateContacts,
+  listUnlinkedPartes,
+  mergeContacts,
+  reconcilePartesContacts,
   syncFreshsalesContactsMirror,
+  updateContact,
 } from "../lib/hmadv-contacts.js";
 import { jsonError, jsonOk } from "../lib/hmadv-ops.js";
 
@@ -29,6 +36,21 @@ export async function onRequestGet(context) {
         pageSize: Number(url.searchParams.get("pageSize") || 20),
         query: String(url.searchParams.get("query") || ""),
         type: String(url.searchParams.get("type") || ""),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "duplicates") {
+      const data = await listDuplicateContacts(context.env, {
+        page: Number(url.searchParams.get("page") || 1),
+        pageSize: Number(url.searchParams.get("pageSize") || 20),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "partes_pendentes") {
+      const data = await listUnlinkedPartes(context.env, {
+        page: Number(url.searchParams.get("page") || 1),
+        pageSize: Number(url.searchParams.get("pageSize") || 20),
+        query: String(url.searchParams.get("query") || ""),
       });
       return jsonOk({ data });
     }
@@ -81,6 +103,39 @@ export async function onRequestPost(context) {
         name: body.name,
         type: body.type,
         externalId: body.externalId || null,
+      });
+      return jsonOk({ data });
+    }
+    if (action === "create_contact") {
+      const data = await createContact(context.env, body);
+      return jsonOk({ data });
+    }
+    if (action === "update_contact") {
+      const data = await updateContact(context.env, body);
+      return jsonOk({ data });
+    }
+    if (action === "delete_contact") {
+      const data = await deleteContact(context.env, { contactId: body.contactId });
+      return jsonOk({ data });
+    }
+    if (action === "merge_contacts") {
+      const data = await mergeContacts(context.env, {
+        primaryContactId: body.primaryContactId,
+        duplicateContactId: body.duplicateContactId,
+      });
+      return jsonOk({ data });
+    }
+    if (action === "reconcile_partes") {
+      const processNumbers = Array.isArray(body.processNumbers)
+        ? body.processNumbers
+        : String(body.processNumbers || "")
+            .split(/\r?\n|,|;/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+      const data = await reconcilePartesContacts(context.env, {
+        processNumbers,
+        limit: Number(body.limit || 20),
+        apply: Boolean(body.apply),
       });
       return jsonOk({ data });
     }
