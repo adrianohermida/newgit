@@ -130,6 +130,28 @@ function ProcessDetailContent({ processId, state, setState }) {
         <StatCard label="Publicacoes" value={summary.publications} helper="Recortes e atos publicados." />
       </section>
 
+      {state.process.total_related ? (
+        <section className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Arvore processual</p>
+          <div className="mt-5 grid gap-4 xl:grid-cols-2">
+            <div className="space-y-3">
+              <p className="text-sm font-semibold">Processos principais relacionados</p>
+              {!state.process.parent_links?.length ? <EmptyText>Nenhum processo principal vinculado.</EmptyText> : null}
+              {(state.process.parent_links || []).map((relation) => (
+                <RelationCard key={`parent-${relation.id}`} relation={relation} />
+              ))}
+            </div>
+            <div className="space-y-3">
+              <p className="text-sm font-semibold">Dependencias, apensos, incidentes e recursos</p>
+              {!state.process.child_links?.length ? <EmptyText>Nenhum processo relacionado abaixo deste principal.</EmptyText> : null}
+              {(state.process.child_links || []).map((relation) => (
+                <RelationCard key={`child-${relation.id}`} relation={relation} />
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       {(state.process.latest_movement || state.process.latest_publication || state.process.alerts?.length) ? (
         <section className="grid gap-4 xl:grid-cols-3">
           {state.process.latest_movement ? (
@@ -288,6 +310,33 @@ function HighlightCard({ label, title, helper }) {
       <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">{label}</p>
       <p className="mt-4 text-lg font-semibold">{title}</p>
       <p className="mt-2 text-sm leading-6 opacity-65">{helper}</p>
+    </div>
+  );
+}
+
+function RelationCard({ relation }) {
+  return (
+    <div className="rounded-2xl border border-[#20332D] bg-black/10 p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="rounded-full border border-[#31463F] px-3 py-1 text-[10px] uppercase tracking-[0.15em] opacity-70">
+          {relation.type_label}
+        </span>
+        <span className="rounded-full border border-[#31463F] px-3 py-1 text-[10px] uppercase tracking-[0.15em] opacity-70">
+          {relation.status}
+        </span>
+      </div>
+      <p className="mt-3 font-mono text-sm">{relation.number}</p>
+      <p className="mt-2 text-sm font-semibold">{relation.title || "Processo relacionado"}</p>
+      {relation.observacoes ? <p className="mt-2 text-sm opacity-65">{relation.observacoes}</p> : null}
+      {relation.process_id ? (
+        <Link
+          href={`/portal/processos/detalhe?id=${encodeURIComponent(relation.process_id)}`}
+          prefetch={false}
+          className="mt-3 inline-flex text-sm text-[#C49C56]"
+        >
+          Abrir processo relacionado
+        </Link>
+      ) : null}
     </div>
   );
 }

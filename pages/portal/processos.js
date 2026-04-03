@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
 import { clientFetch } from "../../lib/client/api";
 
 const PAGE_SIZE = 8;
+const STATUS_OPTIONS = [
+  { value: "", label: "Todos" },
+  { value: "ativo", label: "Ativos" },
+  { value: "baixado", label: "Baixados" },
+  { value: "suspenso", label: "Suspensos" },
+];
 
 function formatDate(value) {
   if (!value) return "Sem atualizacao";
@@ -16,6 +23,7 @@ function formatDate(value) {
 }
 
 export default function PortalProcessosPage() {
+  const router = useRouter();
   const [state, setState] = useState({
     loading: true,
     loadingMore: false,
@@ -33,19 +41,22 @@ export default function PortalProcessosPage() {
           title="Processos"
           description="Acompanhe sua carteira processual com leitura progressiva do schema judiciario: capa do processo, partes, andamentos e publicacoes quando a fonte estiver disponivel."
         >
-          <ProcessosContent state={state} setState={setState} />
+          <ProcessosContent state={state} setState={setState} router={router} />
         </PortalLayout>
       )}
     </RequireClient>
   );
 }
 
-function ProcessosContent({ state, setState }) {
+function ProcessosContent({ state, setState, router }) {
+  const selectedStatus = String(router.query.status || "").trim().toLowerCase();
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const payload = await clientFetch(`/api/client-processos?page=1&pageSize=${PAGE_SIZE}`);
+        const statusParam = selectedStatus ? `&status=${encodeURIComponent(selectedStatus)}` : "";
+        const payload = await clientFetch(`/api/client-processos?page=1&pageSize=${PAGE_SIZE}${statusParam}`);
         if (!cancelled) {
           setState({
             loading: false,
@@ -73,7 +84,7 @@ function ProcessosContent({ state, setState }) {
     return () => {
       cancelled = true;
     };
-  }, [setState]);
+  }, [selectedStatus, setState]);
 
   async function loadMore() {
     if (state.loadingMore || !state.pagination?.hasMore) return;
@@ -82,7 +93,8 @@ function ProcessosContent({ state, setState }) {
 
     try {
       const nextPage = (state.pagination?.page || 1) + 1;
-      const payload = await clientFetch(`/api/client-processos?page=${nextPage}&pageSize=${state.pagination?.pageSize || PAGE_SIZE}`);
+      const statusParam = selectedStatus ? `&status=${encodeURIComponent(selectedStatus)}` : "";
+      const payload = await clientFetch(`/api/client-processos?page=${nextPage}&pageSize=${state.pagination?.pageSize || PAGE_SIZE}${statusParam}`);
       setState((current) => ({
         ...current,
         loading: false,
@@ -105,6 +117,16 @@ function ProcessosContent({ state, setState }) {
     };
   }, [state.items]);
 
+  function handleStatusChange(nextStatus) {
+    const nextQuery = { ...router.query };
+    if (nextStatus) {
+      nextQuery.status = nextStatus;
+    } else {
+      delete nextQuery.status;
+    }
+    router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
+  }
+
   if (state.loading) return <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">Carregando modulo...</div>;
   if (state.error) return <div className="rounded-[28px] border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] p-6 text-sm">{state.error}</div>;
 
@@ -117,6 +139,29 @@ function ProcessosContent({ state, setState }) {
       </section>
 
       {state.warning ? <div className="rounded-[28px] border border-[#6E5630] bg-[rgba(76,57,26,0.22)] p-6 text-sm">{state.warning}</div> : null}
+
+      <section className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm opacity-62">Filtrar por status:</p>
+          {STATUS_OPTIONS.map((option) => {
+            const active = selectedStatus === option.value;
+            return (
+              <button
+                key={option.value || "todos"}
+                type="button"
+                onClick={() => handleStatusChange(option.value)}
+                className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.15em] transition ${
+                  active
+                    ? "border-[#C49C56] bg-[#C49C56] text-[#07110E]"
+                    : "border-[#20332D] text-[#F4F1EA] hover:border-[#C49C56] hover:text-[#C49C56]"
+                }`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
       {!state.items.length ? (
         <div className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-8">
@@ -165,6 +210,25 @@ function ProcessosContent({ state, setState }) {
                   <Meta label="Classe" value={item.classe || item.area || "Nao informada"} />
                   <Meta label="Atualizado em" value={formatDate(item.updated_at)} />
                 </div>
+
+                {item.total_related ? (
+                  <div className="mt-5 rounded-[22px] border border-[#20332D] bg-[rgba(6,10,9,0.45)] p-4">
+                    <p className="text-[10px] uppercase tracking-[0.18em] opacity-45">Arvore processual</p>
+                    <p className="mt-2 text-sm font-semibold">{item.total_related} vinculacao(oes) relacionada(s)</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(item.parent_links || []).map((relation) => (
+                        <span key={`${item.id}-parent-${relation.id}`} className="rounded-full border border-[#375B78] bg-[rgba(31,67,96,0.22)] px-3 py-1 text-[10px] uppercase tracking-[0.15em] text-[#C9E7FF]">
+                          {relation.type_label}: {relation.number}
+                        </span>
+                      ))}
+                      {(item.child_links || []).slice(0, 3).map((relation) => (
+                        <span key={`${item.id}-child-${relation.id}`} className="rounded-full border border-[#24533D] bg-[rgba(19,72,49,0.22)] px-3 py-1 text-[10px] uppercase tracking-[0.15em] text-[#B8F0D5]">
+                          {relation.type_label}: {relation.number}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
 
                 {(item.latest_movement || item.latest_publication) ? (
                   <div className="mt-5 grid gap-3 md:grid-cols-2">
