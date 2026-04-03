@@ -48,7 +48,9 @@ export async function onRequestPost(context) {
   }
 
   if (action === "task_run_start") {
-    const result = await startTaskRun(env, body, features);
+    const result = await startTaskRun(env, body, features, {
+      waitUntil: typeof context?.waitUntil === "function" ? context.waitUntil.bind(context) : null,
+    });
     return new Response(JSON.stringify(result), {
       status: result.status,
       headers: JSON_HEADERS,

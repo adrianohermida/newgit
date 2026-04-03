@@ -437,6 +437,36 @@ export default function AITaskModule({ profile, routePath }) {
           setLatestResult(run.result.resultText);
         }
 
+        if (Array.isArray(run?.result?.steps) && run.result.steps.length) {
+          const mappedTasks = run.result.steps.map((step, index) => ({
+            id: `${run?.id || runId}_step_${index + 1}`,
+            title: step?.action || step?.title || `Etapa ${index + 1}`,
+            goal: step?.action || step?.title || `Etapa ${index + 1}`,
+            description: step?.action || step?.title || "Execucao backend",
+            step,
+            steps: [step?.action || step?.title || "Execucao backend"],
+            status: step?.status === "ok" ? "done" : step?.status === "fail" ? "failed" : "running",
+            priority: "high",
+            assignedAgent: step?.tool || "Dotobot",
+            created_at: nowIso(),
+            updated_at: nowIso(),
+            logs: step?.error ? [step.error] : [],
+            dependencies: [],
+          }));
+          setTasks(mappedTasks);
+          setSelectedTaskId(mappedTasks[0]?.id || null);
+        }
+
+        if (run?.result?.rag) {
+          setContextSnapshot({
+            module: detectModules(run?.mission || mission).join(", "),
+            memory: run.result.rag?.retrieval?.matches || run.result.rag?.retrieved_context || [],
+            documents: run.result.rag?.documents || [],
+            ragEnabled: Boolean(run.result.rag?.retrieval?.enabled || run.result.rag?.documents?.length),
+            route: routePath || "/interno/ai-task",
+          });
+        }
+
         if (runStatus === "completed" || runStatus === "failed" || runStatus === "canceled") {
           setAutomation(runStatus === "completed" ? "done" : runStatus === "canceled" ? "stopped" : "failed");
           setActiveRun(null);
@@ -629,13 +659,21 @@ export default function AITaskModule({ profile, routePath }) {
         );
       }
 
-      const resultText = payload?.data?.resultText || payload?.data?.result || run?.result?.resultText || "Sem resposta do executor.";
-      setLatestResult(resultText);
-      pushLog({
-        type: "reporter",
-        action: "Resposta recebida",
-        result: typeof resultText === "string" ? resultText.slice(0, 180) : "Resultado estruturado entregue.",
-      });
+      const resultText = payload?.data?.resultText || payload?.data?.result || run?.result?.resultText || "";
+      if (resultText) {
+        setLatestResult(resultText);
+        pushLog({
+          type: "reporter",
+          action: "Resposta recebida",
+          result: typeof resultText === "string" ? resultText.slice(0, 180) : "Resultado estruturado entregue.",
+        });
+      } else {
+        pushLog({
+          type: "reporter",
+          action: "Resposta pendente",
+          result: "TaskRun iniciado. O resultado final sera carregado automaticamente.",
+        });
+      }
 
       if (backendSteps.length) {
         patchThinking((current) => [
