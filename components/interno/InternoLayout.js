@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useSupabaseBrowser } from "../../lib/supabase";
+import LawdeskCopilotPanel from "./LawdeskCopilotPanel";
 
 const NAV_ITEMS = [
   { href: "/interno", label: "Visao Geral" },
@@ -74,15 +75,23 @@ export default function InternoLayout({ title, description, profile, children })
         </aside>
 
         <main className="px-6 py-8 md:px-10 md:py-10">
-          <header className="mb-10">
-            <p className="text-xs font-semibold tracking-[0.25em] uppercase mb-3" style={{ color: "#C5A059" }}>
-              Operacao Interna
-            </p>
-            <h2 className="font-serif text-4xl mb-3">{title}</h2>
-            {description ? <p className="max-w-3xl opacity-60 leading-relaxed">{description}</p> : null}
-          </header>
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+            <section className="min-w-0">
+              <header className="mb-10">
+                <p className="text-xs font-semibold tracking-[0.25em] uppercase mb-3" style={{ color: "#C5A059" }}>
+                  Operacao Interna
+                </p>
+                <h2 className="font-serif text-4xl mb-3">{title}</h2>
+                {description ? <p className="max-w-3xl opacity-60 leading-relaxed">{description}</p> : null}
+              </header>
 
-          {children}
+              {children}
+            </section>
+
+            <aside className="xl:sticky xl:top-8 self-start">
+              <LawdeskCopilotPanel profile={profile} routePath={router.pathname} />
+            </aside>
+          </div>
         </main>
       </div>
     </div>
