@@ -39,6 +39,7 @@ const SLASH_COMMANDS = [
   { value: "/analise", label: "Analisar processo", hint: "Leitura juridica e riscos." },
   { value: "/plano", label: "Criar plano", hint: "Fluxo operacional com etapas." },
   { value: "/resumo", label: "Resumir documentos", hint: "Sintese tecnica e util." },
+  { value: "/tarefas", label: "Ver tarefas", hint: "Abre o modo de acompanhamento operacional." },
 ];
 
 function buildStorageKey(prefix, profile) {
