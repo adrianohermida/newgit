@@ -468,7 +468,28 @@ async function reconcileRows(env: Env, processos: Json[]) {
       `audiencias?select=id,data_audiencia,titulo,descricao&processo_id=eq.${processoId}&order=data_audiencia.desc&limit=10`
     ).catch(() => []);
 
-    const analysis = await runJson(env, buildProcessPrompt({ processo, movimentos, publicacoes, audiencias }));
+    const runId = `process_${processoId}_${Date.now()}`;
+    const retrievedContext = await queryRelatedMemory(
+      env,
+      buildSearchText('reconcile-process', { processo, movimentos, publicacoes, audiencias }),
+      5
+    ).catch(() => []);
+
+    await recordRun(env, {
+      id: runId,
+      kind: 'reconcile',
+      route: '/cron/reconcile',
+      mission: String(processo.numero_cnj ?? processoId),
+      mode: 'analysis',
+      provider: env.CLOUDFLARE_WORKERS_AI_MODEL || '@cf/meta/llama-3.1-8b-instruct',
+      status: 'running',
+      metadata_json: JSON.stringify({ account_id: accountId, retrieved_context_count: retrievedContext.length }),
+    }).catch(() => null);
+
+    const analysis = await runJson(
+      env,
+      buildProcessPrompt({ processo, movimentos, publicacoes, audiencias, retrieved_context: retrievedContext })
+    );
     const fieldUpdates = (analysis.account_field_updates || {}) as Json;
 
     await supabasePatch(env, 'processos', `id=eq.${processoId}`, {
@@ -488,6 +509,28 @@ async function reconcileRows(env: Env, processos: Json[]) {
     for (const task of tasks.slice(0, 3)) {
       await createTask(env, accountId, task as Json).catch(() => null);
     }
+
+    await persistMemoryVector(env, runId, 'reconcile', { processo, movimentos, publicacoes, audiencias }, analysis).catch(
+      () => null
+    );
+    await recordRun(env, {
+      id: runId,
+      kind: 'reconcile',
+      route: '/cron/reconcile',
+      mission: String(processo.numero_cnj ?? processoId),
+      mode: 'analysis',
+      provider: env.CLOUDFLARE_WORKERS_AI_MODEL || '@cf/meta/llama-3.1-8b-instruct',
+      status: 'done',
+      result: JSON.stringify(analysis),
+      metadata_json: JSON.stringify({ account_id: accountId, retrieved_context_count: retrievedContext.length }),
+    }).catch(() => null);
+    await recordEvent(env, {
+      run_id: runId,
+      type: 'reporter',
+      action: 'reconcile_completed',
+      result: `updated ${processoId}`,
+      payload_json: JSON.stringify({ analysis, accountId }),
+    }).catch(() => null);
 
     results.push({
       processo_id: processoId,
@@ -510,7 +553,14 @@ export default {
 
     const url = new URL(req.url);
     if (req.method === 'GET' && url.pathname === '/health') {
-      return json({ ok: true, service: 'hmadv-process-ai', now: new Date().toISOString() });
+      return json({
+        ok: true,
+        service: 'hmadv-process-ai',
+        now: new Date().toISOString(),
+        vectorize: Boolean(env.VECTORIZE),
+        d1: Boolean(env.hmadv_process_ai),
+        embedding_model: getEmbeddingModel(env),
+      });
     }
     if (req.method === 'POST' && url.pathname === '/analyze/activity') {
       return analyzeActivity(req, env);
