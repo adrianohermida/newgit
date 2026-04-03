@@ -136,42 +136,39 @@ function DefaultRightRail({ title, profile, officeWhatsapp }) {
   return (
     <div className="space-y-4">
       <RightRailPanel
-        title="Apoio ao cliente"
-        subtitle="Canal de atendimento e orientacao dentro do portal."
-        icon={<NavIcon name="wallet" active={false} />}
+        title="Contexto do modulo"
+        subtitle="Apoio lateral para leitura, acompanhamento e proximas acoes."
+        icon={<NavIcon name="overview" active={false} />}
       >
         <div className="space-y-3 text-sm">
           <div className="rounded-[18px] border border-[#2D463F] bg-[rgba(196,156,86,0.05)] p-4">
-            <p className="font-semibold text-[#F5F1E8]">Chat do escritorio ativo</p>
+            <p className="font-semibold text-[#F5F1E8]">{title}</p>
             <p className="mt-2 text-sm leading-6 text-[#A3B5AF]">
-              Use o atendimento do portal para tirar duvidas, pedir apoio e acompanhar respostas do escritorio sem sair desta area.
+              Use este painel quando quiser abrir informacoes de apoio sem perder o foco do conteudo principal.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <MetricChip label="Canal" value="Atendimento" />
-            <MetricChip label="Modo" value="Disponivel" />
+            <MetricChip label="Escritorio" value="Hermida Maia" />
+            <MetricChip label="Area" value={title} />
           </div>
-          <p className="text-xs leading-5 text-[#81948D]">
-            O widget pode levar alguns segundos para aparecer no canto da tela apos o carregamento.
-          </p>
         </div>
       </RightRailPanel>
 
       <RightRailPanel
         title="Documentos e pendencias"
-        subtitle="Reservado para documentos associados, revisoes e aprovacoes."
+        subtitle="Espaco reservado para itens de apoio, revisoes e devolutivas."
         icon={<NavIcon name="folder" active={false} />}
         defaultOpen={false}
       >
         <div className="space-y-3 text-sm text-[#A3B5AF]">
-          <p>Esta coluna ja esta preparada para documentos vinculados ao processo, comprovantes, minutas e itens aguardando validacao do escritorio.</p>
-          <MetricChip label="Status" value="Pronto para integrar" />
+          <p>Quando houver materiais vinculados ao atendimento, eles podem ser organizados aqui em blocos colapsaveis, mantendo a leitura principal mais limpa.</p>
+          <MetricChip label="Leitura" value="Sob demanda" />
         </div>
       </RightRailPanel>
 
       <RightRailPanel
-        title="Apoio ao cliente"
-        subtitle="Contexto do modulo atual e atalhos de contato."
+        title="Contato e apoio"
+        subtitle="Atalhos de contato com o escritorio."
         icon={<NavIcon name="support" active={false} />}
         defaultOpen={false}
       >
@@ -183,6 +180,9 @@ function DefaultRightRail({ title, profile, officeWhatsapp }) {
               Falar no WhatsApp
             </a>
           ) : null}
+          <p className="text-xs leading-5 text-[#81948D]">
+            O atendimento do escritorio permanece disponivel no widget flutuante do portal, no canto da tela.
+          </p>
         </div>
       </RightRailPanel>
     </div>

@@ -3,6 +3,7 @@ import Link from "next/link";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
 import { clientFetch } from "../../lib/client/api";
+import { sanitizePortalCopy } from "../../lib/client/portal-copy";
 
 const PAGE_SIZE = 10;
 
@@ -31,7 +32,7 @@ export default function PortalPublicacoesPage() {
         <PortalLayout
           profile={profile}
           title="Publicacoes"
-          description="Leitura consolidada das publicacoes judiciais vinculadas aos seus processos, seguindo a mesma logica progressiva do painel do cliente."
+          description="Acompanhe publicacoes e comunicacoes relevantes dos seus processos, com leitura progressiva conforme a base do portal."
           breadcrumbs={[
             { href: "/portal", label: "Portal" },
             { label: "Publicacoes" },
@@ -106,7 +107,7 @@ function PublicacoesContent({ state, setState }) {
 
   return (
     <div className="space-y-4">
-      {state.warning ? <div className="rounded-[28px] border border-[#6E5630] bg-[rgba(76,57,26,0.22)] p-6 text-sm">{state.warning}</div> : null}
+      {state.warning ? <div className="rounded-[28px] border border-[#6E5630] bg-[rgba(76,57,26,0.22)] p-6 text-sm">{sanitizePortalCopy(state.warning)}</div> : null}
 
       {!state.items.length ? (
         <div className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-8">

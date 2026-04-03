@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
 import { clientFetch } from "../../lib/client/api";
+import { sanitizePortalCopy } from "../../lib/client/portal-copy";
 
 const PAGE_SIZE = 8;
 const STATUS_OPTIONS = [
@@ -179,7 +180,7 @@ function ProcessosContent({ state, setState, router }) {
         <StatCard label="Com atos visiveis" value={stats.withActs} helper="Processos com andamentos identificados." />
       </section>
 
-      {state.warning ? <div className="rounded-[28px] border border-[#6E5630] bg-[rgba(76,57,26,0.22)] p-6 text-sm">{state.warning}</div> : null}
+      {state.warning ? <div className="rounded-[28px] border border-[#6E5630] bg-[rgba(76,57,26,0.22)] p-6 text-sm">{sanitizePortalCopy(state.warning)}</div> : null}
 
       <section className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-5">
         <div className="flex flex-wrap items-center gap-3">

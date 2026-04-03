@@ -3,6 +3,7 @@ import Link from "next/link";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
 import { clientFetch } from "../../lib/client/api";
+import { sanitizePortalCopy } from "../../lib/client/portal-copy";
 
 const INITIAL_STATE = {
   loading: true,
@@ -165,7 +166,7 @@ function FinanceiroContent({ state, setState }) {
       </section>
 
       {state.warning ? (
-        <div className="rounded-[28px] border border-[#6E5630] bg-[rgba(76,57,26,0.22)] p-6 text-sm leading-7">{state.warning}</div>
+        <div className="rounded-[28px] border border-[#6E5630] bg-[rgba(76,57,26,0.22)] p-6 text-sm leading-7">{sanitizePortalCopy(state.warning)}</div>
       ) : null}
 
       <section className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-5">

@@ -3,6 +3,7 @@ import Link from "next/link";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
 import { clientFetch } from "../../lib/client/api";
+import { sanitizePortalList } from "../../lib/client/portal-copy";
 
 function StatCard({ label, value, helper }) {
   return (
@@ -55,7 +56,7 @@ function OverviewContent({ state, setState }) {
           setState({
             loading: false,
             summary: payload.summary,
-            warnings: payload.warnings || [],
+            warnings: sanitizePortalList(payload.warnings || []),
             recentActivity: payload.recentActivity || [],
             attentionItems: payload.attentionItems || [],
             error: null,
@@ -94,7 +95,7 @@ function OverviewContent({ state, setState }) {
                 Tudo o que precisa da sua atencao, sem perder o contexto do caso.
               </h3>
               <p className="mt-4 text-sm leading-7 text-[#99ADA6]">
-                O portal centraliza processos, consultas, suporte, publicacoes e documentos em uma estrutura continua de trabalho.
+                O portal centraliza processos, consultas, solicitacoes, publicacoes e documentos em uma estrutura continua de acompanhamento.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:w-[280px]">
