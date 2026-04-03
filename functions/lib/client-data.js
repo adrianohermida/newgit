@@ -1111,10 +1111,23 @@ export async function listClientConsultas(env, email) {
   params.set("email", `eq.${email}`);
   params.set("order", "data.desc,hora.desc");
   params.set("limit", "50");
-  const rows = await fetchSupabaseAdmin(env, `agendamentos?${params.toString()}`);
-  const localItems = Array.isArray(rows) ? rows.map(normalizeConsultaRow) : [];
-  const liveContext = await getFreshsalesPortalContextLive(env, email);
-  const appointmentItems = (liveContext.appointments || []).map(normalizeFreshsalesAppointmentRow);
+  let warning = null;
+  let localItems = [];
+  let appointmentItems = [];
+
+  try {
+    const rows = await fetchSupabaseAdmin(env, `agendamentos?${params.toString()}`);
+    localItems = Array.isArray(rows) ? rows.map(normalizeConsultaRow) : [];
+  } catch {
+    warning = "A agenda local nao respondeu neste ambiente; o portal exibira as consultas encontradas no CRM.";
+  }
+
+  try {
+    const liveContext = await getFreshsalesPortalContextLive(env, email);
+    appointmentItems = (liveContext.appointments || []).map(normalizeFreshsalesAppointmentRow);
+  } catch {
+    warning = warning || "Nao foi possivel consolidar todas as consultas do CRM neste momento.";
+  }
   const mergedMap = new Map();
   [...localItems, ...appointmentItems].forEach((item) => {
     const key = String(item.id || `${item.data}-${item.hora}-${item.area}`).trim();
@@ -1139,6 +1152,7 @@ export async function listClientConsultas(env, email) {
   return {
     items,
     next_consulta: upcomingItems[0] || null,
+    warning,
     summary: {
       total: items.length,
       agendadas: items.filter((item) => ["agendada", "confirmada", "pendente", "remarcada"].includes(item.status)).length,
