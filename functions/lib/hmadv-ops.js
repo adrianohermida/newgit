@@ -101,6 +101,22 @@ async function countTable(env, table, filters = "", schema = "judiciario") {
   return match ? Number(match[1]) : 0;
 }
 
+async function countTableSafe(env, table, filters = "", schema = "judiciario", fallback = 0) {
+  try {
+    return await countTable(env, table, filters, schema);
+  } catch (error) {
+    const message = String(error?.message || "");
+    if (
+      message.includes("does not exist") ||
+      message.includes("schema cache") ||
+      message.includes("PGRST")
+    ) {
+      return fallback;
+    }
+    throw error;
+  }
+}
+
 export function detectAuctionKeyword(rawPayload) {
   const keywords = Array.isArray(rawPayload?.palavrasChave) ? rawPayload.palavrasChave : [];
   return keywords
@@ -215,7 +231,7 @@ export async function getProcessosOverview(env) {
     countTable(env, "processos"),
     countTable(env, "processos", "account_id_freshsales=not.is.null"),
     countTable(env, "processos", "account_id_freshsales=is.null"),
-    countTable(env, "processos", "datajud_enriquecido=eq.true"),
+    countTableSafe(env, "processos", "datajud_enriquecido=eq.true"),
     countTable(env, "processos", "status_atual_processo=is.null"),
     countTable(env, "processos", "or=(polo_ativo.is.null,polo_passivo.is.null)"),
     countTable(env, "audiencias"),

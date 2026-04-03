@@ -16,61 +16,74 @@ async function main() {
     return;
   }
 
+  const rowsByEmail = new Map();
+  for (const row of pendingRows) {
+    if (!row.email_normalized) continue;
+    if (!rowsByEmail.has(row.email_normalized)) rowsByEmail.set(row.email_normalized, []);
+    rowsByEmail.get(row.email_normalized).push(row);
+  }
+
   let createdOrUpdated = 0;
   let failed = 0;
   const failures = [];
 
-  for (const row of pendingRows) {
-    if (!row.email_normalized || !row.person_name) continue;
+  for (const [email, rows] of rowsByEmail.entries()) {
+    const row = rows[0];
+    if (!row.person_name) continue;
+
     try {
-      const payload = buildContactUpsertPayload(row);
-      const response = await freshsalesRequest('/contacts/upsert', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      const contact = response.contact || response;
-      if (!contact?.id) {
-        failed += 1;
+      let localContact = await resolveLocalContactByEmail(email);
+
+      if (!localContact) {
+        const response = await upsertContact(row);
+        const contact = unwrapContact(response);
+
+        if (!contact?.id) {
+          failed += rows.length;
+          failures.push({
+            row_id: row.id,
+            email,
+            error: 'Freshsales upsert sem contact.id',
+          });
+          continue;
+        }
+
+        await supabaseRequest('freshsales_contacts?on_conflict=freshsales_contact_id', {
+          method: 'POST',
+          headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify([{
+            freshsales_contact_id: String(contact.id),
+            name: buildFullName(contact),
+            email,
+            email_normalized: email,
+            phone: contact.mobile_number || null,
+            phone_normalized: normalizePhone(contact.mobile_number),
+            raw_payload: contact,
+            last_synced_at: new Date().toISOString(),
+          }]),
+        });
+
+        localContact = await resolveLocalContactByFreshsalesId(String(contact.id));
+      }
+
+      if (!localContact?.id) {
+        failed += rows.length;
         failures.push({
           row_id: row.id,
-          email: row.email_normalized,
-          error: 'Freshsales upsert sem contact.id',
+          email,
+          error: 'Contato nao localizado em freshsales_contacts apos bootstrap',
         });
         continue;
       }
 
-      await supabaseRequest('freshsales_contacts?on_conflict=freshsales_contact_id', {
-        method: 'POST',
-        headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify([{
-          freshsales_contact_id: String(contact.id),
-          name: buildFullName(contact),
-          email: row.email_normalized,
-          email_normalized: row.email_normalized,
-          phone: contact.mobile_number || null,
-          phone_normalized: normalizePhone(contact.mobile_number),
-          raw_payload: contact,
-          last_synced_at: new Date().toISOString(),
-        }]),
-      });
-
-      await supabaseRequest(`billing_import_rows?id=eq.${encodeURIComponent(row.id)}`, {
-        method: 'PATCH',
-        headers: { Prefer: 'return=minimal' },
-        body: JSON.stringify({
-          matching_status: 'pareado',
-          resolved_contact_id: await resolveLocalContactId(String(contact.id)),
-          matching_notes: `Contato criado/atualizado no Freshsales por bootstrap (${row.email_normalized})`,
-          validation_errors: [],
-        }),
-      });
-      createdOrUpdated += 1;
+      await markRowsAsMatched(rows, localContact.id, email);
+      createdOrUpdated += rows.length;
     } catch (error) {
-      failed += 1;
+      failed += rows.length;
       failures.push({
         row_id: row.id,
-        email: row.email_normalized,
-        error: String(error.message || error).slice(0, 500),
+        email,
+        error: String(error.message || error).slice(0, 1000),
       });
     }
   }
@@ -78,6 +91,7 @@ async function main() {
   console.log(JSON.stringify({
     ok: true,
     candidates: pendingRows.length,
+    unique_emails: rowsByEmail.size,
     bootstrapped: createdOrUpdated,
     failed,
     failures: failures.slice(0, 20),
@@ -112,6 +126,66 @@ function buildContactUpsertPayload(row) {
   };
 }
 
+function buildContactPayloadVariants(row) {
+  const { first_name, last_name } = splitName(row.person_name);
+  return [
+    {
+      pathname: '/contacts/upsert',
+      body: {
+        unique_identifier: {
+          emails: row.email_normalized,
+        },
+        contact: {
+          first_name,
+          last_name,
+          emails: [row.email_normalized],
+        },
+      },
+    },
+    {
+      pathname: '/contacts/upsert',
+      body: {
+        unique_identifier: row.email_normalized,
+        contact: {
+          first_name,
+          last_name,
+          email: row.email_normalized,
+        },
+      },
+    },
+    {
+      pathname: '/contacts/upsert',
+      body: {
+        contact: {
+          first_name,
+          last_name,
+          email: row.email_normalized,
+          emails: [row.email_normalized],
+        },
+      },
+    },
+    {
+      pathname: '/contacts',
+      body: {
+        contact: {
+          first_name,
+          last_name,
+          email: row.email_normalized,
+          emails: [row.email_normalized],
+        },
+      },
+    },
+    {
+      pathname: '/contacts',
+      body: {
+        first_name,
+        last_name,
+        email: row.email_normalized,
+      },
+    },
+  ];
+}
+
 function splitName(fullName) {
   const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return { first_name: 'Cliente', last_name: 'HMADV' };
@@ -133,54 +207,113 @@ function cleanValue(value) {
   return text || null;
 }
 
-function resolveFreshsalesBase() {
+function resolveFreshsalesBases() {
   const raw = cleanValue(process.env.FRESHSALES_API_BASE || process.env.FRESHSALES_BASE_URL || process.env.FRESHSALES_DOMAIN);
   if (!raw) throw new Error('FRESHSALES_API_BASE/FRESHSALES_BASE_URL/FRESHSALES_DOMAIN nao configurado');
   const base = raw.startsWith('http') ? raw.replace(/\/+$/, '') : `https://${raw.replace(/\/+$/, '')}`;
-  if (base.includes('/crm/sales/api')) return base;
-  if (base.includes('/api')) return base;
-  return `${base}/crm/sales/api`;
+  if (base.includes('/crm/sales/api') || base.includes('/api')) return [base];
+  const host = base.replace(/^https?:\/\//i, '');
+  const myfreshworksHost = host.includes('myfreshworks.com') ? host : host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
+  return Array.from(new Set([
+    `${base}/crm/sales/api`,
+    `${base}/api`,
+    `https://${myfreshworksHost}/crm/sales/api`,
+    `https://${myfreshworksHost}/api`,
+  ]));
 }
 
-function freshsalesHeaders() {
+function freshsalesHeaderCandidates() {
   const apiKey = cleanValue(process.env.FRESHSALES_API_KEY);
   const accessToken = cleanValue(process.env.FRESHSALES_ACCESS_TOKEN);
+  const candidates = [];
   if (apiKey) {
-    return {
+    candidates.push({
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Token token=${apiKey}`,
-    };
+    });
   }
   if (accessToken) {
-    return {
+    candidates.push({
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
-    };
+    });
   }
-  throw new Error('Credenciais do Freshsales ausentes');
+  if (!candidates.length) throw new Error('Credenciais do Freshsales ausentes');
+  return candidates;
 }
 
 async function freshsalesRequest(pathname, init = {}) {
-  const base = resolveFreshsalesBase();
-  const response = await fetch(`${base}${pathname}`, {
-    ...init,
-    headers: {
-      ...freshsalesHeaders(),
-      ...(init.headers || {}),
-    },
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload.message || payload.error || JSON.stringify(payload) || `Freshsales request failed: ${response.status}`);
+  const attemptErrors = [];
+
+  for (const base of resolveFreshsalesBases()) {
+    for (const authHeaders of freshsalesHeaderCandidates()) {
+      const response = await fetch(`${base}${pathname}`, {
+        ...init,
+        headers: {
+          ...authHeaders,
+          ...(init.headers || {}),
+        },
+      }).catch((error) => {
+        attemptErrors.push(`${base}${pathname}: ${String(error.message || error)}`);
+        return null;
+      });
+
+      if (!response) continue;
+
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok) return payload;
+      attemptErrors.push(`${base}${pathname} -> ${response.status}: ${payload.message || payload.error || JSON.stringify(payload).slice(0, 300)}`);
+    }
   }
-  return payload;
+
+  throw new Error(attemptErrors.join(' | ') || `Freshsales request failed: ${pathname}`);
 }
 
-async function resolveLocalContactId(freshsalesContactId) {
-  const rows = await supabaseRequest(`freshsales_contacts?freshsales_contact_id=eq.${encodeURIComponent(freshsalesContactId)}&select=id&limit=1`);
-  return rows[0]?.id || null;
+async function resolveLocalContactByFreshsalesId(freshsalesContactId) {
+  const rows = await supabaseRequest(`freshsales_contacts?freshsales_contact_id=eq.${encodeURIComponent(freshsalesContactId)}&select=id,freshsales_contact_id,email_normalized&limit=1`);
+  return rows[0] || null;
+}
+
+async function resolveLocalContactByEmail(email) {
+  const rows = await supabaseRequest(`freshsales_contacts?email_normalized=eq.${encodeURIComponent(email)}&select=id,freshsales_contact_id,email_normalized&limit=1`);
+  return rows[0] || null;
+}
+
+async function markRowsAsMatched(rows, contactId, email) {
+  for (const row of rows) {
+    await supabaseRequest(`billing_import_rows?id=eq.${encodeURIComponent(row.id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        matching_status: 'pareado',
+        resolved_contact_id: contactId,
+        matching_notes: `Contato pareado por bootstrap (${email})`,
+        validation_errors: [],
+      }),
+    });
+  }
+}
+
+async function upsertContact(row) {
+  const attemptErrors = [];
+  for (const variant of buildContactPayloadVariants(row)) {
+    try {
+      return await freshsalesRequest(variant.pathname, {
+        method: 'POST',
+        body: JSON.stringify(variant.body),
+      });
+    } catch (error) {
+      attemptErrors.push(`${variant.pathname}: ${String(error.message || error)}`);
+    }
+  }
+  throw new Error(attemptErrors.join(' | '));
+}
+
+function unwrapContact(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+  return payload.contact || payload.contacts?.[0] || payload.data || payload;
 }
 
 async function supabaseRequest(pathname, init = {}) {

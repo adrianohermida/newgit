@@ -194,6 +194,8 @@ export default function AgentLabWorkflowsPage() {
   const dispatchRuns = useMemo(() => state.data?.crm?.dispatchRuns || [], [state.data]);
   const messageTemplates = useMemo(() => state.data?.crm?.messageTemplates || [], [state.data]);
   const actionQueue = useMemo(() => state.data?.crm?.actionQueue || [], [state.data]);
+  const workflowLibrary = useMemo(() => state.data?.rollout?.workflowLibrary || [], [state.data]);
+  const intents = useMemo(() => state.data?.rollout?.intents || [], [state.data]);
   const [catalogState, setCatalogState] = useState({
     loading: false,
     error: null,
@@ -386,6 +388,41 @@ export default function AgentLabWorkflowsPage() {
                   <p>{item.outcome}</p>
                 </div>
               ))}
+            </div>
+          </div>
+
+          <div className="grid gap-6 mb-6 xl:grid-cols-2">
+            <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
+              <h3 className="font-serif text-2xl mb-4">Workflow library sugerida</h3>
+              <div className="space-y-4 text-sm opacity-75">
+                {workflowLibrary.map((item) => (
+                  <div key={item.id} className="border border-[#2D2E2E] p-4">
+                    <div className="flex flex-wrap gap-3 mb-2 text-xs uppercase tracking-[0.15em] opacity-50">
+                      <span>{item.type}</span>
+                      <span>{item.status}</span>
+                    </div>
+                    <p className="font-semibold">{item.title}</p>
+                    <p className="mt-2">{item.notes}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
+              <h3 className="font-serif text-2xl mb-4">Catalogo de intents</h3>
+              <div className="space-y-4 text-sm opacity-75">
+                {intents.map((item) => (
+                  <div key={item.id} className="border border-[#2D2E2E] p-4">
+                    <p className="font-semibold">{item.label}</p>
+                    <p className="mt-2">{item.policy}</p>
+                    <div className="mt-3 space-y-1 text-xs opacity-60">
+                      {(item.examples || []).map((example) => (
+                        <p key={example}>• {example}</p>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
