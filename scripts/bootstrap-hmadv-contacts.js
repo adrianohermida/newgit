@@ -17,46 +17,71 @@ async function main() {
   }
 
   let createdOrUpdated = 0;
+  let failed = 0;
+  const failures = [];
 
   for (const row of pendingRows) {
     if (!row.email_normalized || !row.person_name) continue;
-    const payload = buildContactUpsertPayload(row);
-    const response = await freshsalesRequest('/contacts/upsert', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    const contact = response.contact || response;
-    if (!contact?.id) continue;
+    try {
+      const payload = buildContactUpsertPayload(row);
+      const response = await freshsalesRequest('/contacts/upsert', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      const contact = response.contact || response;
+      if (!contact?.id) {
+        failed += 1;
+        failures.push({
+          row_id: row.id,
+          email: row.email_normalized,
+          error: 'Freshsales upsert sem contact.id',
+        });
+        continue;
+      }
 
-    await supabaseRequest('freshsales_contacts?on_conflict=freshsales_contact_id', {
-      method: 'POST',
-      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify([{
-        freshsales_contact_id: String(contact.id),
-        name: buildFullName(contact),
+      await supabaseRequest('freshsales_contacts?on_conflict=freshsales_contact_id', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify([{
+          freshsales_contact_id: String(contact.id),
+          name: buildFullName(contact),
+          email: row.email_normalized,
+          email_normalized: row.email_normalized,
+          phone: contact.mobile_number || null,
+          phone_normalized: normalizePhone(contact.mobile_number),
+          raw_payload: contact,
+          last_synced_at: new Date().toISOString(),
+        }]),
+      });
+
+      await supabaseRequest(`billing_import_rows?id=eq.${encodeURIComponent(row.id)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          matching_status: 'pareado',
+          resolved_contact_id: await resolveLocalContactId(String(contact.id)),
+          matching_notes: `Contato criado/atualizado no Freshsales por bootstrap (${row.email_normalized})`,
+          validation_errors: [],
+        }),
+      });
+      createdOrUpdated += 1;
+    } catch (error) {
+      failed += 1;
+      failures.push({
+        row_id: row.id,
         email: row.email_normalized,
-        email_normalized: row.email_normalized,
-        phone: contact.mobile_number || null,
-        phone_normalized: normalizePhone(contact.mobile_number),
-        raw_payload: contact,
-        last_synced_at: new Date().toISOString(),
-      }]),
-    });
-
-    await supabaseRequest(`billing_import_rows?id=eq.${encodeURIComponent(row.id)}`, {
-      method: 'PATCH',
-      headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify({
-        matching_status: 'pareado',
-        resolved_contact_id: await resolveLocalContactId(String(contact.id)),
-        matching_notes: `Contato criado/atualizado no Freshsales por bootstrap (${row.email_normalized})`,
-        validation_errors: [],
-      }),
-    });
-    createdOrUpdated += 1;
+        error: String(error.message || error).slice(0, 500),
+      });
+    }
   }
 
-  console.log(JSON.stringify({ ok: true, candidates: pendingRows.length, bootstrapped: createdOrUpdated }, null, 2));
+  console.log(JSON.stringify({
+    ok: true,
+    candidates: pendingRows.length,
+    bootstrapped: createdOrUpdated,
+    failed,
+    failures: failures.slice(0, 20),
+  }, null, 2));
 }
 
 function loadLocalEnv() {
@@ -148,7 +173,7 @@ async function freshsalesRequest(pathname, init = {}) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.message || payload.error || `Freshsales request failed: ${response.status}`);
+    throw new Error(payload.message || payload.error || JSON.stringify(payload) || `Freshsales request failed: ${response.status}`);
   }
   return payload;
 }
