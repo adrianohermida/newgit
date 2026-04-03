@@ -5,6 +5,8 @@ import {
   getPublicacoesOverview,
   jsonError,
   jsonOk,
+  listCreateProcessCandidates,
+  listPartesExtractionCandidates,
   runSyncWorker,
 } from "../lib/hmadv-ops.js";
 
@@ -28,6 +30,20 @@ export async function onRequestGet(context) {
     const action = String(url.searchParams.get("action") || "overview");
     if (action === "overview") {
       const data = await getPublicacoesOverview(context.env);
+      return jsonOk({ data });
+    }
+    if (action === "candidatos_processos") {
+      const data = await listCreateProcessCandidates(context.env, {
+        page: Number(url.searchParams.get("page") || 1),
+        pageSize: Number(url.searchParams.get("pageSize") || 20),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "candidatos_partes") {
+      const data = await listPartesExtractionCandidates(context.env, {
+        page: Number(url.searchParams.get("page") || 1),
+        pageSize: Number(url.searchParams.get("pageSize") || 20),
+      });
       return jsonOk({ data });
     }
     return jsonError(new Error("Acao GET invalida."), 400);

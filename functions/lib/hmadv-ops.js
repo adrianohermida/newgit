@@ -286,6 +286,98 @@ async function loadPartesByProcessIds(env, processIds) {
   return output;
 }
 
+async function loadPublicacoesSemProcesso(env, limit = 100, offset = 0) {
+  return hmadvRest(
+    env,
+    `publicacoes?processo_id=is.null&numero_processo_api=not.is.null&select=id,numero_processo_api,data_publicacao,conteudo&order=data_publicacao.desc.nullslast&limit=${limit}&offset=${offset}`
+  );
+}
+
+export async function listCreateProcessCandidates(env, { page = 1, pageSize = 20 } = {}) {
+  const safePage = Math.max(1, Number(page || 1));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  const fetchSize = safePageSize * 6;
+  const rows = await loadPublicacoesSemProcesso(env, fetchSize, (safePage - 1) * fetchSize);
+  const grouped = [];
+  for (const row of rows) {
+    const numero = String(row.numero_processo_api || "").replace(/\D+/g, "");
+    if (!numero) continue;
+    const existing = grouped.find((item) => item.numero_cnj === numero);
+    if (existing) {
+      existing.publicacoes += 1;
+      if (row.data_publicacao && (!existing.ultima_publicacao || row.data_publicacao > existing.ultima_publicacao)) {
+        existing.ultima_publicacao = row.data_publicacao;
+      }
+      continue;
+    }
+    grouped.push({
+      key: numero,
+      numero_cnj: numero,
+      publicacoes: 1,
+      ultima_publicacao: row.data_publicacao || null,
+      exemplo_publicacao_id: row.id,
+      snippet: String(row.conteudo || "").slice(0, 220),
+    });
+    if (grouped.length >= safePageSize) break;
+  }
+  const total = await countTable(env, "publicacoes", "processo_id=is.null&numero_processo_api=not.is.null");
+  return {
+    page: safePage,
+    pageSize: safePageSize,
+    totalRows: total,
+    items: grouped,
+  };
+}
+
+export async function listPartesExtractionCandidates(env, { page = 1, pageSize = 20 } = {}) {
+  const safePage = Math.max(1, Number(page || 1));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  const processRows = await hmadvRest(
+    env,
+    `processos?select=id,numero_cnj,titulo,account_id_freshsales,polo_ativo,polo_passivo&processo_id=not.is.null&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
+      .replace("processo_id=not.is.null&", "")
+  );
+  const processIds = processRows.map((item) => item.id);
+  const [publicacoes, partes] = await Promise.all([
+    processIds.length ? loadPublicacoesByProcessIds(env, processIds, 10) : Promise.resolve([]),
+    processIds.length ? loadPartesByProcessIds(env, processIds) : Promise.resolve([]),
+  ]);
+  const items = [];
+  for (const proc of processRows) {
+    const pubs = publicacoes.filter((item) => item.processo_id === proc.id).slice(0, 25);
+    if (!pubs.length) continue;
+    const existing = partes.filter((item) => item.processo_id === proc.id);
+    const parsed = pubs.flatMap((pub) => parsePartesFromText(pub.conteudo));
+    const uniqueParsed = parsed.reduce((acc, item) => {
+      const key = `${normalizeText(item.nome)}|${item.polo}`;
+      if (!acc.some((row) => `${normalizeText(row.nome)}|${row.polo}` === key)) acc.push(item);
+      return acc;
+    }, []);
+    const novas = uniqueParsed.filter(
+      (parte) => !existing.some((item) => normalizeText(item.nome) === normalizeText(parte.nome) && item.polo === parte.polo)
+    );
+    if (!novas.length) continue;
+    items.push({
+      key: proc.numero_cnj || proc.id,
+      processo_id: proc.id,
+      numero_cnj: proc.numero_cnj,
+      titulo: proc.titulo,
+      account_id_freshsales: proc.account_id_freshsales || null,
+      partes_existentes: existing.length,
+      partes_detectadas: uniqueParsed.length,
+      partes_novas: novas.length,
+      sample_partes: novas.slice(0, 4),
+    });
+  }
+  const total = await countTable(env, "processos");
+  return {
+    page: safePage,
+    pageSize: safePageSize,
+    totalRows: total,
+    items,
+  };
+}
+
 export async function getProcessosOverview(env) {
   const [syncStatus, processosTotal, processosComAccount, processosSemAccount, datajudEnriquecido, processosSemStatus, processosSemPolos, audienciasTotal] = await Promise.all([
     hmadvFunction(env, "sync-worker", { action: "status" }),

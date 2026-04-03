@@ -62,6 +62,8 @@ function ConversationsContent({ state, syncState, runSync }) {
   const incidents = state.data?.intelligence?.incidents || [];
   const summary = state.data?.conversations?.summary || {};
   const syncRuns = state.data?.intelligence?.syncRuns || [];
+  const environment = state.data?.environment || {};
+  const syncBlocked = environment.mode === "degraded";
 
   return (
     <div className="space-y-8">
@@ -73,11 +75,17 @@ function ConversationsContent({ state, syncState, runSync }) {
       </div>
 
       <Panel title="Pipeline de sync">
+        {syncBlocked ? (
+          <div className="mb-4 border border-[#2D2E2E] p-4 text-sm opacity-75">
+            <p>{environment.message}</p>
+            <p className="mt-2">Neste modo, o painel mostra dados de fallback e o sync local fica desabilitado ate o schema principal estar alinhado.</p>
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-3 mb-4">
-          <button type="button" onClick={() => runSync("sync_workspace_conversations")} className="border border-[#2D2E2E] px-4 py-3 text-sm">
+          <button type="button" disabled={syncBlocked} onClick={() => runSync("sync_workspace_conversations")} className="border border-[#2D2E2E] px-4 py-3 text-sm disabled:opacity-40">
             Sincronizar legado
           </button>
-          <button type="button" onClick={() => runSync("sync_freshsales_activities")} className="border border-[#2D2E2E] px-4 py-3 text-sm">
+          <button type="button" disabled={syncBlocked} onClick={() => runSync("sync_freshsales_activities")} className="border border-[#2D2E2E] px-4 py-3 text-sm disabled:opacity-40">
             Sincronizar Freshsales
           </button>
         </div>

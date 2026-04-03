@@ -59,6 +59,7 @@ function AgentLabContent({ state }) {
   const data = state.data || {};
   const overview = data.overview || {};
   const warnings = data.warnings || [];
+  const environment = data.environment || {};
   const actionQueue = data.crm?.actionQueue || [];
   const dispatchRuns = data.crm?.dispatchRuns || [];
   const automationRuns = data.crm?.automationRuns || [];
@@ -90,6 +91,17 @@ function AgentLabContent({ state }) {
 
   return (
     <div className="space-y-8">
+      {environment.mode === "degraded" ? (
+        <Panel title="Modo de contingencia" eyebrow="Operacao">
+          <div className="space-y-3 text-sm opacity-75">
+            <p>{environment.message}</p>
+            {(environment.missingSources || []).length ? (
+              <p>Fontes ausentes neste ambiente: {environment.missingSources.join(", ")}</p>
+            ) : null}
+          </div>
+        </Panel>
+      ) : null}
+
       {warnings.length ? (
         <Panel title="Avisos de fontes" eyebrow="Operacao">
           <div className="space-y-3 text-sm opacity-75">
