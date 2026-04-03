@@ -44,7 +44,10 @@ export async function onRequestGet(context) {
       return jsonOk({ data });
     }
     if (action === "orfaos") {
-      const data = await scanOrphanProcesses(context.env, Number(url.searchParams.get("limit") || 50));
+      const data = await scanOrphanProcesses(context.env, {
+        page: Number(url.searchParams.get("page") || 1),
+        pageSize: Number(url.searchParams.get("pageSize") || url.searchParams.get("limit") || 20),
+      });
       return jsonOk({ data });
     }
     if (action === "inspect_audiencias") {
@@ -124,7 +127,10 @@ export async function onRequestPost(context) {
       return jsonOk({ data });
     }
     if (action === "push_orfaos") {
-      const data = await pushOrphanAccounts(context.env, Number(body.limit || 20));
+      const data = await pushOrphanAccounts(context.env, {
+        processNumbers: parseProcessNumbers(body.processNumbers),
+        limit: Number(body.limit || 20),
+      });
       return jsonOk({ data });
     }
     if (action === "repair_freshsales_accounts") {

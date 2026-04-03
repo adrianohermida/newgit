@@ -499,12 +499,20 @@ export async function getPublicacoesOverview(env) {
   };
 }
 
-export async function scanOrphanProcesses(env, limit = 50) {
+export async function scanOrphanProcesses(env, { page = 1, pageSize = 20, limit = null } = {}) {
+  const safePageSize = Math.max(1, Math.min(Number(limit || pageSize || 20), 50));
+  const safePage = Math.max(1, Number(page || 1));
   const rows = await hmadvRest(
     env,
-    `processos?select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo&account_id_freshsales=is.null&limit=${limit}`
+    `processos?select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo&account_id_freshsales=is.null&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
   );
-  return { total: rows.length, items: rows };
+  return {
+    total: await countTableSafe(env, "processos", "account_id_freshsales=is.null"),
+    totalRows: await countTableSafe(env, "processos", "account_id_freshsales=is.null"),
+    page: safePage,
+    pageSize: safePageSize,
+    items: rows,
+  };
 }
 
 export async function listProcessesWithoutMovements(env, { page = 1, pageSize = 20 } = {}) {
@@ -1026,11 +1034,40 @@ export async function createProcessesFromPublicacoes(env, { processNumbers = [],
   };
 }
 
-export async function pushOrphanAccounts(env, limit = 20) {
+export async function pushOrphanAccounts(env, { processNumbers = [], limit = 20 } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 20), 100));
+  const normalizedNumbers = [...new Set((processNumbers || []).map((item) => normalizeProcessNumber(item)).filter(Boolean))];
+  if (normalizedNumbers.length) {
+    const sample = [];
+    let pushed = 0;
+    const processes = await loadProcessesByNumbers(env, normalizedNumbers);
+    for (const proc of processes.slice(0, safeLimit)) {
+      const result = await hmadvFunction(
+        env,
+        "processo-sync",
+        { action: "push_freshsales", limite: 1, batch: 1, process_number: proc.numero_cnj || normalizeProcessNumber(proc.titulo) },
+        { method: "POST", body: {} }
+      );
+      pushed += Number(result?.ok !== false);
+      sample.push({
+        numero_cnj: proc.numero_cnj,
+        titulo: proc.titulo,
+        account_id_freshsales: result?.account_id_freshsales || null,
+        result,
+      });
+    }
+    return {
+      ok: true,
+      mode: "selected",
+      requested: normalizedNumbers.length,
+      pushed,
+      sample,
+    };
+  }
   return hmadvFunction(
     env,
     "processo-sync",
-    { action: "push_freshsales", limite: Math.max(1, Math.min(Number(limit || 20), 100)), batch: 10 },
+    { action: "push_freshsales", limite: safeLimit, batch: 10 },
     { method: "POST", body: {} }
   );
 }
