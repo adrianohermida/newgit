@@ -1365,8 +1365,12 @@ export async function getClientProcessDetails(env, profile, processId) {
 export async function listClientPublicacoes(env, profile) {
   const processes = await listClientProcessos(env, profile.email);
   const processIds = processes.items.flatMap((item) => buildProcessIdentifierCandidates(item, item.id)).filter(Boolean);
+  const liveContext = await getFreshsalesPortalContextLive(env, profile.email);
+  const livePublicacoes = (liveContext.activities || [])
+    .filter((item) => textIncludesAny(`${item?.title || ""} ${item?.notes || ""}`, ["publicacao", "publicação", "andamento"]))
+    .map(normalizeFreshsalesActivityPublicationRow);
 
-  if (!processIds.length) {
+  if (!processIds.length && !livePublicacoes.length) {
     return {
       items: [],
       warning: "As publicacoes passam a aparecer quando houver processos vinculados ao seu cadastro.",
@@ -1377,7 +1381,7 @@ export async function listClientPublicacoes(env, profile) {
     processIds.slice(0, 20).map((processId) => listClientProcessPublications(env, processId))
   );
 
-  const items = publicationBatches.flat().sort((left, right) => {
+  const items = [...publicationBatches.flat(), ...livePublicacoes].sort((left, right) => {
     const leftTime = left.date ? new Date(left.date).getTime() : 0;
     const rightTime = right.date ? new Date(right.date).getTime() : 0;
     return rightTime - leftTime;
@@ -1459,14 +1463,40 @@ export async function listClientDocumentos(env, email) {
 export async function listClientFinanceiro(env, email) {
   try {
     const freshsalesContext = await listFreshsalesRelatedAccounts(env, email);
+    const liveContext = await getFreshsalesPortalContextLive(env, email);
     const normalizedEmail = normalizeEmail(email);
     const contacts = freshsalesContext.contacts || [];
     const contactIds = new Set(freshsalesContext.contactIds || []);
-    const accounts = freshsalesContext.accounts || [];
-    const relatedAccountIds = new Set(freshsalesContext.accountIds || []);
+    const liveAccounts = (liveContext.accounts || []).map((account) => ({
+      source_id: account.id,
+      display_name: account.name,
+      status: account.cf_status || account.status || null,
+      attributes: account,
+      custom_attributes: account.custom_field || {},
+      timestamps: { created_at: account.created_at, updated_at: account.updated_at },
+    }));
+    const accounts = [...(freshsalesContext.accounts || []), ...liveAccounts];
+    const relatedAccountIds = new Set([
+      ...(freshsalesContext.accountIds || []),
+      ...(liveContext.accounts || []).map((item) => String(item?.id || "").trim()).filter(Boolean),
+    ]);
     const ownerId = freshsalesContext.ownerId || null;
     const accountsById = new Map(accounts.map((item) => [String(item.source_id || "").trim(), item]));
-    const relatedDeals = (freshsalesContext.relatedDeals || []).filter((deal) => {
+    const liveDeals = (liveContext.deals || []).map((deal) => ({
+      source_id: deal.id,
+      display_name: deal.name,
+      status: deal.status || null,
+      relationships: {
+        sales_account_id: deal.sales_account_id || deal.sales_account?.id || null,
+        targetable_id: liveContext.contact?.id || null,
+        targetable_type: "Contact",
+      },
+      attributes: deal,
+      custom_attributes: deal.custom_field || {},
+      summary: { amount: deal.amount, expected_close: deal.expected_close },
+      timestamps: { created_at: deal.created_at, updated_at: deal.updated_at },
+    }));
+    const relatedDeals = [...(freshsalesContext.relatedDeals || []), ...liveDeals].filter((deal) => {
       const relationships = safeJsonParse(deal.relationships, {});
       const targetType = normalizeText(relationships.targetable_type || "");
       const targetId = String(relationships.targetable_id || "").trim();
