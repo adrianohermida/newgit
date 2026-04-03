@@ -147,22 +147,13 @@ export default function InternoLayout({
                 {rightRail || (
                   <>
                     <div className="mb-4 border-b border-[#1E2E29] px-1 pb-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">Conversa lateral</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">Dotobot AI</p>
                       <p className="mt-2 text-sm leading-6 text-[#92A59F]">
-                        O Dotobot fica aqui como coluna fixa para resumo, analise operacional, comparacao e apoio continuo sem sair do contexto da tela.
+                        Copilot juridico interno com conversa, tarefas, contexto e execucao assistida.
                       </p>
                     </div>
 
-                    <div className="space-y-4">
-                      <RailPanel
-                        title="Fluxo de trabalho"
-                        subtitle="Sidebar, modulo e conversa permanecem visiveis em conjunto."
-                      >
-                        Use este painel para perguntar, resumir, comparar versoes e revisar o contexto enquanto navega pelos modulos internos.
-                      </RailPanel>
-
-                      <DotobotPanel profile={profile} routePath={router.pathname} initialWorkspaceOpen={initialWorkspaceOpen} />
-                    </div>
+                    <DotobotPanel profile={profile} routePath={router.pathname} initialWorkspaceOpen={initialWorkspaceOpen} />
                   </>
                 )}
               </div>

@@ -5,6 +5,15 @@ compatibility_date = "2026-03-31"
 [ai]
 binding = "AI"
 
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "dotobot-ai"
+
+[[d1_databases]]
+binding = "hmadv_process_ai"
+database_name = "hmadv-process-ai"
+database_id = "1d61b217-289f-468d-9d29-40abb8a23a85"
+
 [triggers]
 crons = ["*/15 * * * *", "0 7 * * *"]
 

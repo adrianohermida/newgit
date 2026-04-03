@@ -7,9 +7,32 @@ type AiBinding = {
   run(model: string, payload: Json): Promise<AiResponse>;
 };
 
+type VectorizeVector = {
+  id: string;
+  values: number[];
+  metadata?: Json;
+};
+
+type VectorizeQueryResult = {
+  matches?: Array<{
+    id: string;
+    score: number;
+    values?: number[];
+    metadata?: Json;
+  }>;
+};
+
+type VectorizeBinding = {
+  insert(vectors: VectorizeVector[]): Promise<{ mutationId?: string } & Json>;
+  query(vector: number[], options?: { topK?: number; returnValues?: boolean; returnMetadata?: boolean | "all" }): Promise<VectorizeQueryResult>;
+};
+
 export interface Env {
   AI: AiBinding;
+  VECTORIZE: VectorizeBinding;
+  hmadv_process_ai: D1Database;
   CLOUDFLARE_WORKERS_AI_MODEL?: string;
+  CLOUDFLARE_WORKERS_AI_EMBEDDING_MODEL?: string;
   HMDAV_AI_SHARED_SECRET?: string;
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
@@ -47,6 +70,10 @@ async function parseBody(req: Request) {
   }
 }
 
+function nowIso() {
+  return new Date().toISOString();
+}
+
 async function runJson(env: Env, prompt: string) {
   const model = env.CLOUDFLARE_WORKERS_AI_MODEL || '@cf/meta/llama-3.1-8b-instruct';
   const result = await env.AI.run(model, {
@@ -58,6 +85,169 @@ async function runJson(env: Env, prompt: string) {
     max_tokens: 1400,
   });
   return JSON.parse(String(result.response ?? '{}'));
+}
+
+function getEmbeddingModel(env: Env) {
+  return env.CLOUDFLARE_WORKERS_AI_EMBEDDING_MODEL || '@cf/baai/bge-base-en-v1.5';
+}
+
+async function runEmbedding(env: Env, text: string) {
+  const result = await env.AI.run(getEmbeddingModel(env), {
+    text: [text],
+  });
+  const vector =
+    (result as Json)?.data?.[0] ||
+    (result as Json)?.result?.data?.[0] ||
+    (result as Json)?.result?.[0] ||
+    (result as Json)?.result ||
+    (result as Json)?.embedding;
+  if (!Array.isArray(vector)) {
+    throw new Error('embedding_failed');
+  }
+  return vector.map((value) => Number(value));
+}
+
+function summarizePayload(kind: string, payload: Json, analysis?: Json) {
+  return [
+    `kind: ${kind}`,
+    `payload: ${JSON.stringify(payload)}`,
+    analysis ? `analysis: ${JSON.stringify(analysis)}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function buildSearchText(kind: string, payload: Json) {
+  const data = payload as Record<string, any>;
+  return [
+    `kind: ${kind}`,
+    `processo: ${String(data.processo?.numero_cnj ?? data.numero_cnj ?? data.processo_id ?? '')}`,
+    `account: ${String(data.processo?.account_id_freshsales ?? data.account_id_freshsales ?? '')}`,
+    `summary: ${JSON.stringify(payload)}`,
+  ]
+    .filter((part) => !part.endsWith(': '))
+    .join('\n');
+}
+
+async function queryRelatedMemory(env: Env, text: string, topK = 5) {
+  if (!env.VECTORIZE) return [];
+  const vector = await runEmbedding(env, text);
+  const matches = await env.VECTORIZE.query(vector, {
+    topK,
+    returnValues: false,
+    returnMetadata: 'all',
+  });
+  return matches.matches || [];
+}
+
+let d1SchemaReady = false;
+
+async function ensureD1Schema(env: Env) {
+  if (d1SchemaReady) return;
+  await env.hmadv_process_ai.exec(`
+    CREATE TABLE IF NOT EXISTS ai_orchestration_runs (
+      id TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      route TEXT,
+      mission TEXT,
+      mode TEXT,
+      provider TEXT,
+      status TEXT NOT NULL,
+      result TEXT,
+      metadata_json TEXT
+    );
+    CREATE TABLE IF NOT EXISTS ai_orchestration_events (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      type TEXT NOT NULL,
+      action TEXT NOT NULL,
+      result TEXT NOT NULL,
+      payload_json TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_ai_orchestration_runs_created_at
+      ON ai_orchestration_runs(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_ai_orchestration_events_run_id_created_at
+      ON ai_orchestration_events(run_id, created_at DESC);
+  `);
+  d1SchemaReady = true;
+}
+
+async function recordRun(env: Env, run: Json) {
+  await ensureD1Schema(env);
+  await env.hmadv_process_ai
+    .prepare(
+      `INSERT INTO ai_orchestration_runs
+        (id, created_at, updated_at, kind, route, mission, mode, provider, status, result, metadata_json)
+       VALUES
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+        updated_at = excluded.updated_at,
+        kind = excluded.kind,
+        route = excluded.route,
+        mission = excluded.mission,
+        mode = excluded.mode,
+        provider = excluded.provider,
+        status = excluded.status,
+        result = excluded.result,
+        metadata_json = excluded.metadata_json`
+    )
+    .bind(
+      String(run.id || crypto.randomUUID()),
+      String(run.created_at || nowIso()),
+      String(run.updated_at || nowIso()),
+      String(run.kind || 'unknown'),
+      run.route ? String(run.route) : null,
+      run.mission ? String(run.mission) : null,
+      run.mode ? String(run.mode) : null,
+      run.provider ? String(run.provider) : null,
+      String(run.status || 'running'),
+      run.result ? String(run.result) : null,
+      run.metadata_json ? String(run.metadata_json) : null
+    )
+    .run();
+}
+
+async function recordEvent(env: Env, event: Json) {
+  await ensureD1Schema(env);
+  await env.hmadv_process_ai
+    .prepare(
+      `INSERT INTO ai_orchestration_events
+        (id, run_id, created_at, type, action, result, payload_json)
+       VALUES
+        (?, ?, ?, ?, ?, ?, ?)`
+    )
+    .bind(
+      String(event.id || crypto.randomUUID()),
+      String(event.run_id || ''),
+      String(event.created_at || nowIso()),
+      String(event.type || 'info'),
+      String(event.action || 'event'),
+      String(event.result || ''),
+      event.payload_json ? String(event.payload_json) : null
+    )
+    .run();
+}
+
+async function persistMemoryVector(env: Env, id: string, kind: string, payload: Json, analysis: Json) {
+  if (!env.VECTORIZE) return null;
+  const values = await runEmbedding(env, summarizePayload(kind, payload, analysis));
+  const data = payload as Record<string, any>;
+  return env.VECTORIZE.insert([
+    {
+      id,
+      values,
+      metadata: {
+        kind,
+        created_at: nowIso(),
+        payload_kind: String(data?.kind || data?.type || kind),
+        route: String(data?.route || data?.route_path || ''),
+        process_id: String(data?.processo?.id || data?.processo_id || ''),
+      },
+    },
+  ]);
 }
 
 function supabaseHeaders(env: Env) {
@@ -149,13 +339,97 @@ async function createTask(env: Env, accountId: string, task: Json) {
 async function analyzeActivity(req: Request, env: Env) {
   const payload = await parseBody(req);
   if (!payload) return json({ ok: false, error: 'invalid_json' }, 400);
-  return json({ ok: true, analysis: await runJson(env, buildActivityPrompt(payload)) });
+  const runId = crypto.randomUUID();
+  const retrievedContext = await queryRelatedMemory(env, buildSearchText('activity', payload), 5).catch(() => []);
+  await recordRun(env, {
+    id: runId,
+    kind: 'activity',
+    route: '/analyze/activity',
+    mission: String((payload as Record<string, any>).type || 'activity'),
+    mode: 'analysis',
+    provider: env.CLOUDFLARE_WORKERS_AI_MODEL || '@cf/meta/llama-3.1-8b-instruct',
+    status: 'running',
+    metadata_json: JSON.stringify({ retrieved_context_count: retrievedContext.length }),
+  }).catch(() => null);
+  await recordEvent(env, {
+    run_id: runId,
+    type: 'planner',
+    action: 'context_retrieval',
+    result: `retrieved ${retrievedContext.length} related memories`,
+    payload_json: JSON.stringify(retrievedContext.slice(0, 5)),
+  }).catch(() => null);
+
+  const analysis = await runJson(env, buildActivityPrompt({ ...payload, retrieved_context: retrievedContext }));
+
+  await recordRun(env, {
+    id: runId,
+    kind: 'activity',
+    route: '/analyze/activity',
+    mission: String((payload as Record<string, any>).type || 'activity'),
+    mode: 'analysis',
+    provider: env.CLOUDFLARE_WORKERS_AI_MODEL || '@cf/meta/llama-3.1-8b-instruct',
+    status: 'done',
+    result: JSON.stringify(analysis),
+    metadata_json: JSON.stringify({ retrieved_context_count: retrievedContext.length }),
+  }).catch(() => null);
+  await recordEvent(env, {
+    run_id: runId,
+    type: 'reporter',
+    action: 'analysis_completed',
+    result: 'analysis stored and ready',
+    payload_json: JSON.stringify({ analysis }),
+  }).catch(() => null);
+  await persistMemoryVector(env, runId, 'activity', payload as Json, analysis).catch(() => null);
+
+  return json({ ok: true, analysis, retrieved_context: retrievedContext });
 }
 
 async function analyzeProcess(req: Request, env: Env) {
   const payload = await parseBody(req);
   if (!payload) return json({ ok: false, error: 'invalid_json' }, 400);
-  return json({ ok: true, analysis: await runJson(env, buildProcessPrompt(payload)) });
+  const runId = crypto.randomUUID();
+  const retrievedContext = await queryRelatedMemory(env, buildSearchText('process', payload), 5).catch(() => []);
+  await recordRun(env, {
+    id: runId,
+    kind: 'process',
+    route: '/analyze/process',
+    mission: String((payload as Record<string, any>).processo?.numero_cnj || (payload as Record<string, any>).numero_cnj || 'process'),
+    mode: 'analysis',
+    provider: env.CLOUDFLARE_WORKERS_AI_MODEL || '@cf/meta/llama-3.1-8b-instruct',
+    status: 'running',
+    metadata_json: JSON.stringify({ retrieved_context_count: retrievedContext.length }),
+  }).catch(() => null);
+  await recordEvent(env, {
+    run_id: runId,
+    type: 'planner',
+    action: 'context_retrieval',
+    result: `retrieved ${retrievedContext.length} related memories`,
+    payload_json: JSON.stringify(retrievedContext.slice(0, 5)),
+  }).catch(() => null);
+
+  const analysis = await runJson(env, buildProcessPrompt({ ...payload, retrieved_context: retrievedContext }));
+
+  await recordRun(env, {
+    id: runId,
+    kind: 'process',
+    route: '/analyze/process',
+    mission: String((payload as Record<string, any>).processo?.numero_cnj || (payload as Record<string, any>).numero_cnj || 'process'),
+    mode: 'analysis',
+    provider: env.CLOUDFLARE_WORKERS_AI_MODEL || '@cf/meta/llama-3.1-8b-instruct',
+    status: 'done',
+    result: JSON.stringify(analysis),
+    metadata_json: JSON.stringify({ retrieved_context_count: retrievedContext.length }),
+  }).catch(() => null);
+  await recordEvent(env, {
+    run_id: runId,
+    type: 'reporter',
+    action: 'analysis_completed',
+    result: 'analysis stored and ready',
+    payload_json: JSON.stringify({ analysis }),
+  }).catch(() => null);
+  await persistMemoryVector(env, runId, 'process', payload as Json, analysis).catch(() => null);
+
+  return json({ ok: true, analysis, retrieved_context: retrievedContext });
 }
 
 async function reconcile(env: Env, limit = 20) {

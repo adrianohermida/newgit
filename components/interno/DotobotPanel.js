@@ -563,17 +563,14 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
         <header className="border-b border-[#22342F] px-4 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Lawdesk AI</p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Dotobot AI</p>
               <div className="mt-2 flex items-center gap-3">
-                <h3 className="font-serif text-xl text-[#F5F1E8]">Dotobot</h3>
+                <h3 className="font-serif text-xl text-[#F5F1E8]">Copilot</h3>
                 <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] ${activeStatus === "processing" ? "border-[#8b6f33] text-[#D9B46A]" : "border-[#234034] text-[#80C7A1]"}`}>
                   <span className={`h-2 w-2 rounded-full ${activeStatus === "processing" ? "bg-[#D9B46A]" : "bg-[#80C7A1]"}`} />
-                  {activeStatus === "processing" ? "Processando" : "Online"}
+                  {activeStatus === "processing" ? "Thinking" : "Idle"}
                 </span>
               </div>
-              <p className="mt-2 max-w-[28rem] text-xs leading-relaxed text-[#8FA39C]">
-                Assistente juridico interno, operador do Lawdesk e supervisor de IA para a equipe da Hermida Maia Advocacia.
-              </p>
             </div>
             <div className="flex flex-col items-end gap-2">
               <button
@@ -593,16 +590,11 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-[#9BAEA8]">
-            <div className="rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-2">
-              Historico: <strong className="text-[#F5F1E8]">{messages.length}</strong>
-            </div>
-            <div className="rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-2">
-              Tarefas: <strong className="text-[#F5F1E8]">{runningCount}</strong>
-            </div>
-            <div className="col-span-2 rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-2">
-              Modo: <strong className="text-[#F5F1E8]">{activeMode.label}</strong> | Modelo: <strong className="text-[#F5F1E8]">{activeProviderLabel}</strong>
-            </div>
+          <div className="mt-4 flex flex-wrap gap-2 text-xs text-[#9BAEA8]">
+            <span className="rounded-full border border-[#22342F] px-3 py-2">Hist: {messages.length}</span>
+            <span className="rounded-full border border-[#22342F] px-3 py-2">Tasks: {runningCount}</span>
+            <span className="rounded-full border border-[#22342F] px-3 py-2">Modo: {activeMode.label}</span>
+            <span className="rounded-full border border-[#22342F] px-3 py-2">Modelo: {activeProviderLabel}</span>
           </div>
         </header>
 
@@ -745,9 +737,6 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
                       {activeStatus === "processing" ? "Processando" : "Online"}
                     </span>
                   </div>
-                  <p className="mt-2 max-w-4xl text-sm leading-7 text-[#9BAEA8]">
-                    Assistente juridico interno, operador do Lawdesk e supervisor de IA em tela cheia. Use conversa, tarefas, memoria e multimodalidade em um unico workspace.
-                  </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -805,9 +794,6 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Conversa</p>
-                        <p className="mt-1 text-sm text-[#9BAEA8]">
-                          {activeMode.hint} | {activeProviderLabel} | {contextEnabled ? "memoria habilitada" : "modo estateless"}
-                        </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {LEGAL_ACTIONS.map((action) => (
@@ -829,15 +815,12 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
                       messages.map((message) => <MessageBubble key={message.id} message={message} />)
                     ) : (
                       <div className="rounded-[28px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-5 text-sm text-[#9BAEA8]">
-                        <p className="text-base font-semibold text-[#F5F1E8]">Pronto para receber ordens.</p>
-                        <p className="mt-2 leading-7">
-                          Converse, analise um caso, monte uma estrategia ou acione uma tarefa. O Dotobot trabalha em PT-BR, com foco juridico interno e apoio operacional.
-                        </p>
+                        <p className="text-base font-semibold text-[#F5F1E8]">Pronto para operar.</p>
                       </div>
                     )}
                     {loading ? (
                       <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm text-[#9BAEA8]">
-                        Dotobot esta analisando o contexto, consultando a memoria e estruturando a resposta...
+                        Thinking...
                       </div>
                     ) : null}
                     {error ? (
@@ -872,7 +855,7 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
                           onKeyDown={handleComposerKeyDown}
                           onPaste={handlePaste}
                           rows={5}
-                          placeholder="Digite uma ordem, caso, estrategia, prompt de treinamento ou comando /..."
+                          placeholder="Digite uma instrução jurídica ou operacional..."
                           className="w-full resize-none border-0 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-[#60706A]"
                         />
 
@@ -905,32 +888,31 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
                                 onClick={() => handleSlashCommand(command)}
                                 className="rounded-[20px] border border-[#22342F] px-4 py-3 text-left text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                               >
-                                <p className="font-semibold text-[#F5F1E8]">{command.label}</p>
-                                <p className="mt-1 text-[11px] leading-5 text-[#9BAEA8]">{command.hint}</p>
-                                <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">{command.value}</p>
-                              </button>
-                            ))}
-                          </div>
+                            <p className="font-semibold text-[#F5F1E8]">{command.label}</p>
+                            <p className="mt-1 text-[11px] leading-5 text-[#9BAEA8]">{command.hint}</p>
+                          </button>
+                        ))}
+                      </div>
                         ) : null}
                       </div>
 
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex flex-wrap gap-2">
                           <button type="button" onClick={handleResetChat} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
-                            Limpar conversas
-                          </button>
+                          Limpar
+                        </button>
                           <button type="button" onClick={handleOpenFiles} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
-                            Anexar arquivos
+                            Upload
                           </button>
                           <button type="button" onClick={toggleVoiceInput} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
-                            {isRecording ? "Parar voz" : "Ditado"}
+                            {isRecording ? "Stop" : "Voice"}
                           </button>
                           <button type="button" onClick={() => composerRef.current?.focus()} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
                             Cmd+K
                           </button>
                         </div>
                         <button type="submit" disabled={loading || !input.trim()} className="rounded-2xl border border-[#C5A059] px-4 py-2 text-sm font-semibold text-[#C5A059] transition disabled:opacity-40">
-                          Executar
+                          Send
                         </button>
                       </div>
                     </form>
@@ -941,8 +923,7 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
                   <section className="rounded-[28px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Fila de tarefas</p>
-                        <p className="mt-1 text-sm text-[#9BAEA8]">Status, etapas, logs e controles de execucao.</p>
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Tasks</p>
                       </div>
                       <button type="button" onClick={handleResetTasks} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
                         Limpar
@@ -955,9 +936,7 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
                           <article key={task.id} className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm">
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">
-                                  <TaskStatusChip status={task.status} />
-                                </p>
+                                <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]"><TaskStatusChip status={task.status} /></p>
                                 <p className="mt-2 font-semibold text-[#F5F1E8]">{task.query}</p>
                               </div>
                               <span className="text-[10px] text-[#9BAEA8]">
@@ -979,19 +958,19 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
 
                             <div className="mt-3 flex flex-wrap gap-2">
                               <button type="button" onClick={() => handlePause(task)} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
-                                {task.status === "paused" ? "Retomar" : "Pausar"}
+                                {task.status === "paused" ? "Resume" : "Pause"}
                               </button>
                               <button type="button" onClick={() => handleRetry(task)} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
-                                Reexecutar
+                                Replay
                               </button>
                               <button type="button" onClick={() => handleCancel(task)} className="rounded-full border border-[#4f2525] px-3 py-1.5 text-[11px] text-[#f2b2b2] transition hover:border-[#f2b2b2]">
-                                Cancelar
+                                Stop
                               </button>
                             </div>
 
                             {task.logs?.length ? (
                               <details className="mt-3">
-                                <summary className="cursor-pointer text-xs text-[#9BAEA8]">Registro da execucao</summary>
+                                <summary className="cursor-pointer text-xs text-[#9BAEA8]">Logs</summary>
                                 <pre className="mt-2 whitespace-pre-wrap rounded-2xl border border-[#22342F] bg-[rgba(4,7,6,0.95)] p-3 text-[11px] leading-6 text-[#C6D1CC]">
                                   {task.logs.slice(0, 10).join("\n")}
                                 </pre>
@@ -1001,7 +980,7 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
                         ))
                       ) : (
                         <div className="rounded-[24px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm text-[#9BAEA8]">
-                          Nenhuma ordem executada ainda.
+                          No tasks yet.
                         </div>
                       )}
                     </div>
@@ -1012,8 +991,7 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
                       <summary className="cursor-pointer list-none">
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Contexto atual</p>
-                            <p className="mt-1 text-sm text-[#9BAEA8]">Modulo, memoria, documentos e estado da execucao.</p>
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Context</p>
                           </div>
                           <span className="text-xs text-[#C5A059]">{contextEnabled ? "ON" : "OFF"}</span>
                         </div>
@@ -1021,19 +999,19 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
 
                       <div className="mt-4 space-y-4 text-sm text-[#C6D1CC]">
                         <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-                          <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Modulo</p>
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Module</p>
                           <p className="mt-2 font-medium text-[#F5F1E8]">{routePath || "/interno"}</p>
                         </div>
 
                         <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-                          <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Memoria recuperada</p>
-                          <p className="mt-2 font-medium text-[#F5F1E8]">{ragSummary.count ? `${ragSummary.count} contextos` : "Nenhum contexto recuperado"}</p>
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Memory</p>
+                          <p className="mt-2 font-medium text-[#F5F1E8]">{ragSummary.count ? `${ragSummary.count} items` : "No memory yet"}</p>
                           {ragSummary.sources.length ? <p className="mt-2 text-xs text-[#9BAEA8]">Fontes: {ragSummary.sources.join(", ")}</p> : null}
-                          {!contextEnabled ? <p className="mt-2 text-xs text-[#9BAEA8]">Modo sem contexto ativo.</p> : null}
+                          {!contextEnabled ? <p className="mt-2 text-xs text-[#9BAEA8]">Context off.</p> : null}
                         </div>
 
                         <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-                          <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Documentos / anexos</p>
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Documents</p>
                           {attachments.length ? (
                             <div className="mt-3 space-y-2">
                               {attachments.map((attachment) => (
@@ -1044,7 +1022,7 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
                               ))}
                             </div>
                           ) : (
-                            <p className="mt-2 text-xs text-[#9BAEA8]">Sem anexos neste momento.</p>
+                            <p className="mt-2 text-xs text-[#9BAEA8]">No attachments.</p>
                           )}
                         </div>
                       </div>
