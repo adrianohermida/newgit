@@ -47,6 +47,7 @@ function EnvironmentContent({ state }) {
   const freshchatWeb = environment.freshchatWeb || {};
   const dotobotRagHealth = environment.dotobotRagHealth || {};
   const dotobotRagReport = dotobotRagHealth.report || {};
+  const dotobotSupabase = dotobotRagReport.supabase || {};
   const widgetEventSummary = state.data?.conversations?.widgetEventSummary || {};
   const readyCount = schemaChecklist.filter((item) => item.status === "ready").length;
   const missingCount = schemaChecklist.filter((item) => item.status !== "ready").length;
@@ -169,11 +170,36 @@ function EnvironmentContent({ state }) {
             </span>
           </p>
           <p>
+            Supabase embeddings:{" "}
+            <span className={dotobotRagReport.supabaseQuery?.ok ? "text-emerald-400" : "text-amber-300"}>
+              {dotobotRagReport.supabaseQuery?.ok
+                ? `OK${typeof dotobotRagReport.supabaseQuery?.matches === "number" ? ` (${dotobotRagReport.supabaseQuery.matches} matches)` : ""}`
+                : "falhou"}
+            </span>
+          </p>
+          <p>
             Upsert de memoria:{" "}
             <span className={dotobotRagReport.upsert?.skipped ? "text-slate-300" : dotobotRagReport.upsert?.ok ? "text-emerald-400" : "text-amber-300"}>
               {dotobotRagReport.upsert?.skipped ? "ignorado no dashboard" : dotobotRagReport.upsert?.ok ? "OK" : "falhou"}
             </span>
           </p>
+          <p>
+            Persistencia Supabase:{" "}
+            <span className={dotobotRagReport.supabaseUpsert?.skipped ? "text-slate-300" : dotobotRagReport.supabaseUpsert?.ok ? "text-emerald-400" : "text-amber-300"}>
+              {dotobotRagReport.supabaseUpsert?.skipped ? "ignorada no dashboard" : dotobotRagReport.supabaseUpsert?.ok ? "OK" : "falhou"}
+            </span>
+          </p>
+          {dotobotSupabase?.enabled !== undefined ? (
+            <p>
+              Backend Supabase:{" "}
+              <span className={dotobotSupabase.enabled ? "text-emerald-400" : "text-amber-300"}>
+                {dotobotSupabase.enabled ? "habilitado" : "nao configurado"}
+              </span>
+            </p>
+          ) : null}
+          {dotobotSupabase?.memoryTable ? (
+            <p>Table: {dotobotSupabase.memoryTable}</p>
+          ) : null}
           <p className="text-xs uppercase tracking-[0.16em] opacity-50">
             Query: {dotobotRagReport.query?.ok ? "healthcheck dotobot memory retrieval" : "verifique as secrets do RAG"}
           </p>
