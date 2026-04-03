@@ -523,10 +523,26 @@ function mapFreshsalesAccountToProcessRow(accountSnapshot, processFieldKeys = []
 
 async function listFreshsalesRelatedAccounts(env, email) {
   const ownerId = getEnvString(env, "FRESHSALES_OWNER_ID");
+  const safeSnapshots = async (entity, fallbackLimit) => {
+    try {
+      return await listFreshsalesSnapshots(env, entity, getFreshsalesSnapshotLimit(env, entity, fallbackLimit));
+    } catch (error) {
+      const message = String(error?.message || "");
+      if (
+        message.includes("freshsales_sync_snapshots") ||
+        message.includes("Could not find the table") ||
+        message.includes("PGRST205")
+      ) {
+        return [];
+      }
+      throw error;
+    }
+  };
+
   const [contactsRaw, dealsRaw, accountsRaw] = await Promise.all([
-    listFreshsalesSnapshots(env, "contacts", getFreshsalesSnapshotLimit(env, "contacts", 300)),
-    listFreshsalesSnapshots(env, "deals", getFreshsalesSnapshotLimit(env, "deals", 1000)),
-    listFreshsalesSnapshots(env, "sales_accounts", getFreshsalesSnapshotLimit(env, "sales_accounts", 1000)),
+    safeSnapshots("contacts", 300),
+    safeSnapshots("deals", 1000),
+    safeSnapshots("sales_accounts", 1000),
   ]);
 
   const contacts = Array.isArray(contactsRaw) ? contactsRaw.filter((item) => snapshotHasEmail(item, email)) : [];

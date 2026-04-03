@@ -81,9 +81,35 @@ export async function freshsalesRequest(env, path, init = {}) {
 
 export async function lookupFreshsalesContactByEmail(env, email) {
   const query = encodeURIComponent(String(email || "").trim());
-  const { payload } = await freshsalesRequest(env, `/lookup?q=${query}&f=email&entities=contact`);
-  const items = Array.isArray(payload?.contacts) ? payload.contacts : Array.isArray(payload) ? payload : [];
-  return items[0] || null;
+  const candidates = [
+    `/lookup?q=${query}&f=email&entities=contact`,
+    `/lookup?q=${query}&f=email&entities=contacts`,
+  ];
+
+  for (const path of candidates) {
+    try {
+      const { payload } = await freshsalesRequest(env, path);
+      const items = [
+        ...(Array.isArray(payload?.contacts) ? payload.contacts : []),
+        ...(Array.isArray(payload?.contacts?.contacts) ? payload.contacts.contacts : []),
+        ...(Array.isArray(payload?.results) ? payload.results : []),
+        ...(Array.isArray(payload) ? payload : []),
+      ].filter(Boolean);
+
+      const direct = items.find((item) => {
+        const emails = Array.isArray(item?.emails) ? item.emails : [];
+        return emails.some((entry) => String(entry || "").trim().toLowerCase() === String(email || "").trim().toLowerCase())
+          || String(item?.email || "").trim().toLowerCase() === String(email || "").trim().toLowerCase();
+      });
+
+      if (direct) return direct;
+      if (items[0]) return items[0];
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
 }
 
 export async function viewFreshsalesContact(env, contactId, include = "sales_accounts,deals,appointments,sales_activities,owner") {
