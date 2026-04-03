@@ -164,8 +164,10 @@ function EnvironmentContent({ state }) {
           </p>
           <p>
             Consulta vetorial:{" "}
-            <span className={dotobotRagReport.query?.ok ? "text-emerald-400" : "text-amber-300"}>
-              {dotobotRagReport.query?.ok
+            <span className={dotobotRagReport.query?.skipped ? "text-slate-300" : dotobotRagReport.query?.ok ? "text-emerald-400" : "text-amber-300"}>
+              {dotobotRagReport.query?.skipped
+                ? "ignorado no dashboard"
+                : dotobotRagReport.query?.ok
                 ? `OK${typeof dotobotRagReport.query?.matches === "number" ? ` (${dotobotRagReport.query.matches} matches)` : ""}`
                 : "falhou"}
             </span>
@@ -217,7 +219,7 @@ function EnvironmentContent({ state }) {
           ) : null}
           {dotobotObsidian?.memoryDir ? <p>Vault memory dir: {dotobotObsidian.memoryDir}</p> : null}
           <p className="text-xs uppercase tracking-[0.16em] opacity-50">
-            Query: {dotobotRagReport.query?.ok ? "healthcheck dotobot memory retrieval" : "verifique as secrets do RAG"}
+            Query: {dotobotRagReport.query?.skipped ? "consulta vetorial sem permissao: verifique as secrets do RAG" : dotobotRagReport.query?.ok ? "healthcheck dotobot memory retrieval" : "verifique as secrets do RAG"}
           </p>
           {dotobotRagHealth.error ? <p className="text-[#f2b2b2]">{dotobotRagHealth.error}</p> : null}
           {(dotobotRagReport.embedding?.error || dotobotRagReport.query?.error || dotobotRagReport.upsert?.error) ? (
