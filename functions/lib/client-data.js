@@ -409,6 +409,14 @@ function getSnapshotRelationships(snapshot) {
   return safeJsonParse(snapshot?.relationships, {});
 }
 
+function getFreshsalesSnapshotLimit(env, entity, fallback = 250) {
+  const specific = Number(getEnvString(env, `FRESHSALES_${String(entity || "").toUpperCase()}_SNAPSHOT_LIMIT`));
+  if (Number.isFinite(specific) && specific > 0) return specific;
+  const generic = Number(getEnvString(env, "FRESHSALES_SNAPSHOT_LIMIT"));
+  if (Number.isFinite(generic) && generic > 0) return generic;
+  return fallback;
+}
+
 function snapshotContainsAnyId(snapshot, candidateIds = []) {
   const ids = candidateIds.map((item) => String(item || "").trim()).filter(Boolean);
   if (!ids.length) return false;
@@ -427,6 +435,26 @@ function snapshotContainsAnyId(snapshot, candidateIds = []) {
   ]).join(" | ");
 
   return ids.some((id) => corpus.includes(id));
+}
+
+function snapshotMatchesRelatedContacts(snapshot, contactIds = []) {
+  const ids = contactIds.map((item) => String(item || "").trim()).filter(Boolean);
+  if (!ids.length) return false;
+
+  const relationships = getSnapshotRelationships(snapshot);
+  const contactsField = getSnapshotFieldText(snapshot, ({ key }) => key === "contacts");
+  const relationshipValues = flattenToStrings([
+    relationships.contacts,
+    relationships.contact_ids,
+    relationships.related_contacts,
+    contactsField,
+  ]).join(" | ");
+
+  if (ids.some((id) => relationshipValues.includes(id))) {
+    return true;
+  }
+
+  return snapshotContainsAnyId(snapshot, ids);
 }
 
 function shouldUseFreshsalesOwnerFallback(email, env) {
@@ -488,17 +516,32 @@ function mapFreshsalesAccountToProcessRow(accountSnapshot, processFieldKeys = []
 
 async function listFreshsalesRelatedAccounts(env, email) {
   const ownerId = getEnvString(env, "FRESHSALES_OWNER_ID");
-  const [contactsRaw, accountsRaw] = await Promise.all([
-    listFreshsalesSnapshots(env, "contacts", 250),
-    listFreshsalesSnapshots(env, "sales_accounts", 250),
+  const [contactsRaw, dealsRaw, accountsRaw] = await Promise.all([
+    listFreshsalesSnapshots(env, "contacts", getFreshsalesSnapshotLimit(env, "contacts", 300)),
+    listFreshsalesSnapshots(env, "deals", getFreshsalesSnapshotLimit(env, "deals", 1000)),
+    listFreshsalesSnapshots(env, "sales_accounts", getFreshsalesSnapshotLimit(env, "sales_accounts", 1000)),
   ]);
 
   const contacts = Array.isArray(contactsRaw) ? contactsRaw.filter((item) => snapshotHasEmail(item, email)) : [];
   const contactIds = contacts.map((item) => String(item.source_id || "").trim()).filter(Boolean);
   const accountProcessFields = parseEnvList(env, "FRESHSALES_FINANCE_ACCOUNT_PROCESS_FIELDS");
   const includeOwnerFallback = shouldUseFreshsalesOwnerFallback(email, env);
+  const deals = Array.isArray(dealsRaw) ? dealsRaw : [];
+  const relatedDeals = deals.filter((snapshot) => {
+    const relationships = getSnapshotRelationships(snapshot);
+    const accountId = String(relationships.sales_account_id || "").trim();
+    if (snapshotMatchesRelatedContacts(snapshot, contactIds)) return true;
+    if (snapshotHasEmail(snapshot, email)) return true;
+    if (includeOwnerFallback && snapshotMatchesOwner(snapshot, ownerId)) return true;
+    if (accountId && snapshotContainsAnyId(snapshot, contactIds)) return true;
+    return false;
+  });
+  const dealAccountIds = relatedDeals
+    .map((snapshot) => String(getSnapshotRelationships(snapshot).sales_account_id || "").trim())
+    .filter(Boolean);
   const accounts = (Array.isArray(accountsRaw) ? accountsRaw : []).filter((snapshot) => {
     if (snapshotContainsAnyId(snapshot, contactIds)) return true;
+    if (dealAccountIds.includes(String(snapshot.source_id || "").trim())) return true;
     if (includeOwnerFallback && snapshotMatchesOwner(snapshot, ownerId)) return true;
     return false;
   });
@@ -507,6 +550,7 @@ async function listFreshsalesRelatedAccounts(env, email) {
     contacts,
     contactIds,
     ownerId: includeOwnerFallback ? ownerId : null,
+    relatedDeals,
     accounts,
     accountIds: accounts.map((item) => String(item.source_id || "").trim()).filter(Boolean),
     processFieldKeys: accountProcessFields,
@@ -1274,10 +1318,7 @@ export async function listClientDocumentos(env, email) {
 
 export async function listClientFinanceiro(env, email) {
   try {
-    const [dealsRaw, freshsalesContext] = await Promise.all([
-      listFreshsalesSnapshots(env, "deals", 300),
-      listFreshsalesRelatedAccounts(env, email),
-    ]);
+    const freshsalesContext = await listFreshsalesRelatedAccounts(env, email);
     const normalizedEmail = normalizeEmail(email);
     const contacts = freshsalesContext.contacts || [];
     const contactIds = new Set(freshsalesContext.contactIds || []);
@@ -1285,40 +1326,25 @@ export async function listClientFinanceiro(env, email) {
     const relatedAccountIds = new Set(freshsalesContext.accountIds || []);
     const ownerId = freshsalesContext.ownerId || null;
     const accountsById = new Map(accounts.map((item) => [String(item.source_id || "").trim(), item]));
-    const deals = Array.isArray(dealsRaw) ? dealsRaw : [];
-
-    const relatedDeals = deals.filter((deal) => {
+    const relatedDeals = (freshsalesContext.relatedDeals || []).filter((deal) => {
       const relationships = safeJsonParse(deal.relationships, {});
       const targetType = normalizeText(relationships.targetable_type || "");
       const targetId = String(relationships.targetable_id || "").trim();
       const accountId = String(relationships.sales_account_id || "").trim();
 
-      if (targetType.includes("contact") && contactIds.has(targetId)) {
-        return true;
-      }
-
-      if (accountId && relatedAccountIds.has(accountId)) {
-        return true;
-      }
-
-      if (snapshotHasEmail(deal, normalizedEmail)) {
-        return true;
-      }
+      if (targetType.includes("contact") && contactIds.has(targetId)) return true;
+      if (accountId && relatedAccountIds.has(accountId)) return true;
+      if (snapshotMatchesRelatedContacts(deal, Array.from(contactIds))) return true;
+      if (snapshotHasEmail(deal, normalizedEmail)) return true;
 
       const textCorpus = getSnapshotTextCorpus(deal);
-      return contacts.some((contact) => {
+      const includeByContact = contacts.some((contact) => {
         const contactId = String(contact.source_id || "").trim();
         return contactId && textCorpus.includes(contactId);
       });
+      if (includeByContact) return true;
 
-      if (includeByContact) {
-        return true;
-      }
-
-      if (ownerId && snapshotMatchesOwner(deal, ownerId)) {
-        return true;
-      }
-
+      if (ownerId && snapshotMatchesOwner(deal, ownerId)) return true;
       return false;
     });
 
