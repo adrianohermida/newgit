@@ -319,6 +319,7 @@ export default function AITaskModule({ profile, routePath }) {
   const [showTasks, setShowTasks] = useState(true);
   const [contextSnapshot, setContextSnapshot] = useState(null);
   const [attachments, setAttachments] = useState([]);
+  const [eventsTotal, setEventsTotal] = useState(0);
   const abortRef = useRef(null);
   const pauseRef = useRef(false);
   const logViewportRef = useRef(null);
@@ -422,6 +423,14 @@ export default function AITaskModule({ profile, routePath }) {
     if (terminalStates.has(automation)) return undefined;
 
     let disposed = false;
+    let timerId = null;
+    let nextDelayMs = 150;
+
+    const scheduleNextPoll = (delayMs) => {
+      if (disposed) return;
+      timerId = setTimeout(poll, Math.max(250, Number(delayMs) || 2500));
+    };
+
     const poll = async () => {
       if (disposed || pollingInFlightRef.current) return;
       pollingInFlightRef.current = true;
@@ -436,6 +445,14 @@ export default function AITaskModule({ profile, routePath }) {
         const events = Array.isArray(payload?.data?.events) ? payload.data.events : [];
         if (payload?.data?.eventsCursor) {
           lastEventCursorRef.current = payload.data.eventsCursor;
+        }
+        if (Number.isFinite(Number(payload?.data?.pollIntervalMs))) {
+          nextDelayMs = Number(payload.data.pollIntervalMs);
+        } else {
+          nextDelayMs = 2500;
+        }
+        if (Number.isFinite(Number(payload?.data?.eventsTotal))) {
+          setEventsTotal(Number(payload.data.eventsTotal));
         }
         for (const event of events.slice(-20)) {
           const eventId = event?.id;
@@ -519,6 +536,7 @@ export default function AITaskModule({ profile, routePath }) {
               )
             );
           }
+          nextDelayMs = 0;
         }
       } catch (pollError) {
         if (!disposed) {
@@ -528,17 +546,20 @@ export default function AITaskModule({ profile, routePath }) {
             result: pollError?.message || "Falha ao consultar status da execucao.",
           });
         }
+        nextDelayMs = 4000;
       } finally {
         pollingInFlightRef.current = false;
+        if (!disposed && activeRun?.id) {
+          scheduleNextPoll(nextDelayMs);
+        }
       }
     };
 
-    const intervalId = setInterval(poll, 2500);
-    poll();
+    scheduleNextPoll(nextDelayMs);
 
     return () => {
       disposed = true;
-      clearInterval(intervalId);
+      if (timerId) clearTimeout(timerId);
     };
   }, [activeRun?.id, automation]);
 
@@ -554,6 +575,7 @@ export default function AITaskModule({ profile, routePath }) {
     runEventIdsRef.current.clear();
     lastEventCursorRef.current = null;
     setAutomation("running");
+    setEventsTotal(0);
     setPaused(false);
     pauseRef.current = false;
     setActiveRun({ id: localRunId, startedAt: nowIso(), mission: normalizedMission });
@@ -650,6 +672,11 @@ export default function AITaskModule({ profile, routePath }) {
         lastEventCursorRef.current = payload.data.eventsCursor;
       } else if (backendEvents.length) {
         lastEventCursorRef.current = backendEvents[backendEvents.length - 1]?.id || null;
+      }
+      if (Number.isFinite(Number(payload?.data?.eventsTotal))) {
+        setEventsTotal(Number(payload.data.eventsTotal));
+      } else if (backendEvents.length) {
+        setEventsTotal(backendEvents.length);
       }
 
       const backendSteps = Array.isArray(payload?.data?.steps) ? payload.data.steps : [];
@@ -826,6 +853,7 @@ export default function AITaskModule({ profile, routePath }) {
     setAutomation("stopped");
     runEventIdsRef.current.clear();
     lastEventCursorRef.current = null;
+    setEventsTotal(0);
     setActiveRun(null);
     setTasks((current) =>
       current.map((task) => (task.status === "running" ? { ...task, status: "failed", updated_at: nowIso(), logs: [...(task.logs || []), "Interrompido pelo operador."] } : task))
@@ -853,6 +881,7 @@ export default function AITaskModule({ profile, routePath }) {
       setAutomation("running");
       runEventIdsRef.current.clear();
       lastEventCursorRef.current = null;
+      setEventsTotal(0);
       const payload = await adminFetch("/api/admin-dotobot-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -884,6 +913,9 @@ export default function AITaskModule({ profile, routePath }) {
           ...current,
         ].slice(0, MAX_TASKS));
       }
+        if (Number.isFinite(Number(payload?.data?.eventsTotal))) {
+          setEventsTotal(Number(payload.data.eventsTotal));
+        }
 
       pushLog({
         type: "control",
@@ -1055,6 +1087,7 @@ export default function AITaskModule({ profile, routePath }) {
           <span className="rounded-full border border-[#22342F] px-3 py-2">Mission: {missionHistory[0]?.mission || "sem missao ativa"}</span>
           <span className="rounded-full border border-[#22342F] px-3 py-2">Contexto: {approved ? "aprovado" : "aguardando"}</span>
           <span className="rounded-full border border-[#22342F] px-3 py-2">Rota: {routePath || "/interno/ai-task"}</span>
+          <span className="rounded-full border border-[#22342F] px-3 py-2">Eventos: {eventsTotal}</span>
           {error ? <span className="rounded-full border border-[#5b2d2d] px-3 py-2 text-[#f2b2b2]">{error}</span> : null}
         </div>
       </header>
