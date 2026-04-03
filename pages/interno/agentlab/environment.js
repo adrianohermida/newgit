@@ -48,6 +48,7 @@ function EnvironmentContent({ state }) {
   const dotobotRagHealth = environment.dotobotRagHealth || {};
   const dotobotRagReport = dotobotRagHealth.report || {};
   const dotobotSupabase = dotobotRagReport.supabase || {};
+  const dotobotObsidian = dotobotRagReport.obsidian || {};
   const widgetEventSummary = state.data?.conversations?.widgetEventSummary || {};
   const readyCount = schemaChecklist.filter((item) => item.status === "ready").length;
   const missingCount = schemaChecklist.filter((item) => item.status !== "ready").length;
@@ -206,6 +207,15 @@ function EnvironmentContent({ state }) {
           {dotobotSupabase?.embeddingModel ? (
             <p>Modelo: {dotobotSupabase.embeddingModel}</p>
           ) : null}
+          {dotobotObsidian?.enabled !== undefined ? (
+            <p>
+              Obsidian fallback:{" "}
+              <span className={dotobotObsidian.enabled ? "text-emerald-400" : "text-amber-300"}>
+                {dotobotObsidian.enabled ? "habilitado" : "nao configurado"}
+              </span>
+            </p>
+          ) : null}
+          {dotobotObsidian?.memoryDir ? <p>Vault memory dir: {dotobotObsidian.memoryDir}</p> : null}
           <p className="text-xs uppercase tracking-[0.16em] opacity-50">
             Query: {dotobotRagReport.query?.ok ? "healthcheck dotobot memory retrieval" : "verifique as secrets do RAG"}
           </p>
