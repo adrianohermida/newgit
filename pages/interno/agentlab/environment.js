@@ -200,6 +200,12 @@ function EnvironmentContent({ state }) {
           {dotobotSupabase?.memoryTable ? (
             <p>Table: {dotobotSupabase.memoryTable}</p>
           ) : null}
+          {dotobotSupabase?.embeddingFunction ? (
+            <p>Function: {dotobotSupabase.embeddingFunction}</p>
+          ) : null}
+          {dotobotSupabase?.embeddingModel ? (
+            <p>Modelo: {dotobotSupabase.embeddingModel}</p>
+          ) : null}
           <p className="text-xs uppercase tracking-[0.16em] opacity-50">
             Query: {dotobotRagReport.query?.ok ? "healthcheck dotobot memory retrieval" : "verifique as secrets do RAG"}
           </p>

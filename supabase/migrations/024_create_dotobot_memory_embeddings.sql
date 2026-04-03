@@ -12,9 +12,9 @@ create table if not exists public.dotobot_memory_embeddings (
   status text not null default 'ok',
   steps_count integer not null default 0,
   embedding_model text not null default 'cloudflare/@cf/baai/bge-base-en-v1.5',
-  embedding_dimensions integer not null default 768,
+  embedding_dimensions integer not null default 384,
   metadata jsonb not null default '{}'::jsonb,
-  embedding extensions.vector(768) not null,
+  embedding extensions.vector(384) not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -61,9 +61,9 @@ begin
     coalesce(nullif(payload->>'status', ''), 'ok'),
     coalesce((payload->>'steps_count')::integer, 0),
     coalesce(nullif(payload->>'embedding_model', ''), 'cloudflare/@cf/baai/bge-base-en-v1.5'),
-    coalesce((payload->>'embedding_dimensions')::integer, 768),
+    coalesce((payload->>'embedding_dimensions')::integer, 384),
     coalesce(payload->'metadata', '{}'::jsonb),
-    (payload->'embedding')::text::extensions.vector(768),
+    (payload->'embedding')::text::extensions.vector(384),
     now()
   )
   on conflict (source_key) do update set
@@ -122,10 +122,10 @@ as $$
     m.embedding_model,
     m.embedding_dimensions,
     m.metadata,
-    1 - (m.embedding <=> (query_embedding::text)::extensions.vector(768)) as similarity,
+    1 - (m.embedding <=> (query_embedding::text)::extensions.vector(384)) as similarity,
     m.created_at
   from public.dotobot_memory_embeddings as m
-  where match_threshold is null or 1 - (m.embedding <=> (query_embedding::text)::extensions.vector(768)) >= match_threshold
-  order by m.embedding <=> (query_embedding::text)::extensions.vector(768)
+  where match_threshold is null or 1 - (m.embedding <=> (query_embedding::text)::extensions.vector(384)) >= match_threshold
+  order by m.embedding <=> (query_embedding::text)::extensions.vector(384)
   limit greatest(match_count, 1);
 $$;
