@@ -1,8 +1,12 @@
 import '../styles/globals.css';
 import Head from 'next/head';
 import { useEffect } from 'react';
+import { useRouter } from 'next/router';
 
 export default function App({ Component, pageProps }) {
+  const router = useRouter();
+  const isPortalRoute = String(router.pathname || '').startsWith('/portal');
+
   // Google Tag Manager noscript e Setmore
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -29,8 +33,14 @@ export default function App({ Component, pageProps }) {
         a.innerHTML = '<img border="none" src="https://fm.sendpul.se/8672e56ee69550b039f6b32e73b058d56692731/Site/booking.svg" alt="Book an appointment with Hermida Maia Advocacia using Setmore"/>';
         document.body.appendChild(a);
       }
-      // Freshsales Suite CRM Tracking
-      if (!document.getElementById('freshsales_crm_script')) {
+
+      if (isPortalRoute) {
+        const existingFreshworks = document.getElementById('freshsales_crm_script');
+        if (existingFreshworks) {
+          existingFreshworks.remove();
+        }
+      } else if (!document.getElementById('freshsales_crm_script')) {
+        // Freshsales Suite CRM Tracking fora do portal do cliente
         const crmScript = document.createElement('script');
         crmScript.id = 'freshsales_crm_script';
         crmScript.src = '//eu.fw-cdn.com/10713913/375987.js';
@@ -39,7 +49,7 @@ export default function App({ Component, pageProps }) {
         document.body.appendChild(crmScript);
       }
     }
-  }, []);
+  }, [isPortalRoute]);
 
   return (
     <>

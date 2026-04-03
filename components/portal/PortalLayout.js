@@ -1,7 +1,11 @@
 import Link from "next/link";
+import Script from "next/script";
 import { useRouter } from "next/router";
 import { useMemo } from "react";
 import { useSupabaseBrowser } from "../../lib/supabase";
+
+const FRESHWORKS_PORTAL_SCRIPT_URL = "//eu.fw-cdn.com/10713913/375987.js";
+const FRESHWORKS_PORTAL_WIDGET_ID = "2bb07572-34a4-4ea6-9708-4ec2ed23589d";
 
 const NAV_ITEMS = [
   { href: "/portal", label: "Visao geral", icon: "overview" },
@@ -132,22 +136,24 @@ function DefaultRightRail({ title, profile, officeWhatsapp }) {
   return (
     <div className="space-y-4">
       <RightRailPanel
-        title="Freshsales"
-        subtitle="Reserva para widgets, sincronizacoes e apoio operacional do CRM."
+        title="Atendimento no portal"
+        subtitle="Widget ativo do Freshworks para conversa direta com o escritorio dentro desta experiencia."
         icon={<NavIcon name="wallet" active={false} />}
       >
         <div className="space-y-3 text-sm">
-          <div className="rounded-[20px] border border-dashed border-[#2F4B43] bg-[rgba(7,17,14,0.55)] p-4">
-            <p className="font-semibold">Widget CRM</p>
-            <p className="mt-2 opacity-65">Area preparada para chat, metricas e componentes embarcados do Freshsales.</p>
+          <div className="rounded-[20px] border border-[#2F4B43] bg-[rgba(7,17,14,0.72)] p-4">
+            <p className="font-semibold">Chat do escritorio ativo</p>
+            <p className="mt-2 opacity-65">
+              O widget de atendimento do Freshworks fica disponivel no portal para suporte operacional, financeiro e documental.
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <MetricChip label="Canal" value="CRM" />
-            <MetricChip label="Modo" value="Conectavel" />
+            <MetricChip label="Canal" value="Freshworks" />
+            <MetricChip label="Modo" value="Chat ativo" />
           </div>
-          <a href="https://hmadv-org.myfreshworks.com/crm/sales" target="_blank" rel="noreferrer" className="inline-flex text-sm text-[#C49C56] hover:underline">
-            Abrir Freshsales
-          </a>
+          <p className="text-xs leading-5 opacity-55">
+            Se o botao flutuante nao aparecer de imediato, aguarde alguns segundos para o widget inicializar nesta pagina.
+          </p>
         </div>
       </RightRailPanel>
 
@@ -209,6 +215,13 @@ export default function PortalLayout({
 
   return (
     <div className="min-h-screen bg-[#07110E] text-[#F4F1EA]">
+      <Script
+        id="freshworks_portal_widget_script"
+        src={FRESHWORKS_PORTAL_SCRIPT_URL}
+        strategy="afterInteractive"
+        chat="true"
+        widgetId={FRESHWORKS_PORTAL_WIDGET_ID}
+      />
       <div className="mx-auto max-w-[1680px] px-4 py-4 md:px-6">
         <div className="grid min-h-[calc(100vh-2rem)] gap-4 xl:grid-cols-[290px_minmax(0,1fr)_360px]">
           <aside className="xl:sticky xl:top-4 xl:h-[calc(100vh-2rem)]">
