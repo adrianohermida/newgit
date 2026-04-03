@@ -138,6 +138,31 @@ function textIncludesAny(text, needles) {
   return needles.some((needle) => haystack.includes(normalizeText(needle)));
 }
 
+function normalizeProcessLookupValue(value) {
+  return String(value || "").replace(/\D+/g, "").trim();
+}
+
+function chunkArray(values, size) {
+  const chunkSize = Math.max(1, Number(size) || 1);
+  const chunks = [];
+  for (let index = 0; index < values.length; index += chunkSize) {
+    chunks.push(values.slice(index, index + chunkSize));
+  }
+  return chunks;
+}
+
+function uniqueBy(items, getKey) {
+  const seen = new Set();
+  const result = [];
+  for (const item of items) {
+    const key = String(getKey(item) || "").trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+}
+
 function normalizeProcessStatusGroup(value) {
   const text = normalizeText(value);
   if (!text) return "ativo";
@@ -1139,7 +1164,19 @@ function buildProcessIdentifierCandidates(process, processId) {
     process?.raw?.numero,
     process?.raw?.account_id_freshsales,
   ];
-  return [...new Set(values.filter(Boolean).map((value) => String(value).trim()).filter(Boolean))];
+  const expanded = [];
+  values
+    .filter(Boolean)
+    .map((value) => String(value).trim())
+    .filter(Boolean)
+    .forEach((value) => {
+      expanded.push(value);
+      const normalized = normalizeProcessLookupValue(value);
+      if (normalized && normalized !== value) {
+        expanded.push(normalized);
+      }
+    });
+  return [...new Set(expanded)];
 }
 
 export function buildClientDraftProfile(user, profile = null) {
@@ -1493,35 +1530,57 @@ export async function listClientProcessos(env, email, options = {}) {
 }
 
 async function getClientProcessBase(env, email, processId) {
+  const rawProcessId = String(processId || "").trim();
+  const normalizedProcessId = normalizeProcessLookupValue(rawProcessId);
   const result = await tryFetchOptional(env, [
     {
-      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&id=eq.${encodeURIComponent(processId)}&cliente_email=eq.${encodeURIComponent(email)}&limit=1`,
+      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&id=eq.${encodeURIComponent(rawProcessId)}&cliente_email=eq.${encodeURIComponent(email)}&limit=1`,
       mapRow: normalizeProcessRow,
     },
     {
-      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&id=eq.${encodeURIComponent(processId)}&email_cliente=eq.${encodeURIComponent(email)}&limit=1`,
+      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&id=eq.${encodeURIComponent(rawProcessId)}&email_cliente=eq.${encodeURIComponent(email)}&limit=1`,
       mapRow: normalizeProcessRow,
     },
     {
-      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero_cnj=eq.${encodeURIComponent(processId)}&cliente_email=eq.${encodeURIComponent(email)}&limit=1`,
+      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero_cnj=eq.${encodeURIComponent(rawProcessId)}&cliente_email=eq.${encodeURIComponent(email)}&limit=1`,
       mapRow: normalizeProcessRow,
     },
     {
-      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero_cnj=eq.${encodeURIComponent(processId)}&email_cliente=eq.${encodeURIComponent(email)}&limit=1`,
+      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero_cnj=eq.${encodeURIComponent(rawProcessId)}&email_cliente=eq.${encodeURIComponent(email)}&limit=1`,
       mapRow: normalizeProcessRow,
     },
-      {
-        path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero=eq.${encodeURIComponent(processId)}&cliente_email=eq.${encodeURIComponent(email)}&limit=1`,
+    {
+        path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero=eq.${encodeURIComponent(rawProcessId)}&cliente_email=eq.${encodeURIComponent(email)}&limit=1`,
         mapRow: normalizeProcessRow,
-      },
-      {
-        path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata,account_id_freshsales&account_id_freshsales=eq.${encodeURIComponent(processId)}&limit=1`,
+    },
+    {
+        path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata,account_id_freshsales&account_id_freshsales=eq.${encodeURIComponent(rawProcessId)}&limit=1`,
         mapRow: normalizeProcessRow,
-      },
-      {
-        path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata,account_id_freshsales&account_id_freshsales=eq.${encodeURIComponent(processId)}&limit=1`,
+    },
+    {
+        path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata,account_id_freshsales&account_id_freshsales=eq.${encodeURIComponent(rawProcessId)}&limit=1`,
         mapRow: normalizeProcessRow,
-      },
+    },
+    ...(normalizedProcessId && normalizedProcessId !== rawProcessId
+      ? [
+          {
+            path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero_cnj=eq.${encodeURIComponent(normalizedProcessId)}&cliente_email=eq.${encodeURIComponent(email)}&limit=1`,
+            mapRow: normalizeProcessRow,
+          },
+          {
+            path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero_cnj=eq.${encodeURIComponent(normalizedProcessId)}&email_cliente=eq.${encodeURIComponent(email)}&limit=1`,
+            mapRow: normalizeProcessRow,
+          },
+          {
+            path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero=eq.${encodeURIComponent(normalizedProcessId)}&cliente_email=eq.${encodeURIComponent(email)}&limit=1`,
+            mapRow: normalizeProcessRow,
+          },
+          {
+            path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero=eq.${encodeURIComponent(normalizedProcessId)}&email_cliente=eq.${encodeURIComponent(email)}&limit=1`,
+            mapRow: normalizeProcessRow,
+          },
+        ]
+      : []),
     ]);
 
   if (result.items[0]) {
@@ -1530,10 +1589,10 @@ async function getClientProcessBase(env, email, processId) {
 
   try {
     const freshsalesContext = await listFreshsalesRelatedAccounts(env, email);
-    const matchedAccount = freshsalesContext.accounts.find((account) => {
-      const processRow = mapFreshsalesAccountToProcessRow(account, freshsalesContext.processFieldKeys);
-      const candidates = buildProcessIdentifierCandidates(processRow, processId);
-      return candidates.includes(String(processId).trim());
+      const matchedAccount = freshsalesContext.accounts.find((account) => {
+        const processRow = mapFreshsalesAccountToProcessRow(account, freshsalesContext.processFieldKeys);
+      const candidates = buildProcessIdentifierCandidates(processRow, rawProcessId);
+      return candidates.includes(rawProcessId) || (normalizedProcessId ? candidates.includes(normalizedProcessId) : false);
     });
 
     return matchedAccount ? mapFreshsalesAccountToProcessRow(matchedAccount, freshsalesContext.processFieldKeys) : null;
@@ -1636,15 +1695,19 @@ async function listClientProcessPublications(env, processId) {
   for (const candidate of candidates) {
     const result = await tryFetchOptional(env, [
       {
-        path: `publicacoes?select=id,processo_id,numero_cnj,data_publicacao,titulo,resumo,texto,veiculo,status,url&processo_id=eq.${encodeURIComponent(candidate)}&order=data_publicacao.desc&limit=100`,
+        path: `publicacoes?select=id,processo_id,numero_cnj,data_publicacao,data_disponibilizacao,publicada_em,titulo,resumo,texto,conteudo,veiculo,diario,fonte,status,url,link,created_at&processo_id=eq.${encodeURIComponent(candidate)}&order=data_publicacao.desc.nullslast,created_at.desc.nullslast&limit=100`,
         mapRow: normalizePublicationRow,
       },
       {
-        path: `publicacoes?select=id,processo_id,numero_cnj,data_publicacao,titulo,resumo,texto,veiculo,status,url&numero_cnj=eq.${encodeURIComponent(candidate)}&order=data_publicacao.desc&limit=100`,
+        path: `publicacoes?select=id,processo_id,numero_cnj,data_publicacao,data_disponibilizacao,publicada_em,titulo,resumo,texto,conteudo,veiculo,diario,fonte,status,url,link,created_at&numero_cnj=eq.${encodeURIComponent(candidate)}&order=data_publicacao.desc.nullslast,created_at.desc.nullslast&limit=100`,
         mapRow: normalizePublicationRow,
       },
       {
-        path: `processo_publicacoes?select=id,processo_id,numero_cnj,data_publicacao,titulo,resumo,texto,veiculo,status,url&processo_id=eq.${encodeURIComponent(candidate)}&order=data_publicacao.desc&limit=100`,
+        path: `processo_publicacoes?select=id,processo_id,numero_cnj,data_publicacao,data_disponibilizacao,publicada_em,titulo,resumo,texto,conteudo,veiculo,diario,fonte,status,url,link,created_at&processo_id=eq.${encodeURIComponent(candidate)}&order=data_publicacao.desc.nullslast,created_at.desc.nullslast&limit=100`,
+        mapRow: normalizePublicationRow,
+      },
+      {
+        path: `processo_publicacoes?select=id,processo_id,numero_cnj,data_publicacao,data_disponibilizacao,publicada_em,titulo,resumo,texto,conteudo,veiculo,diario,fonte,status,url,link,created_at&numero_cnj=eq.${encodeURIComponent(candidate)}&order=data_publicacao.desc.nullslast,created_at.desc.nullslast&limit=100`,
         mapRow: normalizePublicationRow,
       },
     ]);
@@ -1652,6 +1715,24 @@ async function listClientProcessPublications(env, processId) {
   }
 
   return [];
+}
+
+async function listClientPublicationsFromJudicialBase(env, processItems = []) {
+  const identifiers = uniqueBy(
+    processItems.flatMap((item) => buildProcessIdentifierCandidates(item, item.id)).filter(Boolean),
+    (value) => value
+  );
+
+  if (!identifiers.length) return [];
+
+  const publicationBatches = await Promise.all(
+    chunkArray(identifiers, 25).map(async (batch) => {
+      const rows = await Promise.all(batch.map((processId) => safeResolve(() => listClientProcessPublications(env, processId), [])));
+      return rows.flat();
+    })
+  );
+
+  return uniqueBy(publicationBatches.flat(), (item) => item.id || `${item.process_id || "proc"}-${item.date || item.title || ""}`);
 }
 
 export async function getClientProcessDetails(env, profile, processId) {
@@ -1710,7 +1791,7 @@ export async function listClientPublicacoes(env, profile) {
       warning: "A carteira processual nao respondeu por completo; o portal tentara exibir as publicacoes disponiveis.",
     }
   );
-  const processIds = [...new Set((processes.items || []).flatMap((item) => buildProcessIdentifierCandidates(item, item.id)).filter(Boolean))];
+  const processItems = Array.isArray(processes.items) ? processes.items : [];
   let livePublicacoes = [];
   let liveWarning = processes.warning || null;
   try {
@@ -1723,18 +1804,19 @@ export async function listClientPublicacoes(env, profile) {
     liveWarning = "O CRM nao respondeu por completo; o portal exibira as publicacoes disponiveis na base judicial.";
   }
 
-  if (!processIds.length && !livePublicacoes.length) {
+  if (!processItems.length && !livePublicacoes.length) {
     return {
       items: [],
       warning: liveWarning || "Nenhuma publicacao foi localizada nas fontes atuais do portal para os processos vinculados ao seu cadastro.",
     };
   }
 
-  const publicationBatches = await Promise.all(
-    processIds.slice(0, 20).map((processId) => safeResolve(() => listClientProcessPublications(env, processId), []))
+  const judicialPublicacoes = await safeResolve(
+    () => listClientPublicationsFromJudicialBase(env, processItems),
+    []
   );
 
-  const items = [...publicationBatches.flat(), ...livePublicacoes].sort((left, right) => {
+  const items = uniqueBy([...judicialPublicacoes, ...livePublicacoes], (item) => item.id || `${item.process_id || "proc"}-${item.date || item.title || ""}`).sort((left, right) => {
     const leftTime = left.date ? new Date(left.date).getTime() : 0;
     const rightTime = right.date ? new Date(right.date).getTime() : 0;
     return rightTime - leftTime;
