@@ -68,7 +68,7 @@ export default function App({ Component, pageProps }) {
     }
 
     const registerWorker = () => {
-      navigator.serviceWorker.register('/sw.js').catch(() => null);
+      navigator.serviceWorker.register('/portal-sw.js', { scope: '/portal/' }).catch(() => null);
     };
 
     if (document.readyState === 'complete') {
