@@ -666,3 +666,342 @@ export default function AITaskModule({ profile, routePath }) {
                 ? "Parado"
                 : "Pronto";
 
+  function handleMissionChange(value) {
+    setMission(value);
+    setError(null);
+  }
+
+  function handleQuickMission(value) {
+    setMission(value);
+    setError(null);
+    missionInputRef.current?.focus();
+  }
+
+  function handleReplay(task) {
+    if (!task?.goal) return;
+    setMission(task.goal);
+    setSelectedTaskId(task.id);
+    setMode("assisted");
+    setAutomation("idle");
+    pushLog({
+      type: "control",
+      action: "Replay selecionado",
+      result: `A missao "${task.title}" foi carregada novamente para execucao.`,
+    });
+    missionInputRef.current?.focus();
+  }
+
+  return (
+    <div className="space-y-4">
+      <header className="rounded-[30px] border border-[#22342F] bg-[rgba(10,12,11,0.98)] px-5 py-5 shadow-[0_18px_54px_rgba(0,0,0,0.24)]">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">AI TASK</p>
+            <h2 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-[#F5F1E8] md:text-[40px]">
+              Core Orchestration Panel
+            </h2>
+            <p className="mt-3 max-w-4xl text-sm leading-7 text-[#9BAEA8]">
+              Supervisione um operador digital: o AI planeja, executa, valida e reporta cada movimento com trilha de auditoria e controle humano.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA]">
+              Estado: <strong className="text-[#F5F1E8]">{stateLabel}</strong>
+            </span>
+            <span className="rounded-full border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA]">
+              Modelo: <strong className="text-[#F5F1E8]">{provider}</strong>
+            </span>
+            <span className="rounded-full border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA]">
+              Modo: <strong className="text-[#F5F1E8]">{activeMode.label}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={handleStart}
+              className="rounded-full border border-[#C5A059] px-4 py-2 text-xs font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]"
+            >
+              Start AI
+            </button>
+            <button
+              type="button"
+              onClick={handlePause}
+              className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+            >
+              {paused ? "Resume" : "Pause"}
+            </button>
+            <button
+              type="button"
+              onClick={handleStop}
+              className="rounded-full border border-[#4f2525] px-4 py-2 text-xs text-[#f2b2b2] transition hover:border-[#f2b2b2]"
+            >
+              Stop
+            </button>
+            <button
+              type="button"
+              onClick={handleApprove}
+              className="rounded-full border border-[#234034] px-4 py-2 text-xs text-[#8FCFA9] transition hover:border-[#8FCFA9]"
+            >
+              Approve actions
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px_220px]">
+          <label className="block">
+            <span className="mb-2 block text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Mission</span>
+            <textarea
+              ref={missionInputRef}
+              value={mission}
+              onChange={(event) => handleMissionChange(event.target.value)}
+              rows={3}
+              placeholder="Ex: Review all new leads and classify them."
+              className="w-full resize-none rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm text-[#F5F1E8] outline-none placeholder:text-[#60706A] focus:border-[#C5A059]"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Mode</span>
+            <select
+              value={mode}
+              onChange={(event) => setMode(event.target.value)}
+              className="h-[calc(100%-1.8rem)] w-full rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
+            >
+              {MODE_OPTIONS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label} - {item.tone}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">LLM</span>
+            <select
+              value={provider}
+              onChange={(event) => setProvider(event.target.value)}
+              className="h-[calc(100%-1.8rem)] w-full rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
+            >
+              {PROVIDER_OPTIONS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-[#9BAEA8]">
+          <span className="rounded-full border border-[#22342F] px-3 py-2">Mission: {missionHistory[0]?.mission || "sem missao ativa"}</span>
+          <span className="rounded-full border border-[#22342F] px-3 py-2">Contexto: {approved ? "aprovado" : "aguardando"}</span>
+          <span className="rounded-full border border-[#22342F] px-3 py-2">Rota: {routePath || "/interno/ai-task"}</span>
+          {error ? <span className="rounded-full border border-[#5b2d2d] px-3 py-2 text-[#f2b2b2]">{error}</span> : null}
+        </div>
+      </header>
+
+      <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1.2fr)_320px]">
+        <section className="rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4 shadow-[0_16px_48px_rgba(0,0,0,0.2)]">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Thinking</p>
+              <p className="mt-1 text-sm text-[#9BAEA8]">Leitura da missão, contexto recuperado e escolha de ferramentas.</p>
+            </div>
+            <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] text-[#9BAEA8]">
+              {thinking.length} blocks
+            </span>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {thinking.length ? (
+              thinking.map((block) => <ThinkingBlock key={block.id} block={block} />)
+            ) : (
+              <div className="rounded-[24px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm text-[#9BAEA8]">
+                O AI ainda nao recebeu uma missao para planejar.
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4 shadow-[0_16px_48px_rgba(0,0,0,0.2)]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Task board</p>
+              <p className="mt-1 text-sm text-[#9BAEA8]">Pending, in progress, completed and failed tasks.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedLogFilter("all")}
+                className={`rounded-full border px-3 py-1.5 text-[11px] transition ${
+                  selectedLogFilter === "all"
+                    ? "border-[#C5A059] text-[#C5A059]"
+                    : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
+                }`}
+              >
+                Todos
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedLogFilter("planner")}
+                className={`rounded-full border px-3 py-1.5 text-[11px] transition ${
+                  selectedLogFilter === "planner"
+                    ? "border-[#C5A059] text-[#C5A059]"
+                    : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
+                }`}
+              >
+                Planner
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+            {Object.entries(taskColumns).map(([column, columnTasks]) => (
+              <div key={column} className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">{column}</p>
+                  <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#9BAEA8]">{columnTasks.length}</span>
+                </div>
+                <div className="space-y-3">
+                  {columnTasks.length ? (
+                    columnTasks.map((task) => (
+                      <TaskCard key={task.id} task={task} isSelected={selectedTaskId === task.id} onSelect={setSelectedTaskId} />
+                    ))
+                  ) : (
+                    <div className="rounded-[20px] border border-dashed border-[#22342F] p-3 text-sm text-[#9BAEA8]">
+                      Sem tarefas
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {selectedTask ? (
+            <div className="mt-4 rounded-[26px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Task detail</p>
+                  <h3 className="mt-2 text-lg font-semibold text-[#F5F1E8]">{selectedTask.title}</h3>
+                  <p className="mt-2 text-sm leading-7 text-[#9BAEA8]">{selectedTask.goal}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleReplay(selectedTask)}
+                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                >
+                  Replay
+                </button>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[#9BAEA8]">
+                <span className="rounded-full border border-[#22342F] px-2.5 py-1">Agent: {selectedTask.assignedAgent}</span>
+                <span className="rounded-full border border-[#22342F] px-2.5 py-1">Priority: {selectedTask.priority}</span>
+                <span className="rounded-full border border-[#22342F] px-2.5 py-1">Status: {selectedTask.status}</span>
+              </div>
+              {selectedTask.logs?.length ? (
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-xs text-[#9BAEA8]">Task logs</summary>
+                  <pre className="mt-2 whitespace-pre-wrap rounded-[22px] border border-[#22342F] bg-[rgba(4,7,6,0.95)] p-3 text-[11px] leading-6 text-[#C6D1CC]">
+                    {selectedTask.logs.join("\n")}
+                  </pre>
+                </details>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
+
+        <aside className="space-y-4">
+          <section className="rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4 shadow-[0_16px_48px_rgba(0,0,0,0.2)]">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Control panel</p>
+              <p className="mt-1 text-sm text-[#9BAEA8]">Start, pause, stop e aprovacoes.</p>
+            </div>
+            <div className="mt-4 grid gap-2">
+              {QUICK_MISSIONS.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => handleQuickMission(value)}
+                  className="rounded-[20px] border border-[#22342F] px-3 py-2 text-left text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                >
+                  {value}
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={handleStart}
+                className="rounded-2xl border border-[#C5A059] px-4 py-3 text-sm font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]"
+              >
+                Start AI
+              </button>
+              <button
+                type="button"
+                onClick={handlePause}
+                className="rounded-2xl border border-[#22342F] px-4 py-3 text-sm text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+              >
+                {paused ? "Resume" : "Pause"}
+              </button>
+              <button
+                type="button"
+                onClick={handleStop}
+                className="rounded-2xl border border-[#4f2525] px-4 py-3 text-sm text-[#f2b2b2] transition hover:border-[#f2b2b2]"
+              >
+                Stop execution
+              </button>
+              <button
+                type="button"
+                onClick={handleApprove}
+                className="rounded-2xl border border-[#234034] px-4 py-3 text-sm text-[#8FCFA9] transition hover:border-[#8FCFA9]"
+              >
+                Approve actions
+              </button>
+            </div>
+          </section>
+
+          <section className="rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4 shadow-[0_16px_48px_rgba(0,0,0,0.2)]">
+            <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Safety & control</p>
+            <div className="mt-3 space-y-2 text-sm text-[#9BAEA8]">
+              <p>Approval required for sensitive operations.</p>
+              <p>Rollback hooks and logs remain visible in the execution stream.</p>
+              <p>Manual mode disables direct execution and keeps the AI as a strategist.</p>
+            </div>
+          </section>
+        </aside>
+      </div>
+
+      <section className="rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4 shadow-[0_16px_48px_rgba(0,0,0,0.2)]">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Execution log</p>
+            <p className="mt-1 text-sm text-[#9BAEA8]">Real time trace of tool calls, validations and retries.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search logs"
+              className="h-10 w-56 rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none placeholder:text-[#60706A] focus:border-[#C5A059]"
+            />
+          </div>
+        </div>
+
+        <div ref={logViewportRef} className="mt-4 max-h-[28rem] space-y-3 overflow-y-auto pr-1">
+          {visibleLogs
+            .filter((log) => {
+              if (!search.trim()) return true;
+              const value = `${log.type} ${log.action} ${log.result}`.toLowerCase();
+              return value.includes(search.toLowerCase());
+            })
+            .map((log) => (
+              <LogRow key={log.id} log={log} />
+            ))}
+          {!visibleLogs.length ? (
+            <div className="rounded-[24px] border border-dashed border-[#22342F] p-4 text-sm text-[#9BAEA8]">
+              Nenhum log para o filtro atual.
+            </div>
+          ) : null}
+        </div>
+      </section>
+    </div>
+  );
+}
