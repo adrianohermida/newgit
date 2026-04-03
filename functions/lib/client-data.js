@@ -800,6 +800,13 @@ async function getFreshsalesPortalContextLive(env, email) {
       listedDeals = [];
     }
 
+    let listedAppointments = [];
+    try {
+      listedAppointments = await listFreshsalesAppointmentsFromViews(env, { maxPages: 4, perPage: 100 });
+    } catch {
+      listedAppointments = [];
+    }
+
     const resolvedDeals = (
       await Promise.all(
         [...dealRefs, ...accountDealRefs].map((item) => viewFreshsalesDeal(env, item?.id || item).catch(() => null))
@@ -814,7 +821,16 @@ async function getFreshsalesPortalContextLive(env, email) {
       }, []);
 
     const accountAppointments = filteredAccounts.flatMap((item) => (Array.isArray(item?.appointments) ? item.appointments : []));
-    const mergedAppointments = [...appointments, ...accountAppointments].reduce((acc, item) => {
+    const mergedAppointments = [...appointments, ...accountAppointments, ...listedAppointments]
+      .filter((item) => {
+        const accountId = String(item?.sales_account_id || item?.sales_account?.id || "").trim();
+        const ownerMatch = ownerId && String(item?.owner_id || item?.user_id || "").trim() === String(ownerId);
+        if (accountId && accountIds.includes(accountId)) return true;
+        if (ownerMatch) return true;
+        const textCorpus = flattenToStrings([item?.title, item?.description, item?.summary, item]).join(" | ").toLowerCase();
+        return normalizedEmail && textCorpus.includes(normalizedEmail);
+      })
+      .reduce((acc, item) => {
       const nextId = String(item?.id || item || "").trim();
       if (!nextId || acc.some((row) => String(row?.id || row || "").trim() === nextId)) return acc;
       acc.push(item);
@@ -1653,6 +1669,7 @@ export async function listClientProcessos(env, email, options = {}) {
   let freshsalesWarning = null;
   let freshsalesItems = [];
   let linkedJudicialItems = [];
+  let linkedContactJudicialItems = [];
   try {
     const freshsalesContext = await listFreshsalesRelatedAccounts(env, email);
     freshsalesItems = freshsalesContext.accounts.map((account) =>
@@ -1678,7 +1695,12 @@ export async function listClientProcessos(env, email, options = {}) {
       [...(freshsalesContext.accountIds || []), ...(liveContext.accounts || []).map((account) => String(account?.id || "").trim())].filter(Boolean),
       (value) => value
     );
+    const linkedContactIds = uniqueBy(
+      [...(freshsalesContext.contactIds || []), String(liveContext.contact?.id || "").trim()].filter(Boolean),
+      (value) => value
+    );
     linkedJudicialItems = await listJudicialProcessesByFreshsalesAccountIds(env, linkedAccountIds);
+    linkedContactJudicialItems = (await listJudicialProcessesByFreshsalesContactIds(env, linkedContactIds)).processes || [];
     if (freshsalesItems.length) {
       freshsalesWarning = "Parte da carteira processual foi vinculada via Freshsales, a partir dos accounts associados ao seu cadastro.";
     }
@@ -1706,13 +1728,20 @@ export async function listClientProcessos(env, email, options = {}) {
         env,
         (liveContext.accounts || []).map((account) => String(account?.id || "").trim()).filter(Boolean)
       );
+      linkedContactJudicialItems = (
+        await listJudicialProcessesByFreshsalesContactIds(
+          env,
+          [String(liveContext.contact?.id || "").trim()].filter(Boolean)
+        )
+      ).processes || [];
     } catch {
       freshsalesItems = [];
       linkedJudicialItems = [];
+      linkedContactJudicialItems = [];
     }
   }
 
-  if (!result.items.length && !freshsalesItems.length && !linkedJudicialItems.length) {
+  if (!result.items.length && !freshsalesItems.length && !linkedJudicialItems.length && !linkedContactJudicialItems.length) {
     return {
       items: [],
       warning: "Nenhum processo foi localizado nas fontes atuais do portal, incluindo o Freshsales e a base judicial.",
@@ -1720,7 +1749,7 @@ export async function listClientProcessos(env, email, options = {}) {
   }
 
   const mergedMap = new Map();
-  [...result.items, ...linkedJudicialItems, ...freshsalesItems].forEach((item) => {
+  [...result.items, ...linkedJudicialItems, ...linkedContactJudicialItems, ...freshsalesItems].forEach((item) => {
     const key = String(item.number || item.id || "").trim();
     if (!key) return;
     if (!mergedMap.has(key)) {
