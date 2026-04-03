@@ -210,8 +210,6 @@ function addLogEntry(appendLog, entry) {
 
 function TaskCard({ task, isSelected, onSelect }) {
   const statusTone = {
-                    source: run?.result?.source || item.source || null,
-                    model: run?.result?.model || item.model || null,
     pending: "text-[#9BAEA8] border-[#22342F]",
     running: "text-[#D9B46A] border-[#8b6f33]",
     done: "text-[#8FCFA9] border-[#234034]",
