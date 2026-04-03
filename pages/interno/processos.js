@@ -59,6 +59,7 @@ function InternoProcessosContent() {
   const [lookupTerm, setLookupTerm] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
   const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
+  const [editingRelationId, setEditingRelationId] = useState(null);
 
   useEffect(() => {
     loadOverview();
@@ -130,11 +131,13 @@ function InternoProcessosContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "salvar_relacao",
+          id: editingRelationId,
           ...form,
         }),
       });
       setActionState({ loading: false, error: null, result: payload.data });
       setForm(EMPTY_FORM);
+      setEditingRelationId(null);
       await Promise.all([loadOverview(), loadRelations(relations.page, search)]);
     } catch (error) {
       setActionState({ loading: false, error: error.message || "Falha ao salvar relacao.", result: null });
@@ -170,6 +173,24 @@ function InternoProcessosContent() {
     [data, relations.totalRows]
   );
 
+  function startEditing(item) {
+    setEditingRelationId(item.id);
+    setForm({
+      numero_cnj_pai: item.numero_cnj_pai || "",
+      numero_cnj_filho: item.numero_cnj_filho || "",
+      tipo_relacao: item.tipo_relacao || "dependencia",
+      status: item.status || "ativo",
+      observacoes: item.observacoes || "",
+    });
+  }
+
+  const relationTypeSummary = useMemo(() => {
+    return relations.items.reduce((acc, item) => {
+      acc[item.tipo_relacao] = (acc[item.tipo_relacao] || 0) + 1;
+      return acc;
+    }, {});
+  }, [relations.items]);
+
   return (
     <div className="space-y-8">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -181,6 +202,12 @@ function InternoProcessosContent() {
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <Panel title="Vincular processos relacionados" eyebrow="Arvore processual">
           <div className="space-y-4">
+            {editingRelationId ? (
+              <div className="rounded-2xl border border-[#6E5630] bg-[rgba(76,57,26,0.22)] px-4 py-3 text-sm">
+                Editando relacao existente. Salve novamente para atualizar o vinculo.
+              </div>
+            ) : null}
+
             <Field
               label="Processo principal / pai"
               value={form.numero_cnj_pai}
@@ -233,15 +260,18 @@ function InternoProcessosContent() {
                 disabled={actionState.loading}
                 className="bg-[#C5A059] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#050706] disabled:opacity-50"
               >
-                Salvar relacao
+                {editingRelationId ? "Atualizar relacao" : "Salvar relacao"}
               </button>
               <button
                 type="button"
-                onClick={() => setForm(EMPTY_FORM)}
+                onClick={() => {
+                  setForm(EMPTY_FORM);
+                  setEditingRelationId(null);
+                }}
                 disabled={actionState.loading}
                 className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
               >
-                Limpar formulario
+                {editingRelationId ? "Cancelar edicao" : "Limpar formulario"}
               </button>
             </div>
           </div>
@@ -307,7 +337,33 @@ function InternoProcessosContent() {
           >
             Atualizar
           </button>
+          <button
+            type="button"
+            onClick={() => loadRelations(Math.max(1, relations.page - 1), search)}
+            disabled={relations.loading || relations.page <= 1}
+            className="border border-[#2D2E2E] px-4 py-2 text-sm disabled:opacity-40"
+          >
+            Anterior
+          </button>
+          <button
+            type="button"
+            onClick={() => loadRelations(relations.page + 1, search)}
+            disabled={relations.loading || !relations.items.length}
+            className="border border-[#2D2E2E] px-4 py-2 text-sm disabled:opacity-40"
+          >
+            Proxima
+          </button>
         </div>
+
+        {relations.items.length ? (
+          <div className="mb-4 flex flex-wrap gap-2 text-xs uppercase tracking-[0.15em] opacity-70">
+            {Object.entries(relationTypeSummary).map(([key, value]) => (
+              <span key={key} className="border border-[#2D2E2E] px-2 py-1">
+                {key}: {value}
+              </span>
+            ))}
+          </div>
+        ) : null}
 
         {relations.loading ? <p className="text-sm opacity-60">Carregando relacoes...</p> : null}
         {relations.error ? <p className="text-sm text-red-300">{relations.error}</p> : null}
@@ -321,6 +377,14 @@ function InternoProcessosContent() {
                   <span className="border border-[#2D2E2E] px-2 py-1">{item.tipo_relacao}</span>
                   <span className="border border-[#2D2E2E] px-2 py-1">{item.status}</span>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => startEditing(item)}
+                  disabled={actionState.loading}
+                  className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]"
+                >
+                  Editar
+                </button>
                 <button
                   type="button"
                   onClick={() => handleDelete(item.id)}
