@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 import unittest
 from pathlib import Path
 from uuid import uuid4
+
+AI_CORE_ROOT = Path(__file__).resolve().parents[1]
+if str(AI_CORE_ROOT) not in sys.path:
+    sys.path.insert(0, str(AI_CORE_ROOT))
 
 from adapters.obsidian_adapter import search_obsidian_context
 from core.coordinator import Coordinator
