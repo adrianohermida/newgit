@@ -7,7 +7,7 @@ loadLocalEnv();
 
 async function main() {
   const workspaceId = process.argv[2] || process.env.HMADV_WORKSPACE_ID || null;
-  const snapshots = await supabaseRequest(
+  const snapshots = await safeLoadSnapshots(
     "freshsales_sync_snapshots?entity=eq.products&select=source_id,display_name,status,summary,attributes,custom_attributes,raw_payload,synced_at"
   );
 
@@ -180,6 +180,22 @@ async function supabaseRequest(pathname, init = {}) {
 
   const text = await response.text();
   return text ? JSON.parse(text) : [];
+}
+
+async function safeLoadSnapshots(pathname) {
+  try {
+    return await supabaseRequest(pathname);
+  } catch (error) {
+    const message = String(error?.message || error);
+    if (
+      message.includes('PGRST205') ||
+      message.includes("Could not find the table 'public.freshsales_sync_snapshots'") ||
+      message.includes('schema cache')
+    ) {
+      return [];
+    }
+    throw error;
+  }
 }
 
 main().catch((error) => {
