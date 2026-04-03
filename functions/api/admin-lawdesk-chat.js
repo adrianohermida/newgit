@@ -3,7 +3,7 @@ import { runLawdeskChat } from "../../lib/lawdesk/chat.js";
 import { buildDotobotRepositoryContext } from "../../lib/lawdesk/capabilities.js";
 import { detectSkillFromQuery, enrichContextWithSkill } from "../../lib/lawdesk/skill_registry.js";
 import { buildFeatureFlags } from "../../lib/lawdesk/feature-flags.js";
-import { cancelTaskRun, getTaskRun, startTaskRun } from "../../lib/lawdesk/task_runs.js";
+import { cancelTaskRun, continueTaskRun, getTaskRun, startTaskRun } from "../../lib/lawdesk/task_runs.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -49,6 +49,16 @@ export async function onRequestPost(context) {
 
   if (action === "task_run_start") {
     const result = await startTaskRun(env, body, features, {
+      waitUntil: typeof context?.waitUntil === "function" ? context.waitUntil.bind(context) : null,
+    });
+    return new Response(JSON.stringify(result), {
+      status: result.status,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  if (action === "task_run_continue") {
+    const result = await continueTaskRun(env, body, features, {
       waitUntil: typeof context?.waitUntil === "function" ? context.waitUntil.bind(context) : null,
     });
     return new Response(JSON.stringify(result), {

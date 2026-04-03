@@ -3,7 +3,7 @@ import { runLawdeskChat } from "../../lib/lawdesk/chat.js";
 import { buildDotobotRepositoryContext } from "../../lib/lawdesk/capabilities.js";
 import { detectSkillFromQuery, enrichContextWithSkill } from "../../lib/lawdesk/skill_registry.js";
 import { buildFeatureFlags } from "../../lib/lawdesk/feature-flags.js";
-import { cancelTaskRun, getTaskRun, startTaskRun } from "../../lib/lawdesk/task_runs.js";
+import { cancelTaskRun, continueTaskRun, getTaskRun, startTaskRun } from "../../lib/lawdesk/task_runs.js";
 
 export default async function handler(req, res) {
   const features = buildFeatureFlags(process.env);
@@ -31,6 +31,11 @@ export default async function handler(req, res) {
 
   if (action === "task_run_start") {
     const result = await startTaskRun(process.env, req.body, features);
+    return res.status(result.status).json(result);
+  }
+
+  if (action === "task_run_continue") {
+    const result = await continueTaskRun(process.env, req.body, features);
     return res.status(result.status).json(result);
   }
 

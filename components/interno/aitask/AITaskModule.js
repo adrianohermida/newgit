@@ -342,6 +342,17 @@ export default function AITaskModule({ profile, routePath }) {
     if (cached.latestResult) setLatestResult(cached.latestResult);
     if (cached.contextSnapshot) setContextSnapshot(cached.contextSnapshot);
     if (Array.isArray(cached.attachments)) setAttachments(cached.attachments);
+    if (cached.activeRun?.id) {
+      setActiveRun(cached.activeRun);
+      setAutomation("running");
+      addLogEntry((entry) => {
+        setLogs((current) => [...current, entry].slice(-MAX_LOGS));
+      }, {
+        type: "control",
+        action: "Execucao retomada",
+        result: `Run ${cached.activeRun.id} restaurado do cache local.`,
+      });
+    }
   }, [storageKey]);
 
   useEffect(() => {
@@ -358,11 +369,12 @@ export default function AITaskModule({ profile, routePath }) {
         logs,
         missionHistory,
         latestResult,
+        activeRun,
         contextSnapshot,
         attachments,
       })
     );
-  }, [storageKey, mission, mode, provider, approved, tasks, thinking, logs, missionHistory, latestResult, contextSnapshot, attachments]);
+  }, [storageKey, mission, mode, provider, approved, tasks, thinking, logs, missionHistory, latestResult, activeRun, contextSnapshot, attachments]);
 
   useEffect(() => {
     if (!logViewportRef.current) return;
@@ -814,6 +826,72 @@ export default function AITaskModule({ profile, routePath }) {
     });
   }
 
+  async function handleContinueLastRun() {
+    const lastRecoverable = missionHistory.find((item) => item.status === "failed" || item.status === "stopped");
+    if (!lastRecoverable?.id) {
+      pushLog({
+        type: "warning",
+        action: "Retomada",
+        result: "Nao ha run falhado/parado para retomar.",
+      });
+      return;
+    }
+
+    try {
+      setError(null);
+      setAutomation("running");
+      runEventIdsRef.current.clear();
+      const payload = await adminFetch("/api/admin-dotobot-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "task_run_continue",
+          runId: lastRecoverable.id,
+          waitForCompletion: false,
+        }),
+      });
+
+      const continuedRun = payload?.data?.run || null;
+      if (continuedRun?.id) {
+        setActiveRun({
+          id: continuedRun.id,
+          startedAt: continuedRun.created_at || nowIso(),
+          mission: continuedRun.mission || lastRecoverable.mission || mission,
+        });
+        setMission(continuedRun.mission || lastRecoverable.mission || mission);
+        setMissionHistory((current) => [
+          {
+            id: continuedRun.id,
+            mission: continuedRun.mission || lastRecoverable.mission || mission,
+            mode: continuedRun.mode || mode,
+            provider: continuedRun.provider || provider,
+            status: "running",
+            created_at: continuedRun.created_at || nowIso(),
+            updated_at: continuedRun.updated_at || nowIso(),
+          },
+          ...current,
+        ].slice(0, MAX_TASKS));
+      }
+
+      pushLog({
+        type: "control",
+        action: "Retomada iniciada",
+        result: continuedRun?.id
+          ? `Run retomado com novo id ${continuedRun.id}.`
+          : "Run anterior ainda estava em execucao; acompanhamento mantido.",
+      });
+    } catch (continueError) {
+      const message = continueError?.message || "Falha ao retomar run.";
+      setError(message);
+      setAutomation("failed");
+      pushLog({
+        type: "error",
+        action: "Retomada falhou",
+        result: message,
+      });
+    }
+  }
+
   function handleApprove() {
     setApproved(true);
     pushLog({
@@ -916,6 +994,7 @@ export default function AITaskModule({ profile, routePath }) {
             <button type="button" onClick={handleStart} className="rounded-full border border-[#C5A059] px-4 py-2 text-xs font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]">Send</button>
             <button type="button" onClick={handlePause} className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">{paused ? "Resume" : "Pause"}</button>
             <button type="button" onClick={handleStop} className="rounded-full border border-[#4f2525] px-4 py-2 text-xs text-[#f2b2b2] transition hover:border-[#f2b2b2]">Stop</button>
+            <button type="button" onClick={handleContinueLastRun} className="rounded-full border border-[#35554B] px-4 py-2 text-xs text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]">Resume failed run</button>
             <button type="button" onClick={handleApprove} className="rounded-full border border-[#234034] px-4 py-2 text-xs text-[#8FCFA9] transition hover:border-[#8FCFA9]">Approve</button>
           </div>
         </div>
