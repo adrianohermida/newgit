@@ -1,5 +1,6 @@
 name = "newgit-pages"
 compatibility_date = "2024-03-15"
+compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "out"
 
 # Este wrangler.toml representa o projeto Cloudflare Pages `newgit-pages`.
