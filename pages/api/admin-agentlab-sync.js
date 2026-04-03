@@ -40,12 +40,12 @@ export default async function handler(req, res) {
       }
 
       if (action === "sync_freshsales_activities") {
-        const result = await syncFreshsalesActivitiesIntoAgentLab(process.env, Number(req.body?.limit || 10));
+        const result = await syncFreshsalesActivitiesIntoAgentLab(process.env, Number(req.body?.limit || 5));
         return res.status(200).json({ ok: true, result });
       }
 
       if (action === "sync_freshchat_conversations") {
-        const result = await syncFreshchatConversationsIntoAgentLab(process.env, Number(req.body?.limit || 10));
+        const result = await syncFreshchatConversationsIntoAgentLab(process.env, Number(req.body?.limit || 5));
         return res.status(200).json({ ok: true, result });
       }
 

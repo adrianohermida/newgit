@@ -48,12 +48,12 @@ export async function onRequestPost(context) {
     }
 
     if (action === "sync_freshsales_activities") {
-      const result = await syncFreshsalesActivitiesIntoAgentLab(context.env, Number(body.limit || 10));
+      const result = await syncFreshsalesActivitiesIntoAgentLab(context.env, Number(body.limit || 5));
       return jsonOk({ result });
     }
 
     if (action === "sync_freshchat_conversations") {
-      const result = await syncFreshchatConversationsIntoAgentLab(context.env, Number(body.limit || 10));
+      const result = await syncFreshchatConversationsIntoAgentLab(context.env, Number(body.limit || 5));
       return jsonOk({ result });
     }
 

@@ -18,15 +18,18 @@ export default function AgentLabConversationsPage() {
   const state = useAgentLabData();
   const [syncState, setSyncState] = useState({ loading: false, message: null });
 
-  async function runSync(action) {
+  async function runSync(action, limit = 5) {
     try {
       setSyncState({ loading: true, message: null });
       const payload = await adminFetch("/api/admin-agentlab-sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, limit }),
       });
-      setSyncState({ loading: false, message: payload.result?.message || JSON.stringify(payload.result) });
+      setSyncState({
+        loading: false,
+        message: payload.result?.message || JSON.stringify(payload.result),
+      });
       state.refresh();
     } catch (error) {
       setSyncState({ loading: false, message: error.message });
@@ -38,8 +41,8 @@ export default function AgentLabConversationsPage() {
       {(profile) => (
         <InternoLayout
           profile={profile}
-          title="AgentLab · Conversas"
-          description="Painel de inteligencia conversacional com sync de conversas internas, Freshsales e Freshchat."
+          title="AgentLab | Conversas"
+          description="Painel de inteligencia conversacional com sync incremental de conversas internas, Freshsales e Freshchat."
         >
           <AgentLabModuleNav />
           <ConversationsContent state={state} syncState={syncState} runSync={runSync} />
@@ -51,11 +54,19 @@ export default function AgentLabConversationsPage() {
 
 function ConversationsContent({ state, syncState, runSync }) {
   if (state.loading) {
-    return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando conversas...</div>;
+    return (
+      <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
+        Carregando conversas...
+      </div>
+    );
   }
 
   if (state.error) {
-    return <div className="border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] p-6 text-sm">{state.error}</div>;
+    return (
+      <div className="border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] p-6 text-sm">
+        {state.error}
+      </div>
+    );
   }
 
   const conversations = state.data?.conversations?.threads || [];
@@ -68,35 +79,75 @@ function ConversationsContent({ state, syncState, runSync }) {
   return (
     <div className="space-y-8">
       <div className="grid gap-4 md:grid-cols-4">
-        <Panel title={`Threads: ${summary.total || 0}`}><p className="text-sm opacity-70">Base de treino e analise operacional.</p></Panel>
-        <Panel title={`Handoffs: ${summary.handoffs || 0}`}><p className="text-sm opacity-70">Escalacoes detectadas nas threads importadas.</p></Panel>
-        <Panel title={`Erros: ${summary.withErrors || 0}`}><p className="text-sm opacity-70">Conversas com risco de falha operacional.</p></Panel>
-        <Panel title={`Incidentes: ${state.data?.intelligence?.summary?.open || 0}`}><p className="text-sm opacity-70">Fila gerencial aberta para correcao.</p></Panel>
+        <Panel title={`Threads: ${summary.total || 0}`}>
+          <p className="text-sm opacity-70">Base de treino e analise operacional.</p>
+        </Panel>
+        <Panel title={`Handoffs: ${summary.handoffs || 0}`}>
+          <p className="text-sm opacity-70">Escalacoes detectadas nas threads importadas.</p>
+        </Panel>
+        <Panel title={`Erros: ${summary.withErrors || 0}`}>
+          <p className="text-sm opacity-70">Conversas com risco de falha operacional.</p>
+        </Panel>
+        <Panel title={`Incidentes: ${state.data?.intelligence?.summary?.open || 0}`}>
+          <p className="text-sm opacity-70">Fila gerencial aberta para correcao.</p>
+        </Panel>
       </div>
 
       <Panel title="Pipeline de sync">
         {syncBlocked ? (
           <div className="mb-4 border border-[#2D2E2E] p-4 text-sm opacity-75">
             <p>{environment.message}</p>
-            <p className="mt-2">Neste modo, o painel mostra dados de fallback e o sync local fica desabilitado ate o schema principal estar alinhado.</p>
             <p className="mt-2">
-              Aplique o bundle:
-              {" "}
-              [agentlab-bootstrap-supabase.sql](/D:/Github/newgit/docs/agentlab-bootstrap-supabase.sql)
+              Neste modo, o painel mostra dados de fallback e o sync local fica desabilitado ate
+              o schema principal estar alinhado.
+            </p>
+            <p className="mt-2">
+              Aplique o bundle{" "}
+              <a
+                href="/docs/agentlab-bootstrap-supabase.sql"
+                className="underline underline-offset-4"
+                target="_blank"
+                rel="noreferrer"
+              >
+                agentlab-bootstrap-supabase.sql
+              </a>
+              .
             </p>
           </div>
-        ) : null}
+        ) : (
+          <div className="mb-4 border border-[#2D2E2E] p-4 text-sm opacity-75">
+            Cada execucao sincroniza apenas um lote curto e salva checkpoint no Supabase para
+            evitar o limite de subrequests do Cloudflare Worker.
+          </div>
+        )}
+
         <div className="mb-4 flex flex-wrap gap-3">
-          <button type="button" disabled={syncBlocked} onClick={() => runSync("sync_workspace_conversations")} className="border border-[#2D2E2E] px-4 py-3 text-sm disabled:opacity-40">
+          <button
+            type="button"
+            disabled={syncBlocked}
+            onClick={() => runSync("sync_workspace_conversations", 5)}
+            className="border border-[#2D2E2E] px-4 py-3 text-sm disabled:opacity-40"
+          >
             Sincronizar legado
           </button>
-          <button type="button" disabled={syncBlocked} onClick={() => runSync("sync_freshsales_activities")} className="border border-[#2D2E2E] px-4 py-3 text-sm disabled:opacity-40">
+          <button
+            type="button"
+            disabled={syncBlocked}
+            onClick={() => runSync("sync_freshsales_activities", 5)}
+            className="border border-[#2D2E2E] px-4 py-3 text-sm disabled:opacity-40"
+          >
             Sincronizar Freshsales
           </button>
-          <button type="button" disabled={syncBlocked} onClick={() => runSync("sync_freshchat_conversations")} className="border border-[#2D2E2E] px-4 py-3 text-sm disabled:opacity-40">
+          <button
+            type="button"
+            disabled={syncBlocked}
+            onClick={() => runSync("sync_freshchat_conversations", 5)}
+            className="border border-[#2D2E2E] px-4 py-3 text-sm disabled:opacity-40"
+          >
             Sincronizar Freshchat
           </button>
         </div>
+
         {syncState.loading ? <p className="text-sm opacity-70">Executando sync...</p> : null}
         {syncState.message ? <p className="text-sm opacity-70">{syncState.message}</p> : null}
       </Panel>
@@ -113,7 +164,10 @@ function ConversationsContent({ state, syncState, runSync }) {
                 </div>
                 <p className="mb-2 font-semibold">{item.subject || "Sem assunto"}</p>
                 <p className="mb-2 text-sm opacity-75">{item.last_message || "Sem mensagem"}</p>
-                <p className="text-xs opacity-50">Intent: {item.intent_label || "nao classificada"} · Gap: {item.issue_category || "n/a"}</p>
+                <p className="text-xs opacity-50">
+                  Intent: {item.intent_label || "nao classificada"} | Gap:{" "}
+                  {item.issue_category || "n/a"}
+                </p>
               </div>
             ))}
           </div>
@@ -137,7 +191,8 @@ function ConversationsContent({ state, syncState, runSync }) {
           <div className="space-y-3 text-sm opacity-75">
             {syncRuns.map((item) => (
               <p key={item.id}>
-                {item.source_name} · {item.sync_scope} · {item.status} · {item.records_synced || 0}
+                {item.source_name} | {item.sync_scope} | {item.status} |{" "}
+                {item.records_synced || 0}
               </p>
             ))}
           </div>
