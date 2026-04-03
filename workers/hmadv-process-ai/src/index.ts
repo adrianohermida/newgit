@@ -27,12 +27,32 @@ type VectorizeBinding = {
   query(vector: number[], options?: { topK?: number; returnValues?: boolean; returnMetadata?: boolean | "all" }): Promise<VectorizeQueryResult>;
 };
 
+type AnalyticsEngineBinding = {
+  writeDataPoint(data: {
+    indexes?: string[];
+    blobs?: string[];
+    doubles?: number[];
+  }): void | Promise<unknown>;
+};
+
+type R2BucketBinding = {
+  put(
+    key: string,
+    value: BodyInit | ReadableStream | ArrayBuffer | ArrayBufferView | string,
+    options?: { httpMetadata?: { contentType?: string } }
+  ): Promise<unknown>;
+};
+
 export interface Env {
   AI: AiBinding;
   VECTORIZE: VectorizeBinding;
+  ANALYTICS_ENGINE?: AnalyticsEngineBinding;
   hmadv_process_ai: D1Database;
+  hmadv_process_ai_logs?: R2BucketBinding;
   CLOUDFLARE_WORKERS_AI_MODEL?: string;
   CLOUDFLARE_WORKERS_AI_EMBEDDING_MODEL?: string;
+  CLOUDFLARE_R2_ACCOUNT_ID?: string;
+  CLOUDFLARE_S3_API?: string;
   HMDAV_AI_SHARED_SECRET?: string;
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
@@ -138,6 +158,41 @@ async function queryRelatedMemory(env: Env, text: string, topK = 5) {
     returnMetadata: 'all',
   });
   return matches.matches || [];
+}
+
+async function writeAnalyticsEvent(
+  env: Env,
+  kind: string,
+  action: string,
+  status: string,
+  metadata: Record<string, unknown> = {}
+) {
+  if (!env.ANALYTICS_ENGINE) return;
+  await Promise.resolve(
+    env.ANALYTICS_ENGINE.writeDataPoint({
+      indexes: [kind],
+      blobs: [action, status, JSON.stringify(metadata)],
+      doubles: [
+        Number(metadata.retrieved_context_count ?? 0),
+        Number(metadata.result_count ?? 0),
+      ],
+    })
+  ).catch(() => null);
+}
+
+async function persistR2Snapshot(
+  env: Env,
+  kind: string,
+  runId: string,
+  payload: Record<string, unknown>
+) {
+  if (!env.hmadv_process_ai_logs) return null;
+  const datePrefix = new Date().toISOString().slice(0, 10);
+  const key = `runs/${kind}/${datePrefix}/${runId}.json`;
+  await env.hmadv_process_ai_logs.put(key, JSON.stringify(payload, null, 2), {
+    httpMetadata: { contentType: 'application/json; charset=utf-8' },
+  });
+  return key;
 }
 
 let d1SchemaReady = false;
@@ -358,6 +413,9 @@ async function analyzeActivity(req: Request, env: Env) {
     result: `retrieved ${retrievedContext.length} related memories`,
     payload_json: JSON.stringify(retrievedContext.slice(0, 5)),
   }).catch(() => null);
+  await writeAnalyticsEvent(env, 'activity', 'context_retrieval', 'running', {
+    retrieved_context_count: retrievedContext.length,
+  });
 
   const analysis = await runJson(env, buildActivityPrompt({ ...payload, retrieved_context: retrievedContext }));
 
@@ -378,6 +436,18 @@ async function analyzeActivity(req: Request, env: Env) {
     action: 'analysis_completed',
     result: 'analysis stored and ready',
     payload_json: JSON.stringify({ analysis }),
+  }).catch(() => null);
+  await writeAnalyticsEvent(env, 'activity', 'analysis_completed', 'done', {
+    retrieved_context_count: retrievedContext.length,
+    result_count: Array.isArray(analysis?.tasks) ? analysis.tasks.length : 0,
+  });
+  await persistR2Snapshot(env, 'activity', runId, {
+    run_id: runId,
+    kind: 'activity',
+    payload,
+    analysis,
+    retrieved_context: retrievedContext,
+    created_at: nowIso(),
   }).catch(() => null);
   await persistMemoryVector(env, runId, 'activity', payload as Json, analysis).catch(() => null);
 
@@ -406,6 +476,9 @@ async function analyzeProcess(req: Request, env: Env) {
     result: `retrieved ${retrievedContext.length} related memories`,
     payload_json: JSON.stringify(retrievedContext.slice(0, 5)),
   }).catch(() => null);
+  await writeAnalyticsEvent(env, 'process', 'context_retrieval', 'running', {
+    retrieved_context_count: retrievedContext.length,
+  });
 
   const analysis = await runJson(env, buildProcessPrompt({ ...payload, retrieved_context: retrievedContext }));
 
@@ -426,6 +499,18 @@ async function analyzeProcess(req: Request, env: Env) {
     action: 'analysis_completed',
     result: 'analysis stored and ready',
     payload_json: JSON.stringify({ analysis }),
+  }).catch(() => null);
+  await writeAnalyticsEvent(env, 'process', 'analysis_completed', 'done', {
+    retrieved_context_count: retrievedContext.length,
+    result_count: Array.isArray(analysis?.tasks) ? analysis.tasks.length : 0,
+  });
+  await persistR2Snapshot(env, 'process', runId, {
+    run_id: runId,
+    kind: 'process',
+    payload,
+    analysis,
+    retrieved_context: retrievedContext,
+    created_at: nowIso(),
   }).catch(() => null);
   await persistMemoryVector(env, runId, 'process', payload as Json, analysis).catch(() => null);
 
@@ -531,6 +616,21 @@ async function reconcileRows(env: Env, processos: Json[]) {
       result: `updated ${processoId}`,
       payload_json: JSON.stringify({ analysis, accountId }),
     }).catch(() => null);
+    await writeAnalyticsEvent(env, 'reconcile', 'reconcile_completed', 'done', {
+      retrieved_context_count: retrievedContext.length,
+      result_count: Array.isArray(analysis?.tasks) ? analysis.tasks.length : 0,
+    });
+    await persistR2Snapshot(env, 'reconcile', runId, {
+      run_id: runId,
+      kind: 'reconcile',
+      processo,
+      movimentos,
+      publicacoes,
+      audiencias,
+      analysis,
+      retrieved_context: retrievedContext,
+      created_at: nowIso(),
+    }).catch(() => null);
 
     results.push({
       processo_id: processoId,
@@ -558,8 +658,12 @@ export default {
         service: 'hmadv-process-ai',
         now: new Date().toISOString(),
         vectorize: Boolean(env.VECTORIZE),
+        analytics_engine: Boolean(env.ANALYTICS_ENGINE),
         d1: Boolean(env.hmadv_process_ai),
+        r2: Boolean(env.hmadv_process_ai_logs),
         embedding_model: getEmbeddingModel(env),
+        r2_account_id: Boolean(env.CLOUDFLARE_R2_ACCOUNT_ID),
+        s3_api_configured: Boolean(env.CLOUDFLARE_S3_API),
       });
     }
     if (req.method === 'POST' && url.pathname === '/analyze/activity') {
