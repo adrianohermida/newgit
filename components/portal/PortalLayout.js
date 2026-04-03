@@ -83,7 +83,7 @@ function Breadcrumbs({ items = [] }) {
   if (!items.length) return null;
 
   return (
-    <nav aria-label="Breadcrumb" className="mb-4 flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.18em] opacity-55">
+    <nav aria-label="Breadcrumb" className="mb-4 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-[#95A8A1]">
       {items.map((item, index) => {
         const isLast = index === items.length - 1;
         return (
@@ -105,27 +105,27 @@ function Breadcrumbs({ items = [] }) {
 
 function RightRailPanel({ title, icon, subtitle, defaultOpen = true, children }) {
   return (
-    <details open={defaultOpen} className="group rounded-[24px] border border-[#20332D] bg-[rgba(255,255,255,0.02)]">
-      <summary className="flex cursor-pointer list-none items-start justify-between gap-4 px-5 py-4">
+    <details open={defaultOpen} className="group overflow-hidden rounded-[22px] border border-[#22342F] bg-[rgba(10,18,16,0.92)]">
+      <summary className="flex cursor-pointer list-none items-start justify-between gap-4 px-4 py-4">
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 rounded-2xl border border-[#20332D] bg-[rgba(6,10,9,0.45)] p-2 text-[#C49C56]">{icon}</span>
+          <span className="mt-0.5 rounded-xl border border-[#22342F] bg-[rgba(196,156,86,0.08)] p-2 text-[#C49C56]">{icon}</span>
           <div>
-            <p className="text-sm font-semibold">{title}</p>
-            {subtitle ? <p className="mt-1 text-xs leading-5 opacity-55">{subtitle}</p> : null}
+            <p className="text-sm font-semibold text-[#F5F1E8]">{title}</p>
+            {subtitle ? <p className="mt-1 text-xs leading-5 text-[#92A59F]">{subtitle}</p> : null}
           </div>
         </div>
-        <span className="text-xs uppercase tracking-[0.16em] opacity-45 transition group-open:rotate-180">⌄</span>
+        <span className="text-xs uppercase tracking-[0.16em] text-[#768883] transition group-open:rotate-180">v</span>
       </summary>
-      <div className="border-t border-[#20332D] px-5 py-4">{children}</div>
+      <div className="border-t border-[#22342F] px-4 py-4">{children}</div>
     </details>
   );
 }
 
 function MetricChip({ label, value }) {
   return (
-    <div className="rounded-2xl border border-[#20332D] bg-black/10 px-3 py-3">
-      <p className="text-[10px] uppercase tracking-[0.16em] opacity-45">{label}</p>
-      <p className="mt-2 text-sm font-semibold">{value}</p>
+    <div className="rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3">
+      <p className="text-[10px] uppercase tracking-[0.16em] text-[#7E918B]">{label}</p>
+      <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{value}</p>
     </div>
   );
 }
@@ -137,47 +137,47 @@ function DefaultRightRail({ title, profile, officeWhatsapp }) {
     <div className="space-y-4">
       <RightRailPanel
         title="Atendimento no portal"
-        subtitle="Widget ativo do Freshworks para conversa direta com o escritorio dentro desta experiencia."
+        subtitle="Suporte integrado ao workspace do cliente."
         icon={<NavIcon name="wallet" active={false} />}
       >
         <div className="space-y-3 text-sm">
-          <div className="rounded-[20px] border border-[#2F4B43] bg-[rgba(7,17,14,0.72)] p-4">
-            <p className="font-semibold">Chat do escritorio ativo</p>
-            <p className="mt-2 opacity-65">
-              O widget de atendimento do Freshworks fica disponivel no portal para suporte operacional, financeiro e documental.
+          <div className="rounded-[18px] border border-[#2D463F] bg-[rgba(196,156,86,0.05)] p-4">
+            <p className="font-semibold text-[#F5F1E8]">Chat do escritorio ativo</p>
+            <p className="mt-2 text-sm leading-6 text-[#A3B5AF]">
+              O Freshworks foi reservado para suporte operacional, financeiro e documental sem tirar o cliente do portal.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <MetricChip label="Canal" value="Freshworks" />
             <MetricChip label="Modo" value="Chat ativo" />
           </div>
-          <p className="text-xs leading-5 opacity-55">
-            Se o botao flutuante nao aparecer de imediato, aguarde alguns segundos para o widget inicializar nesta pagina.
+          <p className="text-xs leading-5 text-[#81948D]">
+            O widget pode levar alguns segundos para aparecer no canto da tela apos o carregamento.
           </p>
         </div>
       </RightRailPanel>
 
       <RightRailPanel
         title="Documentos e pendencias"
-        subtitle="Espaco para listas colapsaveis, revisoes do escritorio e itens aguardando aprovacao."
+        subtitle="Reservado para documentos associados, revisoes e aprovacoes."
         icon={<NavIcon name="folder" active={false} />}
         defaultOpen={false}
       >
-        <div className="space-y-3 text-sm opacity-68">
-          <p>O layout ja reserva esta coluna para documentos associados, comprovantes e arquivos pendentes de analise.</p>
+        <div className="space-y-3 text-sm text-[#A3B5AF]">
+          <p>Esta coluna ja esta preparada para documentos vinculados ao processo, comprovantes, minutas e itens aguardando validacao do escritorio.</p>
           <MetricChip label="Status" value="Pronto para integrar" />
         </div>
       </RightRailPanel>
 
       <RightRailPanel
         title="Apoio ao cliente"
-        subtitle="Atalhos para contato com o escritorio e proxima acao recomendada."
+        subtitle="Contexto do modulo atual e atalhos de contato."
         icon={<NavIcon name="support" active={false} />}
         defaultOpen={false}
       >
         <div className="space-y-3 text-sm">
-          <p className="opacity-68">Modulo ativo: {title}</p>
-          <p className="opacity-68">Escritorio: {officeName}</p>
+          <p className="text-[#9EB1AB]">Modulo ativo: {title}</p>
+          <p className="text-[#9EB1AB]">Escritorio: {officeName}</p>
           {officeWhatsapp ? (
             <a href={`https://wa.me/${officeWhatsapp}`} target="_blank" rel="noreferrer" className="inline-flex text-[#C49C56] hover:underline">
               Falar no WhatsApp
@@ -214,7 +214,7 @@ export default function PortalLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[#07110E] text-[#F4F1EA]">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(24,43,38,0.42),transparent_28%),linear-gradient(180deg,#07110E_0%,#091612_100%)] text-[#F4F1EA]">
       <Script
         id="freshworks_portal_widget_script"
         src={FRESHWORKS_PORTAL_SCRIPT_URL}
@@ -222,22 +222,26 @@ export default function PortalLayout({
         chat="true"
         widgetId={FRESHWORKS_PORTAL_WIDGET_ID}
       />
-      <div className="mx-auto max-w-[1680px] px-4 py-4 md:px-6">
-        <div className="grid min-h-[calc(100vh-2rem)] gap-4 xl:grid-cols-[290px_minmax(0,1fr)_360px]">
-          <aside className="xl:sticky xl:top-4 xl:h-[calc(100vh-2rem)]">
-            <div className="flex h-full flex-col rounded-[34px] border border-[#20332D] bg-[linear-gradient(180deg,rgba(10,18,15,0.98),rgba(7,17,14,0.92))] px-6 py-7 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
-              <Link href="/portal" prefetch={false} className="mb-10 block">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.28em] text-[#C49C56]">Hermida Maia</p>
-                <h1 className="font-serif text-3xl">Portal do Cliente</h1>
+
+      <div className="w-full px-3 py-3 md:px-4 xl:px-5">
+        <div className="grid min-h-[calc(100vh-1.5rem)] gap-3 xl:grid-cols-[272px_minmax(0,1fr)_320px]">
+          <aside className="xl:sticky xl:top-3 xl:h-[calc(100vh-1.5rem)]">
+            <div className="flex h-full flex-col rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(10,18,16,0.98),rgba(8,15,13,0.94))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.22)]">
+              <Link href="/portal" prefetch={false} className="mb-8 block">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C49C56]">Hermida Maia</p>
+                <h1 className="text-[32px] font-semibold tracking-[-0.03em] text-[#F5F1E8]">Portal do Cliente</h1>
+                <p className="mt-3 max-w-[18rem] text-sm leading-6 text-[#8FA39C]">
+                  Um workspace juridico organizado para acompanhar processos, consultas, documentos e solicitacoes.
+                </p>
               </Link>
 
-              <div className="mb-8 rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.03)] p-5">
-                <p className="text-xs uppercase tracking-[0.2em] opacity-45">Conta conectada</p>
-                <p className="mt-3 text-lg font-semibold">{normalizeDisplayName(profile)}</p>
-                <p className="mt-1 text-sm opacity-55">{profile?.email}</p>
+              <div className="mb-6 rounded-[24px] border border-[#1D2E29] bg-[rgba(255,255,255,0.03)] p-4">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-[#7F928C]">Conta conectada</p>
+                <p className="mt-3 text-lg font-semibold text-[#F8F4EB]">{normalizeDisplayName(profile)}</p>
+                <p className="mt-1 text-sm text-[#91A49E]">{profile?.email}</p>
               </div>
 
-              <nav aria-label="Navegacao principal do portal" className="space-y-2">
+              <nav aria-label="Navegacao principal do portal" className="space-y-1.5">
                 {NAV_ITEMS.map((item) => {
                   const active = router.pathname === item.href;
                   return (
@@ -245,30 +249,34 @@ export default function PortalLayout({
                       key={item.href}
                       href={item.href}
                       prefetch={false}
-                      className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm transition-all ${
-                        active ? "translate-x-1 text-[#07110E]" : "text-[#F4F1EA] hover:border-[#C49C56] hover:text-[#C49C56]"
+                      className={`group flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-sm transition-all ${
+                        active
+                          ? "border-[#C49C56] bg-[#C49C56] text-[#07110E] shadow-[0_10px_30px_rgba(196,156,86,0.18)]"
+                          : "border-[#1F2F2A] bg-[rgba(255,255,255,0.01)] text-[#D8DED9] hover:border-[#315046] hover:bg-[rgba(255,255,255,0.025)]"
                       }`}
-                      style={{
-                        background: active ? "#C49C56" : "transparent",
-                        borderColor: active ? "#C49C56" : "#20332D",
-                      }}
                     >
-                      <span className={`flex h-9 w-9 items-center justify-center rounded-2xl ${active ? "bg-[rgba(7,17,14,0.14)]" : "bg-[rgba(255,255,255,0.02)]"}`}>
+                      <span className={`flex h-9 w-9 items-center justify-center rounded-xl border ${active ? "border-[rgba(7,17,14,0.1)] bg-[rgba(7,17,14,0.08)]" : "border-[#233630] bg-[rgba(255,255,255,0.02)] group-hover:border-[#35554B]"}`}>
                         <NavIcon name={item.icon} active={active} />
                       </span>
-                      <span>{item.label}</span>
+                      <span className="font-medium">{item.label}</span>
                     </Link>
                   );
                 })}
               </nav>
 
-              <div className="mt-auto space-y-4 pt-8">
+              <div className="mt-auto space-y-3 pt-6">
+                <div className="rounded-[22px] border border-[#1D2E29] bg-[rgba(255,255,255,0.02)] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">Workspace</p>
+                  <p className="mt-2 text-sm font-medium text-[#F5F1E8]">Organizacao por contexto</p>
+                  <p className="mt-2 text-sm leading-6 text-[#92A59F]">A barra lateral navega. O centro executa. A direita apoia com CRM, documentos e pendencias.</p>
+                </div>
+
                 {officeWhatsapp ? (
                   <a
                     href={`https://wa.me/${officeWhatsapp}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="block rounded-2xl border border-[#0A6A4A] bg-[rgba(10,106,74,0.16)] px-4 py-3 text-sm text-[#CFF5E8] transition hover:border-[#0FA06F]"
+                    className="block rounded-2xl border border-[#23523F] bg-[rgba(17,79,55,0.2)] px-4 py-3 text-sm text-[#D5F3E8] transition hover:border-[#2F7359]"
                   >
                     Falar com o escritorio no WhatsApp
                   </a>
@@ -277,7 +285,7 @@ export default function PortalLayout({
                 <button
                   type="button"
                   onClick={handleSignOut}
-                  className="w-full rounded-2xl border border-[#20332D] px-4 py-3 text-sm transition hover:border-[#C49C56] hover:text-[#C49C56]"
+                  className="w-full rounded-2xl border border-[#22342F] px-4 py-3 text-sm text-[#D8DEDA] transition hover:border-[#C49C56] hover:text-[#C49C56]"
                 >
                   Sair
                 </button>
@@ -285,14 +293,14 @@ export default function PortalLayout({
             </div>
           </aside>
 
-          <main className="min-w-0 rounded-[34px] border border-[#20332D] bg-[linear-gradient(180deg,rgba(8,15,13,0.95),rgba(7,17,14,0.88))] px-6 py-7 md:px-8 xl:px-10">
-            <header className="mb-8 border-b border-[#20332D] pb-7">
+          <main className="min-w-0 rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(9,16,14,0.97),rgba(8,14,12,0.93))] px-5 py-5 md:px-6 xl:px-7">
+            <header className="mb-6 border-b border-[#1E2E29] pb-5">
               <Breadcrumbs items={breadcrumbs} />
               <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                 <div className="min-w-0">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-[#C49C56]">Portal ativo</p>
-                  <h2 className="font-serif text-4xl md:text-5xl">{title}</h2>
-                  {description ? <p className="mt-3 max-w-4xl text-sm leading-7 opacity-68">{description}</p> : null}
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Portal ativo</p>
+                  <h2 className="text-3xl font-semibold tracking-[-0.035em] text-[#F8F4EB] md:text-[38px]">{title}</h2>
+                  {description ? <p className="mt-3 max-w-3xl text-sm leading-7 text-[#99ADA6]">{description}</p> : null}
                 </div>
                 {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
               </div>
@@ -301,8 +309,8 @@ export default function PortalLayout({
             <div>{children}</div>
           </main>
 
-          <aside className="xl:sticky xl:top-4 xl:h-[calc(100vh-2rem)]">
-            <div className="h-full overflow-y-auto rounded-[34px] border border-[#20332D] bg-[linear-gradient(180deg,rgba(9,14,13,0.96),rgba(7,17,14,0.9))] p-4 md:p-5">
+          <aside className="xl:sticky xl:top-3 xl:h-[calc(100vh-1.5rem)]">
+            <div className="h-full overflow-y-auto rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(10,17,15,0.96),rgba(8,14,12,0.92))] p-3 md:p-4">
               {rightRail || <DefaultRightRail title={title} profile={profile} officeWhatsapp={officeWhatsapp} />}
             </div>
           </aside>
