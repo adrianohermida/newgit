@@ -37,11 +37,17 @@ export default function PortalProcessDetailPage() {
           profile={profile}
           title="Detalhe do processo"
           description="Painel de acompanhamento processual com capa, partes, andamentos e publicacoes relevantes do seu caso."
+          breadcrumbs={[
+            { href: "/portal", label: "Portal" },
+            { href: "/portal/processos", label: "Processos" },
+            { label: "Detalhe" },
+          ]}
           actions={
             <Link href="/portal/processos" prefetch={false} className="rounded-2xl border border-[#20332D] px-4 py-3 text-sm transition hover:border-[#C49C56]">
               Voltar aos processos
             </Link>
           }
+          rightRail={<ProcessDetailRightRail state={state} />}
         >
           <ProcessDetailContent processId={processId} state={state} setState={setState} />
         </PortalLayout>
@@ -205,7 +211,7 @@ function ProcessDetailContent({ processId, state, setState }) {
         </section>
       ) : null}
 
-      <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+      <section className="grid gap-6">
         <div className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
           <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Partes do processo</p>
           <div className="mt-5 space-y-4">
@@ -236,95 +242,110 @@ function ProcessDetailContent({ processId, state, setState }) {
           </div>
         </div>
 
-        <div className="space-y-6">
-          <section className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Audiencias vinculadas</p>
-            <div className="mt-5 space-y-4">
-              {!state.audiencias.length ? <EmptyText>Nenhuma audiencia vinculada a este processo.</EmptyText> : null}
-              {state.audiencias.map((audiencia) => (
-                <article key={audiencia.id} className="rounded-2xl border border-[#20332D] bg-black/10 p-4">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <p className="text-sm font-semibold">{audiencia.title}</p>
-                  </div>
-                  <p className="mt-2 text-[11px] uppercase tracking-[0.16em] opacity-45">{formatDate(audiencia.date, true)}</p>
-                  {audiencia.summary ? <p className="mt-3 text-sm leading-6 opacity-65">{audiencia.summary}</p> : null}
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Andamentos recentes</p>
-            <div className="mt-5 space-y-5">
-              {!state.movements.length ? <EmptyText>Nenhum andamento sincronizado ainda.</EmptyText> : null}
-              {state.movements.map((movement) => (
-                <div key={movement.id} className="border-l-2 border-[#C49C56] pl-4">
-                  <p className="text-[11px] uppercase tracking-[0.16em] opacity-45">{formatDate(movement.date, true)}</p>
-                  <p className="mt-2 text-sm font-semibold">{movement.title}</p>
-                  {movement.body ? <p className="mt-2 text-sm leading-6 opacity-65">{movement.body}</p> : null}
-                  {movement.source ? <p className="mt-2 text-xs opacity-45">Fonte: {movement.source}</p> : null}
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Publicacoes vinculadas</p>
-              <Link href="/portal/publicacoes" prefetch={false} className="text-sm text-[#C49C56]">
-                Ver todas
-              </Link>
-            </div>
-            <div className="mt-5 space-y-4">
-              {!state.publications.length ? <EmptyText>Nenhuma publicacao vinculada a este processo.</EmptyText> : null}
-              {state.publications.map((publication) => (
-                <article key={publication.id} className="rounded-2xl border border-[#20332D] bg-black/10 p-4">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <p className="text-sm font-semibold">{publication.title}</p>
-                    {publication.status ? (
-                      <span className="rounded-full border border-[#31463F] px-3 py-1 text-[10px] uppercase tracking-[0.15em] opacity-70">
-                        {publication.status}
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-2 text-[11px] uppercase tracking-[0.16em] opacity-45">{formatDate(publication.date)}</p>
-                  {publication.summary ? <p className="mt-3 text-sm leading-6 opacity-65">{publication.summary}</p> : null}
-                  <div className="mt-3 flex flex-wrap gap-3 text-sm">
-                    {publication.source ? <span className="opacity-45">Fonte: {publication.source}</span> : null}
-                    {publication.url ? (
-                      <a href={publication.url} target="_blank" rel="noreferrer" className="text-[#C49C56]">
-                        Abrir publicacao
-                      </a>
-                    ) : null}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Documentos vinculados</p>
-            <div className="mt-5 space-y-4">
-              {!state.documents.length ? <EmptyText>Nenhum documento vinculado a este processo.</EmptyText> : null}
-              {state.documents.map((document) => (
-                <article key={document.id} className="rounded-2xl border border-[#20332D] bg-black/10 p-4">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <p className="text-sm font-semibold">{document.name}</p>
-                    {document.status_label ? (
-                      <span className="rounded-full border border-[#31463F] px-3 py-1 text-[10px] uppercase tracking-[0.15em] opacity-70">
-                        {document.status_label}
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-2 text-[11px] uppercase tracking-[0.16em] opacity-45">{formatDate(document.reference_date)}</p>
-                  {document.summary ? <p className="mt-3 text-sm leading-6 opacity-65">{document.summary}</p> : null}
-                  {document.url ? <a href={document.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-sm text-[#C49C56]">Abrir documento</a> : null}
-                </article>
-              ))}
-            </div>
-          </section>
-        </div>
+        <section className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Andamentos recentes</p>
+          <div className="mt-5 space-y-5">
+            {!state.movements.length ? <EmptyText>Nenhum andamento sincronizado ainda.</EmptyText> : null}
+            {state.movements.map((movement) => (
+              <div key={movement.id} className="border-l-2 border-[#C49C56] pl-4">
+                <p className="text-[11px] uppercase tracking-[0.16em] opacity-45">{formatDate(movement.date, true)}</p>
+                <p className="mt-2 text-sm font-semibold">{movement.title}</p>
+                {movement.body ? <p className="mt-2 text-sm leading-6 opacity-65">{movement.body}</p> : null}
+                {movement.source ? <p className="mt-2 text-xs opacity-45">Fonte: {movement.source}</p> : null}
+              </div>
+            ))}
+          </div>
+        </section>
       </section>
+    </div>
+  );
+}
+
+function RailPanel({ title, helper, children, defaultOpen = true }) {
+  return (
+    <details open={defaultOpen} className="group rounded-[24px] border border-[#20332D] bg-[rgba(255,255,255,0.02)]">
+      <summary className="flex cursor-pointer list-none items-start justify-between gap-4 px-5 py-4">
+        <div>
+          <p className="text-sm font-semibold">{title}</p>
+          {helper ? <p className="mt-1 text-xs leading-5 opacity-55">{helper}</p> : null}
+        </div>
+        <span className="text-xs uppercase tracking-[0.16em] opacity-45 transition group-open:rotate-180">⌄</span>
+      </summary>
+      <div className="border-t border-[#20332D] px-5 py-4">{children}</div>
+    </details>
+  );
+}
+
+function ProcessDetailRightRail({ state }) {
+  return (
+    <div className="space-y-4">
+      <RailPanel title="Widget Freshsales" helper="Reserva para CRM, sincronizacoes e suporte contextual.">
+        <div className="rounded-[20px] border border-dashed border-[#2F4B43] bg-[rgba(7,17,14,0.55)] p-4 text-sm opacity-68">
+          O painel lateral esta preparado para widgets do Freshsales e componentes externos de apoio ao processo.
+        </div>
+      </RailPanel>
+
+      <RailPanel title="Audiencias" helper="Compromissos e marcos vinculados ao processo.">
+        <div className="space-y-4">
+          {!state.audiencias.length ? <EmptyText>Nenhuma audiencia vinculada a este processo.</EmptyText> : null}
+          {state.audiencias.map((audiencia) => (
+            <article key={audiencia.id} className="rounded-2xl border border-[#20332D] bg-black/10 p-4">
+              <p className="text-sm font-semibold">{audiencia.title}</p>
+              <p className="mt-2 text-[11px] uppercase tracking-[0.16em] opacity-45">{formatDate(audiencia.date, true)}</p>
+              {audiencia.summary ? <p className="mt-3 text-sm leading-6 opacity-65">{audiencia.summary}</p> : null}
+            </article>
+          ))}
+        </div>
+      </RailPanel>
+
+      <RailPanel title="Publicacoes vinculadas" helper="Atualizacoes, recortes e publicacoes relacionadas ao caso.">
+        <div className="space-y-4">
+          {!state.publications.length ? <EmptyText>Nenhuma publicacao vinculada a este processo.</EmptyText> : null}
+          {state.publications.map((publication) => (
+            <article key={publication.id} className="rounded-2xl border border-[#20332D] bg-black/10 p-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-sm font-semibold">{publication.title}</p>
+                {publication.status ? (
+                  <span className="rounded-full border border-[#31463F] px-3 py-1 text-[10px] uppercase tracking-[0.15em] opacity-70">
+                    {publication.status}
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-2 text-[11px] uppercase tracking-[0.16em] opacity-45">{formatDate(publication.date)}</p>
+              {publication.summary ? <p className="mt-3 text-sm leading-6 opacity-65">{publication.summary}</p> : null}
+              <div className="mt-3 flex flex-wrap gap-3 text-sm">
+                {publication.source ? <span className="opacity-45">Fonte: {publication.source}</span> : null}
+                {publication.url ? (
+                  <a href={publication.url} target="_blank" rel="noreferrer" className="text-[#C49C56]">
+                    Abrir publicacao
+                  </a>
+                ) : null}
+              </div>
+            </article>
+          ))}
+        </div>
+      </RailPanel>
+
+      <RailPanel title="Documentos vinculados" helper="Arquivos e comprovantes associados ao processo.">
+        <div className="space-y-4">
+          {!state.documents.length ? <EmptyText>Nenhum documento vinculado a este processo.</EmptyText> : null}
+          {state.documents.map((document) => (
+            <article key={document.id} className="rounded-2xl border border-[#20332D] bg-black/10 p-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-sm font-semibold">{document.name}</p>
+                {document.status_label ? (
+                  <span className="rounded-full border border-[#31463F] px-3 py-1 text-[10px] uppercase tracking-[0.15em] opacity-70">
+                    {document.status_label}
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-2 text-[11px] uppercase tracking-[0.16em] opacity-45">{formatDate(document.reference_date)}</p>
+              {document.summary ? <p className="mt-3 text-sm leading-6 opacity-65">{document.summary}</p> : null}
+              {document.url ? <a href={document.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-sm text-[#C49C56]">Abrir documento</a> : null}
+            </article>
+          ))}
+        </div>
+      </RailPanel>
     </div>
   );
 }

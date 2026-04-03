@@ -32,6 +32,10 @@ export default function PortalPublicacoesPage() {
           profile={profile}
           title="Publicacoes"
           description="Leitura consolidada das publicacoes judiciais vinculadas aos seus processos, seguindo a mesma logica progressiva do painel do cliente."
+          breadcrumbs={[
+            { href: "/portal", label: "Portal" },
+            { label: "Publicacoes" },
+          ]}
         >
           <PublicacoesContent state={state} setState={setState} />
         </PortalLayout>

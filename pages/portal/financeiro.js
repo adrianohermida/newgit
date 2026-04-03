@@ -62,6 +62,10 @@ export default function PortalFinanceiroPage() {
           profile={profile}
           title="Financeiro"
           description="Controle financeiro extraido dos negocios do Freshsales, com leitura de faturas, assinaturas e vinculo com processos quando o CRM estiver sincronizado."
+          breadcrumbs={[
+            { href: "/portal", label: "Portal" },
+            { label: "Financeiro" },
+          ]}
         >
           <FinanceiroContent state={state} setState={setState} />
         </PortalLayout>
@@ -142,7 +146,7 @@ function FinanceiroContent({ state, setState }) {
   return (
     <div className="space-y-6">
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      {summaryCards.map((card) => (
+        {summaryCards.map((card) => (
           <article key={card.label} className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
             <p className="text-[11px] uppercase tracking-[0.18em] opacity-45">{card.label}</p>
             <p className="mt-4 font-serif text-3xl">{card.value}</p>
