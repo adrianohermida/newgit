@@ -42,7 +42,7 @@ export default function AgentLabConversationsPage() {
         <InternoLayout
           profile={profile}
           title="AgentLab | Conversas"
-          description="Painel de inteligencia conversacional com sync incremental de conversas internas, Freshsales e Freshchat."
+          description="Painel de inteligencia conversacional com sync incremental de conversas internas, Freshsales e Freshchat para treino, avaliacao e feedback loop."
         >
           <AgentLabModuleNav />
           <ConversationsContent state={state} syncState={syncState} runSync={runSync} />

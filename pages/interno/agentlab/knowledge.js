@@ -23,7 +23,7 @@ export default function AgentLabKnowledgePage() {
         <InternoLayout
           profile={profile}
           title="AgentLab · Conhecimento"
-          description="Governanca dos knowledge packs, fontes de resposta e backlog editorial que sustentam os agentes."
+          description="Governanca dos knowledge packs, fontes de resposta, ingestao documental e backlog editorial que sustentam os agentes."
         >
           <AgentLabModuleNav />
           <KnowledgeContent state={state} />

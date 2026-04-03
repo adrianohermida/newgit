@@ -163,17 +163,17 @@ export default function AgentLabOrquestracaoPage() {
       {(profile) => (
         <InternoLayout
           profile={profile}
-          title="AgentLab | Orquestracao"
-          description="Centro operacional para separar chatbot e agente de IA, com controle de intents, conhecimento, respostas rapidas e workflow library por agente."
+          title="AgentLab | Experimentos"
+          description="Centro operacional para separar chatbot e agente de IA, com controle de intents, conhecimento, respostas rapidas, workflow library e testes de comportamento por agente."
         >
           <AgentLabModuleNav />
           {state.loading ? (
-            <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando orquestracao...</div>
+            <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando experimentos...</div>
           ) : state.error ? (
             <div className="border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] p-6 text-sm">{state.error}</div>
           ) : (
             <div className="space-y-8">
-              <Panel title="Escopo de orquestracao">
+              <Panel title="Escopo de experimentos">
                 <div className="grid gap-4 md:grid-cols-[260px_1fr]">
                   <label className="block">
                     <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.15em]">Agente</span>

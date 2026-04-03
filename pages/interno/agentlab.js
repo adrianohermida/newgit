@@ -37,7 +37,7 @@ export default function AgentLabPage() {
         <InternoLayout
           profile={profile}
           title="AgentLab"
-          description="Cockpit administrativo para evoluir agentes, chatbot e recursos de CRM usados nas conversas de vendas e atendimento."
+          description="Laboratorio de inteligencia para evoluir agentes, treinar Dotobot, comparar provedores e transformar correcoes em melhoria continua."
         >
           <AgentLabModuleNav />
           <AgentLabContent state={state} />

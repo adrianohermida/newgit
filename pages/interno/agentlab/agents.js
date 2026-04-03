@@ -28,7 +28,7 @@ export default function AgentLabAgentsPage() {
         <InternoLayout
           profile={profile}
           title="AgentLab | Agentes"
-          description="Centro de configuracao persistente para chatbot, agente de IA, respostas rapidas, handoff e fila viva de melhoria."
+          description="Centro de configuracao persistente para chatbot, agente de IA, perfis, prompts, respostas rapidas, handoff e fila viva de melhoria."
         >
           <AgentLabModuleNav />
           <AgentsContent
