@@ -1301,7 +1301,8 @@ export async function listClientConsultas(env, email) {
   };
 }
 
-export async function listClientProcessos(env, email) {
+export async function listClientProcessos(env, email, options = {}) {
+  const statusFilter = String(options.status || "").trim().toLowerCase();
   const result = await tryFetchOptional(env, [
     {
       path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes&cliente_email=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=20`,
@@ -1393,6 +1394,7 @@ export async function listClientProcessos(env, email) {
     });
   });
   const mergedItems = Array.from(mergedMap.values());
+  const treeMap = await buildProcessTreeMap(env, mergedItems);
 
   const enrichedItems = await Promise.all(
     mergedItems.map(async (process) => {
@@ -1412,14 +1414,24 @@ export async function listClientProcessos(env, email) {
 
       return {
         ...process,
+        ...(treeMap.get(process.id) || {
+          parent_links: [],
+          child_links: [],
+          relation_tags: [],
+          total_related: 0,
+        }),
         ...summarizeProcessInsights(process, movements.slice(0, 5), publications.slice(0, 5)),
       };
     })
   );
 
+  const filteredItems = statusFilter
+    ? enrichedItems.filter((item) => item.status_group === statusFilter)
+    : enrichedItems;
+
   return {
     ...result,
-    items: enrichedItems,
+    items: filteredItems,
     warning: [result.warning, freshsalesWarning].filter(Boolean).join(" ").trim() || null,
   };
 }
@@ -1601,6 +1613,7 @@ export async function getClientProcessDetails(env, profile, processId) {
 
   const embeddedParts = Array.isArray(process.raw?.partes) ? process.raw.partes.map(normalizePartRow) : [];
   const embeddedMovements = Array.isArray(process.raw?.movimentacoes) ? process.raw.movimentacoes.map(normalizeMovementRow) : [];
+  const treeMap = await buildProcessTreeMap(env, [process]);
 
   const processCandidates = buildProcessIdentifierCandidates(process, processId);
   const [parts, movements, publications] = await Promise.all([
@@ -1618,6 +1631,12 @@ export async function getClientProcessDetails(env, profile, processId) {
   return {
     process: {
       ...process,
+      ...(treeMap.get(process.id) || {
+        parent_links: [],
+        child_links: [],
+        relation_tags: [],
+        total_related: 0,
+      }),
       ...insights,
     },
     parts,

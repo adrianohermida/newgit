@@ -23,7 +23,8 @@ export async function onRequestGet(context) {
     const url = new URL(request.url);
     const page = parsePositiveInt(url.searchParams.get("page"), 1);
     const pageSize = Math.min(parsePositiveInt(url.searchParams.get("pageSize"), 12), 50);
-    const payload = await listClientProcessos(env, auth.profile.email);
+    const status = String(url.searchParams.get("status") || "").trim();
+    const payload = await listClientProcessos(env, auth.profile.email, { status });
     const items = Array.isArray(payload.items) ? payload.items : [];
     const total = items.length;
     const startIndex = (page - 1) * pageSize;
@@ -33,6 +34,9 @@ export async function onRequestGet(context) {
       ok: true,
       items: pagedItems,
       warning: payload.warning || null,
+      filters: {
+        status: status || null,
+      },
       pagination: {
         page,
         pageSize,
