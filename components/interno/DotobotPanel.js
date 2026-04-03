@@ -5,9 +5,11 @@ import { adminFetch } from "../../lib/admin/api";
 const CHAT_STORAGE_PREFIX = "dotobot_internal_chat_v3";
 const TASK_STORAGE_PREFIX = "dotobot_internal_tasks_v2";
 const PREF_STORAGE_PREFIX = "dotobot_internal_prefs_v1";
+const CONVERSATIONS_STORAGE_PREFIX = "dotobot_internal_conversations_v2";
 const MAX_HISTORY = 80;
 const MAX_TASKS = 80;
 const MAX_ATTACHMENTS = 8;
+const MAX_CONVERSATIONS = 30;
 
 const MODE_OPTIONS = [
   { value: "chat", label: "Chat", hint: "Conversa assistida" },
@@ -46,6 +48,10 @@ const SLASH_COMMANDS = [
 function buildStorageKey(prefix, profile) {
   const profileId = profile?.id || profile?.email || "anonymous";
   return `${prefix}:${profileId}`;
+}
+
+function buildConversationStorageKey(profile) {
+  return buildStorageKey(CONVERSATIONS_STORAGE_PREFIX, profile);
 }
 
 function nowIso() {
@@ -117,6 +123,51 @@ function buildRagSummary(rag) {
 
 function getLastTask(taskHistory) {
   return taskHistory.find((task) => task.status === "running") || taskHistory[0] || null;
+}
+
+function safeText(value, fallback = "") {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function inferConversationTitle(messages = []) {
+  const firstUser = messages.find((item) => item.role === "user" && item.text);
+  if (!firstUser) return "Nova conversa";
+  const text = firstUser.text.replace(/\s+/g, " ").trim();
+  return text.length > 48 ? `${text.slice(0, 48).trim()}...` : text;
+}
+
+function summarizeConversation(conversation) {
+  const messages = Array.isArray(conversation?.messages) ? conversation.messages : [];
+  const lastMessage = messages[messages.length - 1];
+  const attachments = Array.isArray(conversation?.attachments) ? conversation.attachments : [];
+  const taskHistory = Array.isArray(conversation?.taskHistory) ? conversation.taskHistory : [];
+  return {
+    id: conversation?.id || `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    title: safeText(conversation?.title, inferConversationTitle(messages)),
+    archived: Boolean(conversation?.archived),
+    createdAt: conversation?.createdAt || nowIso(),
+    updatedAt: conversation?.updatedAt || nowIso(),
+    tags: Array.isArray(conversation?.tags) ? conversation.tags : [],
+    messages,
+    taskHistory,
+    attachments,
+    metadata: conversation?.metadata || {},
+    preview: safeText(conversation?.preview, lastMessage?.text || "Sem mensagens ainda"),
+  };
+}
+
+function createConversationFromState(state) {
+  return summarizeConversation({
+    id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    title: "Nova conversa",
+    messages: state.messages || [],
+    taskHistory: state.taskHistory || [],
+    attachments: state.attachments || [],
+    tags: state.tags || [],
+    metadata: state.metadata || {},
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  });
 }
 
 function renderRichText(text) {
@@ -202,8 +253,12 @@ export default function DotobotPanel({
   const chatStorageKey = useMemo(() => buildStorageKey(CHAT_STORAGE_PREFIX, profile), [profile]);
   const taskStorageKey = useMemo(() => buildStorageKey(TASK_STORAGE_PREFIX, profile), [profile]);
   const prefStorageKey = useMemo(() => buildStorageKey(PREF_STORAGE_PREFIX, profile), [profile]);
+  const conversationStorageKey = useMemo(() => buildConversationStorageKey(profile), [profile]);
   const [messages, setMessages] = useState([]);
   const [taskHistory, setTaskHistory] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [activeConversationId, setActiveConversationId] = useState(null);
+  const [conversationSearch, setConversationSearch] = useState("");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -226,13 +281,28 @@ export default function DotobotPanel({
     const savedMessages = safeParseArray(window.localStorage.getItem(chatStorageKey), MAX_HISTORY).filter(normalizeMessage);
     const savedTasks = safeParseArray(window.localStorage.getItem(taskStorageKey), MAX_TASKS);
     const savedPrefs = safeParseObject(window.localStorage.getItem(prefStorageKey), {});
-    setMessages(savedMessages);
-    setTaskHistory(savedTasks);
+    const savedConversations = safeParseArray(window.localStorage.getItem(conversationStorageKey), MAX_CONVERSATIONS)
+      .map(summarizeConversation)
+      .filter(Boolean);
+    const fallbackConversation = createConversationFromState({
+      messages: savedMessages,
+      taskHistory: savedTasks,
+      attachments: [],
+      metadata: {},
+    });
+    const nextConversations = savedConversations.length ? savedConversations : [fallbackConversation];
+    const nextActiveId = savedPrefs.activeConversationId || nextConversations[0]?.id || fallbackConversation.id;
+    const activeConversation = nextConversations.find((item) => item.id === nextActiveId) || nextConversations[0] || fallbackConversation;
+    setConversations(nextConversations);
+    setActiveConversationId(activeConversation.id);
+    setMessages(Array.isArray(activeConversation.messages) && activeConversation.messages.length ? activeConversation.messages : savedMessages);
+    setTaskHistory(Array.isArray(activeConversation.taskHistory) && activeConversation.taskHistory.length ? activeConversation.taskHistory : savedTasks);
+    setAttachments(Array.isArray(activeConversation.attachments) ? activeConversation.attachments : []);
     if (savedPrefs.mode) setMode(savedPrefs.mode);
     if (savedPrefs.provider) setProvider(savedPrefs.provider);
     if (typeof savedPrefs.contextEnabled === "boolean") setContextEnabled(savedPrefs.contextEnabled);
     setWorkspaceOpen(Boolean(savedPrefs.workspaceOpen || initialWorkspaceOpen));
-  }, [chatStorageKey, taskStorageKey, prefStorageKey, initialWorkspaceOpen]);
+  }, [chatStorageKey, taskStorageKey, prefStorageKey, conversationStorageKey, initialWorkspaceOpen]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -249,6 +319,22 @@ export default function DotobotPanel({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!conversations.length) return;
+    const next = conversations.map((conversation) => ({
+      ...summarizeConversation(conversation),
+      messages: conversation.id === activeConversationId ? messages.slice(-MAX_HISTORY) : conversation.messages || [],
+      taskHistory: conversation.id === activeConversationId ? taskHistory.slice(-MAX_TASKS) : conversation.taskHistory || [],
+      attachments: conversation.id === activeConversationId ? attachments.slice(0, MAX_ATTACHMENTS) : conversation.attachments || [],
+      updatedAt: conversation.id === activeConversationId ? nowIso() : conversation.updatedAt || nowIso(),
+      title: safeText(conversation.title, inferConversationTitle(conversation.messages || [])),
+      preview: conversation.id === activeConversationId ? safeText(messages[messages.length - 1]?.text, conversation.preview) : conversation.preview,
+    })).slice(0, MAX_CONVERSATIONS);
+    window.localStorage.setItem(conversationStorageKey, JSON.stringify(next));
+    setConversations(next);
+  }, [messages, taskHistory, attachments, activeConversationId, conversationStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     window.localStorage.setItem(
       prefStorageKey,
       JSON.stringify({
@@ -256,9 +342,10 @@ export default function DotobotPanel({
         provider,
         contextEnabled,
         workspaceOpen,
+        activeConversationId,
       })
     );
-  }, [mode, provider, contextEnabled, workspaceOpen, prefStorageKey]);
+  }, [mode, provider, contextEnabled, workspaceOpen, activeConversationId, prefStorageKey]);
 
   useEffect(() => {
     if (!workspaceOpen || typeof window === "undefined") return undefined;
@@ -317,8 +404,14 @@ export default function DotobotPanel({
     const nextMessages = [...messages, userMessage].slice(-MAX_HISTORY);
     setMessages(nextMessages);
     setInput("");
-    setAttachments([]);
     setShowSlashCommands(false);
+    if (activeConversationId) {
+      updateConversationById(activeConversationId, {
+        title: inferConversationTitle(nextMessages),
+        preview: trimmedQuestion,
+        messages: nextMessages,
+      });
+    }
 
     const taskId = `${Date.now()}_task`;
     setTaskHistory((current) => [
@@ -384,6 +477,15 @@ export default function DotobotPanel({
         createdAt: nowIso(),
       };
       setMessages((current) => [...current, assistantMessage].slice(-MAX_HISTORY));
+      if (activeConversationId) {
+        updateConversationById(activeConversationId, (current) => ({
+          ...current,
+          title: safeText(current.title, inferConversationTitle([...nextMessages, assistantMessage])),
+          preview: assistantMessage.text,
+          messages: [...nextMessages, assistantMessage].slice(-MAX_HISTORY),
+          taskHistory: taskHistory,
+        }));
+      }
 
       syncTaskHistory(taskId, (task) => ({
         ...task,
@@ -415,7 +517,15 @@ export default function DotobotPanel({
 
   function handleResetChat() {
     setMessages([]);
+    setAttachments([]);
     setError(null);
+    if (activeConversationId) {
+      updateConversationById(activeConversationId, {
+        messages: [],
+        attachments: [],
+        preview: "Sem mensagens ainda",
+      });
+    }
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(chatStorageKey);
     }
@@ -423,6 +533,11 @@ export default function DotobotPanel({
 
   function handleResetTasks() {
     setTaskHistory([]);
+    if (activeConversationId) {
+      updateConversationById(activeConversationId, {
+        taskHistory: [],
+      });
+    }
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(taskStorageKey);
     }
@@ -448,7 +563,21 @@ export default function DotobotPanel({
   function handleFileDrop(fileList) {
     const files = Array.from(fileList || []).slice(0, MAX_ATTACHMENTS - attachments.length);
     if (!files.length) return;
-    setAttachments((current) => [...current, ...files.map((file) => normalizeAttachment(file))].slice(0, MAX_ATTACHMENTS));
+    const normalized = files.map((file) => normalizeAttachment(file));
+    setAttachments((current) => [...current, ...normalized].slice(0, MAX_ATTACHMENTS));
+    if (activeConversationId) {
+      setConversations((current) =>
+        current.map((conversation) =>
+          conversation.id === activeConversationId
+            ? summarizeConversation({
+                ...conversation,
+                attachments: [...(conversation.attachments || []), ...normalized].slice(0, MAX_ATTACHMENTS),
+                updatedAt: nowIso(),
+              })
+            : conversation
+        )
+      );
+    }
   }
 
   function handleDrop(event) {
@@ -474,6 +603,116 @@ export default function DotobotPanel({
   function handleFilesSelected(event) {
     handleFileDrop(event.target.files);
     event.target.value = "";
+  }
+
+  function updateConversationById(conversationId, updater) {
+    if (!conversationId) return;
+    setConversations((current) =>
+      current.map((conversation) => {
+        if (conversation.id !== conversationId) return conversation;
+        const next = typeof updater === "function" ? updater(conversation) : updater;
+        return summarizeConversation({
+          ...conversation,
+          ...next,
+          updatedAt: nowIso(),
+        });
+      })
+    );
+  }
+
+  function createConversationFromCurrentState(title = inferConversationTitle(messages)) {
+    const nextConversation = summarizeConversation({
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      title,
+      messages: messages.slice(-MAX_HISTORY),
+      taskHistory: taskHistory.slice(-MAX_TASKS),
+      attachments: attachments.slice(0, MAX_ATTACHMENTS),
+      tags: [],
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    });
+    setConversations((current) => [nextConversation, ...current].slice(0, MAX_CONVERSATIONS));
+    setActiveConversationId(nextConversation.id);
+    return nextConversation;
+  }
+
+  function selectConversation(conversation) {
+    if (!conversation) return;
+    setActiveConversationId(conversation.id);
+    setMessages(Array.isArray(conversation.messages) ? conversation.messages : []);
+    setTaskHistory(Array.isArray(conversation.taskHistory) ? conversation.taskHistory : []);
+    setAttachments(Array.isArray(conversation.attachments) ? conversation.attachments : []);
+    setError(null);
+    setWorkspaceOpen(true);
+  }
+
+  function renameConversation(conversation) {
+    const currentTitle = conversation?.title || inferConversationTitle(conversation?.messages || []);
+    const nextTitle = typeof window !== "undefined" ? window.prompt("Renomear conversa", currentTitle) : null;
+    if (!nextTitle || !nextTitle.trim()) return;
+    updateConversationById(conversation.id, {
+      title: nextTitle.trim(),
+    });
+  }
+
+  function archiveConversation(conversation) {
+    updateConversationById(conversation.id, (current) => ({ archived: !current.archived }));
+  }
+
+  function deleteConversation(conversation) {
+    if (typeof window !== "undefined" && !window.confirm(`Excluir a conversa "${conversation.title || "sem titulo"}"?`)) {
+      return;
+    }
+    setConversations((current) => {
+      const next = current.filter((item) => item.id !== conversation.id);
+      if (next.length) return next;
+      const replacement = summarizeConversation({
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        title: "Nova conversa",
+        messages: [],
+        taskHistory: [],
+        attachments: [],
+        tags: [],
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+      });
+      setActiveConversationId(replacement.id);
+      setMessages([]);
+      setTaskHistory([]);
+      setAttachments([]);
+      return [replacement];
+    });
+    if (conversation.id === activeConversationId) {
+      const next = conversations.find((item) => item.id !== conversation.id) || null;
+      if (next) {
+        selectConversation(next);
+      }
+    }
+  }
+
+  function attachFilesToConversation(conversationId, files) {
+    const attachmentsToAdd = Array.from(files || [])
+      .slice(0, MAX_ATTACHMENTS)
+      .map((file) => normalizeAttachment(file));
+    if (!attachmentsToAdd.length) return;
+    if (!conversationId) {
+      setAttachments((current) => [...current, ...attachmentsToAdd].slice(0, MAX_ATTACHMENTS));
+      return;
+    }
+    setConversations((current) =>
+      current.map((conversation) =>
+        conversation.id === conversationId
+          ? summarizeConversation({
+              ...conversation,
+              attachments: [...(conversation.attachments || []), ...attachmentsToAdd].slice(0, MAX_ATTACHMENTS),
+              updatedAt: nowIso(),
+            })
+          : conversation
+      )
+    );
+    if (conversationId === activeConversationId) {
+      setAttachments((current) => [...current, ...attachmentsToAdd].slice(0, MAX_ATTACHMENTS));
+    }
   }
 
   function handleQuickAction(prompt) {
@@ -565,6 +804,21 @@ export default function DotobotPanel({
   const activeProviderLabel = PROVIDER_OPTIONS.find((item) => item.value === provider)?.label || "GPT";
   const isWorkspaceShell = workspaceOpen;
   const railCollapsed = compactRail ? true : collapsed;
+  const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
+  const filteredConversations = conversations.filter((conversation) => {
+    if (conversation.archived) return false;
+    if (!conversationSearch.trim()) return true;
+    const haystack = [
+      conversation.title,
+      conversation.preview,
+      ...(conversation.tags || []),
+      ...(Array.isArray(conversation.messages) ? conversation.messages.map((message) => message.text) : []),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(conversationSearch.toLowerCase());
+  });
 
   return (
     <>
