@@ -1,9 +1,13 @@
 import { requireAdminNode } from "../../lib/admin/node-auth.js";
 import {
   executeCrmDispatchRun,
+  upsertIntent,
+  upsertKnowledgeSource,
+  upsertQuickReply,
   upsertCrmAutomationRule,
   upsertCrmResourceMap,
   upsertMessageTemplate,
+  upsertWorkflowLibraryItem,
   updateAgentLabProfile,
   updateCrmActionQueueItem,
   updateCrmDispatchRun,
@@ -45,6 +49,26 @@ export default async function handler(req, res) {
 
     if (action === "upsert_message_template") {
       const item = await upsertMessageTemplate(process.env, req.body || {});
+      return res.status(200).json({ ok: true, item });
+    }
+
+    if (action === "upsert_quick_reply") {
+      const item = await upsertQuickReply(process.env, req.body || {});
+      return res.status(200).json({ ok: true, item });
+    }
+
+    if (action === "upsert_intent") {
+      const item = await upsertIntent(process.env, req.body || {});
+      return res.status(200).json({ ok: true, item });
+    }
+
+    if (action === "upsert_knowledge_source") {
+      const item = await upsertKnowledgeSource(process.env, req.body || {});
+      return res.status(200).json({ ok: true, item });
+    }
+
+    if (action === "upsert_workflow_library_item") {
+      const item = await upsertWorkflowLibraryItem(process.env, req.body || {});
       return res.status(200).json({ ok: true, item });
     }
 

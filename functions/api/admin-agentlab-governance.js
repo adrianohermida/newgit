@@ -3,9 +3,13 @@ import {
   executeCrmDispatchRun,
   jsonError,
   jsonOk,
+  upsertIntent,
+  upsertKnowledgeSource,
+  upsertQuickReply,
   upsertCrmAutomationRule,
   upsertCrmResourceMap,
   upsertMessageTemplate,
+  upsertWorkflowLibraryItem,
   updateCrmActionQueueItem,
   updateCrmDispatchRun,
   updateAgentLabProfile,
@@ -44,6 +48,26 @@ export async function onRequestPatch(context) {
 
     if (action === "upsert_message_template") {
       const item = await upsertMessageTemplate(context.env, body);
+      return jsonOk({ item });
+    }
+
+    if (action === "upsert_quick_reply") {
+      const item = await upsertQuickReply(context.env, body);
+      return jsonOk({ item });
+    }
+
+    if (action === "upsert_intent") {
+      const item = await upsertIntent(context.env, body);
+      return jsonOk({ item });
+    }
+
+    if (action === "upsert_knowledge_source") {
+      const item = await upsertKnowledgeSource(context.env, body);
+      return jsonOk({ item });
+    }
+
+    if (action === "upsert_workflow_library_item") {
+      const item = await upsertWorkflowLibraryItem(context.env, body);
       return jsonOk({ item });
     }
 

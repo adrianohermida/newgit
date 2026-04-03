@@ -19,6 +19,7 @@ export default function AgentLabAgentsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [queueMessage, setQueueMessage] = useState(null);
+  const [quickReplyMessage, setQuickReplyMessage] = useState(null);
 
   return (
     <RequireAdmin>
@@ -37,6 +38,8 @@ export default function AgentLabAgentsPage() {
             setMessage={setMessage}
             queueMessage={queueMessage}
             setQueueMessage={setQueueMessage}
+            quickReplyMessage={quickReplyMessage}
+            setQuickReplyMessage={setQuickReplyMessage}
           />
         </InternoLayout>
       )}
@@ -44,12 +47,19 @@ export default function AgentLabAgentsPage() {
   );
 }
 
-function AgentsContent({ state, saving, setSaving, message, setMessage, queueMessage, setQueueMessage }) {
+function AgentsContent({ state, saving, setSaving, message, setMessage, queueMessage, setQueueMessage, quickReplyMessage, setQuickReplyMessage }) {
   const profile = useMemo(() => state.data?.governance?.profiles?.[0] || null, [state.data]);
   const queue = state.data?.governance?.queue || [];
   const quickReplies = state.data?.governance?.quickReplies || [];
   const handoffPlaybooks = state.data?.governance?.handoffPlaybooks || [];
   const catalog = state.data?.agents || [];
+  const [quickReplyForm, setQuickReplyForm] = useState({
+    category: "financeiro",
+    title: "",
+    shortcut: "",
+    body: "",
+    status: "active",
+  });
   const [form, setForm] = useState(null);
 
   useEffect(() => {
@@ -119,6 +129,32 @@ function AgentsContent({ state, saving, setSaving, message, setMessage, queueMes
     }
   }
 
+  async function handleSaveQuickReply() {
+    try {
+      setQuickReplyMessage(null);
+      await adminFetch("/api/admin-agentlab-governance", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "upsert_quick_reply",
+          agent_ref: "dotobot-ai",
+          ...quickReplyForm,
+        }),
+      });
+      setQuickReplyMessage("Resposta rapida salva.");
+      setQuickReplyForm({
+        category: "financeiro",
+        title: "",
+        shortcut: "",
+        body: "",
+        status: "active",
+      });
+      state.refresh();
+    } catch (error) {
+      setQuickReplyMessage(error.message);
+    }
+  }
+
   return (
     <div className="space-y-8">
       <div className="grid gap-6 xl:grid-cols-[1.45fr_1fr]">
@@ -176,6 +212,44 @@ function AgentsContent({ state, saving, setSaving, message, setMessage, queueMes
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Panel title="Respostas rapidas prioritarias">
+          {quickReplyMessage ? <div className="mb-4 text-sm opacity-75">{quickReplyMessage}</div> : null}
+          <div className="grid gap-4 mb-6 md:grid-cols-2">
+            <input
+              value={quickReplyForm.title}
+              onChange={(event) => setQuickReplyForm((current) => ({ ...current, title: event.target.value }))}
+              className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              placeholder="Titulo da resposta rapida"
+            />
+            <input
+              value={quickReplyForm.shortcut}
+              onChange={(event) => setQuickReplyForm((current) => ({ ...current, shortcut: event.target.value }))}
+              className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              placeholder="/atalho"
+            />
+            <input
+              value={quickReplyForm.category}
+              onChange={(event) => setQuickReplyForm((current) => ({ ...current, category: event.target.value }))}
+              className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              placeholder="Categoria"
+            />
+            <input
+              value={quickReplyForm.status}
+              onChange={(event) => setQuickReplyForm((current) => ({ ...current, status: event.target.value }))}
+              className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              placeholder="Status"
+            />
+            <textarea
+              value={quickReplyForm.body}
+              onChange={(event) => setQuickReplyForm((current) => ({ ...current, body: event.target.value }))}
+              className="min-h-[100px] md:col-span-2 border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              placeholder="Texto da resposta"
+            />
+            <div className="md:col-span-2">
+              <button type="button" onClick={handleSaveQuickReply} className="border border-[#C5A059] px-4 py-3 text-sm">
+                Salvar resposta rapida
+              </button>
+            </div>
+          </div>
           <div className="space-y-4 text-sm opacity-75">
             {quickReplies.map((item) => (
               <div key={item.id} className="border border-[#2D2E2E] p-4">
