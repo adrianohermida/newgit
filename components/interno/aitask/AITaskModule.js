@@ -923,7 +923,7 @@ export default function AITaskModule({ profile, routePath }) {
             <p className="mt-1 text-sm text-[#9BAEA8]">Enter envia, Shift+Enter quebra linha.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {QUICK_PROMPTS.slice(0, 4).map((value) => (
+            {QUICK_MISSIONS.slice(0, 4).map((value) => (
               <button
                 key={value}
                 type="button"
