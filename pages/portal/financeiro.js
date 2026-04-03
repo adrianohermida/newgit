@@ -61,11 +61,13 @@ export default function PortalFinanceiroPage() {
         <PortalLayout
           profile={profile}
           title="Financeiro"
-          description="Controle financeiro extraido dos negocios do Freshsales, com leitura de faturas, assinaturas e vinculo com processos quando o CRM estiver sincronizado."
+          description="Acompanhe cobrancas, pagamentos e servicos financeiros vinculados ao seu atendimento e aos seus processos."
           breadcrumbs={[
             { href: "/portal", label: "Portal" },
             { label: "Financeiro" },
           ]}
+          rightRailLabel="painel de apoio"
+          rightRailDefaultOpen={false}
         >
           <FinanceiroContent state={state} setState={setState} />
         </PortalLayout>
@@ -120,9 +122,9 @@ function FinanceiroContent({ state, setState }) {
   const summaryCards = useMemo(() => {
     const summary = state.summary || {};
     return [
-      { label: "Negocios financeiros", value: summary.total_items || 0, helper: "Deals pareados ao contato" },
-      { label: "Faturas", value: summary.invoices || 0, helper: "Associadas a processo/account" },
-      { label: "Assinaturas", value: summary.subscriptions || 0, helper: "Planos recorrentes identificados" },
+      { label: "Lancamentos", value: summary.total_items || 0, helper: "Itens financeiros vinculados ao seu atendimento" },
+      { label: "Faturas", value: summary.invoices || 0, helper: "Cobrancas associadas a processos ou servicos" },
+      { label: "Planos", value: summary.subscriptions || 0, helper: "Servicos recorrentes identificados" },
       { label: "Em aberto", value: formatMoney(summary.open_amount || 0), helper: "Valor pendente estimado" },
     ];
   }, [state.summary]);
@@ -168,7 +170,7 @@ function FinanceiroContent({ state, setState }) {
 
       <section className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-5">
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-sm opacity-62">Filtrar negocios:</p>
+          <p className="text-sm opacity-62">Filtrar itens:</p>
           {DEAL_FILTERS.map((option) => {
             const active = activeFilter === option.value;
             return (
@@ -187,40 +189,33 @@ function FinanceiroContent({ state, setState }) {
             );
           })}
         </div>
-        <p className="mt-3 text-sm opacity-62">Exibindo {Math.min(filteredDeals.length, visibleCounts.filtered)} de {filteredDeals.length} negocio(s) no filtro atual.</p>
+        <p className="mt-3 text-sm opacity-62">Exibindo {Math.min(filteredDeals.length, visibleCounts.filtered)} de {filteredDeals.length} item(ns) no filtro atual.</p>
       </section>
 
       <FinanceSection
-        title="Visao consolidada de deals"
-        description="Leitura geral com filtro rapido, lazy load e contexto dos processos/accounts associados."
+        title="Visao consolidada"
+        description="Leitura geral com filtro rapido e contexto dos processos vinculados."
         items={filteredDeals}
-        emptyMessage="Nenhum negocio encontrado para o filtro atual."
+        emptyMessage="Nenhum item encontrado para o filtro atual."
         visibleCount={visibleCounts.filtered}
         onLoadMore={() => setVisibleCounts((current) => ({ ...current, filtered: current.filtered + SECTION_PAGE_SIZE }))}
       />
 
       {!state.items.length ? (
         <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-8 text-sm opacity-75">
-          Nenhum negocio financeiro apareceu para o seu contato no Freshsales neste momento.
+          Nenhum item financeiro apareceu para o seu cadastro neste momento.
         </div>
       ) : null}
 
       {(state.linkedAccounts?.length || state.diagnostics) ? (
         <section className="rounded-[30px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
           <div className="max-w-3xl">
-            <p className="text-[11px] uppercase tracking-[0.18em] opacity-45">Contexto do pareamento</p>
-            <h3 className="mt-3 font-serif text-3xl">Accounts vinculados ao seu portal</h3>
+            <p className="text-[11px] uppercase tracking-[0.18em] opacity-45">Processos vinculados</p>
+            <h3 className="mt-3 font-serif text-3xl">Processos relacionados a esta area financeira</h3>
             <p className="mt-3 text-sm leading-7 opacity-62">
-              Mesmo quando os deals ainda nao aparecem na grade final, o portal mostra aqui os Sales Accounts relacionados ao seu cadastro e os indicadores usados para montar o modulo financeiro.
+              Quando houver cobrancas ou servicos vinculados a processos especificos, voce pode identificá-los por aqui.
             </p>
           </div>
-          {state.diagnostics ? (
-            <div className="mt-5 grid gap-4 md:grid-cols-3">
-              <Metric label="Contatos pareados" value={state.diagnostics.contacts_found || 0} />
-              <Metric label="Accounts vinculados" value={state.diagnostics.linked_accounts || 0} />
-              <Metric label="Deals localizados" value={state.diagnostics.related_deals || 0} />
-            </div>
-          ) : null}
           <div className="mt-5 grid gap-4 xl:grid-cols-2">
             {(state.linkedAccounts || []).map((account) => (
               <article key={account.id} className="rounded-[24px] border border-[#20332D] bg-[rgba(6,10,9,0.45)] p-5">
@@ -228,7 +223,6 @@ function FinanceiroContent({ state, setState }) {
                 <p className="mt-2 text-xs opacity-60">{account.process_reference || "Sem referencia de processo"}</p>
                 <div className="mt-3 flex flex-wrap gap-3 text-xs opacity-70">
                   {account.status ? <span>Status: {account.status}</span> : null}
-                  <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${account.id}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C49C56]">Abrir account</a>
                 </div>
               </article>
             ))}
@@ -238,7 +232,7 @@ function FinanceiroContent({ state, setState }) {
 
       <FinanceSection
         title="Faturas e cobrancas"
-        description="Deals financeiros vinculados a processos/accounts do CRM."
+        description="Cobrancas e itens financeiros vinculados aos seus processos ou servicos."
         items={state.invoices}
         emptyMessage="Nenhuma fatura vinculada apareceu para este contato."
         visibleCount={visibleCounts.invoices}
@@ -247,7 +241,7 @@ function FinanceiroContent({ state, setState }) {
 
       <FinanceSection
         title="Assinaturas e planos"
-        description="Negocios recorrentes ou planos reconhecidos pelo catalogo de campos do Freshsales."
+        description="Servicos recorrentes ou planos de acompanhamento financeiro."
         items={state.subscriptions}
         emptyMessage="Nenhuma assinatura ativa foi identificada para este contato."
         visibleCount={visibleCounts.subscriptions}
@@ -257,7 +251,7 @@ function FinanceiroContent({ state, setState }) {
       {(state.summary?.refunds || 0) > 0 ? (
         <FinanceSection
           title="Reembolsos"
-          description="Deals classificados como reembolso no Freshsales."
+          description="Valores devolvidos ou creditos associados ao seu atendimento."
           items={state.items.filter((item) => item.kind === "refund")}
           emptyMessage=""
           visibleCount={visibleCounts.refunds}
@@ -267,8 +261,8 @@ function FinanceiroContent({ state, setState }) {
 
       {state.others.length ? (
         <FinanceSection
-          title="Outros negocios"
-          description="Deals ainda sem classificacao segura entre fatura e assinatura."
+          title="Outros lancamentos"
+          description="Itens financeiros ainda em classificacao ou sem categoria principal."
           items={state.others}
           emptyMessage=""
           visibleCount={visibleCounts.others}
@@ -276,8 +270,6 @@ function FinanceiroContent({ state, setState }) {
         />
       ) : null}
 
-      {state.mapping ? <MappingInsightCard mapping={state.mapping} /> : null}
-      {state.fieldCatalog ? <FieldCatalogCard fieldCatalog={state.fieldCatalog} /> : null}
     </div>
   );
 }

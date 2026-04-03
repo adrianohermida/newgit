@@ -115,6 +115,9 @@ function EnvironmentContent({ state }) {
           <p>Host do widget: {freshchatWeb.widgetHost || "nao informado"}</p>
           <p>Token do Web Messenger: {freshchatWeb.messengerTokenPresent ? "presente" : "ausente"}</p>
           <p>JWT: {freshchatWeb.jwtEnabled ? "habilitado" : "nao configurado"}</p>
+          <p>Env do host em uso: {freshchatWeb.resolvedKeys?.host || "nenhuma detectada"}</p>
+          <p>Env do token em uso: {freshchatWeb.resolvedKeys?.token || "nenhuma detectada"}</p>
+          <p>Env do JWT em uso: {freshchatWeb.resolvedKeys?.jwtSecret || "nenhuma detectada"}</p>
           <p>{freshchatWeb.message || "Sem diagnostico adicional."}</p>
           {(freshchatWeb.issues || []).length ? (
             <div>
@@ -126,6 +129,14 @@ function EnvironmentContent({ state }) {
               </ul>
             </div>
           ) : null}
+          <div>
+            <p className="font-semibold">Nomes de env aceitos:</p>
+            <ul className="mt-2 space-y-1">
+              <li>Host: {(freshchatWeb.acceptedKeys?.host || []).join(", ") || "n/a"}</li>
+              <li>Token: {(freshchatWeb.acceptedKeys?.token || []).join(", ") || "n/a"}</li>
+              <li>JWT: {(freshchatWeb.acceptedKeys?.jwtSecret || []).join(", ") || "n/a"}</li>
+            </ul>
+          </div>
         </div>
       </Panel>
 

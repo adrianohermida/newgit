@@ -36,16 +36,23 @@ export default function PortalProcessDetailPage() {
         <PortalLayout
           profile={profile}
           title="Detalhe do processo"
-          description="Painel de acompanhamento processual com capa, partes, andamentos e publicacoes relevantes do seu caso."
+          description="Visao detalhada do processo, com atos relevantes, documentos, servicos e proximos passos do seu caso."
           breadcrumbs={[
             { href: "/portal", label: "Portal" },
             { href: "/portal/processos", label: "Processos" },
             { label: "Detalhe" },
           ]}
+          rightRailLabel="painel do processo"
+          rightRailDefaultOpen={true}
           actions={
-            <Link href="/portal/processos" prefetch={false} className="rounded-2xl border border-[#20332D] px-4 py-3 text-sm transition hover:border-[#C49C56]">
-              Voltar aos processos
-            </Link>
+            <>
+              <a href="/agendamento" className="rounded-2xl bg-[#C49C56] px-4 py-3 text-sm font-semibold text-[#07110E] transition hover:brightness-110">
+                Agendar consulta
+              </a>
+              <Link href="/portal/processos" prefetch={false} className="rounded-2xl border border-[#20332D] px-4 py-3 text-sm transition hover:border-[#C49C56]">
+                Voltar aos processos
+              </Link>
+            </>
           }
           rightRail={<ProcessDetailRightRail state={state} />}
         >
@@ -277,15 +284,36 @@ function RailPanel({ title, helper, children, defaultOpen = true }) {
 }
 
 function ProcessDetailRightRail({ state }) {
+  const processNumber = state.process?.number || state.process?.id || "processo";
+  const supportHref = `/portal/tickets?subject=${encodeURIComponent(`Solicitacao sobre o processo ${processNumber}`)}&description=${encodeURIComponent(`Preciso de apoio do escritorio em relacao ao processo ${processNumber}.`)}`;
+  const copyRequestHref = `/portal/tickets?subject=${encodeURIComponent(`Solicitacao de copia do processo ${processNumber}`)}&description=${encodeURIComponent(`Solicito copia integral do processo ${processNumber} para consulta no portal.`)}`;
+
   return (
     <div className="space-y-4">
-      <RailPanel title="Widget Freshsales" helper="Reserva para CRM, sincronizacoes e suporte contextual.">
-        <div className="rounded-[20px] border border-dashed border-[#2F4B43] bg-[rgba(7,17,14,0.55)] p-4 text-sm opacity-68">
-          O painel lateral esta preparado para widgets do Freshsales e componentes externos de apoio ao processo.
+      <RailPanel title="Acoes deste processo" helper="Atalhos rapidos para servicos e atendimento relacionados a este caso.">
+        <div className="space-y-3">
+          <a href="/agendamento" className="block rounded-2xl bg-[#C49C56] px-4 py-3 text-sm font-semibold text-[#07110E] transition hover:brightness-110">
+            Agendar consulta sobre este processo
+          </a>
+          <Link href={supportHref} prefetch={false} className="block rounded-2xl border border-[#20332D] px-4 py-3 text-sm transition hover:border-[#C49C56]">
+            Abrir solicitacao ao escritorio
+          </Link>
+          <Link href={copyRequestHref} prefetch={false} className="block rounded-2xl border border-[#20332D] px-4 py-3 text-sm transition hover:border-[#C49C56]">
+            Solicitar copia do processo
+          </Link>
         </div>
       </RailPanel>
 
-      <RailPanel title="Audiencias" helper="Compromissos e marcos vinculados ao processo.">
+      <RailPanel title="Processos relacionados" helper="Apensos, dependencias, incidentes e recursos vinculados ao caso.">
+        <div className="space-y-4">
+          {!state.process?.total_related ? <EmptyText>Nenhum processo relacionado encontrado.</EmptyText> : null}
+          {[(state.process?.parent_links || []), (state.process?.child_links || [])].flat().map((relation) => (
+            <RelationCard key={`rail-${relation.id}`} relation={relation} />
+          ))}
+        </div>
+      </RailPanel>
+
+      <RailPanel title="Proximas audiencias" helper="Compromissos e marcos vinculados ao processo.">
         <div className="space-y-4">
           {!state.audiencias.length ? <EmptyText>Nenhuma audiencia vinculada a este processo.</EmptyText> : null}
           {state.audiencias.map((audiencia) => (
@@ -298,7 +326,16 @@ function ProcessDetailRightRail({ state }) {
         </div>
       </RailPanel>
 
-      <RailPanel title="Publicacoes vinculadas" helper="Atualizacoes, recortes e publicacoes relacionadas ao caso.">
+      <RailPanel title="Custas e honorarios" helper="Resumo financeiro associado ao caso, quando disponivel.">
+        <div className="space-y-3 text-sm opacity-68">
+          <p>Quando houver custas, honorarios ou cobrancas ligadas a este processo, elas aparecerao aqui para facilitar o acompanhamento.</p>
+          <Link href="/portal/financeiro" prefetch={false} className="inline-flex text-[#C49C56]">
+            Abrir area financeira
+          </Link>
+        </div>
+      </RailPanel>
+
+      <RailPanel title="Publicacoes recentes" helper="Atualizacoes, recortes e publicacoes relacionadas ao caso.">
         <div className="space-y-4">
           {!state.publications.length ? <EmptyText>Nenhuma publicacao vinculada a este processo.</EmptyText> : null}
           {state.publications.map((publication) => (
@@ -326,7 +363,16 @@ function ProcessDetailRightRail({ state }) {
         </div>
       </RailPanel>
 
-      <RailPanel title="Documentos vinculados" helper="Arquivos e comprovantes associados ao processo.">
+      <RailPanel title="Solicitacoes do caso" helper="Pedidos e atendimentos relacionados a este processo.">
+        <div className="space-y-3 text-sm opacity-68">
+          <p>Use a central de solicitacoes para pedir apoio, enviar contexto adicional ou acompanhar pedidos ligados a este processo.</p>
+          <Link href={supportHref} prefetch={false} className="inline-flex text-[#C49C56]">
+            Ir para a central de solicitacoes
+          </Link>
+        </div>
+      </RailPanel>
+
+      <RailPanel title="Documentos e pendencias" helper="Arquivos e comprovantes associados ao processo.">
         <div className="space-y-4">
           {!state.documents.length ? <EmptyText>Nenhum documento vinculado a este processo.</EmptyText> : null}
           {state.documents.map((document) => (

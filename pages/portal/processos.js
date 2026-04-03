@@ -65,7 +65,9 @@ export default function PortalProcessosPage() {
         <PortalLayout
           profile={profile}
           title="Processos"
-          description="Acompanhe sua carteira processual com leitura progressiva do schema judiciario: capa do processo, partes, andamentos e publicacoes quando a fonte estiver disponivel."
+          description="Acompanhe sua carteira processual, veja atos recentes e abra o detalhe do caso quando houver informacoes disponiveis."
+          rightRailLabel="painel de apoio"
+          rightRailDefaultOpen={false}
         >
           <ProcessosContent state={state} setState={setState} router={router} />
         </PortalLayout>
@@ -207,7 +209,7 @@ function ProcessosContent({ state, setState, router }) {
           <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Carteira vazia</p>
           <h3 className="mt-3 font-serif text-3xl">Nenhum processo disponivel no portal para o seu cadastro.</h3>
           <p className="mt-3 max-w-2xl text-sm leading-6 opacity-65">
-            Quando o schema judiciario estiver ligado ao seu cadastro, os processos aparecerao aqui com acesso ao detalhe, partes, andamentos e publicacoes.
+            Assim que a base processual do escritorio estiver vinculada ao seu cadastro, os processos aparecerao aqui com acesso ao detalhe, partes, andamentos e publicacoes.
           </p>
         </div>
       ) : null}

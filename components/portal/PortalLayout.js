@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Script from "next/script";
 import { useRouter } from "next/router";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSupabaseBrowser } from "../../lib/supabase";
 
 const FRESHWORKS_PORTAL_SCRIPT_URL = "//eu.fw-cdn.com/10713913/375987.js";
@@ -11,7 +11,7 @@ const NAV_ITEMS = [
   { href: "/portal", label: "Visao geral", icon: "overview" },
   { href: "/portal/processos", label: "Processos", icon: "briefcase" },
   { href: "/portal/publicacoes", label: "Publicacoes", icon: "megaphone" },
-  { href: "/portal/tickets", label: "Tickets", icon: "support" },
+  { href: "/portal/tickets", label: "Solicitacoes", icon: "support" },
   { href: "/portal/consultas", label: "Consultas", icon: "calendar" },
   { href: "/portal/documentos", label: "Documentos", icon: "folder" },
   { href: "/portal/financeiro", label: "Financeiro", icon: "wallet" },
@@ -136,20 +136,20 @@ function DefaultRightRail({ title, profile, officeWhatsapp }) {
   return (
     <div className="space-y-4">
       <RightRailPanel
-        title="Atendimento no portal"
-        subtitle="Suporte integrado ao workspace do cliente."
+        title="Apoio ao cliente"
+        subtitle="Canal de atendimento e orientacao dentro do portal."
         icon={<NavIcon name="wallet" active={false} />}
       >
         <div className="space-y-3 text-sm">
           <div className="rounded-[18px] border border-[#2D463F] bg-[rgba(196,156,86,0.05)] p-4">
             <p className="font-semibold text-[#F5F1E8]">Chat do escritorio ativo</p>
             <p className="mt-2 text-sm leading-6 text-[#A3B5AF]">
-              O Freshworks foi reservado para suporte operacional, financeiro e documental sem tirar o cliente do portal.
+              Use o atendimento do portal para tirar duvidas, pedir apoio e acompanhar respostas do escritorio sem sair desta area.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <MetricChip label="Canal" value="Freshworks" />
-            <MetricChip label="Modo" value="Chat ativo" />
+            <MetricChip label="Canal" value="Atendimento" />
+            <MetricChip label="Modo" value="Disponivel" />
           </div>
           <p className="text-xs leading-5 text-[#81948D]">
             O widget pode levar alguns segundos para aparecer no canto da tela apos o carregamento.
@@ -197,14 +197,21 @@ export default function PortalLayout({
   actions = null,
   breadcrumbs = [],
   rightRail = null,
+  rightRailLabel = "painel lateral",
+  rightRailDefaultOpen = false,
 }) {
   const router = useRouter();
   const { supabase } = useSupabaseBrowser();
+  const [isRailOpen, setIsRailOpen] = useState(rightRailDefaultOpen);
 
   const officeWhatsapp = useMemo(() => {
     const value = profile?.metadata?.office_whatsapp || "";
     return String(value || "").replace(/\D/g, "");
   }, [profile?.metadata?.office_whatsapp]);
+
+  useEffect(() => {
+    setIsRailOpen(rightRailDefaultOpen);
+  }, [rightRailDefaultOpen, router.asPath]);
 
   async function handleSignOut() {
     if (supabase) {
@@ -224,7 +231,7 @@ export default function PortalLayout({
       />
 
       <div className="w-full px-3 py-3 md:px-4 xl:px-5">
-        <div className="grid min-h-[calc(100vh-1.5rem)] gap-3 xl:grid-cols-[272px_minmax(0,1fr)_320px]">
+        <div className={`grid min-h-[calc(100vh-1.5rem)] gap-3 ${isRailOpen ? "xl:grid-cols-[272px_minmax(0,1fr)_320px]" : "xl:grid-cols-[272px_minmax(0,1fr)]"}`}>
           <aside className="xl:sticky xl:top-3 xl:h-[calc(100vh-1.5rem)]">
             <div className="flex h-full flex-col rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(10,18,16,0.98),rgba(8,15,13,0.94))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.22)]">
               <Link href="/portal" prefetch={false} className="mb-8 block">
@@ -268,7 +275,7 @@ export default function PortalLayout({
                 <div className="rounded-[22px] border border-[#1D2E29] bg-[rgba(255,255,255,0.02)] p-4">
                   <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">Workspace</p>
                   <p className="mt-2 text-sm font-medium text-[#F5F1E8]">Organizacao por contexto</p>
-                  <p className="mt-2 text-sm leading-6 text-[#92A59F]">A barra lateral navega. O centro executa. A direita apoia com CRM, documentos e pendencias.</p>
+                  <p className="mt-2 text-sm leading-6 text-[#92A59F]">A barra lateral navega. O centro executa. O painel lateral apoia com documentos, apoio e pendencias quando necessario.</p>
                 </div>
 
                 {officeWhatsapp ? (
@@ -302,18 +309,29 @@ export default function PortalLayout({
                   <h2 className="text-3xl font-semibold tracking-[-0.035em] text-[#F8F4EB] md:text-[38px]">{title}</h2>
                   {description ? <p className="mt-3 max-w-3xl text-sm leading-7 text-[#99ADA6]">{description}</p> : null}
                 </div>
-                {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
+                <div className="flex flex-wrap gap-3">
+                  {actions}
+                  <button
+                    type="button"
+                    onClick={() => setIsRailOpen((current) => !current)}
+                    className="rounded-2xl border border-[#22342F] px-4 py-3 text-sm text-[#D8DEDA] transition hover:border-[#C49C56] hover:text-[#C49C56]"
+                  >
+                    {isRailOpen ? `Fechar ${rightRailLabel}` : `Abrir ${rightRailLabel}`}
+                  </button>
+                </div>
               </div>
             </header>
 
             <div>{children}</div>
           </main>
 
-          <aside className="xl:sticky xl:top-3 xl:h-[calc(100vh-1.5rem)]">
-            <div className="h-full overflow-y-auto rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(10,17,15,0.96),rgba(8,14,12,0.92))] p-3 md:p-4">
-              {rightRail || <DefaultRightRail title={title} profile={profile} officeWhatsapp={officeWhatsapp} />}
-            </div>
-          </aside>
+          {isRailOpen ? (
+            <aside className="xl:h-[calc(100vh-1.5rem)]">
+              <div className="h-full overflow-y-auto rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(10,17,15,0.96),rgba(8,14,12,0.92))] p-3 md:p-4">
+                {rightRail || <DefaultRightRail title={title} profile={profile} officeWhatsapp={officeWhatsapp} />}
+              </div>
+            </aside>
+          ) : null}
         </div>
       </div>
     </div>

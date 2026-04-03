@@ -113,7 +113,7 @@ function PublicacoesContent({ state, setState }) {
           <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Sem publicacoes</p>
           <h3 className="mt-3 font-serif text-3xl">Nenhuma publicacao visivel no portal neste momento.</h3>
           <p className="mt-3 max-w-2xl text-sm leading-6 opacity-65">
-            Assim que o schema judiciario expuser esse historico, as publicacoes passarao a aparecer aqui com data, fonte e atalho para o processo relacionado.
+            Assim que o historico processual do seu cadastro estiver disponivel, as publicacoes passarao a aparecer aqui com data, origem e atalho para o processo relacionado.
           </p>
         </div>
       ) : null}

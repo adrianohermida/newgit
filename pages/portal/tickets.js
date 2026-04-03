@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/router";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
 import { clientFetch } from "../../lib/client/api";
@@ -30,6 +31,7 @@ function priorityTone(priority) {
 }
 
 export default function PortalTicketsPage() {
+  const router = useRouter();
   const [state, setState] = useState({
     loading: true,
     error: null,
@@ -46,10 +48,13 @@ export default function PortalTicketsPage() {
       {(profile) => (
         <PortalLayout
           profile={profile}
-          title="Tickets e suporte"
-          description="Acompanhe seus chamados, abra novas solicitacoes no portal e, quando precisar responder ou continuar a conversa, siga direto para o ticket no Freshdesk."
+          title="Solicitacoes e suporte"
+          description="Acompanhe seus pedidos, registre novas solicitacoes e fale com o escritorio sobre o que precisar no seu atendimento."
+          rightRailLabel="painel de apoio"
+          rightRailDefaultOpen={false}
         >
           <TicketsContent
+            router={router}
             state={state}
             setState={setState}
             form={form}
@@ -65,7 +70,18 @@ export default function PortalTicketsPage() {
   );
 }
 
-function TicketsContent({ state, setState, form, setForm, submitting, setSubmitting, feedback, setFeedback }) {
+function TicketsContent({ router, state, setState, form, setForm, submitting, setSubmitting, feedback, setFeedback }) {
+  useEffect(() => {
+    if (!router.isReady) return;
+    const subject = String(router.query.subject || "").trim();
+    const description = String(router.query.description || "").trim();
+    if (!subject && !description) return;
+    setForm((current) => ({
+      subject: current.subject || subject,
+      description: current.description || description,
+    }));
+  }, [router.isReady, router.query.description, router.query.subject, setForm]);
+
   async function loadTickets() {
     const payload = await clientFetch("/api/client-tickets");
     setState({
@@ -119,8 +135,8 @@ function TicketsContent({ state, setState, form, setForm, submitting, setSubmitt
       setFeedback({
         type: "success",
         message: payload.ticket?.urls?.ticket_url
-          ? "Chamado criado com sucesso. Voce ja pode acompanhar ou responder direto no Freshdesk."
-          : "Chamado criado com sucesso.",
+          ? "Solicitacao criada com sucesso. Voce ja pode acompanhar o andamento pelo portal e continuar a conversa pelo atendimento."
+          : "Solicitacao criada com sucesso.",
       });
       await loadTickets();
     } catch (error) {
@@ -141,10 +157,10 @@ function TicketsContent({ state, setState, form, setForm, submitting, setSubmitt
     <div className="space-y-8">
       <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-[32px] border border-[#20332D] bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.015))] p-6 md:p-8">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Abrir novo chamado</p>
-          <h3 className="mt-3 font-serif text-3xl">Use o portal para registrar a demanda</h3>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Abrir nova solicitacao</p>
+          <h3 className="mt-3 font-serif text-3xl">Use o portal para registrar sua necessidade</h3>
           <p className="mt-3 max-w-2xl text-sm leading-6 opacity-65">
-            O portal cria o ticket com seu cadastro autenticado. Para responder ou acompanhar a conversa completa, o caminho mais seguro e claro e abrir o chamado direto no Freshdesk.
+            Sua solicitacao fica vinculada ao seu cadastro. Quando for necessario complementar a conversa, o atendimento do escritorio continua pelo canal apropriado.
           </p>
 
           <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
@@ -152,7 +168,7 @@ function TicketsContent({ state, setState, form, setForm, submitting, setSubmitt
               value={form.subject}
               onChange={(event) => setForm((current) => ({ ...current, subject: event.target.value }))}
               className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 outline-none transition focus:border-[#C49C56]"
-              placeholder="Assunto do chamado"
+              placeholder="Assunto da solicitacao"
               required
             />
             <textarea
@@ -168,7 +184,7 @@ function TicketsContent({ state, setState, form, setForm, submitting, setSubmitt
                 disabled={submitting}
                 className="rounded-2xl bg-[#C49C56] px-5 py-3 text-sm font-semibold text-[#07110E] transition hover:brightness-110 disabled:opacity-60"
               >
-                {submitting ? "Enviando..." : "Abrir ticket"}
+                {submitting ? "Enviando..." : "Enviar solicitacao"}
               </button>
               {state.urls?.new_ticket_url ? (
                 <a
@@ -177,7 +193,7 @@ function TicketsContent({ state, setState, form, setForm, submitting, setSubmitt
                   rel="noreferrer"
                   className="rounded-2xl border border-[#20332D] px-5 py-3 text-sm transition hover:border-[#C49C56]"
                 >
-                  Abrir central Freshdesk
+                  Abrir central de atendimento
                 </a>
               ) : null}
             </div>
@@ -190,22 +206,22 @@ function TicketsContent({ state, setState, form, setForm, submitting, setSubmitt
         </div>
 
         <div className="space-y-4">
-          <SummaryCard label="Tickets totais" value={counts.total} helper="Chamados do seu e-mail autenticado." />
-          <SummaryCard label="Em andamento" value={counts.open} helper="Tickets abertos ou pendentes." />
-          <SummaryCard label="Encerrados" value={counts.resolved} helper="Chamados resolvidos ou fechados." />
+          <SummaryCard label="Solicitacoes totais" value={counts.total} helper="Pedidos vinculados ao seu cadastro." />
+          <SummaryCard label="Em andamento" value={counts.open} helper="Solicitacoes abertas ou pendentes." />
+          <SummaryCard label="Encerradas" value={counts.resolved} helper="Solicitacoes resolvidas ou finalizadas." />
         </div>
       </section>
 
       {state.warning ? <div className="rounded-[28px] border border-[#6E5630] bg-[rgba(76,57,26,0.22)] p-6 text-sm">{state.warning}</div> : null}
-      {state.loading ? <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">Carregando tickets...</div> : null}
+      {state.loading ? <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">Carregando solicitacoes...</div> : null}
       {!state.loading && state.error ? <div className="rounded-[28px] border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] p-6 text-sm">{state.error}</div> : null}
 
       {!state.loading && !state.error && !state.items.length ? (
         <div className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-8">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#C49C56]">Central vazia</p>
-          <h3 className="mt-3 font-serif text-3xl">Nenhum ticket encontrado para o seu cadastro.</h3>
+          <h3 className="mt-3 font-serif text-3xl">Nenhuma solicitacao encontrada para o seu cadastro.</h3>
           <p className="mt-3 max-w-2xl text-sm leading-6 opacity-65">
-            Assim que um chamado for criado, ele aparece aqui com status, prioridade e o atalho para continuar a conversa no Freshdesk.
+            Assim que um pedido for criado, ele aparece aqui com status, prioridade e orientacoes de acompanhamento.
           </p>
         </div>
       ) : null}
@@ -218,7 +234,7 @@ function TicketsContent({ state, setState, form, setForm, submitting, setSubmitt
                 <div className="min-w-0">
                   <div className="mb-3 flex flex-wrap items-center gap-3">
                     <span className="text-[10px] font-semibold tracking-[0.2em]" style={{ color: "#C49C56" }}>
-                      Ticket #{item.id}
+                      Solicitacao #{item.id}
                     </span>
                     <span className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] ${statusTone(item.status)}`}>
                       {item.status}
@@ -238,7 +254,7 @@ function TicketsContent({ state, setState, form, setForm, submitting, setSubmitt
                       rel="noreferrer"
                       className="rounded-2xl bg-[#C49C56] px-4 py-3 text-sm font-semibold text-[#07110E] transition hover:brightness-110"
                     >
-                      Abrir ticket no Freshdesk
+                      Abrir atendimento
                     </a>
                   ) : null}
                   {item.urls?.agent_ticket_url ? (

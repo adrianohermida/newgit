@@ -80,7 +80,7 @@ export default function PortalConsultasPage() {
                 href="/portal/tickets"
                 className="rounded-2xl border border-[#20332D] px-4 py-3 text-sm font-semibold transition hover:border-[#C49C56]"
               >
-                Abrir suporte
+                Abrir solicitacao
               </a>
             </div>
           }
@@ -177,7 +177,7 @@ function ConsultasContent({ state, setState }) {
           <div className="mt-4 space-y-4 text-sm leading-6 opacity-72">
             <p>Mantenha seus dados atualizados para receber avisos e orientações do escritório.</p>
             <p>Se precisar enviar contexto, documentos ou pedir ajuste em um horário, use o suporte do portal.</p>
-            <p>Respostas detalhadas e tratativas operacionais podem seguir pelo atendimento do escritório ou pelo ticket relacionado.</p>
+            <p>Tratativas operacionais podem seguir pelo atendimento do escritorio ou pela solicitacao relacionada.</p>
           </div>
         </div>
       </section>
@@ -194,7 +194,7 @@ function ConsultasContent({ state, setState }) {
             title: "Quer enviar contexto antes da consulta?",
             helper: "Abra um chamado para registrar dúvidas, documentos ou instruções complementares.",
             href: "/portal/tickets",
-            label: "Abrir suporte",
+            label: "Abrir solicitacao",
           },
           {
             title: "Atualize seus dados de contato",
@@ -249,7 +249,7 @@ function ConsultasContent({ state, setState }) {
                     href="/portal/tickets"
                     className="rounded-2xl bg-[#C49C56] px-4 py-3 text-center text-sm font-semibold text-[#07110E] transition hover:brightness-110"
                   >
-                    Pedir suporte
+                    Pedir apoio
                   </a>
                   <a
                     href="/agendamento"

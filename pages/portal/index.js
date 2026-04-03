@@ -100,7 +100,7 @@ function OverviewContent({ state, setState }) {
             <div className="grid grid-cols-2 gap-3 sm:w-[280px]">
               <QuickPill label="Processos" value={summary.processos} />
               <QuickPill label="Consultas" value={summary.consultas} />
-              <QuickPill label="Tickets" value={summary.tickets} />
+              <QuickPill label="Solicitacoes" value={summary.tickets} />
               <QuickPill label="Docs" value={summary.documentos} />
             </div>
           </div>
@@ -133,7 +133,7 @@ function OverviewContent({ state, setState }) {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Processos" value={summary.processos} helper="Acompanhamento processual liberado conforme a fonte de dados do cliente." />
-        <StatCard label="Tickets" value={summary.tickets} helper="Interacoes de suporte abertas no Freshdesk para seu e-mail." />
+        <StatCard label="Solicitacoes" value={summary.tickets} helper="Pedidos e atendimentos abertos no seu portal." />
         <StatCard label="Consultas" value={summary.consultas} helper="Leitura real dos agendamentos ja registrados no site." />
         <StatCard label="Documentos" value={summary.documentos} helper="Estante documental ligada progressivamente conforme o projeto." />
         <StatCard label="Publicacoes" value={summary.publicacoes} helper="Atos e publicacoes judiciais vinculados aos seus processos." />
@@ -196,7 +196,7 @@ function OverviewContent({ state, setState }) {
               { href: "/portal/processos", label: "Abrir processos", helper: "Veja sua carteira processual e acompanhe atos." },
               { href: "/portal/publicacoes", label: "Abrir publicacoes", helper: "Leia os atos judiciais mais recentes do acervo." },
               { href: "/portal/consultas", label: "Abrir consultas", helper: "Veja horarios e novos atendimentos." },
-              { href: "/portal/tickets", label: "Abrir suporte", helper: "Acompanhe chamados e envie nova solicitacao." },
+              { href: "/portal/tickets", label: "Abrir solicitacoes", helper: "Acompanhe pedidos e envie nova solicitacao ao escritorio." },
               { href: "/portal/perfil", label: "Abrir perfil", helper: "Atualize dados essenciais do cadastro." },
             ].map((item) => (
               <Link

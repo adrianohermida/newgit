@@ -1,6 +1,38 @@
 import { requireClientAccess } from "./client-auth.js";
 
 const DEFAULT_SCRIPT_URL = "//eu.fw-cdn.com/10713913/375987.js";
+const WEB_MESSENGER_HOST_KEYS = [
+  "FRESHCHAT_WEB_MESSENGER_HOST",
+  "FRESHCHAT_WEB_MESSENGER_URL",
+  "FRESHCHAT_WIDGET_HOST",
+  "FRESHCHAT_HOST",
+];
+const WEB_MESSENGER_TOKEN_KEYS = [
+  "FRESHCHAT_WEB_MESSENGER_TOKEN",
+  "FRESHCHAT_WEB_MESSENGER_WIDGET_TOKEN",
+  "FRESHCHAT_WEB_TOKEN",
+  "FRESHCHAT_MESSENGER_TOKEN",
+  "FRESHCHAT_TOKEN",
+  "FRESHCHAT_APP_TOKEN",
+];
+const JWT_SECRET_KEYS = [
+  "FRESHCHAT_JWT_SECRET",
+  "FRESHCHAT_JWT_ENCRYPTION_KEY",
+  "FRESHCHAT_ENCRYPTION_KEY",
+  "FRESHCHAT_ENCRYPTED_KEY",
+  "FRESHCHAT_SHARED_SECRET",
+  "FRESHCHAT_APP_ENCRYPTION_KEY",
+];
+
+function pickEnvValue(envLike, keys) {
+  for (const key of keys) {
+    const value = clean(envLike[key]);
+    if (value) {
+      return { key, value };
+    }
+  }
+  return { key: null, value: null };
+}
 
 function clean(value) {
   if (typeof value !== "string") {
@@ -86,22 +118,12 @@ export function getFreshchatWebConfig(envLike = {}) {
     clean(envLike.FRESHCHAT_WIDGET_SCRIPT_URL) ||
     clean(envLike.NEXT_PUBLIC_FRESHWORKS_WIDGET_SCRIPT_URL) ||
     DEFAULT_SCRIPT_URL;
-  const widgetHost =
-    clean(envLike.FRESHCHAT_WEB_MESSENGER_HOST) ||
-    clean(envLike.FRESHCHAT_WEB_MESSENGER_URL) ||
-    null;
-  const messengerToken =
-    clean(envLike.FRESHCHAT_WEB_MESSENGER_TOKEN) ||
-    clean(envLike.FRESHCHAT_WEB_MESSENGER_WIDGET_TOKEN) ||
-    clean(envLike.FRESHCHAT_WEB_TOKEN) ||
-    clean(envLike.FRESHCHAT_MESSENGER_TOKEN) ||
-    null;
-  const jwtSecret =
-    clean(envLike.FRESHCHAT_JWT_SECRET) ||
-    clean(envLike.FRESHCHAT_JWT_ENCRYPTION_KEY) ||
-    clean(envLike.FRESHCHAT_ENCRYPTED_KEY) ||
-    clean(envLike.FRESHCHAT_SHARED_SECRET) ||
-    null;
+  const hostCandidate = pickEnvValue(envLike, WEB_MESSENGER_HOST_KEYS);
+  const tokenCandidate = pickEnvValue(envLike, WEB_MESSENGER_TOKEN_KEYS);
+  const secretCandidate = pickEnvValue(envLike, JWT_SECRET_KEYS);
+  const widgetHost = hostCandidate.value;
+  const messengerToken = tokenCandidate.value;
+  const jwtSecret = secretCandidate.value;
   const enabled = toBoolean(envLike.FRESHCHAT_ENABLE_WEB_MESSENGER, true) && Boolean(scriptUrl);
 
   const issues = [];
@@ -129,6 +151,16 @@ export function getFreshchatWebConfig(envLike = {}) {
     jwtSecret,
     mode: "freshsales_suite_embed",
     issues,
+    resolvedKeys: {
+      host: hostCandidate.key,
+      token: tokenCandidate.key,
+      jwtSecret: secretCandidate.key,
+    },
+    acceptedKeys: {
+      host: WEB_MESSENGER_HOST_KEYS,
+      token: WEB_MESSENGER_TOKEN_KEYS,
+      jwtSecret: JWT_SECRET_KEYS,
+    },
   };
 }
 
@@ -144,6 +176,7 @@ export function buildFreshchatPublicConfig(envLike = {}) {
     mode: config.mode,
     authEndpoint: "/api/freshchat-jwt",
     issues: config.issues,
+    resolvedKeys: config.resolvedKeys,
   };
 }
 
