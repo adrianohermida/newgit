@@ -153,8 +153,13 @@ export default function InternoLayout({
                       </p>
                     </div>
 
-                    <DotobotPanel profile={profile} routePath={router.pathname} initialWorkspaceOpen={initialWorkspaceOpen} />
-                  </>
+                      <DotobotPanel
+                        profile={profile}
+                        routePath={router.pathname}
+                        initialWorkspaceOpen={initialWorkspaceOpen}
+                        defaultCollapsed
+                      />
+                    </>
                 )}
               </div>
             </aside>

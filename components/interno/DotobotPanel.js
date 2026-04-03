@@ -190,7 +190,7 @@ function getVoiceRecognition() {
   return window.SpeechRecognition || window.webkitSpeechRecognition || null;
 }
 
-export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen = false }) {
+export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen = false, defaultCollapsed = true }) {
   const chatStorageKey = useMemo(() => buildStorageKey(CHAT_STORAGE_PREFIX, profile), [profile]);
   const taskStorageKey = useMemo(() => buildStorageKey(TASK_STORAGE_PREFIX, profile), [profile]);
   const prefStorageKey = useMemo(() => buildStorageKey(PREF_STORAGE_PREFIX, profile), [profile]);
@@ -199,7 +199,7 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(Boolean(defaultCollapsed));
   const [workspaceOpen, setWorkspaceOpen] = useState(Boolean(initialWorkspaceOpen));
   const [mode, setMode] = useState("task");
   const [provider, setProvider] = useState("gpt");
@@ -553,7 +553,6 @@ export default function DotobotPanel({ profile, routePath, initialWorkspaceOpen 
   const activeTask = getLastTask(taskHistory);
   const ragSummary = buildRagSummary(activeTask?.rag);
   const activeStatus = loading || runningCount ? "processing" : "online";
-  const activeMode = MODE_OPTIONS.find((item) => item.value === mode) || MODE_OPTIONS[1];
   const activeProviderLabel = PROVIDER_OPTIONS.find((item) => item.value === provider)?.label || "GPT";
   const isWorkspaceShell = workspaceOpen;
 
