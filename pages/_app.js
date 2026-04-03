@@ -2,6 +2,9 @@ import '../styles/globals.css';
 import Head from 'next/head';
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
+import dynamic from 'next/dynamic';
+
+const FreshchatWebMessenger = dynamic(() => import('../components/FreshchatWebMessenger'), { ssr: false });
 
 export default function App({ Component, pageProps }) {
   const router = useRouter();
@@ -34,19 +37,9 @@ export default function App({ Component, pageProps }) {
         document.body.appendChild(a);
       }
 
-      if (isPortalRoute) {
-        const existingFreshworks = document.getElementById('freshsales_crm_script');
-        if (existingFreshworks) {
-          existingFreshworks.remove();
-        }
-      } else if (!document.getElementById('freshsales_crm_script')) {
-        // Freshsales Suite CRM Tracking fora do portal do cliente
-        const crmScript = document.createElement('script');
-        crmScript.id = 'freshsales_crm_script';
-        crmScript.src = '//eu.fw-cdn.com/10713913/375987.js';
-        crmScript.setAttribute('chat', 'false');
-        crmScript.async = true;
-        document.body.appendChild(crmScript);
+      const legacyTrackingScript = document.getElementById('freshsales_crm_script');
+      if (legacyTrackingScript) {
+        legacyTrackingScript.remove();
       }
     }
   }, [isPortalRoute]);
@@ -88,6 +81,7 @@ export default function App({ Component, pageProps }) {
           gtag('config', 'G-72669401');
         `}} />
       </Head>
+      <FreshchatWebMessenger />
       <Component {...pageProps} />
     </>
   );

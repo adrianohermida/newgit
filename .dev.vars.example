@@ -15,6 +15,11 @@ SITE_URL=http://localhost:8788
 AGENTLAB_REMOTE_DASHBOARD_URL=https://ampwhwqbtuwxpgnzsxau.functions.supabase.co/agentLabDashboardProbe
 FRESHCHAT_API_BASE=https://seu-tenant.eu.freshchat.com
 FRESHCHAT_API_KEY=seu_token_ou_api_key_do_freshchat
+FRESHCHAT_ENABLE_WEB_MESSENGER=true
+FRESHCHAT_WIDGET_SCRIPT_URL=//eu.fw-cdn.com/10713913/375987.js
+FRESHCHAT_WEB_MESSENGER_TOKEN=ffefb5e9-3f8f-457f-8036-1b33e057e3f2
+FRESHCHAT_WEB_MESSENGER_HOST=https://wchat.freshchat.com
+FRESHCHAT_JWT_SECRET=sWnfh6LdynqIg0S/tTHzaG4yy6vieM9a8ZVHTTAG+I4=
 FRESHDESK_DOMAIN=https://sua-conta.freshdesk.com
 FRESHDESK_API_KEY=seu_api_key_freshdesk
 FRESHDESK_BASIC_TOKEN=Basic base64_token

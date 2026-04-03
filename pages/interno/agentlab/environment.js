@@ -44,6 +44,7 @@ function EnvironmentContent({ state }) {
   const warnings = state.data?.warnings || [];
   const schemaChecklist = environment.schemaChecklist || [];
   const freshchatApi = environment.freshchatApi || {};
+  const freshchatWeb = environment.freshchatWeb || {};
   const readyCount = schemaChecklist.filter((item) => item.status === "ready").length;
   const missingCount = schemaChecklist.filter((item) => item.status !== "ready").length;
 
@@ -93,6 +94,33 @@ function EnvironmentContent({ state }) {
               <p className="font-semibold">Sinais detectados:</p>
               <ul className="mt-2 space-y-1">
                 {freshchatApi.issues.map((issue) => (
+                  <li key={issue}>- {issue}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      </Panel>
+
+      <Panel title="Diagnostico Freshchat Web Messenger">
+        <div className="space-y-3 text-sm opacity-75">
+          <p>
+            Status:{" "}
+            <span className={freshchatWeb.enabled ? "text-emerald-400" : "text-amber-300"}>
+              {freshchatWeb.enabled ? "Widget habilitado" : "Widget desabilitado"}
+            </span>
+          </p>
+          <p>Modo: {freshchatWeb.mode || "nao configurado"}</p>
+          <p>Script embed: {freshchatWeb.scriptUrl || "nao informado"}</p>
+          <p>Host do widget: {freshchatWeb.widgetHost || "nao informado"}</p>
+          <p>Token do Web Messenger: {freshchatWeb.messengerTokenPresent ? "presente" : "ausente"}</p>
+          <p>JWT: {freshchatWeb.jwtEnabled ? "habilitado" : "nao configurado"}</p>
+          <p>{freshchatWeb.message || "Sem diagnostico adicional."}</p>
+          {(freshchatWeb.issues || []).length ? (
+            <div>
+              <p className="font-semibold">Sinais detectados:</p>
+              <ul className="mt-2 space-y-1">
+                {freshchatWeb.issues.map((issue) => (
                   <li key={issue}>- {issue}</li>
                 ))}
               </ul>
