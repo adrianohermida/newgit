@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import tempfile
 import unittest
 from pathlib import Path
+import shutil
+from uuid import uuid4
 
 from core.agents import CriticAgent, ExecutionPlan, ExecutorAgent, PlanStep, PlannerAgent
 from core.coordinator import Coordinator
@@ -10,6 +11,13 @@ from core.memory import FileBackedLongTermMemory
 
 
 class OrchestrationEngineTests(unittest.TestCase):
+    def _make_local_tmp_dir(self) -> Path:
+        root = Path('.test_tmp_memory')
+        root.mkdir(parents=True, exist_ok=True)
+        target = root / uuid4().hex
+        target.mkdir(parents=True, exist_ok=True)
+        return target
+
     def test_simple_query_single_tool_plan(self) -> None:
         planner = PlannerAgent()
         plan = planner.build_plan('Read the current workspace status')
@@ -41,16 +49,20 @@ class OrchestrationEngineTests(unittest.TestCase):
                 )
                 return report
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            memory = FileBackedLongTermMemory(base_dir=Path(tmp_dir))
+        tmp_dir = self._make_local_tmp_dir()
+        try:
+            memory = FileBackedLongTermMemory(base_dir=tmp_dir)
             coordinator = Coordinator(executor=FailingExecutor(), memory_store=memory)
             result = coordinator.execute('Inspect and report', context={'session_id': 'retry-session'})
             self.assertIn(result.status, {'ok', 'retry', 'fail'})
             self.assertTrue(any('critic_status=retry' in line for line in result.logs))
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     def test_memory_affects_planning(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            memory = FileBackedLongTermMemory(base_dir=Path(tmp_dir))
+        tmp_dir = self._make_local_tmp_dir()
+        try:
+            memory = FileBackedLongTermMemory(base_dir=tmp_dir)
             coordinator = Coordinator(memory_store=memory)
             first = coordinator.execute('Store this memory entry', context={'session_id': 'memory-session'})
             self.assertTrue(first.logs)
@@ -59,6 +71,8 @@ class OrchestrationEngineTests(unittest.TestCase):
             self.assertTrue(second.steps)
             step_input = second.steps[0].get('input', {})
             self.assertTrue(step_input.get('memory'))
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     def test_api_health_and_execute(self) -> None:
         try:
