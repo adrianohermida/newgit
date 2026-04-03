@@ -172,11 +172,27 @@ export default function DotobotPanel({ profile, routePath }) {
     }
   }
 
+  const personaSummary =
+    "Assistente juridico interno, operador do Lawdesk e supervisor de IA para a equipe da Hermida Maia Advocacia.";
   const quickPrompts = [
-    "Resuma os dados desta tela em bullets.",
-    "Me diga os proximos passos operacionais.",
-    "Detecte riscos e inconsistencias relevantes.",
+    "Analise este caso e indique o proximo passo.",
+    "Crie um plano operacional em etapas.",
+    "Padronize a resposta deste bot em PT-BR.",
+    "Resuma riscos, fatos e inferencias deste contexto.",
   ];
+
+  function getStatusLabel(status) {
+    switch (status) {
+      case "running":
+        return "Executando";
+      case "error":
+        return "Erro";
+      case "ok":
+        return "Concluido";
+      default:
+        return String(status || "Indefinido");
+    }
+  }
 
   function handleTextAreaKeyDown(event) {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -194,7 +210,8 @@ export default function DotobotPanel({ profile, routePath }) {
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[10px] uppercase tracking-[0.2em] opacity-60">Lawdesk AI</p>
-            <h3 className="font-serif text-xl">Dotobot</h3>
+            <h3 className="font-serif text-xl">Dotobot Operacional</h3>
+            <p className="mt-1 max-w-[28rem] text-xs leading-relaxed opacity-70">{personaSummary}</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -208,10 +225,13 @@ export default function DotobotPanel({ profile, routePath }) {
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
           <div className="border border-[#2D2E2E] px-3 py-2">
-            Conversas: <strong>{messages.length}</strong>
+            Historico: <strong>{messages.length}</strong>
           </div>
           <div className="border border-[#2D2E2E] px-3 py-2">
-            Tarefas ativas: <strong>{runningCount}</strong>
+            Tarefas em execucao: <strong>{runningCount}</strong>
+          </div>
+          <div className="col-span-2 border border-[#2D2E2E] px-3 py-2 opacity-80">
+            Modo: <strong>juridico interno, PT-BR, orientado a operacao e orquestracao</strong>
           </div>
         </div>
       </header>
@@ -251,17 +271,21 @@ export default function DotobotPanel({ profile, routePath }) {
                       }`}
                     >
                       <p className="mb-1 text-[10px] uppercase tracking-[0.16em] opacity-60">
-                        {message.role === "assistant" ? "Dotobot" : "Voce"}
+                        {message.role === "assistant" ? "Dotobot" : "Administrador / equipe"}
                       </p>
                       <p className="whitespace-pre-wrap leading-relaxed">{message.text}</p>
                     </article>
                   ))
                 ) : (
-                  <p className="text-sm opacity-65">
-                    Inicie a conversa. O historico do Dotobot fica salvo no navegador para este perfil administrativo.
-                  </p>
+                  <div className="border border-[#2D2E2E] bg-[rgba(14,16,15,0.85)] p-3 text-sm">
+                    <p className="font-medium">Pronto para operar.</p>
+                    <p className="mt-2 opacity-70">
+                      Envie uma ordem, analise de caso, pedido de fluxo ou instrucao de treinamento. O Dotobot responde
+                      em PT-BR, com foco interno, seguranca juridica e proximos passos.
+                    </p>
+                  </div>
                 )}
-                {loading ? <p className="text-sm opacity-65">Dotobot esta pensando...</p> : null}
+                {loading ? <p className="text-sm opacity-65">Dotobot esta analisando o contexto e montando a resposta...</p> : null}
                 {error ? <p className="text-sm text-[#f2b2b2]">{error}</p> : null}
               </div>
 
@@ -284,7 +308,7 @@ export default function DotobotPanel({ profile, routePath }) {
                     onChange={(event) => setInput(event.target.value)}
                     onKeyDown={handleTextAreaKeyDown}
                     rows={4}
-                    placeholder="Pergunte para o Dotobot..."
+                    placeholder="Descreva a tarefa, caso, ordem do administrador ou instrucao de treinamento..."
                     className="w-full resize-y border border-[#2D2E2E] bg-[rgba(7,9,8,0.98)] px-3 py-2 text-sm outline-none focus:border-[#C5A059]"
                   />
                   <div className="flex items-center justify-between">
@@ -297,11 +321,11 @@ export default function DotobotPanel({ profile, routePath }) {
                     </button>
                     <button
                       type="submit"
-                      disabled={loading || !input.trim()}
-                      className="border border-[#C5A059] px-4 py-2 text-sm disabled:opacity-40"
-                      style={{ color: "#C5A059" }}
-                    >
-                      Enviar
+                    disabled={loading || !input.trim()}
+                    className="border border-[#C5A059] px-4 py-2 text-sm disabled:opacity-40"
+                    style={{ color: "#C5A059" }}
+                  >
+                      Executar
                     </button>
                   </div>
                 </form>
@@ -310,7 +334,7 @@ export default function DotobotPanel({ profile, routePath }) {
           ) : (
             <div className="max-h-[62vh] overflow-y-auto px-4 py-4 space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-xs uppercase tracking-[0.15em] opacity-60">Historico de tarefas</p>
+                <p className="text-xs uppercase tracking-[0.15em] opacity-60">Painel operacional</p>
                 <button
                   type="button"
                   onClick={handleResetTasks}
@@ -319,11 +343,11 @@ export default function DotobotPanel({ profile, routePath }) {
                   Limpar tarefas
                 </button>
               </div>
-              {!taskHistory.length ? <p className="text-sm opacity-65">Nenhuma tarefa registrada ainda.</p> : null}
+              {!taskHistory.length ? <p className="text-sm opacity-65">Nenhuma ordem executada ainda.</p> : null}
               {taskHistory.map((task) => (
                 <article key={task.id} className="border border-[#2D2E2E] bg-[rgba(14,16,15,0.95)] p-3 text-sm">
                   <div className="mb-2 flex items-center justify-between gap-2">
-                    <p className="text-xs uppercase tracking-[0.14em] opacity-60">{task.status}</p>
+                    <p className="text-xs uppercase tracking-[0.14em] opacity-60">{getStatusLabel(task.status)}</p>
                     <p className="text-[10px] opacity-50">{new Date(task.startedAt).toLocaleString("pt-BR")}</p>
                   </div>
                   <p className="font-semibold">{task.query}</p>
@@ -331,12 +355,12 @@ export default function DotobotPanel({ profile, routePath }) {
                   {task.sessionId ? <p className="mt-1 text-xs opacity-70">Sessao: {task.sessionId}</p> : null}
                   {task.rag?.retrieval?.enabled ? (
                     <p className="mt-1 text-xs opacity-70">
-                      RAG: {task.rag.retrieval.matches?.length || 0} memorias recuperadas
+                      RAG: {task.rag.retrieval.matches?.length || 0} contextos recuperados
                     </p>
                   ) : null}
                   {task.logs?.length ? (
                     <details className="mt-2">
-                      <summary className="cursor-pointer text-xs opacity-70">Logs</summary>
+                      <summary className="cursor-pointer text-xs opacity-70">Registro da execucao</summary>
                       <pre className="mt-2 whitespace-pre-wrap text-[11px] opacity-70">
                         {task.logs.slice(0, 8).join("\n")}
                       </pre>
@@ -351,4 +375,3 @@ export default function DotobotPanel({ profile, routePath }) {
     </section>
   );
 }
-
