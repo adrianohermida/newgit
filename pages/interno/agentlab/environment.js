@@ -33,7 +33,7 @@ export default function AgentLabEnvironmentPage() {
 
 function EnvironmentContent({ state }) {
   if (state.loading) {
-    return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando ambiente...</div>;
+    return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando diagnostico do laboratorio...</div>;
   }
 
   if (state.error) {
@@ -60,7 +60,7 @@ function EnvironmentContent({ state }) {
           <p className="text-sm opacity-75">{environment.message}</p>
         </Panel>
         <Panel title={`Tabelas prontas: ${readyCount}`}>
-          <p className="text-sm opacity-75">Tabelas do AgentLab encontradas no schema atual.</p>
+          <p className="text-sm opacity-75">Tabelas do AgentLab encontradas no schema atual e prontas para evolucao do laboratorio.</p>
         </Panel>
         <Panel title={`Tabelas ausentes: ${missingCount}`}>
           <p className="text-sm opacity-75">Tabelas que ainda precisam existir no projeto Supabase do Pages.</p>
@@ -79,7 +79,7 @@ function EnvironmentContent({ state }) {
             {" "}
             [agentlab-bootstrap-supabase.md](/D:/Github/newgit/docs/agentlab-bootstrap-supabase.md)
           </p>
-          <p>Depois de aplicar o SQL no projeto correto, faca um hard refresh autenticado no painel.</p>
+          <p>Depois de aplicar o SQL no projeto correto, faca um hard refresh autenticado e valide o painel novamente.</p>
         </div>
       </Panel>
 

@@ -28,7 +28,7 @@ export default function AgentLabAgentsPage() {
         <InternoLayout
           profile={profile}
           title="AgentLab | Agentes"
-          description="Centro de configuracao persistente para chatbot, agente de IA, perfis, prompts, respostas rapidas, handoff e fila viva de melhoria."
+          description="Centro de projeto dos agentes, com perfil, voz, escopo de conhecimento, handoff e fila de evolucao continua."
         >
           <AgentLabModuleNav />
           <AgentsContent
@@ -241,7 +241,7 @@ function AgentsContent({
         <Panel title="Perfil principal do agente">
           {message ? <div className="mb-4 text-sm opacity-75">{message}</div> : null}
           {!form ? (
-            <p className="text-sm opacity-70">Nenhum perfil carregado.</p>
+            <p className="text-sm opacity-70">Nenhum perfil carregado. Selecione um agente para editar sua voz e seu escopo.</p>
           ) : (
             <div className="space-y-4">
               {[

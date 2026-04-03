@@ -42,7 +42,7 @@ export default function AgentLabConversationsPage() {
         <InternoLayout
           profile={profile}
           title="AgentLab | Conversas"
-          description="Painel de inteligencia conversacional com sync incremental de conversas internas, Freshsales e Freshchat para treino, avaliacao e feedback loop."
+          description="Painel de inteligencia conversacional para sincronizar historico real, detectar falhas de leitura e alimentar treino, avaliacao e feedback loop."
         >
           <AgentLabModuleNav />
           <ConversationsContent state={state} syncState={syncState} runSync={runSync} />
@@ -84,13 +84,13 @@ function ConversationsContent({ state, syncState, runSync }) {
     <div className="space-y-8">
       <div className="grid gap-4 md:grid-cols-4">
         <Panel title={`Threads: ${summary.total || 0}`}>
-          <p className="text-sm opacity-70">Base de treino e analise operacional.</p>
+          <p className="text-sm opacity-70">Base de treino, leitura contextual e analise operacional.</p>
         </Panel>
         <Panel title={`Handoffs: ${summary.handoffs || 0}`}>
           <p className="text-sm opacity-70">Escalacoes detectadas nas threads importadas.</p>
         </Panel>
         <Panel title={`Erros: ${summary.withErrors || 0}`}>
-          <p className="text-sm opacity-70">Conversas com risco de falha operacional.</p>
+          <p className="text-sm opacity-70">Conversas com risco de falha operacional ou leitura imprecisa.</p>
         </Panel>
         <Panel title={`Incidentes: ${state.data?.intelligence?.summary?.open || 0}`}>
           <p className="text-sm opacity-70">Fila gerencial aberta para correcao.</p>
@@ -120,8 +120,7 @@ function ConversationsContent({ state, syncState, runSync }) {
           </div>
         ) : (
           <div className="mb-4 border border-[#2D2E2E] p-4 text-sm opacity-75">
-            Cada execucao sincroniza apenas um lote curto e salva checkpoint no Supabase para
-            evitar o limite de subrequests do Cloudflare Worker.
+            Cada execucao sincroniza um lote curto, salva checkpoint no Supabase e protege o fluxo contra excesso de subrequests.
           </div>
         )}
 
@@ -132,7 +131,7 @@ function ConversationsContent({ state, syncState, runSync }) {
             onClick={() => runSync("sync_workspace_conversations", 5)}
             className="border border-[#2D2E2E] px-4 py-3 text-sm disabled:opacity-40"
           >
-            Sincronizar legado opcional
+            Sincronizar legado
           </button>
           <button
             type="button"

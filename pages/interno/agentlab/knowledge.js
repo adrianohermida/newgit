@@ -145,7 +145,7 @@ function KnowledgeContent({ state }) {
         </Panel>
       </div>
 
-      <Panel title="Backlog operacional de conhecimento">
+        <Panel title="Backlog operacional de conhecimento">
         <div className="space-y-4 text-sm opacity-75">
           {queue.length ? (
             queue.map((item) => (

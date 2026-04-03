@@ -24,7 +24,7 @@ export default function AgentLabEvaluationPage() {
         <InternoLayout
           profile={profile}
           title="AgentLab · Avaliacao"
-          description="Fila gerencial de unanswered, poor responses, incidentes, rubric de qualidade e melhoria semanal do agente."
+          description="Fila gerencial de unanswered, poor responses, incidentes, rubrica de qualidade e melhoria semanal do agente."
         >
           <AgentLabModuleNav />
           <EvaluationContent state={state} message={message} setMessage={setMessage} />
