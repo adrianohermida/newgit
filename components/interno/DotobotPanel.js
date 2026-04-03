@@ -663,30 +663,31 @@ export default function DotobotPanel({
     if (typeof window !== "undefined" && !window.confirm(`Excluir a conversa "${conversation.title || "sem titulo"}"?`)) {
       return;
     }
-    setConversations((current) => {
-      const next = current.filter((item) => item.id !== conversation.id);
-      if (next.length) return next;
-      const replacement = summarizeConversation({
-        id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        title: "Nova conversa",
-        messages: [],
-        taskHistory: [],
-        attachments: [],
-        tags: [],
-        createdAt: nowIso(),
-        updatedAt: nowIso(),
-      });
-      setActiveConversationId(replacement.id);
-      setMessages([]);
-      setTaskHistory([]);
-      setAttachments([]);
-      return [replacement];
-    });
-    if (conversation.id === activeConversationId) {
-      const next = conversations.find((item) => item.id !== conversation.id) || null;
-      if (next) {
-        selectConversation(next);
+    const remaining = conversations.filter((item) => item.id !== conversation.id);
+    if (remaining.length) {
+      setConversations(remaining);
+      if (conversation.id === activeConversationId) {
+        selectConversation(remaining[0]);
       }
+      return;
+    }
+    const replacement = summarizeConversation({
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      title: "Nova conversa",
+      messages: [],
+      taskHistory: [],
+      attachments: [],
+      tags: [],
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    });
+    setConversations([replacement]);
+    setActiveConversationId(replacement.id);
+    setMessages([]);
+    setTaskHistory([]);
+    setAttachments([]);
+    if (conversation.id === activeConversationId) {
+      selectConversation(replacement);
     }
   }
 
@@ -1050,6 +1051,9 @@ export default function DotobotPanel({
                       {activeStatus === "processing" ? "Processando" : "Online"}
                     </span>
                   </div>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-[#9BAEA8]">
+                    {activeConversation?.title || "Nova conversa"} · conversa ativa no centro, contexto e documentos na lateral direita.
+                  </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -1101,7 +1105,164 @@ export default function DotobotPanel({
             </header>
 
             <div className="flex-1 overflow-hidden p-4 md:p-5">
-              <div className="grid h-full gap-4 xl:grid-cols-[minmax(0,1.4fr)_360px]">
+              <div className="grid h-full gap-4 xl:grid-cols-[280px_minmax(0,1.2fr)_340px]">
+                <aside className="flex min-h-0 flex-col overflow-hidden rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
+                  <div className="border-b border-[#22342F] px-4 py-4 md:px-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Historico</p>
+                        <p className="mt-1 text-sm text-[#9BAEA8]">Conversa estilo Copilot com busca contextual.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => createConversationFromCurrentState("Nova conversa")}
+                        className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                      >
+                        Nova
+                      </button>
+                    </div>
+                    <div className="mt-4">
+                      <input
+                        value={conversationSearch}
+                        onChange={(event) => setConversationSearch(event.target.value)}
+                        placeholder="Buscar conversas"
+                        className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.98)] px-4 text-sm text-[#F5F1E8] outline-none placeholder:text-[#60706A] focus:border-[#C5A059]"
+                      />
+                    </div>
+                  </div>
+
+                  <div
+                    className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3"
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      handleDrop(event);
+                    }}
+                  >
+                    {filteredConversations.length ? (
+                      filteredConversations.map((conversation) => {
+                        const active = conversation.id === activeConversationId;
+                        return (
+                          <article
+                            key={conversation.id}
+                            className={`rounded-[24px] border p-3 transition ${
+                              active
+                                ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]"
+                                : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#35554B]"
+                            }`}
+                          >
+                            <button type="button" onClick={() => selectConversation(conversation)} className="w-full text-left">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold text-[#F5F1E8]">{conversation.title}</p>
+                                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#9BAEA8]">{conversation.preview}</p>
+                                </div>
+                                <span className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">
+                                  {conversation.messages?.length || 0}
+                                </span>
+                              </div>
+                            </button>
+
+                            <details className="mt-3">
+                              <summary className="cursor-pointer text-[11px] uppercase tracking-[0.16em] text-[#9BAEA8]">
+                                Metadados
+                              </summary>
+                              <div className="mt-3 space-y-2 text-xs text-[#9BAEA8]">
+                                <p>Data: {conversation.updatedAt ? new Date(conversation.updatedAt).toLocaleString("pt-BR") : "n/a"}</p>
+                                <p>Tags: {(conversation.tags || []).join(", ") || "sem tags"}</p>
+                                <p>Anexos: {conversation.attachments?.length || 0}</p>
+                              </div>
+                            </details>
+
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => renameConversation(conversation)}
+                                className="rounded-full border border-[#22342F] px-2.5 py-1 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                              >
+                                Renomear
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => archiveConversation(conversation)}
+                                className="rounded-full border border-[#22342F] px-2.5 py-1 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                              >
+                                {conversation.archived ? "Desarquivar" : "Arquivar"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteConversation(conversation)}
+                                className="rounded-full border border-[#4f2525] px-2.5 py-1 text-[11px] text-[#f2b2b2] transition hover:border-[#f2b2b2]"
+                              >
+                                Excluir
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })
+                    ) : (
+                      <div className="rounded-[24px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm text-[#9BAEA8]">
+                        Nenhuma conversa encontrada.
+                      </div>
+                    )}
+                  </div>
+
+                  <footer className="border-t border-[#22342F] bg-[rgba(12,15,14,0.95)] px-4 py-4 md:px-5">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.03)] text-sm font-semibold text-[#F5F1E8]">
+                        {(profile?.full_name || profile?.email || "HM").slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[#F5F1E8]">{profile?.full_name || profile?.email || "Hermida Maia"}</p>
+                        <p className="text-xs text-[#9BAEA8]">{profile?.role || "Equipe interna"}</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                      <a href="/interno" className="rounded-2xl border border-[#22342F] px-3 py-2 text-center text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                        Dashboard
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => router.push("/interno/agentlab")}
+                        className="rounded-2xl border border-[#22342F] px-3 py-2 text-center text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                      >
+                        AgentLab
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleResetChat}
+                        className="rounded-2xl border border-[#22342F] px-3 py-2 text-center text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                      >
+                        Limpar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSignOut}
+                        className="rounded-2xl border border-[#22342F] px-3 py-2 text-center text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                      >
+                        Sair
+                      </button>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-[#9BAEA8]">
+                      <a href="#" className="underline-offset-4 hover:underline">
+                        Privacidade
+                      </a>
+                      <a href="#" className="underline-offset-4 hover:underline">
+                        Termos
+                      </a>
+                      <a href="#" className="underline-offset-4 hover:underline">
+                        FAQ
+                      </a>
+                      <a href="#" className="underline-offset-4 hover:underline">
+                        Feedback
+                      </a>
+                      <a href="#" className="underline-offset-4 hover:underline">
+                        Sobre
+                      </a>
+                    </div>
+                  </footer>
+                </aside>
+
                 <section className="flex min-h-0 flex-col rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
                   <div className="border-b border-[#22342F] px-4 py-4 md:px-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
