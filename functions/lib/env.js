@@ -33,6 +33,17 @@ export function normalizeSupabaseKey(value) {
     return { key, repaired: false, repairHint: null };
   }
 
+  if (dotCount > 2) {
+    const trimmedCandidate = key.split('.').slice(0, 3).join('.');
+    if (trimmedCandidate.startsWith('eyJ') && (trimmedCandidate.match(/\./g) || []).length === 2) {
+      return {
+        key: trimmedCandidate,
+        repaired: true,
+        repairHint: 'jwt_trimmed_to_three_segments',
+      };
+    }
+  }
+
   const candidateStarts = [];
   let searchIndex = key.indexOf('eyJ', 1);
   while (searchIndex !== -1) {

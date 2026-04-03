@@ -24,6 +24,17 @@ function normalizeText(value) {
     .toLowerCase();
 }
 
+function cleanPartyName(value) {
+  return String(value || "")
+    .replace(/^[\s,;:\.\-–—]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function partyKey(nome, polo) {
+  return `${normalizeText(cleanPartyName(nome))}|${String(polo || "").trim().toLowerCase()}`;
+}
+
 function normalizeKeyword(value) {
   return normalizeText(value).toUpperCase();
 }
@@ -230,7 +241,7 @@ function parsePartesFromText(text) {
   const regex = /([^()\r\n]{3,}?)\s*\(([AP])\)/g;
   let hit;
   while ((hit = regex.exec(match[1])) !== null) {
-    const nome = String(hit[1] || "").trim();
+    const nome = cleanPartyName(hit[1]);
     if (nome.length < 3) continue;
     const polo = hit[2] === "A" ? "ativo" : "passivo";
     const tipoPessoa = /\b(LTDA|S\.A\.|S\/A|ME|EPP|EIRELI|BANCO|FUND|ASSOC|SIND|CORP|GRUPO|EMPRESA|CONSTRUTORA|COMERCIAL|SERVI|INCORPORA)\b/i.test(nome)
@@ -239,8 +250,8 @@ function parsePartesFromText(text) {
     output.push({ nome, polo, tipo_pessoa: tipoPessoa, fonte: "publicacao" });
   }
   return output.reduce((acc, item) => {
-    const key = `${normalizeText(item.nome)}|${item.polo}`;
-    if (!acc.some((row) => `${normalizeText(row.nome)}|${row.polo}` === key)) acc.push(item);
+    const key = partyKey(item.nome, item.polo);
+    if (!acc.some((row) => partyKey(row.nome, row.polo) === key)) acc.push(item);
     return acc;
   }, []);
 }
@@ -394,12 +405,12 @@ export async function listPartesExtractionCandidates(env, { page = 1, pageSize =
     const existing = partes.filter((item) => item.processo_id === proc.id);
     const parsed = pubs.flatMap((pub) => parsePartesFromText(pub.conteudo));
     const uniqueParsed = parsed.reduce((acc, item) => {
-      const key = `${normalizeText(item.nome)}|${item.polo}`;
-      if (!acc.some((row) => `${normalizeText(row.nome)}|${row.polo}` === key)) acc.push(item);
+      const key = partyKey(item.nome, item.polo);
+      if (!acc.some((row) => partyKey(row.nome, row.polo) === key)) acc.push(item);
       return acc;
     }, []);
     const novas = uniqueParsed.filter(
-      (parte) => !existing.some((item) => normalizeText(item.nome) === normalizeText(parte.nome) && item.polo === parte.polo)
+      (parte) => !existing.some((item) => partyKey(item.nome, item.polo) === partyKey(parte.nome, parte.polo))
     );
     if (!novas.length) continue;
     items.push({
@@ -817,15 +828,15 @@ export async function backfillPartesFromPublicacoes(env, { processNumbers = [], 
     const existentes = allPartes.filter((item) => item.processo_id === proc.id);
     const parsed = publicacoes.flatMap((pub) => parsePartesFromText(pub.conteudo));
     const uniqueParsed = parsed.reduce((acc, item) => {
-      const key = `${normalizeText(item.nome)}|${item.polo}`;
-      if (!acc.some((row) => `${normalizeText(row.nome)}|${row.polo}` === key)) acc.push(item);
+      const key = partyKey(item.nome, item.polo);
+      if (!acc.some((row) => partyKey(row.nome, row.polo) === key)) acc.push(item);
       return acc;
     }, []);
     const novas = uniqueParsed
-      .filter((parte) => !existentes.some((item) => normalizeText(item.nome) === normalizeText(parte.nome) && item.polo === parte.polo))
+      .filter((parte) => !existentes.some((item) => partyKey(item.nome, item.polo) === partyKey(parte.nome, parte.polo)))
       .map((parte) => ({
         processo_id: proc.id,
-        nome: parte.nome,
+        nome: cleanPartyName(parte.nome),
         polo: parte.polo,
         tipo_pessoa: parte.tipo_pessoa,
         fonte: "publicacao",
@@ -862,6 +873,7 @@ export async function backfillPartesFromPublicacoes(env, { processNumbers = [], 
   }
   return {
     checkedAt: new Date().toISOString(),
+    applyMode: apply,
     processosLidos: processes.length,
     partesInseridas: inserted,
     sample: sample.slice(0, 20),
