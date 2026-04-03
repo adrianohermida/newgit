@@ -438,7 +438,12 @@ export default function AITaskModule({ profile, routePath }) {
         const payload = await adminFetch("/api/admin-dotobot-chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "task_run_get", runId, sinceEventId: lastEventCursorRef.current || undefined }),
+          body: JSON.stringify({
+            action: "task_run_get",
+            runId,
+            sinceEventId: lastEventCursorRef.current || undefined,
+            waitForChangeMs: Math.min(Math.max(nextDelayMs * 3, 1500), 10000),
+          }),
         });
 
         const run = payload?.data?.run || null;
