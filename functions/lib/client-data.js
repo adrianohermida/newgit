@@ -1274,16 +1274,16 @@ export async function listClientDocumentos(env, email) {
 
 export async function listClientFinanceiro(env, email) {
   try {
-    const [contactsRaw, dealsRaw, accountsRaw] = await Promise.all([
-      listFreshsalesSnapshots(env, "contacts", 250),
+    const [dealsRaw, freshsalesContext] = await Promise.all([
       listFreshsalesSnapshots(env, "deals", 300),
-      listFreshsalesSnapshots(env, "sales_accounts", 250),
+      listFreshsalesRelatedAccounts(env, email),
     ]);
-
     const normalizedEmail = normalizeEmail(email);
-    const contacts = Array.isArray(contactsRaw) ? contactsRaw.filter((item) => snapshotHasEmail(item, normalizedEmail)) : [];
-    const contactIds = new Set(contacts.map((item) => String(item.source_id || "").trim()).filter(Boolean));
-    const accounts = Array.isArray(accountsRaw) ? accountsRaw : [];
+    const contacts = freshsalesContext.contacts || [];
+    const contactIds = new Set(freshsalesContext.contactIds || []);
+    const accounts = freshsalesContext.accounts || [];
+    const relatedAccountIds = new Set(freshsalesContext.accountIds || []);
+    const ownerId = freshsalesContext.ownerId || null;
     const accountsById = new Map(accounts.map((item) => [String(item.source_id || "").trim(), item]));
     const deals = Array.isArray(dealsRaw) ? dealsRaw : [];
 
@@ -1291,8 +1291,13 @@ export async function listClientFinanceiro(env, email) {
       const relationships = safeJsonParse(deal.relationships, {});
       const targetType = normalizeText(relationships.targetable_type || "");
       const targetId = String(relationships.targetable_id || "").trim();
+      const accountId = String(relationships.sales_account_id || "").trim();
 
       if (targetType.includes("contact") && contactIds.has(targetId)) {
+        return true;
+      }
+
+      if (accountId && relatedAccountIds.has(accountId)) {
         return true;
       }
 
@@ -1305,6 +1310,16 @@ export async function listClientFinanceiro(env, email) {
         const contactId = String(contact.source_id || "").trim();
         return contactId && textCorpus.includes(contactId);
       });
+
+      if (includeByContact) {
+        return true;
+      }
+
+      if (ownerId && snapshotMatchesOwner(deal, ownerId)) {
+        return true;
+      }
+
+      return false;
     });
 
     const mapping = buildFinanceMapping(relatedDeals, accounts, env);
