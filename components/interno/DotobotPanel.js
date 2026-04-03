@@ -563,7 +563,7 @@ export default function DotobotPanel({
   const activeStatus = loading || runningCount ? "processing" : "online";
   const activeMode = MODE_OPTIONS.find((item) => item.value === mode) || MODE_OPTIONS[0];
   const activeProviderLabel = PROVIDER_OPTIONS.find((item) => item.value === provider)?.label || "GPT";
-  const isWorkspaceShell = workspaceOpen && !compactRail;
+  const isWorkspaceShell = workspaceOpen;
   const railCollapsed = compactRail ? true : collapsed;
 
   return (
@@ -583,13 +583,22 @@ export default function DotobotPanel({
             </div>
             <div className="flex flex-col items-end gap-2">
               {compactRail ? (
-                <button
-                  type="button"
-                  onClick={() => router.push("/interno/ai-task")}
-                  className="rounded-2xl border border-[#C5A059] px-3 py-2 text-xs font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]"
-                >
-                  Abrir Copilot
-                </button>
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setWorkspaceOpen(true)}
+                    className="rounded-2xl border border-[#C5A059] px-3 py-2 text-xs font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]"
+                  >
+                    Tela cheia
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push("/interno/ai-task")}
+                    className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                  >
+                    AI Task
+                  </button>
+                </div>
               ) : (
                 <>
                   <button

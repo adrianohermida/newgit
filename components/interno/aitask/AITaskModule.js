@@ -294,6 +294,7 @@ export default function AITaskModule({ profile, routePath }) {
   const abortRef = useRef(null);
   const pauseRef = useRef(false);
   const logViewportRef = useRef(null);
+  const chatViewportRef = useRef(null);
   const missionInputRef = useRef(null);
 
   useEffect(() => {
