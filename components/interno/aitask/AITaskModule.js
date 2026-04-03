@@ -287,6 +287,10 @@ export default function AITaskModule({ profile, routePath }) {
   const [activeRun, setActiveRun] = useState(null);
   const [paused, setPaused] = useState(false);
   const [missionHistory, setMissionHistory] = useState([]);
+  const [showContext, setShowContext] = useState(true);
+  const [showTasks, setShowTasks] = useState(true);
+  const [contextSnapshot, setContextSnapshot] = useState(null);
+  const [attachments, setAttachments] = useState([]);
   const abortRef = useRef(null);
   const pauseRef = useRef(false);
   const logViewportRef = useRef(null);
@@ -305,6 +309,8 @@ export default function AITaskModule({ profile, routePath }) {
     if (Array.isArray(cached.logs)) setLogs(cached.logs);
     if (Array.isArray(cached.missionHistory)) setMissionHistory(cached.missionHistory);
     if (cached.latestResult) setLatestResult(cached.latestResult);
+    if (cached.contextSnapshot) setContextSnapshot(cached.contextSnapshot);
+    if (Array.isArray(cached.attachments)) setAttachments(cached.attachments);
   }, [storageKey]);
 
   useEffect(() => {
@@ -321,9 +327,11 @@ export default function AITaskModule({ profile, routePath }) {
         logs,
         missionHistory,
         latestResult,
+        contextSnapshot,
+        attachments,
       })
     );
-  }, [storageKey, mission, mode, provider, approved, tasks, thinking, logs, missionHistory, latestResult]);
+  }, [storageKey, mission, mode, provider, approved, tasks, thinking, logs, missionHistory, latestResult, contextSnapshot, attachments]);
 
   useEffect(() => {
     if (!logViewportRef.current) return;
@@ -480,6 +488,7 @@ export default function AITaskModule({ profile, routePath }) {
                 mode,
                 provider,
                 approved,
+                attachments,
                 assistant: {
                   surface: "ai-task",
                   orchestration: "planner-executor-critic",
@@ -523,6 +532,13 @@ export default function AITaskModule({ profile, routePath }) {
             ]);
           }
           if (payload?.data?.rag) {
+            setContextSnapshot({
+              module: detectModules(normalizedMission).join(", "),
+              memory: payload.data.rag?.retrieval?.matches || payload.data.retrieved_context || [],
+              documents: payload.data.rag?.documents || [],
+              ragEnabled: Boolean(payload.data.rag?.retrieval?.enabled || payload.data.rag?.documents?.length),
+              route: routePath || "/interno/ai-task",
+            });
             patchThinking((current) => [
               {
                 id: `${Date.now()}_rag`,
@@ -675,6 +691,15 @@ export default function AITaskModule({ profile, routePath }) {
     setMission(value);
     setError(null);
     missionInputRef.current?.focus();
+  }
+
+  function handleAttachmentChange(event) {
+    const files = Array.from(event.target.files || []).slice(0, 6).map((file) => ({
+      name: file.name,
+      type: file.type || "file",
+      size: file.size,
+    }));
+    setAttachments(files);
   }
 
   function handleReplay(task) {
