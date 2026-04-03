@@ -128,7 +128,7 @@ export default function InternoLayout({ title, description, profile, children })
           </main>
 
           {isDotobotOpen ? (
-            <aside id="dotobot-rail" className="lg:h-[calc(100vh-1.5rem)]">
+            <aside id="dotobot-rail" className="order-first lg:order-none lg:h-[calc(100vh-1.5rem)]">
               <div className="h-full overflow-y-auto rounded-[28px] border border-[#1D2220] bg-[linear-gradient(180deg,rgba(10,13,12,0.98),rgba(8,10,9,0.94))] p-3 md:p-4 lg:sticky lg:top-3">
                 <div className="mb-3 border-b border-[#1F2624] px-1 pb-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">Conversa lateral</p>
