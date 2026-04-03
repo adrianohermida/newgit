@@ -1,6 +1,8 @@
 import { requireClientAccess } from "./client-auth.js";
 
 const DEFAULT_SCRIPT_URL = "//eu.fw-cdn.com/10713913/375987.js";
+const DEFAULT_DISCOVERED_WIDGET_HOST = "https://hmadv-org-7b725ea101eff5516788608.freshchat.com";
+const DEFAULT_DISCOVERED_WIDGET_TOKEN = "ffefb5e9-3f8f-457f-8036-1b33e057e3f2";
 const WEB_MESSENGER_HOST_KEYS = [
   "FRESHCHAT_WEB_MESSENGER_HOST",
   "FRESHCHAT_WEB_MESSENGER_URL",
@@ -121,10 +123,11 @@ export function getFreshchatWebConfig(envLike = {}) {
   const hostCandidate = pickEnvValue(envLike, WEB_MESSENGER_HOST_KEYS);
   const tokenCandidate = pickEnvValue(envLike, WEB_MESSENGER_TOKEN_KEYS);
   const secretCandidate = pickEnvValue(envLike, JWT_SECRET_KEYS);
-  const widgetHost = hostCandidate.value;
-  const messengerToken = tokenCandidate.value;
+  const widgetHost = hostCandidate.value || DEFAULT_DISCOVERED_WIDGET_HOST;
+  const messengerToken = tokenCandidate.value || DEFAULT_DISCOVERED_WIDGET_TOKEN;
   const jwtSecret = secretCandidate.value;
   const enabled = toBoolean(envLike.FRESHCHAT_ENABLE_WEB_MESSENGER, true) && Boolean(scriptUrl);
+  const runtimeScriptUrl = widgetHost ? `${widgetHost.replace(/\/+$/, "")}/js/widget.js` : null;
 
   const issues = [];
   if (widgetHost && /(?:^https?:\/\/)?msdk\./i.test(widgetHost)) {
@@ -141,10 +144,17 @@ export function getFreshchatWebConfig(envLike = {}) {
   } else if (looksLikeUuid(messengerToken)) {
     issues.push("uuid_like_web_messenger_token");
   }
+  if (!hostCandidate.value && widgetHost === DEFAULT_DISCOVERED_WIDGET_HOST) {
+    issues.push("host_inferred_from_embed_script");
+  }
+  if (!tokenCandidate.value && messengerToken === DEFAULT_DISCOVERED_WIDGET_TOKEN) {
+    issues.push("token_inferred_from_embed_script");
+  }
 
   return {
     enabled,
     scriptUrl,
+    runtimeScriptUrl,
     widgetHost,
     messengerToken,
     jwtEnabled: Boolean(jwtSecret),
@@ -170,6 +180,7 @@ export function buildFreshchatPublicConfig(envLike = {}) {
     ok: true,
     enabled: config.enabled,
     scriptUrl: config.scriptUrl,
+    runtimeScriptUrl: config.runtimeScriptUrl,
     widgetHost: config.widgetHost,
     messengerToken: config.messengerToken,
     jwtEnabled: config.jwtEnabled,

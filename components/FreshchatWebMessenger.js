@@ -6,6 +6,7 @@ const VISITOR_ID_KEY = "hmadv:freshchat:visitor-id";
 const UUID_KEY = "hmadv:freshchat:uuid";
 const REFERENCE_ID_KEY = "hmadv:freshchat:reference-id";
 const SCRIPT_ID = "hmadv_freshchat_widget_script";
+const INIT_KEY = "hmadv:freshchat:initialized";
 
 function createVisitorId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -140,17 +141,29 @@ async function requestJwt(identity, freshchatUuid, authorization) {
   return payload;
 }
 
-function appendWidgetScript(scriptUrl, chatEnabled) {
-  if (document.getElementById(SCRIPT_ID)) {
-    return;
-  }
+function appendWidgetScript(scriptUrl) {
+  return new Promise((resolve, reject) => {
+    const existing = document.getElementById(SCRIPT_ID);
+    if (existing) {
+      if (window.fcWidget) {
+        resolve();
+        return;
+      }
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Falha ao carregar script do Freshchat.")), {
+        once: true,
+      });
+      return;
+    }
 
-  const script = document.createElement("script");
-  script.id = SCRIPT_ID;
-  script.src = scriptUrl;
-  script.async = true;
-  script.setAttribute("chat", chatEnabled ? "true" : "false");
-  document.body.appendChild(script);
+    const script = document.createElement("script");
+    script.id = SCRIPT_ID;
+    script.src = scriptUrl;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Falha ao carregar script do Freshchat."));
+    document.body.appendChild(script);
+  });
 }
 
 export default function FreshchatWebMessenger() {
@@ -201,105 +214,124 @@ export default function FreshchatWebMessenger() {
           console.warn("Freshchat: falha ao preaquecer JWT do widget.", error);
         }
       }
+      await appendWidgetScript(config.runtimeScriptUrl || config.scriptUrl);
+      if (cancelled) {
+        return;
+      }
 
-      window.fcSettings = {
-        ...(window.fcSettings || {}),
-        ...(config.widgetHost && config.messengerToken
-          ? {
-              host: config.widgetHost,
-              token: config.messengerToken,
-            }
-          : {}),
-        onInit: function onInit() {
-          const widget = window.fcWidget || window.fwcrm;
-          if (!widget) {
+      const widget = window.fcWidget || window.fwcrm;
+      if (!widget || typeof widget.init !== "function") {
+        return;
+      }
+
+      const syncIdentity = () => {
+        if (typeof widget.setExternalId === "function" && identity.referenceId) {
+          widget.setExternalId(identity.referenceId);
+        }
+        if (widget.user?.setFirstName && identity.firstName) {
+          widget.user.setFirstName(identity.firstName);
+        }
+        if (widget.user?.setLastName && identity.lastName) {
+          widget.user.setLastName(identity.lastName);
+        }
+        if (widget.user?.setEmail && identity.email) {
+          widget.user.setEmail(identity.email);
+        }
+        if (widget.user?.setPhone && identity.phoneNumber) {
+          widget.user.setPhone(identity.phoneNumber);
+        }
+      };
+
+      const authenticateUser = async (userData) => {
+        if (authInFlight.current || !config.jwtEnabled) {
+          return;
+        }
+
+        authInFlight.current = true;
+        try {
+          let freshchatUuid = userData?.freshchat_uuid || readStorage(UUID_KEY);
+          if (!freshchatUuid && widget.user?.getUUID) {
+            const uuidResponse = await widget.user.getUUID();
+            freshchatUuid = uuidResponse?.data?.uuid || null;
+          }
+
+          if (!freshchatUuid) {
             return;
           }
 
-          const syncIdentity = () => {
-            if (typeof widget.setExternalId === "function" && identity.referenceId) {
-              widget.setExternalId(identity.referenceId);
-            }
-            if (widget.user?.setFirstName && identity.firstName) {
-              widget.user.setFirstName(identity.firstName);
-            }
-            if (widget.user?.setLastName && identity.lastName) {
-              widget.user.setLastName(identity.lastName);
-            }
-            if (widget.user?.setEmail && identity.email) {
-              widget.user.setEmail(identity.email);
-            }
-            if (widget.user?.setPhone && identity.phoneNumber) {
-              widget.user.setPhone(identity.phoneNumber);
-            }
-          };
-
-          const authenticateUser = async (userData) => {
-            if (authInFlight.current || !config.jwtEnabled) {
-              return;
-            }
-
-            authInFlight.current = true;
-            try {
-              let freshchatUuid = userData?.freshchat_uuid || readStorage(UUID_KEY);
-              if (!freshchatUuid && widget.user?.getUUID) {
-                const uuidResponse = await widget.user.getUUID();
-                freshchatUuid = uuidResponse?.data?.uuid || null;
-              }
-
-              if (!freshchatUuid) {
-                return;
-              }
-
-              writeStorage(UUID_KEY, freshchatUuid);
-              syncIdentity();
-
-              const jwtPayload = await requestJwt(identity, freshchatUuid, authorization);
-              if (typeof widget.authenticate === "function") {
-                widget.authenticate(jwtPayload.token);
-              }
-            } catch (error) {
-              console.warn("Freshchat: falha ao autenticar widget JWT.", error);
-            } finally {
-              authInFlight.current = false;
-            }
-          };
-
-          widget.on?.("frame:statechange", (data) => {
-            if (
-              data?.success === false &&
-              data?.data?.frameState === "not_authenticated"
-            ) {
-              authenticateUser(data.data);
-            }
-          });
-
-          widget.on?.("user:statechange", (data) => {
-            const userData = data?.data || {};
-            if (userData?.freshchat_uuid) {
-              writeStorage(UUID_KEY, userData.freshchat_uuid);
-            }
-
-            if (data?.success) {
-              syncIdentity();
-              return;
-            }
-
-            if (
-              userData?.userState === "not_loaded" ||
-              userData?.userState === "unloaded" ||
-              userData?.userState === "not_created" ||
-              userData?.userState === "not_authenticated"
-            ) {
-              authenticateUser(userData);
-            }
-          });
-
+          writeStorage(UUID_KEY, freshchatUuid);
           syncIdentity();
-        },
+
+          const jwtPayload = await requestJwt(identity, freshchatUuid, authorization);
+          if (typeof widget.authenticate === "function") {
+            widget.authenticate(jwtPayload.token);
+          }
+        } catch (error) {
+          console.warn("Freshchat: falha ao autenticar widget JWT.", error);
+        } finally {
+          authInFlight.current = false;
+        }
       };
 
-      appendWidgetScript(config.scriptUrl, true);
+      const registerHandlers = () => {
+        if (window[INIT_KEY]) {
+          syncIdentity();
+          return;
+        }
+
+        window[INIT_KEY] = true;
+        widget.on?.("frame:statechange", (data) => {
+          if (data?.success === false && data?.data?.frameState === "not_authenticated") {
+            authenticateUser(data.data);
+          }
+        });
+
+        widget.on?.("user:statechange", (data) => {
+          const userData = data?.data || {};
+          if (userData?.freshchat_uuid) {
+            writeStorage(UUID_KEY, userData.freshchat_uuid);
+          }
+
+          if (data?.success) {
+            syncIdentity();
+            return;
+          }
+
+          if (
+            userData?.userState === "not_loaded" ||
+            userData?.userState === "unloaded" ||
+            userData?.userState === "not_created" ||
+            userData?.userState === "not_authenticated"
+          ) {
+            authenticateUser(userData);
+          }
+        });
+
+        syncIdentity();
+      };
+
+      if (window[INIT_KEY]) {
+        syncIdentity();
+        return;
+      }
+
+      widget.init({
+        token: config.messengerToken,
+        host: config.widgetHost,
+        externalId: identity.referenceId,
+        firstName: identity.firstName,
+        lastName: identity.lastName,
+        email: identity.email,
+        phone: identity.phoneNumber,
+        config: {
+          headerProperty: {
+            hideChatButton: false,
+          },
+        },
+        onInit: function onInit() {
+          registerHandlers();
+        },
+      });
     }
 
     boot().catch((error) => {
