@@ -105,6 +105,40 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function shouldRetryVectorizeError(error: unknown) {
+  const message = String((error as { message?: string })?.message || '').toLowerCase();
+  return (
+    message.includes('timeout') ||
+    message.includes('temporar') ||
+    message.includes('rate') ||
+    message.includes('429') ||
+    message.includes('503') ||
+    message.includes('504') ||
+    message.includes('network') ||
+    message.includes('fetch')
+  );
+}
+
+async function withVectorizeRetry<T>(operation: () => Promise<T>, maxRetries = 2) {
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt >= maxRetries || !shouldRetryVectorizeError(error)) {
+        throw error;
+      }
+      await sleep(Math.pow(2, attempt) * 250);
+    }
+  }
+  throw lastError;
+}
+
 async function runJson(env: Env, prompt: string) {
   const model = env.CLOUDFLARE_WORKERS_AI_MODEL || '@cf/meta/llama-3.1-8b-instruct';
   const result = await env.AI.run(model, {
@@ -268,11 +302,13 @@ function buildSearchText(kind: string, payload: Json) {
 async function queryRelatedMemory(env: Env, text: string, topK = 5) {
   if (!env.VECTORIZE) return [];
   const vector = await runEmbedding(env, text);
-  const matches = await env.VECTORIZE.query(vector, {
-    topK,
-    returnValues: false,
-    returnMetadata: 'all',
-  });
+  const matches = await withVectorizeRetry(() =>
+    env.VECTORIZE.query(vector, {
+      topK,
+      returnValues: false,
+      returnMetadata: 'all',
+    })
+  );
   return matches.matches || [];
 }
 
@@ -429,19 +465,21 @@ async function persistMemoryVector(env: Env, id: string, kind: string, payload: 
   if (!env.VECTORIZE) return null;
   const values = await runEmbedding(env, summarizePayload(kind, payload, analysis));
   const data = payload as Record<string, any>;
-  return env.VECTORIZE.insert([
-    {
-      id,
-      values,
-      metadata: {
-        kind,
-        created_at: nowIso(),
-        payload_kind: String(data?.kind || data?.type || kind),
-        route: String(data?.route || data?.route_path || ''),
-        process_id: String(data?.processo?.id || data?.processo_id || ''),
+  return withVectorizeRetry(() =>
+    env.VECTORIZE.insert([
+      {
+        id,
+        values,
+        metadata: {
+          kind,
+          created_at: nowIso(),
+          payload_kind: String(data?.kind || data?.type || kind),
+          route: String(data?.route || data?.route_path || ''),
+          process_id: String(data?.processo?.id || data?.processo_id || ''),
+        },
       },
-    },
-  ]);
+    ])
+  );
 }
 
 function supabaseHeaders(env: Env) {
