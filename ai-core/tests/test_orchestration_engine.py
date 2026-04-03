@@ -75,21 +75,10 @@ class OrchestrationEngineTests(unittest.TestCase):
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
     def test_api_health_and_execute(self) -> None:
-        try:
-            from fastapi.testclient import TestClient
-            from api.server import app
-        except Exception as exc:  # pragma: no cover - optional dependency skip
-            self.skipTest(f'FastAPI test client unavailable: {exc}')
-            return
+        from api.server import ExecuteRequest, execute_request, health
 
-        client = TestClient(app)
-        health = client.get('/health')
-        self.assertEqual(health.status_code, 200)
-        self.assertEqual(health.json()['status'], 'ok')
-
-        execute = client.post('/execute', json={'query': 'Summarize workspace', 'context': {}})
-        self.assertEqual(execute.status_code, 200)
-        payload = execute.json()
+        self.assertEqual(health()['status'], 'ok')
+        payload = execute_request(ExecuteRequest(query='Summarize workspace', context={}))
         self.assertIn('result', payload)
         self.assertIn('steps', payload)
         self.assertIn('logs', payload)

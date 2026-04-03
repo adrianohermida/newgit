@@ -49,7 +49,7 @@ export async function onRequestPost(context) {
     return new Response(
       JSON.stringify({
         ok: false,
-        error: error?.message || "Falha ao executar chat administrativo Lawdesk.",
+        error: error?.message || "Falha ao executar chat administrativo Dotobot.",
       }),
       {
         status: 500,

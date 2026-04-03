@@ -1,36 +1,36 @@
 from __future__ import annotations
 
+import json
+from dataclasses import dataclass, field
 from typing import Any
-
-from fastapi import FastAPI
-from pydantic import BaseModel, Field
 
 from core.coordinator import Coordinator
 
-app = FastAPI(title='AI Core Orchestration API', version='1.0.0')
+
+@dataclass(frozen=True)
+class ExecuteRequest:
+    query: str
+    context: dict[str, Any] = field(default_factory=dict)
 
 
-class ExecuteRequest(BaseModel):
-    query: str = Field(min_length=1)
-    context: dict[str, Any] = Field(default_factory=dict)
-
-
-class ExecuteResponse(BaseModel):
-    result: dict[str, Any] | str | None
-    steps: list[dict[str, Any]]
-    logs: list[str]
-    status: str
-    session_id: str
-
-
-@app.get('/health')
 def health() -> dict[str, str]:
     return {'status': 'ok'}
 
 
-@app.post('/execute', response_model=ExecuteResponse)
-def execute(request: ExecuteRequest) -> ExecuteResponse:
+def execute_request(request: ExecuteRequest) -> dict[str, Any]:
     coordinator = Coordinator()
     outcome = coordinator.execute(query=request.query, context=request.context)
-    return ExecuteResponse(**outcome.to_dict())
+    return outcome.to_dict()
+
+
+def execute_json(payload: dict[str, Any]) -> dict[str, Any]:
+    query = str(payload.get('query') or '').strip()
+    if not query:
+        raise ValueError('query is required')
+    context = payload.get('context') if isinstance(payload.get('context'), dict) else {}
+    return execute_request(ExecuteRequest(query=query, context=context))
+
+
+def cloudflare_response(payload: dict[str, Any], status: int = 200) -> tuple[int, dict[str, str], str]:
+    return status, {'Content-Type': 'application/json'}, json.dumps(payload)
 
