@@ -1,5 +1,5 @@
-const SHELL_CACHE = "hmadv-portal-shell-v1";
-const DATA_CACHE = "hmadv-portal-data-v1";
+const SHELL_CACHE = "hmadv-portal-shell-v2";
+const DATA_CACHE = "hmadv-portal-data-v2";
 const MANIFEST_URLS = ["/manifest.json", "/manifest.webmanifest"];
 const FALLBACK_MANIFEST = {
   name: "Portal do Cliente | Hermida Maia",
