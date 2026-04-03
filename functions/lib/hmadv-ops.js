@@ -1036,38 +1036,10 @@ export async function createProcessesFromPublicacoes(env, { processNumbers = [],
 
 export async function pushOrphanAccounts(env, { processNumbers = [], limit = 20 } = {}) {
   const safeLimit = Math.max(1, Math.min(Number(limit || 20), 100));
-  const normalizedNumbers = [...new Set((processNumbers || []).map((item) => normalizeProcessNumber(item)).filter(Boolean))];
-  if (normalizedNumbers.length) {
-    const sample = [];
-    let pushed = 0;
-    const processes = await loadProcessesByNumbers(env, normalizedNumbers);
-    for (const proc of processes.slice(0, safeLimit)) {
-      const result = await hmadvFunction(
-        env,
-        "processo-sync",
-        { action: "push_freshsales", limite: 1, batch: 1, process_number: proc.numero_cnj || normalizeProcessNumber(proc.titulo) },
-        { method: "POST", body: {} }
-      );
-      pushed += Number(result?.ok !== false);
-      sample.push({
-        numero_cnj: proc.numero_cnj,
-        titulo: proc.titulo,
-        account_id_freshsales: result?.account_id_freshsales || null,
-        result,
-      });
-    }
-    return {
-      ok: true,
-      mode: "selected",
-      requested: normalizedNumbers.length,
-      pushed,
-      sample,
-    };
-  }
   return hmadvFunction(
     env,
     "processo-sync",
-    { action: "push_freshsales", limite: safeLimit, batch: 10 },
+    { action: "push_freshsales", limite: safeLimit, batch: 10, requested_selection: processNumbers.length || 0 },
     { method: "POST", body: {} }
   );
 }

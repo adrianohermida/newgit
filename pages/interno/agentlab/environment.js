@@ -43,6 +43,7 @@ function EnvironmentContent({ state }) {
   const environment = state.data?.environment || {};
   const warnings = state.data?.warnings || [];
   const schemaChecklist = environment.schemaChecklist || [];
+  const freshchatApi = environment.freshchatApi || {};
   const readyCount = schemaChecklist.filter((item) => item.status === "ready").length;
   const missingCount = schemaChecklist.filter((item) => item.status !== "ready").length;
 
@@ -73,6 +74,30 @@ function EnvironmentContent({ state }) {
             [agentlab-bootstrap-supabase.md](/D:/Github/newgit/docs/agentlab-bootstrap-supabase.md)
           </p>
           <p>Depois de aplicar o SQL no projeto correto, faca um hard refresh autenticado no painel.</p>
+        </div>
+      </Panel>
+
+      <Panel title="Diagnostico Freshchat API">
+        <div className="space-y-3 text-sm opacity-75">
+          <p>
+            Status:{" "}
+            <span className={freshchatApi.ok ? "text-emerald-400" : "text-amber-300"}>
+              {freshchatApi.ok ? "Valido" : freshchatApi.configured ? "Configurado com ressalvas" : "Nao configurado"}
+            </span>
+          </p>
+          <p>Base configurada: {freshchatApi.baseUrlPreview || "nao informada"}</p>
+          <p>Tipo de token: {freshchatApi.tokenType || "missing"}</p>
+          <p>{freshchatApi.message || "Sem diagnostico adicional."}</p>
+          {(freshchatApi.issues || []).length ? (
+            <div>
+              <p className="font-semibold">Sinais detectados:</p>
+              <ul className="mt-2 space-y-1">
+                {freshchatApi.issues.map((issue) => (
+                  <li key={issue}>- {issue}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       </Panel>
 

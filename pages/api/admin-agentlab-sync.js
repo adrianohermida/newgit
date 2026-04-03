@@ -21,6 +21,10 @@ function isFreshchatCredentialError(error) {
   return String(error?.message || "").includes("Credenciais do Freshchat ausentes");
 }
 
+function isFreshchatSdkCredentialError(error) {
+  return String(error?.message || "").includes("parecem ser do SDK/widget do Freshchat");
+}
+
 function isFreshsalesPayloadError(error) {
   const message = String(error?.message || "");
   return message.includes("Unexpected end of JSON input");
@@ -71,6 +75,17 @@ export default async function handler(req, res) {
 
       return res.status(400).json({ ok: false, error: "Acao de sync invalida." });
     } catch (error) {
+      if (isFreshchatSdkCredentialError(error)) {
+        return res.status(200).json({
+          ok: true,
+          result: {
+            unavailable: true,
+            mode: "sdk_credentials",
+            requiredSecrets: ["FRESHCHAT_API_BASE", "FRESHCHAT_API_KEY"],
+            message: error.message,
+          },
+        });
+      }
       if (isFreshchatCredentialError(error)) {
         return res.status(200).json({
           ok: true,

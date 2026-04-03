@@ -11,6 +11,17 @@ const PROCESS_VIEW_ITEMS = [
   { key: "resultado", label: "Resultado" },
 ];
 const HISTORY_STORAGE_KEY = "hmadv:interno-processos:history:v1";
+const ACTION_LABELS = {
+  run_sync_worker: "Rodar sync-worker",
+  push_orfaos: "Criar accounts no Freshsales",
+  repair_freshsales_accounts: "Corrigir campos no Freshsales",
+  backfill_audiencias: "Retroagir audiencias",
+  auditoria_sync: "Rodar auditoria",
+  enriquecer_datajud: "Reenriquecer via DataJud",
+  monitoramento_status: "Atualizar monitoramento",
+  salvar_relacao: "Salvar relacao",
+  remover_relacao: "Remover relacao",
+};
 
 function buildHistoryPreview(result) {
   if (!result) return "";
@@ -97,12 +108,12 @@ function HistoryCard({ entry, onReuse }) {
     <div className="mt-3 flex flex-wrap gap-2"><ActionButton onClick={() => onReuse(entry)} className="px-3 py-2 text-xs">Reusar parametros</ActionButton></div>
   </div>;
 }
-function QueueSummaryCard({ title, count, helper, onOpen, accent = "text-[#C5A059]" }) {
-  return <button type="button" onClick={onOpen} className="w-full rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-left transition hover:border-[#C5A059]">
+function QueueSummaryCard({ title, count, helper, accent = "text-[#C5A059]" }) {
+  return <div className="w-full rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-left">
     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">{title}</p>
     <p className={`mt-2 font-serif text-3xl ${accent}`}>{count}</p>
     <p className="mt-2 text-sm opacity-65">{helper}</p>
-  </button>;
+  </div>;
 }
 
 export default function InternoProcessosPage() {
@@ -123,7 +134,9 @@ function InternoProcessosContent() {
   const [orphans, setOrphans] = useState({ loading: true, items: [] });
   const [wmPage, setWmPage] = useState(1);
   const [maPage, setMaPage] = useState(1);
+  const [miPage, setMiPage] = useState(1);
   const [fgPage, setFgPage] = useState(1);
+  const [orphanPage, setOrphanPage] = useState(1);
   const [selectedWithoutMovements, setSelectedWithoutMovements] = useState([]);
   const [selectedMonitoringActive, setSelectedMonitoringActive] = useState([]);
   const [selectedMonitoringInactive, setSelectedMonitoringInactive] = useState([]);
@@ -159,9 +172,9 @@ function InternoProcessosContent() {
   useEffect(() => { loadOverview(); }, []);
   useEffect(() => { loadQueue("sem_movimentacoes", setWithoutMovements, wmPage); }, [wmPage]);
   useEffect(() => { loadQueue("monitoramento_ativo", setMonitoringActive, maPage); }, [maPage]);
-  useEffect(() => { loadQueue("monitoramento_inativo", setMonitoringInactive, maPage); }, [maPage]);
+  useEffect(() => { loadQueue("monitoramento_inativo", setMonitoringInactive, miPage); }, [miPage]);
   useEffect(() => { loadQueue("campos_orfaos", setFieldGaps, fgPage); }, [fgPage]);
-  useEffect(() => { loadOrphans(); }, []);
+  useEffect(() => { loadOrphans(orphanPage); }, [orphanPage]);
   useEffect(() => { loadRelations(1, search); }, [search]);
   useEffect(() => {
     const term = lookupTerm.trim();
@@ -180,11 +193,11 @@ function InternoProcessosContent() {
   async function loadOverview() { try { const payload = await adminFetch("/api/admin-hmadv-processos?action=overview"); setOverview({ loading: false, data: payload.data }); } catch { setOverview({ loading: false, data: null }); } }
   async function loadQueue(action, setter, page) {
     setter((state) => ({ ...state, loading: true }));
-    try { const payload = await adminFetch(`/api/admin-hmadv-processos?action=${action}&page=${page}&pageSize=20`); setter({ loading: false, items: (payload.data.items || []).map((item) => ({ ...item, key: item.numero_cnj || item.id })) }); } catch { setter({ loading: false, items: [] }); }
+    try { const payload = await adminFetch(`/api/admin-hmadv-processos?action=${action}&page=${page}&pageSize=20`); setter({ loading: false, items: (payload.data.items || []).map((item) => ({ ...item, key: item.numero_cnj || item.id })), totalRows: payload.data.totalRows || 0, page: payload.data.page || page, pageSize: payload.data.pageSize || 20 }); } catch { setter({ loading: false, items: [], totalRows: 0, page, pageSize: 20 }); }
   }
-  async function loadOrphans() {
+  async function loadOrphans(page = 1) {
     setOrphans((state) => ({ ...state, loading: true }));
-    try { const payload = await adminFetch(`/api/admin-hmadv-processos?action=orfaos&limit=20`); setOrphans({ loading: false, items: (payload.data.items || []).map((item) => ({ ...item, key: item.numero_cnj || item.id })) }); } catch { setOrphans({ loading: false, items: [] }); }
+    try { const payload = await adminFetch(`/api/admin-hmadv-processos?action=orfaos&page=${page}&pageSize=20`); setOrphans({ loading: false, items: (payload.data.items || []).map((item) => ({ ...item, key: item.numero_cnj || item.id })), totalRows: payload.data.totalRows || 0, page: payload.data.page || page, pageSize: payload.data.pageSize || 20 }); } catch { setOrphans({ loading: false, items: [], totalRows: 0, page, pageSize: 20 }); }
   }
   async function loadRelations(page = 1, query = "") {
     setRelations((current) => ({ ...current, loading: true, error: null }));
@@ -231,7 +244,7 @@ function InternoProcessosContent() {
     pushHistoryEntry({
       id: historyId,
       action,
-      label: action,
+      label: ACTION_LABELS[action] || action,
       status: "running",
       createdAt: new Date().toISOString(),
       preview: "Execucao iniciada",
@@ -250,7 +263,7 @@ function InternoProcessosContent() {
         preview: buildHistoryPreview(response.data),
         result: response.data,
       });
-      await Promise.all([loadOverview(), loadQueue("sem_movimentacoes", setWithoutMovements, wmPage), loadQueue("monitoramento_ativo", setMonitoringActive, maPage), loadQueue("monitoramento_inativo", setMonitoringInactive, maPage), loadQueue("campos_orfaos", setFieldGaps, fgPage), loadOrphans()]);
+      await Promise.all([loadOverview(), loadQueue("sem_movimentacoes", setWithoutMovements, wmPage), loadQueue("monitoramento_ativo", setMonitoringActive, maPage), loadQueue("monitoramento_inativo", setMonitoringInactive, miPage), loadQueue("campos_orfaos", setFieldGaps, fgPage), loadOrphans(orphanPage)]);
     } catch (error) {
       setActionState({ loading: false, error: error.message || "Falha ao executar acao.", result: null });
       replaceHistoryEntry(historyId, {
@@ -321,24 +334,44 @@ function InternoProcessosContent() {
           <div className="grid gap-3 md:grid-cols-2">
             <ActionButton onClick={() => handleAction("run_sync_worker")} disabled={actionState.loading}>Rodar sync-worker</ActionButton>
             <ActionButton tone="primary" onClick={() => handleAction("push_orfaos", { limit })} disabled={actionState.loading}>Criar accounts no Freshsales</ActionButton>
-            <ActionButton onClick={() => handleAction("push_orfaos", { processNumbers: getSelectedNumbers(orphans.items, selectedOrphans).join("\n"), limit })} disabled={actionState.loading}>Criar accounts selecionadas</ActionButton>
             <ActionButton onClick={() => handleAction("repair_freshsales_accounts", { processNumbers: getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n"), limit })} disabled={actionState.loading}>Corrigir campos no Freshsales</ActionButton>
             <ActionButton onClick={() => handleAction("backfill_audiencias", { processNumbers: getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n"), limit, apply: true })} disabled={actionState.loading}>Retroagir audiencias</ActionButton>
             <ActionButton onClick={() => handleAction("auditoria_sync")} disabled={actionState.loading} className="md:col-span-2">Rodar auditoria</ActionButton>
           </div>
+          <p className="text-xs opacity-55">A criacao de accounts roda em lote controlado para respeitar o sync remoto e evitar inconsistencias entre Freshsales e Supabase.</p>
         </div>
       </Panel>
       <Panel title="Reenriquecimento DataJud" eyebrow="Consulta e persistencia">
-        <div className="space-y-4"><p className="text-sm opacity-70">A consulta do DataJud precisa persistir primeiro no Supabase; a correcao no Freshsales vem como segunda etapa.</p><div className="grid gap-3 md:grid-cols-2"><ActionButton tone="primary" onClick={() => handleAction("enriquecer_datajud", { processNumbers: getSelectedNumbers(withoutMovements.items, selectedWithoutMovements).join("\n"), limit })} disabled={actionState.loading}>Buscar movimentacoes no DataJud</ActionButton><ActionButton onClick={() => handleAction("enriquecer_datajud", { processNumbers: getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n"), limit })} disabled={actionState.loading}>Sincronizar monitorados</ActionButton><ActionButton onClick={() => handleAction("enriquecer_datajud", { processNumbers: getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n"), limit })} disabled={actionState.loading} className="md:col-span-2">Reenriquecer processos com gap</ActionButton></div></div>
+        <div className="space-y-4">
+          <p className="text-sm opacity-70">A consulta do DataJud precisa persistir primeiro no Supabase; a correcao no Freshsales vem como segunda etapa.</p>
+          <div className="grid gap-3 md:grid-cols-2">
+            <ActionButton tone="primary" onClick={() => handleAction("enriquecer_datajud", { processNumbers: getSelectedNumbers(withoutMovements.items, selectedWithoutMovements).join("\n"), limit })} disabled={actionState.loading}>Buscar movimentacoes no DataJud</ActionButton>
+            <ActionButton onClick={() => handleAction("enriquecer_datajud", { processNumbers: getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n"), limit })} disabled={actionState.loading}>Sincronizar monitorados</ActionButton>
+            <ActionButton onClick={() => handleAction("enriquecer_datajud", { processNumbers: getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n"), limit })} disabled={actionState.loading} className="md:col-span-2">Reenriquecer processos com gap</ActionButton>
+          </div>
+          <div className="grid gap-3 pt-2 md:grid-cols-3">
+            <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Fluxo 1</p><p className="mt-2 font-semibold">Dados judiciais</p><p className="mt-2 opacity-65">Reenriquecer o Supabase antes de reparar o Freshsales.</p></div>
+            <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Fluxo 2</p><p className="mt-2 font-semibold">Accounts orfaos</p><p className="mt-2 opacity-65">Criar accounts para os processos sem vinculo e depois rodar o sync.</p></div>
+            <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Fluxo 3</p><p className="mt-2 font-semibold">Audiencias</p><p className="mt-2 opacity-65">Retroagir audiencias em lotes pequenos e acompanhar no historico.</p></div>
+          </div>
+        </div>
       </Panel>
     </div> : null}
 
-    {view === "filas" ? <div id="filas" className="grid gap-6 xl:grid-cols-2">
-      <Panel title="Processos sem movimentacoes" eyebrow="Fila paginada"><QueueList title="Sem movimentacoes" helper="Itens sem andamento local para reconsulta no DataJud." rows={withoutMovements.items} selected={selectedWithoutMovements} onToggle={(key) => toggleSelection(setSelectedWithoutMovements, selectedWithoutMovements, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedWithoutMovements, selectedWithoutMovements, withoutMovements.items, nextState)} page={wmPage} setPage={setWmPage} loading={withoutMovements.loading} /></Panel>
-      <Panel title="Monitoramento ativo" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Monitorados" helper="Se a base ainda nao marca monitoramento_ativo, o painel usa fallback pelos processos com account." rows={monitoringActive.items} selected={selectedMonitoringActive} onToggle={(key) => toggleSelection(setSelectedMonitoringActive, selectedMonitoringActive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringActive, selectedMonitoringActive, monitoringActive.items, nextState)} page={maPage} setPage={setMaPage} loading={monitoringActive.loading} /><div className="flex flex-wrap gap-3"><ActionButton onClick={() => handleAction("monitoramento_status", { processNumbers: getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n"), active: false, limit })} disabled={actionState.loading}>Desativar monitoramento</ActionButton></div></div></Panel>
-      <Panel title="Monitoramento inativo" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Nao monitorados" helper="Use esta fila para reativar o sync dos processos que ficaram fora da rotina." rows={monitoringInactive.items} selected={selectedMonitoringInactive} onToggle={(key) => toggleSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, monitoringInactive.items, nextState)} page={maPage} setPage={setMaPage} loading={monitoringInactive.loading} /><div className="flex flex-wrap gap-3"><ActionButton tone="primary" onClick={() => handleAction("monitoramento_status", { processNumbers: getSelectedNumbers(monitoringInactive.items, selectedMonitoringInactive).join("\n"), active: true, limit })} disabled={actionState.loading}>Ativar monitoramento</ActionButton></div></div></Panel>
-      <Panel title="GAP DataJud -> CRM" eyebrow="Campos orfaos"><QueueList title="Campos pendentes no Freshsales" helper="Processos vinculados cujo espelho ainda tem campos importantes em branco." rows={fieldGaps.items} selected={selectedFieldGaps} onToggle={(key) => toggleSelection(setSelectedFieldGaps, selectedFieldGaps, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedFieldGaps, selectedFieldGaps, fieldGaps.items, nextState)} page={fgPage} setPage={setFgPage} loading={fieldGaps.loading} /></Panel>
-      <Panel title="Sem Sales Account" eyebrow="Processos orfaos"><QueueList title="Orfaos" helper="Itens do HMADV que ainda nao viraram Sales Account." rows={orphans.items} selected={selectedOrphans} onToggle={(key) => toggleSelection(setSelectedOrphans, selectedOrphans, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedOrphans, selectedOrphans, orphans.items, nextState)} page={1} setPage={() => {}} loading={orphans.loading} /></Panel>
+    {view === "filas" ? <div id="filas" className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <QueueSummaryCard title="Sem movimentacoes" count={withoutMovements.totalRows || 0} helper="Processos prontos para reconsulta no DataJud." />
+        <QueueSummaryCard title="Monitorados" count={monitoringActive.totalRows || 0} helper="Carteira ativa em acompanhamento." />
+        <QueueSummaryCard title="Campos orfaos" count={fieldGaps.totalRows || 0} helper="Gaps entre Supabase e Freshsales." />
+        <QueueSummaryCard title="Sem Sales Account" count={orphans.totalRows || 0} helper="Processos ainda sem account vinculada." />
+      </div>
+      <div className="grid gap-6 xl:grid-cols-2">
+      <Panel title="Processos sem movimentacoes" eyebrow="Fila paginada"><QueueList title="Sem movimentacoes" helper="Itens sem andamento local para reconsulta no DataJud." rows={withoutMovements.items} selected={selectedWithoutMovements} onToggle={(key) => toggleSelection(setSelectedWithoutMovements, selectedWithoutMovements, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedWithoutMovements, selectedWithoutMovements, withoutMovements.items, nextState)} page={wmPage} setPage={setWmPage} loading={withoutMovements.loading} totalRows={withoutMovements.totalRows} pageSize={withoutMovements.pageSize} /></Panel>
+      <Panel title="Monitoramento ativo" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Monitorados" helper="Se a base ainda nao marca monitoramento_ativo, o painel usa fallback pelos processos com account." rows={monitoringActive.items} selected={selectedMonitoringActive} onToggle={(key) => toggleSelection(setSelectedMonitoringActive, selectedMonitoringActive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringActive, selectedMonitoringActive, monitoringActive.items, nextState)} page={maPage} setPage={setMaPage} loading={monitoringActive.loading} totalRows={monitoringActive.totalRows} pageSize={monitoringActive.pageSize} /><div className="flex flex-wrap gap-3"><ActionButton onClick={() => handleAction("monitoramento_status", { processNumbers: getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n"), active: false, limit })} disabled={actionState.loading}>Desativar monitoramento</ActionButton></div></div></Panel>
+      <Panel title="Monitoramento inativo" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Nao monitorados" helper="Use esta fila para reativar o sync dos processos que ficaram fora da rotina." rows={monitoringInactive.items} selected={selectedMonitoringInactive} onToggle={(key) => toggleSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, monitoringInactive.items, nextState)} page={miPage} setPage={setMiPage} loading={monitoringInactive.loading} totalRows={monitoringInactive.totalRows} pageSize={monitoringInactive.pageSize} /><div className="flex flex-wrap gap-3"><ActionButton tone="primary" onClick={() => handleAction("monitoramento_status", { processNumbers: getSelectedNumbers(monitoringInactive.items, selectedMonitoringInactive).join("\n"), active: true, limit })} disabled={actionState.loading}>Ativar monitoramento</ActionButton></div></div></Panel>
+      <Panel title="GAP DataJud -> CRM" eyebrow="Campos orfaos"><QueueList title="Campos pendentes no Freshsales" helper="Processos vinculados cujo espelho ainda tem campos importantes em branco." rows={fieldGaps.items} selected={selectedFieldGaps} onToggle={(key) => toggleSelection(setSelectedFieldGaps, selectedFieldGaps, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedFieldGaps, selectedFieldGaps, fieldGaps.items, nextState)} page={fgPage} setPage={setFgPage} loading={fieldGaps.loading} totalRows={fieldGaps.totalRows} pageSize={fieldGaps.pageSize} /></Panel>
+      <Panel title="Sem Sales Account" eyebrow="Processos orfaos"><QueueList title="Orfaos" helper="Itens do HMADV que ainda nao viraram Sales Account." rows={orphans.items} selected={selectedOrphans} onToggle={(key) => toggleSelection(setSelectedOrphans, selectedOrphans, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedOrphans, selectedOrphans, orphans.items, nextState)} page={orphanPage} setPage={setOrphanPage} loading={orphans.loading} totalRows={orphans.totalRows} pageSize={orphans.pageSize} /></Panel>
+      </div>
     </div> : null}
 
     {view === "relacoes" ? <div id="relacoes" className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
