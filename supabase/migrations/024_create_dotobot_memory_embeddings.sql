@@ -1,5 +1,5 @@
 create extension if not exists pgcrypto;
-create extension if not exists vector with schema extensions;
+create extension if not exists vector with schema public;
 
 create table if not exists public.dotobot_memory_embeddings (
   id uuid primary key default gen_random_uuid(),
@@ -14,7 +14,7 @@ create table if not exists public.dotobot_memory_embeddings (
   embedding_model text not null default 'supabase/gte-small',
   embedding_dimensions integer not null default 384,
   metadata jsonb not null default '{}'::jsonb,
-  embedding extensions.vector(384) not null,
+  embedding vector(384) not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -63,7 +63,7 @@ begin
     coalesce(nullif(payload->>'embedding_model', ''), 'supabase/gte-small'),
     coalesce((payload->>'embedding_dimensions')::integer, 384),
     coalesce(payload->'metadata', '{}'::jsonb),
-    (payload->'embedding')::text::extensions.vector(384),
+    (payload->'embedding')::text::vector(384),
     now()
   )
   on conflict (source_key) do update set
@@ -122,10 +122,10 @@ as $$
     m.embedding_model,
     m.embedding_dimensions,
     m.metadata,
-    1 - (m.embedding <=> (query_embedding::text)::extensions.vector(384)) as similarity,
+    1 - (m.embedding <=> (query_embedding::text)::vector(384)) as similarity,
     m.created_at
   from public.dotobot_memory_embeddings as m
-  where match_threshold is null or 1 - (m.embedding <=> (query_embedding::text)::extensions.vector(384)) >= match_threshold
-  order by m.embedding <=> (query_embedding::text)::extensions.vector(384)
+  where match_threshold is null or 1 - (m.embedding <=> (query_embedding::text)::vector(384)) >= match_threshold
+  order by m.embedding <=> (query_embedding::text)::vector(384)
   limit greatest(match_count, 1);
 $$;
