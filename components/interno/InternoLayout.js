@@ -51,6 +51,7 @@ function RailPanel({ title, subtitle, children }) {
 export default function InternoLayout({ title, description, profile, children }) {
   const router = useRouter();
   const { supabase } = useSupabaseBrowser();
+  const initialWorkspaceOpen = router.pathname === "/interno/agentlab/conversations";
 
   async function handleSignOut() {
     if (supabase) {
@@ -71,7 +72,7 @@ export default function InternoLayout({ title, description, profile, children })
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C5A059]">Hermida Maia</p>
                 <h1 className="text-[32px] font-semibold tracking-[-0.03em] text-[#F5F1E8]">Centro operacional</h1>
                 <p className="mt-3 max-w-[18rem] text-sm leading-6 text-[#8FA39C]">
-                  Workspace operacional para processos, CRM, governanca de agentes e engenharia de inteligencia do escritorio.
+                  Centro operacional para processos, CRM, governanca de agentes e engenharia de inteligencia do escritorio.
                 </p>
               </Link>
 
@@ -94,7 +95,7 @@ export default function InternoLayout({ title, description, profile, children })
                   <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">Workspace</p>
                   <p className="mt-2 text-sm font-medium text-[#F5F1E8]">Sidebar, modulo e Dotobot</p>
                   <p className="mt-2 text-sm leading-6 text-[#92A59F]">
-                    A barra lateral orienta. O centro executa. O painel lateral apoia com contexto, conversa e acompanhamento continuo do operador juridico.
+                    A barra lateral orienta. O centro executa. O Dotobot pode expandir para a tela cheia com conversa, tarefas, contexto e execucao assistida.
                   </p>
                 </div>
 
@@ -148,7 +149,7 @@ export default function InternoLayout({ title, description, profile, children })
                   Use este painel para perguntar, resumir, comparar versoes e revisar o contexto enquanto navega pelos modulos internos.
                 </RailPanel>
 
-                <DotobotPanel profile={profile} routePath={router.pathname} />
+                <DotobotPanel profile={profile} routePath={router.pathname} initialWorkspaceOpen={initialWorkspaceOpen} />
               </div>
             </div>
           </aside>
