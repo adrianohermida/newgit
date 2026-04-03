@@ -55,14 +55,19 @@ export default function InternoLayout({
   profile,
   children,
   hideDotobotRail = false,
+  forceDotobotRail = false,
+  rightRailFullscreen = false,
   rightRail,
 }) {
   const router = useRouter();
   const { supabase } = useSupabaseBrowser();
   const initialWorkspaceOpen = router.pathname === "/interno/agentlab/conversations";
-  const gridClassName = hideDotobotRail
+  const shouldRenderDotobotRail = !hideDotobotRail || forceDotobotRail;
+  const gridClassName = !shouldRenderDotobotRail
     ? "grid min-h-[calc(100vh-1.5rem)] gap-3 lg:grid-cols-[272px_minmax(0,1fr)]"
-    : "grid min-h-[calc(100vh-1.5rem)] gap-3 lg:grid-cols-[272px_minmax(0,1fr)_320px]";
+    : rightRailFullscreen
+      ? "grid min-h-[calc(100vh-1.5rem)] gap-3 lg:grid-cols-[272px_minmax(0,1fr)_minmax(420px,46vw)]"
+      : "grid min-h-[calc(100vh-1.5rem)] gap-3 lg:grid-cols-[272px_minmax(0,1fr)_320px]";
 
   async function handleSignOut() {
     if (supabase) {
@@ -141,16 +146,16 @@ export default function InternoLayout({
             <div className="space-y-6">{children}</div>
           </main>
 
-          {!hideDotobotRail ? (
+          {shouldRenderDotobotRail ? (
             <aside id="dotobot-rail" className="order-2 lg:order-none lg:h-[calc(100vh-1.5rem)]">
               <div className="h-full overflow-y-auto rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(10,17,15,0.96),rgba(8,14,12,0.92))] p-3 md:p-4 lg:sticky lg:top-3">
                 {rightRail || (
                   <DotobotPanel
                     profile={profile}
                     routePath={router.pathname}
-                    initialWorkspaceOpen={initialWorkspaceOpen}
-                    defaultCollapsed
-                    compactRail
+                    initialWorkspaceOpen={rightRailFullscreen ? true : initialWorkspaceOpen}
+                    defaultCollapsed={rightRailFullscreen ? false : true}
+                    compactRail={rightRailFullscreen ? false : true}
                   />
                 )}
               </div>

@@ -2,8 +2,10 @@ import { requireAdminNode } from "../../lib/admin/node-auth.js";
 import { runLawdeskChat } from "../../lib/lawdesk/chat.js";
 import { buildDotobotRepositoryContext } from "../../lib/lawdesk/capabilities.js";
 import { detectSkillFromQuery, enrichContextWithSkill } from "../../lib/lawdesk/skill_registry.js";
+import { buildFeatureFlags } from "../../lib/lawdesk/feature-flags.js";
 
 export default async function handler(req, res) {
+  const features = buildFeatureFlags(process.env);
   const auth = await requireAdminNode(req);
   if (!auth.ok) {
     return res.status(auth.status).json({ ok: false, error: auth.error });
@@ -19,17 +21,27 @@ export default async function handler(req, res) {
     return res.status(400).json({ ok: false, error: "Campo query obrigatorio." });
   }
 
+  if (!features.chat.enabled) {
+    return res.status(503).json({
+      ok: false,
+      error: "Chat Dotobot desabilitado por feature flag.",
+      errorType: "feature_disabled",
+    });
+  }
+
   try {
     const repositoryContext = buildDotobotRepositoryContext(req.body?.context || {});
     let enhancedContext = repositoryContext;
 
-    try {
-      const detectedSkill = detectSkillFromQuery(query);
-      if (detectedSkill) {
-        enhancedContext = enrichContextWithSkill(repositoryContext, detectedSkill);
+    if (features.chat.skillsDetection) {
+      try {
+        const detectedSkill = detectSkillFromQuery(query);
+        if (detectedSkill) {
+          enhancedContext = enrichContextWithSkill(repositoryContext, detectedSkill);
+        }
+      } catch (skillError) {
+        console.warn("Skill detection failed, continuing without:", skillError?.message);
       }
-    } catch (skillError) {
-      console.warn("Skill detection failed, continuing without:", skillError?.message);
     }
 
     const startTime = Date.now();
@@ -38,6 +50,7 @@ export default async function handler(req, res) {
       context: {
         ...(req.body?.context || {}),
         repositoryContext: enhancedContext,
+        features,
       },
     });
     const duration = Date.now() - startTime;
