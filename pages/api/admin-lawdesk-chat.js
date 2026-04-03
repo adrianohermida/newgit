@@ -20,12 +20,12 @@ export default async function handler(req, res) {
   const action = typeof req.body?.action === "string" ? req.body.action.trim() : "chat";
 
   if (action === "task_run_get") {
-    const result = getTaskRun(req.body);
+    const result = await getTaskRun(process.env, req.body);
     return res.status(result.status).json(result);
   }
 
   if (action === "task_run_cancel") {
-    const result = cancelTaskRun(req.body);
+    const result = await cancelTaskRun(process.env, req.body);
     return res.status(result.status).json(result);
   }
 

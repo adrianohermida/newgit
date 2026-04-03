@@ -32,7 +32,7 @@ export async function onRequestPost(context) {
   const action = typeof body?.action === "string" ? body.action.trim() : "chat";
 
   if (action === "task_run_get") {
-    const result = getTaskRun(body);
+    const result = await getTaskRun(env, body);
     return new Response(JSON.stringify(result), {
       status: result.status,
       headers: JSON_HEADERS,
@@ -40,7 +40,7 @@ export async function onRequestPost(context) {
   }
 
   if (action === "task_run_cancel") {
-    const result = cancelTaskRun(body);
+    const result = await cancelTaskRun(env, body);
     return new Response(JSON.stringify(result), {
       status: result.status,
       headers: JSON_HEADERS,
