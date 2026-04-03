@@ -20,14 +20,15 @@ export default function AgentLabAgentsPage() {
   const [message, setMessage] = useState(null);
   const [queueMessage, setQueueMessage] = useState(null);
   const [quickReplyMessage, setQuickReplyMessage] = useState(null);
+  const [selectedAgent, setSelectedAgent] = useState("dotobot-chatbot");
 
   return (
     <RequireAdmin>
       {(profile) => (
         <InternoLayout
           profile={profile}
-          title="AgentLab · Agentes"
-          description="Centro de configuracao de persona, respostas rapidas, handoff e fila viva de melhoria dos agentes."
+          title="AgentLab | Agentes"
+          description="Centro de configuracao persistente para chatbot, agente de IA, respostas rapidas, handoff e fila viva de melhoria."
         >
           <AgentLabModuleNav />
           <AgentsContent
@@ -40,6 +41,8 @@ export default function AgentLabAgentsPage() {
             setQueueMessage={setQueueMessage}
             quickReplyMessage={quickReplyMessage}
             setQuickReplyMessage={setQuickReplyMessage}
+            selectedAgent={selectedAgent}
+            setSelectedAgent={setSelectedAgent}
           />
         </InternoLayout>
       )}
@@ -47,12 +50,40 @@ export default function AgentLabAgentsPage() {
   );
 }
 
-function AgentsContent({ state, saving, setSaving, message, setMessage, queueMessage, setQueueMessage, quickReplyMessage, setQuickReplyMessage }) {
-  const profile = useMemo(() => state.data?.governance?.profiles?.[0] || null, [state.data]);
+function AgentsContent({
+  state,
+  saving,
+  setSaving,
+  message,
+  setMessage,
+  queueMessage,
+  setQueueMessage,
+  quickReplyMessage,
+  setQuickReplyMessage,
+  selectedAgent,
+  setSelectedAgent,
+}) {
+  const catalog = state.data?.agents || [];
+  const profiles = state.data?.governance?.profiles || [];
   const queue = state.data?.governance?.queue || [];
   const quickReplies = state.data?.governance?.quickReplies || [];
   const handoffPlaybooks = state.data?.governance?.handoffPlaybooks || [];
-  const catalog = state.data?.agents || [];
+
+  const selectedProfile = useMemo(
+    () => profiles.find((item) => item.agent_ref === selectedAgent) || null,
+    [profiles, selectedAgent]
+  );
+  const selectedCatalogItem = useMemo(
+    () => catalog.find((item) => (item.agent_slug || item.agent_ref) === selectedAgent) || null,
+    [catalog, selectedAgent]
+  );
+  const visibleQueue = queue.filter((item) => item.agent_ref === selectedAgent);
+  const visibleQuickReplies = quickReplies.filter((item) => item.agent_ref === selectedAgent);
+  const visiblePlaybooks = handoffPlaybooks.filter(
+    (item) => !item.agent_ref || item.agent_ref === selectedAgent
+  );
+
+  const [form, setForm] = useState(null);
   const [quickReplyForm, setQuickReplyForm] = useState({
     category: "financeiro",
     title: "",
@@ -60,28 +91,37 @@ function AgentsContent({ state, saving, setSaving, message, setMessage, queueMes
     body: "",
     status: "active",
   });
-  const [form, setForm] = useState(null);
 
   useEffect(() => {
-    if (!form && profile) {
-      setForm({
-        id: profile.id,
-        business_goal: profile.business_goal || "",
-        persona_prompt: profile.persona_prompt || "",
-        response_policy: profile.response_policy || "",
-        knowledge_strategy: (profile.knowledge_strategy || []).join("\n"),
-        workflow_strategy: (profile.workflow_strategy || []).join("\n"),
-        handoff_rules: (profile.handoff_rules || []).join("\n"),
-      });
+    if (!selectedProfile) {
+      setForm(null);
+      return;
     }
-  }, [form, profile]);
+    setForm({
+      id: selectedProfile.id,
+      business_goal: selectedProfile.business_goal || "",
+      persona_prompt: selectedProfile.persona_prompt || "",
+      response_policy: selectedProfile.response_policy || "",
+      knowledge_strategy: (selectedProfile.knowledge_strategy || []).join("\n"),
+      workflow_strategy: (selectedProfile.workflow_strategy || []).join("\n"),
+      handoff_rules: (selectedProfile.handoff_rules || []).join("\n"),
+    });
+  }, [selectedProfile]);
 
   if (state.loading) {
-    return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando agentes...</div>;
+    return (
+      <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
+        Carregando agentes...
+      </div>
+    );
   }
 
   if (state.error) {
-    return <div className="border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] p-6 text-sm">{state.error}</div>;
+    return (
+      <div className="border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] p-6 text-sm">
+        {state.error}
+      </div>
+    );
   }
 
   async function handleSave() {
@@ -95,9 +135,18 @@ function AgentsContent({ state, saving, setSaving, message, setMessage, queueMes
         body: JSON.stringify({
           action: "update_profile",
           ...form,
-          knowledge_strategy: form.knowledge_strategy.split("\n").map((item) => item.trim()).filter(Boolean),
-          workflow_strategy: form.workflow_strategy.split("\n").map((item) => item.trim()).filter(Boolean),
-          handoff_rules: form.handoff_rules.split("\n").map((item) => item.trim()).filter(Boolean),
+          knowledge_strategy: form.knowledge_strategy
+            .split("\n")
+            .map((item) => item.trim())
+            .filter(Boolean),
+          workflow_strategy: form.workflow_strategy
+            .split("\n")
+            .map((item) => item.trim())
+            .filter(Boolean),
+          handoff_rules: form.handoff_rules
+            .split("\n")
+            .map((item) => item.trim())
+            .filter(Boolean),
         }),
       });
       setMessage("Perfil do agente atualizado.");
@@ -137,7 +186,7 @@ function AgentsContent({ state, saving, setSaving, message, setMessage, queueMes
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "upsert_quick_reply",
-          agent_ref: "dotobot-ai",
+          agent_ref: selectedAgent,
           ...quickReplyForm,
         }),
       });
@@ -157,6 +206,37 @@ function AgentsContent({ state, saving, setSaving, message, setMessage, queueMes
 
   return (
     <div className="space-y-8">
+      <Panel title="Escopo do agente">
+        <div className="grid gap-4 md:grid-cols-[260px_1fr]">
+          <label className="block">
+            <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.15em]">
+              Agente
+            </span>
+            <select
+              value={selectedAgent}
+              onChange={(event) => setSelectedAgent(event.target.value)}
+              className="w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+            >
+              {catalog.map((item) => (
+                <option key={item.id} value={item.agent_slug || item.agent_ref}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="border border-[#2D2E2E] p-4 text-sm opacity-75">
+            <p className="font-semibold">{selectedCatalogItem?.name || "Agente"}</p>
+            <p className="mt-2">
+              Tipo: {selectedCatalogItem?.agent_kind || "agent"} | Canal principal:{" "}
+              {selectedCatalogItem?.primary_channel || "n/a"}
+            </p>
+            {selectedCatalogItem?.profile?.business_goal ? (
+              <p className="mt-2">{selectedCatalogItem.profile.business_goal}</p>
+            ) : null}
+          </div>
+        </div>
+      </Panel>
+
       <div className="grid gap-6 xl:grid-cols-[1.45fr_1fr]">
         <Panel title="Perfil principal do agente">
           {message ? <div className="mb-4 text-sm opacity-75">{message}</div> : null}
@@ -173,10 +253,14 @@ function AgentsContent({ state, saving, setSaving, message, setMessage, queueMes
                 ["Regras de handoff", "handoff_rules"],
               ].map(([label, key]) => (
                 <label key={key} className="block">
-                  <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.15em]">{label}</span>
+                  <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.15em]">
+                    {label}
+                  </span>
                   <textarea
                     value={form[key]}
-                    onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, [key]: event.target.value }))
+                    }
                     className="min-h-[96px] w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
                   />
                 </label>
@@ -201,9 +285,12 @@ function AgentsContent({ state, saving, setSaving, message, setMessage, queueMes
                 <div className="mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
                   <span>{item.status}</span>
                   <span>{item.agent_slug || "sem slug"}</span>
+                  <span>{item.agent_kind || "agent"}</span>
                 </div>
                 <p className="font-semibold">{item.name}</p>
-                {item.profile?.business_goal ? <p className="mt-2 opacity-75">{item.profile.business_goal}</p> : null}
+                {item.profile?.business_goal ? (
+                  <p className="mt-2 opacity-75">{item.profile.business_goal}</p>
+                ) : null}
               </div>
             ))}
           </div>
@@ -213,49 +300,64 @@ function AgentsContent({ state, saving, setSaving, message, setMessage, queueMes
       <div className="grid gap-6 xl:grid-cols-2">
         <Panel title="Respostas rapidas prioritarias">
           {quickReplyMessage ? <div className="mb-4 text-sm opacity-75">{quickReplyMessage}</div> : null}
-          <div className="grid gap-4 mb-6 md:grid-cols-2">
+          <div className="mb-6 grid gap-4 md:grid-cols-2">
             <input
               value={quickReplyForm.title}
-              onChange={(event) => setQuickReplyForm((current) => ({ ...current, title: event.target.value }))}
+              onChange={(event) =>
+                setQuickReplyForm((current) => ({ ...current, title: event.target.value }))
+              }
               className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
               placeholder="Titulo da resposta rapida"
             />
             <input
               value={quickReplyForm.shortcut}
-              onChange={(event) => setQuickReplyForm((current) => ({ ...current, shortcut: event.target.value }))}
+              onChange={(event) =>
+                setQuickReplyForm((current) => ({ ...current, shortcut: event.target.value }))
+              }
               className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
               placeholder="/atalho"
             />
             <input
               value={quickReplyForm.category}
-              onChange={(event) => setQuickReplyForm((current) => ({ ...current, category: event.target.value }))}
+              onChange={(event) =>
+                setQuickReplyForm((current) => ({ ...current, category: event.target.value }))
+              }
               className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
               placeholder="Categoria"
             />
             <input
               value={quickReplyForm.status}
-              onChange={(event) => setQuickReplyForm((current) => ({ ...current, status: event.target.value }))}
+              onChange={(event) =>
+                setQuickReplyForm((current) => ({ ...current, status: event.target.value }))
+              }
               className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
               placeholder="Status"
             />
             <textarea
               value={quickReplyForm.body}
-              onChange={(event) => setQuickReplyForm((current) => ({ ...current, body: event.target.value }))}
-              className="min-h-[100px] md:col-span-2 border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              onChange={(event) =>
+                setQuickReplyForm((current) => ({ ...current, body: event.target.value }))
+              }
+              className="min-h-[100px] border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059] md:col-span-2"
               placeholder="Texto da resposta"
             />
             <div className="md:col-span-2">
-              <button type="button" onClick={handleSaveQuickReply} className="border border-[#C5A059] px-4 py-3 text-sm">
+              <button
+                type="button"
+                onClick={handleSaveQuickReply}
+                className="border border-[#C5A059] px-4 py-3 text-sm"
+              >
                 Salvar resposta rapida
               </button>
             </div>
           </div>
           <div className="space-y-4 text-sm opacity-75">
-            {quickReplies.map((item) => (
+            {visibleQuickReplies.map((item) => (
               <div key={item.id} className="border border-[#2D2E2E] p-4">
                 <div className="mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
                   <span>{item.category}</span>
                   <span>{item.shortcut}</span>
+                  <span>{item.status}</span>
                 </div>
                 <p className="mb-2 font-semibold">{item.title}</p>
                 <p>{item.body}</p>
@@ -266,7 +368,7 @@ function AgentsContent({ state, saving, setSaving, message, setMessage, queueMes
 
         <Panel title="Playbooks de handoff">
           <div className="space-y-4 text-sm opacity-75">
-            {handoffPlaybooks.map((item) => (
+            {visiblePlaybooks.map((item) => (
               <div key={item.id} className="border border-[#2D2E2E] p-4">
                 <div className="mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
                   <span>trigger: {item.trigger}</span>
@@ -282,7 +384,7 @@ function AgentsContent({ state, saving, setSaving, message, setMessage, queueMes
       <Panel title="Fila viva de melhoria">
         {queueMessage ? <div className="mb-4 text-sm opacity-75">{queueMessage}</div> : null}
         <div className="space-y-4">
-          {queue.map((item) => (
+          {visibleQueue.map((item) => (
             <div key={item.id} className="border border-[#2D2E2E] p-4">
               <div className="mb-2 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
                 <span>{item.category}</span>
@@ -293,13 +395,25 @@ function AgentsContent({ state, saving, setSaving, message, setMessage, queueMes
               <p className="mb-2 font-semibold">{item.title}</p>
               <p className="mb-4 text-sm opacity-75">{item.description}</p>
               <div className="flex flex-wrap gap-3">
-                <button type="button" onClick={() => updateQueue(item, { status: "doing" })} className="border border-[#2D2E2E] px-3 py-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => updateQueue(item, { status: "doing" })}
+                  className="border border-[#2D2E2E] px-3 py-2 text-xs"
+                >
                   Mover para doing
                 </button>
-                <button type="button" onClick={() => updateQueue(item, { status: "done" })} className="border border-[#2D2E2E] px-3 py-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => updateQueue(item, { status: "done" })}
+                  className="border border-[#2D2E2E] px-3 py-2 text-xs"
+                >
                   Marcar done
                 </button>
-                <button type="button" onClick={() => updateQueue(item, { priority: "alta" })} className="border border-[#2D2E2E] px-3 py-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => updateQueue(item, { priority: "alta" })}
+                  className="border border-[#2D2E2E] px-3 py-2 text-xs"
+                >
                   Prioridade alta
                 </button>
               </div>

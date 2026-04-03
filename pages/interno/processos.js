@@ -40,6 +40,7 @@ function InternoProcessosContent() {
   const [processNumbers, setProcessNumbers] = useState("");
   const [withoutMovements, setWithoutMovements] = useState({ loading: true, items: [] });
   const [monitoringActive, setMonitoringActive] = useState({ loading: true, items: [] });
+  const [monitoringInactive, setMonitoringInactive] = useState({ loading: true, items: [] });
   const [fieldGaps, setFieldGaps] = useState({ loading: true, items: [] });
   const [orphans, setOrphans] = useState({ loading: true, items: [] });
   const [wmPage, setWmPage] = useState(1);
@@ -47,6 +48,7 @@ function InternoProcessosContent() {
   const [fgPage, setFgPage] = useState(1);
   const [selectedWithoutMovements, setSelectedWithoutMovements] = useState([]);
   const [selectedMonitoringActive, setSelectedMonitoringActive] = useState([]);
+  const [selectedMonitoringInactive, setSelectedMonitoringInactive] = useState([]);
   const [selectedFieldGaps, setSelectedFieldGaps] = useState([]);
   const [selectedOrphans, setSelectedOrphans] = useState([]);
   const [relations, setRelations] = useState({ loading: true, error: null, items: [], totalRows: 0, page: 1 });
@@ -59,6 +61,7 @@ function InternoProcessosContent() {
   useEffect(() => { loadOverview(); }, []);
   useEffect(() => { loadQueue("sem_movimentacoes", setWithoutMovements, wmPage); }, [wmPage]);
   useEffect(() => { loadQueue("monitoramento_ativo", setMonitoringActive, maPage); }, [maPage]);
+  useEffect(() => { loadQueue("monitoramento_inativo", setMonitoringInactive, maPage); }, [maPage]);
   useEffect(() => { loadQueue("campos_orfaos", setFieldGaps, fgPage); }, [fgPage]);
   useEffect(() => { loadOrphans(); }, []);
   useEffect(() => { loadRelations(1, search); }, [search]);
@@ -97,7 +100,7 @@ function InternoProcessosContent() {
     try {
       const response = await adminFetch("/api/admin-hmadv-processos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, limit, processNumbers, ...payload }) });
       setActionState({ loading: false, error: null, result: response.data });
-      await Promise.all([loadOverview(), loadQueue("sem_movimentacoes", setWithoutMovements, wmPage), loadQueue("monitoramento_ativo", setMonitoringActive, maPage), loadQueue("campos_orfaos", setFieldGaps, fgPage), loadOrphans()]);
+      await Promise.all([loadOverview(), loadQueue("sem_movimentacoes", setWithoutMovements, wmPage), loadQueue("monitoramento_ativo", setMonitoringActive, maPage), loadQueue("monitoramento_inativo", setMonitoringInactive, maPage), loadQueue("campos_orfaos", setFieldGaps, fgPage), loadOrphans()]);
     } catch (error) { setActionState({ loading: false, error: error.message || "Falha ao executar acao.", result: null }); }
   }
   async function handleSaveRelation() {
@@ -131,19 +134,21 @@ function InternoProcessosContent() {
           <div className="flex flex-wrap gap-3">
             <button type="button" onClick={() => handleAction("run_sync_worker")} disabled={actionState.loading} className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">Rodar sync-worker</button>
             <button type="button" onClick={() => handleAction("push_orfaos", { limit })} disabled={actionState.loading} className="bg-[#C5A059] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#050706] disabled:opacity-50">Criar accounts no Freshsales</button>
+            <button type="button" onClick={() => handleAction("push_orfaos", { processNumbers: getSelectedNumbers(orphans.items, selectedOrphans).join("\n"), limit })} disabled={actionState.loading} className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">Criar accounts selecionadas</button>
             <button type="button" onClick={() => handleAction("repair_freshsales_accounts", { processNumbers: getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n"), limit })} disabled={actionState.loading} className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">Corrigir campos no Freshsales</button>
             <button type="button" onClick={() => handleAction("auditoria_sync")} disabled={actionState.loading} className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">Rodar auditoria</button>
           </div>
         </div>
       </Panel>
       <Panel title="Reenriquecimento DataJud" eyebrow="Consulta e persistencia">
-        <div className="space-y-4"><p className="text-sm opacity-70">A consulta do DataJud precisa persistir primeiro no Supabase; a correcao no Freshsales vem como segunda etapa.</p><div className="flex flex-wrap gap-3"><button type="button" onClick={() => handleAction("enriquecer_datajud", { processNumbers: getSelectedNumbers(withoutMovements.items, selectedWithoutMovements).join("\n"), limit })} disabled={actionState.loading} className="bg-[#C5A059] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#050706] disabled:opacity-50">Buscar movimentacoes no DataJud</button><button type="button" onClick={() => handleAction("enriquecer_datajud", { processNumbers: getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n"), limit })} disabled={actionState.loading} className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">Reenriquecer processos com gap</button></div></div>
+        <div className="space-y-4"><p className="text-sm opacity-70">A consulta do DataJud precisa persistir primeiro no Supabase; a correcao no Freshsales vem como segunda etapa.</p><div className="flex flex-wrap gap-3"><button type="button" onClick={() => handleAction("enriquecer_datajud", { processNumbers: getSelectedNumbers(withoutMovements.items, selectedWithoutMovements).join("\n"), limit })} disabled={actionState.loading} className="bg-[#C5A059] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#050706] disabled:opacity-50">Buscar movimentacoes no DataJud</button><button type="button" onClick={() => handleAction("enriquecer_datajud", { processNumbers: getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n"), limit })} disabled={actionState.loading} className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">Sincronizar monitorados</button><button type="button" onClick={() => handleAction("enriquecer_datajud", { processNumbers: getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n"), limit })} disabled={actionState.loading} className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">Reenriquecer processos com gap</button></div></div>
       </Panel>
     </div>
 
     <div className="grid gap-6 xl:grid-cols-2">
       <Panel title="Processos sem movimentacoes" eyebrow="Fila paginada"><QueueList title="Sem movimentacoes" helper="Itens sem andamento local para reconsulta no DataJud." rows={withoutMovements.items} selected={selectedWithoutMovements} onToggle={(key) => toggleSelection(setSelectedWithoutMovements, selectedWithoutMovements, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedWithoutMovements, selectedWithoutMovements, withoutMovements.items, nextState)} page={wmPage} setPage={setWmPage} loading={withoutMovements.loading} /></Panel>
-      <Panel title="Monitoramento ativo" eyebrow="Fila paginada"><QueueList title="Monitorados" helper="Se a base ainda nao marca monitoramento_ativo, o painel usa fallback pelos processos com account." rows={monitoringActive.items} selected={selectedMonitoringActive} onToggle={(key) => toggleSelection(setSelectedMonitoringActive, selectedMonitoringActive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringActive, selectedMonitoringActive, monitoringActive.items, nextState)} page={maPage} setPage={setMaPage} loading={monitoringActive.loading} /></Panel>
+      <Panel title="Monitoramento ativo" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Monitorados" helper="Se a base ainda nao marca monitoramento_ativo, o painel usa fallback pelos processos com account." rows={monitoringActive.items} selected={selectedMonitoringActive} onToggle={(key) => toggleSelection(setSelectedMonitoringActive, selectedMonitoringActive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringActive, selectedMonitoringActive, monitoringActive.items, nextState)} page={maPage} setPage={setMaPage} loading={monitoringActive.loading} /><div className="flex flex-wrap gap-3"><button type="button" onClick={() => handleAction("monitoramento_status", { processNumbers: getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n"), active: false, limit })} disabled={actionState.loading} className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">Desativar monitoramento</button></div></div></Panel>
+      <Panel title="Monitoramento inativo" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Nao monitorados" helper="Use esta fila para reativar o sync dos processos que ficaram fora da rotina." rows={monitoringInactive.items} selected={selectedMonitoringInactive} onToggle={(key) => toggleSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, monitoringInactive.items, nextState)} page={maPage} setPage={setMaPage} loading={monitoringInactive.loading} /><div className="flex flex-wrap gap-3"><button type="button" onClick={() => handleAction("monitoramento_status", { processNumbers: getSelectedNumbers(monitoringInactive.items, selectedMonitoringInactive).join("\n"), active: true, limit })} disabled={actionState.loading} className="bg-[#C5A059] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#050706] disabled:opacity-50">Ativar monitoramento</button></div></div></Panel>
       <Panel title="GAP DataJud -> CRM" eyebrow="Campos orfaos"><QueueList title="Campos pendentes no Freshsales" helper="Processos vinculados cujo espelho ainda tem campos importantes em branco." rows={fieldGaps.items} selected={selectedFieldGaps} onToggle={(key) => toggleSelection(setSelectedFieldGaps, selectedFieldGaps, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedFieldGaps, selectedFieldGaps, fieldGaps.items, nextState)} page={fgPage} setPage={setFgPage} loading={fieldGaps.loading} /></Panel>
       <Panel title="Sem Sales Account" eyebrow="Processos orfaos"><QueueList title="Orfaos" helper="Itens do HMADV que ainda nao viraram Sales Account." rows={orphans.items} selected={selectedOrphans} onToggle={(key) => toggleSelection(setSelectedOrphans, selectedOrphans, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedOrphans, selectedOrphans, orphans.items, nextState)} page={1} setPage={() => {}} loading={orphans.loading} /></Panel>
     </div>

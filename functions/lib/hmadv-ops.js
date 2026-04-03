@@ -917,6 +917,49 @@ export async function enrichProcessesViaDatajud(env, { processNumbers = [], limi
   };
 }
 
+export async function updateMonitoringStatus(env, { processNumbers = [], active = true, limit = 20 } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 20), 100));
+  const processes = processNumbers.length
+    ? await loadProcessesByNumbers(env, processNumbers)
+    : await listTableSafe(
+        env,
+        `processos?select=id,numero_cnj,titulo,account_id_freshsales&limit=${safeLimit}`
+      );
+  let updated = 0;
+  const sample = [];
+  for (const proc of processes.slice(0, safeLimit)) {
+    await hmadvRest(
+      env,
+      `processos?id=eq.${encodeURIComponent(proc.id)}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Profile": "judiciario",
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({
+          monitoramento_ativo: Boolean(active),
+        }),
+      }
+    );
+    updated += 1;
+    sample.push({
+      processo_id: proc.id,
+      numero_cnj: proc.numero_cnj,
+      titulo: proc.titulo,
+      account_id_freshsales: proc.account_id_freshsales || null,
+      monitoramento_ativo: Boolean(active),
+    });
+  }
+  return {
+    checkedAt: new Date().toISOString(),
+    monitoramento_ativo: Boolean(active),
+    processosAtualizados: updated,
+    sample,
+  };
+}
+
 export async function runProcessAudit(env) {
   return hmadvFunction(env, "processo-sync", { action: "auditoria" }, { method: "POST", body: {} });
 }

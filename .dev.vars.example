@@ -45,6 +45,7 @@ FRESHSALES_CONTACT_CLOSING_FIELD=cf_fechamento_status
 FRESHSALES_CONTACT_CLIENT_FIELD=cf_cliente_status
 FRESHSALES_STAGE_VALUE_MAP={"lifecycle":{"Triagem":"Triagem","Novo":"Novo","Conectado":"Conectado","Retorno":"Retorno","Pedido de retorno":"Pedido de retorno","Visitante":"Visitante","Fornecedor":"Fornecedor","Não qualificado":"Não qualificado"},"meeting":{"Agendamento":"Agendamento","Confirmação de presença":"Confirmação de presença","Reagendamento":"Reagendamento","Cancelamento de reunião":"Cancelamento de reunião","Ausência":"Ausência"}}
 FRESHSALES_ACTIVITY_TYPE_BY_EVENT={"booked":"31001147755","confirmed":"31001147756","rescheduled":"31001147757","cancelled":"31001147758"}
+AGENTLAB_FRESHSALES_CONVERSATION_TYPES=Chat,Meeting,Phone,Email,SMS Incoming,SMS Outgoing
 FRESHSALES_APPOINTMENT_FIELD_MAP={"crm_event_source":"cf_origem_evento","crm_event_status":"cf_status_evento","crm_meeting_stage":"cf_etapa_reuniao","zoom_join_url":"cf_zoom_link","zoom_meeting_id":"cf_zoom_meeting_id","action_confirm_url":"cf_link_confirmacao","action_cancel_url":"cf_link_cancelamento","action_reschedule_url":"cf_link_remarcacao"}
 ZOOM_ACCOUNT_ID=seu_zoom_account_id
 ZOOM_CLIENT_ID=seu_zoom_client_id

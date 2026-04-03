@@ -17,6 +17,7 @@ import {
   runSyncWorker,
   scanOrphanProcesses,
   searchProcessesForRelations,
+  updateMonitoringStatus,
   upsertProcessRelation,
 } from "../lib/hmadv-ops.js";
 
@@ -142,6 +143,14 @@ export async function onRequestPost(context) {
     }
     if (action === "auditoria_sync") {
       const data = await runProcessAudit(context.env);
+      return jsonOk({ data });
+    }
+    if (action === "monitoramento_status") {
+      const data = await updateMonitoringStatus(context.env, {
+        processNumbers: parseProcessNumbers(body.processNumbers),
+        active: Boolean(body.active),
+        limit: Number(body.limit || 20),
+      });
       return jsonOk({ data });
     }
     if (action === "salvar_relacao") {

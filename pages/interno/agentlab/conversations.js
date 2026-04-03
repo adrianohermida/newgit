@@ -69,7 +69,8 @@ function ConversationsContent({ state, syncState, runSync }) {
     );
   }
 
-  const conversations = state.data?.conversations?.threads || [];
+  const conversations = state.data?.conversations?.primaryThreads || state.data?.conversations?.threads || [];
+  const crmSignals = state.data?.conversations?.crmSignals || [];
   const incidents = state.data?.intelligence?.incidents || [];
   const summary = state.data?.conversations?.summary || {};
   const syncRuns = state.data?.intelligence?.syncRuns || [];
@@ -198,6 +199,25 @@ function ConversationsContent({ state, syncState, runSync }) {
           </div>
         </Panel>
       </div>
+
+      <Panel title={`Sinais de CRM fora da conversa (${crmSignals.length})`}>
+        <div className="mb-4 text-sm opacity-75">
+          Publicacoes, andamentos e outros registros do Freshsales ficam aqui apenas como contexto operacional. Eles nao entram como conversa principal do chatbot.
+        </div>
+        <div className="space-y-4">
+          {crmSignals.map((item) => (
+            <div key={item.id} className="border border-[#2D2E2E] p-4">
+              <div className="mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
+                <span>{item.source_system}</span>
+                <span>{item.metadata?.type_name || item.channel}</span>
+                <span>{item.status}</span>
+              </div>
+              <p className="mb-2 font-semibold">{item.subject || "Sem assunto"}</p>
+              <p className="text-sm opacity-75">{item.last_message || "Sem detalhe"}</p>
+            </div>
+          ))}
+        </div>
+      </Panel>
     </div>
   );
 }
