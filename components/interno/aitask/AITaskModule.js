@@ -43,10 +43,6 @@ function safeParse(raw, fallback) {
   }
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 function normalizeMission(text) {
   return String(text || "")
     .replace(/\s+/g, " ")
@@ -410,15 +406,15 @@ export default function AITaskModule({ profile, routePath }) {
     if (automation === "running") return;
 
     const blueprint = buildBlueprint(normalizedMission, profile, mode, provider);
-    const runId = `${Date.now()}_run`;
+    const localRunId = `${Date.now()}_run`;
     setError(null);
     setAutomation("running");
     setPaused(false);
     pauseRef.current = false;
-    setActiveRun({ id: runId, startedAt: nowIso(), mission: normalizedMission });
+    setActiveRun({ id: localRunId, startedAt: nowIso(), mission: normalizedMission });
     setMissionHistory((current) => [
       {
-        id: runId,
+        id: localRunId,
         mission: normalizedMission,
         mode,
         provider,
@@ -457,165 +453,150 @@ export default function AITaskModule({ profile, routePath }) {
     }
 
     try {
-      let responsePayload = null;
-      for (let index = 0; index < blueprint.tasks.length; index += 1) {
-        const task = blueprint.tasks[index];
-        if (abortRef.current?.signal?.aborted) {
-          throw new Error("Execucao interrompida pelo operador.");
-        }
+      pushLog({
+        type: "api",
+        action: "Iniciando TaskRun",
+        result: "POST /api/admin-dotobot-chat (action=task_run_start)",
+      });
 
-        while (pauseRef.current) {
-          // Mantem a UI transparente enquanto a execucao fica em pausa.
-          await sleep(250);
-        }
+      const payload = await adminFetch("/api/admin-dotobot-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "task_run_start",
+          query: normalizedMission,
+          mode,
+          provider,
+          context: {
+            route: routePath || "/interno/ai-task",
+            mission: normalizedMission,
+            mode,
+            provider,
+            approved,
+            attachments,
+            assistant: {
+              surface: "ai-task",
+              orchestration: "planner-executor-critic",
+            },
+            profile: {
+              id: profile?.id || null,
+              email: profile?.email || null,
+              role: profile?.role || null,
+            },
+          },
+        }),
+      });
 
-        patchTask(task.id, (current) => ({
-          ...current,
-          status: "running",
-          updated_at: nowIso(),
-          logs: [...(current.logs || []), "Iniciada pelo executor."],
-        }));
+      const run = payload?.data?.run || null;
+      if (run?.id) {
+        setActiveRun({ id: run.id, startedAt: run.created_at || nowIso(), mission: normalizedMission });
+      }
 
+      const backendEvents = Array.isArray(payload?.data?.events) ? payload.data.events : [];
+      backendEvents.slice(-12).forEach((event) => {
         pushLog({
-          type: "executor",
-          action: `Executando etapa ${index + 1}/${blueprint.tasks.length}`,
-          result: task.title,
+          type: "backend",
+          action: event?.type || "task_run_event",
+          result: event?.message || "Evento sem mensagem.",
         });
+      });
 
+      const backendSteps = Array.isArray(payload?.data?.steps) ? payload.data.steps : [];
+      if (backendSteps.length) {
+        const mappedTasks = backendSteps.map((step, index) => ({
+          id: `${run?.id || localRunId}_step_${index + 1}`,
+          title: step?.action || step?.title || `Etapa ${index + 1}`,
+          goal: step?.action || step?.title || `Etapa ${index + 1}`,
+          description: step?.action || step?.title || "Execucao backend",
+          step,
+          steps: [step?.action || step?.title || "Execucao backend"],
+          status: step?.status === "ok" ? "done" : step?.status === "fail" ? "failed" : "running",
+          priority: "high",
+          assignedAgent: step?.tool || "Dotobot",
+          created_at: nowIso(),
+          updated_at: nowIso(),
+          logs: step?.error ? [step.error] : [],
+          dependencies: [],
+        }));
+        setTasks(mappedTasks);
+        setSelectedTaskId(mappedTasks[0]?.id || null);
+      } else {
+        setTasks((current) =>
+          current.map((task) => ({
+            ...task,
+            status: run?.status === "failed" ? "failed" : run?.status === "completed" ? "done" : task.status,
+            updated_at: nowIso(),
+          }))
+        );
+      }
+
+      const resultText = payload?.data?.resultText || payload?.data?.result || run?.result?.resultText || "Sem resposta do executor.";
+      setLatestResult(resultText);
+      pushLog({
+        type: "reporter",
+        action: "Resposta recebida",
+        result: typeof resultText === "string" ? resultText.slice(0, 180) : "Resultado estruturado entregue.",
+      });
+
+      if (backendSteps.length) {
         patchThinking((current) => [
           {
-            id: `${Date.now()}_thinking_${index}`,
-            title: `Etapa ${index + 1}`,
+            id: `${Date.now()}_response`,
+            title: "Resposta operacional",
             timestamp: nowIso(),
-            summary: task.description,
-            details: [
-              `Agent: ${task.assignedAgent}`,
-              `Dependencies: ${task.dependencies?.length ? task.dependencies.join(", ") : "none"}`,
-              `Priority: ${task.priority}`,
-            ],
-            expanded: index === 0,
+            summary: "Backend retornou passos reais para auditoria.",
+            details: backendSteps.slice(0, 6).map((step) => step?.action || step?.title || JSON.stringify(step)),
+            expanded: true,
           },
           ...current,
         ]);
-
-        if (task.id === "execute") {
-          const controller = new AbortController();
-          abortRef.current = controller;
-          pushLog({
-            type: "api",
-            action: "Chamando backend Dotobot",
-            result: "POST /api/admin-dotobot-chat",
-          });
-
-          const payload = await adminFetch("/api/admin-dotobot-chat", {
-            method: "POST",
-            signal: controller.signal,
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              query: normalizedMission,
-              mode,
-              provider,
-              context: {
-                route: routePath || "/interno/ai-task",
-                mission: normalizedMission,
-                mode,
-                provider,
-                approved,
-                attachments,
-                assistant: {
-                  surface: "ai-task",
-                  orchestration: "planner-executor-critic",
-                },
-                profile: {
-                  id: profile?.id || null,
-                  email: profile?.email || null,
-                  role: profile?.role || null,
-                },
-              },
-            }),
-          });
-          responsePayload = payload;
-          const resultText = payload?.data?.resultText || payload?.data?.result || "Sem resposta do executor.";
-          setLatestResult(resultText);
-          patchTask(task.id, (current) => ({
-            ...current,
-            status: "done",
-            updated_at: nowIso(),
-            logs: [...(current.logs || []), "Resposta consolidada recebida."],
-            resultText,
-          }));
-          pushLog({
-            type: "reporter",
-            action: "Resposta recebida",
-            result: typeof resultText === "string" ? resultText.slice(0, 180) : "Resultado estruturado entregue.",
-          });
-          if (payload?.data?.steps?.length) {
-            patchThinking((current) => [
-              {
-                id: `${Date.now()}_response`,
-                title: "Resposta operacional",
-                timestamp: nowIso(),
-                summary: "Backend retornou passos e logs para auditoria.",
-                details: payload.data.steps.slice(0, 6).map((step) =>
-                  typeof step === "string" ? step : step?.title || JSON.stringify(step)
-                ),
-                expanded: true,
-              },
-              ...current,
-            ]);
-          }
-          if (payload?.data?.rag) {
-            setContextSnapshot({
-              module: detectModules(normalizedMission).join(", "),
-              memory: payload.data.rag?.retrieval?.matches || payload.data.retrieved_context || [],
-              documents: payload.data.rag?.documents || [],
-              ragEnabled: Boolean(payload.data.rag?.retrieval?.enabled || payload.data.rag?.documents?.length),
-              route: routePath || "/interno/ai-task",
-            });
-            patchThinking((current) => [
-              {
-                id: `${Date.now()}_rag`,
-                title: "Memoria e documentos usados",
-                timestamp: nowIso(),
-                summary: "Contexto recuperado para a execucao.",
-                details: [
-                  `RAG habilitado: ${payload.data.rag?.retrieval?.enabled ? "sim" : "nao"}`,
-                  `Matches: ${payload.data.rag?.retrieval?.matches?.length || 0}`,
-                  `Documentos: ${(payload.data.rag?.documents || []).length || 0}`,
-                ],
-                expanded: false,
-              },
-              ...current,
-            ]);
-          }
-        } else {
-          await sleep(300);
-          patchTask(task.id, (current) => ({
-            ...current,
-            status: "done",
-            updated_at: nowIso(),
-            logs: [...(current.logs || []), "Etapa concluida localmente."],
-          }));
-        }
       }
 
+      if (payload?.data?.rag) {
+        setContextSnapshot({
+          module: detectModules(normalizedMission).join(", "),
+          memory: payload.data.rag?.retrieval?.matches || payload.data.retrieved_context || [],
+          documents: payload.data.rag?.documents || [],
+          ragEnabled: Boolean(payload.data.rag?.retrieval?.enabled || payload.data.rag?.documents?.length),
+          route: routePath || "/interno/ai-task",
+        });
+      }
+
+      const runStatus = run?.status || (payload?.ok ? "completed" : "failed");
+      if (runStatus === "completed" || runStatus === "failed" || runStatus === "canceled") {
+        setActiveRun(null);
+      }
       setMissionHistory((current) =>
-        current.map((run) =>
-          run.id === runId ? { ...run, status: "done", updated_at: nowIso(), result: responsePayload?.data?.status || "done" } : run
+        current.map((item) =>
+          item.id === localRunId
+            ? {
+                ...item,
+                id: run?.id || item.id,
+                status: runStatus === "completed" ? "done" : runStatus === "failed" ? "failed" : "running",
+                updated_at: nowIso(),
+                result: payload?.data?.status || runStatus,
+              }
+            : item
         )
       );
-      setAutomation("done");
+
+      setAutomation(runStatus === "completed" ? "done" : runStatus === "failed" ? "failed" : "running");
       pushLog({
         type: "critic",
-        action: "ValidaÃ§Ã£o",
-        result: "Execucao concluida com trilha de auditoria disponivel.",
+        action: "Validacao",
+        result:
+          runStatus === "completed"
+            ? "Execucao concluida com trilha de eventos do backend."
+            : runStatus === "failed"
+              ? "Execucao falhou no backend com status rastreavel."
+              : "Execucao iniciada no backend e aguardando conclusao.",
       });
     } catch (missionError) {
       const message = missionError?.message || "Falha ao executar a missao.";
       setError(message);
       setAutomation("failed");
       setMissionHistory((current) =>
-        current.map((run) => (run.id === runId ? { ...run, status: "failed", updated_at: nowIso(), error: message } : run))
+        current.map((item) => (item.id === localRunId ? { ...item, status: "failed", updated_at: nowIso(), error: message } : item))
       );
       setTasks((current) =>
         current.map((task) =>
@@ -635,7 +616,6 @@ export default function AITaskModule({ profile, routePath }) {
         result: message,
       });
     } finally {
-      setActiveRun(null);
       abortRef.current = null;
     }
   }
@@ -655,12 +635,37 @@ export default function AITaskModule({ profile, routePath }) {
     });
   }
 
-  function handleStop() {
+  async function handleStop() {
     if (typeof window !== "undefined" && !window.confirm("Parar a execucao do AI TASK?")) return;
     abortRef.current?.abort();
+    const runId = activeRun?.id;
+    if (runId) {
+      try {
+        const payload = await adminFetch("/api/admin-dotobot-chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "task_run_cancel", runId }),
+        });
+        const canceledStatus = payload?.data?.run?.status;
+        if (canceledStatus === "canceled") {
+          pushLog({
+            type: "backend",
+            action: "run.canceled",
+            result: "Cancelamento confirmado pelo backend.",
+          });
+        }
+      } catch (cancelError) {
+        pushLog({
+          type: "warning",
+          action: "Cancelamento parcial",
+          result: cancelError?.message || "Falha ao confirmar cancelamento no backend.",
+        });
+      }
+    }
     pauseRef.current = false;
     setPaused(false);
     setAutomation("stopped");
+    setActiveRun(null);
     setTasks((current) =>
       current.map((task) => (task.status === "running" ? { ...task, status: "failed", updated_at: nowIso(), logs: [...(task.logs || []), "Interrompido pelo operador."] } : task))
     );
