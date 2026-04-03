@@ -6,12 +6,24 @@ No HMADV atual:
 
 - `public.freshsales_contacts` existe
 - `public.freshsales_sync_snapshots` nao existe
+- a chave atual do tenant pode nao ter permissao para `contacts/view/1`
 
 Por isso, o script antigo [sync-freshsales-contacts.js](/D:/Github/newgit/scripts/sync-freshsales-contacts.js) nao atende o rollout do HMADV, porque depende de snapshots que nao foram provisionados neste projeto.
 
 ## Caminho recomendado
 
 `Freshsales API -> public.freshsales_contacts -> reconciliador HMADV`
+
+No tenant HMADV, a base preferencial deve ser:
+
+- `https://hmadv-7b725ea101eff55.freshsales.io/api`
+
+O script novo:
+
+1. tenta `contacts/view/1`
+2. se receber `403`, faz fallback para:
+   - `sales_accounts/{id}/contacts`
+   - usando as `Sales Accounts` ja vinculadas em `judiciario.processos`
 
 ## Script
 
@@ -65,3 +77,4 @@ powershell -ExecutionPolicy Bypass -File "D:\Github\newgit\docs\hmadv_sync_fresh
    - exigir marcador do escritorio
    - respeitar o polo inferido
    - manter bloqueio conservador quando faltar identificador seguro
+4. usar [hmadv_freshsales_contacts_diagnostico.md](/D:/Github/newgit/docs/hmadv_freshsales_contacts_diagnostico.md) quando houver duvida de permissao no tenant
