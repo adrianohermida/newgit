@@ -2,11 +2,13 @@ import { requireAdminAccess } from "../lib/admin-auth.js";
 import { runLawdeskChat } from "../../lib/lawdesk/chat.js";
 import { buildDotobotRepositoryContext } from "../../lib/lawdesk/capabilities.js";
 import { detectSkillFromQuery, enrichContextWithSkill } from "../../lib/lawdesk/skill_registry.js";
+import { buildFeatureFlags } from "../../lib/lawdesk/feature-flags.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
 export async function onRequestPost(context) {
   const { request, env } = context;
+  const features = buildFeatureFlags(env);
   const auth = await requireAdminAccess(request, env);
   if (!auth.ok) {
     return new Response(JSON.stringify({ ok: false, error: auth.error }), {
@@ -33,20 +35,29 @@ export async function onRequestPost(context) {
     });
   }
 
+  if (!features.chat.enabled) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "Chat Dotobot desabilitado por feature flag.", errorType: "feature_disabled" }),
+      { status: 503, headers: JSON_HEADERS }
+    );
+  }
+
   try {
     const repositoryContext = buildDotobotRepositoryContext(body?.context || {});
     let enhancedContext = repositoryContext;
 
     // Detecção opcional de skill (Fase 2)
-    try {
-      const query = typeof body?.query === "string" ? body.query.trim() : "";
-      const detectedSkill = detectSkillFromQuery(query);
-      if (detectedSkill) {
-        enhancedContext = enrichContextWithSkill(repositoryContext, detectedSkill);
+    if (features.chat.skillsDetection) {
+      try {
+        const query = typeof body?.query === "string" ? body.query.trim() : "";
+        const detectedSkill = detectSkillFromQuery(query);
+        if (detectedSkill) {
+          enhancedContext = enrichContextWithSkill(repositoryContext, detectedSkill);
+        }
+      } catch (skillError) {
+        console.warn("Skill detection failed, continuing without:", skillError?.message);
+        // Continue sem skill, não quebra o fluxo
       }
-    } catch (skillError) {
-      console.warn("Skill detection failed, continuing without:", skillError?.message);
-      // Continue sem skill, não quebra o fluxo
     }
 
     const startTime = Date.now();
@@ -55,6 +66,7 @@ export async function onRequestPost(context) {
       context: {
         ...(body?.context || {}),
         repositoryContext: enhancedContext,
+        features,
       },
     });
     const duration = Date.now() - startTime;
