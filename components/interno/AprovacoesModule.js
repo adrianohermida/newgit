@@ -1,0 +1,351 @@
+import { useEffect, useMemo, useState } from "react";
+import { adminFetch } from "../../lib/admin/api";
+
+const DEPARTMENTS = [
+  {
+    key: "cadastro",
+    label: "Dados Cadastrais",
+    description: "Alteracoes de perfil, contatos, enderecos e travas de validacao.",
+  },
+  {
+    key: "financeiro",
+    label: "Financeiro",
+    description: "Aprovacoes futuras de cobrancas, comprovantes, renegociacoes e ajustes operacionais.",
+  },
+  {
+    key: "documentacoes",
+    label: "Documentacoes",
+    description: "Documentos enviados pelo cliente e pendentes de apreciacao pelo escritorio.",
+  },
+];
+
+function StatusBadge({ status }) {
+  const tone =
+    status === "pending"
+      ? "border-[#6E5630] text-[#FDE68A]"
+      : status === "applied"
+        ? "border-[#24533D] text-[#B8F0D5]"
+        : "border-[#4B2222] text-[#FFD5D5]";
+  return <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.16em] ${tone}`}>{status}</span>;
+}
+
+function SummaryPair({ label, value }) {
+  return (
+    <div className="flex items-center justify-between gap-4 border-b border-white/5 pb-2 last:border-b-0 last:pb-0">
+      <span className="text-xs uppercase tracking-[0.15em] opacity-45">{label}</span>
+      <span className="text-right text-sm">{value || "—"}</span>
+    </div>
+  );
+}
+
+function DepartmentTab({ item, active, count, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-[22px] border px-4 py-4 text-left transition-colors ${
+        active ? "border-[#C5A059] bg-[rgba(197,160,89,0.12)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold">{item.label}</p>
+          <p className="mt-2 text-xs opacity-60">{item.description}</p>
+        </div>
+        <span className="rounded-full border border-white/10 px-3 py-1 text-xs opacity-85">{count}</span>
+      </div>
+    </button>
+  );
+}
+
+function PlaceholderDepartment({ title, description, stats }) {
+  return (
+    <section className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-3">
+        {stats.map((item) => (
+          <div key={item.label} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-5">
+            <p className="text-xs uppercase tracking-[0.16em] opacity-45">{item.label}</p>
+            <p className="mt-3 font-serif text-3xl">{item.value}</p>
+            <p className="mt-2 text-sm opacity-60">{item.helper}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-[28px] border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
+        <p className="text-xs uppercase tracking-[0.16em] opacity-45">{title}</p>
+        <p className="mt-4 max-w-3xl text-sm leading-relaxed opacity-70">{description}</p>
+      </div>
+    </section>
+  );
+}
+
+function CadastroDepartment({ state, load, handleReview, handleCpfLock, handleNameLock }) {
+  if (state.loading) {
+    return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando fila cadastral...</div>;
+  }
+
+  return (
+    <section className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-5">
+          <p className="text-xs uppercase tracking-[0.16em] opacity-45">Pendencias</p>
+          <p className="mt-3 font-serif text-3xl">{state.items.length}</p>
+          <p className="mt-2 text-sm opacity-60">Solicitacoes aguardando analise e decisao do escritorio.</p>
+        </div>
+        <div className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-5">
+          <p className="text-xs uppercase tracking-[0.16em] opacity-45">Escopo atual</p>
+          <p className="mt-3 font-serif text-3xl">Perfil</p>
+          <p className="mt-2 text-sm opacity-60">Nome, contatos, enderecos, profissao, estado civil e travas cadastrais.</p>
+        </div>
+        <div className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-5">
+          <p className="text-xs uppercase tracking-[0.16em] opacity-45">Acao rapida</p>
+          <button
+            type="button"
+            onClick={load}
+            className="mt-3 border border-[#2D2E2E] px-4 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059]"
+          >
+            Atualizar fila
+          </button>
+        </div>
+      </div>
+
+      {state.error ? <div className="border border-[#6E2A2A] bg-[rgba(110,42,42,0.22)] p-4 text-sm">{state.error}</div> : null}
+      {state.message ? <div className="border border-[#24533D] bg-[rgba(19,72,49,0.22)] p-4 text-sm">{state.message}</div> : null}
+
+      {!state.items.length ? (
+        <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6 text-sm opacity-70">
+          Nenhuma solicitacao cadastral pendente no momento.
+        </div>
+      ) : null}
+
+      {state.items.map((item) => {
+        const requested = item.requested_payload || {};
+        const currentSnapshot = item.current_snapshot || {};
+        const profile = item.profile || {};
+        const currentLocks = profile?.metadata?.personal_data_locks || currentSnapshot?.metadata?.personal_data_locks || {};
+
+        return (
+          <section key={item.id} className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.16em] opacity-45">Cliente</p>
+                <h3 className="mt-2 font-serif text-3xl">{profile.full_name || currentSnapshot.full_name || item.client_email}</h3>
+                <p className="mt-2 text-sm opacity-65">{item.client_email}</p>
+              </div>
+              <StatusBadge status={item.status} />
+            </div>
+
+            <div className="mt-6 grid gap-6 xl:grid-cols-2">
+              <div className="rounded-[24px] border border-[#2D2E2E] bg-[#050706] p-5">
+                <p className="text-xs uppercase tracking-[0.16em] opacity-45">Cadastro atual</p>
+                <div className="mt-4 space-y-3">
+                  <SummaryPair label="Nome" value={currentSnapshot.full_name} />
+                  <SummaryPair label="WhatsApp" value={currentSnapshot.whatsapp} />
+                  <SummaryPair label="CPF" value={currentSnapshot.cpf} />
+                  <SummaryPair label="Profissao" value={currentSnapshot.profession} />
+                  <SummaryPair label="Estado civil" value={currentSnapshot.marital_status} />
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-[#6E5630] bg-[rgba(76,57,26,0.12)] p-5">
+                <p className="text-xs uppercase tracking-[0.16em] opacity-45">Solicitado pelo cliente</p>
+                <div className="mt-4 space-y-3">
+                  <SummaryPair label="Nome" value={requested.full_name} />
+                  <SummaryPair label="WhatsApp" value={requested.whatsapp} />
+                  <SummaryPair label="CPF" value={requested.cpf} />
+                  <SummaryPair label="Profissao" value={requested?.metadata?.profession} />
+                  <SummaryPair label="Estado civil" value={requested?.metadata?.marital_status} />
+                  <SummaryPair label="Contatos" value={Array.isArray(requested?.metadata?.contacts) ? String(requested.metadata.contacts.length) : "0"} />
+                  <SummaryPair label="Enderecos" value={Array.isArray(requested?.metadata?.addresses) ? String(requested.metadata.addresses.length) : "0"} />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => handleReview(item.id, "approve")}
+                disabled={state.actingId === item.id}
+                className="bg-[#C5A059] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#050706] disabled:opacity-50"
+              >
+                Aprovar e aplicar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleReview(item.id, "reject")}
+                disabled={state.actingId === item.id}
+                className="border border-[#6E2A2A] px-5 py-3 text-sm text-[#FFD5D5] disabled:opacity-50"
+              >
+                Rejeitar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCpfLock(item.client_id, currentLocks)}
+                disabled={state.actingId === item.client_id}
+                className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
+              >
+                {currentLocks?.cpf_verified ? "Desbloquear CPF" : "Marcar CPF validado"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNameLock(item.client_id, currentLocks)}
+                disabled={state.actingId === item.client_id}
+                className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
+              >
+                {currentLocks?.full_name_verified ? "Desbloquear nome" : "Marcar nome verificado"}
+              </button>
+            </div>
+          </section>
+        );
+      })}
+    </section>
+  );
+}
+
+export default function AprovacoesModule() {
+  const [activeDepartment, setActiveDepartment] = useState("cadastro");
+  const [state, setState] = useState({
+    loading: true,
+    error: null,
+    items: [],
+    actingId: null,
+    message: null,
+  });
+
+  async function load() {
+    setState((current) => ({ ...current, loading: true, error: null }));
+    try {
+      const payload = await adminFetch("/api/admin-client-profile-requests?status=pending&limit=50");
+      setState((current) => ({
+        ...current,
+        loading: false,
+        error: null,
+        items: payload.items || [],
+      }));
+    } catch (error) {
+      setState((current) => ({ ...current, loading: false, error: error.message, items: [] }));
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function handleReview(id, action) {
+    setState((current) => ({ ...current, actingId: id, error: null, message: null }));
+    try {
+      await adminFetch("/api/admin-client-profile-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, id }),
+      });
+      setState((current) => ({
+        ...current,
+        actingId: null,
+        message: action === "approve" ? "Solicitacao aprovada e aplicada." : "Solicitacao rejeitada.",
+      }));
+      await load();
+    } catch (error) {
+      setState((current) => ({ ...current, actingId: null, error: error.message }));
+    }
+  }
+
+  async function handleCpfLock(clientId, currentLocks) {
+    setState((current) => ({ ...current, actingId: clientId, error: null, message: null }));
+    try {
+      await adminFetch("/api/admin-client-profile-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "set_locks",
+          client_id: clientId,
+          cpf_verified: !(currentLocks?.cpf_verified === true),
+          full_name_verified: currentLocks?.full_name_verified === true,
+        }),
+      });
+      setState((current) => ({ ...current, actingId: null, message: "Bloqueio de CPF atualizado." }));
+      await load();
+    } catch (error) {
+      setState((current) => ({ ...current, actingId: null, error: error.message }));
+    }
+  }
+
+  async function handleNameLock(clientId, currentLocks) {
+    setState((current) => ({ ...current, actingId: clientId, error: null, message: null }));
+    try {
+      await adminFetch("/api/admin-client-profile-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "set_locks",
+          client_id: clientId,
+          cpf_verified: currentLocks?.cpf_verified === true,
+          full_name_verified: !(currentLocks?.full_name_verified === true),
+        }),
+      });
+      setState((current) => ({ ...current, actingId: null, message: "Bloqueio do nome atualizado." }));
+      await load();
+    } catch (error) {
+      setState((current) => ({ ...current, actingId: null, error: error.message }));
+    }
+  }
+
+  const departmentCounts = useMemo(
+    () => ({
+      cadastro: state.items.length,
+      financeiro: 0,
+      documentacoes: 0,
+    }),
+    [state.items.length],
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 lg:grid-cols-3">
+        {DEPARTMENTS.map((item) => (
+          <DepartmentTab
+            key={item.key}
+            item={item}
+            active={activeDepartment === item.key}
+            count={departmentCounts[item.key] || 0}
+            onClick={() => setActiveDepartment(item.key)}
+          />
+        ))}
+      </div>
+
+      {activeDepartment === "cadastro" ? (
+        <CadastroDepartment
+          state={state}
+          load={load}
+          handleReview={handleReview}
+          handleCpfLock={handleCpfLock}
+          handleNameLock={handleNameLock}
+        />
+      ) : null}
+
+      {activeDepartment === "financeiro" ? (
+        <PlaceholderDepartment
+          title="Aprovacoes financeiras"
+          description="Este departamento vai concentrar validacoes operacionais ligadas a cobrancas, comprovantes, acordos, renegociacoes e pendencias vindas do financeiro do cliente."
+          stats={[
+            { label: "Pendencias", value: "0", helper: "Nenhuma aprovacao financeira conectada neste ambiente." },
+            { label: "Origem", value: "Freshsales", helper: "Deals, faturas e eventos financeiros poderao alimentar esta fila." },
+            { label: "Modelo", value: "Fila unica", helper: "Cada aprovacao sera vinculada ao cliente e ao contexto financeiro correspondente." },
+          ]}
+        />
+      ) : null}
+
+      {activeDepartment === "documentacoes" ? (
+        <PlaceholderDepartment
+          title="Documentacoes em apreciacao"
+          description="Esta area vai receber documentos enviados pelo cliente no portal para aprovacao, exigencia complementar ou validacao formal do escritorio de advocacia."
+          stats={[
+            { label: "Pendencias", value: "0", helper: "Nenhum documento aguardando parecer neste momento." },
+            { label: "Origem", value: "Portal", helper: "Os uploads do cliente poderao ser associados a processo, categoria e observacoes." },
+            { label: "Fluxo", value: "Analise", helper: "Cada documento podera ser aprovado, rejeitado ou devolvido com solicitacao complementar." },
+          ]}
+        />
+      ) : null}
+    </div>
+  );
+}
