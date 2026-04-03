@@ -1,5 +1,12 @@
 import { fetchSupabaseAdmin } from "./supabase-rest.js";
 import { buildFallbackClientProfile, isClientProfileComplete } from "./client-auth.js";
+import {
+  listFreshsalesSalesActivities,
+  lookupFreshsalesContactByEmail,
+  viewFreshsalesContact,
+  viewFreshsalesDeal,
+  viewFreshsalesSalesAccount,
+} from "./freshsales-crm.js";
 
 function normalizeFreshdeskDomain(value) {
   return String(value || "").replace(/\/+$/, "");
@@ -555,6 +562,69 @@ async function listFreshsalesRelatedAccounts(env, email) {
     accountIds: accounts.map((item) => String(item.source_id || "").trim()).filter(Boolean),
     processFieldKeys: accountProcessFields,
   };
+}
+
+async function getFreshsalesPortalContextLive(env, email) {
+  try {
+    const contactSummary = await lookupFreshsalesContactByEmail(env, email);
+    const contactId = contactSummary?.id ? String(contactSummary.id) : null;
+    if (!contactId) {
+      return {
+        contact: null,
+        accounts: [],
+        deals: [],
+        appointments: [],
+        activities: [],
+      };
+    }
+
+    const contact = await viewFreshsalesContact(env, contactId);
+    const accountRefs = Array.isArray(contact?.sales_accounts) ? contact.sales_accounts : [];
+    const dealRefs = Array.isArray(contact?.deals) ? contact.deals : [];
+    const appointments = Array.isArray(contact?.appointments) ? contact.appointments : [];
+    const activitiesFromContact = Array.isArray(contact?.sales_activities) ? contact.sales_activities : [];
+
+    const accounts = (
+      await Promise.all(
+        accountRefs.map((item) => viewFreshsalesSalesAccount(env, item?.id || item).catch(() => null))
+      )
+    ).filter(Boolean);
+
+    const deals = (
+      await Promise.all(
+        dealRefs.map((item) => viewFreshsalesDeal(env, item?.id || item).catch(() => null))
+      )
+    ).filter(Boolean);
+
+    const accountIds = accounts.map((item) => String(item?.id || "").trim()).filter(Boolean);
+    let accountActivities = [];
+    try {
+      const liveActivities = await listFreshsalesSalesActivities(env, { page: 1, perPage: 100 });
+      accountActivities = liveActivities.filter((item) => {
+        const targetType = normalizeText(item?.targetable_type || "");
+        const targetId = String(item?.targetable_id || "").trim();
+        return targetType.includes("salesaccount") && accountIds.includes(targetId);
+      });
+    } catch {
+      accountActivities = [];
+    }
+
+    return {
+      contact,
+      accounts,
+      deals,
+      appointments,
+      activities: [...activitiesFromContact, ...accountActivities],
+    };
+  } catch {
+    return {
+      contact: null,
+      accounts: [],
+      deals: [],
+      appointments: [],
+      activities: [],
+    };
+  }
 }
 
 function findAccountProcessReference(accountSnapshot, processFieldKeys = []) {

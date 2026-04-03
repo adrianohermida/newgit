@@ -38,7 +38,7 @@ function getAuthHeaders(env) {
   ].filter(Boolean);
 }
 
-async function freshsalesRequest(env, path, init = {}) {
+export async function freshsalesRequest(env, path, init = {}) {
   const candidates = buildCandidates(env);
   const authHeaders = getAuthHeaders(env);
   if (!candidates.length || !authHeaders.length) {
@@ -77,6 +77,33 @@ async function freshsalesRequest(env, path, init = {}) {
   }
 
   throw lastError || new Error("Falha ao conectar no Freshsales.");
+}
+
+export async function lookupFreshsalesContactByEmail(env, email) {
+  const query = encodeURIComponent(String(email || "").trim());
+  const { payload } = await freshsalesRequest(env, `/lookup?q=${query}&f=email&entities=contact`);
+  const items = Array.isArray(payload?.contacts) ? payload.contacts : Array.isArray(payload) ? payload : [];
+  return items[0] || null;
+}
+
+export async function viewFreshsalesContact(env, contactId, include = "sales_accounts,deals,appointments,sales_activities,owner") {
+  const { payload } = await freshsalesRequest(env, `/contacts/${encodeURIComponent(String(contactId))}?include=${include}`);
+  return payload?.contact || payload || null;
+}
+
+export async function viewFreshsalesSalesAccount(env, accountId, include = "owner,contacts,deals,appointments") {
+  const { payload } = await freshsalesRequest(env, `/sales_accounts/${encodeURIComponent(String(accountId))}?include=${include}`);
+  return payload?.sales_account || payload || null;
+}
+
+export async function viewFreshsalesDeal(env, dealId) {
+  const { payload } = await freshsalesRequest(env, `/deals/${encodeURIComponent(String(dealId))}`);
+  return payload?.deal || payload || null;
+}
+
+export async function listFreshsalesSalesActivities(env, { page = 1, perPage = 100 } = {}) {
+  const { payload } = await freshsalesRequest(env, `/sales_activities?page=${page}&per_page=${perPage}`);
+  return Array.isArray(payload?.sales_activities) ? payload.sales_activities : Array.isArray(payload) ? payload : [];
 }
 
 export async function upsertFreshsalesContactForAgendamento(env, agendamento, eventType = "booked", options = {}) {
