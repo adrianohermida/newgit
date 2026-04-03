@@ -8,17 +8,18 @@ loadLocalEnv();
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const workspaceId = args.workspaceId || process.env.HMADV_WORKSPACE_ID || null;
-  const contacts = await loadFreshsalesContacts(args.limit);
+  const result = await loadFreshsalesContacts(args.limit);
+  const contacts = result.contacts;
 
   if (!contacts.length) {
-    console.log(JSON.stringify({ ok: true, total: 0, imported: 0, dryRun: args.dryRun }, null, 2));
+    console.log(JSON.stringify({ ok: true, total: 0, imported: 0, dryRun: args.dryRun, source: result.source }, null, 2));
     return;
   }
 
   const rows = contacts.map((contact) => mapContact(contact, workspaceId));
 
   if (args.dryRun) {
-    console.log(JSON.stringify({ ok: true, total: rows.length, imported: 0, dryRun: true, sample: rows.slice(0, 5) }, null, 2));
+    console.log(JSON.stringify({ ok: true, total: rows.length, imported: 0, dryRun: true, source: result.source, sample: rows.slice(0, 5) }, null, 2));
     return;
   }
 
@@ -36,7 +37,7 @@ async function main() {
     imported += batch.length;
   }
 
-  console.log(JSON.stringify({ ok: true, total: rows.length, imported, dryRun: false }, null, 2));
+  console.log(JSON.stringify({ ok: true, total: rows.length, imported, dryRun: false, source: result.source }, null, 2));
 }
 
 function parseArgs(argv) {
@@ -82,6 +83,18 @@ function loadLocalEnv() {
 }
 
 async function loadFreshsalesContacts(limit) {
+  try {
+    const contacts = await loadFreshsalesContactsGlobal(limit);
+    return { source: 'global_contacts', contacts };
+  } catch (error) {
+    const message = String(error.message || error);
+    if (!/403/.test(message)) throw error;
+    const contacts = await loadFreshsalesContactsByAccounts(limit);
+    return { source: 'sales_accounts_contacts', contacts };
+  }
+}
+
+async function loadFreshsalesContactsGlobal(limit) {
   const perPage = 100;
   const maxPages = Math.max(1, Math.ceil(limit / perPage));
   const rows = [];
@@ -98,6 +111,35 @@ async function loadFreshsalesContacts(limit) {
   }
 
   return rows.slice(0, limit);
+}
+
+async function loadFreshsalesContactsByAccounts(limit) {
+  const accountIds = await loadHmadvAccountIds(limit);
+  const unique = new Map();
+
+  for (const accountId of accountIds) {
+    const payload = await freshsalesRequest(`/sales_accounts/${encodeURIComponent(accountId)}/contacts`);
+    const contacts = Array.isArray(payload) ? payload : Array.isArray(payload?.contacts) ? payload.contacts : [];
+    for (const contact of contacts) {
+      const id = String(contact?.id || '');
+      if (!id) continue;
+      if (!unique.has(id)) unique.set(id, contact);
+    }
+  }
+
+  return Array.from(unique.values());
+}
+
+async function loadHmadvAccountIds(limit) {
+  const rows = await supabaseRequest(`processos?account_id_freshsales=not.is.null&select=account_id_freshsales&limit=${limit}`, {
+    headers: {
+      'Accept-Profile': 'judiciario',
+    },
+  });
+  const ids = rows
+    .map((row) => cleanValue(row.account_id_freshsales))
+    .filter(Boolean);
+  return Array.from(new Set(ids));
 }
 
 function mapContact(contact, workspaceId) {
@@ -164,6 +206,8 @@ function resolveFreshsalesBase() {
   const raw = cleanValue(process.env.FRESHSALES_API_BASE || process.env.FRESHSALES_BASE_URL || process.env.FRESHSALES_DOMAIN);
   if (!raw) throw new Error('FRESHSALES_API_BASE/FRESHSALES_BASE_URL/FRESHSALES_DOMAIN nao configurado');
   const base = raw.startsWith('http') ? raw.replace(/\/+$/, '') : `https://${raw.replace(/\/+$/, '')}`;
+  if (base.includes('.freshsales.io/api')) return base;
+  if (base.includes('.freshsales.io')) return `${base}/api`;
   if (base.includes('/crm/sales/api')) return base;
   if (base.includes('/api')) return base;
   return `${base}/crm/sales/api`;
