@@ -3,6 +3,7 @@ import { runLawdeskChat } from "../../lib/lawdesk/chat.js";
 import { buildDotobotRepositoryContext } from "../../lib/lawdesk/capabilities.js";
 import { detectSkillFromQuery, enrichContextWithSkill } from "../../lib/lawdesk/skill_registry.js";
 import { buildFeatureFlags } from "../../lib/lawdesk/feature-flags.js";
+import { cancelTaskRun, getTaskRun, startTaskRun } from "../../lib/lawdesk/task_runs.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -28,6 +29,32 @@ export async function onRequestPost(context) {
   }
 
   const query = typeof body?.query === "string" ? body.query.trim() : "";
+  const action = typeof body?.action === "string" ? body.action.trim() : "chat";
+
+  if (action === "task_run_get") {
+    const result = getTaskRun(body);
+    return new Response(JSON.stringify(result), {
+      status: result.status,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  if (action === "task_run_cancel") {
+    const result = cancelTaskRun(body);
+    return new Response(JSON.stringify(result), {
+      status: result.status,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  if (action === "task_run_start") {
+    const result = await startTaskRun(env, body, features);
+    return new Response(JSON.stringify(result), {
+      status: result.status,
+      headers: JSON_HEADERS,
+    });
+  }
+
   if (!query) {
     return new Response(JSON.stringify({ ok: false, error: "Campo query obrigatorio." }), {
       status: 400,
