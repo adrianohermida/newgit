@@ -16,6 +16,39 @@ const NAV_ITEMS = [
   { href: "/interno/leads", label: "Leads" },
 ];
 
+function normalizeDisplayName(profile) {
+  return profile?.full_name || profile?.email || "Hermida Maia";
+}
+
+function SidebarItem({ item, active }) {
+  return (
+    <Link
+      href={item.href}
+      prefetch={false}
+      className={`group flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-sm transition-all ${
+        active
+          ? "border-[#C5A059] bg-[#C5A059] text-[#07110E] shadow-[0_10px_30px_rgba(197,160,89,0.16)]"
+          : "border-[#1F2A27] bg-[rgba(255,255,255,0.01)] text-[#D8DED9] hover:border-[#2F3E39] hover:bg-[rgba(255,255,255,0.025)]"
+      }`}
+    >
+      <span className={`flex h-9 w-9 items-center justify-center rounded-xl border ${active ? "border-[rgba(7,17,14,0.1)] bg-[rgba(7,17,14,0.08)]" : "border-[#233630] bg-[rgba(255,255,255,0.02)] group-hover:border-[#35554B]"}`}>
+        <span className={`h-2.5 w-2.5 rounded-full ${active ? "bg-[#07110E]" : "bg-[#C5A059]"}`} />
+      </span>
+      <span className="font-medium">{item.label}</span>
+    </Link>
+  );
+}
+
+function RailPanel({ title, subtitle, children }) {
+  return (
+    <section className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">{title}</p>
+      {subtitle ? <p className="mt-2 text-sm font-medium text-[#F5F1E8]">{subtitle}</p> : null}
+      <div className="mt-3 text-sm leading-6 text-[#92A59F]">{children}</div>
+    </section>
+  );
+}
+
 export default function InternoLayout({ title, description, profile, children }) {
   const router = useRouter();
   const { supabase } = useSupabaseBrowser();
@@ -33,7 +66,7 @@ export default function InternoLayout({ title, description, profile, children })
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.28),transparent_30%),linear-gradient(180deg,#050706_0%,#070A09_100%)] text-[#F4F1EA]">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.24),transparent_30%),linear-gradient(180deg,#050706_0%,#070A09_100%)] text-[#F4F1EA]">
       <div className="w-full px-3 py-3 md:px-4 xl:px-5">
         <div
           className={`grid min-h-[calc(100vh-1.5rem)] gap-3 ${
@@ -41,49 +74,35 @@ export default function InternoLayout({ title, description, profile, children })
           }`}
         >
           <aside className="lg:sticky lg:top-3 lg:h-[calc(100vh-1.5rem)]">
-            <div className="flex h-full flex-col rounded-[28px] border border-[#1D2220] bg-[linear-gradient(180deg,rgba(9,11,10,0.98),rgba(7,9,8,0.94))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.24)]">
-              <Link href="/interno" className="mb-8 block">
+            <div className="flex h-full flex-col rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(10,18,16,0.98),rgba(8,15,13,0.94))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.22)]">
+              <Link href="/interno" prefetch={false} className="mb-8 block">
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C5A059]">Hermida Maia</p>
                 <h1 className="text-[32px] font-semibold tracking-[-0.03em] text-[#F5F1E8]">Painel Interno</h1>
-                <p className="mt-3 max-w-[18rem] text-sm leading-6 text-[#91A29C]">
+                <p className="mt-3 max-w-[18rem] text-sm leading-6 text-[#8FA39C]">
                   Workspace operacional para processos, CRM, governanca de agentes e automacoes do escritorio.
                 </p>
               </Link>
 
-              <div className="mb-6 rounded-[24px] border border-[#232927] bg-[rgba(255,255,255,0.02)] p-4">
+              <div className="mb-6 rounded-[24px] border border-[#1D2E29] bg-[rgba(255,255,255,0.03)] p-4">
                 <p className="text-[11px] uppercase tracking-[0.2em] text-[#7F928C]">Perfil conectado</p>
-                <p className="mt-3 text-lg font-semibold text-[#F8F4EB]">{profile.full_name || profile.email}</p>
-                <p className="mt-1 text-sm text-[#91A49E]">{profile.email}</p>
-                <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-[#C5A059]">{profile.role}</p>
+                <p className="mt-3 text-lg font-semibold text-[#F8F4EB]">{normalizeDisplayName(profile)}</p>
+                <p className="mt-1 text-sm text-[#91A49E]">{profile?.email}</p>
+                <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-[#C5A059]">{profile?.role}</p>
               </div>
 
               <nav aria-label="Navegacao interna" className="space-y-1.5">
                 {NAV_ITEMS.map((item) => {
                   const active = router.pathname === item.href;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      prefetch={false}
-                      className={`flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-sm transition-all ${
-                        active
-                          ? "border-[#C5A059] bg-[#C5A059] text-[#07110E] shadow-[0_10px_30px_rgba(197,160,89,0.18)]"
-                          : "border-[#1F2A27] bg-[rgba(255,255,255,0.01)] text-[#D8DED9] hover:border-[#2F3E39] hover:bg-[rgba(255,255,255,0.025)]"
-                      }`}
-                    >
-                      <span className={`h-2.5 w-2.5 rounded-full ${active ? "bg-[#07110E]" : "bg-[#C5A059]"}`} />
-                      <span className="font-medium">{item.label}</span>
-                    </Link>
-                  );
+                  return <SidebarItem key={item.href} item={item} active={active} />;
                 })}
               </nav>
 
               <div className="mt-auto space-y-3 pt-6">
-                <div className="rounded-[22px] border border-[#1E2724] bg-[rgba(255,255,255,0.02)] p-4">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">Arquitetura UX</p>
+                <div className="rounded-[22px] border border-[#1D2E29] bg-[rgba(255,255,255,0.02)] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">Workspace</p>
                   <p className="mt-2 text-sm font-medium text-[#F5F1E8]">Sidebar, modulo, Dotobot</p>
                   <p className="mt-2 text-sm leading-6 text-[#92A59F]">
-                    Navegue pela esquerda, trabalhe no centro e use a coluna fixa do Dotobot para contexto operacional continuo.
+                    A barra lateral navega. O centro executa. O painel lateral apoia com contexto, conversa e acompanhamento continuo.
                   </p>
                 </div>
 
@@ -98,8 +117,8 @@ export default function InternoLayout({ title, description, profile, children })
             </div>
           </aside>
 
-          <main className="min-w-0 rounded-[28px] border border-[#1D2220] bg-[linear-gradient(180deg,rgba(9,12,11,0.97),rgba(7,10,9,0.93))] px-5 py-5 md:px-6 xl:px-7">
-            <header className="mb-6 border-b border-[#1F2624] pb-5">
+          <main className="min-w-0 rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(9,16,14,0.97),rgba(8,14,12,0.93))] px-5 py-5 md:px-6 xl:px-7">
+            <header className="mb-6 border-b border-[#1E2E29] pb-5">
               <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                 <div className="min-w-0">
                   <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">Operacao interna</p>
@@ -124,19 +143,29 @@ export default function InternoLayout({ title, description, profile, children })
               </div>
             </header>
 
-            <div>{children}</div>
+            <div className="space-y-6">{children}</div>
           </main>
 
           {isDotobotOpen ? (
-            <aside id="dotobot-rail" className="order-first lg:order-none lg:h-[calc(100vh-1.5rem)]">
-              <div className="h-full overflow-y-auto rounded-[28px] border border-[#1D2220] bg-[linear-gradient(180deg,rgba(10,13,12,0.98),rgba(8,10,9,0.94))] p-3 md:p-4 lg:sticky lg:top-3">
-                <div className="mb-3 border-b border-[#1F2624] px-1 pb-3">
+            <aside id="dotobot-rail" className="lg:h-[calc(100vh-1.5rem)]">
+              <div className="h-full overflow-y-auto rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(10,17,15,0.96),rgba(8,14,12,0.92))] p-3 md:p-4 lg:sticky lg:top-3">
+                <div className="mb-4 border-b border-[#1E2E29] px-1 pb-4">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">Conversa lateral</p>
                   <p className="mt-2 text-sm leading-6 text-[#92A59F]">
-                    O Dotobot fica aqui para resumo, analise operacional e apoio continuo sem sair do contexto da tela.
+                    O Dotobot fica aqui como coluna fixa para resumo, analise operacional e apoio continuo sem sair do contexto da tela.
                   </p>
                 </div>
-                <DotobotPanel profile={profile} routePath={router.pathname} />
+
+                <div className="space-y-4">
+                  <RailPanel
+                    title="Fluxo de trabalho"
+                    subtitle="Sidebar, modulo e conversa permanecem visiveis em conjunto."
+                  >
+                    Use este painel para perguntar, resumir e revisar o contexto enquanto navega pelos modulos internos.
+                  </RailPanel>
+
+                  <DotobotPanel profile={profile} routePath={router.pathname} />
+                </div>
               </div>
             </aside>
           ) : null}
