@@ -61,6 +61,12 @@ export default function InternoHomePage() {
                 <Link href="/interno/agentlab" prefetch={false} className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
                   Abrir AgentLab
                 </Link>
+                <Link href="/interno/processos" prefetch={false} className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
+                  Abrir gestao de processos
+                </Link>
+                <Link href="/interno/publicacoes" prefetch={false} className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
+                  Abrir gestao de publicacoes
+                </Link>
                 <Link href="/interno/posts" prefetch={false} className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
                   Abrir modulo de posts
                 </Link>

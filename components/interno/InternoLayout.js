@@ -4,6 +4,8 @@ import { useSupabaseBrowser } from "../../lib/supabase";
 
 const NAV_ITEMS = [
   { href: "/interno", label: "Visao Geral" },
+  { href: "/interno/processos", label: "Processos" },
+  { href: "/interno/publicacoes", label: "Publicacoes" },
   { href: "/interno/agentlab", label: "AgentLab" },
   { href: "/interno/posts", label: "Posts" },
   { href: "/interno/agendamentos", label: "Agendamentos" },
