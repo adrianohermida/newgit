@@ -132,6 +132,69 @@ export async function listFreshsalesSalesActivities(env, { page = 1, perPage = 1
   return Array.isArray(payload?.sales_activities) ? payload.sales_activities : Array.isArray(payload) ? payload : [];
 }
 
+function toArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function normalizeFreshsalesCollectionPayload(entity, payload) {
+  const directKey = entity === "sales_accounts" ? "sales_accounts" : entity;
+  return toArray(payload?.[directKey] || payload?.items || payload);
+}
+
+async function listFreshsalesFilters(env, entity) {
+  const { payload } = await freshsalesRequest(env, `/${entity}/filters`);
+  return toArray(payload?.filters || payload);
+}
+
+async function listFreshsalesView(env, entity, viewId, { page = 1, perPage = 100 } = {}) {
+  const { payload } = await freshsalesRequest(env, `/${entity}/view/${encodeURIComponent(String(viewId))}?page=${page}&per_page=${perPage}`);
+  return normalizeFreshsalesCollectionPayload(entity, payload);
+}
+
+function pickPreferredFilter(filters, preferredNames = []) {
+  if (!filters.length) return null;
+
+  for (const preferredName of preferredNames) {
+    const exact = filters.find((item) => String(item?.name || "").trim().toLowerCase() === String(preferredName || "").trim().toLowerCase());
+    if (exact) return exact;
+  }
+
+  const allCandidate = filters.find((item) => /all/i.test(String(item?.name || "")));
+  if (allCandidate) return allCandidate;
+
+  return filters[0];
+}
+
+export async function listFreshsalesSalesAccountsFromViews(env, { maxPages = 4, perPage = 100 } = {}) {
+  const filters = await listFreshsalesFilters(env, "sales_accounts");
+  const selected = pickPreferredFilter(filters, ["All Accounts", "My Accounts", "All sales accounts", "My sales accounts"]);
+  if (!selected?.id) return [];
+
+  const pages = [];
+  for (let page = 1; page <= maxPages; page += 1) {
+    const items = await listFreshsalesView(env, "sales_accounts", selected.id, { page, perPage });
+    pages.push(...items);
+    if (items.length < perPage) break;
+  }
+
+  return pages;
+}
+
+export async function listFreshsalesDealsFromViews(env, { maxPages = 4, perPage = 100 } = {}) {
+  const filters = await listFreshsalesFilters(env, "deals");
+  const selected = pickPreferredFilter(filters, ["All Deals", "My Deals", "All deals", "My deals"]);
+  if (!selected?.id) return [];
+
+  const pages = [];
+  for (let page = 1; page <= maxPages; page += 1) {
+    const items = await listFreshsalesView(env, "deals", selected.id, { page, perPage });
+    pages.push(...items);
+    if (items.length < perPage) break;
+  }
+
+  return pages;
+}
+
 export async function upsertFreshsalesContactForAgendamento(env, agendamento, eventType = "booked", options = {}) {
   const { first_name, last_name } = splitName(agendamento.nome);
   const stageUpdate = buildFreshsalesJourneyUpdate(eventType, agendamento, env, options);
