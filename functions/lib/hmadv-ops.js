@@ -123,6 +123,106 @@ function uniqueNonEmpty(values = []) {
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
 }
 
+function summarizeOperationResult(result) {
+  const rows = Array.isArray(result?.sample)
+    ? result.sample
+    : Array.isArray(result?.items)
+      ? result.items
+      : [];
+  const summary = {};
+  for (const key of [
+    "processosLidos",
+    "sincronizados",
+    "reparados",
+    "partesInseridas",
+    "processosAtualizados",
+    "accountsReparadas",
+    "processosCriados",
+    "processosDisparados",
+    "publicacoes",
+    "audienciasInseridas",
+    "disparados",
+    "monitoramento_ativo",
+  ]) {
+    if (result?.[key] !== undefined) summary[key] = result[key];
+  }
+  return {
+    summary,
+    rows: rows.slice(0, 10),
+    affectedCount:
+      Number(result?.sincronizados || 0) ||
+      Number(result?.reparados || 0) ||
+      Number(result?.partesInseridas || 0) ||
+      Number(result?.processosAtualizados || 0) ||
+      Number(result?.processosCriados || 0) ||
+      Number(result?.publicacoes || 0) ||
+      Number(result?.audienciasInseridas || 0) ||
+      Number(result?.disparados || 0) ||
+      rows.length,
+  };
+}
+
+export async function logAdminOperation(env, { modulo, acao, status = "success", payload = {}, result = null, error = null }) {
+  try {
+    const parsed = summarizeOperationResult(result || {});
+    const body = {
+      modulo: String(modulo || "interno"),
+      acao: String(acao || "acao"),
+      status: String(status || "success"),
+      payload,
+      resumo: error ? String(error) : null,
+      result_summary: parsed.summary,
+      result_sample: parsed.rows,
+      requested_count: uniqueNonEmpty(
+        String(payload?.processNumbers || "")
+          .split(/\r?\n|,|;/)
+      ).length,
+      affected_count: parsed.affectedCount,
+      error_message: error ? String(error) : null,
+      finished_at: new Date().toISOString(),
+    };
+    await hmadvRest(
+      env,
+      "operacao_execucoes",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Profile": "judiciario",
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify(body),
+      },
+      "judiciario"
+    );
+  } catch (logError) {
+    const message = String(logError?.message || "");
+    if (
+      message.includes("does not exist") ||
+      message.includes("schema cache") ||
+      message.includes("PGRST") ||
+      message.includes("42703")
+    ) {
+      return null;
+    }
+    return null;
+  }
+  return true;
+}
+
+export async function listAdminOperations(env, { modulo, limit = 20 } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 20), 50));
+  const filters = [`limit=${safeLimit}`, "order=created_at.desc"];
+  if (modulo) filters.unshift(`modulo=eq.${encodeURIComponent(String(modulo))}`);
+  const items = await listTableSafe(
+    env,
+    `operacao_execucoes?${filters.join("&")}&select=id,modulo,acao,status,resumo,result_summary,result_sample,requested_count,affected_count,error_message,created_at,finished_at`,
+    "judiciario",
+    []
+  );
+  return { items };
+}
+
 async function countTable(env, table, filters = "", schema = "judiciario") {
   const baseUrl = getSupabaseBaseUrl(env);
   const response = await fetch(`${baseUrl}/rest/v1/${table}?${filters}${filters ? "&" : ""}select=id`, {

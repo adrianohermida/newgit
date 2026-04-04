@@ -382,6 +382,7 @@ function PublicacoesContent() {
   const [partesCandidates, setPartesCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20 });
   const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
   const [executionHistory, setExecutionHistory] = useState([]);
+  const [remoteHistory, setRemoteHistory] = useState([]);
   const [processNumbers, setProcessNumbers] = useState("");
   const [limit, setLimit] = useState(10);
   const [processPage, setProcessPage] = useState(1);
@@ -409,6 +410,7 @@ function PublicacoesContent() {
     };
   }, []);
   useEffect(() => { setExecutionHistory(loadHistoryEntries()); }, []);
+  useEffect(() => { loadRemoteHistory(); }, []);
 
   useEffect(() => {
     loadOverview();
@@ -449,6 +451,14 @@ function PublicacoesContent() {
       setPartesCandidates({ loading: false, error: null, items: payload.data.items || [], totalRows: payload.data.totalRows || 0, totalEstimated: Boolean(payload.data.totalEstimated), pageSize: payload.data.pageSize || 20 });
     } catch (error) {
       setPartesCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos de partes.", items: [], totalRows: 0, totalEstimated: false, pageSize: 20 });
+    }
+  }
+  async function loadRemoteHistory() {
+    try {
+      const payload = await adminFetch("/api/admin-hmadv-publicacoes?action=historico&limit=20");
+      setRemoteHistory(payload.data.items || []);
+    } catch {
+      setRemoteHistory([]);
     }
   }
 
@@ -539,7 +549,7 @@ function PublicacoesContent() {
         preview: buildHistoryPreview(payload.data),
         result: payload.data,
       });
-      await Promise.all([loadOverview(), loadProcessCandidates(processPage), loadPartesCandidates(partesPage)]);
+      await Promise.all([loadOverview(), loadProcessCandidates(processPage), loadPartesCandidates(partesPage), loadRemoteHistory()]);
     } catch (error) {
       setActionState({ loading: false, error: error.message || "Falha ao executar acao.", result: null });
       replaceHistoryEntry(historyId, {
@@ -791,6 +801,7 @@ function PublicacoesContent() {
             <button type="button" onClick={() => updateView("operacao")} className="border border-[#2D2E2E] px-4 py-2 text-sm hover:border-[#C5A059] hover:text-[#C5A059]">Voltar para operacao</button>
             <button type="button" onClick={clearHistory} className="border border-[#2D2E2E] px-4 py-2 text-sm hover:border-[#C5A059] hover:text-[#C5A059]">Limpar historico</button>
           </div>
+          {remoteHistory.length ? <div className="mb-5 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Historico persistido no HMADV</p>{remoteHistory.map((entry) => <div key={entry.id} className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold">{entry.acao}</p><p className="text-xs opacity-60">{new Date(entry.created_at).toLocaleString("pt-BR")}</p></div><span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${entry.status === "error" ? "border-[#4B2222] text-red-200" : "border-[#2D2E2E] opacity-70"}`}>{entry.status}</span></div>{entry.resumo ? <p className="mt-3 opacity-70">{entry.resumo}</p> : null}<div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60"><span>Solicitados: {entry.requested_count || 0}</span><span>Afetados: {entry.affected_count || 0}</span></div></div>)}</div> : null}
           {!executionHistory.length ? <p className="text-sm opacity-65">Nenhuma solicitacao registrada ainda neste navegador.</p> : <div className="space-y-3">{executionHistory.map((entry) => <HistoryCard key={entry.id} entry={entry} onReuse={reuseHistoryEntry} />)}</div>}
         </Panel>
       </div> : null}

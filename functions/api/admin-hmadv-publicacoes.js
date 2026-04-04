@@ -5,8 +5,10 @@ import {
   getPublicacoesOverview,
   jsonError,
   jsonOk,
+  listAdminOperations,
   listCreateProcessCandidates,
   listPartesExtractionCandidates,
+  logAdminOperation,
   runSyncWorker,
   syncPartesFromPublicacoes,
 } from "../lib/hmadv-ops.js";
@@ -47,6 +49,13 @@ export async function onRequestGet(context) {
       });
       return jsonOk({ data });
     }
+    if (action === "historico") {
+      const data = await listAdminOperations(context.env, {
+        modulo: "publicacoes",
+        limit: Number(url.searchParams.get("limit") || 20),
+      });
+      return jsonOk({ data });
+    }
     return jsonError(new Error("Acao GET invalida."), 400);
   } catch (error) {
     return jsonError(error, 500);
@@ -62,31 +71,37 @@ export async function onRequestPost(context) {
   try {
     const body = await context.request.json();
     const action = String(body.action || "");
+    async function runLogged(fn) {
+      try {
+        const data = await fn();
+        await logAdminOperation(context.env, { modulo: "publicacoes", acao: action, status: "success", payload: body, result: data });
+        return jsonOk({ data });
+      } catch (error) {
+        await logAdminOperation(context.env, { modulo: "publicacoes", acao: action, status: "error", payload: body, error: error.message || "Falha operacional." });
+        return jsonError(error, 500);
+      }
+    }
     if (action === "backfill_partes") {
-      const data = await backfillPartesFromPublicacoes(context.env, {
+      return runLogged(async () => backfillPartesFromPublicacoes(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 50),
         apply: Boolean(body.apply),
-      });
-      return jsonOk({ data });
+      }));
     }
     if (action === "sincronizar_partes") {
-      const data = await syncPartesFromPublicacoes(context.env, {
+      return runLogged(async () => syncPartesFromPublicacoes(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 20),
-      });
-      return jsonOk({ data });
+      }));
     }
     if (action === "criar_processos_publicacoes") {
-      const data = await createProcessesFromPublicacoes(context.env, {
+      return runLogged(async () => createProcessesFromPublicacoes(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 10),
-      });
-      return jsonOk({ data });
+      }));
     }
     if (action === "run_sync_worker") {
-      const data = await runSyncWorker(context.env);
-      return jsonOk({ data });
+      return runLogged(async () => runSyncWorker(context.env));
     }
     return jsonError(new Error("Acao POST invalida."), 400);
   } catch (error) {

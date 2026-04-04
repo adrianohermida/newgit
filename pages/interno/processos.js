@@ -159,6 +159,7 @@ function InternoProcessosContent() {
   const [overview, setOverview] = useState({ loading: true, data: null });
   const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
   const [executionHistory, setExecutionHistory] = useState([]);
+  const [remoteHistory, setRemoteHistory] = useState([]);
   const [limit, setLimit] = useState(10);
   const [processNumbers, setProcessNumbers] = useState("");
   const [withoutMovements, setWithoutMovements] = useState({ loading: true, items: [] });
@@ -203,6 +204,7 @@ function InternoProcessosContent() {
     };
   }, []);
   useEffect(() => { setExecutionHistory(loadHistoryEntries()); }, []);
+  useEffect(() => { loadRemoteHistory(); }, []);
   useEffect(() => { loadOverview(); }, []);
   useEffect(() => { loadQueue("sem_movimentacoes", setWithoutMovements, wmPage); }, [wmPage]);
   useEffect(() => { loadQueue("monitoramento_ativo", setMonitoringActive, maPage); }, [maPage]);
@@ -236,6 +238,14 @@ function InternoProcessosContent() {
   async function loadRelations(page = 1, query = "") {
     setRelations((current) => ({ ...current, loading: true, error: null }));
     try { const payload = await adminFetch(`/api/admin-hmadv-processos?action=relacoes&page=${page}&pageSize=20&query=${encodeURIComponent(query || "")}`); setRelations({ loading: false, error: null, items: payload.data.items || [], totalRows: payload.data.totalRows || 0, page: payload.data.page || page }); } catch (error) { setRelations({ loading: false, error: error.message || "Falha ao carregar relacoes.", items: [], totalRows: 0, page }); }
+  }
+  async function loadRemoteHistory() {
+    try {
+      const payload = await adminFetch("/api/admin-hmadv-processos?action=historico&limit=20");
+      setRemoteHistory(payload.data.items || []);
+    } catch {
+      setRemoteHistory([]);
+    }
   }
   function toggleSelection(setter, current, key) { setter(current.includes(key) ? current.filter((item) => item !== key) : [...current, key]); }
   function togglePageSelection(setter, current, rows, nextState) { const keys = rows.map((item) => item.key); if (nextState) { setter([...new Set([...current, ...keys])]); return; } setter(current.filter((item) => !keys.includes(item))); }
@@ -306,7 +316,7 @@ function InternoProcessosContent() {
         preview: buildHistoryPreview(response.data),
         result: response.data,
       });
-      await Promise.all([loadOverview(), loadQueue("sem_movimentacoes", setWithoutMovements, wmPage), loadQueue("monitoramento_ativo", setMonitoringActive, maPage), loadQueue("monitoramento_inativo", setMonitoringInactive, miPage), loadQueue("campos_orfaos", setFieldGaps, fgPage), loadOrphans(orphanPage)]);
+      await Promise.all([loadOverview(), loadQueue("sem_movimentacoes", setWithoutMovements, wmPage), loadQueue("monitoramento_ativo", setMonitoringActive, maPage), loadQueue("monitoramento_inativo", setMonitoringInactive, miPage), loadQueue("campos_orfaos", setFieldGaps, fgPage), loadOrphans(orphanPage), loadRemoteHistory()]);
     } catch (error) {
       setActionState({ loading: false, error: error.message || "Falha ao executar acao.", result: null });
       replaceHistoryEntry(historyId, {
@@ -447,6 +457,7 @@ function InternoProcessosContent() {
           <ActionButton onClick={() => updateView("operacao")} className="px-4 py-2">Voltar para operacao</ActionButton>
           <ActionButton onClick={clearHistory} className="px-4 py-2">Limpar historico</ActionButton>
         </div>
+        {remoteHistory.length ? <div className="mb-5 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Historico persistido no HMADV</p>{remoteHistory.map((entry) => <div key={entry.id} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold">{entry.acao}</p><p className="text-xs opacity-60">{new Date(entry.created_at).toLocaleString("pt-BR")}</p></div><span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${entry.status === "error" ? "border-[#4B2222] text-red-200" : "border-[#2D2E2E] opacity-70"}`}>{entry.status}</span></div>{entry.resumo ? <p className="mt-3 opacity-70">{entry.resumo}</p> : null}<div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60"><span>Solicitados: {entry.requested_count || 0}</span><span>Afetados: {entry.affected_count || 0}</span></div></div>)}</div> : null}
         {!executionHistory.length ? <p className="text-sm opacity-65">Nenhuma solicitacao registrada ainda neste navegador.</p> : <div className="space-y-3">{executionHistory.map((entry) => <HistoryCard key={entry.id} entry={entry} onReuse={reuseHistoryEntry} />)}</div>}
       </Panel>
     </div> : null}

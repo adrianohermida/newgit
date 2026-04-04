@@ -7,6 +7,7 @@ import {
   inspectAudiencias,
   jsonError,
   jsonOk,
+  listAdminOperations,
   listFieldGapProcesses,
   listMonitoringProcesses,
   listProcessRelations,
@@ -20,6 +21,7 @@ import {
   syncProcessesSupabaseCrm,
   updateMonitoringStatus,
   upsertProcessRelation,
+  logAdminOperation,
 } from "../lib/hmadv-ops.js";
 
 function parseProcessNumbers(value) {
@@ -93,6 +95,13 @@ export async function onRequestGet(context) {
       });
       return jsonOk({ data });
     }
+    if (action === "historico") {
+      const data = await listAdminOperations(context.env, {
+        modulo: "processos",
+        limit: Number(url.searchParams.get("limit") || 20),
+      });
+      return jsonOk({ data });
+    }
     if (action === "buscar_processos") {
       const data = await searchProcessesForRelations(context.env, {
         query: String(url.searchParams.get("query") || ""),
@@ -115,65 +124,65 @@ export async function onRequestPost(context) {
   try {
     const body = await context.request.json();
     const action = String(body.action || "");
+    async function runLogged(fn) {
+      try {
+        const data = await fn();
+        await logAdminOperation(context.env, { modulo: "processos", acao: action, status: "success", payload: body, result: data });
+        return jsonOk({ data });
+      } catch (error) {
+        await logAdminOperation(context.env, { modulo: "processos", acao: action, status: "error", payload: body, error: error.message || "Falha operacional." });
+        return jsonError(error, 500);
+      }
+    }
     if (action === "backfill_audiencias") {
-      const data = await backfillAudiencias(context.env, {
+      return runLogged(async () => backfillAudiencias(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 100),
         apply: Boolean(body.apply),
-      });
-      return jsonOk({ data });
+      }));
     }
     if (action === "run_sync_worker") {
-      const data = await runSyncWorker(context.env);
-      return jsonOk({ data });
+      return runLogged(async () => runSyncWorker(context.env));
     }
     if (action === "push_orfaos") {
-      const data = await pushOrphanAccounts(context.env, {
+      return runLogged(async () => pushOrphanAccounts(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 20),
-      });
-      return jsonOk({ data });
+      }));
     }
     if (action === "repair_freshsales_accounts") {
-      const data = await repairFreshsalesAccounts(context.env, {
+      return runLogged(async () => repairFreshsalesAccounts(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 10),
-      });
-      return jsonOk({ data });
+      }));
     }
     if (action === "enriquecer_datajud") {
-      const data = await enrichProcessesViaDatajud(context.env, {
+      return runLogged(async () => enrichProcessesViaDatajud(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 10),
-      });
-      return jsonOk({ data });
+      }));
     }
     if (action === "sync_supabase_crm") {
-      const data = await syncProcessesSupabaseCrm(context.env, {
+      return runLogged(async () => syncProcessesSupabaseCrm(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 10),
-      });
-      return jsonOk({ data });
+      }));
     }
     if (action === "auditoria_sync") {
-      const data = await runProcessAudit(context.env);
-      return jsonOk({ data });
+      return runLogged(async () => runProcessAudit(context.env));
     }
     if (action === "monitoramento_status") {
-      const data = await updateMonitoringStatus(context.env, {
+      return runLogged(async () => updateMonitoringStatus(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
         active: Boolean(body.active),
         limit: Number(body.limit || 20),
-      });
-      return jsonOk({ data });
+      }));
     }
     if (action === "salvar_relacao") {
-      const data = await upsertProcessRelation(context.env, body);
-      return jsonOk({ data });
+      return runLogged(async () => upsertProcessRelation(context.env, body));
     }
     if (action === "remover_relacao") {
-      const data = await deleteProcessRelation(context.env, body.id);
-      return jsonOk({ data });
+      return runLogged(async () => deleteProcessRelation(context.env, body.id));
     }
     return jsonError(new Error("Acao POST invalida."), 400);
   } catch (error) {
