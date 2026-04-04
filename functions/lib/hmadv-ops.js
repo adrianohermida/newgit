@@ -970,12 +970,11 @@ export async function syncPartesFromPublicacoes(env, { processNumbers = [], limi
   const sample = [];
   let processosAtualizados = 0;
   let accountsReparadas = 0;
+  const processIds = uniqueNonEmpty((base.sample || []).map((row) => row.processo_id));
+  const currentPartes = processIds.length ? await loadPartesByProcessIds(env, processIds) : [];
 
   for (const row of base.sample || []) {
-    const allPartes = [
-      ...(Array.isArray(row.partes_existentes_preview) ? row.partes_existentes_preview : []),
-      ...(Array.isArray(row.partes_novas) ? row.partes_novas : []),
-    ];
+    const allPartes = currentPartes.filter((item) => item.processo_id === row.processo_id);
     const polos = inferPolosFromPartes(allPartes);
     if (polos.polo_ativo || polos.polo_passivo) {
       await patchProcessRow(env, row.processo_id, {

@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Universal LLM Assistant",
+  "version": "8.0.0",
+  "description": "Assistente IA universal com suporte a Ollama (local), OpenAI, Claude e Gemini (cloud)",
+  
+  "permissions": [
+    "sidePanel",
+    "scripting",
+    "activeTab",
+    "tabCapture",
+    "storage"
+  ],
+  
+  "host_permissions": [
+    "http://localhost/*",
+    "https://*.openai.com/*",
+    "https://*.anthropic.com/*",
+    "https://*.google.com/*",
+    "https://*.googleapis.com/*",
+    "<all_urls>"
+  ],
+  
+  "background": {
+    "service_worker": "bg.js"
+  },
+  
+  "action": {
+    "default_title": "Universal LLM Assistant",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}

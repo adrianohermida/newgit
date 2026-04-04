@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LLM Assistant</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --primary: #0078d4;
+      --primary-hover: #106ebe;
+      --primary-active: #005a9e;
+      --bg: #ffffff;
+      --bg-secondary: #f3f3f3;
+      --text: #1e1e1e;
+      --text-secondary: #616161;
+      --border: #e0e0e0;
+      --success: #107c10;
+      --error: #d13438;
+      --warning: #ffb900;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ============= HEADER ============= */
+    .header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg);
+    }
+
+    .header-title {
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .provider-badge {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .provider-badge:hover {
+      background: var(--border);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #107c10;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* ============= MAIN CONTENT ============= */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ============= CHAT AREA ============= */
+    .chat-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .message {
+      display: flex;
+      gap: 8px;
+      animation: slideIn 0.3s ease-out;
+      max-width: 100%;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message.user {
+      justify-content: flex-end;
+    }
+
+    .message-bubble {
+      padding: 10px 14px;
+      border-radius: 8px;
+      word-wrap: break-word;
+      line-height: 1.4;
+      font-size: 13px;
+      max-width: 85%;
+    }
+
+    .message.user .message-bubble {
+      background: var(--primary);
+      color: white;
+      border-radius: 8px 2px 8px 8px;
+    }
+
+    .message.assistant .message-bubble {
+      background: var(--bg-secondary);
+      color: var(--text);
+      border-radius: 2px 8px 8px 8px;
+    }
+
+    .message.error .message-bubble {
+      background: #fde7e7;
+      color: var(--error);
+      border-radius: 2px 8px 8px 8px;
+    }
+
+    .message.system .message-bubble {
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 12px;
+      text-align: center;
+      max-width: 100%;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text-secondary);
+      text-align: center;
+      gap: 12px;
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      opacity: 0.5;
+    }
+
+    .empty-state-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .empty-state-text {
+      font-size: 12px;
+      max-width: 200px;
+    }
+
+    /* ============= INPUT AREA ============= */
+    .input-area {
+      padding: 12px 16px;
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+
+    .input-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      transition: all 0.2s;
+    }
+
+    .input-wrapper:focus-within {
+      border-color: var(--primary);
+      background: var(--bg);
+    }
+
+    textarea {
+      flex: 1;
+      border: none;
+      background: transparent;
+      font-family: inherit;
+      font-size: 13px;
+      resize: none;
+      max-height: 80px;
+      outline: none;
+      color: var(--text);
+    }
+
+    textarea::placeholder {
+      color: var(--text-secondary);
+    }
+
+    .btn {
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .btn-send {
+      background: var(--primary);
+      color: white;
+      padding: 8px 16px;
+      min-width: 60px;
+    }
+
+    .btn-send:hover:not(:disabled) {
+      background: var(--primary-hover);
+    }
+
+    .btn-send:active:not(:disabled) {
+      background: var(--primary-active);
+    }
+
+    .btn-send:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-icon {
+      background: transparent;
+      color: var(--text-secondary);
+      padding: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 0.2s;
+    }
+
+    .btn-icon:hover {
+      color: var(--primary);
+    }
+
+    .quick-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .quick-action {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--text-secondary);
+    }
+
+    .quick-action:hover {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    /* ============= SETTINGS PANEL ============= */
+    .settings-panel {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      padding: 16px;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .settings-panel.open {
+      display: flex;
+    }
+
+    .setting-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .setting-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .setting-value {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    select,
+    input[type="text"],
+    input[type="password"] {
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: inherit;
+      background: var(--bg);
+      color: var(--text);
+      transition: all 0.2s;
+    }
+
+    select:focus,
+    input[type="text"]:focus,
+    input[type="password"]:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.1);
+    }
+
+    /* ============= SCROLLBAR ============= */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-secondary);
+    }
+
+    /* ============= LOADING ============= */
+    .loading {
+      display: inline-flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .loading-dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+      animation: loading 1.4s infinite;
+    }
+
+    .loading-dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .loading-dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes loading {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    /* ============= RESPONSIVE ============= */
+    @media (max-width: 600px) {
+      .message-bubble {
+        max-width: 95%;
+      }
+
+      .input-area {
+        padding: 10px 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-title">
+      <span>🤖</span>
+      <span>Assistant</span>
+    </div>
+    <div class="header-controls">
+      <div class="status-dot"></div>
+      <div class="provider-badge" id="provider-badge" title="Clique para mudar provedor">Ollama</div>
+      <button class="btn-icon" id="btn-settings" title="Configurações">⚙️</button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <!-- CHAT AREA -->
+    <div class="chat-area" id="chat-area">
+      <div class="empty-state">
+        <div class="empty-state-icon">💬</div>
+        <div class="empty-state-title">Comece uma conversa</div>
+        <div class="empty-state-text">Selecione um provedor e digite sua pergunta</div>
+      </div>
+    </div>
+
+    <!-- SETTINGS PANEL -->
+    <div class="settings-panel" id="settings-panel">
+      <div class="setting-group">
+        <label class="setting-label">Provedor</label>
+        <select id="provider-select">
+          <option value="ollama">Ollama (Local)</option>
+          <option value="openai">OpenAI</option>
+          <option value="claude">Claude</option>
+          <option value="gemini">Gemini</option>
+        </select>
+      </div>
+
+      <div class="setting-group" id="ollama-settings">
+        <label class="setting-label">URL do Ollama</label>
+        <input type="text" id="ollama-url" placeholder="http://localhost:11434" />
+        <label class="setting-label" style="margin-top: 8px;">Modelo</label>
+        <select id="ollama-model">
+          <option value="">Detectando...</option>
+        </select>
+      </div>
+
+      <div class="setting-group" id="openai-settings" style="display: none;">
+        <label class="setting-label">API Key</label>
+        <input type="password" id="openai-key" placeholder="sk-..." />
+        <label class="setting-label" style="margin-top: 8px;">Modelo</label>
+        <select id="openai-model">
+          <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+          <option value="gpt-4">GPT-4</option>
+        </select>
+      </div>
+
+      <div class="setting-group" id="claude-settings" style="display: none;">
+        <label class="setting-label">API Key</label>
+        <input type="password" id="claude-key" placeholder="sk-ant-..." />
+        <label class="setting-label" style="margin-top: 8px;">Modelo</label>
+        <select id="claude-model">
+          <option value="claude-3-sonnet-20240229">Claude 3 Sonnet</option>
+          <option value="claude-3-opus-20240229">Claude 3 Opus</option>
+        </select>
+      </div>
+
+      <div class="setting-group" id="gemini-settings" style="display: none;">
+        <label class="setting-label">API Key</label>
+        <input type="password" id="gemini-key" placeholder="AIzaSy..." />
+        <label class="setting-label" style="margin-top: 8px;">Modelo</label>
+        <select id="gemini-model">
+          <option value="gemini-pro">Gemini Pro</option>
+        </select>
+      </div>
+
+      <button class="btn btn-send" id="btn-save-settings" style="width: 100%;">Salvar</button>
+    </div>
+
+    <!-- INPUT AREA -->
+    <div class="input-area">
+      <div class="input-group">
+        <div class="input-wrapper">
+          <textarea id="input" placeholder="Digite sua pergunta..." rows="1"></textarea>
+        </div>
+        <button class="btn btn-send" id="btn-send">Enviar</button>
+      </div>
+      <div class="quick-actions" id="quick-actions">
+        <button class="quick-action" id="btn-screenshot" title="Capturar tela">📸 Screenshot</button>
+        <button class="quick-action" id="btn-context" title="Usar contexto da página">📄 Página</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="COMPLETE-FINAL.js"></script>
+</body>
+</html>
