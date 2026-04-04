@@ -1,24 +1,110 @@
-﻿// Input compacto fixo no rodapé
+﻿import { useState, useEffect, useMemo, useRef } from "react";
+import { adminFetch } from "../../../lib/admin/api";
+
+function detectModules(mission) {
+  if (!mission) return ["geral"];
+  if (/peticao|recurso|contestacao|acao|agravo/i.test(mission)) return ["documentos-juridicos"];
+  if (/audiencia|processo|cnj/i.test(mission)) return ["processos"];
+  if (/cliente|contato|cobranca/i.test(mission)) return ["clientes"];
+  return ["geral"];
+}
+
+function requiresApproval(mission) {
+  return /deletar|excluir|cancelar|remover|destruir/i.test(mission || "");
+}
+
+function normalizeMission(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function formatExecutionSourceLabel(source) {
+  const labels = { openai: "OpenAI", cloudflare: "Cloudflare AI", local: "Modelo local", custom: "Custom" };
+  return labels[source] || source || "n/a";
+}
+
+function formatHistoryStatus(status) {
+  const labels = { running: "Executando", done: "Concluído", failed: "Falhou", stopped: "Parado", idle: "Pronto" };
+  return labels[status] || String(status || "Indefinido");
+}
+
+function buildStorageKey(profile) {
+  return `aitask:${profile?.id || profile?.email || "anonymous"}`;
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+const MAX_THINKING = 20;
+const MAX_LOGS = 200;
+const MAX_TASKS = 80;
+
+const QUICK_MISSIONS = [
+  "Analise este processo e identifique os próximos passos",
+  "Redija contestação com base nas alegações do cliente",
+  "Crie plano de execução para audiência agendada",
+  "Resuma documentos e identifique riscos",
+];
+
+const MODE_OPTIONS = [
+  { value: "assisted", label: "Assistido" },
+  { value: "auto", label: "Automático" },
+  { value: "manual", label: "Manual" },
+];
+
+const PROVIDER_OPTIONS = [
+  { value: "gpt", label: "GPT-4o" },
+  { value: "local", label: "Modelo local" },
+  { value: "custom", label: "Custom" },
+];
+
+function ChatHistory({ history }) {
+  if (!Array.isArray(history) || !history.length) return null;
+  return (
+    <div className="space-y-3 pb-4">
+      {history.map((item) => (
+        <div key={item.id || item.timestamp} className={`flex ${item.role === "user" ? "justify-end" : "justify-start"}`}>
+          <article className="max-w-[92%] rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[#F4F1EA]">
+            <p className="mb-1 text-[10px] uppercase tracking-[0.2em] opacity-60">{item.title || item.role}</p>
+            <p className="whitespace-pre-wrap leading-7">{String(item.goal || "")}</p>
+          </article>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Input compacto fixo no rodapé
 function TaskInputFooter({ value, onChange, onSubmit, disabled }) {
   const inputRef = useRef();
   return (
     <form
       className="fixed left-0 right-0 bottom-0 z-30 w-full max-w-2xl mx-auto flex items-end gap-2 bg-[rgba(12,15,14,0.98)] border-t border-[#22342F] px-3 py-2"
       style={{ boxShadow: '0 -2px 16px rgba(0,0,0,0.08)' }}
-      return (
-        <div className="flex flex-col lg:flex-row gap-4 w-full">
-          {/* Painel central: chat responsivo */}
-          <section className="relative flex-1 min-w-0 rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(9,16,14,0.97),rgba(8,14,12,0.93))] flex flex-col" style={{height:'calc(100dvh - 120px)'}}>
-            <div className="flex-1 overflow-y-auto pb-28 pt-2 px-1 sm:px-2" style={{maxHeight:'calc(100dvh - 180px)'}}>
-              <ChatHistory history={history} />
-            </div>
-            <div className="fixed left-0 right-0 bottom-0 z-30 w-full max-w-2xl mx-auto">
-              <TaskInputFooter value={input} onChange={handleInputChange} onSubmit={handleSubmit} disabled={loading} />
-            </div>
-          </section>
+      onSubmit={onSubmit}
+    >
+      <input
+        ref={inputRef}
+        className="flex-1 rounded-xl border border-[#22342F] bg-transparent px-3 py-2 text-sm text-[#F5F1E8] placeholder-[#7F928C] focus:border-[#C5A059] focus:outline-none"
+        placeholder="Descreva a missão..."
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        autoComplete="off"
+      />
+      <button
+        type="submit"
+        className="rounded-xl bg-[#D9B46A] px-4 py-2 text-sm font-bold text-[#1A1A1A] hover:bg-[#C5A059] disabled:opacity-50"
+        disabled={disabled || !value?.trim()}
+      >
+        Enviar
+      </button>
+    </form>
+  );
+}
 
-          {/* Painéis laterais responsivos */}
-          <aside className="space-y-4 w-full lg:max-w-[340px]">
+function buildBlueprint(normalizedMission, profile, mode, provider) {
+  const modules = detectModules(normalizedMission);
   const critical = requiresApproval(normalizedMission);
   const steps = [
     {
@@ -276,15 +362,30 @@ export default function AITaskModule({ profile, routePath }) {
   const [approved, setApproved] = useState(false);
   const [tasks, setTasks] = useState([]);
   const [thinking, setThinking] = useState([]);
-  return (
-    <section className="relative w-full max-w-2xl mx-auto rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(9,16,14,0.97),rgba(8,14,12,0.93))] px-2 py-3 sm:px-4 md:px-6 xl:px-7 min-h-[60vh]">
-      {/* Histórico de tarefas como chat */}
-      <ChatHistory history={history} />
-      {/* Input fixo no rodapé */}
-      <TaskInputFooter value={input} onChange={handleInputChange} onSubmit={handleSubmit} disabled={loading} />
-    </section>
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  const [logs, setLogs] = useState([]);
+  const [missionHistory, setMissionHistory] = useState([]);
+  const [attachments, setAttachments] = useState([]);
+  const [showTasks, setShowTasks] = useState(true);
+  const [showContext, setShowContext] = useState(false);
+  const [contextSnapshot, setContextSnapshot] = useState(null);
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const [latestResult, setLatestResult] = useState(null);
+  const [executionSource, setExecutionSource] = useState(null);
+  const [executionModel, setExecutionModel] = useState(null);
+  const [paused, setPaused] = useState(false);
+  const [error, setError] = useState(null);
+  const [search, setSearch] = useState("");
+  const [selectedLogFilter, setSelectedLogFilter] = useState("all");
+  const [eventsTotal, setEventsTotal] = useState(0);
+  const [activeRun, setActiveRun] = useState(null);
+  const missionInputRef = useRef(null);
+  const chatViewportRef = useRef(null);
+  const pollingInFlightRef = useRef(false);
+  const lastEventCursorRef = useRef(null);
+  const lastEventSequenceRef = useRef(null);
+  const runEventIdsRef = useRef(new Set());
+  const abortRef = useRef(null);
+  const pauseRef = useRef(false);
 
   function patchTask(taskId, updater) {
     setTasks((current) => current.map((task) => (task.id === taskId ? updater(task) : task)));

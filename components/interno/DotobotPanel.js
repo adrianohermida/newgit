@@ -100,13 +100,7 @@ function detectAttachmentKind(file) {
 
 function normalizeAttachment(file) {
   const kind = detectAttachmentKind(file);
-  // Responsivo: lateral no desktop, desliza de baixo no mobile
-  return (
-    <div
-      className={`fixed lg:static right-0 top-auto bottom-0 z-50 flex h-[55vh] sm:h-[50vh] md:h-[60vh] lg:h-full w-full max-w-full lg:max-w-[420px] flex-col border-t lg:border-t-0 lg:border-l border-[#22342F] bg-[rgba(12,15,14,0.98)] shadow-2xl transition-transform duration-300
-        ${collapsed ? 'translate-y-full lg:translate-x-full' : 'translate-y-0 lg:translate-x-0'}`}
-      style={{ minHeight: 'unset', pointerEvents: 'auto', maxHeight: '100dvh' }}
-    >
+  return {
     type: file.type || "application/octet-stream",
     kind,
     previewUrl: kind === "image" ? URL.createObjectURL(file) : null,
@@ -251,23 +245,23 @@ function getVoiceRecognition() {
 }
 
 export default function DotobotCopilot({
-    // Integração com extensão
-    const { extensionReady, lastResponse, sendCommand } = useDotobotExtensionBridge();
-
-    // Exemplo: enviar comando para extensão ao detectar intenção específica
-    async function handleExtensionActionIfNeeded(intent, question) {
-      if (!extensionReady) return;
-      // Exemplo: se intenção for "web_search" ou "local_file_access"
-      if (["web_search", "local_file_access"].includes(intent)) {
-        await sendCommand(intent, { query: question });
-      }
-    }
   profile,
   routePath,
   initialWorkspaceOpen = true,
   defaultCollapsed = false,
   compactRail = false,
 }) {
+  // Integração com extensão
+  const { extensionReady, lastResponse, sendCommand } = useDotobotExtensionBridge();
+
+  // Exemplo: enviar comando para extensão ao detectar intenção específica
+  async function handleExtensionActionIfNeeded(intent, question) {
+    if (!extensionReady) return;
+    // Exemplo: se intenção for "web_search" ou "local_file_access"
+    if (["web_search", "local_file_access"].includes(intent)) {
+      await sendCommand(intent, { query: question });
+    }
+  }
   const router = useRouter();
   const chatStorageKey = useMemo(() => buildStorageKey(CHAT_STORAGE_PREFIX, profile), [profile]);
   const taskStorageKey = useMemo(() => buildStorageKey(TASK_STORAGE_PREFIX, profile), [profile]);
