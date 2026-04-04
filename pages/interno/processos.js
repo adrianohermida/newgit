@@ -139,6 +139,15 @@ function getProcessSelectionValue(row) {
   return String(row?.numero_cnj || row?.key || "").trim();
 }
 
+function parseProcessNumbers(rawValue) {
+  return [...new Set(
+    String(rawValue || "")
+      .split(/\r?\n|,|;/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+  )];
+}
+
 function MetricCard({ label, value, helper }) {
   return <div className="rounded-[28px] border border-[#2D2E2E] bg-[linear-gradient(180deg,rgba(13,15,14,0.98),rgba(7,9,8,0.98))] p-5 shadow-[0_12px_36px_rgba(0,0,0,0.22)]"><p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">{label}</p><p className="mb-2 font-serif text-3xl">{value}</p>{helper ? <p className="text-sm leading-relaxed opacity-65">{helper}</p> : null}</div>;
 }
@@ -743,13 +752,14 @@ function InternoProcessosContent() {
   function buildActionMeta(payload = {}) {
     const explicitNumbers = String(payload.processNumbers || "").trim();
     const fallbackNumbers = String(processNumbers || "").trim();
+    const effectiveNumbers = parseProcessNumbers(explicitNumbers || fallbackNumbers);
     const intentLabel = getProcessIntentBadge(payload);
     const action = String(payload.action || "");
     const safeLimit = action ? getSafeProcessActionLimit(action, payload.limit ?? limit) : Number(limit || 10);
     return {
       limit: safeLimit,
-      selectedCount: selectedWithoutMovements.length + selectedMonitoringActive.length + selectedMonitoringInactive.length + selectedFieldGaps.length + selectedOrphans.length,
-      processNumbersPreview: (explicitNumbers || fallbackNumbers).split(/\r?\n|,|;/).map((item) => item.trim()).filter(Boolean).slice(0, 6).join(", "),
+      selectedCount: effectiveNumbers.length || getCombinedSelectedNumbers().length,
+      processNumbersPreview: effectiveNumbers.slice(0, 6).join(", "),
       intentLabel,
     };
   }

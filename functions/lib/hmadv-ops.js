@@ -1616,19 +1616,26 @@ export async function syncProcessesSupabaseCrm(env, { processNumbers = [], limit
       quantidade_movimentacoes: afterRow.quantidade_movimentacoes ?? 0,
       gaps: countProcessFieldGaps(afterRow),
     } : before;
+    const movimentosNovos = Math.max(0, (after.quantidade_movimentacoes || 0) - (before.quantidade_movimentacoes || 0));
+    const gapsReduzidos = Math.max(0, (before.gaps || 0) - (after.gaps || 0));
+    const targetProcess = afterRow || proc;
+    const hasUsefulChange = movimentosNovos > 0 || gapsReduzidos > 0;
+    const stillHasGap = (after.gaps || 0) > 0;
     let repair = { skipped: true, reason: "sem_account" };
-    if (proc.account_id_freshsales) {
-      repair = await runFreshsalesRepairForProcess(env, proc);
+    if (targetProcess.account_id_freshsales && (hasUsefulChange || stillHasGap)) {
+      repair = await runFreshsalesRepairForProcess(env, targetProcess);
       reparados += 1;
+    } else if (targetProcess.account_id_freshsales) {
+      repair = { skipped: true, reason: "sem_mudanca_util" };
     }
     sample.push({
       processo_id: proc.id,
       numero_cnj: numero,
-      account_id_freshsales: proc.account_id_freshsales || null,
+      account_id_freshsales: targetProcess.account_id_freshsales || null,
       before,
       after,
-      movimentos_novos: Math.max(0, (after.quantidade_movimentacoes || 0) - (before.quantidade_movimentacoes || 0)),
-      gaps_reduzidos: Math.max(0, (before.gaps || 0) - (after.gaps || 0)),
+      movimentos_novos: movimentosNovos,
+      gaps_reduzidos: gapsReduzidos,
       datajud,
       freshsales_repair: repair,
     });
