@@ -69,6 +69,31 @@ function QueueSummaryCard({ title, count, helper, accent = "text-[#C5A059]" }) {
   );
 }
 
+function RemoteRunSummary({ entry, actionLabels }) {
+  if (!entry) return null;
+  const summary = entry.result_summary || {};
+  const items = Object.entries(summary).filter(([, value]) => value !== undefined && value !== null && value !== "");
+  const statusTone = entry.status === "error" ? "border-[#5B2D2D] text-[#FECACA]" : entry.status === "success" ? "border-[#30543A] text-[#B7F7C6]" : "border-[#2D2E2E] text-[#F4F1EA]";
+  return (
+    <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold tracking-[0.15em] uppercase opacity-50">Ultimo ciclo HMADV</p>
+          <p className="mt-1 font-semibold">{actionLabels[entry.acao] || entry.acao}</p>
+          <p className="mt-1 text-xs opacity-60">{new Date(entry.created_at).toLocaleString("pt-BR")}</p>
+        </div>
+        <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${statusTone}`}>{entry.status}</span>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2 text-xs">
+        <span className="rounded-full border border-[#2D2E2E] px-2 py-1">Solicitados {entry.requested_count || 0}</span>
+        <span className="rounded-full border border-[#30543A] px-2 py-1 text-[#B7F7C6]">Afetados {entry.affected_count || 0}</span>
+        {items.slice(0, 4).map(([key, value]) => <span key={key} className="rounded-full border border-[#6E5630] px-2 py-1 text-[#FDE68A]">{key}: {String(value)}</span>)}
+      </div>
+      {entry.resumo ? <p className="mt-3 text-sm opacity-70">{entry.resumo}</p> : null}
+    </div>
+  );
+}
+
 function Panel({ title, eyebrow, children }) {
   return (
     <section className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
@@ -573,6 +598,7 @@ function PublicacoesContent() {
 
   const data = overview.data || {};
   const latestHistory = executionHistory[0] || null;
+  const latestRemoteRun = remoteHistory[0] || null;
 
   return (
     <div className="space-y-8">
@@ -589,7 +615,7 @@ function PublicacoesContent() {
             {latestHistory ? <p className="text-xs opacity-60">{latestHistory.label}: {latestHistory.preview}</p> : null}
           </div>
         </div>
-        <div className="mt-6"><ViewToggle value={view} onChange={updateView} /></div>
+        <div className="mt-6 space-y-4"><ViewToggle value={view} onChange={updateView} />{latestRemoteRun ? <RemoteRunSummary entry={latestRemoteRun} actionLabels={ACTION_LABELS} /> : null}</div>
       </section>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

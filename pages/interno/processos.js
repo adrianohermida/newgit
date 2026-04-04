@@ -149,6 +149,27 @@ function QueueSummaryCard({ title, count, helper, accent = "text-[#C5A059]" }) {
     <p className="mt-2 text-sm opacity-65">{helper}</p>
   </div>;
 }
+function RemoteRunSummary({ entry }) {
+  if (!entry) return null;
+  const summary = entry.result_summary || {};
+  const items = Object.entries(summary).filter(([, value]) => value !== undefined && value !== null && value !== "");
+  return <div className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Ultimo ciclo HMADV</p>
+        <p className="mt-1 font-semibold">{ACTION_LABELS[entry.acao] || entry.acao}</p>
+        <p className="mt-1 text-xs opacity-60">{new Date(entry.created_at).toLocaleString("pt-BR")}</p>
+      </div>
+      <StatusBadge tone={entry.status === "error" ? "danger" : entry.status === "success" ? "success" : "default"}>{entry.status}</StatusBadge>
+    </div>
+    <div className="mt-3 flex flex-wrap gap-2">
+      <StatusBadge>Solicitados {entry.requested_count || 0}</StatusBadge>
+      <StatusBadge tone="success">Afetados {entry.affected_count || 0}</StatusBadge>
+      {items.slice(0, 4).map(([key, value]) => <StatusBadge key={key} tone="warning">{key}: {String(value)}</StatusBadge>)}
+    </div>
+    {entry.resumo ? <p className="mt-3 text-sm opacity-70">{entry.resumo}</p> : null}
+  </div>;
+}
 
 export default function InternoProcessosPage() {
   return <RequireAdmin>{(profile) => <InternoLayout profile={profile} title="Gestao de Processos" description="Painel operacional para sincronizacao DataJud, criacao de accounts, correcao de gaps no Freshsales e vinculacao de processos relacionados."><InternoProcessosContent /></InternoLayout>}</RequireAdmin>;
@@ -356,6 +377,7 @@ function InternoProcessosContent() {
   const relationTypeSummary = useMemo(() => relations.items.reduce((acc, item) => { acc[item.tipo_relacao] = (acc[item.tipo_relacao] || 0) + 1; return acc; }, {}), [relations.items]);
   const selectedSummary = selectedWithoutMovements.length + selectedMonitoringActive.length + selectedMonitoringInactive.length + selectedFieldGaps.length + selectedOrphans.length;
   const latestHistory = executionHistory[0] || null;
+  const latestRemoteRun = remoteHistory[0] || null;
   const combinedSelectedNumbers = getCombinedSelectedNumbers();
 
   return <div className="space-y-8">
@@ -375,6 +397,7 @@ function InternoProcessosContent() {
       <div className="mt-6 space-y-4">
         <ViewToggle value={view} onChange={updateView} />
         <SectionNav items={[{ href: "#operacao", label: "Operacao" }, { href: "#filas", label: "Filas" }, { href: "#relacoes", label: "Relacoes" }, { href: "#resultado", label: "Resultado" }]} />
+        {latestRemoteRun ? <RemoteRunSummary entry={latestRemoteRun} /> : null}
       </div>
     </section>
 
