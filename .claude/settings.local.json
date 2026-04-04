@@ -16,7 +16,13 @@
       "Bash(grep -r \"localhost\\\\|127.0.0.1\" . --include=*.py --include=*.js --include=*.ts)",
       "Bash(find . -type f -name *.py -exec grep -l \"if __name__\\\\|app.run\\\\|uvicorn\\\\|uvicorn.run\\\\|uvicorn.asgi\" {})",
       "Bash(2)",
-      "Bash(grep -r \"next dev\\\\|next start\" . --include=*.md --include=*.json --include=*.js)"
+      "Bash(grep -r \"next dev\\\\|next start\" . --include=*.md --include=*.json --include=*.js)",
+      "Bash(grep -r \"openai\\\\|OPENAI\\\\|openai-api\\\\|sentence-transformers\\\\|huggingface\\\\|HuggingFace\\\\|embed.*API\" /d/Github/newgit/.claude/worktrees/distracted-tesla --include=*.ts --include=*.js --include=*.py --include=*.toml --include=*.env*)",
+      "Bash(grep -r \"OPENAI_API_KEY\\\\|openai.*embed\\\\|from openai\\\\|import.*OpenAI\" /d/Github/newgit/.claude/worktrees/distracted-tesla --include=*.ts --include=*.js --include=*.py)",
+      "Bash(grep -r \"rpc\\\\|search_dotobot\\\\|upsert_dotobot\\\\|match_\" /d/Github/newgit/.claude/worktrees/distracted-tesla --include=*.ts --include=*.js)",
+      "Bash(grep -r \"VECTORIZE\\\\|CLOUDFLARE_WORKER_ACCOUNT_ID\\\\|CLOUDFLARE_WORKER_API_TOKEN\\\\|DOTOBOT_VECTORIZE_INDEX\\\\|SUPABASE_URL\\\\|SUPABASE_SERVICE_ROLE_KEY\" /d/Github/newgit/.claude/worktrees/distracted-tesla --include=*.md)",
+      "Bash(python -m pytest tests/test_supabase_rag.py -v)",
+      "Bash(python -m pytest tests/test_supabase_rag.py -q)"
     ]
   }
 }
