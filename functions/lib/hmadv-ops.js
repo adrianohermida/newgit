@@ -417,6 +417,17 @@ function extractAudienciaDate(text) {
   return null;
 }
 
+function extractAudienciaDateTime(text) {
+  const dt = extractAudienciaDate(text);
+  if (!dt) return null;
+  const hour = extractAudienciaTime(text);
+  if (hour) {
+    const [hh, mm] = hour.split(":").map(Number);
+    dt.setHours(hh || 0, mm || 0, 0, 0);
+  }
+  return dt;
+}
+
 function extractAudienciaTime(text) {
   const clean = normalizeText(text);
   const match = clean.match(/(?:as)\s*(\d{1,2}:\d{2})\s*h?/i) || clean.match(/(\d{1,2}:\d{2})\s*h/i);
@@ -581,23 +592,43 @@ async function collectAudienciaBackfillTargets(env) {
   let offset = 0;
   let scans = 0;
   const maxScans = 60;
-  const processIds = [];
+  const candidates = [];
   while (scans < maxScans) {
     const rows = await listTableSafe(
       env,
-      `publicacoes?select=processo_id&processo_id=not.is.null&conteudo=ilike.${encodeURIComponent("*audien*")}&order=data_publicacao.desc.nullslast&limit=${pageSize}&offset=${offset}`
+      `publicacoes?select=id,processo_id,conteudo&processo_id=not.is.null&conteudo=ilike.${encodeURIComponent("*audien*")}&order=data_publicacao.desc.nullslast&limit=${pageSize}&offset=${offset}`
     );
     if (!rows.length) break;
     for (const row of rows) {
-      if (row?.processo_id) processIds.push(row.processo_id);
+      if (!row?.processo_id) continue;
+      const txt = String(row.conteudo || "");
+      if (!testAudienciaSignal(txt)) continue;
+      const dt = extractAudienciaDateTime(txt);
+      if (!dt) continue;
+      candidates.push({
+        processo_id: row.processo_id,
+        origem_id: row.id,
+        data_audiencia: dt.toISOString(),
+      });
     }
     if (rows.length < pageSize) break;
     offset += rows.length;
     scans += 1;
   }
-  const uniqueIds = uniqueNonEmpty(processIds);
+  const uniqueIds = uniqueNonEmpty(candidates.map((item) => item.processo_id));
   if (!uniqueIds.length) return [];
-  const processes = await loadProcessesByIds(env, uniqueIds, "id,numero_cnj");
+  const existentes = await loadAudienciasByProcessIds(env, uniqueIds);
+  const pendingProcessIds = uniqueNonEmpty(
+    candidates
+      .filter((candidate) => !existentes.some((item) => {
+        const sameOrigin = String(item.origem_id || "") === String(candidate.origem_id || "");
+        const sameDate = item.data_audiencia && new Date(item.data_audiencia).toISOString().slice(0, 19) === String(candidate.data_audiencia || "").slice(0, 19);
+        return sameOrigin && sameDate;
+      }))
+      .map((item) => item.processo_id)
+  );
+  if (!pendingProcessIds.length) return [];
+  const processes = await loadProcessesByIds(env, pendingProcessIds, "id,numero_cnj");
   return uniqueNonEmpty(processes.map((item) => item.numero_cnj));
 }
 
@@ -1344,13 +1375,14 @@ export async function inspectAudiencias(env, limit = 20) {
 
 export async function backfillAudiencias(env, { processNumbers = [], limit = 100, apply = false } = {}) {
   const safeLimit = Math.max(1, Math.min(Number(limit || 10), 25));
+  let pendingCandidates = [];
   let processes = [];
   if (processNumbers.length) {
     processes = await loadProcessesByNumbers(env, processNumbers);
   } else {
-    const candidateNumbers = await collectAudienciaBackfillTargets(env);
-    processes = candidateNumbers.length
-      ? await loadProcessesByNumbers(env, candidateNumbers.slice(0, safeLimit))
+    pendingCandidates = await collectAudienciaBackfillTargets(env);
+    processes = pendingCandidates.length
+      ? await loadProcessesByNumbers(env, pendingCandidates.slice(0, safeLimit))
       : await hmadvRest(env, `processos?select=id,numero_cnj,titulo&limit=${safeLimit}`);
   }
   const processIds = processes.map((item) => item.id);
@@ -1367,13 +1399,8 @@ export async function backfillAudiencias(env, { processNumbers = [], limit = 100
     for (const pub of publicacoes) {
       const txt = String(pub.conteudo || "");
       if (!testAudienciaSignal(txt)) continue;
-      let dt = extractAudienciaDate(txt);
+      let dt = extractAudienciaDateTime(txt);
       if (!dt) continue;
-      const hour = extractAudienciaTime(txt);
-      if (hour) {
-        const [hh, mm] = hour.split(":").map(Number);
-        dt.setHours(hh || 0, mm || 0, 0, 0);
-      }
       const alreadyExists = existentes.some((item) => {
         const sameOrigin = String(item.origem_id || "") === String(pub.id || "");
         const sameDate = item.data_audiencia && new Date(item.data_audiencia).toISOString().slice(0, 19) === dt.toISOString().slice(0, 19);
@@ -1427,6 +1454,7 @@ export async function backfillAudiencias(env, { processNumbers = [], limit = 100
   return {
     checkedAt: new Date().toISOString(),
     processosLidos: processes.length,
+    candidatosPendentes: processNumbers.length ? processes.length : pendingCandidates.length,
     audienciasInseridas: inserted,
     sample: sample.slice(0, 30),
     limitAplicado: safeLimit,
