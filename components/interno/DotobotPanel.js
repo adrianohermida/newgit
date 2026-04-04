@@ -471,7 +471,7 @@ export default function DotobotCopilot({
     setUiState("responding");
     let finalUiState = "idle";
 
-    // Integração operacional: detectar intenção e contexto
+    // Detectar intenção/contexto
     const detected = detectIntent(trimmedQuestion);
     const context = getCurrentContext({ route: routePath });
 
@@ -484,24 +484,32 @@ export default function DotobotCopilot({
     // Integração: executa ação real se necessário
     let result = null;
     if (["web_search", "local_file_access"].includes(detected.intent)) {
+      setUiState("executing");
       result = await handleExtensionActionIfNeeded(detected.intent, trimmedQuestion);
     }
 
-    // Camada de resposta natural
-    import("../../lib/ai/response_generator").then(({ generateNaturalResponse }) => {
-      const responseText = generateNaturalResponse({
-        intent: detected.intent,
-        result,
-        userInput: trimmedQuestion,
-        context,
-      });
-      setMessages((msgs) => [
-        ...msgs,
-        { role: "assistant", text: responseText, createdAt: nowIso() },
-      ]);
-      setLoading(false);
-      setUiState(finalUiState);
-    });
+    // Simular estados visuais
+    setUiState("thinking");
+    setTimeout(() => {
+      setUiState("typing");
+      setTimeout(() => {
+        // Camada de resposta natural
+        import("../../lib/ai/response_generator").then(({ generateNaturalResponse }) => {
+          const responseText = generateNaturalResponse({
+            intent: detected.intent,
+            result,
+            userInput: trimmedQuestion,
+            context,
+          });
+          setMessages((msgs) => [
+            ...msgs,
+            { role: "assistant", text: responseText, createdAt: nowIso() },
+          ]);
+          setLoading(false);
+          setUiState(finalUiState);
+        });
+      }, 1200);
+    }, 900);
   }
 
     // Classes dinâmicas para painel
@@ -524,11 +532,21 @@ export default function DotobotCopilot({
       </button>
     );
 
+    // Estados visuais detalhados
+    const stateLabel = {
+      idle: "Pronto",
+      responding: "Pensando...",
+      thinking: "Pensando...",
+      typing: "Digitando...",
+      executing: "Executando...",
+      waiting: "Aguardando aprovação...",
+    }[uiState] || "Pronto";
+
     // Header de contexto
     const ContextHeader = () => (
       <div className="flex items-center gap-3 border-b border-[#22342F] px-4 py-3 bg-[rgba(12,15,14,0.98)]">
         <span className="rounded-full bg-[#D9B46A] px-3 py-1 text-xs font-bold text-[#1A1A1A]">Dotobot Copilot</span>
-        <span className="text-xs text-[#9BAEA8]">{uiState === "responding" ? "Pensando..." : uiState === "executing" ? "Executando..." : "Idle"}</span>
+        <span className="text-xs text-[#9BAEA8]">{stateLabel}</span>
         {/* Exemplo de contexto visual */}
         <span className="ml-auto text-xs text-[#C5A059]">📍 {routePath || "Módulo atual"}</span>
       </div>
@@ -556,13 +574,14 @@ export default function DotobotCopilot({
           <main className="flex-1 overflow-y-auto px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4" ref={scrollRef}>
             <VirtualList
               height={typeof window !== "undefined" ? window.innerHeight * 0.6 : 400}
-              itemCount={messages.length + (loading ? 1 : 0)}
+              itemCount={messages.length + (uiState === "typing" || loading ? 1 : 0)}
               itemSize={110}
               width={"100%"}
               overscanCount={6}
             >
               {({ index, style }) => {
-                if (index === messages.length && loading) {
+                // Estado visual: digitando
+                if (index === messages.length && (uiState === "typing" || loading)) {
                   return (
                     <div style={style}>
                       <MessageBubble
