@@ -59,22 +59,59 @@ class ExecutorAgent:
         while attempts < self._config.max_attempts_per_step:
             attempts += 1
             try:
-                if selected_tool and self._registry.tool(selected_tool):
-                    output = self._registry.tool(selected_tool).execute(self._serialize_payload(payload))
-                elif selected_tool:
-                    output = {
-                        'status': 'ok',
-                        'tool': selected_tool,
-                        'payload': payload,
-                        'message': f"Tool '{selected_tool}' not in mirrored registry, handled as adapter-routed placeholder.",
-                    }
-                else:
+                if not selected_tool:
                     output = {
                         'status': 'ok',
                         'tool': None,
                         'payload': payload,
                         'message': 'No tool selected; step processed as reasoning-only action.',
                     }
+                    return StepExecutionResult(
+                        step_id=step_id,
+                        action=action,
+                        tool=selected_tool,
+                        input=payload,
+                        output=output,
+                        status='ok',
+                        attempts=attempts,
+                    )
+
+                registry_tool = self._registry.tool(selected_tool)
+                if registry_tool is None:
+                    return StepExecutionResult(
+                        step_id=step_id,
+                        action=action,
+                        tool=selected_tool,
+                        input=payload,
+                        output={
+                            'status': 'unimplemented',
+                            'tool': selected_tool,
+                            'payload': payload,
+                            'message': f"Tool '{selected_tool}' is not implemented in the execution registry.",
+                        },
+                        status='unimplemented',
+                        attempts=attempts,
+                        error=f"Tool '{selected_tool}' is not implemented in the execution registry.",
+                    )
+
+                output = registry_tool.execute(self._serialize_payload(payload))
+                if self._is_placeholder_output(output):
+                    return StepExecutionResult(
+                        step_id=step_id,
+                        action=action,
+                        tool=selected_tool,
+                        input=payload,
+                        output={
+                            'status': 'unimplemented',
+                            'tool': selected_tool,
+                            'payload': payload,
+                            'message': str(output),
+                        },
+                        status='unimplemented',
+                        attempts=attempts,
+                        error=f"Tool '{selected_tool}' only has a mirrored placeholder implementation.",
+                    )
+
                 return StepExecutionResult(
                     step_id=step_id,
                     action=action,
@@ -106,3 +143,13 @@ class ExecutorAgent:
             return payload
         return str(payload)
 
+    @staticmethod
+    def _is_placeholder_output(output: dict[str, Any] | str | None) -> bool:
+        if isinstance(output, str):
+            lowered = output.lower()
+            return 'mirrored tool' in lowered or 'mirrored command' in lowered or 'placeholder' in lowered
+        if isinstance(output, dict):
+            message = str(output.get('message') or '').lower()
+            status = str(output.get('status') or '').lower()
+            return 'placeholder' in message or status == 'unimplemented'
+        return False

@@ -31,7 +31,7 @@ class StepExecutionResult:
     tool: str | None
     input: str | dict[str, Any] | None
     output: dict[str, Any] | str | None
-    status: Literal['ok', 'retry', 'fail']
+    status: Literal['ok', 'retry', 'fail', 'unimplemented']
     attempts: int = 1
     error: str | None = None
 
@@ -61,4 +61,3 @@ class CriticVerdict:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
-

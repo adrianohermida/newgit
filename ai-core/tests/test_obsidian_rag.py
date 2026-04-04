@@ -41,19 +41,51 @@ class ObsidianRagTests(unittest.TestCase):
                         '---',
                         '',
                         '# Query',
-                        'Estratégia para superendividamento do cliente.',
+                        'Estrat\u00e9gia para superendividamento do cliente.',
                         '',
                         '# Answer',
-                        'Mapear renda, priorizar mínimo existencial e renegociar.',
+                        'Mapear renda, priorizar m\u00ednimo existencial e renegociar.',
                     ]
                 ),
                 encoding='utf-8',
             )
 
-            context = search_obsidian_context('superendividamento estratégia', top_k=3)
+            context = search_obsidian_context('superendividamento estrat\u00e9gia', top_k=3)
             self.assertTrue(context.enabled)
             self.assertGreaterEqual(len(context.matches), 1)
             self.assertIn('superendividamento', context.matches[0].excerpt.lower())
+            self.assertIn('estrat\u00e9gia', context.matches[0].excerpt.lower())
+        finally:
+            if original is None:
+                os.environ.pop('DOTOBOT_OBSIDIAN_VAULT_PATH', None)
+            else:
+                os.environ['DOTOBOT_OBSIDIAN_VAULT_PATH'] = original
+            shutil.rmtree(temp_vault.parent, ignore_errors=True)
+
+    def test_search_obsidian_context_normalizes_accents(self) -> None:
+        temp_vault = self._make_temp_vault()
+        original = os.environ.get('DOTOBOT_OBSIDIAN_VAULT_PATH')
+        try:
+            os.environ['DOTOBOT_OBSIDIAN_VAULT_PATH'] = str(temp_vault)
+            memory_dir = temp_vault / 'Dotobot' / 'Memory'
+            memory_dir.mkdir(parents=True, exist_ok=True)
+            note_path = memory_dir / 'acao-monitoria.md'
+            note_path.write_text(
+                '\n'.join(
+                    [
+                        '# Query',
+                        'A\u00e7\u00e3o de monitoria processual.',
+                        '',
+                        '# Answer',
+                        'Registrar a\u00e7\u00e3o e pr\u00f3ximos passos.',
+                    ]
+                ),
+                encoding='utf-8',
+            )
+
+            context = search_obsidian_context('acao monitoria', top_k=1)
+            self.assertTrue(context.matches)
+            self.assertEqual(context.matches[0].id, 'acao-monitoria')
         finally:
             if original is None:
                 os.environ.pop('DOTOBOT_OBSIDIAN_VAULT_PATH', None)
@@ -69,7 +101,7 @@ class ObsidianRagTests(unittest.TestCase):
             memory = FileBackedLongTermMemory(base_dir=temp_vault / '.memory_store')
             coordinator = Coordinator(memory_store=memory)
             result = coordinator.execute(
-                'Resuma a estrategia para superendividamento e próximos passos',
+                'Resuma a estrat\u00e9gia para superendividamento e pr\u00f3ximos passos',
                 context={'session_id': 'obsidian-session', 'route': '/interno/agentlab'},
             )
 
@@ -77,6 +109,7 @@ class ObsidianRagTests(unittest.TestCase):
             self.assertIsNotNone(result.rag)
             self.assertTrue(result.rag and result.rag.get('enabled'))
             self.assertTrue(result.rag and result.rag.get('memory_dir'))
+            self.assertEqual(result.status, 'fail')
 
             memory_dir = temp_vault / 'Dotobot' / 'Memory'
             notes = list(memory_dir.glob('*.md'))

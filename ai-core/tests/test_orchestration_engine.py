@@ -25,8 +25,9 @@ class OrchestrationEngineTests(unittest.TestCase):
         self.assertIsNotNone(plan.steps[0].tool)
 
         report = ExecutorAgent().execute_plan(plan)
+        self.assertEqual(report.results[0].status, 'unimplemented')
         verdict = CriticAgent().validate(report)
-        self.assertEqual(verdict.status, 'ok')
+        self.assertEqual(verdict.status, 'fail')
 
     def test_complex_query_generates_multiple_steps(self) -> None:
         planner = PlannerAgent()
@@ -82,6 +83,38 @@ class OrchestrationEngineTests(unittest.TestCase):
         self.assertIn('result', payload)
         self.assertIn('steps', payload)
         self.assertIn('logs', payload)
+        self.assertEqual(payload['status'], 'fail')
+
+    def test_executor_marks_missing_tool_as_unimplemented(self) -> None:
+        plan = ExecutionPlan(
+            goal='missing tool',
+            steps=[PlanStep(id=1, action='use tool', tool='DefinitelyMissingTool', input={'query': 'x'})],
+        )
+
+        report = ExecutorAgent().execute_plan(plan)
+        self.assertEqual(report.results[0].status, 'unimplemented')
+        self.assertIn('not implemented', str(report.results[0].error))
+
+    def test_critic_rejects_unimplemented_steps(self) -> None:
+        from core.agents import ExecutionReport, StepExecutionResult
+
+        verdict = CriticAgent().validate(
+            ExecutionReport(
+                results=[
+                    StepExecutionResult(
+                        step_id=1,
+                        action='placeholder',
+                        tool='MCPTool',
+                        input={'query': 'placeholder'},
+                        output={'status': 'unimplemented', 'message': 'Mirrored tool placeholder'},
+                        status='unimplemented',
+                        error='placeholder implementation',
+                    )
+                ],
+                final_output={'status': 'unimplemented', 'message': 'Mirrored tool placeholder'},
+            )
+        )
+        self.assertEqual(verdict.status, 'fail')
 
 
 if __name__ == '__main__':
