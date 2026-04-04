@@ -1090,7 +1090,7 @@ export async function listProcessesWithoutMovements(env, { page = 1, pageSize = 
   const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
   const items = await listTableSafe(
     env,
-    `processos?select=id,numero_cnj,titulo,account_id_freshsales,quantidade_movimentacoes,monitoramento_ativo,status_atual_processo&or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0)&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
+    `processos?select=id,numero_cnj,titulo,account_id_freshsales,quantidade_movimentacoes,status_atual_processo&or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0)&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
   );
   return {
     page: safePage,
