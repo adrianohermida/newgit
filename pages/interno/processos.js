@@ -12,6 +12,7 @@ const PROCESS_VIEW_ITEMS = [
 ];
 const HISTORY_STORAGE_KEY = "hmadv:interno-processos:history:v1";
 const UI_STATE_STORAGE_KEY = "hmadv:interno-processos:ui:v1";
+const SNAPSHOT_STORAGE_KEY = "hmadv:interno-processos:snapshot:v1";
 const ACTION_LABELS = {
   run_sync_worker: "Rodar sync-worker",
   push_orfaos: "Criar accounts no Freshsales",
@@ -152,6 +153,25 @@ function persistUiState(nextState) {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(UI_STATE_STORAGE_KEY, JSON.stringify(nextState));
+  } catch {}
+}
+
+function loadOperationalSnapshot() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(SNAPSHOT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistOperationalSnapshot(snapshot) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(SNAPSHOT_STORAGE_KEY, JSON.stringify(snapshot));
   } catch {}
 }
 
@@ -751,6 +771,7 @@ function InternoProcessosContent() {
   const [jobs, setJobs] = useState([]);
   const [activeJobId, setActiveJobId] = useState(null);
   const [drainInFlight, setDrainInFlight] = useState(false);
+  const [snapshotAt, setSnapshotAt] = useState(null);
   const [limit, setLimit] = useState(2);
   const [processNumbers, setProcessNumbers] = useState("");
   const [withoutMovements, setWithoutMovements] = useState({ loading: true, items: [] });
@@ -812,6 +833,27 @@ function InternoProcessosContent() {
     if (Array.isArray(saved.selectedOrphans)) setSelectedOrphans(saved.selectedOrphans);
   }, []);
   useEffect(() => {
+    const snapshot = loadOperationalSnapshot();
+    if (!snapshot) return;
+    if (snapshot.overview) setOverview(snapshot.overview);
+    if (snapshot.withoutMovements) setWithoutMovements(snapshot.withoutMovements);
+    if (snapshot.audienciaCandidates) setAudienciaCandidates(snapshot.audienciaCandidates);
+    if (snapshot.monitoringActive) setMonitoringActive(snapshot.monitoringActive);
+    if (snapshot.monitoringInactive) setMonitoringInactive(snapshot.monitoringInactive);
+    if (snapshot.fieldGaps) setFieldGaps(snapshot.fieldGaps);
+    if (snapshot.orphans) setOrphans(snapshot.orphans);
+    if (Array.isArray(snapshot.remoteHistory)) setRemoteHistory(snapshot.remoteHistory);
+    if (Array.isArray(snapshot.jobs)) setJobs(snapshot.jobs);
+    if (snapshot.actionState && typeof snapshot.actionState === "object") {
+      setActionState({
+        loading: false,
+        error: snapshot.actionState.error || null,
+        result: snapshot.actionState.result || null,
+      });
+    }
+    if (snapshot.cachedAt) setSnapshotAt(snapshot.cachedAt);
+  }, []);
+  useEffect(() => {
     persistUiState({
       view,
       processNumbers,
@@ -824,6 +866,26 @@ function InternoProcessosContent() {
       selectedOrphans,
     });
   }, [view, processNumbers, limit, selectedWithoutMovements, selectedAudienciaCandidates, selectedMonitoringActive, selectedMonitoringInactive, selectedFieldGaps, selectedOrphans]);
+  useEffect(() => {
+    const cachedAt = new Date().toISOString();
+    setSnapshotAt(cachedAt);
+    persistOperationalSnapshot({
+      cachedAt,
+      overview,
+      withoutMovements,
+      audienciaCandidates,
+      monitoringActive,
+      monitoringInactive,
+      fieldGaps,
+      orphans,
+      remoteHistory,
+      jobs,
+      actionState: {
+        error: actionState.error || null,
+        result: actionState.result || null,
+      },
+    });
+  }, [overview, withoutMovements, audienciaCandidates, monitoringActive, monitoringInactive, fieldGaps, orphans, remoteHistory, jobs, actionState.error, actionState.result]);
   useEffect(() => { loadRemoteHistory(); }, []);
   useEffect(() => { loadJobs(); }, []);
   useEffect(() => { loadOverview(); }, []);
@@ -1271,10 +1333,11 @@ function InternoProcessosContent() {
             <ActionButton onClick={() => handleAction("auditoria_sync")} disabled={actionState.loading} className="md:col-span-2" tone={isSuggestedAction("auditoria_sync") ? "primary" : "subtle"}>Rodar auditoria</ActionButton>
             <ActionButton onClick={runPendingJobsNow} disabled={actionState.loading || drainInFlight || !jobs.some((item) => ["pending", "running"].includes(String(item.status || "")))} className="md:col-span-2">{drainInFlight ? "Drenando fila..." : "Drenar fila HMADV"}</ActionButton>
           </div>
-          <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-xs leading-6 opacity-70">
-            <p><strong className="text-[#F4F1EA]">Selecao atual:</strong> {combinedSelectedNumbers.length ? combinedSelectedNumbers.slice(0, 8).join(", ") : "nenhum processo selecionado nas filas"}</p>
-            <p className="mt-2">As acoes principais agora podem virar job persistido no HMADV. O painel acompanha progresso, continua em lote curto e avisa ao concluir sem depender de cliques repetidos.</p>
-          </div>
+            <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-xs leading-6 opacity-70">
+              <p><strong className="text-[#F4F1EA]">Selecao atual:</strong> {combinedSelectedNumbers.length ? combinedSelectedNumbers.slice(0, 8).join(", ") : "nenhum processo selecionado nas filas"}</p>
+              <p className="mt-2">As acoes principais agora podem virar job persistido no HMADV. O painel acompanha progresso, continua em lote curto e avisa ao concluir sem depender de cliques repetidos.</p>
+              {snapshotAt ? <p className="mt-2 opacity-55">Memoria local restauravel atualizada em {new Date(snapshotAt).toLocaleString("pt-BR")}.</p> : null}
+            </div>
           <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Proximo passo sugerido</p>
             <p className="mt-2 font-semibold">{selectionActionHint.title}</p>
