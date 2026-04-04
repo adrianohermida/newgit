@@ -90,6 +90,15 @@ export default function InternoHomePage() {
                     <StatCard label="Sem account" value={hmadvOps.data.processosOverview?.processosSemAccount || 0} helper="Processos órfãos ainda sem Sales Account." />
                     <StatCard label="Sem processo" value={hmadvOps.data.publicacoesOverview?.publicacoesSemProcesso || 0} helper="Publicações ainda sem processo vinculado." />
                   </div>
+                  <div className="border border-[#2D2E2E] bg-[rgba(10,12,11,0.82)] p-4 text-sm">
+                    <p className="font-semibold mb-2">Runner agendado</p>
+                    <p className="opacity-75 mb-2">
+                      {hmadvOps.data.runnerConfigured
+                        ? "Pronto para scheduler externo via /api/admin-hmadv-runner."
+                        : "Pendente configurar HMADV_RUNNER_TOKEN para liberar execucao agendada fora da aba."}
+                    </p>
+                    <p className="opacity-55 break-all">POST /api/admin-hmadv-runner</p>
+                  </div>
                   <div className="flex flex-wrap gap-3">
                     <button type="button" onClick={handleDrainAll} disabled={draining} className="border border-[#C5A059] bg-[#C5A059] px-4 py-3 text-sm font-semibold text-[#050706] disabled:opacity-50">
                       {draining ? "Drenando filas..." : "Drenar Processos + Publicações"}
