@@ -775,6 +775,7 @@ function InternoProcessosContent() {
   const [uiHydrated, setUiHydrated] = useState(false);
   const [pageVisible, setPageVisible] = useState(true);
   const bootstrappedRef = useRef(false);
+  const snapshotPayloadRef = useRef("");
   const [limit, setLimit] = useState(2);
   const [processNumbers, setProcessNumbers] = useState("");
   const [withoutMovements, setWithoutMovements] = useState({ loading: true, items: [] });
@@ -897,10 +898,7 @@ function InternoProcessosContent() {
     });
   }, [view, processNumbers, limit, wmPage, audPage, maPage, miPage, fgPage, orphanPage, search, selectedWithoutMovements, selectedAudienciaCandidates, selectedMonitoringActive, selectedMonitoringInactive, selectedFieldGaps, selectedOrphans]);
   useEffect(() => {
-    const cachedAt = new Date().toISOString();
-    setSnapshotAt(cachedAt);
-    persistOperationalSnapshot({
-      cachedAt,
+    const snapshotPayload = {
       overview,
       withoutMovements,
       audienciaCandidates,
@@ -914,6 +912,15 @@ function InternoProcessosContent() {
         error: actionState.error || null,
         result: actionState.result || null,
       },
+    };
+    const normalizedPayload = JSON.stringify(snapshotPayload);
+    if (normalizedPayload === snapshotPayloadRef.current) return;
+    snapshotPayloadRef.current = normalizedPayload;
+    const cachedAt = new Date().toISOString();
+    setSnapshotAt(cachedAt);
+    persistOperationalSnapshot({
+      cachedAt,
+      ...snapshotPayload,
     });
   }, [overview, withoutMovements, audienciaCandidates, monitoringActive, monitoringInactive, fieldGaps, orphans, remoteHistory, jobs, actionState.error, actionState.result]);
   useEffect(() => {
