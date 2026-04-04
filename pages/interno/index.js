@@ -157,6 +157,15 @@ export default function InternoHomePage() {
                       <p className="opacity-55">
                         Pressao: processos {hmadvOps.data.moduleFocus?.processosPressure || 0} | publicacoes {hmadvOps.data.moduleFocus?.publicacoesPressure || 0}
                       </p>
+                      <div className="mt-4">
+                        <Link
+                          href={hmadvOps.data.moduleFocus?.primaryHref || "/interno/processos"}
+                          prefetch={false}
+                          className="inline-flex border border-[#C5A059] bg-[#C5A059] px-4 py-2 text-sm font-semibold text-[#050706]"
+                        >
+                          {hmadvOps.data.moduleFocus?.primaryLabel || "Abrir processos"}
+                        </Link>
+                      </div>
                     </div>
                     <div className="grid gap-3">
                       <FocusLink
@@ -169,6 +178,17 @@ export default function InternoHomePage() {
                         title="Abrir Publicacoes"
                         helper="Criacao de processos, extracao de partes, polos e reflexo no CRM."
                       />
+                    </div>
+                  </div>
+                  <div className="border border-[#2D2E2E] bg-[rgba(10,12,11,0.82)] p-4 text-sm">
+                    <p className="font-semibold mb-2">Checklist do proximo ciclo</p>
+                    <div className="grid gap-2 md:grid-cols-3">
+                      {(hmadvOps.data.moduleFocus?.checklist || []).map((item, index) => (
+                        <div key={`${index}-${item}`} className="border border-[#2D2E2E] p-3">
+                          <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Passo {index + 1}</p>
+                          <p className="opacity-75">{item}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
                   <div className="grid gap-4 lg:grid-cols-2">

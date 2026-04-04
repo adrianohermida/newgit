@@ -121,6 +121,38 @@ export async function getHmadvQueueSnapshot(env) {
     focusReason = "As filas estao equilibradas; a Torre HMADV basta para acompanhamento do ciclo atual.";
   }
 
+  let primaryHref = "/interno/processos";
+  let primaryLabel = "Abrir processos";
+  let checklist = [
+    "Atualizar a leitura da fila.",
+    "Montar o lote prioritario.",
+    "Executar a drenagem ou o modulo recomendado.",
+  ];
+
+  if (focusModule === "publicacoes") {
+    primaryHref = "/interno/publicacoes";
+    primaryLabel = "Abrir publicacoes";
+    checklist = [
+      "Criar processos faltantes das publicacoes.",
+      "Extrair e salvar partes novas.",
+      "Atualizar polos e refletir no CRM.",
+    ];
+  } else if (focusModule === "torre") {
+    primaryHref = "/interno";
+    primaryLabel = "Permanecer na torre";
+    checklist = [
+      "Conferir se o runner automatico esta ativo.",
+      "Drenar manualmente se surgir novo job.",
+      "Revisar modulos apenas em caso de reincidencia.",
+    ];
+  } else {
+    checklist = [
+      "Buscar gaps e processos sem account.",
+      "Rodar sincronismo Supabase + Freshsales.",
+      "Reenriquecer via DataJud se ainda faltar conteudo.",
+    ];
+  }
+
   return {
     runnerConfigured,
     processosOverview,
@@ -139,6 +171,9 @@ export async function getHmadvQueueSnapshot(env) {
       processosPressure,
       publicacoesPressure,
       reason: focusReason,
+      primaryHref,
+      primaryLabel,
+      checklist,
     },
   };
 }
