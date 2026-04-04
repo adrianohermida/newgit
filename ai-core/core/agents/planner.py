@@ -48,7 +48,6 @@ class PlannerAgent:
                     action=step_input,
                     tool=tool.name if tool else None,
                     input=self._compose_step_input(step_input, planning_context),
-                    selection=self._build_selection_payload(step_input, ranked_tools),
                 )
             )
         goal = planning_context.query
