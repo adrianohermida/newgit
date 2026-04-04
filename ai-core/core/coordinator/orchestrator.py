@@ -4,7 +4,7 @@ from time import perf_counter
 from typing import Any
 from uuid import uuid4
 
-from adapters.obsidian_adapter import ObsidianRagContext
+from ...adapters.obsidian_adapter import ObsidianRagContext
 from ..agents import CriticAgent, ExecutionResultPayload, ExecutorAgent, PlannerAgent
 from ..memory import LongTermMemoryRecord, SessionMemory
 from .models import OrchestrationError, OrchestrationResult, OrchestrationState
@@ -71,7 +71,7 @@ class Coordinator:
             'plan_built',
             duration_ms=round((perf_counter() - plan_started_at) * 1000, 3),
             steps=len(state.plan.steps),
-            tool_selection=[step.selection for step in state.plan.steps],
+            tool_selection=[step.tool for step in state.plan.steps],
         )
 
         execution_started_at = perf_counter()
@@ -173,7 +173,7 @@ class Coordinator:
             self._memory_store.persist(record)
             logs.append('memory_persisted=true')
             self._record_event_for_logs(logs, 'memory_persist', status='ok', session_id=short_term.session_id)
-        except Exception as exc:
+        except (OSError, ValueError, TypeError) as exc:
             logs.append(f'memory_persisted=false reason={exc}')
             self._record_event_for_logs(logs, 'memory_persist', status='fail', reason=str(exc), session_id=short_term.session_id)
             errors.append(
@@ -195,7 +195,7 @@ class Coordinator:
             )
             logs.append('memory_note_written=true')
             self._record_event_for_logs(logs, 'memory_note_write', status='ok', session_id=short_term.session_id)
-        except Exception as exc:
+        except (OSError, ValueError, TypeError) as exc:
             logs.append(f'memory_note_written=false reason={exc}')
             self._record_event_for_logs(logs, 'memory_note_write', status='fail', reason=str(exc), session_id=short_term.session_id)
             errors.append(
@@ -225,7 +225,7 @@ class Coordinator:
     ) -> LongTermMemoryRecord:
         try:
             return self._memory_store.load(session_id)
-        except Exception as exc:
+        except (OSError, ValueError, KeyError) as exc:
             logs.append(f'memory_loaded=false reason={exc}')
             errors.append(
                 OrchestrationError(
@@ -246,7 +246,7 @@ class Coordinator:
     ) -> ObsidianRagContext:
         try:
             return self._rag_service.search(query=query, top_k=top_k)
-        except Exception as exc:
+        except (OSError, ValueError, LookupError) as exc:
             logs.append(f'obsidian_rag_failed reason={exc}')
             errors.append(
                 OrchestrationError(

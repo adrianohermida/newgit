@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import concurrent.futures
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Any
@@ -12,6 +13,7 @@ from .contracts import ExecutionPlan, ExecutionReport, ExecutionResultPayload, S
 @dataclass(frozen=True)
 class ExecutorConfig:
     max_attempts_per_step: int = 2
+    step_timeout_seconds: float = 30.0
 
 
 class ExecutorAgent:
@@ -104,7 +106,13 @@ class ExecutorAgent:
                         },
                     )
 
-                output = registry_tool.execute(self._serialize_payload(payload))
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    future = pool.submit(registry_tool.execute, self._serialize_payload(payload))
+                    try:
+                        output = future.result(timeout=self._config.step_timeout_seconds)
+                    except concurrent.futures.TimeoutError:
+                        last_error = f"Tool '{selected_tool}' timed out after {self._config.step_timeout_seconds}s"
+                        continue
                 if self._is_placeholder_output(output):
                     return StepExecutionResult(
                         step_id=step_id,

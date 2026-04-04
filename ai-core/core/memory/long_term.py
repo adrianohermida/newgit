@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
+
+_SESSION_ID_SANITIZER = re.compile(r'[^A-Za-z0-9._-]+')
 
 
 @dataclass(frozen=True)
@@ -36,5 +39,6 @@ class FileBackedLongTermMemory:
         return self.persist(updated)
 
     def _path_for(self, session_id: str) -> Path:
-        safe = session_id.strip() or 'default'
-        return self._base_dir / f'{safe}.json'
+        normalized = str(session_id or '').strip()
+        safe = _SESSION_ID_SANITIZER.sub('_', normalized).strip('._') or 'default'
+        return self._base_dir / safe

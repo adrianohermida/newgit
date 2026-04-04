@@ -77,6 +77,18 @@ class QueryEnginePort:
                 stop_reason='max_turns_reached',
             )
 
+        projected = self.total_usage.add_turn(prompt, '')
+        if projected.input_tokens + projected.output_tokens > self.config.max_budget_tokens:
+            return TurnResult(
+                prompt=prompt,
+                output='Budget limit reached; prompt not processed.',
+                matched_commands=matched_commands,
+                matched_tools=matched_tools,
+                permission_denials=denied_tools,
+                usage=self.total_usage,
+                stop_reason='max_budget_reached',
+            )
+
         summary_lines = [
             f'Prompt: {prompt}',
             f'Matched commands: {", ".join(matched_commands) if matched_commands else "none"}',
@@ -85,9 +97,6 @@ class QueryEnginePort:
         ]
         output = self._format_output(summary_lines)
         projected_usage = self.total_usage.add_turn(prompt, output)
-        stop_reason = 'completed'
-        if projected_usage.input_tokens + projected_usage.output_tokens > self.config.max_budget_tokens:
-            stop_reason = 'max_budget_reached'
         self.mutable_messages.append(prompt)
         self.transcript_store.append(prompt)
         self.permission_denials.extend(denied_tools)
@@ -100,7 +109,7 @@ class QueryEnginePort:
             matched_tools=matched_tools,
             permission_denials=denied_tools,
             usage=self.total_usage,
-            stop_reason=stop_reason,
+            stop_reason='completed',
         )
 
     def stream_submit_message(

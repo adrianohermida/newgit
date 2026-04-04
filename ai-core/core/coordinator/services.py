@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from adapters.obsidian_adapter import ObsidianMatch, ObsidianRagContext, search_obsidian_context, write_obsidian_memory_note
+from ...adapters.obsidian_adapter import ObsidianMatch, ObsidianRagContext, search_obsidian_context, write_obsidian_memory_note
 from ..memory import FileBackedLongTermMemory, LongTermMemoryRecord
 
 
