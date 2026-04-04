@@ -186,7 +186,7 @@ function buildAlerts({
     alerts.push({
       level: "atencao",
       title: "Automacao pendente",
-      message: "Configure HMADV_RUNNER_TOKEN e mantenha o workflow hmadv-runner ativo.",
+      message: "Configure HMADV_RUNNER_TOKEN ou MADV_RUNNER_TOKEN e mantenha o workflow hmadv-runner ativo.",
     });
   }
 
@@ -285,7 +285,7 @@ export async function getHmadvQueueSnapshot(env) {
       ? "Token do runner configurado; confirme se o workflow hmadv-runner esta habilitado e com execucoes recentes."
       : "Token do runner configurado; manter o workflow hmadv-runner ativo para capturar novas pendencias automaticamente.";
   } else if (totalPendingJobs || totalBacklogItems) {
-    nextStep = "Configurar HMADV_RUNNER_TOKEN e o workflow hmadv-runner para reduzir cliques manuais.";
+    nextStep = "Configurar HMADV_RUNNER_TOKEN ou MADV_RUNNER_TOKEN e o workflow hmadv-runner para reduzir cliques manuais.";
   }
 
   const latestProcessJob = processosJobs.active || (processJobs.items || [])[0] || null;
@@ -394,7 +394,7 @@ export async function getHmadvQueueSnapshot(env) {
     blockerCta = "Drenar fila";
   } else if (!runnerConfigured && (totalPendingJobs > 0 || totalBacklogItems > 0)) {
     blockerTitle = "Automacao ainda nao configurada";
-    blockerReason = "Sem HMADV_RUNNER_TOKEN, a fila continua dependente de acao manual no painel.";
+    blockerReason = "Sem HMADV_RUNNER_TOKEN ou MADV_RUNNER_TOKEN, a fila continua dependente de acao manual no painel.";
     blockerHref = "/interno";
     blockerCta = "Preparar automacao";
   }

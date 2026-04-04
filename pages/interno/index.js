@@ -300,7 +300,7 @@ export default function InternoHomePage() {
                     <p className="opacity-75 mb-2">
                       {hmadvOps.data.runnerConfigured
                         ? "Token do runner configurado. Confirme execucoes recentes do workflow hmadv-runner para validar a automacao."
-                        : "Pendente configurar HMADV_RUNNER_TOKEN para liberar execucao agendada fora da aba."}
+                        : "Pendente configurar HMADV_RUNNER_TOKEN ou MADV_RUNNER_TOKEN para liberar execucao agendada fora da aba."}
                     </p>
                     {hmadvOps.data.autoMode?.runnerTokenKey ? (
                       <p className="opacity-55 mb-2">Chave detectada no ambiente: {hmadvOps.data.autoMode.runnerTokenKey}</p>
