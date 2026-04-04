@@ -491,6 +491,10 @@ function InternoProcessosContent() {
     setSelectedOrphans(orphans.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
     updateView("filas");
   }
+  function applySevereRecurringPreset() {
+    setLimit(recurringProcessBatch.size);
+    selectVisibleSevereRecurringProcesses();
+  }
   function clearAllQueueSelections() {
     setSelectedWithoutMovements([]);
     setSelectedMonitoringActive([]);
@@ -694,6 +698,7 @@ function InternoProcessosContent() {
                 selecao cobre {selectedVisibleSevereRecurringCount}/{visibleSevereRecurringCount || 0} graves
               </StatusBadge>
               <ActionButton className="px-3 py-2 text-xs" onClick={() => setLimit(recurringProcessBatch.size)}>Usar lote sugerido</ActionButton>
+              <ActionButton tone="primary" className="px-3 py-2 text-xs" onClick={applySevereRecurringPreset}>Montar lote prioritario</ActionButton>
               <ActionButton className="px-3 py-2 text-xs" onClick={selectVisibleRecurringProcesses}>Selecionar reincidentes visiveis</ActionButton>
               <ActionButton className="px-3 py-2 text-xs" onClick={selectVisibleSevereRecurringProcesses}>Selecionar 3x+ visiveis</ActionButton>
               <ActionButton className="px-3 py-2 text-xs" onClick={clearAllQueueSelections}>Limpar selecao</ActionButton>
