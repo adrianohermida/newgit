@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .commands import PORTED_COMMANDS, execute_command
-from .tools import PORTED_TOOLS, execute_tool
+from .commands import execute_command, get_executable_commands
+from .tools import execute_tool, get_executable_tools
 
 
 @dataclass(frozen=True)
-class MirroredCommand:
+class RegisteredCommand:
     name: str
     source_hint: str
 
@@ -16,7 +16,7 @@ class MirroredCommand:
 
 
 @dataclass(frozen=True)
-class MirroredTool:
+class RegisteredTool:
     name: str
     source_hint: str
 
@@ -26,17 +26,17 @@ class MirroredTool:
 
 @dataclass(frozen=True)
 class ExecutionRegistry:
-    commands: tuple[MirroredCommand, ...]
-    tools: tuple[MirroredTool, ...]
+    commands: tuple[RegisteredCommand, ...]
+    tools: tuple[RegisteredTool, ...]
 
-    def command(self, name: str) -> MirroredCommand | None:
+    def command(self, name: str) -> RegisteredCommand | None:
         lowered = name.lower()
         for command in self.commands:
             if command.name.lower() == lowered:
                 return command
         return None
 
-    def tool(self, name: str) -> MirroredTool | None:
+    def tool(self, name: str) -> RegisteredTool | None:
         lowered = name.lower()
         for tool in self.tools:
             if tool.name.lower() == lowered:
@@ -46,6 +46,6 @@ class ExecutionRegistry:
 
 def build_execution_registry() -> ExecutionRegistry:
     return ExecutionRegistry(
-        commands=tuple(MirroredCommand(module.name, module.source_hint) for module in PORTED_COMMANDS),
-        tools=tuple(MirroredTool(module.name, module.source_hint) for module in PORTED_TOOLS),
+        commands=tuple(RegisteredCommand(module.name, module.source_hint) for module in get_executable_commands()),
+        tools=tuple(RegisteredTool(module.name, module.source_hint) for module in get_executable_tools()),
     )

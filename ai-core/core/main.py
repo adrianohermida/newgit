@@ -14,7 +14,7 @@ from .port_manifest import build_port_manifest
 from .query_engine import QueryEnginePort
 from .remote_runtime import run_remote_mode, run_ssh_mode, run_teleport_mode
 from .runtime import PortRuntime
-from .session_store import load_session
+from .session_store import SessionStoreError, load_session
 from .setup import run_setup
 from .tool_pool import assemble_tool_pool
 from .tools import execute_tool, get_tool, get_tools, render_tool_index
@@ -33,13 +33,13 @@ def build_parser() -> argparse.ArgumentParser:
     list_parser = subparsers.add_parser('subsystems', help='list the current Python modules in the workspace')
     list_parser.add_argument('--limit', type=int, default=32)
 
-    commands_parser = subparsers.add_parser('commands', help='list mirrored command entries from the archived snapshot')
+    commands_parser = subparsers.add_parser('commands', help='list command catalog entries from the archived snapshot')
     commands_parser.add_argument('--limit', type=int, default=20)
     commands_parser.add_argument('--query')
     commands_parser.add_argument('--no-plugin-commands', action='store_true')
     commands_parser.add_argument('--no-skill-commands', action='store_true')
 
-    tools_parser = subparsers.add_parser('tools', help='list mirrored tool entries from the archived snapshot')
+    tools_parser = subparsers.add_parser('tools', help='list tool catalog entries from the archived snapshot')
     tools_parser.add_argument('--limit', type=int, default=20)
     tools_parser.add_argument('--query')
     tools_parser.add_argument('--simple-mode', action='store_true')
@@ -47,11 +47,11 @@ def build_parser() -> argparse.ArgumentParser:
     tools_parser.add_argument('--deny-tool', action='append', default=[])
     tools_parser.add_argument('--deny-prefix', action='append', default=[])
 
-    route_parser = subparsers.add_parser('route', help='route a prompt across mirrored command/tool inventories')
+    route_parser = subparsers.add_parser('route', help='route a prompt across command/tool catalogs')
     route_parser.add_argument('prompt')
     route_parser.add_argument('--limit', type=int, default=5)
 
-    bootstrap_parser = subparsers.add_parser('bootstrap', help='build a runtime-style session report from the mirrored inventories')
+    bootstrap_parser = subparsers.add_parser('bootstrap', help='build a runtime-style session report from the catalogs')
     bootstrap_parser.add_argument('prompt')
     bootstrap_parser.add_argument('--limit', type=int, default=5)
 
@@ -78,16 +78,16 @@ def build_parser() -> argparse.ArgumentParser:
     deep_link_parser = subparsers.add_parser('deep-link-mode', help='simulate deep-link runtime branching')
     deep_link_parser.add_argument('target')
 
-    show_command = subparsers.add_parser('show-command', help='show one mirrored command entry by exact name')
+    show_command = subparsers.add_parser('show-command', help='show one command catalog entry by exact name')
     show_command.add_argument('name')
-    show_tool = subparsers.add_parser('show-tool', help='show one mirrored tool entry by exact name')
+    show_tool = subparsers.add_parser('show-tool', help='show one tool catalog entry by exact name')
     show_tool.add_argument('name')
 
-    exec_command_parser = subparsers.add_parser('exec-command', help='execute a mirrored command shim by exact name')
+    exec_command_parser = subparsers.add_parser('exec-command', help='execute a placeholder command shim by exact name')
     exec_command_parser.add_argument('name')
     exec_command_parser.add_argument('prompt')
 
-    exec_tool_parser = subparsers.add_parser('exec-tool', help='execute a mirrored tool shim by exact name')
+    exec_tool_parser = subparsers.add_parser('exec-tool', help='execute a placeholder tool shim by exact name')
     exec_tool_parser.add_argument('name')
     exec_tool_parser.add_argument('payload')
 
@@ -132,8 +132,8 @@ def main(argv: list[str] | None = None) -> int:
             print(render_command_index(limit=args.limit, query=args.query))
         else:
             commands = get_commands(include_plugin_commands=not args.no_plugin_commands, include_skill_commands=not args.no_skill_commands)
-            output_lines = [f'Command entries: {len(commands)}', '']
-            output_lines.extend(f'- {module.name} — {module.source_hint}' for module in commands[: args.limit])
+            output_lines = [f'Command catalog entries: {len(commands)}', '']
+            output_lines.extend(f'- {module.name} [{module.status}/{module.execution_status}] - {module.source_hint}' for module in commands[: args.limit])
             print('\n'.join(output_lines))
         return 0
     if args.command == 'tools':
@@ -142,14 +142,14 @@ def main(argv: list[str] | None = None) -> int:
         else:
             permission_context = ToolPermissionContext.from_iterables(args.deny_tool, args.deny_prefix)
             tools = get_tools(simple_mode=args.simple_mode, include_mcp=not args.no_mcp, permission_context=permission_context)
-            output_lines = [f'Tool entries: {len(tools)}', '']
-            output_lines.extend(f'- {module.name} — {module.source_hint}' for module in tools[: args.limit])
+            output_lines = [f'Tool catalog entries: {len(tools)}', '']
+            output_lines.extend(f'- {module.name} [{module.status}/{module.execution_status}] - {module.source_hint}' for module in tools[: args.limit])
             print('\n'.join(output_lines))
         return 0
     if args.command == 'route':
         matches = PortRuntime().route_prompt(args.prompt, limit=args.limit)
         if not matches:
-            print('No mirrored command/tool matches found.')
+            print('No command/tool catalog matches found.')
             return 0
         for match in matches:
             print(f'{match.kind}\t{match.name}\t{match.score}\t{match.source_hint}')
@@ -172,7 +172,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f'flushed={engine.transcript_store.flushed}')
         return 0
     if args.command == 'load-session':
-        session = load_session(args.session_id)
+        try:
+            session = load_session(args.session_id)
+        except SessionStoreError as exc:
+            print(f'load-session-error: {exc}')
+            return 1
         print(f'{session.session_id}\n{len(session.messages)} messages\nin={session.input_tokens} out={session.output_tokens}')
         return 0
     if args.command == 'remote-mode':
@@ -195,14 +199,14 @@ def main(argv: list[str] | None = None) -> int:
         if module is None:
             print(f'Command not found: {args.name}')
             return 1
-        print('\n'.join([module.name, module.source_hint, module.responsibility]))
+        print('\n'.join([module.name, module.source_hint, module.responsibility, f'execution_status={module.execution_status}']))
         return 0
     if args.command == 'show-tool':
         module = get_tool(args.name)
         if module is None:
             print(f'Tool not found: {args.name}')
             return 1
-        print('\n'.join([module.name, module.source_hint, module.responsibility]))
+        print('\n'.join([module.name, module.source_hint, module.responsibility, f'execution_status={module.execution_status}']))
         return 0
     if args.command == 'exec-command':
         result = execute_command(args.name, args.prompt)

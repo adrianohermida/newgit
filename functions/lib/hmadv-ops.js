@@ -417,6 +417,17 @@ function extractAudienciaDate(text) {
   return null;
 }
 
+function extractAudienciaDateTime(text) {
+  const dt = extractAudienciaDate(text);
+  if (!dt) return null;
+  const hour = extractAudienciaTime(text);
+  if (hour) {
+    const [hh, mm] = hour.split(":").map(Number);
+    dt.setHours(hh || 0, mm || 0, 0, 0);
+  }
+  return dt;
+}
+
 function extractAudienciaTime(text) {
   const clean = normalizeText(text);
   const match = clean.match(/(?:as)\s*(\d{1,2}:\d{2})\s*h?/i) || clean.match(/(\d{1,2}:\d{2})\s*h/i);
@@ -551,13 +562,20 @@ async function collectProcessNumbersFromPagedList(loader, env, { active } = {}) 
   return uniqueNonEmpty(numbers);
 }
 
-async function resolveProcessJobTargets(env, action, processNumbers = []) {
-  const selected = uniqueNonEmpty(processNumbers);
+async function resolveProcessJobTargets(env, action, payload = {}) {
+  const selected = uniqueNonEmpty(payload?.processNumbers || []);
+  const intent = String(payload?.intent || "").trim();
   if (selected.length) return selected;
   if (action === "push_orfaos") {
     return collectProcessNumbersFromPagedList(scanOrphanProcesses, env);
   }
   if (action === "enriquecer_datajud") {
+    if (intent === "sincronizar_monitorados") {
+      return collectProcessNumbersFromPagedList(listMonitoringProcesses, env, { active: true });
+    }
+    if (intent === "reenriquecer_gaps") {
+      return collectProcessNumbersFromPagedList(listFieldGapProcesses, env);
+    }
     return collectProcessNumbersFromPagedList(listProcessesWithoutMovements, env);
   }
   if (action === "repair_freshsales_accounts") {
@@ -581,23 +599,43 @@ async function collectAudienciaBackfillTargets(env) {
   let offset = 0;
   let scans = 0;
   const maxScans = 60;
-  const processIds = [];
+  const candidates = [];
   while (scans < maxScans) {
     const rows = await listTableSafe(
       env,
-      `publicacoes?select=processo_id&processo_id=not.is.null&conteudo=ilike.${encodeURIComponent("*audien*")}&order=data_publicacao.desc.nullslast&limit=${pageSize}&offset=${offset}`
+      `publicacoes?select=id,processo_id,conteudo&processo_id=not.is.null&conteudo=ilike.${encodeURIComponent("*audien*")}&order=data_publicacao.desc.nullslast&limit=${pageSize}&offset=${offset}`
     );
     if (!rows.length) break;
     for (const row of rows) {
-      if (row?.processo_id) processIds.push(row.processo_id);
+      if (!row?.processo_id) continue;
+      const txt = String(row.conteudo || "");
+      if (!testAudienciaSignal(txt)) continue;
+      const dt = extractAudienciaDateTime(txt);
+      if (!dt) continue;
+      candidates.push({
+        processo_id: row.processo_id,
+        origem_id: row.id,
+        data_audiencia: dt.toISOString(),
+      });
     }
     if (rows.length < pageSize) break;
     offset += rows.length;
     scans += 1;
   }
-  const uniqueIds = uniqueNonEmpty(processIds);
+  const uniqueIds = uniqueNonEmpty(candidates.map((item) => item.processo_id));
   if (!uniqueIds.length) return [];
-  const processes = await loadProcessesByIds(env, uniqueIds, "id,numero_cnj");
+  const existentes = await loadAudienciasByProcessIds(env, uniqueIds);
+  const pendingProcessIds = uniqueNonEmpty(
+    candidates
+      .filter((candidate) => !existentes.some((item) => {
+        const sameOrigin = String(item.origem_id || "") === String(candidate.origem_id || "");
+        const sameDate = item.data_audiencia && new Date(item.data_audiencia).toISOString().slice(0, 19) === String(candidate.data_audiencia || "").slice(0, 19);
+        return sameOrigin && sameDate;
+      }))
+      .map((item) => item.processo_id)
+  );
+  if (!pendingProcessIds.length) return [];
+  const processes = await loadProcessesByIds(env, pendingProcessIds, "id,numero_cnj");
   return uniqueNonEmpty(processes.map((item) => item.numero_cnj));
 }
 
@@ -1344,13 +1382,14 @@ export async function inspectAudiencias(env, limit = 20) {
 
 export async function backfillAudiencias(env, { processNumbers = [], limit = 100, apply = false } = {}) {
   const safeLimit = Math.max(1, Math.min(Number(limit || 10), 25));
+  let pendingCandidates = [];
   let processes = [];
   if (processNumbers.length) {
     processes = await loadProcessesByNumbers(env, processNumbers);
   } else {
-    const candidateNumbers = await collectAudienciaBackfillTargets(env);
-    processes = candidateNumbers.length
-      ? await loadProcessesByNumbers(env, candidateNumbers.slice(0, safeLimit))
+    pendingCandidates = await collectAudienciaBackfillTargets(env);
+    processes = pendingCandidates.length
+      ? await loadProcessesByNumbers(env, pendingCandidates.slice(0, safeLimit))
       : await hmadvRest(env, `processos?select=id,numero_cnj,titulo&limit=${safeLimit}`);
   }
   const processIds = processes.map((item) => item.id);
@@ -1367,13 +1406,8 @@ export async function backfillAudiencias(env, { processNumbers = [], limit = 100
     for (const pub of publicacoes) {
       const txt = String(pub.conteudo || "");
       if (!testAudienciaSignal(txt)) continue;
-      let dt = extractAudienciaDate(txt);
+      let dt = extractAudienciaDateTime(txt);
       if (!dt) continue;
-      const hour = extractAudienciaTime(txt);
-      if (hour) {
-        const [hh, mm] = hour.split(":").map(Number);
-        dt.setHours(hh || 0, mm || 0, 0, 0);
-      }
       const alreadyExists = existentes.some((item) => {
         const sameOrigin = String(item.origem_id || "") === String(pub.id || "");
         const sameDate = item.data_audiencia && new Date(item.data_audiencia).toISOString().slice(0, 19) === dt.toISOString().slice(0, 19);
@@ -1427,6 +1461,7 @@ export async function backfillAudiencias(env, { processNumbers = [], limit = 100
   return {
     checkedAt: new Date().toISOString(),
     processosLidos: processes.length,
+    candidatosPendentes: processNumbers.length ? processes.length : pendingCandidates.length,
     audienciasInseridas: inserted,
     sample: sample.slice(0, 30),
     limitAplicado: safeLimit,
@@ -1554,33 +1589,49 @@ export async function enrichProcessesViaDatajud(env, { processNumbers = [], limi
         env,
         `processos?select=id,numero_cnj,titulo,quantidade_movimentacoes,account_id_freshsales&or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0)&limit=${safeLimit}`
       );
-  const sample = [];
-  for (const proc of processes.slice(0, safeLimit)) {
-    const numero = String(proc.numero_cnj || "").replace(/\D+/g, "");
-    if (!numero) continue;
-    const before = {
+  const scopedProcesses = processes.slice(0, safeLimit);
+  const beforeMap = new Map();
+  const resultMap = new Map();
+  for (const proc of scopedProcesses) {
+    beforeMap.set(proc.id, {
       quantidade_movimentacoes: proc.quantidade_movimentacoes ?? 0,
       gaps: countProcessFieldGaps(proc),
-    };
+    });
+  }
+  for (const proc of scopedProcesses) {
+    const numero = String(proc.numero_cnj || "").replace(/\D+/g, "");
+    if (!numero) continue;
     const result = await hmadvFunction(
       env,
       "datajud-search",
       {},
       { method: "POST", body: { numeroProcesso: numero, persistir: true } }
     );
-    const [afterRow] = await loadProcessesByIds(env, [proc.id]);
+    resultMap.set(proc.id, { numero, result });
+  }
+  const afterRows = await loadProcessesByIds(env, scopedProcesses.map((item) => item.id));
+  const afterMap = new Map(afterRows.map((row) => [row.id, row]));
+  const sample = [];
+  for (const proc of scopedProcesses) {
+    const datajudRun = resultMap.get(proc.id);
+    if (!datajudRun?.numero) continue;
+    const before = beforeMap.get(proc.id) || {
+      quantidade_movimentacoes: proc.quantidade_movimentacoes ?? 0,
+      gaps: countProcessFieldGaps(proc),
+    };
+    const afterRow = afterMap.get(proc.id);
     const after = afterRow ? {
       quantidade_movimentacoes: afterRow.quantidade_movimentacoes ?? 0,
       gaps: countProcessFieldGaps(afterRow),
     } : before;
     sample.push({
       processo_id: proc.id,
-      numero_cnj: numero,
+      numero_cnj: datajudRun.numero,
       before,
       after,
       movimentos_novos: Math.max(0, (after.quantidade_movimentacoes || 0) - (before.quantidade_movimentacoes || 0)),
       gaps_reduzidos: Math.max(0, (before.gaps || 0) - (after.gaps || 0)),
-      result,
+      result: datajudRun.result,
     });
   }
   return {
@@ -1600,36 +1651,58 @@ export async function syncProcessesSupabaseCrm(env, { processNumbers = [], limit
         env,
         `processos?select=id,numero_cnj,titulo,quantidade_movimentacoes,account_id_freshsales&account_id_freshsales=not.is.null&or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0,classe.is.null,assunto_principal.is.null,area.is.null,data_ajuizamento.is.null,sistema.is.null,polo_ativo.is.null,polo_passivo.is.null,status_atual_processo.is.null)&limit=${safeLimit}`
       );
-
-  const sample = [];
-  let reparados = 0;
-  for (const proc of processes.slice(0, safeLimit)) {
+  const scopedProcesses = processes.slice(0, safeLimit);
+  const beforeMap = new Map();
+  const datajudMap = new Map();
+  for (const proc of scopedProcesses) {
+    beforeMap.set(proc.id, {
+      quantidade_movimentacoes: proc.quantidade_movimentacoes ?? 0,
+      gaps: countProcessFieldGaps(proc),
+    });
+  }
+  for (const proc of scopedProcesses) {
     const numero = String(proc.numero_cnj || "").replace(/\D+/g, "");
     if (!numero) continue;
-    const before = {
+    const datajud = await runDatajudPersistForProcess(env, numero);
+    datajudMap.set(proc.id, { numero, datajud });
+  }
+  const afterRows = await loadProcessesByIds(env, scopedProcesses.map((item) => item.id));
+  const afterMap = new Map(afterRows.map((row) => [row.id, row]));
+  const sample = [];
+  let reparados = 0;
+  for (const proc of scopedProcesses) {
+    const datajudRun = datajudMap.get(proc.id);
+    if (!datajudRun?.numero) continue;
+    const before = beforeMap.get(proc.id) || {
       quantidade_movimentacoes: proc.quantidade_movimentacoes ?? 0,
       gaps: countProcessFieldGaps(proc),
     };
-    const datajud = await runDatajudPersistForProcess(env, numero);
-    const [afterRow] = await loadProcessesByIds(env, [proc.id]);
+    const afterRow = afterMap.get(proc.id);
     const after = afterRow ? {
       quantidade_movimentacoes: afterRow.quantidade_movimentacoes ?? 0,
       gaps: countProcessFieldGaps(afterRow),
     } : before;
+    const movimentosNovos = Math.max(0, (after.quantidade_movimentacoes || 0) - (before.quantidade_movimentacoes || 0));
+    const gapsReduzidos = Math.max(0, (before.gaps || 0) - (after.gaps || 0));
+    const targetProcess = afterRow || proc;
+    const hasUsefulChange = movimentosNovos > 0 || gapsReduzidos > 0;
+    const stillHasGap = (after.gaps || 0) > 0;
     let repair = { skipped: true, reason: "sem_account" };
-    if (proc.account_id_freshsales) {
-      repair = await runFreshsalesRepairForProcess(env, proc);
+    if (targetProcess.account_id_freshsales && (hasUsefulChange || stillHasGap)) {
+      repair = await runFreshsalesRepairForProcess(env, targetProcess);
       reparados += 1;
+    } else if (targetProcess.account_id_freshsales) {
+      repair = { skipped: true, reason: "sem_mudanca_util" };
     }
     sample.push({
       processo_id: proc.id,
-      numero_cnj: numero,
-      account_id_freshsales: proc.account_id_freshsales || null,
+      numero_cnj: datajudRun.numero,
+      account_id_freshsales: targetProcess.account_id_freshsales || null,
       before,
       after,
-      movimentos_novos: Math.max(0, (after.quantidade_movimentacoes || 0) - (before.quantidade_movimentacoes || 0)),
-      gaps_reduzidos: Math.max(0, (before.gaps || 0) - (after.gaps || 0)),
-      datajud,
+      movimentos_novos: movimentosNovos,
+      gaps_reduzidos: gapsReduzidos,
+      datajud: datajudRun.datajud,
       freshsales_repair: repair,
     });
   }
@@ -1780,13 +1853,16 @@ export async function pushOrphanAccounts(env, { processNumbers = [], limit = 20 
   const processes = processNumbers.length
     ? await loadProcessesByNumbers(env, processNumbers)
     : await scanOrphanProcesses(env, { page: 1, pageSize: safeLimit }).then((data) => data.items || []);
+  const scopedProcesses = processes.slice(0, safeLimit);
+  const fullRows = await loadProcessesByIds(
+    env,
+    scopedProcesses.map((item) => item.id),
+    "id,numero_cnj,numero_processo,titulo,polo_ativo,polo_passivo,tribunal,orgao_julgador,orgao_julgador_codigo,instancia,area,valor_causa,classe,assunto,assunto_principal,sistema,comarca,link_externo_processo,segredo_justica,data_ajuizamento,data_ultima_movimentacao,status_atual_processo,account_id_freshsales"
+  );
+  const fullRowMap = new Map(fullRows.map((row) => [row.id, row]));
   const sample = [];
-  for (const proc of processes.slice(0, safeLimit)) {
-    const fullRow = (await loadProcessesByIds(
-      env,
-      [proc.id],
-      "id,numero_cnj,numero_processo,titulo,polo_ativo,polo_passivo,tribunal,orgao_julgador,orgao_julgador_codigo,instancia,area,valor_causa,classe,assunto,assunto_principal,sistema,comarca,link_externo_processo,segredo_justica,data_ajuizamento,data_ultima_movimentacao,status_atual_processo,account_id_freshsales"
-    ))[0];
+  for (const proc of scopedProcesses) {
+    const fullRow = fullRowMap.get(proc.id);
     if (!fullRow) continue;
     if (fullRow.account_id_freshsales) {
       sample.push({
@@ -1824,11 +1900,23 @@ export async function repairFreshsalesAccounts(env, { processNumbers = [], limit
     ? await loadProcessesByNumbers(env, processNumbers)
     : await hmadvRest(
         env,
-        `processos?select=id,numero_cnj,titulo,account_id_freshsales&account_id_freshsales=not.is.null&limit=${safeLimit}`
+        `processos?select=id,numero_cnj,titulo,account_id_freshsales,classe,assunto_principal,area,data_ajuizamento,sistema,polo_ativo,polo_passivo,status_atual_processo&account_id_freshsales=not.is.null&or=(classe.is.null,assunto_principal.is.null,area.is.null,data_ajuizamento.is.null,sistema.is.null,polo_ativo.is.null,polo_passivo.is.null,status_atual_processo.is.null)&limit=${safeLimit}`
       );
   const sample = [];
+  let reparados = 0;
   for (const proc of processes.slice(0, safeLimit)) {
+    const hasGap = countProcessFieldGaps(proc) > 0;
+    if (!hasGap) {
+      sample.push({
+        processo_id: proc.id,
+        numero_cnj: proc.numero_cnj,
+        titulo: proc.titulo,
+        result: { skipped: true, reason: "sem_gap_crm" },
+      });
+      continue;
+    }
     const result = await runFreshsalesRepairForProcess(env, proc);
+    reparados += 1;
     sample.push({
       processo_id: proc.id,
       numero_cnj: proc.numero_cnj,
@@ -1839,7 +1927,7 @@ export async function repairFreshsalesAccounts(env, { processNumbers = [], limit
   return {
     checkedAt: new Date().toISOString(),
     processosLidos: processes.length,
-    reparados: sample.length,
+    reparados,
     sample,
   };
 }
@@ -1854,9 +1942,19 @@ function normalizeProcessJobPayload(action, payload = {}) {
   };
 }
 
+function buildProcessActionLogName(action, payload = {}, suffix = "") {
+  const baseAction = String(action || "").trim();
+  const intent = String(payload?.intent || "").trim();
+  let variant = baseAction;
+  if (baseAction === "enriquecer_datajud" && intent) {
+    variant = `${baseAction}_${intent}`;
+  }
+  return suffix ? `${variant}_${suffix}` : variant;
+}
+
 export async function createProcessAdminJob(env, { action, payload = {} } = {}) {
   const normalizedPayload = normalizeProcessJobPayload(action, payload);
-  const targets = await resolveProcessJobTargets(env, action, normalizedPayload.processNumbers);
+  const targets = await resolveProcessJobTargets(env, action, normalizedPayload);
   const job = await insertOperationJob(env, {
     modulo: "processos",
     acao: action,
@@ -1918,7 +2016,7 @@ export async function processProcessAdminJob(env, id) {
     });
     await logAdminOperation(env, {
       modulo: "processos",
-      acao: `${job.acao}_job`,
+      acao: buildProcessActionLogName(job.acao, job.payload || {}, "job"),
       status: "success",
       payload: job.payload || {},
       result: {
@@ -1954,7 +2052,7 @@ export async function processProcessAdminJob(env, id) {
     if (nextProcessed >= targets.length) {
       await logAdminOperation(env, {
         modulo: "processos",
-        acao: `${job.acao}_job`,
+        acao: buildProcessActionLogName(job.acao, job.payload || {}, "job"),
         status: failures ? "error" : "success",
         payload: job.payload || {},
         result: {
@@ -1973,7 +2071,7 @@ export async function processProcessAdminJob(env, id) {
     });
     await logAdminOperation(env, {
       modulo: "processos",
-      acao: `${job.acao}_job`,
+      acao: buildProcessActionLogName(job.acao, job.payload || {}, "job"),
       status: "error",
       payload: job.payload || {},
       error: error.message || "Falha ao processar job operacional.",

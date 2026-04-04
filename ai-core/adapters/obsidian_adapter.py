@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from hashlib import sha256
 from math import sqrt
 from pathlib import Path
@@ -17,6 +17,26 @@ _OBSIDIAN_ENV_KEYS = (
 )
 
 _TOKEN_PATTERN = re.compile(r"[a-z0-9_]+")
+_DEFAULT_MAX_INDEXED_NOTES = 256
+
+
+@dataclass(frozen=True)
+class IndexedObsidianNote:
+    path: str
+    title: str
+    excerpt: str
+    lowered_content: str
+    embedding: tuple[float, ...]
+    mtime_ns: int
+
+
+@dataclass
+class ObsidianIndexCache:
+    notes: dict[str, IndexedObsidianNote] = field(default_factory=dict)
+    scanned_at_mtime_ns: int = 0
+
+
+_INDEX_CACHE: dict[str, ObsidianIndexCache] = {}
 
 
 @dataclass(frozen=True)
@@ -173,6 +193,55 @@ def _collect_markdown_files(root: Path) -> tuple[Path, ...]:
     return tuple(files)
 
 
+def _get_max_indexed_notes() -> int:
+    raw = os.getenv('DOTOBOT_OBSIDIAN_RAG_MAX_FILES', '').strip()
+    if not raw:
+        return _DEFAULT_MAX_INDEXED_NOTES
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return _DEFAULT_MAX_INDEXED_NOTES
+
+
+def _get_cached_index(memory_dir: Path) -> dict[str, IndexedObsidianNote]:
+    files = _collect_markdown_files(memory_dir)
+    if not files:
+        return {}
+
+    max_files = _get_max_indexed_notes()
+    selected_files = sorted(files, key=lambda item: item.stat().st_mtime_ns, reverse=True)[:max_files]
+    cache_key = str(memory_dir.resolve())
+    cache = _INDEX_CACHE.setdefault(cache_key, ObsidianIndexCache())
+    current_paths = {str(path.resolve()) for path in selected_files}
+    stale_paths = [path for path in cache.notes if path not in current_paths]
+    for path in stale_paths:
+        cache.notes.pop(path, None)
+
+    for file_path in selected_files:
+        resolved_path = str(file_path.resolve())
+        stat = file_path.stat()
+        cached = cache.notes.get(resolved_path)
+        if cached and cached.mtime_ns == stat.st_mtime_ns:
+            continue
+        try:
+            content = file_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            cache.notes.pop(resolved_path, None)
+            continue
+
+        title = file_path.stem.replace("-", " ").replace("_", " ").strip() or file_path.stem
+        excerpt = " ".join(content.split())[:300]
+        cache.notes[resolved_path] = IndexedObsidianNote(
+            path=resolved_path,
+            title=title,
+            excerpt=excerpt,
+            lowered_content=content.lower(),
+            embedding=tuple(_embed_text(content)),
+            mtime_ns=stat.st_mtime_ns,
+        )
+    return dict(cache.notes)
+
+
 def write_obsidian_memory_note(
     *,
     query: str,
@@ -219,40 +288,31 @@ def search_obsidian_context(query: str, top_k: int = 5) -> ObsidianRagContext:
     if memory_dir is None:
         return ObsidianRagContext(enabled=False, vault_path=str(vault_path), memory_dir=None)
 
-    files = _collect_markdown_files(memory_dir)
-    if not files:
+    indexed_notes = _get_cached_index(memory_dir)
+    if not indexed_notes:
         return ObsidianRagContext(enabled=True, vault_path=str(vault_path), memory_dir=str(memory_dir))
 
     query_embedding = _embed_text(query)
     query_tokens = set(_tokenize(query))
     matches: list[ObsidianMatch] = []
 
-    for file_path in files:
-        try:
-            content = file_path.read_text(encoding="utf-8")
-        except OSError:
-            continue
-
-        note_embedding = _embed_text(content)
-        score = _cosine_similarity(query_embedding, note_embedding)
-        lowered_content = content.lower()
+    for indexed_note in indexed_notes.values():
+        score = _cosine_similarity(query_embedding, list(indexed_note.embedding))
         for token in query_tokens:
-            if token in lowered_content:
+            if token in indexed_note.lowered_content:
                 score += 0.08
 
         if score <= 0:
             continue
 
-        title = file_path.stem.replace("-", " ").replace("_", " ").strip() or file_path.stem
-        excerpt = " ".join(content.split())[:300]
         matches.append(
             ObsidianMatch(
-                id=file_path.stem,
-                title=title,
-                path=str(file_path),
+                id=Path(indexed_note.path).stem,
+                title=indexed_note.title,
+                path=indexed_note.path,
                 score=round(score, 6),
-                excerpt=excerpt,
-                metadata={"source": "obsidian", "path": str(file_path)},
+                excerpt=indexed_note.excerpt,
+                metadata={"source": "obsidian", "path": indexed_note.path},
             )
         )
 

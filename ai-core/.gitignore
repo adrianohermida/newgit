@@ -1,0 +1,6 @@
+.memory_store/
+.port_sessions/
+.test_tmp_memory/
+.test_tmp_obsidian/
+__pycache__/
+*.py[cod]

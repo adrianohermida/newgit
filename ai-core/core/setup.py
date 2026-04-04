@@ -20,8 +20,8 @@ class WorkspaceSetup:
         return (
             'start top-level prefetch side effects',
             'build workspace context',
-            'load mirrored command snapshot',
-            'load mirrored tool snapshot',
+            'load command catalog snapshot',
+            'load tool catalog snapshot',
             'prepare parity audit hooks',
             'apply trust-gated deferred init',
         )

@@ -17,6 +17,11 @@ class PortingModule:
     responsibility: str
     source_hint: str
     status: str = 'planned'
+    execution_status: str = 'unknown'
+
+    @property
+    def is_executable(self) -> bool:
+        return self.execution_status == 'implemented'
 
 
 @dataclass(frozen=True)
@@ -44,6 +49,6 @@ class PortingBacklog:
 
     def summary_lines(self) -> list[str]:
         return [
-            f'- {module.name} [{module.status}] — {module.responsibility} (from {module.source_hint})'
+            f'- {module.name} [{module.status}/{module.execution_status}] - {module.responsibility} (from {module.source_hint})'
             for module in self.modules
         ]

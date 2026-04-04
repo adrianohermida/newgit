@@ -11,6 +11,7 @@ const PROCESS_VIEW_ITEMS = [
   { key: "resultado", label: "Resultado" },
 ];
 const HISTORY_STORAGE_KEY = "hmadv:interno-processos:history:v1";
+const UI_STATE_STORAGE_KEY = "hmadv:interno-processos:ui:v1";
 const ACTION_LABELS = {
   run_sync_worker: "Rodar sync-worker",
   push_orfaos: "Criar accounts no Freshsales",
@@ -47,13 +48,27 @@ function getSafeProcessActionLimit(action, requestedLimit) {
 }
 
 function getProcessActionLabel(action, payload = {}) {
-  const intent = String(payload?.intent || "").trim();
-  if (action === "enriquecer_datajud") {
-    if (intent === "buscar_movimentacoes") return "Buscar movimentacoes no DataJud";
-    if (intent === "sincronizar_monitorados") return "Sincronizar monitorados";
-    if (intent === "reenriquecer_gaps") return "Reenriquecer processos com gap";
+  let normalizedAction = String(action || "").trim();
+  let suffixLabel = "";
+  if (normalizedAction.endsWith("_job")) {
+    normalizedAction = normalizedAction.slice(0, -4);
+    suffixLabel = " (job)";
+  } else if (normalizedAction.endsWith("_inline_fallback")) {
+    normalizedAction = normalizedAction.slice(0, -16);
+    suffixLabel = " (fallback inline)";
   }
-  return ACTION_LABELS[action] || action;
+  let intent = String(payload?.intent || "").trim();
+  if (!intent && normalizedAction.startsWith("enriquecer_datajud_")) {
+    intent = normalizedAction.slice("enriquecer_datajud_".length);
+    normalizedAction = "enriquecer_datajud";
+  }
+  if (normalizedAction === "enriquecer_datajud") {
+    if (intent === "buscar_movimentacoes") return `Buscar movimentacoes no DataJud${suffixLabel}`;
+    if (intent === "sincronizar_monitorados") return `Sincronizar monitorados${suffixLabel}`;
+    if (intent === "reenriquecer_gaps") return `Reenriquecer processos com gap${suffixLabel}`;
+    return `Reenriquecer via DataJud${suffixLabel}`;
+  }
+  return `${ACTION_LABELS[normalizedAction] || normalizedAction}${suffixLabel}`;
 }
 
 function getProcessIntentBadge(payload = {}) {
@@ -115,6 +130,38 @@ function persistHistoryEntries(entries) {
   } catch {}
 }
 
+function loadUiState() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(UI_STATE_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistUiState(nextState) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(UI_STATE_STORAGE_KEY, JSON.stringify(nextState));
+  } catch {}
+}
+
+function getProcessSelectionValue(row) {
+  return String(row?.numero_cnj || row?.key || "").trim();
+}
+
+function parseProcessNumbers(rawValue) {
+  return [...new Set(
+    String(rawValue || "")
+      .split(/\r?\n|,|;/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+  )];
+}
+
 function MetricCard({ label, value, helper }) {
   return <div className="rounded-[28px] border border-[#2D2E2E] bg-[linear-gradient(180deg,rgba(13,15,14,0.98),rgba(7,9,8,0.98))] p-5 shadow-[0_12px_36px_rgba(0,0,0,0.22)]"><p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">{label}</p><p className="mb-2 font-serif text-3xl">{value}</p>{helper ? <p className="text-sm leading-relaxed opacity-65">{helper}</p> : null}</div>;
 }
@@ -135,19 +182,16 @@ function ActionButton({ children, tone = "subtle", className = "", ...props }) {
   };
   return <button type="button" {...props} className={`rounded-2xl px-5 py-3 text-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${tones[tone] || tones.subtle} ${className}`.trim()}>{children}</button>;
 }
-function SectionNav({ items }) {
-  return <div className="flex flex-wrap gap-2">{items.map((item) => <a key={item.href} href={item.href} className="rounded-full border border-[#2D2E2E] px-4 py-2 text-xs uppercase tracking-[0.16em] text-[#C5A059] transition hover:border-[#C5A059] hover:bg-[rgba(197,160,89,0.08)]">{item.label}</a>)}</div>;
-}
 function ViewToggle({ value, onChange }) {
   return <div className="flex flex-wrap gap-2">{PROCESS_VIEW_ITEMS.map((item) => {
     const active = item.key === value;
     return <button key={item.key} type="button" onClick={() => onChange(item.key)} className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.16em] transition ${active ? "border-[#C5A059] bg-[rgba(197,160,89,0.12)] text-[#F8E7B5]" : "border-[#2D2E2E] text-[#C5A059] hover:border-[#C5A059]"}`}>{item.label}</button>;
   })}</div>;
 }
-function QueueList({ title, rows, selected, onToggle, onTogglePage, page, setPage, loading, helper, totalRows = 0, pageSize = 20 }) {
-  const allSelected = rows.length > 0 && rows.every((row) => selected.includes(row.key));
+function QueueList({ title, rows, selected, onToggle, onTogglePage, page, setPage, loading, helper, totalRows = 0, pageSize = 20, renderStatuses = null }) {
+  const allSelected = rows.length > 0 && rows.every((row) => selected.includes(getProcessSelectionValue(row)));
   const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / Math.max(1, pageSize)));
-  return <div className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">{title}</p><span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{rows.length} nesta pagina</span><span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{totalRows} no total</span>{selected.length ? <span className="rounded-full border border-[#6E5630] bg-[rgba(76,57,26,0.22)] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-[#FDE68A]">{selected.length} selecionado(s)</span> : null}</div>{helper ? <p className="mt-1 text-xs leading-6 opacity-60">{helper}</p> : null}{totalRows ? <p className="mt-1 text-xs opacity-50">Pagina {page} de {totalPages}</p> : null}</div><div className="flex flex-wrap gap-2"><ActionButton onClick={() => onTogglePage(!allSelected)} className="px-3 py-2 text-xs">{allSelected ? "Desmarcar pagina" : "Selecionar pagina"}</ActionButton><ActionButton onClick={() => setPage(Math.max(1, page - 1))} disabled={loading || page <= 1} className="px-3 py-2 text-xs">Anterior</ActionButton><ActionButton onClick={() => setPage(page + 1)} disabled={loading || page >= totalPages} className="px-3 py-2 text-xs">Proxima</ActionButton></div></div>{loading ? <p className="text-sm opacity-60">Carregando fila...</p> : null}{!loading && !rows.length ? <p className="rounded-2xl border border-dashed border-[#2D2E2E] px-4 py-6 text-sm opacity-60">Nenhum item encontrado nesta pagina.</p> : null}<div className="space-y-3">{rows.map((row) => <label key={row.key} className="block cursor-pointer rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 transition hover:border-[#3A3E3D]"><div className="flex gap-3"><input type="checkbox" checked={selected.includes(row.key)} onChange={() => onToggle(row.key)} className="mt-1" /><div className="min-w-0 flex-1 space-y-2 text-sm"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold break-all">{row.numero_cnj || row.key}</p>{row.monitoramento_fallback ? <span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">fallback</span> : null}</div>{row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}<div className="flex flex-wrap gap-x-4 gap-y-1 opacity-60 text-xs">{row.status_atual_processo ? <span>Status: {row.status_atual_processo}</span> : null}{row.quantidade_movimentacoes !== undefined ? <span>Movimentacoes: {row.quantidade_movimentacoes ?? 0}</span> : null}{row.monitoramento_ativo !== undefined ? <span>Monitorado: {row.monitoramento_ativo ? "sim" : "nao"}</span> : null}{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]" onClick={(e) => e.stopPropagation()}>Account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}</div></div></div></label>)}</div></div>;
+  return <div className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">{title}</p><span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{rows.length} nesta pagina</span><span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{totalRows} no total</span>{selected.length ? <span className="rounded-full border border-[#6E5630] bg-[rgba(76,57,26,0.22)] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-[#FDE68A]">{selected.length} selecionado(s)</span> : null}</div>{helper ? <p className="mt-1 text-xs leading-6 opacity-60">{helper}</p> : null}{totalRows ? <p className="mt-1 text-xs opacity-50">Pagina {page} de {totalPages}</p> : null}</div><div className="flex flex-wrap gap-2"><ActionButton onClick={() => onTogglePage(!allSelected)} className="px-3 py-2 text-xs">{allSelected ? "Desmarcar pagina" : "Selecionar pagina"}</ActionButton><ActionButton onClick={() => setPage(Math.max(1, page - 1))} disabled={loading || page <= 1} className="px-3 py-2 text-xs">Anterior</ActionButton><ActionButton onClick={() => setPage(page + 1)} disabled={loading || page >= totalPages} className="px-3 py-2 text-xs">Proxima</ActionButton></div></div>{loading ? <p className="text-sm opacity-60">Carregando fila...</p> : null}{!loading && !rows.length ? <p className="rounded-2xl border border-dashed border-[#2D2E2E] px-4 py-6 text-sm opacity-60">Nenhum item encontrado nesta pagina.</p> : null}<div className="space-y-3">{rows.map((row) => { const selectionValue = getProcessSelectionValue(row); const statuses = renderStatuses ? renderStatuses(row) : []; return <label key={row.key} className="block cursor-pointer rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 transition hover:border-[#3A3E3D]"><div className="flex gap-3"><input type="checkbox" checked={selected.includes(selectionValue)} onChange={() => onToggle(selectionValue)} className="mt-1" /><div className="min-w-0 flex-1 space-y-2 text-sm"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold break-all">{row.numero_cnj || row.key}</p>{row.monitoramento_fallback ? <span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">fallback</span> : null}</div>{row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}{statuses.length ? <div className="flex flex-wrap gap-2">{statuses.map((status) => <StatusBadge key={status.label} tone={status.tone}>{status.label}</StatusBadge>)}</div> : null}<div className="flex flex-wrap gap-x-4 gap-y-1 opacity-60 text-xs">{row.status_atual_processo ? <span>Status: {row.status_atual_processo}</span> : null}{row.quantidade_movimentacoes !== undefined ? <span>Movimentacoes: {row.quantidade_movimentacoes ?? 0}</span> : null}{row.monitoramento_ativo !== undefined ? <span>Monitorado: {row.monitoramento_ativo ? "sim" : "nao"}</span> : null}{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]" onClick={(e) => e.stopPropagation()}>Account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}</div></div></div></label>; })}</div></div>;
 }
 function RelationProcessCard({ title, process, fallbackNumber }) {
   return <div className="rounded-[24px] border border-[#2D2E2E] bg-[#050706] p-4"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">{title}</p><p className="mt-3 break-all font-semibold">{process?.numero_cnj || fallbackNumber || "Sem CNJ"}</p><p className="mt-1 text-sm opacity-70">{process?.titulo || "Processo ainda nao encontrado na base judiciaria."}</p><div className="mt-2 flex flex-wrap gap-3 text-xs opacity-60">{process?.status_atual_processo ? <span>Status: {process.status_atual_processo}</span> : null}{process?.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${process.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Account {process.account_id_freshsales}</a> : null}</div></div>;
@@ -161,6 +205,56 @@ function StatusBadge({ children, tone = "default" }) {
   };
   return <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${tones[tone] || tones.default}`}>{children}</span>;
 }
+function countFrontendProcessGaps(row) {
+  const fields = ["classe", "assunto_principal", "area", "data_ajuizamento", "sistema", "polo_ativo", "polo_passivo", "status_atual_processo"];
+  return fields.reduce((acc, field) => {
+    const value = row?.[field];
+    if (value === null || value === undefined || value === "") acc += 1;
+    return acc;
+  }, 0);
+}
+function renderQueueRowStatuses(row, queueKey, { monitoringUnsupported = false } = {}) {
+  const statuses = [];
+  if (queueKey === "sem_movimentacoes") {
+    statuses.push({ label: "pendente de datajud", tone: "warning" });
+    if (!row?.account_id_freshsales) statuses.push({ label: "sem account", tone: "danger" });
+  }
+  if (queueKey === "monitoramento_ativo") {
+    if (monitoringUnsupported && row?.monitoramento_fallback) {
+      statuses.push({ label: "leitura inferida", tone: "warning" });
+      statuses.push({ label: "schema pendente", tone: "danger" });
+    } else if (row?.monitoramento_ativo === true) {
+      statuses.push({ label: "monitoramento real", tone: "success" });
+    }
+  }
+  if (queueKey === "monitoramento_inativo") {
+    if (monitoringUnsupported) {
+      statuses.push({ label: "sem monitoramento real", tone: "danger" });
+      statuses.push({ label: "schema pendente", tone: "warning" });
+    } else if (row?.monitoramento_ativo === false) {
+      statuses.push({ label: "monitoramento inativo", tone: "danger" });
+    }
+  }
+  if (queueKey === "campos_orfaos") {
+    const gaps = countFrontendProcessGaps(row);
+    if (gaps > 0) {
+      statuses.push({ label: `${gaps} gaps crm`, tone: "warning" });
+      statuses.push({ label: "apto para reparo", tone: "success" });
+    }
+  }
+  if (queueKey === "orfaos") {
+    statuses.push({ label: "sem sales account", tone: "danger" });
+    statuses.push({ label: "apto para criar account", tone: "warning" });
+  }
+  return statuses;
+}
+function PayloadDetails({ title, payload }) {
+  if (!payload) return null;
+  return <details className="mt-2 rounded-2xl border border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] p-3 text-xs opacity-75">
+    <summary className="cursor-pointer list-none font-semibold uppercase tracking-[0.14em] text-[#C5A059]">{title}</summary>
+    <pre className="mt-3 overflow-x-auto whitespace-pre-wrap opacity-80">{JSON.stringify(payload, null, 2)}</pre>
+  </details>;
+}
 function renderProcessSyncStatuses(row) {
   const statuses = [];
   if (row.datajud) statuses.push({ label: "supabase atualizado", tone: "success" });
@@ -168,11 +262,64 @@ function renderProcessSyncStatuses(row) {
   if ((row.movimentos_novos || 0) > 0) statuses.push({ label: `+${row.movimentos_novos} movimentos`, tone: "success" });
   if ((row.gaps_reduzidos || 0) > 0) statuses.push({ label: `-${row.gaps_reduzidos} gaps`, tone: "success" });
   if (row.quantidade_movimentacoes === 0 || row.quantidade_movimentacoes === null) statuses.push({ label: "sem movimentacoes", tone: "warning" });
-  if (row.freshsales_repair?.skipped) statuses.push({ label: "crm pendente", tone: "warning" });
+  if (row.freshsales_repair?.reason === "sem_gap_crm") statuses.push({ label: "sem gap crm", tone: "default" });
+  else if (row.freshsales_repair?.reason === "sem_mudanca_util") statuses.push({ label: "sem mudanca util", tone: "default" });
+  else if (row.freshsales_repair?.skipped) statuses.push({ label: "crm pendente", tone: "warning" });
   else if (row.freshsales_repair) statuses.push({ label: "crm reparado", tone: "success" });
   if (row.monitoramento_ativo === true) statuses.push({ label: "monitorado", tone: "default" });
   if (row.monitoramento_ativo === false) statuses.push({ label: "monitoramento inativo", tone: "danger" });
   return statuses;
+}
+function deriveSelectionActionHint({
+  selectedWithoutMovements = [],
+  selectedMonitoringActive = [],
+  selectedMonitoringInactive = [],
+  selectedFieldGaps = [],
+  selectedOrphans = [],
+  monitoringUnsupported = false,
+}) {
+  if (selectedOrphans.length) {
+    return {
+      title: "Criar accounts primeiro",
+      body: "Ha processos orfaos selecionados. Priorize a criacao de Sales Accounts para liberar as proximas trilhas de sincronismo.",
+      badges: [`${selectedOrphans.length} orfaos`, "acao: criar accounts"],
+    };
+  }
+  if (selectedFieldGaps.length) {
+    return {
+      title: "Reparar CRM agora",
+      body: "Os itens selecionados tem gap entre HMADV e Freshsales. O melhor proximo passo e corrigir campos no CRM.",
+      badges: [`${selectedFieldGaps.length} gaps`, "acao: corrigir crm"],
+    };
+  }
+  if (selectedWithoutMovements.length) {
+    return {
+      title: "Buscar movimentacoes no DataJud",
+      body: "A selecao atual esta concentrada em processos sem andamento local. Reenriquecer pelo DataJud tende a gerar o maior ganho.",
+      badges: [`${selectedWithoutMovements.length} sem mov.`, "acao: datajud"],
+    };
+  }
+  if (selectedMonitoringInactive.length) {
+    return {
+      title: monitoringUnsupported ? "Schema pendente para monitoramento" : "Reativar monitoramento",
+      body: monitoringUnsupported
+        ? "Existe selecao em monitoramento inativo, mas a coluna monitoramento_ativo ainda nao existe no HMADV."
+        : "Ha processos fora do monitoramento. Reative a fila para recolocar o sync continuo em andamento.",
+      badges: [`${selectedMonitoringInactive.length} inativos`, monitoringUnsupported ? "schema pendente" : "acao: ativar"],
+    };
+  }
+  if (selectedMonitoringActive.length) {
+    return {
+      title: "Sincronizar monitorados",
+      body: "A selecao atual ja esta em acompanhamento. Vale priorizar sincronismo e retroacao de audiencias nesse recorte.",
+      badges: [`${selectedMonitoringActive.length} monitorados`, "acao: sincronizar"],
+    };
+  }
+  return {
+    title: "Selecione uma fila para priorizar",
+    body: "Use as filas para montar o lote operacional e o painel destaca automaticamente a proxima acao mais util.",
+    badges: ["sem selecao ativa"],
+  };
 }
 function OperationResult({ result }) {
   if (result?.job) {
@@ -188,7 +335,7 @@ function OperationResult({ result }) {
     if (row.result?.ok === false || row.datajud?.ok === false || row.freshsales_repair?.ok === false) acc.falhas += 1;
     return acc;
   }, { persistidos: 0, reparados: 0, pendentes: 0, falhas: 0, movimentos: 0, gaps: 0 });
-  return rows.length ? <div className="space-y-3"><div className="grid gap-3 md:grid-cols-6"><QueueSummaryCard title="Persistidos" count={counters.persistidos} helper="Consultas ou dados gravados no Supabase." accent="text-[#B7F7C6]" /><QueueSummaryCard title="Movimentos novos" count={counters.movimentos} helper="Andamentos agregados no lote." accent="text-[#B7F7C6]" /><QueueSummaryCard title="Gaps reduzidos" count={counters.gaps} helper="Campos antes vazios que foram preenchidos." accent="text-[#B7F7C6]" /><QueueSummaryCard title="CRM reparado" count={counters.reparados} helper="Accounts refletidas no Freshsales." accent="text-[#B7F7C6]" /><QueueSummaryCard title="Pendentes" count={counters.pendentes} helper="Processos ainda sem reparo no CRM." accent="text-[#FDE68A]" /><QueueSummaryCard title="Falhas" count={counters.falhas} helper="Itens que pedem revisao manual." accent="text-[#FECACA]" /></div><div className="rounded-2xl border border-[#1D2321] bg-[rgba(4,6,6,0.45)] px-4 py-3 text-xs uppercase tracking-[0.16em] opacity-65">Amostra operacional: {rows.length} item(ns)</div>{rows.slice(0, 20).map((row, index) => <div key={`${row.numero_cnj || row.id || index}`} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm"><p className="font-semibold">{row.numero_cnj || row.id || `Linha ${index + 1}`}</p>{row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}{renderProcessSyncStatuses(row).length ? <div className="mt-2 flex flex-wrap gap-2">{renderProcessSyncStatuses(row).map((item) => <StatusBadge key={item.label} tone={item.tone}>{item.label}</StatusBadge>)}</div> : null}<div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-65">{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Abrir account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}{row.processo_id ? <span>Processo ID: {row.processo_id}</span> : null}{row.before ? <span>Antes: {row.before.quantidade_movimentacoes || 0} mov.</span> : null}{row.after ? <span>Depois: {row.after.quantidade_movimentacoes || 0} mov.</span> : null}</div>{row.freshsales_repair ? <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs opacity-70">{JSON.stringify(row.freshsales_repair, null, 2)}</pre> : null}{row.result ? <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs opacity-70">{JSON.stringify(row.result, null, 2)}</pre> : null}{row.datajud ? <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs opacity-70">{JSON.stringify(row.datajud, null, 2)}</pre> : null}</div>)}</div> : <pre className="overflow-x-auto whitespace-pre-wrap rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-xs opacity-80">{JSON.stringify(result, null, 2)}</pre>;
+  return rows.length ? <div className="space-y-3"><div className="grid gap-3 md:grid-cols-6"><QueueSummaryCard title="Persistidos" count={counters.persistidos} helper="Consultas ou dados gravados no Supabase." accent="text-[#B7F7C6]" /><QueueSummaryCard title="Movimentos novos" count={counters.movimentos} helper="Andamentos agregados no lote." accent="text-[#B7F7C6]" /><QueueSummaryCard title="Gaps reduzidos" count={counters.gaps} helper="Campos antes vazios que foram preenchidos." accent="text-[#B7F7C6]" /><QueueSummaryCard title="CRM reparado" count={counters.reparados} helper="Accounts refletidas no Freshsales." accent="text-[#B7F7C6]" /><QueueSummaryCard title="Pendentes" count={counters.pendentes} helper="Processos ainda sem reparo no CRM." accent="text-[#FDE68A]" /><QueueSummaryCard title="Falhas" count={counters.falhas} helper="Itens que pedem revisao manual." accent="text-[#FECACA]" /></div><div className="rounded-2xl border border-[#1D2321] bg-[rgba(4,6,6,0.45)] px-4 py-3 text-xs uppercase tracking-[0.16em] opacity-65">Amostra operacional: {rows.length} item(ns)</div>{rows.slice(0, 20).map((row, index) => <div key={`${row.numero_cnj || row.id || index}`} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm"><p className="font-semibold">{row.numero_cnj || row.id || `Linha ${index + 1}`}</p>{row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}{renderProcessSyncStatuses(row).length ? <div className="mt-2 flex flex-wrap gap-2">{renderProcessSyncStatuses(row).map((item) => <StatusBadge key={item.label} tone={item.tone}>{item.label}</StatusBadge>)}</div> : null}<div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-65">{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Abrir account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}{row.processo_id ? <span>Processo ID: {row.processo_id}</span> : null}{row.before ? <span>Antes: {row.before.quantidade_movimentacoes || 0} mov.</span> : null}{row.after ? <span>Depois: {row.after.quantidade_movimentacoes || 0} mov.</span> : null}</div><PayloadDetails title="Detalhes CRM" payload={row.freshsales_repair} /><PayloadDetails title="Detalhes persistencia" payload={row.result} /><PayloadDetails title="Detalhes DataJud" payload={row.datajud} /></div>)}</div> : <PayloadDetails title="Resultado completo" payload={result} />;
 }
 function HistoryCard({ entry, onReuse }) {
   return <div className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm">
@@ -210,7 +357,7 @@ function JobCard({ job, active = false }) {
   return <div className={`rounded-[24px] border p-4 text-sm ${active ? "border-[#C5A059] bg-[rgba(76,57,26,0.18)]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}>
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <p className="font-semibold">{ACTION_LABELS[job?.acao] || job?.acao}</p>
+        <p className="font-semibold">{getProcessActionLabel(job?.acao, job?.payload || {})}</p>
         <p className="text-xs opacity-60">{job?.created_at ? new Date(job.created_at).toLocaleString("pt-BR") : "sem horario"}</p>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -512,6 +659,30 @@ function InternoProcessosContent() {
     };
   }, []);
   useEffect(() => { setExecutionHistory(loadHistoryEntries()); }, []);
+  useEffect(() => {
+    const saved = loadUiState();
+    if (!saved) return;
+    if (saved.view && PROCESS_VIEW_ITEMS.some((item) => item.key === saved.view)) setView(saved.view);
+    if (saved.processNumbers) setProcessNumbers(String(saved.processNumbers));
+    if (saved.limit) setLimit(Number(saved.limit) || 2);
+    if (Array.isArray(saved.selectedWithoutMovements)) setSelectedWithoutMovements(saved.selectedWithoutMovements);
+    if (Array.isArray(saved.selectedMonitoringActive)) setSelectedMonitoringActive(saved.selectedMonitoringActive);
+    if (Array.isArray(saved.selectedMonitoringInactive)) setSelectedMonitoringInactive(saved.selectedMonitoringInactive);
+    if (Array.isArray(saved.selectedFieldGaps)) setSelectedFieldGaps(saved.selectedFieldGaps);
+    if (Array.isArray(saved.selectedOrphans)) setSelectedOrphans(saved.selectedOrphans);
+  }, []);
+  useEffect(() => {
+    persistUiState({
+      view,
+      processNumbers,
+      limit,
+      selectedWithoutMovements,
+      selectedMonitoringActive,
+      selectedMonitoringInactive,
+      selectedFieldGaps,
+      selectedOrphans,
+    });
+  }, [view, processNumbers, limit, selectedWithoutMovements, selectedMonitoringActive, selectedMonitoringInactive, selectedFieldGaps, selectedOrphans]);
   useEffect(() => { loadRemoteHistory(); }, []);
   useEffect(() => { loadJobs(); }, []);
   useEffect(() => { loadOverview(); }, []);
@@ -631,15 +802,19 @@ function InternoProcessosContent() {
     }
   }
   function toggleSelection(setter, current, key) { setter(current.includes(key) ? current.filter((item) => item !== key) : [...current, key]); }
-  function togglePageSelection(setter, current, rows, nextState) { const keys = rows.map((item) => item.key); if (nextState) { setter([...new Set([...current, ...keys])]); return; } setter(current.filter((item) => !keys.includes(item))); }
-  function getSelectedNumbers(rows, selected) { return rows.filter((item) => selected.includes(item.key)).map((item) => item.numero_cnj).filter(Boolean); }
+  function togglePageSelection(setter, current, rows, nextState) { const keys = rows.map((item) => getProcessSelectionValue(item)).filter(Boolean); if (nextState) { setter([...new Set([...current, ...keys])]); return; } setter(current.filter((item) => !keys.includes(item))); }
+  function getSelectedNumbers(rows, selected) {
+    const visible = rows.map((item) => item.numero_cnj).filter(Boolean);
+    const selectedSet = new Set(selected.map((item) => String(item || "").trim()).filter(Boolean));
+    return [...new Set([...visible.filter((item) => selectedSet.has(item)), ...selectedSet])];
+  }
   function getCombinedSelectedNumbers() {
     return [...new Set([
-      ...getSelectedNumbers(withoutMovements.items, selectedWithoutMovements),
-      ...getSelectedNumbers(monitoringActive.items, selectedMonitoringActive),
-      ...getSelectedNumbers(monitoringInactive.items, selectedMonitoringInactive),
-      ...getSelectedNumbers(fieldGaps.items, selectedFieldGaps),
-      ...getSelectedNumbers(orphans.items, selectedOrphans),
+      ...selectedWithoutMovements,
+      ...selectedMonitoringActive,
+      ...selectedMonitoringInactive,
+      ...selectedFieldGaps,
+      ...selectedOrphans,
     ])];
   }
   function resolveActionProcessNumbers(preferredNumbers = "") {
@@ -649,20 +824,20 @@ function InternoProcessosContent() {
   }
   function selectVisibleRecurringProcesses() {
     const recurringKeys = new Set(recurringProcesses.map((item) => item.key));
-    setSelectedWithoutMovements(withoutMovements.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
-    setSelectedMonitoringActive(monitoringActive.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
-    setSelectedMonitoringInactive(monitoringInactive.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
-    setSelectedFieldGaps(fieldGaps.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
-    setSelectedOrphans(orphans.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
+    setSelectedWithoutMovements(withoutMovements.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
+    setSelectedMonitoringActive(monitoringActive.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
+    setSelectedMonitoringInactive(monitoringInactive.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
+    setSelectedFieldGaps(fieldGaps.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
+    setSelectedOrphans(orphans.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
     updateView("filas");
   }
   function selectVisibleSevereRecurringProcesses() {
     const recurringKeys = new Set(recurringProcesses.filter((item) => item.hits >= 3).map((item) => item.key));
-    setSelectedWithoutMovements(withoutMovements.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
-    setSelectedMonitoringActive(monitoringActive.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
-    setSelectedMonitoringInactive(monitoringInactive.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
-    setSelectedFieldGaps(fieldGaps.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
-    setSelectedOrphans(orphans.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
+    setSelectedWithoutMovements(withoutMovements.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
+    setSelectedMonitoringActive(monitoringActive.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
+    setSelectedMonitoringInactive(monitoringInactive.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
+    setSelectedFieldGaps(fieldGaps.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
+    setSelectedOrphans(orphans.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
     updateView("filas");
   }
   function applySevereRecurringPreset() {
@@ -687,13 +862,14 @@ function InternoProcessosContent() {
   function buildActionMeta(payload = {}) {
     const explicitNumbers = String(payload.processNumbers || "").trim();
     const fallbackNumbers = String(processNumbers || "").trim();
+    const effectiveNumbers = parseProcessNumbers(explicitNumbers || fallbackNumbers);
     const intentLabel = getProcessIntentBadge(payload);
     const action = String(payload.action || "");
     const safeLimit = action ? getSafeProcessActionLimit(action, payload.limit ?? limit) : Number(limit || 10);
     return {
       limit: safeLimit,
-      selectedCount: selectedWithoutMovements.length + selectedMonitoringActive.length + selectedMonitoringInactive.length + selectedFieldGaps.length + selectedOrphans.length,
-      processNumbersPreview: (explicitNumbers || fallbackNumbers).split(/\r?\n|,|;/).map((item) => item.trim()).filter(Boolean).slice(0, 6).join(", "),
+      selectedCount: effectiveNumbers.length || getCombinedSelectedNumbers().length,
+      processNumbersPreview: effectiveNumbers.slice(0, 6).join(", "),
       intentLabel,
     };
   }
@@ -857,7 +1033,6 @@ function InternoProcessosContent() {
   const data = overview.data || {};
   const quickStats = useMemo(() => [{ label: "Processos totais", value: data.processosTotal || 0, helper: "Carteira persistida no HMADV." }, { label: "Com account", value: data.processosComAccount || 0, helper: "Sales Accounts ja vinculadas." }, { label: "Sem account", value: data.processosSemAccount || 0, helper: "Processos orfaos." }, { label: "Sem movimentacoes", value: data.processosSemMovimentacao || 0, helper: "Fila de reconsulta DataJud." }, { label: "Monitoramento ativo", value: data.monitoramentoAtivo || 0, helper: "Com fallback para processos com account." }, { label: "Campos orfaos", value: data.processosSemPolos || 0, helper: "Polos/status ainda pendentes." }, { label: "Fila monitoramento", value: data.monitoramentoFilaPendente || 0, helper: "Pendencias da rotina." }, { label: "Audiencias no banco", value: data.audienciasTotal || 0, helper: "Persistidas em judiciario.audiencias." }], [data]);
   const relationTypeSummary = useMemo(() => relations.items.reduce((acc, item) => { acc[item.tipo_relacao] = (acc[item.tipo_relacao] || 0) + 1; return acc; }, {}), [relations.items]);
-  const selectedSummary = selectedWithoutMovements.length + selectedMonitoringActive.length + selectedMonitoringInactive.length + selectedFieldGaps.length + selectedOrphans.length;
   const latestHistory = executionHistory[0] || null;
   const latestRemoteRun = remoteHistory[0] || null;
   const latestJob = jobs[0] || null;
@@ -873,6 +1048,7 @@ function InternoProcessosContent() {
   const recurringProcessChecklist = deriveSuggestedProcessChecklist(recurringProcessSummary, recurringProcessBands);
   const primaryProcessAction = derivePrimaryProcessAction(recurringProcessActions);
   const combinedSelectedNumbers = getCombinedSelectedNumbers();
+  const selectedSummary = combinedSelectedNumbers.length;
   const visibleRecurringCount = [...withoutMovements.items, ...monitoringActive.items, ...monitoringInactive.items, ...fieldGaps.items, ...orphans.items]
     .filter((item, index, array) => array.findIndex((other) => (other.numero_cnj || other.key) === (item.numero_cnj || item.key)) === index)
     .filter((item) => recurringProcesses.some((recurring) => recurring.key === (item.numero_cnj || item.key))).length;
@@ -885,6 +1061,14 @@ function InternoProcessosContent() {
     .filter((item) => combinedSelectedNumbers.includes(item.numero_cnj))
     .length;
   const priorityBatchReady = visibleSevereRecurringCount > 0 && selectedVisibleSevereRecurringCount >= visibleSevereRecurringCount && limit === recurringProcessBatch.size;
+  const selectionActionHint = deriveSelectionActionHint({
+    selectedWithoutMovements,
+    selectedMonitoringActive,
+    selectedMonitoringInactive,
+    selectedFieldGaps,
+    selectedOrphans,
+    monitoringUnsupported,
+  });
 
   return <div className="space-y-8">
     <section className="rounded-[34px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-6 py-6 md:px-7">
@@ -902,7 +1086,6 @@ function InternoProcessosContent() {
       </div>
       <div className="mt-6 space-y-4">
         <ViewToggle value={view} onChange={updateView} />
-        <SectionNav items={[{ href: "#operacao", label: "Operacao" }, { href: "#filas", label: "Filas" }, { href: "#relacoes", label: "Relacoes" }, { href: "#resultado", label: "Resultado" }]} />
         {latestRemoteRun ? <RemoteRunSummary entry={latestRemoteRun} /> : null}
         {remoteHealth.length ? <div className="flex flex-wrap gap-2">{remoteHealth.map((item) => <StatusBadge key={item.label} tone={item.tone}>{item.label}</StatusBadge>)}</div> : null}
       </div>
@@ -926,6 +1109,14 @@ function InternoProcessosContent() {
           <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-xs leading-6 opacity-70">
             <p><strong className="text-[#F4F1EA]">Selecao atual:</strong> {combinedSelectedNumbers.length ? combinedSelectedNumbers.slice(0, 8).join(", ") : "nenhum processo selecionado nas filas"}</p>
             <p className="mt-2">As acoes principais agora podem virar job persistido no HMADV. O painel acompanha progresso, continua em lote curto e avisa ao concluir sem depender de cliques repetidos.</p>
+          </div>
+          <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Proximo passo sugerido</p>
+            <p className="mt-2 font-semibold">{selectionActionHint.title}</p>
+            <p className="mt-2 opacity-70">{selectionActionHint.body}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {selectionActionHint.badges.map((badge) => <StatusBadge key={badge} tone="warning">{badge}</StatusBadge>)}
+            </div>
           </div>
         </div>
       </Panel>
@@ -1014,11 +1205,11 @@ function InternoProcessosContent() {
         <QueueSummaryCard title="Sem Sales Account" count={orphans.totalRows || 0} helper="Processos ainda sem account vinculada." />
       </div>
       <div className="grid gap-6 xl:grid-cols-2">
-      <Panel title="Processos sem movimentacoes" eyebrow="Fila paginada"><QueueList title="Sem movimentacoes" helper="Itens sem andamento local para reconsulta no DataJud." rows={withoutMovements.items} selected={selectedWithoutMovements} onToggle={(key) => toggleSelection(setSelectedWithoutMovements, selectedWithoutMovements, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedWithoutMovements, selectedWithoutMovements, withoutMovements.items, nextState)} page={wmPage} setPage={setWmPage} loading={withoutMovements.loading} totalRows={withoutMovements.totalRows} pageSize={withoutMovements.pageSize} /></Panel>
-      <Panel title="Monitoramento ativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">A coluna <strong>monitoramento_ativo</strong> ainda nao existe no HMADV. A fila segue em modo de leitura por fallback, mas ativar/desativar monitoramento fica indisponivel ate a migracao do schema.</div> : null}<QueueList title="Monitorados" helper="Se a base ainda nao marca monitoramento_ativo, o painel usa fallback pelos processos com account." rows={monitoringActive.items} selected={selectedMonitoringActive} onToggle={(key) => toggleSelection(setSelectedMonitoringActive, selectedMonitoringActive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringActive, selectedMonitoringActive, monitoringActive.items, nextState)} page={maPage} setPage={setMaPage} loading={monitoringActive.loading} totalRows={monitoringActive.totalRows} pageSize={monitoringActive.pageSize} /><div className="flex flex-wrap gap-3"><ActionButton onClick={() => handleAction("monitoramento_status", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n")), active: false, limit })} disabled={actionState.loading || monitoringUnsupported}>Desativar monitoramento</ActionButton></div></div></Panel>
-      <Panel title="Monitoramento inativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">Sem a coluna <strong>monitoramento_ativo</strong>, esta fila nao consegue gravar alteracoes. O painel mostra apenas o que precisa de adequacao de schema.</div> : null}<QueueList title="Nao monitorados" helper="Use esta fila para reativar o sync dos processos que ficaram fora da rotina." rows={monitoringInactive.items} selected={selectedMonitoringInactive} onToggle={(key) => toggleSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, monitoringInactive.items, nextState)} page={miPage} setPage={setMiPage} loading={monitoringInactive.loading} totalRows={monitoringInactive.totalRows} pageSize={monitoringInactive.pageSize} /><div className="flex flex-wrap gap-3"><ActionButton tone="primary" onClick={() => handleAction("monitoramento_status", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringInactive.items, selectedMonitoringInactive).join("\n")), active: true, limit })} disabled={actionState.loading || monitoringUnsupported}>Ativar monitoramento</ActionButton></div></div></Panel>
-      <Panel title="GAP DataJud -> CRM" eyebrow="Campos orfaos"><QueueList title="Campos pendentes no Freshsales" helper="Processos vinculados cujo espelho ainda tem campos importantes em branco." rows={fieldGaps.items} selected={selectedFieldGaps} onToggle={(key) => toggleSelection(setSelectedFieldGaps, selectedFieldGaps, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedFieldGaps, selectedFieldGaps, fieldGaps.items, nextState)} page={fgPage} setPage={setFgPage} loading={fieldGaps.loading} totalRows={fieldGaps.totalRows} pageSize={fieldGaps.pageSize} /></Panel>
-      <Panel title="Sem Sales Account" eyebrow="Processos orfaos"><QueueList title="Orfaos" helper="Itens do HMADV que ainda nao viraram Sales Account." rows={orphans.items} selected={selectedOrphans} onToggle={(key) => toggleSelection(setSelectedOrphans, selectedOrphans, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedOrphans, selectedOrphans, orphans.items, nextState)} page={orphanPage} setPage={setOrphanPage} loading={orphans.loading} totalRows={orphans.totalRows} pageSize={orphans.pageSize} /></Panel>
+      <Panel title="Processos sem movimentacoes" eyebrow="Fila paginada"><QueueList title="Sem movimentacoes" helper="Itens sem andamento local para reconsulta no DataJud." rows={withoutMovements.items} selected={selectedWithoutMovements} onToggle={(key) => toggleSelection(setSelectedWithoutMovements, selectedWithoutMovements, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedWithoutMovements, selectedWithoutMovements, withoutMovements.items, nextState)} page={wmPage} setPage={setWmPage} loading={withoutMovements.loading} totalRows={withoutMovements.totalRows} pageSize={withoutMovements.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "sem_movimentacoes")} /></Panel>
+      <Panel title="Monitoramento ativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">A coluna <strong>monitoramento_ativo</strong> ainda nao existe no HMADV. A fila segue em modo de leitura por fallback, mas ativar/desativar monitoramento fica indisponivel ate a migracao do schema.</div> : null}<QueueList title="Monitorados" helper="Se a base ainda nao marca monitoramento_ativo, o painel usa fallback pelos processos com account." rows={monitoringActive.items} selected={selectedMonitoringActive} onToggle={(key) => toggleSelection(setSelectedMonitoringActive, selectedMonitoringActive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringActive, selectedMonitoringActive, monitoringActive.items, nextState)} page={maPage} setPage={setMaPage} loading={monitoringActive.loading} totalRows={monitoringActive.totalRows} pageSize={monitoringActive.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "monitoramento_ativo", { monitoringUnsupported })} /><div className="flex flex-wrap gap-3"><ActionButton onClick={() => handleAction("monitoramento_status", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n")), active: false, limit })} disabled={actionState.loading || monitoringUnsupported}>Desativar monitoramento</ActionButton></div></div></Panel>
+      <Panel title="Monitoramento inativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">Sem a coluna <strong>monitoramento_ativo</strong>, esta fila nao consegue gravar alteracoes. O painel mostra apenas o que precisa de adequacao de schema.</div> : null}<QueueList title="Nao monitorados" helper="Use esta fila para reativar o sync dos processos que ficaram fora da rotina." rows={monitoringInactive.items} selected={selectedMonitoringInactive} onToggle={(key) => toggleSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, monitoringInactive.items, nextState)} page={miPage} setPage={setMiPage} loading={monitoringInactive.loading} totalRows={monitoringInactive.totalRows} pageSize={monitoringInactive.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "monitoramento_inativo", { monitoringUnsupported })} /><div className="flex flex-wrap gap-3"><ActionButton tone="primary" onClick={() => handleAction("monitoramento_status", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringInactive.items, selectedMonitoringInactive).join("\n")), active: true, limit })} disabled={actionState.loading || monitoringUnsupported}>Ativar monitoramento</ActionButton></div></div></Panel>
+      <Panel title="GAP DataJud -> CRM" eyebrow="Campos orfaos"><QueueList title="Campos pendentes no Freshsales" helper="Processos vinculados cujo espelho ainda tem campos importantes em branco." rows={fieldGaps.items} selected={selectedFieldGaps} onToggle={(key) => toggleSelection(setSelectedFieldGaps, selectedFieldGaps, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedFieldGaps, selectedFieldGaps, fieldGaps.items, nextState)} page={fgPage} setPage={setFgPage} loading={fieldGaps.loading} totalRows={fieldGaps.totalRows} pageSize={fieldGaps.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "campos_orfaos")} /></Panel>
+      <Panel title="Sem Sales Account" eyebrow="Processos orfaos"><QueueList title="Orfaos" helper="Itens do HMADV que ainda nao viraram Sales Account." rows={orphans.items} selected={selectedOrphans} onToggle={(key) => toggleSelection(setSelectedOrphans, selectedOrphans, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedOrphans, selectedOrphans, orphans.items, nextState)} page={orphanPage} setPage={setOrphanPage} loading={orphans.loading} totalRows={orphans.totalRows} pageSize={orphans.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "orfaos")} /></Panel>
       </div>
     </div> : null}
 

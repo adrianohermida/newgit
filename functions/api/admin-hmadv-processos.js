@@ -46,6 +46,16 @@ function isJobInfraError(error) {
   );
 }
 
+function buildProcessActionLogName(action, payload = {}, suffix = "") {
+  const baseAction = String(action || "").trim();
+  const intent = String(payload?.intent || "").trim();
+  let variant = baseAction;
+  if (baseAction === "enriquecer_datajud" && intent) {
+    variant = `${baseAction}_${intent}`;
+  }
+  return suffix ? `${variant}_${suffix}` : variant;
+}
+
 async function runInlineProcessAction(env, action, body) {
   const processNumbers = parseProcessNumbers(body.processNumbers);
   const requestedLimit = Number(body.limit || 0);
@@ -251,7 +261,7 @@ export async function onRequestPost(context) {
             const result = await runInlineProcessAction(context.env, String(body.jobAction || ""), body);
             await logAdminOperation(context.env, {
               modulo: "processos",
-              acao: `${String(body.jobAction || "")}_inline_fallback`,
+              acao: buildProcessActionLogName(String(body.jobAction || ""), body, "inline_fallback"),
               status: "success",
               payload: body,
               result,
@@ -267,7 +277,7 @@ export async function onRequestPost(context) {
           } catch (inlineError) {
             await logAdminOperation(context.env, {
               modulo: "processos",
-              acao: `${String(body.jobAction || "")}_inline_fallback`,
+              acao: buildProcessActionLogName(String(body.jobAction || ""), body, "inline_fallback"),
               status: "error",
               payload: body,
               error: inlineError.message || "Falha no fallback inline.",
