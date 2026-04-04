@@ -2,22 +2,15 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
-import shutil
-from uuid import uuid4
 
 from adapters.obsidian_adapter import ObsidianRagContext
-from core.agents import CriticAgent, ExecutionPlan, ExecutorAgent, PlanStep, PlannerAgent
+from core.agents import CriticAgent, ExecutionPlan, ExecutionReport, ExecutionResultPayload, ExecutorAgent, PlanStep, PlannerAgent, StepExecutionResult
 from core.coordinator import Coordinator
 from core.memory import FileBackedLongTermMemory
+from tests.fixtures import TempPathsMixin
 
 
-class OrchestrationEngineTests(unittest.TestCase):
-    def _make_local_tmp_dir(self) -> Path:
-        root = Path('.test_tmp_memory')
-        root.mkdir(parents=True, exist_ok=True)
-        target = root / uuid4().hex
-        target.mkdir(parents=True, exist_ok=True)
-        return target
+class OrchestrationEngineTests(TempPathsMixin):
 
     def test_simple_query_single_tool_plan(self) -> None:
         planner = PlannerAgent()
@@ -51,30 +44,24 @@ class OrchestrationEngineTests(unittest.TestCase):
                 )
                 return report
 
-        tmp_dir = self._make_local_tmp_dir()
-        try:
-            memory = FileBackedLongTermMemory(base_dir=tmp_dir)
-            coordinator = Coordinator(executor=FailingExecutor(), memory_store=memory)
-            result = coordinator.execute('Inspect and report', context={'session_id': 'retry-session'})
-            self.assertIn(result.status, {'ok', 'retry', 'fail'})
-            self.assertTrue(any('critic_status=retry' in line for line in result.logs))
-        finally:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
+        tmp_dir = self.make_temp_memory_dir()
+        memory = FileBackedLongTermMemory(base_dir=tmp_dir)
+        coordinator = Coordinator(executor=FailingExecutor(), memory_store=memory)
+        result = coordinator.execute('Inspect and report', context={'session_id': 'retry-session'})
+        self.assertIn(result.status, {'ok', 'retry', 'fail'})
+        self.assertTrue(any('critic_status=retry' in line for line in result.logs))
 
     def test_memory_affects_planning(self) -> None:
-        tmp_dir = self._make_local_tmp_dir()
-        try:
-            memory = FileBackedLongTermMemory(base_dir=tmp_dir)
-            coordinator = Coordinator(memory_store=memory)
-            first = coordinator.execute('Store this memory entry', context={'session_id': 'memory-session'})
-            self.assertTrue(first.logs)
+        tmp_dir = self.make_temp_memory_dir()
+        memory = FileBackedLongTermMemory(base_dir=tmp_dir)
+        coordinator = Coordinator(memory_store=memory)
+        first = coordinator.execute('Store this memory entry', context={'session_id': 'memory-session'})
+        self.assertTrue(first.logs)
 
-            second = coordinator.execute('Use prior context and respond', context={'session_id': 'memory-session'})
-            self.assertTrue(second.steps)
-            step_input = second.steps[0].input or {}
-            self.assertTrue(step_input.get('memory'))
-        finally:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
+        second = coordinator.execute('Use prior context and respond', context={'session_id': 'memory-session'})
+        self.assertTrue(second.steps)
+        step_input = second.steps[0].input or {}
+        self.assertTrue(step_input.get('memory'))
 
     def test_api_health_and_execute(self) -> None:
         from api.server import ExecuteRequest, execute_request, health
@@ -97,8 +84,6 @@ class OrchestrationEngineTests(unittest.TestCase):
         self.assertIn('not implemented', str(report.results[0].error))
 
     def test_critic_rejects_unimplemented_steps(self) -> None:
-        from core.agents import ExecutionReport, StepExecutionResult
-
         verdict = CriticAgent().validate(
             ExecutionReport(
                 results=[
@@ -112,10 +97,73 @@ class OrchestrationEngineTests(unittest.TestCase):
                         error='placeholder implementation',
                     )
                 ],
-                final_output={'status': 'unimplemented', 'message': 'Mirrored tool placeholder'},
+                final_output=ExecutionResultPayload.from_raw({'status': 'unimplemented', 'message': 'Mirrored tool placeholder'}),
             )
         )
         self.assertEqual(verdict.status, 'fail')
+
+    def test_retry_that_fails_again_keeps_retry_status(self) -> None:
+        class RetryFailingExecutor(ExecutorAgent):
+            def execute_plan(self, plan: ExecutionPlan):  # type: ignore[override]
+                return ExecutionReport(
+                    results=[
+                        StepExecutionResult(
+                            step_id=1,
+                            action=plan.steps[0].action,
+                            tool=plan.steps[0].tool,
+                            input=plan.steps[0].input,
+                            output=None,
+                            status='fail',
+                            attempts=1,
+                            error='initial failure',
+                        )
+                    ],
+                    logs=['initial_failure=true'],
+                    final_output=ExecutionResultPayload(kind='empty', message='No output produced.'),
+                )
+
+            def retry_steps(self, plan: ExecutionPlan, step_ids: set[int], suggestion: str | None = None):  # type: ignore[override]
+                return ExecutionReport(
+                    results=[
+                        StepExecutionResult(
+                            step_id=1,
+                            action=plan.steps[0].action,
+                            tool=plan.steps[0].tool,
+                            input=plan.steps[0].input,
+                            output=None,
+                            status='fail',
+                            attempts=2,
+                            error='retry failure',
+                        )
+                    ],
+                    logs=['retry_failure=true'],
+                    final_output=ExecutionResultPayload(kind='empty', message='No output produced.'),
+                )
+
+        coordinator = Coordinator(
+            executor=RetryFailingExecutor(),
+            memory_store=FileBackedLongTermMemory(base_dir=self.make_temp_memory_dir()),
+        )
+
+        result = coordinator.execute('Inspect and report', context={'session_id': 'retry-failure-session'})
+
+        self.assertEqual(result.status, 'retry')
+        self.assertTrue(any('retry_critic_status=retry' in line for line in result.logs))
+
+    def test_coordinator_records_memory_note_write_error(self) -> None:
+        class FailingMemoryNoteSink:
+            def write(self, **kwargs):
+                raise OSError('vault is read-only')
+
+        coordinator = Coordinator(
+            memory_store=FileBackedLongTermMemory(base_dir=self.make_temp_memory_dir()),
+            memory_note_sink=FailingMemoryNoteSink(),
+        )
+
+        result = coordinator.execute('Summarize workspace', context={'session_id': 'vault-error-session'})
+
+        self.assertTrue(any(error.code == 'memory_note_write_failed' for error in result.errors))
+        self.assertTrue(any('memory_note_written=false' in line for line in result.logs))
 
     def test_coordinator_uses_injected_services(self) -> None:
         class FakeMemoryStore:

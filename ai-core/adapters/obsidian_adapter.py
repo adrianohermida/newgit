@@ -230,7 +230,7 @@ def search_obsidian_context(query: str, top_k: int = 5) -> ObsidianRagContext:
     for file_path in files:
         try:
             content = file_path.read_text(encoding="utf-8")
-        except OSError:
+        except (OSError, UnicodeDecodeError):
             continue
 
         note_embedding = _embed_text(content)

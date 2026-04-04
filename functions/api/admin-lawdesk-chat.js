@@ -171,3 +171,5 @@ export async function onRequestPost(context) {
     );
   }
 }
+
+export default { onRequestPost };
