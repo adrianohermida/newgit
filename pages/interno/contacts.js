@@ -35,6 +35,17 @@ function ActionButton({ children, tone = "subtle", ...props }) {
   return <button type="button" {...props} className={`px-4 py-3 text-sm disabled:opacity-50 ${tones[tone]}`}>{children}</button>;
 }
 
+function StatusBadge({ children, tone = "neutral" }) {
+  const tones = {
+    neutral: "border-[#2D2E2E] text-[#D7DDD8]",
+    accent: "border-[#C5A059] text-[#F4E7C2]",
+    success: "border-[#2E5744] text-[#C7F1D7]",
+    warn: "border-[#6F5826] text-[#F7E4A7]",
+    danger: "border-[#5C2A2A] text-[#F4C1C1]",
+  };
+  return <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${tones[tone]}`}>{children}</span>;
+}
+
 function buildEditableForm(contact) {
   return {
     name: contact?.name || "",
@@ -46,6 +57,40 @@ function buildEditableForm(contact) {
     cep: contact?.cep || "",
     externalId: contact?.external_id || "",
   };
+}
+
+function renderResultSummary(result) {
+  if (!result) return null;
+  if (Array.isArray(result.sample) && result.sample.length) {
+    return <div className="space-y-3">
+      {result.sample.slice(0, 12).map((item, index) => {
+        const partes = Array.isArray(item.partes) ? item.partes : [];
+        return <div key={item.processo_id || item.parte_id || index} className="border border-[#2D2E2E] p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {item.numero_cnj ? <p className="font-semibold">{item.numero_cnj}</p> : null}
+            {item.nome ? <p className="font-semibold">{item.nome}</p> : null}
+            {item.tipo_contato ? <StatusBadge tone="accent">{item.tipo_contato}</StatusBadge> : null}
+            {item.contato_freshsales_id ? <StatusBadge tone="success">contato vinculado</StatusBadge> : null}
+          </div>
+          {item.account_id_freshsales ? <p className="mt-1 text-xs opacity-60">Account {item.account_id_freshsales}</p> : null}
+          {partes.length ? <div className="mt-3 flex flex-col gap-2">
+            {partes.map((parte) => <div key={parte.parte_id} className="rounded border border-[#2D2E2E] p-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold">{parte.nome}</span>
+                {parte.tipo_contato ? <StatusBadge tone="accent">{parte.tipo_contato}</StatusBadge> : null}
+                {parte.modo === "matched_existing" ? <StatusBadge tone="success">match automatico</StatusBadge> : null}
+                {parte.modo === "created" ? <StatusBadge tone="success">contato criado</StatusBadge> : null}
+                {parte.modo === "already_linked" ? <StatusBadge tone="neutral">ja vinculada</StatusBadge> : null}
+                {parte.modo === "ambiguous_match" ? <StatusBadge tone="warn">match ambiguo</StatusBadge> : null}
+                {parte.modo === "create_needed" ? <StatusBadge tone="warn">precisa criar contato</StatusBadge> : null}
+              </div>
+            </div>)}
+          </div> : null}
+        </div>;
+      })}
+    </div>;
+  }
+  return null;
 }
 
 export default function InternoContactsPage() {
@@ -343,7 +388,7 @@ function ContactsContent() {
         {partesPendentes.loading ? <p className="text-sm opacity-60">Carregando partes pendentes...</p> : null}
         {partesPendentes.error ? <p className="text-sm text-red-300">{partesPendentes.error}</p> : null}
         <div className="space-y-3">
-          {partesPendentes.items.map((item) => <label key={item.id} className="block border border-[#2D2E2E] p-4 cursor-pointer"><div className="flex gap-3"><input type="checkbox" checked={selectedPartes.includes(item.id)} onChange={() => toggleParteSelection(item.id)} className="mt-1" /><div className="min-w-0 flex-1 text-sm"><p className="font-semibold">{item.nome}</p><div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-65"><span>Polo: {item.polo || "n/d"}</span><span>Tipo pessoa: {item.tipo_pessoa || "n/d"}</span>{item.processo?.numero_cnj ? <span>Processo: {item.processo.numero_cnj}</span> : null}{item.processo?.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${item.processo.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Account {item.processo.account_id_freshsales}</a> : null}</div>{item.processo?.titulo ? <p className="mt-1 opacity-60">{item.processo.titulo}</p> : null}</div></div></label>)}
+          {partesPendentes.items.map((item) => <label key={item.id} className="block border border-[#2D2E2E] p-4 cursor-pointer"><div className="flex gap-3"><input type="checkbox" checked={selectedPartes.includes(item.id)} onChange={() => toggleParteSelection(item.id)} className="mt-1" /><div className="min-w-0 flex-1 text-sm"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{item.nome}</p>{item.cliente_hmadv || item.representada_pelo_escritorio ? <StatusBadge tone="accent">cliente</StatusBadge> : null}{item.polo === "ativo" ? <StatusBadge tone="neutral">polo ativo</StatusBadge> : null}{item.polo === "passivo" ? <StatusBadge tone="neutral">polo passivo</StatusBadge> : null}{item.principal_no_account ? <StatusBadge tone="success">principal</StatusBadge> : null}</div><div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-65"><span>Tipo pessoa: {item.tipo_pessoa || "n/d"}</span>{item.processo?.numero_cnj ? <span>Processo: {item.processo.numero_cnj}</span> : null}{item.processo?.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${item.processo.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Account {item.processo.account_id_freshsales}</a> : null}</div>{item.processo?.titulo ? <p className="mt-1 opacity-60">{item.processo.titulo}</p> : null}</div></div></label>)}
         </div>
         <div className="flex items-center justify-between gap-3 text-sm">
           <p className="opacity-60">Total estimado: {partesPendentes.totalRows || 0}</p>
@@ -358,7 +403,16 @@ function ContactsContent() {
     <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">
       {actionState.loading ? <p className="text-sm opacity-60">Executando acao...</p> : null}
       {actionState.error ? <p className="text-sm text-red-300">{actionState.error}</p> : null}
-      {!actionState.loading && !actionState.error && actionState.result ? <pre className="overflow-x-auto whitespace-pre-wrap text-xs opacity-80">{JSON.stringify(actionState.result, null, 2)}</pre> : null}
+      {!actionState.loading && !actionState.error && actionState.result ? <div className="space-y-4">
+        <div className="flex flex-wrap gap-2 text-xs">
+          {actionState.result.partesAtualizadas ? <StatusBadge tone="success">{actionState.result.partesAtualizadas} partes atualizadas</StatusBadge> : null}
+          {actionState.result.contatosVinculados ? <StatusBadge tone="success">{actionState.result.contatosVinculados} contatos vinculados</StatusBadge> : null}
+          {actionState.result.contatosCriados ? <StatusBadge tone="success">{actionState.result.contatosCriados} contatos criados</StatusBadge> : null}
+          {actionState.result.processosLidos ? <StatusBadge tone="neutral">{actionState.result.processosLidos} processos lidos</StatusBadge> : null}
+        </div>
+        {renderResultSummary(actionState.result)}
+        <pre className="overflow-x-auto whitespace-pre-wrap text-xs opacity-70">{JSON.stringify(actionState.result, null, 2)}</pre>
+      </div> : null}
       {!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-60">Nenhuma acao executada nesta sessao.</p> : null}
     </Panel>
   </div>;
