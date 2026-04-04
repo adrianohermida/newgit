@@ -251,9 +251,24 @@ function OperationResult({ result }) {
         : [];
   const paged = rows.slice((page - 1) * pageSize, page * pageSize);
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const counters = rows.reduce((acc, row) => {
+    if (Array.isArray(row.partes_novas) && row.partes_novas.length) acc.detectadas += row.partes_novas.length;
+    if (row.polos_atualizados?.polo_ativo || row.polos_atualizados?.polo_passivo) acc.polosAtualizados += 1;
+    if (row.freshsales_repair?.skipped) acc.pendentes += 1;
+    else if (row.freshsales_repair) acc.crmReparado += 1;
+    if (row.result?.ok === false || row.freshsales_repair?.ok === false) acc.falhas += 1;
+    return acc;
+  }, { detectadas: 0, polosAtualizados: 0, crmReparado: 0, pendentes: 0, falhas: 0 });
 
   return (
     <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-5 text-sm">
+        <QueueSummaryCard title="Partes detectadas" count={counters.detectadas} helper="Novas partes encontradas no lote." accent="text-[#FDE68A]" />
+        <QueueSummaryCard title="Partes salvas" count={result?.partesInseridas || 0} helper="Registros inseridos em judiciario.partes." accent="text-[#B7F7C6]" />
+        <QueueSummaryCard title="Polos atualizados" count={counters.polosAtualizados} helper="Processos com polo ativo/passivo recalculado." accent="text-[#B7F7C6]" />
+        <QueueSummaryCard title="CRM reparado" count={counters.crmReparado} helper="Accounts refletidas no Freshsales." accent="text-[#B7F7C6]" />
+        <QueueSummaryCard title="Pendentes" count={counters.pendentes + counters.falhas} helper="Itens que ainda pedem acao ou revisao." accent="text-[#FECACA]" />
+      </div>
       <div className="grid gap-3 md:grid-cols-4 text-sm">
         {Object.entries(result || {})
           .filter(([, value]) => !Array.isArray(value) && (typeof value === "string" || typeof value === "number" || typeof value === "boolean"))
