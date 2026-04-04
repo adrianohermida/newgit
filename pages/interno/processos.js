@@ -94,9 +94,29 @@ function QueueList({ title, rows, selected, onToggle, onTogglePage, page, setPag
 function RelationProcessCard({ title, process, fallbackNumber }) {
   return <div className="rounded-[24px] border border-[#2D2E2E] bg-[#050706] p-4"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">{title}</p><p className="mt-3 break-all font-semibold">{process?.numero_cnj || fallbackNumber || "Sem CNJ"}</p><p className="mt-1 text-sm opacity-70">{process?.titulo || "Processo ainda nao encontrado na base judiciaria."}</p><div className="mt-2 flex flex-wrap gap-3 text-xs opacity-60">{process?.status_atual_processo ? <span>Status: {process.status_atual_processo}</span> : null}{process?.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${process.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Account {process.account_id_freshsales}</a> : null}</div></div>;
 }
+function StatusBadge({ children, tone = "default" }) {
+  const tones = {
+    default: "border-[#2D2E2E] text-[#F4F1EA]",
+    success: "border-[#30543A] text-[#B7F7C6]",
+    warning: "border-[#6E5630] text-[#FDE68A]",
+    danger: "border-[#5B2D2D] text-[#FECACA]",
+  };
+  return <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${tones[tone] || tones.default}`}>{children}</span>;
+}
+function renderProcessSyncStatuses(row) {
+  const statuses = [];
+  if (row.datajud) statuses.push({ label: "supabase atualizado", tone: "success" });
+  if (row.result) statuses.push({ label: "consulta persistida", tone: "success" });
+  if (row.quantidade_movimentacoes === 0 || row.quantidade_movimentacoes === null) statuses.push({ label: "sem movimentacoes", tone: "warning" });
+  if (row.freshsales_repair?.skipped) statuses.push({ label: "crm pendente", tone: "warning" });
+  else if (row.freshsales_repair) statuses.push({ label: "crm reparado", tone: "success" });
+  if (row.monitoramento_ativo === true) statuses.push({ label: "monitorado", tone: "default" });
+  if (row.monitoramento_ativo === false) statuses.push({ label: "monitoramento inativo", tone: "danger" });
+  return statuses;
+}
 function OperationResult({ result }) {
   const rows = Array.isArray(result?.items) ? result.items : Array.isArray(result?.sample) ? result.sample : [];
-  return rows.length ? <div className="space-y-3"><div className="rounded-2xl border border-[#1D2321] bg-[rgba(4,6,6,0.45)] px-4 py-3 text-xs uppercase tracking-[0.16em] opacity-65">Amostra operacional: {rows.length} item(ns)</div>{rows.slice(0, 20).map((row, index) => <div key={`${row.numero_cnj || row.id || index}`} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm"><p className="font-semibold">{row.numero_cnj || row.id || `Linha ${index + 1}`}</p>{row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-xs underline opacity-70 hover:text-[#C5A059]">Abrir account {row.account_id_freshsales}</a> : null}{row.result ? <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs opacity-70">{JSON.stringify(row.result, null, 2)}</pre> : null}</div>)}</div> : <pre className="overflow-x-auto whitespace-pre-wrap rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-xs opacity-80">{JSON.stringify(result, null, 2)}</pre>;
+  return rows.length ? <div className="space-y-3"><div className="rounded-2xl border border-[#1D2321] bg-[rgba(4,6,6,0.45)] px-4 py-3 text-xs uppercase tracking-[0.16em] opacity-65">Amostra operacional: {rows.length} item(ns)</div>{rows.slice(0, 20).map((row, index) => <div key={`${row.numero_cnj || row.id || index}`} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm"><p className="font-semibold">{row.numero_cnj || row.id || `Linha ${index + 1}`}</p>{row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}{renderProcessSyncStatuses(row).length ? <div className="mt-2 flex flex-wrap gap-2">{renderProcessSyncStatuses(row).map((item) => <StatusBadge key={item.label} tone={item.tone}>{item.label}</StatusBadge>)}</div> : null}<div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-65">{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Abrir account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}{row.processo_id ? <span>Processo ID: {row.processo_id}</span> : null}{row.reparados !== undefined ? <span>Reparo CRM: {row.reparados}</span> : null}</div>{row.freshsales_repair ? <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs opacity-70">{JSON.stringify(row.freshsales_repair, null, 2)}</pre> : null}{row.result ? <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs opacity-70">{JSON.stringify(row.result, null, 2)}</pre> : null}{row.datajud ? <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs opacity-70">{JSON.stringify(row.datajud, null, 2)}</pre> : null}</div>)}</div> : <pre className="overflow-x-auto whitespace-pre-wrap rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-xs opacity-80">{JSON.stringify(result, null, 2)}</pre>;
 }
 function HistoryCard({ entry, onReuse }) {
   return <div className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm">
