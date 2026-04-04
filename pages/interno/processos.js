@@ -32,6 +32,20 @@ const ASYNC_PROCESS_ACTIONS = new Set([
   "backfill_audiencias",
 ]);
 
+function getProcessActionLimitConfig(action) {
+  if (action === "sync_supabase_crm") return { defaultLimit: 1, maxLimit: 2 };
+  if (action === "repair_freshsales_accounts") return { defaultLimit: 2, maxLimit: 3 };
+  if (action === "enriquecer_datajud") return { defaultLimit: 2, maxLimit: 3 };
+  if (action === "push_orfaos") return { defaultLimit: 2, maxLimit: 3 };
+  if (action === "backfill_audiencias") return { defaultLimit: 2, maxLimit: 3 };
+  return { defaultLimit: 10, maxLimit: 20 };
+}
+
+function getSafeProcessActionLimit(action, requestedLimit) {
+  const config = getProcessActionLimitConfig(action);
+  return Math.max(1, Math.min(Number(requestedLimit || config.defaultLimit), config.maxLimit));
+}
+
 function getProcessActionLabel(action, payload = {}) {
   const intent = String(payload?.intent || "").trim();
   if (action === "enriquecer_datajud") {
@@ -454,7 +468,7 @@ function InternoProcessosContent() {
   const [jobs, setJobs] = useState([]);
   const [activeJobId, setActiveJobId] = useState(null);
   const [drainInFlight, setDrainInFlight] = useState(false);
-  const [limit, setLimit] = useState(10);
+  const [limit, setLimit] = useState(2);
   const [processNumbers, setProcessNumbers] = useState("");
   const [withoutMovements, setWithoutMovements] = useState({ loading: true, items: [] });
   const [monitoringActive, setMonitoringActive] = useState({ loading: true, items: [] });
@@ -674,8 +688,10 @@ function InternoProcessosContent() {
     const explicitNumbers = String(payload.processNumbers || "").trim();
     const fallbackNumbers = String(processNumbers || "").trim();
     const intentLabel = getProcessIntentBadge(payload);
+    const action = String(payload.action || "");
+    const safeLimit = action ? getSafeProcessActionLimit(action, payload.limit ?? limit) : Number(limit || 10);
     return {
-      limit,
+      limit: safeLimit,
       selectedCount: selectedWithoutMovements.length + selectedMonitoringActive.length + selectedMonitoringInactive.length + selectedFieldGaps.length + selectedOrphans.length,
       processNumbersPreview: (explicitNumbers || fallbackNumbers).split(/\r?\n|,|;/).map((item) => item.trim()).filter(Boolean).slice(0, 6).join(", "),
       intentLabel,
@@ -696,14 +712,15 @@ function InternoProcessosContent() {
     });
   }
   async function queueAsyncAction(action, payload = {}) {
+    const safeLimit = getSafeProcessActionLimit(action, payload.limit ?? limit);
     const response = await adminFetch("/api/admin-hmadv-processos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "create_job",
         jobAction: action,
-        limit,
-        processNumbers,
+        limit: safeLimit,
+        processNumbers: payload.processNumbers || processNumbers,
         ...payload,
       }),
     });
@@ -758,24 +775,31 @@ function InternoProcessosContent() {
     setActionState({ loading: true, error: null, result: null });
     updateView("resultado");
     const historyId = `${action}:${Date.now()}`;
+    const safeLimit = getSafeProcessActionLimit(action, payload.limit ?? limit);
+    const normalizedPayload = {
+      ...payload,
+      action,
+      limit: safeLimit,
+      processNumbers: payload.processNumbers || processNumbers,
+    };
     pushHistoryEntry({
       id: historyId,
       action,
-      label: getProcessActionLabel(action, payload),
+      label: getProcessActionLabel(action, normalizedPayload),
       status: "running",
       createdAt: new Date().toISOString(),
       preview: "Execucao iniciada",
-      meta: buildActionMeta(payload),
+      meta: buildActionMeta(normalizedPayload),
       payload: {
         action,
-        limit,
+        limit: safeLimit,
         processNumbers: payload.processNumbers || processNumbers,
         intent: payload.intent || "",
       },
     });
     try {
       if (ASYNC_PROCESS_ACTIONS.has(action)) {
-        const job = await queueAsyncAction(action, payload);
+        const job = await queueAsyncAction(action, normalizedPayload);
         replaceHistoryEntry(historyId, {
           status: "success",
           preview: job?.legacy_inline
@@ -785,7 +809,7 @@ function InternoProcessosContent() {
         });
         return;
       }
-      const response = await adminFetch("/api/admin-hmadv-processos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, limit, processNumbers, ...payload }) });
+      const response = await adminFetch("/api/admin-hmadv-processos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, limit: safeLimit, processNumbers: payload.processNumbers || processNumbers, ...normalizedPayload }) });
       setActionState({ loading: false, error: null, result: response.data });
       replaceHistoryEntry(historyId, {
         status: "success",
@@ -819,7 +843,10 @@ function InternoProcessosContent() {
   function startEditing(item) { setEditingRelationId(item.id); setForm({ numero_cnj_pai: item.numero_cnj_pai || "", numero_cnj_filho: item.numero_cnj_filho || "", tipo_relacao: item.tipo_relacao || "dependencia", status: item.status || "ativo", observacoes: item.observacoes || "" }); }
   function reuseHistoryEntry(entry) {
     if (entry?.payload?.processNumbers) setProcessNumbers(entry.payload.processNumbers);
-    if (entry?.payload?.limit) setLimit(Number(entry.payload.limit) || 10);
+    if (entry?.payload?.limit) {
+      const safeLimit = getSafeProcessActionLimit(entry?.action || entry?.payload?.action || "", entry.payload.limit);
+      setLimit(Number(safeLimit) || 10);
+    }
     updateView("operacao");
   }
   function clearHistory() {
@@ -888,7 +915,7 @@ function InternoProcessosContent() {
         <div className="space-y-4">
           {latestJob ? <JobCard job={latestJob} active={latestJob.id === activeJobId} /> : null}
           <label className="block"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">CNJs para foco manual</span><textarea value={processNumbers} onChange={(e) => setProcessNumbers(e.target.value)} rows={4} placeholder="Opcional: cole CNJs manualmente, um por linha." className="w-full rounded-[22px] border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" /></label>
-          <label className="block max-w-[160px]"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Lote</span><input type="number" min="1" max="20" value={limit} onChange={(e) => setLimit(Number(e.target.value || 10))} className="w-full rounded-2xl border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" /></label>
+          <label className="block max-w-[220px]"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Lote</span><input type="number" min="1" max="20" value={limit} onChange={(e) => setLimit(Number(e.target.value || 2))} className="w-full rounded-2xl border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" /><span className="mt-2 block text-xs leading-5 opacity-55">Acoes pesadas como sincronismo, reparo CRM, criacao de accounts e retroativo de audiencias sao reduzidas automaticamente para lote curto seguro.</span></label>
           <div className="grid gap-3 md:grid-cols-2">
             <ActionButton onClick={() => handleAction("run_sync_worker")} disabled={actionState.loading}>Rodar sync-worker</ActionButton>
             <ActionButton tone="primary" onClick={() => handleAction("push_orfaos", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(orphans.items, selectedOrphans).join("\n")), limit })} disabled={actionState.loading}>Criar accounts no Freshsales</ActionButton>

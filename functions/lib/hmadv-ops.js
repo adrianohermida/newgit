@@ -606,6 +606,7 @@ function getProcessActionLimitConfig(action) {
   if (action === "repair_freshsales_accounts") return { defaultLimit: 2, maxLimit: 3 };
   if (action === "enriquecer_datajud") return { defaultLimit: 2, maxLimit: 3 };
   if (action === "push_orfaos") return { defaultLimit: 2, maxLimit: 3 };
+  if (action === "backfill_audiencias") return { defaultLimit: 2, maxLimit: 3 };
   return { defaultLimit: 10, maxLimit: 20 };
 }
 
