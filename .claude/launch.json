@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Next.js Dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "Cloudflare Pages Dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:pages"],
+      "port": 8788
+    },
+    {
+      "name": "Cloudflare Worker - HMADV Process AI",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["wrangler", "dev", "--config", "workers/hmadv-process-ai/wrangler.toml"],
+      "port": 8787
+    }
+  ]
+}
