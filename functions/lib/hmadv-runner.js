@@ -237,6 +237,10 @@ export async function getHmadvQueueSnapshot(env) {
     publicacoesOverview,
     processosJobs,
     publicacoesJobs,
+    recentJobs: {
+      processos: (processJobs.items || []).slice(0, 3),
+      publicacoes: (publicacaoJobs.items || []).slice(0, 3),
+    },
     autoMode: {
       enabled: runnerConfigured,
       totalPendingJobs,

@@ -34,6 +34,31 @@ function FocusLink({ href, title, helper }) {
   );
 }
 
+function RecentJobList({ title, items }) {
+  return (
+    <div className="border border-[#2D2E2E] p-4 text-sm">
+      <p className="font-semibold mb-2">{title}</p>
+      {items?.length ? (
+        <div className="space-y-2">
+          {items.map((item) => (
+            <div key={item.id} className="border border-[#2D2E2E] p-3">
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <span className="font-semibold">{item.acao || "acao"}</span>
+                <ModeBadge active={true} label={String(item.status || "desconhecido")} />
+              </div>
+              <p className="opacity-65">
+                {item.updated_at ? new Date(item.updated_at).toLocaleString("pt-BR") : "Sem horario"}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="opacity-65">Sem jobs recentes.</p>
+      )}
+    </div>
+  );
+}
+
 export default function InternoHomePage() {
   const [hmadvOps, setHmadvOps] = useState({ loading: true, error: null, data: null });
   const [draining, setDraining] = useState(false);
@@ -231,6 +256,16 @@ export default function InternoHomePage() {
                       <p>Executando: {hmadvOps.data.publicacoesJobs?.running || 0}</p>
                       <p>Último job ativo: {hmadvOps.data.publicacoesJobs?.active?.acao || "nenhum"}</p>
                     </div>
+                  </div>
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <RecentJobList
+                      title="Ultimos jobs de processos"
+                      items={hmadvOps.data.recentJobs?.processos || []}
+                    />
+                    <RecentJobList
+                      title="Ultimos jobs de publicacoes"
+                      items={hmadvOps.data.recentJobs?.publicacoes || []}
+                    />
                   </div>
                 </div>
               ) : null}
