@@ -25,17 +25,31 @@ function isSimpleChat(query: string): boolean {
   return words <= 12 && chatSignals.test(lower) && !hasTaskSignals(lower) && !hasMultiStepSignals(lower);
 }
 
-export type IntentType = "chat" | "skill" | "task";
 
-export type RoutedIntent = {
-  type: IntentType;
-  reason: string;
-  skill?: {
-    id: string;
-    name: string;
-    category?: string;
-  } | null;
+export type IntentResult = {
+  intent: "create_task" | "analyze_case" | "generate_document" | "query_data" | "chat" | "unknown",
+  confidence: number,
+  entities: Record<string, any>,
 };
+// Padrões de intenção operacional
+const INTENT_PATTERNS: Array<{ intent: IntentResult["intent"], patterns: RegExp[] }> = [
+  { intent: "create_task", patterns: [/criar tarefa/i, /nova tarefa/i, /adicionar tarefa/i] },
+  { intent: "analyze_case", patterns: [/analisar processo/i, /análise do processo/i, /analisar caso/i] },
+  { intent: "generate_document", patterns: [/gerar peti(c|ç)[aã]o/i, /criar documento/i, /elaborar documento/i] },
+  { intent: "query_data", patterns: [/ver prazos/i, /consultar cliente/i, /buscar dados/i] },
+  { intent: "chat", patterns: [/oi|ol[áa]|bom dia|boa tarde|boa noite|obrigado|obrigada|pode explicar|o que|qual|como|por que|porque|resuma|resume/i] },
+];
+
+export function detectIntent(message: string): IntentResult {
+  for (const { intent, patterns } of INTENT_PATTERNS) {
+    for (const pattern of patterns) {
+      if (pattern.test(message)) {
+        return { intent, confidence: 0.95, entities: {} };
+      }
+    }
+  }
+  return { intent: "unknown", confidence: 0.5, entities: {} };
+}
 
 function resolveModeBiasIntent(context: Record<string, any>, query: string, detectedSkill: any): RoutedIntent | null {
   const modeHint = normalizeText(context?.mode || context?.assistant?.mode).toLowerCase();
