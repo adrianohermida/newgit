@@ -8,6 +8,7 @@ import {
   listCreateProcessCandidates,
   listPartesExtractionCandidates,
   runSyncWorker,
+  syncPartesFromPublicacoes,
 } from "../lib/hmadv-ops.js";
 
 function parseProcessNumbers(value) {
@@ -66,6 +67,13 @@ export async function onRequestPost(context) {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 50),
         apply: Boolean(body.apply),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "sincronizar_partes") {
+      const data = await syncPartesFromPublicacoes(context.env, {
+        processNumbers: parseProcessNumbers(body.processNumbers),
+        limit: Number(body.limit || 20),
       });
       return jsonOk({ data });
     }

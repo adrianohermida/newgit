@@ -119,6 +119,10 @@ function buildProcessLabel(row) {
   return row?.titulo || row?.name || row?.display_name || row?.numero_cnj || "Processo";
 }
 
+function uniqueNonEmpty(values = []) {
+  return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+}
+
 async function countTable(env, table, filters = "", schema = "judiciario") {
   const baseUrl = getSupabaseBaseUrl(env);
   const response = await fetch(`${baseUrl}/rest/v1/${table}?${filters}${filters ? "&" : ""}select=id`, {
@@ -349,24 +353,33 @@ async function loadPublicacoesSemProcesso(env, limit = 100, offset = 0) {
   );
 }
 
-export async function listCreateProcessCandidates(env, { page = 1, pageSize = 20 } = {}) {
-  const safePage = Math.max(1, Number(page || 1));
-  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
-  const fetchSize = safePageSize * 6;
-  const rows = await loadPublicacoesSemProcesso(env, fetchSize, (safePage - 1) * fetchSize);
-  const grouped = [];
+async function loadAllPublicacoesSemProcesso(env) {
+  const pageSize = 1000;
+  const total = await countTable(env, "publicacoes", "processo_id=is.null&numero_processo_api=not.is.null");
+  const chunks = Math.max(1, Math.ceil(total / pageSize));
+  const output = [];
+  for (let page = 0; page < chunks; page += 1) {
+    const rows = await loadPublicacoesSemProcesso(env, pageSize, page * pageSize);
+    output.push(...rows);
+    if (rows.length < pageSize) break;
+  }
+  return output;
+}
+
+function groupCreateProcessCandidates(rows = []) {
+  const grouped = new Map();
   for (const row of rows) {
     const numero = String(row.numero_processo_api || "").replace(/\D+/g, "");
     if (!numero) continue;
-    const existing = grouped.find((item) => item.numero_cnj === numero);
-    if (existing) {
-      existing.publicacoes += 1;
-      if (row.data_publicacao && (!existing.ultima_publicacao || row.data_publicacao > existing.ultima_publicacao)) {
-        existing.ultima_publicacao = row.data_publicacao;
+    const current = grouped.get(numero);
+    if (current) {
+      current.publicacoes += 1;
+      if (row.data_publicacao && (!current.ultima_publicacao || row.data_publicacao > current.ultima_publicacao)) {
+        current.ultima_publicacao = row.data_publicacao;
       }
       continue;
     }
-    grouped.push({
+    grouped.set(numero, {
       key: numero,
       numero_cnj: numero,
       publicacoes: 1,
@@ -374,23 +387,85 @@ export async function listCreateProcessCandidates(env, { page = 1, pageSize = 20
       exemplo_publicacao_id: row.id,
       snippet: String(row.conteudo || "").slice(0, 220),
     });
-    if (grouped.length >= safePageSize) break;
   }
-  const total = await countTable(env, "publicacoes", "processo_id=is.null&numero_processo_api=not.is.null");
+  return [...grouped.values()].sort((left, right) => {
+    const a = left.ultima_publicacao || "";
+    const b = right.ultima_publicacao || "";
+    return a < b ? 1 : a > b ? -1 : 0;
+  });
+}
+
+function inferPolosFromPartes(partes = []) {
+  const ativos = uniqueNonEmpty(partes.filter((item) => String(item.polo || "").toLowerCase() === "ativo").map((item) => cleanPartyName(item.nome)));
+  const passivos = uniqueNonEmpty(partes.filter((item) => String(item.polo || "").toLowerCase() === "passivo").map((item) => cleanPartyName(item.nome)));
+  return {
+    polo_ativo: ativos.join(" | ") || null,
+    polo_passivo: passivos.join(" | ") || null,
+  };
+}
+
+async function patchProcessRow(env, processId, body) {
+  const payload = Object.fromEntries(
+    Object.entries(body || {}).filter(([, value]) => value !== undefined)
+  );
+  if (!Object.keys(payload).length) return;
+  await hmadvRest(
+    env,
+    `processos?id=eq.${encodeURIComponent(processId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Profile": "judiciario",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+async function runFreshsalesRepairForProcess(env, proc) {
+  if (!proc?.id || !proc?.account_id_freshsales) {
+    return { skipped: true, reason: "sem_account" };
+  }
+  return hmadvFunction(
+    env,
+    "fs-account-repair",
+    { processo_id: proc.id },
+    { method: "POST", body: { processo_id: proc.id, action: "repair" } }
+  );
+}
+
+async function runDatajudPersistForProcess(env, numero) {
+  return hmadvFunction(
+    env,
+    "datajud-search",
+    {},
+    { method: "POST", body: { numeroProcesso: numero, persistir: true } }
+  );
+}
+
+export async function listCreateProcessCandidates(env, { page = 1, pageSize = 20 } = {}) {
+  const safePage = Math.max(1, Number(page || 1));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  const rows = await loadAllPublicacoesSemProcesso(env);
+  const grouped = groupCreateProcessCandidates(rows);
+  const offset = (safePage - 1) * safePageSize;
   return {
     page: safePage,
     pageSize: safePageSize,
-    totalRows: total,
-    items: grouped,
+    totalRows: grouped.length,
+    items: grouped.slice(offset, offset + safePageSize),
   };
 }
 
 export async function listPartesExtractionCandidates(env, { page = 1, pageSize = 20 } = {}) {
   const safePage = Math.max(1, Number(page || 1));
   const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  const fetchSize = safePageSize * 4;
   const processRows = await hmadvRest(
     env,
-    `processos?select=id,numero_cnj,titulo,account_id_freshsales,polo_ativo,polo_passivo&processo_id=not.is.null&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
+    `processos?select=id,numero_cnj,titulo,account_id_freshsales,polo_ativo,polo_passivo&processo_id=not.is.null&limit=${fetchSize}&offset=${(safePage - 1) * fetchSize}`
       .replace("processo_id=not.is.null&", "")
   );
   const processIds = processRows.map((item) => item.id);
@@ -427,12 +502,13 @@ export async function listPartesExtractionCandidates(env, { page = 1, pageSize =
       sample_partes: novas.slice(0, 4),
     });
   }
-  const total = await countTable(env, "processos");
+  const totalEstimate = Math.max((safePage - 1) * safePageSize + items.length, safePageSize);
   return {
     page: safePage,
     pageSize: safePageSize,
-    totalRows: total,
-    items,
+    totalRows: totalEstimate,
+    totalEstimated: true,
+    items: items.slice(0, safePageSize),
   };
 }
 
@@ -889,6 +965,45 @@ export async function backfillPartesFromPublicacoes(env, { processNumbers = [], 
   };
 }
 
+export async function syncPartesFromPublicacoes(env, { processNumbers = [], limit = 20 } = {}) {
+  const base = await backfillPartesFromPublicacoes(env, { processNumbers, limit, apply: true });
+  const sample = [];
+  let processosAtualizados = 0;
+  let accountsReparadas = 0;
+
+  for (const row of base.sample || []) {
+    const allPartes = [
+      ...(Array.isArray(row.partes_existentes_preview) ? row.partes_existentes_preview : []),
+      ...(Array.isArray(row.partes_novas) ? row.partes_novas : []),
+    ];
+    const polos = inferPolosFromPartes(allPartes);
+    if (polos.polo_ativo || polos.polo_passivo) {
+      await patchProcessRow(env, row.processo_id, {
+        polo_ativo: polos.polo_ativo,
+        polo_passivo: polos.polo_passivo,
+      });
+      processosAtualizados += 1;
+    }
+    let repair = { skipped: true, reason: "sem_account" };
+    if (row.account_id_freshsales) {
+      repair = await runFreshsalesRepairForProcess(env, row);
+      accountsReparadas += 1;
+    }
+    sample.push({
+      ...row,
+      polos_atualizados: polos,
+      freshsales_repair: repair,
+    });
+  }
+
+  return {
+    ...base,
+    processosAtualizados,
+    accountsReparadas,
+    sample,
+  };
+}
+
 export async function runSyncWorker(env) {
   return hmadvFunction(env, "sync-worker", { action: "run" }, { method: "POST", body: {} });
 }
@@ -921,6 +1036,43 @@ export async function enrichProcessesViaDatajud(env, { processNumbers = [], limi
     checkedAt: new Date().toISOString(),
     processosLidos: processes.length,
     disparados: sample.length,
+    sample,
+  };
+}
+
+export async function syncProcessesSupabaseCrm(env, { processNumbers = [], limit = 10 } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 10), 20));
+  const processes = processNumbers.length
+    ? await loadProcessesByNumbers(env, processNumbers)
+    : await listTableSafe(
+        env,
+        `processos?select=id,numero_cnj,titulo,quantidade_movimentacoes,account_id_freshsales&account_id_freshsales=not.is.null&or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0,classe.is.null,assunto_principal.is.null,area.is.null,data_ajuizamento.is.null,sistema.is.null,polo_ativo.is.null,polo_passivo.is.null,status_atual_processo.is.null)&limit=${safeLimit}`
+      );
+
+  const sample = [];
+  let reparados = 0;
+  for (const proc of processes.slice(0, safeLimit)) {
+    const numero = String(proc.numero_cnj || "").replace(/\D+/g, "");
+    if (!numero) continue;
+    const datajud = await runDatajudPersistForProcess(env, numero);
+    let repair = { skipped: true, reason: "sem_account" };
+    if (proc.account_id_freshsales) {
+      repair = await runFreshsalesRepairForProcess(env, proc);
+      reparados += 1;
+    }
+    sample.push({
+      processo_id: proc.id,
+      numero_cnj: numero,
+      account_id_freshsales: proc.account_id_freshsales || null,
+      datajud,
+      freshsales_repair: repair,
+    });
+  }
+  return {
+    checkedAt: new Date().toISOString(),
+    processosLidos: processes.length,
+    sincronizados: sample.length,
+    reparados,
     sample,
   };
 }
@@ -1029,6 +1181,7 @@ export async function createProcessesFromPublicacoes(env, { processNumbers = [],
   return {
     checkedAt: new Date().toISOString(),
     publicacoesLidas: publicacoes.length,
+    processosCriados: sample.length,
     processosDisparados: sample.length,
     sample,
   };
@@ -1054,12 +1207,7 @@ export async function repairFreshsalesAccounts(env, { processNumbers = [], limit
       );
   const sample = [];
   for (const proc of processes.slice(0, safeLimit)) {
-    const result = await hmadvFunction(
-      env,
-      "fs-account-repair",
-      { processo_id: proc.id },
-      { method: "POST", body: { processo_id: proc.id, action: "repair" } }
-    );
+    const result = await runFreshsalesRepairForProcess(env, proc);
     sample.push({
       processo_id: proc.id,
       numero_cnj: proc.numero_cnj,

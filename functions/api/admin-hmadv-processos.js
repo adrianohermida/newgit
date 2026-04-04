@@ -17,6 +17,7 @@ import {
   runSyncWorker,
   scanOrphanProcesses,
   searchProcessesForRelations,
+  syncProcessesSupabaseCrm,
   updateMonitoringStatus,
   upsertProcessRelation,
 } from "../lib/hmadv-ops.js";
@@ -142,6 +143,13 @@ export async function onRequestPost(context) {
     }
     if (action === "enriquecer_datajud") {
       const data = await enrichProcessesViaDatajud(context.env, {
+        processNumbers: parseProcessNumbers(body.processNumbers),
+        limit: Number(body.limit || 10),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "sync_supabase_crm") {
+      const data = await syncProcessesSupabaseCrm(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 10),
       });
