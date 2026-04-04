@@ -466,8 +466,81 @@ export default function DotobotCopilot({
       { role: "user", text: trimmedQuestion, createdAt: nowIso() },
     ]);
 
+    // Detecta se é comando de skill/task
+    const isTaskCommand = trimmedQuestion.startsWith("/peticao") || trimmedQuestion.startsWith("/analise") || trimmedQuestion.startsWith("/plano") || trimmedQuestion.startsWith("/tarefas");
+
+    if (isTaskCommand) {
+      // Dispara TaskRun
+      setUiState("executing");
+      setTaskHistory((tasks) => [
+        {
+          id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          status: "running",
+          query: trimmedQuestion,
+          logs: ["Execução iniciada..."],
+          startedAt: nowIso(),
+        },
+        ...tasks,
+      ]);
+      try {
+        // Chama backend para iniciar TaskRun
+        const response = await fetch("/api/admin-lawdesk-chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "task_run_start",
+            query: trimmedQuestion,
+            mode: nextMode,
+            provider: nextProvider,
+            contextEnabled: nextContextEnabled,
+            context: { route: routePath },
+          }),
+        });
+        const data = await response.json();
+        if (data?.ok && data?.result?.id) {
+          // Poll status/logs
+          const runId = data.result.id;
+          let finished = false;
+          while (!finished) {
+            await new Promise((r) => setTimeout(r, 1200));
+            const poll = await fetch("/api/admin-lawdesk-chat", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "task_run_get", id: runId }),
+            });
+            const pollData = await poll.json();
+            if (pollData?.ok && pollData?.result) {
+              setTaskHistory((tasks) =>
+                tasks.map((t) =>
+                  t.id === runId
+                    ? {
+                        ...t,
+                        status: pollData.result.status,
+                        logs: pollData.result.events?.map((e) => e.message) || [],
+                        result: pollData.result.result,
+                        finishedAt: pollData.result.updated_at,
+                      }
+                    : t
+                )
+              );
+              finished = ["ok", "error", "canceled"].includes(pollData.result.status);
+            } else {
+              finished = true;
+            }
+          }
+        } else {
+          setError(data?.error || "Falha ao iniciar TaskRun.");
+        }
+      } catch (err) {
+        setError(err.message || "Erro ao executar TaskRun.");
+      }
+      setLoading(false);
+      setUiState("idle");
+      return;
+    }
+
+    // Chat normal (streaming)
     try {
-      // Chamada real ao backend com streaming
       const controller = new AbortController();
       const response = await fetch("/api/admin-lawdesk-chat", {
         method: "POST",
