@@ -1582,33 +1582,49 @@ export async function enrichProcessesViaDatajud(env, { processNumbers = [], limi
         env,
         `processos?select=id,numero_cnj,titulo,quantidade_movimentacoes,account_id_freshsales&or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0)&limit=${safeLimit}`
       );
-  const sample = [];
-  for (const proc of processes.slice(0, safeLimit)) {
-    const numero = String(proc.numero_cnj || "").replace(/\D+/g, "");
-    if (!numero) continue;
-    const before = {
+  const scopedProcesses = processes.slice(0, safeLimit);
+  const beforeMap = new Map();
+  const resultMap = new Map();
+  for (const proc of scopedProcesses) {
+    beforeMap.set(proc.id, {
       quantidade_movimentacoes: proc.quantidade_movimentacoes ?? 0,
       gaps: countProcessFieldGaps(proc),
-    };
+    });
+  }
+  for (const proc of scopedProcesses) {
+    const numero = String(proc.numero_cnj || "").replace(/\D+/g, "");
+    if (!numero) continue;
     const result = await hmadvFunction(
       env,
       "datajud-search",
       {},
       { method: "POST", body: { numeroProcesso: numero, persistir: true } }
     );
-    const [afterRow] = await loadProcessesByIds(env, [proc.id]);
+    resultMap.set(proc.id, { numero, result });
+  }
+  const afterRows = await loadProcessesByIds(env, scopedProcesses.map((item) => item.id));
+  const afterMap = new Map(afterRows.map((row) => [row.id, row]));
+  const sample = [];
+  for (const proc of scopedProcesses) {
+    const datajudRun = resultMap.get(proc.id);
+    if (!datajudRun?.numero) continue;
+    const before = beforeMap.get(proc.id) || {
+      quantidade_movimentacoes: proc.quantidade_movimentacoes ?? 0,
+      gaps: countProcessFieldGaps(proc),
+    };
+    const afterRow = afterMap.get(proc.id);
     const after = afterRow ? {
       quantidade_movimentacoes: afterRow.quantidade_movimentacoes ?? 0,
       gaps: countProcessFieldGaps(afterRow),
     } : before;
     sample.push({
       processo_id: proc.id,
-      numero_cnj: numero,
+      numero_cnj: datajudRun.numero,
       before,
       after,
       movimentos_novos: Math.max(0, (after.quantidade_movimentacoes || 0) - (before.quantidade_movimentacoes || 0)),
       gaps_reduzidos: Math.max(0, (before.gaps || 0) - (after.gaps || 0)),
-      result,
+      result: datajudRun.result,
     });
   }
   return {
@@ -1628,18 +1644,33 @@ export async function syncProcessesSupabaseCrm(env, { processNumbers = [], limit
         env,
         `processos?select=id,numero_cnj,titulo,quantidade_movimentacoes,account_id_freshsales&account_id_freshsales=not.is.null&or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0,classe.is.null,assunto_principal.is.null,area.is.null,data_ajuizamento.is.null,sistema.is.null,polo_ativo.is.null,polo_passivo.is.null,status_atual_processo.is.null)&limit=${safeLimit}`
       );
-
-  const sample = [];
-  let reparados = 0;
-  for (const proc of processes.slice(0, safeLimit)) {
+  const scopedProcesses = processes.slice(0, safeLimit);
+  const beforeMap = new Map();
+  const datajudMap = new Map();
+  for (const proc of scopedProcesses) {
+    beforeMap.set(proc.id, {
+      quantidade_movimentacoes: proc.quantidade_movimentacoes ?? 0,
+      gaps: countProcessFieldGaps(proc),
+    });
+  }
+  for (const proc of scopedProcesses) {
     const numero = String(proc.numero_cnj || "").replace(/\D+/g, "");
     if (!numero) continue;
-    const before = {
+    const datajud = await runDatajudPersistForProcess(env, numero);
+    datajudMap.set(proc.id, { numero, datajud });
+  }
+  const afterRows = await loadProcessesByIds(env, scopedProcesses.map((item) => item.id));
+  const afterMap = new Map(afterRows.map((row) => [row.id, row]));
+  const sample = [];
+  let reparados = 0;
+  for (const proc of scopedProcesses) {
+    const datajudRun = datajudMap.get(proc.id);
+    if (!datajudRun?.numero) continue;
+    const before = beforeMap.get(proc.id) || {
       quantidade_movimentacoes: proc.quantidade_movimentacoes ?? 0,
       gaps: countProcessFieldGaps(proc),
     };
-    const datajud = await runDatajudPersistForProcess(env, numero);
-    const [afterRow] = await loadProcessesByIds(env, [proc.id]);
+    const afterRow = afterMap.get(proc.id);
     const after = afterRow ? {
       quantidade_movimentacoes: afterRow.quantidade_movimentacoes ?? 0,
       gaps: countProcessFieldGaps(afterRow),
@@ -1658,13 +1689,13 @@ export async function syncProcessesSupabaseCrm(env, { processNumbers = [], limit
     }
     sample.push({
       processo_id: proc.id,
-      numero_cnj: numero,
+      numero_cnj: datajudRun.numero,
       account_id_freshsales: targetProcess.account_id_freshsales || null,
       before,
       after,
       movimentos_novos: movimentosNovos,
       gaps_reduzidos: gapsReduzidos,
-      datajud,
+      datajud: datajudRun.datajud,
       freshsales_repair: repair,
     });
   }
@@ -1815,13 +1846,16 @@ export async function pushOrphanAccounts(env, { processNumbers = [], limit = 20 
   const processes = processNumbers.length
     ? await loadProcessesByNumbers(env, processNumbers)
     : await scanOrphanProcesses(env, { page: 1, pageSize: safeLimit }).then((data) => data.items || []);
+  const scopedProcesses = processes.slice(0, safeLimit);
+  const fullRows = await loadProcessesByIds(
+    env,
+    scopedProcesses.map((item) => item.id),
+    "id,numero_cnj,numero_processo,titulo,polo_ativo,polo_passivo,tribunal,orgao_julgador,orgao_julgador_codigo,instancia,area,valor_causa,classe,assunto,assunto_principal,sistema,comarca,link_externo_processo,segredo_justica,data_ajuizamento,data_ultima_movimentacao,status_atual_processo,account_id_freshsales"
+  );
+  const fullRowMap = new Map(fullRows.map((row) => [row.id, row]));
   const sample = [];
-  for (const proc of processes.slice(0, safeLimit)) {
-    const fullRow = (await loadProcessesByIds(
-      env,
-      [proc.id],
-      "id,numero_cnj,numero_processo,titulo,polo_ativo,polo_passivo,tribunal,orgao_julgador,orgao_julgador_codigo,instancia,area,valor_causa,classe,assunto,assunto_principal,sistema,comarca,link_externo_processo,segredo_justica,data_ajuizamento,data_ultima_movimentacao,status_atual_processo,account_id_freshsales"
-    ))[0];
+  for (const proc of scopedProcesses) {
+    const fullRow = fullRowMap.get(proc.id);
     if (!fullRow) continue;
     if (fullRow.account_id_freshsales) {
       sample.push({
