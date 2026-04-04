@@ -23,8 +23,8 @@ class PortingWorkspaceTests(unittest.TestCase):
     def test_query_engine_summary_mentions_workspace(self) -> None:
         summary = QueryEnginePort.from_workspace().render_summary()
         self.assertIn('Python Porting Workspace Summary', summary)
-        self.assertIn('Command surface:', summary)
-        self.assertIn('Tool surface:', summary)
+        self.assertIn('Command catalog:', summary)
+        self.assertIn('Tool catalog:', summary)
 
     def test_root_file_coverage_is_complete_when_local_archive_exists(self) -> None:
         audit = run_parity_audit()
@@ -67,10 +67,18 @@ class PortingWorkspaceTests(unittest.TestCase):
 
     def test_execution_registry_runs(self) -> None:
         registry = build_execution_registry()
-        self.assertGreaterEqual(len(registry.commands), 150)
-        self.assertGreaterEqual(len(registry.tools), 100)
-        self.assertIn('Mirrored command', registry.command('review').execute('review security'))
-        self.assertIn('Mirrored tool', registry.tool('MCPTool').execute('fetch mcp resources'))
+        self.assertEqual(len(registry.commands), 0)
+        self.assertEqual(len(registry.tools), 0)
+        self.assertIsNone(registry.command('review'))
+        self.assertIsNone(registry.tool('MCPTool'))
+
+    def test_catalog_entries_are_explicitly_placeholder_backed(self) -> None:
+        self.assertTrue(PORTED_COMMANDS)
+        self.assertTrue(PORTED_TOOLS)
+        self.assertEqual(PORTED_COMMANDS[0].status, 'mirrored')
+        self.assertEqual(PORTED_COMMANDS[0].execution_status, 'placeholder')
+        self.assertEqual(PORTED_TOOLS[0].status, 'mirrored')
+        self.assertEqual(PORTED_TOOLS[0].execution_status, 'placeholder')
 
     def test_load_session_cli_runs(self) -> None:
         session = PortRuntime().bootstrap_session('review MCP tool', limit=5)
