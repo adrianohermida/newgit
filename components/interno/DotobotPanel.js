@@ -535,7 +535,7 @@ export default function DotobotCopilot({
       ]);
       try {
         // Chama backend para iniciar TaskRun
-        const data = await adminFetch("/api/admin-lawdesk-chat", {
+        const data = await adminFetch("/functions/api/admin-lawdesk-chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -553,7 +553,7 @@ export default function DotobotCopilot({
           let finished = false;
           while (!finished) {
             await new Promise((r) => setTimeout(r, 1200));
-            const pollData = await adminFetch("/api/admin-lawdesk-chat", {
+            const pollData = await adminFetch("/functions/api/admin-lawdesk-chat", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ action: "task_run_get", id: runId }),
@@ -591,7 +591,7 @@ export default function DotobotCopilot({
     // Chat normal (streaming)
     try {
       const controller = new AbortController();
-      const data = await adminFetch("/api/admin-lawdesk-chat", {
+      const data = await adminFetch("/functions/api/admin-lawdesk-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

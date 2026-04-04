@@ -429,7 +429,7 @@ export default function AITaskModule({ profile, routePath }) {
       if (disposed || pollingInFlightRef.current) return;
       pollingInFlightRef.current = true;
       try {
-        const payload = await adminFetch("/api/admin-dotobot-chat", {
+        const payload = await adminFetch("/functions/api/admin-dotobot-chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -641,10 +641,10 @@ export default function AITaskModule({ profile, routePath }) {
       pushLog({
         type: "api",
         action: "Iniciando TaskRun",
-        result: "POST /api/admin-dotobot-chat (action=task_run_start)",
+        result: "POST /functions/api/admin-dotobot-chat (action=task_run_start)",
       });
 
-      const payload = await adminFetch("/api/admin-dotobot-chat", {
+      const payload = await adminFetch("/functions/api/admin-dotobot-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -868,7 +868,7 @@ export default function AITaskModule({ profile, routePath }) {
     const runId = activeRun?.id;
     if (runId) {
       try {
-        const payload = await adminFetch("/api/admin-dotobot-chat", {
+        const payload = await adminFetch("/functions/api/admin-dotobot-chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "task_run_cancel", runId }),
@@ -925,7 +925,7 @@ export default function AITaskModule({ profile, routePath }) {
       lastEventCursorRef.current = null;
       lastEventSequenceRef.current = null;
       setEventsTotal(0);
-      const payload = await adminFetch("/api/admin-dotobot-chat", {
+      const payload = await adminFetch("/functions/api/admin-dotobot-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
