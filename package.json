@@ -29,7 +29,8 @@
     "sync:freshsales-contacts": "node scripts/sync-freshsales-contacts.js",
     "sync:freshsales-products": "node scripts/sync-freshsales-products.js",
     "gh-pages": "GITHUB_PAGES=true next build && rm -rf docs && mkdir docs && cp -r out/* docs/ && touch docs/.nojekyll",
-    "test:integration": "node scripts/test-integration.js"
+    "test:integration": "node scripts/test-integration.js",
+    "test:dotobot": "node --experimental-default-type=module --test tests/lawdesk/*.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.0",
