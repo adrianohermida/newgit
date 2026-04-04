@@ -157,6 +157,39 @@ function AlertCard({ alert }) {
   );
 }
 
+function ModuleCommandCard({ module }) {
+  return (
+    <Link
+      href={module?.href || "/interno"}
+      prefetch={false}
+      className={`block border p-4 text-sm hover:border-[#C5A059] ${
+        module?.focused ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]" : "border-[#2D2E2E] bg-[rgba(10,12,11,0.82)]"
+      }`}
+    >
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <p className="font-semibold">{module?.label || "Modulo"}</p>
+        {module?.focused ? <ModeBadge active={true} label="foco" /> : null}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3 mb-3">
+        <div className="border border-[#2D2E2E] p-2">
+          <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Pendentes</p>
+          <p className="font-semibold">{module?.pending || 0}</p>
+        </div>
+        <div className="border border-[#2D2E2E] p-2">
+          <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Erros</p>
+          <p className="font-semibold">{module?.errors || 0}</p>
+        </div>
+        <div className="border border-[#2D2E2E] p-2">
+          <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Backlog</p>
+          <p className="font-semibold">{module?.backlog || 0}</p>
+        </div>
+      </div>
+      <p className="opacity-65 mb-1">Pressao operacional: {module?.pressure || 0}</p>
+      <p className="font-semibold">{module?.recommendedAction || "Abrir modulo"}</p>
+    </Link>
+  );
+}
+
 export default function InternoHomePage() {
   const [hmadvOps, setHmadvOps] = useState({ loading: true, error: null, data: null });
   const [draining, setDraining] = useState(false);
@@ -226,6 +259,10 @@ export default function InternoHomePage() {
               {hmadvOps.error ? <p className="text-sm text-red-300">{hmadvOps.error}</p> : null}
               {!hmadvOps.loading && hmadvOps.data ? (
                 <div className="space-y-5">
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <ModuleCommandCard module={hmadvOps.data.moduleCards?.processos} />
+                    <ModuleCommandCard module={hmadvOps.data.moduleCards?.publicacoes} />
+                  </div>
                   <div className="border border-[#2D2E2E] bg-[rgba(10,12,11,0.82)] p-4 text-sm">
                     <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Resumo executivo</p>
                     <p className="text-base font-semibold">{hmadvOps.data.executiveSummary}</p>

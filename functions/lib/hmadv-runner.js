@@ -385,6 +385,38 @@ export async function getHmadvQueueSnapshot(env) {
     latestErroredProcessJob,
     latestErroredPublicacaoJob,
   });
+  const moduleCards = {
+    processos: {
+      label: "Processos",
+      href: "/interno/processos",
+      pending: Number(processosJobs.pending || 0) + Number(processosJobs.running || 0),
+      errors: Number(processosJobs.error || 0),
+      backlog: Number(processosOverview?.processosSemAccount || 0),
+      pressure: processosPressure,
+      focused: focusModule === "processos",
+      recommendedAction:
+        healthStatus === "error" && latestErroredProcessJob
+          ? "Revisar falha recente"
+          : focusModule === "processos"
+            ? "Abrir modulo prioritario"
+            : "Acompanhar fila",
+    },
+    publicacoes: {
+      label: "Publicacoes",
+      href: "/interno/publicacoes",
+      pending: Number(publicacoesJobs.pending || 0) + Number(publicacoesJobs.running || 0),
+      errors: Number(publicacoesJobs.error || 0),
+      backlog: Number(publicacoesOverview?.publicacoesSemProcesso || 0),
+      pressure: publicacoesPressure,
+      focused: focusModule === "publicacoes",
+      recommendedAction:
+        healthStatus === "error" && latestErroredPublicacaoJob
+          ? "Revisar falha recente"
+          : focusModule === "publicacoes"
+            ? "Abrir modulo prioritario"
+            : "Acompanhar fila",
+    },
+  };
 
   return {
     runnerConfigured,
@@ -433,6 +465,7 @@ export async function getHmadvQueueSnapshot(env) {
     },
     executiveSummary,
     alerts,
+    moduleCards,
   };
 }
 
