@@ -313,33 +313,23 @@ export default function DotobotCopilot({
   const [loading, setLoading] = useState(false);
   const [uiState, setUiState] = useState("idle");
   const [error, setError] = useState(null);
-  // Responsividade
-  const isMobile = useMediaQuery({ maxWidth: 767 });
-  const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1023 });
-  const isDesktop = useMediaQuery({ minWidth: 1024 });
 
-  // Estados do painel
-  const [panelState, setPanelState] = useState("open"); // open | collapsed | overlay
-  const [workspaceOpen, setWorkspaceOpen] = useState(true);
+  // Estado colapsado
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Trigger global (Ctrl+.)
   useEffect(() => {
     function handleGlobalShortcut(e) {
       if ((e.ctrlKey || e.metaKey) && e.key === ".") {
         e.preventDefault();
-        setPanelState("open");
+        setIsCollapsed(false);
       }
     }
     window.addEventListener("keydown", handleGlobalShortcut);
     return () => window.removeEventListener("keydown", handleGlobalShortcut);
   }, []);
 
-  // Responsividade automática
-  useEffect(() => {
-    if (isMobile) setPanelState("overlay");
-    else if (isTablet) setPanelState("collapsed");
-    else setPanelState("open");
-  }, [isMobile, isTablet, isDesktop]);
+
   const [mode, setMode] = useState("task");
   const [provider, setProvider] = useState("gpt");
   const [contextEnabled, setContextEnabled] = useState(true);
@@ -512,24 +502,19 @@ export default function DotobotCopilot({
     }, 900);
   }
 
-    // Classes dinâmicas para painel
-    const panelClass =
-      panelState === "open"
-        ? "copilot-open"
-        : panelState === "collapsed"
-        ? "copilot-collapsed"
-        : "copilot-overlay";
+
 
     // Botão flutuante de reabertura
     const FloatingTrigger = () => (
-      <button
-        className="fixed right-2 top-1/2 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-[#C5A059] shadow-lg hover:bg-[#D9B46A] transition-all"
-        style={{ display: panelState === "open" ? "none" : "flex" }}
-        onClick={() => setPanelState("open")}
-        title="Abrir Copilot (Ctrl + .)"
-      >
-        <span className="text-2xl font-bold text-[#1A1A1A]">🤖</span>
-      </button>
+      isCollapsed && (
+        <button
+          className="fixed right-2 top-1/2 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-[#C5A059] shadow-lg hover:bg-[#D9B46A] transition-all"
+          onClick={() => setIsCollapsed(false)}
+          title="Abrir Copilot (Ctrl + .)"
+        >
+          <span className="text-2xl font-bold text-[#1A1A1A]">💬</span>
+        </button>
+      )
     );
 
     // Estados visuais detalhados
@@ -576,18 +561,28 @@ export default function DotobotCopilot({
 
     // Header de contexto
     const ContextHeader = () => (
-      <div className="flex items-center gap-3 border-b border-[#22342F] px-4 py-3 bg-[rgba(12,15,14,0.98)]">
-        <span className="rounded-full bg-[#D9B46A] px-3 py-1 text-xs font-bold text-[#1A1A1A]">Dotobot Copilot</span>
-        <span className="text-xs text-[#9BAEA8]">{stateLabel}</span>
-        {/* Exemplo de contexto visual */}
-        <span className="ml-auto text-xs text-[#C5A059]">📍 {routePath || "Módulo atual"}</span>
+      <div className="flex items-center justify-between gap-3 border-b border-[#22342F] px-4 py-3 bg-[rgba(12,15,14,0.98)]">
+        <div className="flex items-center gap-3">
+          {!isCollapsed && <span className="rounded-full bg-[#D9B46A] px-3 py-1 text-xs font-bold text-[#1A1A1A]">Dotobot Copilot</span>}
+          {!isCollapsed && <span className="text-xs text-[#9BAEA8]">{stateLabel}</span>}
+          {!isCollapsed && <span className="ml-2 text-xs text-[#C5A059]">📍 {routePath || "Módulo atual"}</span>}
+        </div>
         <button
-          className="ml-4 rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none text-xs"
-          onClick={() => setShowTaskModal(true)}
-          title="Ver detalhes da execução"
+          className="rounded-xl border border-[#22342F] bg-[#181B19] px-2 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none text-xs"
+          onClick={() => setIsCollapsed((v) => !v)}
+          title={isCollapsed ? "Expandir Copilot" : "Colapsar Copilot"}
         >
-          Execução
+          {isCollapsed ? "→" : "←"}
         </button>
+        {!isCollapsed && (
+          <button
+            className="ml-2 rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none text-xs"
+            onClick={() => setShowTaskModal(true)}
+            title="Ver detalhes da execução"
+          >
+            Execução
+          </button>
+        )}
       </div>
     );
 
@@ -595,110 +590,104 @@ export default function DotobotCopilot({
       <>
         <FloatingTrigger />
         {showTaskModal && <TaskModal />}
-        <aside
-          className={`fixed right-0 top-0 z-40 flex h-full flex-col border-l border-[#22342F] bg-[rgba(12,15,14,0.98)] shadow-2xl transition-all duration-300 ${panelClass}`}
-          style={{
-            width:
-              panelState === "open"
-                ? 360
-                : panelState === "collapsed"
-                ? 48
-                : "100vw",
-            minHeight: "100vh",
-            maxWidth: panelState === "overlay" ? "100vw" : 480,
-            transform: panelState === "collapsed" ? "translateX(312px)" : "none",
-          }}
+        <div
+          className={`h-full border-l border-neutral-800 transition-all duration-300 bg-[rgba(12,15,14,0.98)] shadow-2xl flex flex-col fixed right-0 top-0 z-40 ${isCollapsed ? "w-[48px]" : "w-[380px]"}`}
+          style={{ minHeight: "100vh", maxWidth: 480 }}
         >
           <ContextHeader />
-          {/* MAIN CHAT AREA */}
-          <main className="flex-1 overflow-y-auto px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4" ref={scrollRef}>
-            <VirtualList
-              height={typeof window !== "undefined" ? window.innerHeight * 0.6 : 400}
-              itemCount={messages.length + (uiState === "typing" || loading ? 1 : 0)}
-              itemSize={110}
-              width={"100%"}
-              overscanCount={6}
-            >
-              {({ index, style }) => {
-                // Estado visual: digitando
-                if (index === messages.length && (uiState === "typing" || loading)) {
-                  return (
-                    <div style={style}>
-                      <MessageBubble
-                        message={{ role: "assistant", text: "", createdAt: null }}
-                        isTyping={true}
-                      />
-                    </div>
-                  );
-                }
-                const msg = messages[index];
-                return (
-                  <div style={style}>
-                    <MessageBubble message={msg} />
-                  </div>
-                );
-              }}
-            </VirtualList>
-          </main>
-          {/* INPUT AREA */}
-          <footer className="border-t border-[#22342F] bg-[rgba(12,15,14,0.98)] px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4">
-            <form className="flex items-end gap-2" onSubmit={handleSubmit}>
-              {/* Botão de anexar */}
-              <button
-                type="button"
-                className="rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-2 text-[#C5A059] hover:border-[#C5A059] focus:outline-none"
-                title="Anexar arquivo"
-                onClick={handleOpenFiles}
-              >
-                <span className="text-lg">📎</span>
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={handleFilesSelected}
-              />
-              {/* Botão de voz */}
-              <button
-                type="button"
-                className={`rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-2 text-[#C5A059] hover:border-[#C5A059] focus:outline-none ${isRecording ? "animate-pulse border-[#D9B46A]" : ""}`}
-                title="Entrada por voz"
-                onClick={toggleVoiceInput}
-              >
-                <span className="text-lg">🎤</span>
-              </button>
-              {/* Botão de ação rápida */}
-              <button
-                type="button"
-                className="rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-2 text-[#C5A059] hover:border-[#C5A059] focus:outline-none"
-                title="Ações rápidas"
-                onClick={() => setShowSlashCommands(true)}
-              >
-                <span className="text-lg">⚡</span>
-              </button>
-              {/* Campo de texto */}
-              <textarea
-                ref={composerRef}
-                className="flex-1 resize-none rounded-xl border border-[#22342F] bg-transparent px-3 py-2 text-sm text-[#F5F1E8] placeholder-[#7F928C] focus:border-[#C5A059] focus:outline-none"
-                rows={1}
-                placeholder="Digite sua mensagem..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                disabled={loading}
-                style={{ minHeight: 36, maxHeight: 80 }}
-              />
-              {/* Botão enviar */}
-              <button
-                type="submit"
-                className="rounded-xl bg-[#D9B46A] px-4 py-2 text-sm font-bold text-[#1A1A1A] transition hover:bg-[#C5A059]"
-                disabled={loading || !input.trim()}
-              >
-                ⏎
-              </button>
-            </form>
-          </footer>
-        </aside>
+          {!isCollapsed && (
+            <>
+              {/* MAIN CHAT AREA */}
+              <main className="flex-1 overflow-y-auto px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4" ref={scrollRef}>
+                <VirtualList
+                  height={typeof window !== "undefined" ? window.innerHeight * 0.6 : 400}
+                  itemCount={messages.length + (uiState === "typing" || loading ? 1 : 0)}
+                  itemSize={110}
+                  width={"100%"}
+                  overscanCount={6}
+                >
+                  {({ index, style }) => {
+                    // Estado visual: digitando
+                    if (index === messages.length && (uiState === "typing" || loading)) {
+                      return (
+                        <div style={style}>
+                          <MessageBubble
+                            message={{ role: "assistant", text: "", createdAt: null }}
+                            isTyping={true}
+                          />
+                        </div>
+                      );
+                    }
+                    const msg = messages[index];
+                    return (
+                      <div style={style}>
+                        <MessageBubble message={msg} />
+                      </div>
+                    );
+                  }}
+                </VirtualList>
+              </main>
+              {/* INPUT AREA */}
+              <footer className="border-t border-[#22342F] bg-[rgba(12,15,14,0.98)] px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4">
+                <form className="flex items-end gap-2" onSubmit={handleSubmit}>
+                  {/* Botão de anexar */}
+                  <button
+                    type="button"
+                    className="rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-2 text-[#C5A059] hover:border-[#C5A059] focus:outline-none"
+                    title="Anexar arquivo"
+                    onClick={handleOpenFiles}
+                  >
+                    <span className="text-lg">📎</span>
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={handleFilesSelected}
+                  />
+                  {/* Botão de voz */}
+                  <button
+                    type="button"
+                    className={`rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-2 text-[#C5A059] hover:border-[#C5A059] focus:outline-none ${isRecording ? "animate-pulse border-[#D9B46A]" : ""}`}
+                    title="Entrada por voz"
+                    onClick={toggleVoiceInput}
+                  >
+                    <span className="text-lg">🎤</span>
+                  </button>
+                  {/* Botão de ação rápida */}
+                  <button
+                    type="button"
+                    className="rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-2 text-[#C5A059] hover:border-[#C5A059] focus:outline-none"
+                    title="Ações rápidas"
+                    onClick={() => setShowSlashCommands(true)}
+                  >
+                    <span className="text-lg">⚡</span>
+                  </button>
+                  {/* Campo de texto */}
+                  <textarea
+                    ref={composerRef}
+                    className="flex-1 resize-none rounded-xl border border-[#22342F] bg-transparent px-3 py-2 text-sm text-[#F5F1E8] placeholder-[#7F928C] focus:border-[#C5A059] focus:outline-none"
+                    rows={1}
+                    placeholder="Digite sua mensagem..."
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    disabled={loading}
+                    style={{ minHeight: 36, maxHeight: 80 }}
+                  />
+                  {/* Botão enviar */}
+                  <button
+                    type="submit"
+                    className="rounded-xl bg-[#D9B46A] px-4 py-2 text-sm font-bold text-[#1A1A1A] transition hover:bg-[#C5A059]"
+                    disabled={loading || !input.trim()}
+                  >
+                    ⏎
+                  </button>
+                </form>
+              </footer>
+            </>
+          )}
+        </div>
       </>
     );
     );
