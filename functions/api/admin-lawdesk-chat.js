@@ -4,6 +4,7 @@ import { buildDotobotRepositoryContext } from "../../lib/lawdesk/capabilities.js
 import { detectSkillFromQuery, enrichContextWithSkill } from "../../lib/lawdesk/skill_registry.js";
 import { buildFeatureFlags } from "../../lib/lawdesk/feature-flags.js";
 import { cancelTaskRun, continueTaskRun, getTaskRun, startTaskRun } from "../../lib/lawdesk/task_runs.js";
+import { processConversationTurn } from "../../lib/ai/conversation_engine.ts";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -79,6 +80,44 @@ export async function onRequestPost(context) {
       JSON.stringify({ ok: false, error: "Chat Dotobot desabilitado por feature flag.", errorType: "feature_disabled" }),
       { status: 503, headers: JSON_HEADERS }
     );
+  }
+
+  if (features?.chat?.hybridOrchestrator) {
+    try {
+      const startTime = Date.now();
+      const result = await processConversationTurn(env, body || {}, features, {
+        waitUntil: typeof context?.waitUntil === "function" ? context.waitUntil.bind(context) : null,
+      });
+      const duration = Date.now() - startTime;
+      return new Response(JSON.stringify({
+        ok: result.ok,
+        data: result.data,
+        metadata: {
+          duration_ms: duration,
+          orchestrator: "hybrid",
+        },
+      }), {
+        status: result.status,
+        headers: JSON_HEADERS,
+      });
+    } catch (error) {
+      const isTimeout = error?.message?.includes("Timeout") || error?.name === "AbortError";
+      const isNetworkError = error?.message?.includes("fetch") || error?.message?.includes("connection");
+      const statusCode = isTimeout || isNetworkError ? 504 : 500;
+      const errorType = isTimeout ? "timeout" : isNetworkError ? "network" : "internal";
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: error?.message || "Falha no orchestrator híbrido.",
+          errorType,
+          timestamp: new Date().toISOString(),
+        }),
+        {
+          status: statusCode,
+          headers: JSON_HEADERS,
+        }
+      );
+    }
   }
 
   try {

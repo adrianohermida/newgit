@@ -228,6 +228,8 @@ function MessageBubble({ message }) {
 
 function TaskStatusChip({ status }) {
   const mapping = {
+    queued: "Na fila",
+    executing: "Executando",
     running: "Executando",
     paused: "Pausado",
     canceled: "Cancelado",
@@ -261,6 +263,7 @@ export default function DotobotPanel({
   const [conversationSearch, setConversationSearch] = useState("");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [uiState, setUiState] = useState("idle");
   const [error, setError] = useState(null);
   const [collapsed, setCollapsed] = useState(Boolean(defaultCollapsed));
   const [workspaceOpen, setWorkspaceOpen] = useState(Boolean(initialWorkspaceOpen));
@@ -394,6 +397,8 @@ export default function DotobotPanel({
 
     setError(null);
     setLoading(true);
+    setUiState("responding");
+    let finalUiState = "idle";
 
     const userMessage = {
       id: `${Date.now()}_u`,
@@ -440,10 +445,12 @@ export default function DotobotPanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          conversationId: activeConversationId || null,
           query: trimmedQuestion,
           mode: nextMode,
           provider: nextProvider,
           context: {
+            conversationId: activeConversationId || null,
             taskId,
             route: routePath || "/interno",
             profile: {
@@ -470,6 +477,11 @@ export default function DotobotPanel({
       });
 
       const answerText = payload?.data?.resultText || payload?.data?.result || "Sem resposta do Dotobot.";
+      const responseMode = payload?.data?.mode || "chat";
+      const responseUiState = payload?.data?.uiState || (responseMode === "task" ? "executing" : responseMode === "skill" ? "planning" : "responding");
+      const taskRunStatus = payload?.data?.taskRun?.status || payload?.data?.run?.status || null;
+      setUiState(responseUiState);
+      finalUiState = responseUiState;
       const assistantMessage = {
         id: `${Date.now()}_a`,
         role: "assistant",
@@ -483,22 +495,26 @@ export default function DotobotPanel({
           title: safeText(current.title, inferConversationTitle([...nextMessages, assistantMessage])),
           preview: assistantMessage.text,
           messages: [...nextMessages, assistantMessage].slice(-MAX_HISTORY),
-          taskHistory: taskHistory,
         }));
       }
 
       syncTaskHistory(taskId, (task) => ({
         ...task,
-        status: payload?.data?.status || "ok",
-        finishedAt: nowIso(),
+        status: responseMode === "task" ? (taskRunStatus || "running") : "ok",
+        finishedAt: responseMode === "task" ? null : nowIso(),
         steps: payload?.data?.steps || [],
         logs: payload?.data?.logs || [],
         sessionId: payload?.data?.sessionId || null,
         rag: payload?.data?.rag || null,
+        mode: responseMode,
+        uiState: responseUiState,
+        intent: payload?.data?.intent?.type || null,
+        taskRun: payload?.data?.taskRun || null,
         resultText: assistantMessage.text,
       }));
     } catch (submitError) {
       setError(submitError?.message || "Falha ao consultar o Dotobot.");
+      setUiState("idle");
       syncTaskHistory(taskId, (task) => ({
         ...task,
         status: "error",
@@ -507,6 +523,9 @@ export default function DotobotPanel({
       }));
     } finally {
       setLoading(false);
+      if (finalUiState !== "executing") {
+        setUiState("idle");
+      }
     }
   }
 
@@ -800,7 +819,15 @@ export default function DotobotPanel({
   const runningCount = taskHistory.filter((item) => item.status === "running").length;
   const activeTask = getLastTask(taskHistory);
   const ragSummary = buildRagSummary(activeTask?.rag);
-  const activeStatus = loading || runningCount ? "processing" : "online";
+  const activeStatus = loading || runningCount || uiState !== "idle" ? "processing" : "online";
+  const uiStateLabel =
+    uiState === "responding"
+      ? "Respondendo"
+      : uiState === "planning"
+        ? "Planejando"
+        : uiState === "executing"
+          ? "Executando"
+          : "Idle";
   const activeMode = MODE_OPTIONS.find((item) => item.value === mode) || MODE_OPTIONS[0];
   const activeProviderLabel = PROVIDER_OPTIONS.find((item) => item.value === provider)?.label || "GPT";
   const isWorkspaceShell = workspaceOpen;
@@ -832,7 +859,7 @@ export default function DotobotPanel({
                 <h3 className="font-serif text-xl text-[#F5F1E8]">Copilot</h3>
                 <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] ${activeStatus === "processing" ? "border-[#8b6f33] text-[#D9B46A]" : "border-[#234034] text-[#80C7A1]"}`}>
                   <span className={`h-2 w-2 rounded-full ${activeStatus === "processing" ? "bg-[#D9B46A]" : "bg-[#80C7A1]"}`} />
-                  {activeStatus === "processing" ? "Thinking" : "Idle"}
+                  {activeStatus === "processing" ? uiStateLabel : "Idle"}
                 </span>
               </div>
             </div>
@@ -1294,7 +1321,7 @@ export default function DotobotPanel({
                     )}
                     {loading ? (
                       <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm text-[#9BAEA8]">
-                        Thinking...
+                        {uiStateLabel}...
                       </div>
                     ) : null}
                     {error ? (

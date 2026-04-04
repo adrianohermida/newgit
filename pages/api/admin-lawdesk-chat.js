@@ -4,6 +4,7 @@ import { buildDotobotRepositoryContext } from "../../lib/lawdesk/capabilities.js
 import { detectSkillFromQuery, enrichContextWithSkill } from "../../lib/lawdesk/skill_registry.js";
 import { buildFeatureFlags } from "../../lib/lawdesk/feature-flags.js";
 import { cancelTaskRun, continueTaskRun, getTaskRun, startTaskRun } from "../../lib/lawdesk/task_runs.js";
+import { processConversationTurn } from "../../lib/ai/conversation_engine.ts";
 
 export default async function handler(req, res) {
   const features = buildFeatureFlags(process.env);
@@ -50,6 +51,33 @@ export default async function handler(req, res) {
       error: "Chat Dotobot desabilitado por feature flag.",
       errorType: "feature_disabled",
     });
+  }
+
+  if (features?.chat?.hybridOrchestrator) {
+    try {
+      const startTime = Date.now();
+      const result = await processConversationTurn(process.env, req.body || {}, features);
+      const duration = Date.now() - startTime;
+      return res.status(result.status).json({
+        ok: result.ok,
+        data: result.data,
+        metadata: {
+          duration_ms: duration,
+          orchestrator: "hybrid",
+        },
+      });
+    } catch (error) {
+      const isTimeout = error?.message?.includes("Timeout") || error?.name === "AbortError";
+      const isNetworkError = error?.message?.includes("fetch") || error?.message?.includes("connection");
+      const statusCode = isTimeout || isNetworkError ? 504 : 500;
+      const errorType = isTimeout ? "timeout" : isNetworkError ? "network" : "internal";
+      return res.status(statusCode).json({
+        ok: false,
+        error: error?.message || "Falha no orchestrator híbrido.",
+        errorType,
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
 
   try {
