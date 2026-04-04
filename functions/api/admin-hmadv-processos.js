@@ -48,24 +48,24 @@ function isJobInfraError(error) {
 
 async function runInlineProcessAction(env, action, body) {
   const processNumbers = parseProcessNumbers(body.processNumbers);
-  const limit = Number(body.limit || 10);
+  const requestedLimit = Number(body.limit || 0);
   if (action === "push_orfaos") {
-    return pushOrphanAccounts(env, { processNumbers, limit: Number(body.limit || 20) });
+    return pushOrphanAccounts(env, { processNumbers, limit: requestedLimit || 2 });
   }
   if (action === "repair_freshsales_accounts") {
-    return repairFreshsalesAccounts(env, { processNumbers, limit });
+    return repairFreshsalesAccounts(env, { processNumbers, limit: requestedLimit || 2 });
   }
   if (action === "enriquecer_datajud") {
-    return enrichProcessesViaDatajud(env, { processNumbers, limit });
+    return enrichProcessesViaDatajud(env, { processNumbers, limit: requestedLimit || 2 });
   }
   if (action === "sync_supabase_crm") {
-    return syncProcessesSupabaseCrm(env, { processNumbers, limit });
+    return syncProcessesSupabaseCrm(env, { processNumbers, limit: requestedLimit || 1 });
   }
   throw new Error(`Acao inline nao suportada: ${action}`);
 }
 
 async function drainProcessJobs(env, { preferredId = null, maxChunks = 6 } = {}) {
-  const safeChunks = Math.max(1, Math.min(Number(maxChunks || 6), 20));
+  const safeChunks = Math.max(1, Math.min(Number(maxChunks || 1), 1));
   let chunks = 0;
   let activeJob = null;
   let completedAll = false;
@@ -237,7 +237,7 @@ export async function onRequestPost(context) {
           action: String(body.jobAction || ""),
           payload: {
             processNumbers: parseProcessNumbers(body.processNumbers),
-            limit: Number(body.limit || 10),
+            limit: Number(body.limit || 0),
           },
         });
         return jsonOk({ data });
@@ -286,7 +286,7 @@ export async function onRequestPost(context) {
       try {
         const data = await drainProcessJobs(context.env, {
           preferredId: body.id || null,
-          maxChunks: Number(body.maxChunks || 6),
+          maxChunks: Number(body.maxChunks || 1),
         });
         return jsonOk({ data });
       } catch (error) {
@@ -296,25 +296,25 @@ export async function onRequestPost(context) {
     if (action === "push_orfaos") {
       return runLogged(async () => pushOrphanAccounts(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 20),
+        limit: Number(body.limit || 2),
       }));
     }
     if (action === "repair_freshsales_accounts") {
       return runLogged(async () => repairFreshsalesAccounts(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 10),
+        limit: Number(body.limit || 2),
       }));
     }
     if (action === "enriquecer_datajud") {
       return runLogged(async () => enrichProcessesViaDatajud(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 10),
+        limit: Number(body.limit || 2),
       }));
     }
     if (action === "sync_supabase_crm") {
       return runLogged(async () => syncProcessesSupabaseCrm(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 10),
+        limit: Number(body.limit || 1),
       }));
     }
     if (action === "auditoria_sync") {

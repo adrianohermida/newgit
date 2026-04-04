@@ -116,6 +116,14 @@ function normalizeProcessNumber(value) {
   return String(value || "").replace(/\D+/g, "").trim();
 }
 
+function schemaMessageMatches(message, token = "") {
+  const text = String(message || "");
+  if (!text) return false;
+  const generic = text.includes("does not exist") || text.includes("schema cache") || text.includes("PGRST") || text.includes("42703");
+  if (!token) return generic;
+  return generic && text.includes(token);
+}
+
 function buildProcessLabel(row) {
   return row?.titulo || row?.name || row?.display_name || row?.numero_cnj || "Processo";
 }
@@ -563,6 +571,14 @@ async function resolveProcessJobTargets(env, action, processNumbers = []) {
     return uniqueNonEmpty([...withoutMoves, ...gaps]);
   }
   return selected;
+}
+
+function getProcessActionLimitConfig(action) {
+  if (action === "sync_supabase_crm") return { defaultLimit: 1, maxLimit: 2 };
+  if (action === "repair_freshsales_accounts") return { defaultLimit: 2, maxLimit: 3 };
+  if (action === "enriquecer_datajud") return { defaultLimit: 2, maxLimit: 3 };
+  if (action === "push_orfaos") return { defaultLimit: 2, maxLimit: 3 };
+  return { defaultLimit: 10, maxLimit: 20 };
 }
 
 async function collectPublicacoesTargets(loader, env) {
@@ -1088,11 +1104,19 @@ export async function listMonitoringProcesses(env, { page = 1, pageSize = 20, ac
   const safePage = Math.max(1, Number(page || 1));
   const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
   const flag = active ? "true" : "false";
-  let items = await listTableSafe(
-    env,
-    `processos?select=id,numero_cnj,titulo,account_id_freshsales,monitoramento_ativo,status_atual_processo,quantidade_movimentacoes&monitoramento_ativo=eq.${flag}&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
-  );
-  let totalRows = await countTableSafe(env, "processos", `monitoramento_ativo=eq.${flag}`);
+  let unsupported = false;
+  let items = [];
+  let totalRows = 0;
+  try {
+    items = await hmadvRest(
+      env,
+      `processos?select=id,numero_cnj,titulo,account_id_freshsales,monitoramento_ativo,status_atual_processo,quantidade_movimentacoes&monitoramento_ativo=eq.${flag}&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
+    );
+    totalRows = await countTable(env, "processos", `monitoramento_ativo=eq.${flag}`);
+  } catch (error) {
+    if (!schemaMessageMatches(error?.message, "monitoramento_ativo")) throw error;
+    unsupported = true;
+  }
   if (active && !totalRows) {
     items = await listTableSafe(
       env,
@@ -1106,6 +1130,7 @@ export async function listMonitoringProcesses(env, { page = 1, pageSize = 20, ac
     pageSize: safePageSize,
     totalRows,
     items,
+    unsupported,
   };
 }
 
@@ -1290,9 +1315,19 @@ export async function inspectAudiencias(env, limit = 20) {
 
 export async function backfillAudiencias(env, { processNumbers = [], limit = 100, apply = false } = {}) {
   const safeLimit = Math.max(1, Math.min(Number(limit || 10), 25));
-  const processes = processNumbers.length
-    ? await loadProcessesByNumbers(env, processNumbers)
-    : await hmadvRest(env, `processos?select=id,numero_cnj,titulo&limit=${safeLimit}`);
+  let processes = [];
+  if (processNumbers.length) {
+    processes = await loadProcessesByNumbers(env, processNumbers);
+  } else {
+    const candidatePublicacoes = await listTableSafe(
+      env,
+      `publicacoes?select=id,processo_id,numero_processo_api,data_publicacao&processo_id=not.is.null&conteudo=ilike.${encodeURIComponent("*audien*")}&order=data_publicacao.desc.nullslast&limit=${safeLimit * 12}`
+    );
+    const candidateProcessIds = uniqueNonEmpty(candidatePublicacoes.map((item) => item.processo_id));
+    processes = candidateProcessIds.length
+      ? await loadProcessesByIds(env, candidateProcessIds.slice(0, safeLimit), "id,numero_cnj,titulo")
+      : await hmadvRest(env, `processos?select=id,numero_cnj,titulo&limit=${safeLimit}`);
+  }
   const processIds = processes.map((item) => item.id);
   const [allPublicacoes, allExistentes] = await Promise.all([
     processIds.length ? loadPublicacoesByProcessIds(env, processIds, 20) : Promise.resolve([]),
@@ -1486,7 +1521,8 @@ export async function runSyncWorker(env) {
 }
 
 export async function enrichProcessesViaDatajud(env, { processNumbers = [], limit = 10 } = {}) {
-  const safeLimit = Math.max(1, Math.min(Number(limit || 10), 20));
+  const config = getProcessActionLimitConfig("enriquecer_datajud");
+  const safeLimit = Math.max(1, Math.min(Number(limit || config.defaultLimit), config.maxLimit));
   const processes = processNumbers.length
     ? await loadProcessesByNumbers(env, processNumbers)
     : await listTableSafe(
@@ -1531,7 +1567,8 @@ export async function enrichProcessesViaDatajud(env, { processNumbers = [], limi
 }
 
 export async function syncProcessesSupabaseCrm(env, { processNumbers = [], limit = 10 } = {}) {
-  const safeLimit = Math.max(1, Math.min(Number(limit || 10), 20));
+  const config = getProcessActionLimitConfig("sync_supabase_crm");
+  const safeLimit = Math.max(1, Math.min(Number(limit || config.defaultLimit), config.maxLimit));
   const processes = processNumbers.length
     ? await loadProcessesByNumbers(env, processNumbers)
     : await listTableSafe(
@@ -1591,21 +1628,35 @@ export async function updateMonitoringStatus(env, { processNumbers = [], active 
   let updated = 0;
   const sample = [];
   for (const proc of processes.slice(0, safeLimit)) {
-    await hmadvRest(
-      env,
-      `processos?id=eq.${encodeURIComponent(proc.id)}`,
-      {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Content-Profile": "judiciario",
-          Prefer: "return=minimal",
-        },
-        body: JSON.stringify({
+    try {
+      await hmadvRest(
+        env,
+        `processos?id=eq.${encodeURIComponent(proc.id)}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Profile": "judiciario",
+            Prefer: "return=minimal",
+          },
+          body: JSON.stringify({
+            monitoramento_ativo: Boolean(active),
+          }),
+        }
+      );
+    } catch (error) {
+      if (schemaMessageMatches(error?.message, "monitoramento_ativo")) {
+        return {
+          checkedAt: new Date().toISOString(),
           monitoramento_ativo: Boolean(active),
-        }),
+          processosAtualizados: 0,
+          sample: [],
+          unsupported: true,
+          reason: "monitoramento_ativo_coluna_ausente",
+        };
       }
-    );
+      throw error;
+    }
     updated += 1;
     sample.push({
       processo_id: proc.id,
@@ -1699,7 +1750,8 @@ export async function createProcessesFromPublicacoes(env, { processNumbers = [],
 }
 
 export async function pushOrphanAccounts(env, { processNumbers = [], limit = 20 } = {}) {
-  const safeLimit = Math.max(1, Math.min(Number(limit || 20), 100));
+  const config = getProcessActionLimitConfig("push_orfaos");
+  const safeLimit = Math.max(1, Math.min(Number(limit || config.defaultLimit), config.maxLimit));
   const processes = processNumbers.length
     ? await loadProcessesByNumbers(env, processNumbers)
     : await scanOrphanProcesses(env, { page: 1, pageSize: safeLimit }).then((data) => data.items || []);
@@ -1741,7 +1793,8 @@ export async function pushOrphanAccounts(env, { processNumbers = [], limit = 20 
 }
 
 export async function repairFreshsalesAccounts(env, { processNumbers = [], limit = 10 } = {}) {
-  const safeLimit = Math.max(1, Math.min(Number(limit || 10), 20));
+  const config = getProcessActionLimitConfig("repair_freshsales_accounts");
+  const safeLimit = Math.max(1, Math.min(Number(limit || config.defaultLimit), config.maxLimit));
   const processes = processNumbers.length
     ? await loadProcessesByNumbers(env, processNumbers)
     : await hmadvRest(
@@ -1767,11 +1820,12 @@ export async function repairFreshsalesAccounts(env, { processNumbers = [], limit
 }
 
 function normalizeProcessJobPayload(action, payload = {}) {
+  const config = getProcessActionLimitConfig(action);
   return {
     ...payload,
     action,
     processNumbers: uniqueNonEmpty(payload.processNumbers || []),
-    limit: Math.max(1, Math.min(Number(payload.limit || 10), 20)),
+    limit: Math.max(1, Math.min(Number(payload.limit || config.defaultLimit), config.maxLimit)),
   };
 }
 
