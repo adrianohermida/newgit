@@ -1262,13 +1262,6 @@ export default function DotobotPanel({
                       >
                         Limpar
                       </button>
-                      <button
-                        type="button"
-                        onClick={handleSignOut}
-                        className="rounded-2xl border border-[#22342F] px-3 py-2 text-center text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-                      >
-                        Sair
-                      </button>
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-[#9BAEA8]">
                       <a href="#" className="underline-offset-4 hover:underline">
