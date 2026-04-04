@@ -1,4 +1,50 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+﻿// Input compacto fixo no rodapé
+function TaskInputFooter({ value, onChange, onSubmit, disabled }) {
+  const inputRef = useRef();
+  return (
+    <form
+      className="fixed left-0 right-0 bottom-0 z-30 w-full max-w-2xl mx-auto flex items-end gap-2 bg-[rgba(12,15,14,0.98)] border-t border-[#22342F] px-3 py-2"
+      style={{ boxShadow: '0 -2px 16px rgba(0,0,0,0.08)' }}
+      onSubmit={onSubmit}
+    >
+      <textarea
+        ref={inputRef}
+        className="flex-1 resize-none rounded-xl border border-[#22342F] bg-transparent px-3 py-2 text-sm text-[#F5F1E8] placeholder-[#7F928C] focus:border-[#C5A059] focus:outline-none"
+        rows={1}
+        placeholder="Digite sua missão ou mensagem..."
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        style={{ minHeight: 36, maxHeight: 80 }}
+      />
+      <button
+        type="submit"
+        className="rounded-xl bg-[#D9B46A] px-4 py-2 text-sm font-bold text-[#1A1A1A] transition hover:bg-[#C5A059]"
+        disabled={disabled || !value.trim()}
+      >
+        Enviar
+      </button>
+    </form>
+  );
+}
+// Histórico tipo chat
+function ChatHistory({ history }) {
+  return (
+    <div className="flex flex-col gap-3 pb-24 pt-2 px-2 max-w-2xl mx-auto">
+      {history.map((item, idx) => (
+        <Bubble
+          key={item.id || idx}
+          role={item.role || (item.agent === 'Dotobot' ? 'assistant' : 'user')}
+          title={item.title}
+          body={item.goal || item.summary || item.description}
+          details={item.details || []}
+          time={item.timestamp || item.created_at}
+        />
+      ))}
+    </div>
+  );
+}
+import { useEffect, useMemo, useRef, useState } from "react";
 import { adminFetch } from "../../../lib/admin/api";
 
 const STORAGE_PREFIX = "ai_task_workspace_v1";
@@ -316,6 +362,27 @@ function Bubble({ role = "assistant", title, body, details = [], time }) {
 }
 
 export default function AITaskModule({ profile, routePath }) {
+  // Estado do input e histórico
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState([]); // Exemplo
+
+  function handleInputChange(e) {
+    setInput(e.target.value);
+  }
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (!input.trim()) return;
+    // Adiciona ao histórico (exemplo)
+    setHistory((h) => [
+      ...h,
+      { id: Date.now(), role: 'user', title: 'Você', goal: input, timestamp: new Date().toISOString() },
+      { id: Date.now() + 1, role: 'assistant', title: 'Dotobot', goal: `Processando: ${input}`, timestamp: new Date().toISOString() }
+    ]);
+    setInput("");
+    setLoading(true);
+    setTimeout(() => setLoading(false), 1200);
+  }
   const storageKey = useMemo(() => buildStorageKey(profile), [profile]);
   const [mission, setMission] = useState("");
   const [mode, setMode] = useState("assisted");
@@ -324,102 +391,13 @@ export default function AITaskModule({ profile, routePath }) {
   const [approved, setApproved] = useState(false);
   const [tasks, setTasks] = useState([]);
   const [thinking, setThinking] = useState([]);
-  const [logs, setLogs] = useState([]);
-  const [selectedTaskId, setSelectedTaskId] = useState(null);
-  const [search, setSearch] = useState("");
-  const [selectedLogFilter, setSelectedLogFilter] = useState("all");
-  const [error, setError] = useState(null);
-  const [latestResult, setLatestResult] = useState(null);
-  const [activeRun, setActiveRun] = useState(null);
-  const [paused, setPaused] = useState(false);
-  const [missionHistory, setMissionHistory] = useState([]);
-  const [showContext, setShowContext] = useState(true);
-  const [showTasks, setShowTasks] = useState(true);
-  const [contextSnapshot, setContextSnapshot] = useState(null);
-  const [attachments, setAttachments] = useState([]);
-  const [eventsTotal, setEventsTotal] = useState(0);
-  const [executionSource, setExecutionSource] = useState(null);
-  const [executionModel, setExecutionModel] = useState(null);
-  const abortRef = useRef(null);
-  const pauseRef = useRef(false);
-  const logViewportRef = useRef(null);
-  const chatViewportRef = useRef(null);
-  const missionInputRef = useRef(null);
-  const runEventIdsRef = useRef(new Set());
-  const pollingInFlightRef = useRef(false);
-  const lastEventCursorRef = useRef(null);
-  const lastEventSequenceRef = useRef(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const cached = safeParse(window.localStorage.getItem(storageKey), null);
-    if (!cached) return;
-    if (cached.mission) setMission(cached.mission);
-    if (cached.mode) setMode(cached.mode);
-    if (cached.provider) setProvider(cached.provider);
-    if (typeof cached.approved === "boolean") setApproved(cached.approved);
-    if (Array.isArray(cached.tasks)) setTasks(cached.tasks);
-    if (Array.isArray(cached.thinking)) setThinking(cached.thinking);
-    if (Array.isArray(cached.logs)) setLogs(cached.logs);
-    if (Array.isArray(cached.missionHistory)) setMissionHistory(cached.missionHistory);
-    if (cached.latestResult) setLatestResult(cached.latestResult);
-    if (cached.executionSource) setExecutionSource(cached.executionSource);
-    if (cached.executionModel) setExecutionModel(cached.executionModel);
-    if (cached.contextSnapshot) setContextSnapshot(cached.contextSnapshot);
-    if (Array.isArray(cached.attachments)) setAttachments(cached.attachments);
-    if (cached.activeRun?.id) {
-      setActiveRun(cached.activeRun);
-      setAutomation("running");
-      addLogEntry((entry) => {
-        setLogs((current) => [...current, entry].slice(-MAX_LOGS));
-      }, {
-        type: "control",
-        action: "Execucao retomada",
-        result: `Run ${cached.activeRun.id} restaurado do cache local.`,
-      });
-    }
-  }, [storageKey]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(
-      storageKey,
-      JSON.stringify({
-        mission,
-        mode,
-        provider,
-        approved,
-        tasks,
-        thinking,
-        logs,
-        missionHistory,
-        latestResult,
-        executionSource,
-        executionModel,
-        activeRun,
-        contextSnapshot,
-        attachments,
-      })
-    );
-  }, [storageKey, mission, mode, provider, approved, tasks, thinking, logs, missionHistory, latestResult, executionSource, executionModel, activeRun, contextSnapshot, attachments]);
-
-  useEffect(() => {
-    if (!chatViewportRef.current) return;
-    chatViewportRef.current.scrollTop = chatViewportRef.current.scrollHeight;
-  }, [logs]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    const onKeyDown = (event) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        missionInputRef.current?.focus();
-      }
-      if (event.key === "Escape") {
-        setPaused(true);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
+  return (
+    <section className="relative w-full max-w-2xl mx-auto rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(9,16,14,0.97),rgba(8,14,12,0.93))] px-2 py-3 sm:px-4 md:px-6 xl:px-7 min-h-[60vh]">
+      {/* Histórico de tarefas como chat */}
+      <ChatHistory history={history} />
+      {/* Input fixo no rodapé */}
+      <TaskInputFooter value={input} onChange={handleInputChange} onSubmit={handleSubmit} disabled={loading} />
+    </section>
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 

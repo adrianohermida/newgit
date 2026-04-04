@@ -1,3 +1,4 @@
+import useDotobotExtensionBridge from "./DotobotExtensionBridge";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { detectIntent } from "../../lib/ai/intent_router";
 import { getCurrentContext } from "../../lib/ai/context_engine";
@@ -250,6 +251,17 @@ function getVoiceRecognition() {
 }
 
 export default function DotobotCopilot({
+    // Integração com extensão
+    const { extensionReady, lastResponse, sendCommand } = useDotobotExtensionBridge();
+
+    // Exemplo: enviar comando para extensão ao detectar intenção específica
+    async function handleExtensionActionIfNeeded(intent, question) {
+      if (!extensionReady) return;
+      // Exemplo: se intenção for "web_search" ou "local_file_access"
+      if (["web_search", "local_file_access"].includes(intent)) {
+        await sendCommand(intent, { query: question });
+      }
+    }
   profile,
   routePath,
   initialWorkspaceOpen = true,
@@ -414,8 +426,8 @@ export default function DotobotCopilot({
       { role: "assistant", text: `Entendi sua intenção: ${detected.intent}. Estou processando...`, createdAt: nowIso() },
     ]);
 
-    // Aqui entraria chamada real ao system_tool conforme a intenção
-    // Exemplo: se detected.intent === "create_task", chamar system_tools/tasks_tool
+    // Se for intenção de extensão, aciona
+    await handleExtensionActionIfNeeded(detected.intent, trimmedQuestion);
 
     setTimeout(() => {
       setMessages((msgs) => [
