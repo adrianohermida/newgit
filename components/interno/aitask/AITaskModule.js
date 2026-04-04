@@ -5,135 +5,20 @@ function TaskInputFooter({ value, onChange, onSubmit, disabled }) {
     <form
       className="fixed left-0 right-0 bottom-0 z-30 w-full max-w-2xl mx-auto flex items-end gap-2 bg-[rgba(12,15,14,0.98)] border-t border-[#22342F] px-3 py-2"
       style={{ boxShadow: '0 -2px 16px rgba(0,0,0,0.08)' }}
-      onSubmit={onSubmit}
-    >
-      <textarea
-        ref={inputRef}
-        className="flex-1 resize-none rounded-xl border border-[#22342F] bg-transparent px-3 py-2 text-sm text-[#F5F1E8] placeholder-[#7F928C] focus:border-[#C5A059] focus:outline-none"
-        rows={1}
-        placeholder="Digite sua missão ou mensagem..."
-        value={value}
-        onChange={onChange}
-        disabled={disabled}
-        style={{ minHeight: 36, maxHeight: 80 }}
-      />
-      <button
-        type="submit"
-        className="rounded-xl bg-[#D9B46A] px-4 py-2 text-sm font-bold text-[#1A1A1A] transition hover:bg-[#C5A059]"
-        disabled={disabled || !value.trim()}
-      >
-        Enviar
-      </button>
-    </form>
-  );
-}
-// Histórico tipo chat
-function ChatHistory({ history }) {
-  return (
-    <div className="flex flex-col gap-3 pb-24 pt-2 px-2 max-w-2xl mx-auto">
-      {history.map((item, idx) => (
-        <Bubble
-          key={item.id || idx}
-          role={item.role || (item.agent === 'Dotobot' ? 'assistant' : 'user')}
-          title={item.title}
-          body={item.goal || item.summary || item.description}
-          details={item.details || []}
-          time={item.timestamp || item.created_at}
-        />
-      ))}
-    </div>
-  );
-}
-import { useEffect, useMemo, useRef, useState } from "react";
-import { adminFetch } from "../../../lib/admin/api";
+      return (
+        <div className="flex flex-col lg:flex-row gap-4 w-full">
+          {/* Painel central: chat responsivo */}
+          <section className="relative flex-1 min-w-0 rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(9,16,14,0.97),rgba(8,14,12,0.93))] flex flex-col" style={{height:'calc(100dvh - 120px)'}}>
+            <div className="flex-1 overflow-y-auto pb-28 pt-2 px-1 sm:px-2" style={{maxHeight:'calc(100dvh - 180px)'}}>
+              <ChatHistory history={history} />
+            </div>
+            <div className="fixed left-0 right-0 bottom-0 z-30 w-full max-w-2xl mx-auto">
+              <TaskInputFooter value={input} onChange={handleInputChange} onSubmit={handleSubmit} disabled={loading} />
+            </div>
+          </section>
 
-const STORAGE_PREFIX = "ai_task_workspace_v1";
-const MAX_LOGS = 200;
-const MAX_THINKING = 60;
-const MAX_TASKS = 24;
-
-const MODE_OPTIONS = [
-  { value: "autonomous", label: "Autonomo", tone: "executa tudo automaticamente" },
-  { value: "assisted", label: "Assistido", tone: "sugere e aguarda aprovacao" },
-  { value: "manual", label: "Manual", tone: "explica sem executar" },
-];
-
-const PROVIDER_OPTIONS = [
-  { value: "gpt", label: "GPT" },
-  { value: "local", label: "Modelo local" },
-  { value: "custom", label: "Custom provider" },
-];
-
-const QUICK_MISSIONS = [
-  "Review all new leads and classify them.",
-  "Analyze the latest processes and identify urgent actions.",
-  "Generate a legal strategy summary for the active client.",
-  "Create a plan for document review and follow-up.",
-];
-
-function buildStorageKey(profile) {
-  const profileId = profile?.id || profile?.email || "anonymous";
-  return `${STORAGE_PREFIX}:${profileId}`;
-}
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function safeParse(raw, fallback) {
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return fallback;
-  }
-}
-
-function normalizeMission(text) {
-  return String(text || "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function formatExecutionSourceLabel(source) {
-  const value = String(source || "").trim();
-  if (!value) return "n/a";
-  if (value === "primary_api") return "Primary API";
-  if (value === "supabase_edge") return "Supabase Edge";
-  if (value === "workers_ai_direct") return "Workers AI Direct";
-  return value;
-}
-
-function formatHistoryStatus(status) {
-  const value = String(status || "").toLowerCase();
-  if (value === "done" || value === "completed") return "Concluida";
-  if (value === "failed") return "Falhou";
-  if (value === "running") return "Executando";
-  if (value === "stopped" || value === "canceled") return "Parada";
-  return "Pendente";
-}
-
-function detectModules(mission) {
-  const value = mission.toLowerCase();
-  const modules = [];
-  if (/(lead|leads|crm|cliente|contact|contato)/i.test(value)) modules.push("CRM");
-  if (/(process|processo|peti|ação|acao|jurid)/i.test(value)) modules.push("Processos");
-  if (/(document|pdf|docx|arquivo|file|anexo)/i.test(value)) modules.push("Documentos");
-  if (/(finance|pagamento|divida|dívida|acordo|parcel|cobranca|cobrança)/i.test(value)) modules.push("Financeiro");
-  if (/(agenda|agend|calend|reuni)/i.test(value)) modules.push("Agenda");
-  if (!modules.length) modules.push("Geral");
-  return modules;
-}
-
-function requiresApproval(mission) {
-  return /(delete|remove|cancel|apagar|excluir|encerrar|publicar|enviar|update|alterar|editar|create|criar|crie|grave|salvar|confirmar)/i.test(
-    mission
-  );
-}
-
-function buildBlueprint(mission, profile, mode, provider) {
-  const normalizedMission = normalizeMission(mission);
-  const modules = detectModules(normalizedMission);
+          {/* Painéis laterais responsivos */}
+          <aside className="space-y-4 w-full lg:max-w-[340px]">
   const critical = requiresApproval(normalizedMission);
   const steps = [
     {
