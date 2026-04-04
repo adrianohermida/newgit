@@ -617,6 +617,8 @@ export default function DotobotCopilot({
 
 
     // Botão flutuante de reabertura
+  }
+
     const FloatingTrigger = () => (
       isCollapsed && (
         <button
