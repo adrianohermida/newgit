@@ -14,6 +14,7 @@ const ACTION_LABELS = {
   backfill_partes: "Extracao retroativa de partes",
   sincronizar_partes: "Salvar partes + atualizar polos + corrigir CRM",
   run_sync_worker: "Rodar sync-worker",
+  run_pending_jobs: "Drenar fila HMADV",
 };
 const ASYNC_PUBLICACOES_ACTIONS = new Set([
   "criar_processos_publicacoes",
@@ -43,6 +44,14 @@ function buildJobPreview(job) {
   if (job.status === "completed") return `Concluido: ${processed}/${requested} processado(s)`;
   if (job.status === "error") return job.last_error || `Falha apos ${processed}/${requested}`;
   return `Em andamento: ${processed}/${requested} processado(s), ${errors} falha(s)`;
+}
+
+function buildDrainPreview(result) {
+  if (!result) return "";
+  const processed = Number(result.chunksProcessed || 0);
+  if (result.completedAll) return `Fila drenada em ${processed} rodada(s)`;
+  if (result.job) return `Fila avancou ${processed} rodada(s): ${buildJobPreview(result.job)}`;
+  return `Fila avancou ${processed} rodada(s)`;
 }
 
 function loadHistoryEntries() {
@@ -660,6 +669,7 @@ function PublicacoesContent() {
   const [remoteHistory, setRemoteHistory] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [activeJobId, setActiveJobId] = useState(null);
+  const [drainInFlight, setDrainInFlight] = useState(false);
   const [processNumbers, setProcessNumbers] = useState("");
   const [limit, setLimit] = useState(10);
   const [processPage, setProcessPage] = useState(1);
@@ -714,16 +724,18 @@ function PublicacoesContent() {
     async function runLoop() {
       while (!cancelled) {
         try {
+          setDrainInFlight(true);
           const payload = await adminFetch("/api/admin-hmadv-publicacoes", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "run_job_chunk", id: activeJobId }),
+            body: JSON.stringify({ action: "run_pending_jobs", id: activeJobId, maxChunks: 6 }),
           }, { timeoutMs: 120000, maxRetries: 0 });
-          const job = payload.data;
+          const result = payload.data || {};
+          const job = result.job || null;
           if (cancelled) return;
           await Promise.all([loadJobs(), loadRemoteHistory()]);
-          setActionState({ loading: false, error: null, result: { job } });
-          if (job?.status === "completed" || job?.status === "error" || job?.status === "cancelled") {
+          setActionState({ loading: false, error: null, result: result.job ? { job: result.job, drain: result } : { drain: result } });
+          if (result.completedAll || !job?.id || job?.status === "completed" || job?.status === "error" || job?.status === "cancelled") {
             setActiveJobId(null);
             await Promise.all([loadOverview(), loadProcessCandidates(processPage), loadPartesCandidates(partesPage)]);
             if (typeof window !== "undefined" && "Notification" in window) {
@@ -731,12 +743,16 @@ function PublicacoesContent() {
                 Notification.requestPermission().catch(() => {});
               } else if (Notification.permission === "granted") {
                 new Notification("HMADV concluiu um job de publicacoes", {
-                  body: `${ACTION_LABELS[job?.acao] || job?.acao}: ${buildJobPreview(job)}`,
+                  body: result.completedAll
+                    ? "Todas as pendencias de publicacoes desta fila foram drenadas."
+                    : `${ACTION_LABELS[job?.acao] || job?.acao}: ${buildJobPreview(job)}`,
                 });
               }
             }
+            setDrainInFlight(false);
             return;
           }
+          setDrainInFlight(false);
           await new Promise((resolve) => setTimeout(resolve, 1800));
         } catch (error) {
           if (!cancelled) {
@@ -744,6 +760,7 @@ function PublicacoesContent() {
             setActiveJobId(null);
             await Promise.all([loadJobs(), loadRemoteHistory()]);
           }
+          setDrainInFlight(false);
           return;
         }
       }
@@ -926,6 +943,24 @@ function PublicacoesContent() {
     return job;
   }
 
+  async function runPendingJobsNow() {
+    setActionState({ loading: true, error: null, result: null });
+    updateView("resultado");
+    try {
+      const payload = await adminFetch("/api/admin-hmadv-publicacoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "run_pending_jobs", id: activeJobId, maxChunks: 8 }),
+      }, { timeoutMs: 120000, maxRetries: 0 });
+      const result = payload.data || {};
+      setActionState({ loading: false, error: null, result: result.job ? { job: result.job, drain: result } : { drain: result } });
+      setActiveJobId(result.completedAll ? null : (result.job?.id || null));
+      await Promise.all([loadOverview(), loadProcessCandidates(processPage), loadPartesCandidates(partesPage), loadRemoteHistory(), loadJobs()]);
+    } catch (error) {
+      setActionState({ loading: false, error: error.message || "Falha ao drenar fila.", result: null });
+    }
+  }
+
   async function handleAction(action, apply = false, numbers = []) {
     setActionState({ loading: true, error: null, result: null });
     updateView("resultado");
@@ -1096,6 +1131,14 @@ function PublicacoesContent() {
               >
                 Rodar sync-worker
               </button>
+              <button
+                type="button"
+                onClick={runPendingJobsNow}
+                disabled={actionState.loading || drainInFlight || !jobs.some((item) => ["pending", "running"].includes(String(item.status || "")))}
+                className="border border-[#6E5630] bg-[rgba(197,160,89,0.08)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#F8E7B5] hover:border-[#C5A059] disabled:opacity-50"
+              >
+                {drainInFlight ? "Drenando fila..." : "Drenar fila HMADV"}
+              </button>
             </div>
           </div>
         </Panel>
@@ -1205,6 +1248,7 @@ function PublicacoesContent() {
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <HealthBadge label={`proximo disparo: ${primaryPublicacoesAction}`} tone="success" />
                 <button type="button" onClick={() => updateView("operacao")} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">Ir para operacao</button>
+                <button type="button" onClick={runPendingJobsNow} disabled={actionState.loading || drainInFlight} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">{drainInFlight ? "Drenando..." : "Rodar drenagem agora"}</button>
               </div>
               <div className="mt-4 space-y-2">
                 {recurringPublicacoesChecklist.map((step, index) => <div key={step} className="flex items-start gap-3 text-sm opacity-80">
@@ -1279,6 +1323,7 @@ function PublicacoesContent() {
         <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">
           {actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}
           {actionState.error ? <p className="text-sm text-red-300">{actionState.error}</p> : null}
+          {!actionState.loading && actionState.result?.drain ? <div className="mb-4 rounded-[20px] border border-[#30543A] bg-[rgba(48,84,58,0.12)] p-4 text-sm"><p className="font-semibold">Drenagem de fila</p><p className="mt-2 opacity-75">{buildDrainPreview(actionState.result.drain)}</p></div> : null}
           {jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}
           {!actionState.loading && !actionState.error && actionState.result ? <OperationResult result={actionState.result} /> : null}
           {!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p> : null}

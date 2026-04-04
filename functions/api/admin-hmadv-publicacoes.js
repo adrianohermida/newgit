@@ -60,6 +60,51 @@ async function runInlinePublicacoesAction(env, action, body) {
   throw new Error(`Acao inline de publicacoes nao suportada: ${action}`);
 }
 
+async function drainPublicacoesJobs(env, { preferredId = null, maxChunks = 6 } = {}) {
+  const safeChunks = Math.max(1, Math.min(Number(maxChunks || 6), 20));
+  let chunks = 0;
+  let activeJob = null;
+  let completedAll = false;
+
+  while (chunks < safeChunks) {
+    let job = null;
+    if (preferredId) {
+      job = await getPublicacoesAdminJob(env, preferredId);
+      preferredId = null;
+      if (job && !["pending", "running"].includes(String(job.status || ""))) {
+        job = null;
+      }
+    }
+    if (!job) {
+      const listed = await listAdminJobs(env, { modulo: "publicacoes", limit: 20 });
+      job = (listed.items || []).find((item) => ["pending", "running"].includes(String(item.status || ""))) || null;
+    }
+    if (!job?.id) {
+      completedAll = true;
+      break;
+    }
+    activeJob = await processPublicacoesAdminJob(env, job.id);
+    chunks += 1;
+    if (!activeJob || !["pending", "running"].includes(String(activeJob.status || ""))) {
+      continue;
+    }
+  }
+
+  if (!completedAll) {
+    const listed = await listAdminJobs(env, { modulo: "publicacoes", limit: 20 });
+    completedAll = !(listed.items || []).some((item) => ["pending", "running"].includes(String(item.status || "")));
+    if (!activeJob?.id) {
+      activeJob = (listed.items || [])[0] || null;
+    }
+  }
+
+  return {
+    job: activeJob,
+    chunksProcessed: chunks,
+    completedAll,
+  };
+}
+
 export async function onRequestGet(context) {
   const auth = await requireAdminAccess(context.request, context.env);
   if (!auth.ok) {
@@ -183,6 +228,17 @@ export async function onRequestPost(context) {
     if (action === "run_job_chunk") {
       try {
         const data = await processPublicacoesAdminJob(context.env, body.id);
+        return jsonOk({ data });
+      } catch (error) {
+        return jsonError(error, 500);
+      }
+    }
+    if (action === "run_pending_jobs") {
+      try {
+        const data = await drainPublicacoesJobs(context.env, {
+          preferredId: body.id || null,
+          maxChunks: Number(body.maxChunks || 6),
+        });
         return jsonOk({ data });
       } catch (error) {
         return jsonError(error, 500);
