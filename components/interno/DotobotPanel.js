@@ -1,6 +1,7 @@
 import useDotobotExtensionBridge from "./DotobotExtensionBridge";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TransitionGroup, CSSTransition } from "react-transition-group";
+import { FixedSizeList as VirtualList } from "react-window";
 import "../../styles/chat-animations.css";
 import { detectIntent } from "../../lib/ai/intent_router";
 import { getCurrentContext } from "../../lib/ai/context_engine";
@@ -496,29 +497,32 @@ export default function DotobotCopilot({
         </header>
         {/* MAIN CHAT AREA */}
         <main className="flex-1 overflow-y-auto px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4" ref={scrollRef}>
-          <TransitionGroup>
-            {messages.map((msg, idx) => (
-              <CSSTransition
-                key={msg.id || idx}
-                timeout={250}
-                classNames="message"
-              >
-                <div>
+          <VirtualList
+            height={typeof window !== "undefined" ? window.innerHeight * 0.6 : 400}
+            itemCount={messages.length + (loading ? 1 : 0)}
+            itemSize={110}
+            width={"100%"}
+            overscanCount={6}
+          >
+            {({ index, style }) => {
+              if (index === messages.length && loading) {
+                return (
+                  <div style={style}>
+                    <MessageBubble
+                      message={{ role: "assistant", text: "", createdAt: null }}
+                      isTyping={true}
+                    />
+                  </div>
+                );
+              }
+              const msg = messages[index];
+              return (
+                <div style={style}>
                   <MessageBubble message={msg} />
                 </div>
-              </CSSTransition>
-            ))}
-            {loading && (
-              <CSSTransition key="typing-indicator" timeout={250} classNames="message">
-                <div>
-                  <MessageBubble
-                    message={{ role: "assistant", text: "", createdAt: null }}
-                    isTyping={true}
-                  />
-                </div>
-              </CSSTransition>
-            )}
-          </TransitionGroup>
+              );
+            }}
+          </VirtualList>
         </main>
         {/* INPUT AREA */}
         <footer className="border-t border-[#22342F] bg-[rgba(12,15,14,0.98)] px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4">
@@ -991,7 +995,19 @@ export default function DotobotCopilot({
 
             <div ref={scrollRef} className="max-h-[46vh] overflow-y-auto px-4 py-4 space-y-3">
               {messages.length ? (
-                messages.map((message, idx) => <MessageBubble key={message.id || idx} message={message} />)
+                <VirtualList
+                  height={320}
+                  itemCount={messages.length}
+                  itemSize={110}
+                  width={"100%"}
+                  overscanCount={6}
+                >
+                  {({ index, style }) => (
+                    <div style={style}>
+                      <MessageBubble message={messages[index]} />
+                    </div>
+                  )}
+                </VirtualList>
               ) : (
                 <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm text-[#9BAEA8]">
                   <p className="font-medium text-[#F5F1E8]">Pronto para operar.</p>
@@ -1361,28 +1377,9 @@ export default function DotobotCopilot({
                         {error}
                       </div>
                     ) : null}
-                  // Estilos para animação de "Digitando..."
-                  // Adicione ao topo do arquivo ou em um CSS global se preferir
-                  //
-                  // .loading {
-                  //   display: inline-flex;
-                  //   gap: 4px;
-                  //   align-items: center;
-                  // }
-                  // .loading-dot {
-                  //   width: 6px;
-                  //   height: 6px;
-                  //   border-radius: 50%;
-                  //   background: #D9B46A;
-                  //   animation: loading 1.4s infinite;
-                  // }
-                  // .loading-dot:nth-child(2) { animation-delay: 0.2s; }
-                  // .loading-dot:nth-child(3) { animation-delay: 0.4s; }
-                  // @keyframes loading {
-                  //   0%, 100% { opacity: 0.3; }
-                  //   50% { opacity: 1; }
-                  // }
-                  </div>
+
+                  {/* Fim do bloco de mensagens */}
+                </div>
 
                   <div className="border-t border-[#22342F] px-4 py-4 md:px-5">
                     <div className="mb-3 flex flex-wrap gap-2">
