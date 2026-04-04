@@ -288,41 +288,41 @@ function getVoiceRecognition() {
 }
 
 export default function DotobotCopilot({
-    // Estado de autenticação/admin
-    const { supabase, loading: supaLoading, configError } = useSupabaseBrowser();
-    const [isAdmin, setIsAdmin] = useState(false);
-    const [authChecked, setAuthChecked] = useState(false);
-
-    // Valida sessão e perfil admin
-    useEffect(() => {
-      if (!supaLoading && supabase) {
-        supabase.auth.getSession().then(async ({ data }) => {
-          const session = data?.session;
-          if (!session?.access_token) {
-            setIsAdmin(false);
-            setAuthChecked(true);
-            return;
-          }
-          // Consulta perfil admin
-          try {
-            const res = await fetch("/api/admin-auth-config", {
-              headers: { Authorization: `Bearer ${session.access_token}` },
-            });
-            const payload = await res.json();
-            setIsAdmin(!!payload?.ok);
-          } catch {
-            setIsAdmin(false);
-          }
-          setAuthChecked(true);
-        });
-      }
-    }, [supabase, supaLoading]);
   profile,
   routePath,
   initialWorkspaceOpen = true,
   defaultCollapsed = false,
   compactRail = false,
 }) {
+  // Estado de autenticação/admin
+  const { supabase, loading: supaLoading, configError } = useSupabaseBrowser();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Valida sessão e perfil admin
+  useEffect(() => {
+    if (!supaLoading && supabase) {
+      supabase.auth.getSession().then(async ({ data }) => {
+        const session = data?.session;
+        if (!session?.access_token) {
+          setIsAdmin(false);
+          setAuthChecked(true);
+          return;
+        }
+        // Consulta perfil admin
+        try {
+          const res = await fetch("/api/admin-auth-config", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          const payload = await res.json();
+          setIsAdmin(!!payload?.ok);
+        } catch {
+          setIsAdmin(false);
+        }
+        setAuthChecked(true);
+      });
+    }
+  }, [supabase, supaLoading]);
   // Integração com extensão
   const { extensionReady, lastResponse, sendCommand } = useDotobotExtensionBridge();
 
