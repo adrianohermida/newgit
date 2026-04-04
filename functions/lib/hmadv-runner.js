@@ -68,6 +68,20 @@ function summarizeRecentCycle(job) {
   const errorCount = Number(job.error_count || 0);
   const successRate = processedCount > 0 ? Math.round((successCount / processedCount) * 100) : null;
   const coverageRate = requestedCount > 0 ? Math.round((processedCount / requestedCount) * 100) : null;
+  let performanceLabel = "Sem leitura";
+  let performanceStatus = "neutral";
+  if ((processedCount || requestedCount) > 0) {
+    if ((successRate ?? 0) >= 80 && (coverageRate ?? 0) >= 80) {
+      performanceLabel = "Bom";
+      performanceStatus = "good";
+    } else if ((successRate ?? 0) >= 50 || (coverageRate ?? 0) >= 50) {
+      performanceLabel = "Parcial";
+      performanceStatus = "partial";
+    } else {
+      performanceLabel = "Andou de lado";
+      performanceStatus = "stalled";
+    }
+  }
   return {
     id: job.id || null,
     acao: job.acao || null,
@@ -79,6 +93,8 @@ function summarizeRecentCycle(job) {
     errorCount,
     successRate,
     coverageRate,
+    performanceLabel,
+    performanceStatus,
   };
 }
 

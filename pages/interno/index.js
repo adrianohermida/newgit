@@ -60,6 +60,12 @@ function RecentJobList({ title, items }) {
 }
 
 function CycleCard({ title, cycle }) {
+  const perfClass =
+    cycle?.performanceStatus === "good"
+      ? "border-[#3A5E46] bg-[rgba(58,94,70,0.12)] text-[#A7D7B4]"
+      : cycle?.performanceStatus === "partial"
+        ? "border-[#7A6431] bg-[rgba(122,100,49,0.12)] text-[#E7C98C]"
+        : "border-[#5B3535] bg-[rgba(91,53,53,0.12)] text-[#E7B3B3]";
   return (
     <div className="border border-[#2D2E2E] p-4 text-sm">
       <p className="font-semibold mb-2">{title}</p>
@@ -68,6 +74,9 @@ function CycleCard({ title, cycle }) {
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold">{cycle.acao || "acao"}</span>
             <ModeBadge active={true} label={String(cycle.status || "desconhecido")} />
+            <span className={`inline-flex items-center border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${perfClass}`}>
+              {cycle.performanceLabel || "Sem leitura"}
+            </span>
           </div>
           <p className="opacity-65">
             {cycle.updatedAt ? new Date(cycle.updatedAt).toLocaleString("pt-BR") : "Sem horario"}
