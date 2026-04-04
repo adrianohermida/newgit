@@ -196,6 +196,14 @@ function groupRecurringPublicacoes(items = []) {
     recurring: items.filter((item) => item.hits === 2),
   };
 }
+function deriveRecurringPublicacoesFocus(summary, bands) {
+  if (bands.critical > 0) return { title: "Ataque estrutural imediato", body: "Existem publicacoes 4x+ reaparecendo. Priorize o gargalo cronico antes de ampliar o lote." };
+  if (summary.manual > 0) return { title: "Revisao manual prioritaria", body: "Ha publicacoes que continuam pedindo leitura humana ou ajuste de regra." };
+  if (summary.advise > 0) return { title: "Extracao Advise primeiro", body: "O principal gargalo recorrente esta na leitura, criacao de processo ou extracao de partes das publicacoes." };
+  if (summary.freshsales > 0) return { title: "Drenar CRM e activities", body: "A fila recorrente esta mais concentrada no reflexo para Freshsales e nas activities." };
+  if (summary.stagnant > 0) return { title: "Auditar lote sem progresso", body: "Ha recorrencias sem ganho util. Revise selecao, regra de extração e limite do lote." };
+  return { title: "Ciclo sob controle", body: "As recorrencias atuais parecem operacionais e podem ser drenadas com lotes menores e correcoes pontuais." };
+}
 function suggestPublicacaoNextAction(source, row, current) {
   if (current?.needsManualReview) return "revisar manualmente a publicacao";
   if (source === "freshsales") return "rodar sync-worker";
@@ -755,6 +763,7 @@ function PublicacoesContent() {
   const recurringPublicacoesSummary = summarizeRecurringPublicacoes(recurringPublicacoes);
   const recurringPublicacoesBands = summarizeRecurrenceBands(recurringPublicacoes);
   const recurringPublicacoesGroups = groupRecurringPublicacoes(recurringPublicacoes);
+  const recurringPublicacoesFocus = deriveRecurringPublicacoesFocus(recurringPublicacoesSummary, recurringPublicacoesBands);
 
   return (
     <div className="space-y-8">
@@ -931,6 +940,11 @@ function PublicacoesContent() {
       {view === "filas" ? <div className="space-y-6">
         {recurringPublicacoes.length ? <Panel title="Pendencias reincidentes" eyebrow="Prioridade operacional">
           <div className="space-y-4">
+            <div className="rounded-[24px] border border-[#6E5630] bg-[rgba(76,57,26,0.16)] p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#F8E7B5]">Foco recomendado</p>
+              <p className="mt-2 font-semibold">{recurringPublicacoesFocus.title}</p>
+              <p className="mt-2 text-sm opacity-75">{recurringPublicacoesFocus.body}</p>
+            </div>
             <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
               <QueueSummaryCard title="Advise" count={recurringPublicacoesSummary.advise} helper="Leitura ou extracao ainda sem fechamento." />
               <QueueSummaryCard title="Freshsales" count={recurringPublicacoesSummary.freshsales} helper="Activity ou reparo de CRM pendente." />

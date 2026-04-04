@@ -271,6 +271,14 @@ function groupRecurringProcessEntries(items = []) {
     recurring: items.filter((item) => item.hits === 2),
   };
 }
+function deriveRecurringProcessFocus(summary, bands) {
+  if (bands.critical > 0) return { title: "Ataque estrutural imediato", body: "Existem itens 4x+ reaparecendo. Priorize gargalos cronicos antes de rodar novos lotes amplos." };
+  if (summary.manual > 0) return { title: "Revisao manual prioritaria", body: "Ha casos que continuam pedindo intervencao humana. Vale revisar retorno e regra antes de repetir a fila." };
+  if (summary.freshsales > 0) return { title: "Corrigir CRM primeiro", body: "Os bloqueios recorrentes estao concentrados no Freshsales. Priorize criacao de account e reparo de campos." };
+  if (summary.datajud > 0) return { title: "Reenriquecer via DataJud", body: "O principal gargalo recorrente esta no enriquecimento ou nas movimentacoes do DataJud." };
+  if (summary.stagnant > 0) return { title: "Auditar lote sem progresso", body: "Ha recorrencias sem ganho util. Revise selecao, regra e cobertura antes de insistir no mesmo lote." };
+  return { title: "Ciclo sob controle", body: "As recorrencias atuais parecem operacionais e podem ser drenadas pela fila normal com lotes menores." };
+}
 function suggestProcessNextAction(source, row, current) {
   if (current?.needsManualReview) return "revisar manualmente o retorno";
   if (source === "freshsales") {
@@ -527,6 +535,7 @@ function InternoProcessosContent() {
   const recurringProcessSummary = summarizeRecurringProcessEntries(recurringProcesses);
   const recurringProcessBands = summarizeRecurrenceBands(recurringProcesses);
   const recurringProcessGroups = groupRecurringProcessEntries(recurringProcesses);
+  const recurringProcessFocus = deriveRecurringProcessFocus(recurringProcessSummary, recurringProcessBands);
   const combinedSelectedNumbers = getCombinedSelectedNumbers();
 
   return <div className="space-y-8">
@@ -592,6 +601,11 @@ function InternoProcessosContent() {
     {view === "filas" ? <div id="filas" className="space-y-6">
       {recurringProcesses.length ? <Panel title="Pendencias reincidentes" eyebrow="Prioridade operacional">
         <div className="space-y-4">
+          <div className="rounded-[24px] border border-[#6E5630] bg-[rgba(76,57,26,0.16)] p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#F8E7B5]">Foco recomendado</p>
+            <p className="mt-2 font-semibold">{recurringProcessFocus.title}</p>
+            <p className="mt-2 text-sm opacity-75">{recurringProcessFocus.body}</p>
+          </div>
           <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
             <QueueSummaryCard title="Supabase" count={recurringProcessSummary.supabase} helper="Itens que pedem correcao ou consolidacao interna." />
             <QueueSummaryCard title="Freshsales" count={recurringProcessSummary.freshsales} helper="Reparos ou criacao de account no CRM." />
