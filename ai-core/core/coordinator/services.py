@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from ...adapters.obsidian_adapter import ObsidianMatch, ObsidianRagContext, search_obsidian_context, write_obsidian_memory_note
+from ...adapters.supabase_rag_adapter import is_configured as supabase_is_configured
+from ...adapters.supabase_rag_adapter import search_supabase_context
 from ..memory import FileBackedLongTermMemory, LongTermMemoryRecord
 
 
@@ -38,6 +40,10 @@ class MemoryNoteSink(Protocol):
 @dataclass(frozen=True)
 class DefaultRagService:
     def search(self, query: str, top_k: int = 5) -> ObsidianRagContext:
+        # Prefer Supabase pgvector (real embeddings) when credentials are present;
+        # fall back to hash-based Obsidian local search for offline/dev use.
+        if supabase_is_configured():
+            return search_supabase_context(query=query, top_k=top_k)
         return search_obsidian_context(query=query, top_k=top_k)
 
 
