@@ -93,6 +93,27 @@ function RemoteRunSummary({ entry, actionLabels }) {
     </div>
   );
 }
+function deriveRemoteHealth(history = []) {
+  const latest = history[0] || null;
+  if (!latest) return [];
+  const sameAction = history.filter((item) => item.acao === latest.acao).slice(0, 3);
+  const badges = [];
+  if (latest.status === "error") badges.push({ label: "ultima execucao com erro", tone: "danger" });
+  if (Number(latest.affected_count || 0) === 0) badges.push({ label: "sem progresso", tone: "warning" });
+  if (sameAction.length >= 2 && sameAction.every((item) => Number(item.affected_count || 0) === 0)) badges.push({ label: "fila reincidente", tone: "danger" });
+  if (!badges.length && latest.status === "success") badges.push({ label: "ciclo saudavel", tone: "success" });
+  return badges;
+}
+
+function HealthBadge({ label, tone }) {
+  const classes = {
+    success: "border-[#30543A] text-[#B7F7C6]",
+    warning: "border-[#6E5630] text-[#FDE68A]",
+    danger: "border-[#5B2D2D] text-[#FECACA]",
+    default: "border-[#2D2E2E] text-[#F4F1EA]",
+  };
+  return <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${classes[tone] || classes.default}`}>{label}</span>;
+}
 
 function Panel({ title, eyebrow, children }) {
   return (
@@ -599,6 +620,7 @@ function PublicacoesContent() {
   const data = overview.data || {};
   const latestHistory = executionHistory[0] || null;
   const latestRemoteRun = remoteHistory[0] || null;
+  const remoteHealth = deriveRemoteHealth(remoteHistory);
 
   return (
     <div className="space-y-8">
@@ -615,7 +637,7 @@ function PublicacoesContent() {
             {latestHistory ? <p className="text-xs opacity-60">{latestHistory.label}: {latestHistory.preview}</p> : null}
           </div>
         </div>
-        <div className="mt-6 space-y-4"><ViewToggle value={view} onChange={updateView} />{latestRemoteRun ? <RemoteRunSummary entry={latestRemoteRun} actionLabels={ACTION_LABELS} /> : null}</div>
+        <div className="mt-6 space-y-4"><ViewToggle value={view} onChange={updateView} />{latestRemoteRun ? <RemoteRunSummary entry={latestRemoteRun} actionLabels={ACTION_LABELS} /> : null}{remoteHealth.length ? <div className="flex flex-wrap gap-2">{remoteHealth.map((item) => <HealthBadge key={item.label} label={item.label} tone={item.tone} />)}</div> : null}</div>
       </section>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

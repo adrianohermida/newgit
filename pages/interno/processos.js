@@ -170,6 +170,17 @@ function RemoteRunSummary({ entry }) {
     {entry.resumo ? <p className="mt-3 text-sm opacity-70">{entry.resumo}</p> : null}
   </div>;
 }
+function deriveRemoteHealth(history = []) {
+  const latest = history[0] || null;
+  if (!latest) return [];
+  const sameAction = history.filter((item) => item.acao === latest.acao).slice(0, 3);
+  const badges = [];
+  if (latest.status === "error") badges.push({ label: "ultima execucao com erro", tone: "danger" });
+  if (Number(latest.affected_count || 0) === 0) badges.push({ label: "sem progresso", tone: "warning" });
+  if (sameAction.length >= 2 && sameAction.every((item) => Number(item.affected_count || 0) === 0)) badges.push({ label: "fila reincidente", tone: "danger" });
+  if (!badges.length && latest.status === "success") badges.push({ label: "ciclo saudavel", tone: "success" });
+  return badges;
+}
 
 export default function InternoProcessosPage() {
   return <RequireAdmin>{(profile) => <InternoLayout profile={profile} title="Gestao de Processos" description="Painel operacional para sincronizacao DataJud, criacao de accounts, correcao de gaps no Freshsales e vinculacao de processos relacionados."><InternoProcessosContent /></InternoLayout>}</RequireAdmin>;
@@ -378,6 +389,7 @@ function InternoProcessosContent() {
   const selectedSummary = selectedWithoutMovements.length + selectedMonitoringActive.length + selectedMonitoringInactive.length + selectedFieldGaps.length + selectedOrphans.length;
   const latestHistory = executionHistory[0] || null;
   const latestRemoteRun = remoteHistory[0] || null;
+  const remoteHealth = deriveRemoteHealth(remoteHistory);
   const combinedSelectedNumbers = getCombinedSelectedNumbers();
 
   return <div className="space-y-8">
@@ -398,6 +410,7 @@ function InternoProcessosContent() {
         <ViewToggle value={view} onChange={updateView} />
         <SectionNav items={[{ href: "#operacao", label: "Operacao" }, { href: "#filas", label: "Filas" }, { href: "#relacoes", label: "Relacoes" }, { href: "#resultado", label: "Resultado" }]} />
         {latestRemoteRun ? <RemoteRunSummary entry={latestRemoteRun} /> : null}
+        {remoteHealth.length ? <div className="flex flex-wrap gap-2">{remoteHealth.map((item) => <StatusBadge key={item.label} tone={item.tone}>{item.label}</StatusBadge>)}</div> : null}
       </div>
     </section>
 
