@@ -1889,6 +1889,16 @@ function normalizeProcessJobPayload(action, payload = {}) {
   };
 }
 
+function buildProcessActionLogName(action, payload = {}, suffix = "") {
+  const baseAction = String(action || "").trim();
+  const intent = String(payload?.intent || "").trim();
+  let variant = baseAction;
+  if (baseAction === "enriquecer_datajud" && intent) {
+    variant = `${baseAction}_${intent}`;
+  }
+  return suffix ? `${variant}_${suffix}` : variant;
+}
+
 export async function createProcessAdminJob(env, { action, payload = {} } = {}) {
   const normalizedPayload = normalizeProcessJobPayload(action, payload);
   const targets = await resolveProcessJobTargets(env, action, normalizedPayload.processNumbers);
@@ -1953,7 +1963,7 @@ export async function processProcessAdminJob(env, id) {
     });
     await logAdminOperation(env, {
       modulo: "processos",
-      acao: `${job.acao}_job`,
+      acao: buildProcessActionLogName(job.acao, job.payload || {}, "job"),
       status: "success",
       payload: job.payload || {},
       result: {
@@ -1989,7 +1999,7 @@ export async function processProcessAdminJob(env, id) {
     if (nextProcessed >= targets.length) {
       await logAdminOperation(env, {
         modulo: "processos",
-        acao: `${job.acao}_job`,
+        acao: buildProcessActionLogName(job.acao, job.payload || {}, "job"),
         status: failures ? "error" : "success",
         payload: job.payload || {},
         result: {
@@ -2008,7 +2018,7 @@ export async function processProcessAdminJob(env, id) {
     });
     await logAdminOperation(env, {
       modulo: "processos",
-      acao: `${job.acao}_job`,
+      acao: buildProcessActionLogName(job.acao, job.payload || {}, "job"),
       status: "error",
       payload: job.payload || {},
       error: error.message || "Falha ao processar job operacional.",

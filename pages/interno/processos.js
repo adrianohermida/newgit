@@ -48,13 +48,27 @@ function getSafeProcessActionLimit(action, requestedLimit) {
 }
 
 function getProcessActionLabel(action, payload = {}) {
-  const intent = String(payload?.intent || "").trim();
-  if (action === "enriquecer_datajud") {
-    if (intent === "buscar_movimentacoes") return "Buscar movimentacoes no DataJud";
-    if (intent === "sincronizar_monitorados") return "Sincronizar monitorados";
-    if (intent === "reenriquecer_gaps") return "Reenriquecer processos com gap";
+  let normalizedAction = String(action || "").trim();
+  let suffixLabel = "";
+  if (normalizedAction.endsWith("_job")) {
+    normalizedAction = normalizedAction.slice(0, -4);
+    suffixLabel = " (job)";
+  } else if (normalizedAction.endsWith("_inline_fallback")) {
+    normalizedAction = normalizedAction.slice(0, -16);
+    suffixLabel = " (fallback inline)";
   }
-  return ACTION_LABELS[action] || action;
+  let intent = String(payload?.intent || "").trim();
+  if (!intent && normalizedAction.startsWith("enriquecer_datajud_")) {
+    intent = normalizedAction.slice("enriquecer_datajud_".length);
+    normalizedAction = "enriquecer_datajud";
+  }
+  if (normalizedAction === "enriquecer_datajud") {
+    if (intent === "buscar_movimentacoes") return `Buscar movimentacoes no DataJud${suffixLabel}`;
+    if (intent === "sincronizar_monitorados") return `Sincronizar monitorados${suffixLabel}`;
+    if (intent === "reenriquecer_gaps") return `Reenriquecer processos com gap${suffixLabel}`;
+    return `Reenriquecer via DataJud${suffixLabel}`;
+  }
+  return `${ACTION_LABELS[normalizedAction] || normalizedAction}${suffixLabel}`;
 }
 
 function getProcessIntentBadge(payload = {}) {
