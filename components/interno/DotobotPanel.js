@@ -583,10 +583,42 @@ export default function DotobotCopilot({
           </main>
           {/* INPUT AREA */}
           <footer className="border-t border-[#22342F] bg-[rgba(12,15,14,0.98)] px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4">
-            <form
-              className="flex items-end gap-2"
-              onSubmit={handleSubmit}
-            >
+            <form className="flex items-end gap-2" onSubmit={handleSubmit}>
+              {/* Botão de anexar */}
+              <button
+                type="button"
+                className="rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-2 text-[#C5A059] hover:border-[#C5A059] focus:outline-none"
+                title="Anexar arquivo"
+                onClick={handleOpenFiles}
+              >
+                <span className="text-lg">📎</span>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleFilesSelected}
+              />
+              {/* Botão de voz */}
+              <button
+                type="button"
+                className={`rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-2 text-[#C5A059] hover:border-[#C5A059] focus:outline-none ${isRecording ? "animate-pulse border-[#D9B46A]" : ""}`}
+                title="Entrada por voz"
+                onClick={toggleVoiceInput}
+              >
+                <span className="text-lg">🎤</span>
+              </button>
+              {/* Botão de ação rápida */}
+              <button
+                type="button"
+                className="rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-2 text-[#C5A059] hover:border-[#C5A059] focus:outline-none"
+                title="Ações rápidas"
+                onClick={() => setShowSlashCommands(true)}
+              >
+                <span className="text-lg">⚡</span>
+              </button>
+              {/* Campo de texto */}
               <textarea
                 ref={composerRef}
                 className="flex-1 resize-none rounded-xl border border-[#22342F] bg-transparent px-3 py-2 text-sm text-[#F5F1E8] placeholder-[#7F928C] focus:border-[#C5A059] focus:outline-none"
@@ -597,12 +629,13 @@ export default function DotobotCopilot({
                 disabled={loading}
                 style={{ minHeight: 36, maxHeight: 80 }}
               />
+              {/* Botão enviar */}
               <button
                 type="submit"
                 className="rounded-xl bg-[#D9B46A] px-4 py-2 text-sm font-bold text-[#1A1A1A] transition hover:bg-[#C5A059]"
                 disabled={loading || !input.trim()}
               >
-                Enviar
+                ⏎
               </button>
             </form>
           </footer>
