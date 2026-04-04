@@ -119,6 +119,7 @@ function deriveRecurringPublicacoes(history = []) {
         source: "advise",
         needsManualReview: false,
         noProgress: false,
+        nextAction: "rodar sync-worker",
       };
       current.hits += 1;
       if (!current.titulo && (row?.titulo || row?.titulo_processo)) current.titulo = row?.titulo || row?.titulo_processo;
@@ -126,6 +127,7 @@ function deriveRecurringPublicacoes(history = []) {
       current.source = classifyPublicacaoRecurringSource(entry, row);
       current.needsManualReview = current.needsManualReview || publicacaoNeedsManualReview(row);
       current.noProgress = current.noProgress || publicacaoHasNoProgress(entry, row);
+      current.nextAction = suggestPublicacaoNextAction(current.source, row, current);
       counts.set(key, current);
     }
   }
@@ -163,6 +165,17 @@ function recurringSourceLabel(source) {
   if (source === "advise") return "gargalo advise";
   if (source === "datajud") return "gargalo datajud";
   return "gargalo supabase";
+}
+function suggestPublicacaoNextAction(source, row, current) {
+  if (current?.needsManualReview) return "revisar manualmente a publicacao";
+  if (source === "freshsales") return "rodar sync-worker";
+  if (source === "advise") {
+    if (!row?.processo_criado && !row?.processo_depois) return "criar processo da publicacao";
+    if ((row?.partes_detectadas || row?.partes_novas || 0) > 0) return "salvar partes e atualizar polos";
+    return "reler publicacao no advise";
+  }
+  if (current?.noProgress) return "auditar fila de publicacoes";
+  return "salvar partes + corrigir crm";
 }
 
 function HealthBadge({ label, tone }) {
@@ -866,6 +879,7 @@ function PublicacoesContent() {
                 <HealthBadge label={recurringSourceLabel(item.source)} tone={recurringSourceTone(item.source)} />
                 {item.noProgress ? <HealthBadge label="sem progresso estrutural" tone="warning" /> : null}
                 {item.needsManualReview ? <HealthBadge label="precisa intervencao manual" tone="danger" /> : null}
+                {item.nextAction ? <HealthBadge label={item.nextAction} tone="success" /> : null}
               </div>
               {item.titulo ? <p className="mt-2 opacity-70">{item.titulo}</p> : null}
             </div>)}

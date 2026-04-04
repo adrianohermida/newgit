@@ -196,6 +196,7 @@ function deriveRecurringProcessEntries(history = []) {
         source: "supabase",
         needsManualReview: false,
         noProgress: false,
+        nextAction: "rodar auditoria",
       };
       current.hits += 1;
       if (!current.titulo && row?.titulo) current.titulo = row.titulo;
@@ -203,6 +204,7 @@ function deriveRecurringProcessEntries(history = []) {
       current.source = classifyProcessRecurringSource(entry, row);
       current.needsManualReview = current.needsManualReview || processNeedsManualReview(row);
       current.noProgress = current.noProgress || processHasNoProgress(entry, row);
+      current.nextAction = suggestProcessNextAction(current.source, row, current);
       counts.set(key, current);
     }
   }
@@ -238,6 +240,22 @@ function sourceLabel(source) {
   if (source === "datajud") return "gargalo datajud";
   if (source === "advise") return "gargalo advise";
   return "gargalo supabase";
+}
+function suggestProcessNextAction(source, row, current) {
+  if (current?.needsManualReview) return "revisar manualmente o retorno";
+  if (source === "freshsales") {
+    if (!row?.account_id_freshsales) return "criar account no freshsales";
+    return "corrigir campos no freshsales";
+  }
+  if (source === "datajud") {
+    if (row?.quantidade_movimentacoes === 0 || row?.before?.quantidade_movimentacoes === row?.after?.quantidade_movimentacoes) {
+      return "buscar movimentacoes no datajud";
+    }
+    return "reenriquecer via datajud";
+  }
+  if (row?.monitoramento_ativo === false) return "reativar monitoramento";
+  if (current?.noProgress) return "rodar auditoria do lote";
+  return "sincronizar supabase + freshsales";
 }
 
 export default function InternoProcessosPage() {
@@ -522,6 +540,7 @@ function InternoProcessosContent() {
               <StatusBadge tone={sourceTone(item.source)}>{sourceLabel(item.source)}</StatusBadge>
               {item.noProgress ? <StatusBadge tone="warning">sem progresso estrutural</StatusBadge> : null}
               {item.needsManualReview ? <StatusBadge tone="danger">precisa intervencao manual</StatusBadge> : null}
+              {item.nextAction ? <StatusBadge tone="success">{item.nextAction}</StatusBadge> : null}
             </div>
             {item.titulo ? <p className="mt-2 opacity-70">{item.titulo}</p> : null}
           </div>)}
