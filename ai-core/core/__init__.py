@@ -1,8 +1,6 @@
-# Exportação mínima de subsistemas reais
-from .assistant import SessionHistory
-from .history import HistoryLog
 """Python porting workspace for the Lawdesk rewrite effort."""
 
+from .commands import PORTED_COMMANDS, build_command_backlog
 from .coordinator import Coordinator, OrchestrationResult
 from .parity_audit import ParityAuditResult, run_parity_audit
 from .port_manifest import PortManifest, build_port_manifest
@@ -24,23 +22,23 @@ from .system_init import build_system_init_message
 from .tools import PORTED_TOOLS, build_tool_backlog
 
 __all__ = [
+    'Coordinator',
+    'InvalidSessionIdError',
+    'OrchestrationResult',
+    'PORTED_COMMANDS',
+    'PORTED_TOOLS',
     'ParityAuditResult',
     'PortManifest',
     'PortRuntime',
     'QueryEnginePort',
-    'Coordinator',
-    'OrchestrationResult',
-    'RustRuntimeBridge',
     'RuntimeSession',
-    'InvalidSessionIdError',
+    'RustRuntimeBridge',
     'SessionCorruptedError',
     'SessionNotFoundError',
     'SessionPersistenceError',
     'SessionStoreError',
     'StoredSession',
     'TurnResult',
-    'PORTED_COMMANDS',
-    'PORTED_TOOLS',
     'build_command_backlog',
     'build_port_manifest',
     'build_system_init_message',
