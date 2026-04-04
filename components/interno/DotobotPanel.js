@@ -20,6 +20,7 @@ import {
   PREF_STORAGE_PREFIX,
   TASK_STORAGE_PREFIX,
   buildConversationStorageKey,
+  buildConversationSelectionState,
   buildDotobotGlobalContext,
   buildStorageKey,
   createConversationSnapshot,
@@ -30,6 +31,7 @@ import {
   inferConversationTitle,
   isTaskCommand,
   loadPersistedDotobotState,
+  mergeConversationAttachments,
   nowIso,
   safeText,
   summarizeConversation,
@@ -777,17 +779,7 @@ export default function DotobotCopilot({
     const normalized = files.map((file) => normalizeAttachment(file));
     setAttachments((current) => [...current, ...normalized].slice(0, MAX_ATTACHMENTS));
     if (activeConversationId) {
-      setConversations((current) =>
-        current.map((conversation) =>
-          conversation.id === activeConversationId
-            ? summarizeConversation({
-                ...conversation,
-                attachments: [...(conversation.attachments || []), ...normalized].slice(0, MAX_ATTACHMENTS),
-                updatedAt: nowIso(),
-              })
-            : conversation
-        )
-      );
+      setConversations((current) => mergeConversationAttachments(current, activeConversationId, normalized));
     }
   }
 
@@ -829,11 +821,11 @@ export default function DotobotCopilot({
   }
 
   function selectConversation(conversation) {
-    if (!conversation) return;
-    setActiveConversationId(conversation.id);
-    setMessages(Array.isArray(conversation.messages) ? conversation.messages : []);
-    setTaskHistory(Array.isArray(conversation.taskHistory) ? conversation.taskHistory : []);
-    setAttachments(Array.isArray(conversation.attachments) ? conversation.attachments : []);
+    const selectionState = buildConversationSelectionState(conversation);
+    setActiveConversationId(selectionState.activeConversationId);
+    setMessages(selectionState.messages);
+    setTaskHistory(selectionState.taskHistory);
+    setAttachments(selectionState.attachments);
     setError(null);
     setWorkspaceOpen(true);
   }
@@ -883,17 +875,7 @@ export default function DotobotCopilot({
       setAttachments((current) => [...current, ...attachmentsToAdd].slice(0, MAX_ATTACHMENTS));
       return;
     }
-    setConversations((current) =>
-      current.map((conversation) =>
-        conversation.id === conversationId
-          ? summarizeConversation({
-              ...conversation,
-              attachments: [...(conversation.attachments || []), ...attachmentsToAdd].slice(0, MAX_ATTACHMENTS),
-              updatedAt: nowIso(),
-            })
-          : conversation
-      )
-    );
+    setConversations((current) => mergeConversationAttachments(current, conversationId, attachmentsToAdd));
     if (conversationId === activeConversationId) {
       setAttachments((current) => [...current, ...attachmentsToAdd].slice(0, MAX_ATTACHMENTS));
     }

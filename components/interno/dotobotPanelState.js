@@ -270,3 +270,33 @@ export function filterVisibleConversations(conversations, conversationSearch) {
     return haystack.includes(String(conversationSearch).toLowerCase());
   });
 }
+
+export function buildConversationSelectionState(conversation) {
+  if (!conversation) {
+    return {
+      activeConversationId: null,
+      messages: [],
+      taskHistory: [],
+      attachments: [],
+    };
+  }
+
+  return {
+    activeConversationId: conversation.id,
+    messages: Array.isArray(conversation.messages) ? conversation.messages : [],
+    taskHistory: Array.isArray(conversation.taskHistory) ? conversation.taskHistory : [],
+    attachments: Array.isArray(conversation.attachments) ? conversation.attachments : [],
+  };
+}
+
+export function mergeConversationAttachments(conversations, conversationId, attachmentsToAdd) {
+  return conversations.map((conversation) =>
+    conversation.id === conversationId
+      ? summarizeConversation({
+          ...conversation,
+          attachments: [...(conversation.attachments || []), ...attachmentsToAdd].slice(0, MAX_ATTACHMENTS),
+          updatedAt: nowIso(),
+        })
+      : conversation
+  );
+}
