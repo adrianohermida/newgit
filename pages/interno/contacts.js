@@ -108,6 +108,7 @@ function ContactsContent() {
   const [page, setPage] = useState(1);
   const [duplicatesPage, setDuplicatesPage] = useState(1);
   const [partesPage, setPartesPage] = useState(1);
+  const [linkedPage, setLinkedPage] = useState(1);
   const [query, setQuery] = useState("");
   const [partesQuery, setPartesQuery] = useState("");
   const [linkedQuery, setLinkedQuery] = useState("");
@@ -128,7 +129,7 @@ function ContactsContent() {
   useEffect(() => { loadList(page, query, type); }, [page, query, type]);
   useEffect(() => { loadDuplicates(duplicatesPage); }, [duplicatesPage]);
   useEffect(() => { loadPartesPendentes(partesPage, partesQuery); }, [partesPage, partesQuery]);
-  useEffect(() => { loadPartesVinculadas(partesPage, linkedQuery, linkedType); }, [partesPage, linkedQuery, linkedType]);
+  useEffect(() => { loadPartesVinculadas(linkedPage, linkedQuery, linkedType); }, [linkedPage, linkedQuery, linkedType]);
   useEffect(() => {
     if (!selectedContactId) {
       setDetailState({ loading: false, error: null, data: null });
@@ -215,7 +216,7 @@ function ContactsContent() {
         loadList(page, query, type),
         loadDuplicates(duplicatesPage),
         loadPartesPendentes(partesPage, partesQuery),
-        loadPartesVinculadas(partesPage, linkedQuery, linkedType),
+        loadPartesVinculadas(linkedPage, linkedQuery, linkedType),
         selectedContactId ? loadDetail(selectedContactId) : Promise.resolve(),
       ]);
       return response.data;
@@ -419,8 +420,8 @@ function ContactsContent() {
     <Panel title="Partes ja vinculadas" eyebrow="Revisao e correcao">
       <div className="space-y-4">
         <div className="grid gap-4 md:grid-cols-[1fr_220px]">
-          <input value={linkedQuery} onChange={(event) => { setPartesPage(1); setLinkedQuery(event.target.value); }} placeholder="Buscar vinculadas por nome ou processo" className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
-          <select value={linkedType} onChange={(event) => { setPartesPage(1); setLinkedType(event.target.value); }} className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]">
+          <input value={linkedQuery} onChange={(event) => { setLinkedPage(1); setLinkedQuery(event.target.value); }} placeholder="Buscar vinculadas por nome ou processo" className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
+          <select value={linkedType} onChange={(event) => { setLinkedPage(1); setLinkedType(event.target.value); }} className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]">
             <option value="">Todos os tipos</option>
             {CONTACT_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
           </select>
@@ -448,8 +449,8 @@ function ContactsContent() {
         <div className="flex items-center justify-between gap-3 text-sm">
           <p className="opacity-60">Total estimado: {partesVinculadas.totalRows || 0}</p>
           <div className="flex gap-2">
-            <ActionButton onClick={() => setPartesPage(Math.max(1, partesPage - 1))} disabled={partesPage <= 1 || partesVinculadas.loading}>Anterior</ActionButton>
-            <ActionButton onClick={() => setPartesPage(partesPage + 1)} disabled={partesVinculadas.loading}>Proxima</ActionButton>
+            <ActionButton onClick={() => setLinkedPage(Math.max(1, linkedPage - 1))} disabled={linkedPage <= 1 || partesVinculadas.loading}>Anterior</ActionButton>
+            <ActionButton onClick={() => setLinkedPage(linkedPage + 1)} disabled={partesVinculadas.loading}>Proxima</ActionButton>
           </div>
         </div>
       </div>
