@@ -215,6 +215,9 @@ function MessageBubble({ message, isTyping }) {
       ? "border-[#2E3A36] bg-[rgba(255,255,255,0.02)] text-[#9FB1AA]"
       : "border-[#3C3320] bg-[rgba(40,32,19,0.28)] text-[#F7F1E6]";
 
+  // Suporte multimodal: imagens/áudios
+  const media = Array.isArray(message.media) ? message.media : [];
+
   return (
     <div className={`flex ${alignClass}`}>
       <article className={`max-w-[min(48rem,92%)] rounded-[24px] border px-4 py-3 text-sm ${bubbleClass}`}>
@@ -229,7 +232,30 @@ function MessageBubble({ message, isTyping }) {
             <span className="loading-dot" />
             <span className="ml-2">Digitando...</span>
           </span>
-        ) : renderRichText(message.text)}
+        ) : (
+          <>
+            {renderRichText(message.text)}
+            {media.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-3">
+                {media.map((item, idx) => {
+                  if (typeof item === "string" && item.match(/\.(png|jpe?g|webp|gif)$/i)) {
+                    return <img key={idx} src={item} alt="imagem" className="max-w-[180px] max-h-[180px] rounded-xl border border-[#22342F]" />;
+                  }
+                  if (typeof item === "string" && item.match(/\.(mp3|wav|ogg|m4a)$/i)) {
+                    return <audio key={idx} src={item} controls className="max-w-[220px]" />;
+                  }
+                  if (typeof item === "object" && item.type === "image" && item.url) {
+                    return <img key={idx} src={item.url} alt={item.alt || "imagem"} className="max-w-[180px] max-h-[180px] rounded-xl border border-[#22342F]" />;
+                  }
+                  if (typeof item === "object" && item.type === "audio" && item.url) {
+                    return <audio key={idx} src={item.url} controls className="max-w-[220px]" />;
+                  }
+                  return null;
+                })}
+              </div>
+            )}
+          </>
+        )}
       </article>
     </div>
   );

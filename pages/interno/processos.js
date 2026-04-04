@@ -23,6 +23,22 @@ const ACTION_LABELS = {
   salvar_relacao: "Salvar relacao",
   remover_relacao: "Remover relacao",
 };
+const ASYNC_PROCESS_ACTIONS = new Set([
+  "push_orfaos",
+  "enriquecer_datajud",
+  "repair_freshsales_accounts",
+  "sync_supabase_crm",
+]);
+
+function buildJobPreview(job) {
+  if (!job) return "";
+  const processed = Number(job.processed_count || 0);
+  const requested = Number(job.requested_count || 0);
+  const errors = Number(job.error_count || 0);
+  if (job.status === "completed") return `Concluido: ${processed}/${requested} processado(s)`;
+  if (job.status === "error") return job.last_error || `Falha apos ${processed}/${requested}`;
+  return `Em andamento: ${processed}/${requested} processado(s), ${errors} falha(s)`;
+}
 
 function buildHistoryPreview(result) {
   if (!result) return "";
@@ -140,6 +156,33 @@ function HistoryCard({ entry, onReuse }) {
     {entry.meta?.limit ? <p className="mt-1 text-xs opacity-60">Lote: {entry.meta.limit}</p> : null}
     {entry.meta?.processNumbersPreview ? <p className="mt-2 break-all text-xs opacity-60">CNJs: {entry.meta.processNumbersPreview}</p> : null}
     <div className="mt-3 flex flex-wrap gap-2"><ActionButton onClick={() => onReuse(entry)} className="px-3 py-2 text-xs">Reusar parametros</ActionButton></div>
+  </div>;
+}
+function JobCard({ job, active = false }) {
+  const processed = Number(job?.processed_count || 0);
+  const requested = Number(job?.requested_count || 0);
+  const percent = requested ? Math.min(100, Math.round((processed / requested) * 100)) : 0;
+  return <div className={`rounded-[24px] border p-4 text-sm ${active ? "border-[#C5A059] bg-[rgba(76,57,26,0.18)]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p className="font-semibold">{ACTION_LABELS[job?.acao] || job?.acao}</p>
+        <p className="text-xs opacity-60">{job?.created_at ? new Date(job.created_at).toLocaleString("pt-BR") : "sem horario"}</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <StatusBadge tone={job?.status === "completed" ? "success" : job?.status === "error" ? "danger" : "warning"}>{job?.status || "pending"}</StatusBadge>
+        {active ? <StatusBadge tone="default">ativo na tela</StatusBadge> : null}
+      </div>
+    </div>
+    <div className="mt-3 flex flex-wrap gap-2">
+      <StatusBadge>Solicitados {requested}</StatusBadge>
+      <StatusBadge tone="success">Processados {processed}</StatusBadge>
+      <StatusBadge tone="warning">Falhas {Number(job?.error_count || 0)}</StatusBadge>
+    </div>
+    <div className="mt-3 h-2 overflow-hidden rounded-full bg-[rgba(255,255,255,0.08)]">
+      <div className="h-full rounded-full bg-[#C5A059]" style={{ width: `${percent}%` }} />
+    </div>
+    <p className="mt-2 text-xs opacity-65">{buildJobPreview(job)}</p>
+    {job?.last_error ? <p className="mt-2 text-xs text-red-200">{job.last_error}</p> : null}
   </div>;
 }
 function QueueSummaryCard({ title, count, helper, accent = "text-[#C5A059]" }) {
@@ -377,6 +420,8 @@ function InternoProcessosContent() {
   const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
   const [executionHistory, setExecutionHistory] = useState([]);
   const [remoteHistory, setRemoteHistory] = useState([]);
+  const [jobs, setJobs] = useState([]);
+  const [activeJobId, setActiveJobId] = useState(null);
   const [limit, setLimit] = useState(10);
   const [processNumbers, setProcessNumbers] = useState("");
   const [withoutMovements, setWithoutMovements] = useState({ loading: true, items: [] });
@@ -422,6 +467,7 @@ function InternoProcessosContent() {
   }, []);
   useEffect(() => { setExecutionHistory(loadHistoryEntries()); }, []);
   useEffect(() => { loadRemoteHistory(); }, []);
+  useEffect(() => { loadJobs(); }, []);
   useEffect(() => { loadOverview(); }, []);
   useEffect(() => { loadQueue("sem_movimentacoes", setWithoutMovements, wmPage); }, [wmPage]);
   useEffect(() => { loadQueue("monitoramento_ativo", setMonitoringActive, maPage); }, [maPage]);
@@ -442,6 +488,65 @@ function InternoProcessosContent() {
     }, 250);
     return () => { cancelled = true; clearTimeout(timeoutId); };
   }, [lookupTerm]);
+  useEffect(() => {
+    if (!jobs.length) return;
+    const runningJob = jobs.find((item) => item.status === "running" || item.status === "pending");
+    if (runningJob?.id && !activeJobId) {
+      setActiveJobId(runningJob.id);
+    }
+  }, [jobs, activeJobId]);
+  useEffect(() => {
+    if (!activeJobId) return undefined;
+    let cancelled = false;
+    async function runLoop() {
+      while (!cancelled) {
+        try {
+          const payload = await adminFetch("/api/admin-hmadv-processos", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "run_job_chunk", id: activeJobId }),
+          }, { timeoutMs: 120000, maxRetries: 0 });
+          const job = payload.data;
+          if (cancelled) return;
+          await Promise.all([loadJobs(), loadRemoteHistory()]);
+          setActionState({ loading: false, error: null, result: { job } });
+          if (job?.status === "completed" || job?.status === "error" || job?.status === "cancelled") {
+            setActiveJobId(null);
+            await Promise.all([
+              loadOverview(),
+              loadQueue("sem_movimentacoes", setWithoutMovements, wmPage),
+              loadQueue("monitoramento_ativo", setMonitoringActive, maPage),
+              loadQueue("monitoramento_inativo", setMonitoringInactive, miPage),
+              loadQueue("campos_orfaos", setFieldGaps, fgPage),
+              loadOrphans(orphanPage),
+            ]);
+            if (typeof window !== "undefined" && "Notification" in window) {
+              if (Notification.permission === "default") {
+                Notification.requestPermission().catch(() => {});
+              } else if (Notification.permission === "granted") {
+                new Notification("HMADV concluiu um job de processos", {
+                  body: `${ACTION_LABELS[job?.acao] || job?.acao}: ${buildJobPreview(job)}`,
+                });
+              }
+            }
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 1800));
+        } catch (error) {
+          if (!cancelled) {
+            setActionState({ loading: false, error: error.message || "Falha ao processar job.", result: null });
+            setActiveJobId(null);
+            await Promise.all([loadJobs(), loadRemoteHistory()]);
+          }
+          return;
+        }
+      }
+    }
+    runLoop();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeJobId, wmPage, maPage, miPage, fgPage, orphanPage]);
 
   async function loadOverview() { try { const payload = await adminFetch("/api/admin-hmadv-processos?action=overview"); setOverview({ loading: false, data: payload.data }); } catch { setOverview({ loading: false, data: null }); } }
   async function loadQueue(action, setter, page) {
@@ -462,6 +567,14 @@ function InternoProcessosContent() {
       setRemoteHistory(payload.data.items || []);
     } catch {
       setRemoteHistory([]);
+    }
+  }
+  async function loadJobs() {
+    try {
+      const payload = await adminFetch("/api/admin-hmadv-processos?action=jobs&limit=12");
+      setJobs(payload.data.items || []);
+    } catch {
+      setJobs([]);
     }
   }
   function toggleSelection(setter, current, key) { setter(current.includes(key) ? current.filter((item) => item !== key) : [...current, key]); }
@@ -536,6 +649,24 @@ function InternoProcessosContent() {
       return next;
     });
   }
+  async function queueAsyncAction(action, payload = {}) {
+    const response = await adminFetch("/api/admin-hmadv-processos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create_job",
+        jobAction: action,
+        limit,
+        processNumbers,
+        ...payload,
+      }),
+    });
+    const job = response.data;
+    setActionState({ loading: false, error: null, result: { job } });
+    setActiveJobId(job?.id || null);
+    await Promise.all([loadJobs(), loadRemoteHistory()]);
+    return job;
+  }
   async function handleAction(action, payload = {}) {
     setActionState({ loading: true, error: null, result: null });
     updateView("resultado");
@@ -555,6 +686,15 @@ function InternoProcessosContent() {
       },
     });
     try {
+      if (ASYNC_PROCESS_ACTIONS.has(action)) {
+        const job = await queueAsyncAction(action, payload);
+        replaceHistoryEntry(historyId, {
+          status: "success",
+          preview: `Job criado: ${buildJobPreview(job)}`,
+          result: { job },
+        });
+        return;
+      }
       const response = await adminFetch("/api/admin-hmadv-processos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, limit, processNumbers, ...payload }) });
       setActionState({ loading: false, error: null, result: response.data });
       replaceHistoryEntry(historyId, {
@@ -562,7 +702,7 @@ function InternoProcessosContent() {
         preview: buildHistoryPreview(response.data),
         result: response.data,
       });
-      await Promise.all([loadOverview(), loadQueue("sem_movimentacoes", setWithoutMovements, wmPage), loadQueue("monitoramento_ativo", setMonitoringActive, maPage), loadQueue("monitoramento_inativo", setMonitoringInactive, miPage), loadQueue("campos_orfaos", setFieldGaps, fgPage), loadOrphans(orphanPage), loadRemoteHistory()]);
+      await Promise.all([loadOverview(), loadQueue("sem_movimentacoes", setWithoutMovements, wmPage), loadQueue("monitoramento_ativo", setMonitoringActive, maPage), loadQueue("monitoramento_inativo", setMonitoringInactive, miPage), loadQueue("campos_orfaos", setFieldGaps, fgPage), loadOrphans(orphanPage), loadRemoteHistory(), loadJobs()]);
     } catch (error) {
       setActionState({ loading: false, error: error.message || "Falha ao executar acao.", result: null });
       replaceHistoryEntry(historyId, {

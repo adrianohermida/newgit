@@ -1598,12 +1598,44 @@ export async function createProcessesFromPublicacoes(env, { processNumbers = [],
 
 export async function pushOrphanAccounts(env, { processNumbers = [], limit = 20 } = {}) {
   const safeLimit = Math.max(1, Math.min(Number(limit || 20), 100));
-  return hmadvFunction(
-    env,
-    "processo-sync",
-    { action: "push_freshsales", limite: safeLimit, batch: 10, requested_selection: processNumbers.length || 0 },
-    { method: "POST", body: {} }
-  );
+  const processes = processNumbers.length
+    ? await loadProcessesByNumbers(env, processNumbers)
+    : await scanOrphanProcesses(env, { page: 1, pageSize: safeLimit }).then((data) => data.items || []);
+  const sample = [];
+  for (const proc of processes.slice(0, safeLimit)) {
+    const fullRow = (await loadProcessesByIds(
+      env,
+      [proc.id],
+      "id,numero_cnj,numero_processo,titulo,polo_ativo,polo_passivo,tribunal,orgao_julgador,orgao_julgador_codigo,instancia,area,valor_causa,classe,assunto,assunto_principal,sistema,comarca,link_externo_processo,segredo_justica,data_ajuizamento,data_ultima_movimentacao,status_atual_processo,account_id_freshsales"
+    ))[0];
+    if (!fullRow) continue;
+    if (fullRow.account_id_freshsales) {
+      sample.push({
+        processo_id: fullRow.id,
+        numero_cnj: fullRow.numero_cnj,
+        titulo: fullRow.titulo,
+        account_id_freshsales: fullRow.account_id_freshsales,
+        skipped: true,
+        reason: "ja_vinculado",
+      });
+      continue;
+    }
+    const result = await ensureFreshsalesAccountForProcess(env, fullRow);
+    sample.push({
+      processo_id: fullRow.id,
+      numero_cnj: fullRow.numero_cnj,
+      titulo: fullRow.titulo,
+      account_id_freshsales: result.account_id_freshsales || null,
+      result,
+    });
+  }
+  return {
+    checkedAt: new Date().toISOString(),
+    processosLidos: processes.length,
+    criados: sample.filter((row) => row.result?.action === "created").length,
+    vinculados: sample.filter((row) => row.result?.action === "linked_existing").length,
+    sample,
+  };
 }
 
 export async function repairFreshsalesAccounts(env, { processNumbers = [], limit = 10 } = {}) {
@@ -1630,6 +1662,140 @@ export async function repairFreshsalesAccounts(env, { processNumbers = [], limit
     reparados: sample.length,
     sample,
   };
+}
+
+function normalizeProcessJobPayload(action, payload = {}) {
+  return {
+    ...payload,
+    action,
+    processNumbers: uniqueNonEmpty(payload.processNumbers || []),
+    limit: Math.max(1, Math.min(Number(payload.limit || 10), 20)),
+  };
+}
+
+export async function createProcessAdminJob(env, { action, payload = {} } = {}) {
+  const normalizedPayload = normalizeProcessJobPayload(action, payload);
+  const targets = await resolveProcessJobTargets(env, action, normalizedPayload.processNumbers);
+  const job = await insertOperationJob(env, {
+    modulo: "processos",
+    acao: action,
+    status: targets.length ? "pending" : "completed",
+    payload: {
+      ...normalizedPayload,
+      processNumbers: targets,
+    },
+    requested_count: targets.length,
+    processed_count: 0,
+    success_count: 0,
+    error_count: 0,
+    result_summary: targets.length ? {} : { requested_count: 0 },
+    result_sample: [],
+    last_error: null,
+    started_at: null,
+    finished_at: targets.length ? new Date().toISOString() : null,
+  });
+  return job;
+}
+
+export async function getProcessAdminJob(env, id) {
+  return fetchOperationJobById(env, id);
+}
+
+async function runProcessJobAction(env, action, processNumbers, limit) {
+  if (action === "push_orfaos") {
+    return pushOrphanAccounts(env, { processNumbers, limit });
+  }
+  if (action === "enriquecer_datajud") {
+    return enrichProcessesViaDatajud(env, { processNumbers, limit });
+  }
+  if (action === "repair_freshsales_accounts") {
+    return repairFreshsalesAccounts(env, { processNumbers, limit });
+  }
+  if (action === "sync_supabase_crm") {
+    return syncProcessesSupabaseCrm(env, { processNumbers, limit });
+  }
+  throw new Error(`Acao de job nao suportada: ${action}`);
+}
+
+export async function processProcessAdminJob(env, id) {
+  const job = await fetchOperationJobById(env, id);
+  if (!job) throw new Error("Job operacional nao encontrado.");
+  if (["completed", "error", "cancelled"].includes(String(job.status || ""))) return job;
+
+  const payload = normalizeProcessJobPayload(job.acao, job.payload || {});
+  const targets = uniqueNonEmpty(payload.processNumbers || []);
+  const offset = Math.max(0, Number(job.processed_count || 0));
+  const chunk = targets.slice(offset, offset + payload.limit);
+
+  if (!chunk.length) {
+    const completedJob = await patchOperationJob(env, job.id, {
+      status: "completed",
+      finished_at: new Date().toISOString(),
+    });
+    await logAdminOperation(env, {
+      modulo: "processos",
+      acao: `${job.acao}_job`,
+      status: "success",
+      payload: job.payload || {},
+      result: {
+        sample: job.result_sample || [],
+        ...(job.result_summary || {}),
+      },
+    });
+    return completedJob || job;
+  }
+
+  const now = new Date().toISOString();
+  if (!job.started_at) {
+    await patchOperationJob(env, job.id, { status: "running", started_at: now });
+  } else if (job.status !== "running") {
+    await patchOperationJob(env, job.id, { status: "running" });
+  }
+
+  try {
+    const result = await runProcessJobAction(env, job.acao, chunk, chunk.length);
+    const parsed = summarizeOperationResult(result || {});
+    const failures = summarizeChunkFailures(result || {});
+    const nextProcessed = offset + chunk.length;
+    const nextJob = await patchOperationJob(env, job.id, {
+      status: nextProcessed >= targets.length ? "completed" : "running",
+      processed_count: nextProcessed,
+      success_count: Number(job.success_count || 0) + Math.max(0, chunk.length - failures),
+      error_count: Number(job.error_count || 0) + failures,
+      result_summary: mergeNumericSummary(job.result_summary || {}, parsed.summary || {}),
+      result_sample: parsed.rows || [],
+      last_error: null,
+      finished_at: nextProcessed >= targets.length ? new Date().toISOString() : null,
+    });
+    if (nextProcessed >= targets.length) {
+      await logAdminOperation(env, {
+        modulo: "processos",
+        acao: `${job.acao}_job`,
+        status: failures ? "error" : "success",
+        payload: job.payload || {},
+        result: {
+          sample: parsed.rows || [],
+          ...(nextJob?.result_summary || parsed.summary || {}),
+        },
+        error: failures ? `${failures} item(ns) com falha no lote final.` : null,
+      });
+    }
+    return nextJob || job;
+  } catch (error) {
+    const failedJob = await patchOperationJob(env, job.id, {
+      status: "error",
+      last_error: error.message || "Falha ao processar job operacional.",
+      finished_at: new Date().toISOString(),
+    });
+    await logAdminOperation(env, {
+      modulo: "processos",
+      acao: `${job.acao}_job`,
+      status: "error",
+      payload: job.payload || {},
+      error: error.message || "Falha ao processar job operacional.",
+    });
+    return failedJob || job;
+  }
 }
 
 export { jsonError, jsonOk };

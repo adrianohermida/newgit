@@ -1,12 +1,15 @@
 import { requireAdminAccess } from "../lib/admin-auth.js";
 import {
   backfillAudiencias,
+  createProcessAdminJob,
   deleteProcessRelation,
   enrichProcessesViaDatajud,
+  getProcessAdminJob,
   getProcessosOverview,
   inspectAudiencias,
   jsonError,
   jsonOk,
+  listAdminJobs,
   listAdminOperations,
   listFieldGapProcesses,
   listMonitoringProcesses,
@@ -19,6 +22,7 @@ import {
   scanOrphanProcesses,
   searchProcessesForRelations,
   syncProcessesSupabaseCrm,
+  processProcessAdminJob,
   updateMonitoringStatus,
   upsertProcessRelation,
   logAdminOperation,
@@ -102,6 +106,17 @@ export async function onRequestGet(context) {
       });
       return jsonOk({ data });
     }
+    if (action === "jobs") {
+      const data = await listAdminJobs(context.env, {
+        modulo: "processos",
+        limit: Number(url.searchParams.get("limit") || 20),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "job_status") {
+      const data = await getProcessAdminJob(context.env, url.searchParams.get("id"));
+      return jsonOk({ data });
+    }
     if (action === "buscar_processos") {
       const data = await searchProcessesForRelations(context.env, {
         query: String(url.searchParams.get("query") || ""),
@@ -143,6 +158,18 @@ export async function onRequestPost(context) {
     }
     if (action === "run_sync_worker") {
       return runLogged(async () => runSyncWorker(context.env));
+    }
+    if (action === "create_job") {
+      return runLogged(async () => createProcessAdminJob(context.env, {
+        action: String(body.jobAction || ""),
+        payload: {
+          processNumbers: parseProcessNumbers(body.processNumbers),
+          limit: Number(body.limit || 10),
+        },
+      }));
+    }
+    if (action === "run_job_chunk") {
+      return runLogged(async () => processProcessAdminJob(context.env, body.id));
     }
     if (action === "push_orfaos") {
       return runLogged(async () => pushOrphanAccounts(context.env, {
