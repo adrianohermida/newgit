@@ -22,6 +22,7 @@ const ACTION_LABELS = {
   monitoramento_status: "Atualizar monitoramento",
   salvar_relacao: "Salvar relacao",
   remover_relacao: "Remover relacao",
+  run_pending_jobs: "Drenar fila HMADV",
 };
 const ASYNC_PROCESS_ACTIONS = new Set([
   "push_orfaos",
@@ -38,6 +39,14 @@ function buildJobPreview(job) {
   if (job.status === "completed") return `Concluido: ${processed}/${requested} processado(s)`;
   if (job.status === "error") return job.last_error || `Falha apos ${processed}/${requested}`;
   return `Em andamento: ${processed}/${requested} processado(s), ${errors} falha(s)`;
+}
+
+function buildDrainPreview(result) {
+  if (!result) return "";
+  const processed = Number(result.chunksProcessed || 0);
+  if (result.completedAll) return `Fila drenada em ${processed} rodada(s)`;
+  if (result.job) return `Fila avancou ${processed} rodada(s): ${buildJobPreview(result.job)}`;
+  return `Fila avancou ${processed} rodada(s)`;
 }
 
 function buildHistoryPreview(result) {
@@ -425,6 +434,7 @@ function InternoProcessosContent() {
   const [remoteHistory, setRemoteHistory] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [activeJobId, setActiveJobId] = useState(null);
+  const [drainInFlight, setDrainInFlight] = useState(false);
   const [limit, setLimit] = useState(10);
   const [processNumbers, setProcessNumbers] = useState("");
   const [withoutMovements, setWithoutMovements] = useState({ loading: true, items: [] });
@@ -504,16 +514,18 @@ function InternoProcessosContent() {
     async function runLoop() {
       while (!cancelled) {
         try {
+          setDrainInFlight(true);
           const payload = await adminFetch("/api/admin-hmadv-processos", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "run_job_chunk", id: activeJobId }),
+            body: JSON.stringify({ action: "run_pending_jobs", id: activeJobId, maxChunks: 6 }),
           }, { timeoutMs: 120000, maxRetries: 0 });
-          const job = payload.data;
+          const result = payload.data || {};
+          const job = result.job || null;
           if (cancelled) return;
           await Promise.all([loadJobs(), loadRemoteHistory()]);
-          setActionState({ loading: false, error: null, result: { job } });
-          if (job?.status === "completed" || job?.status === "error" || job?.status === "cancelled") {
+          setActionState({ loading: false, error: null, result: result.job ? { job: result.job, drain: result } : { drain: result } });
+          if (result.completedAll || !job?.id || job?.status === "completed" || job?.status === "error" || job?.status === "cancelled") {
             setActiveJobId(null);
             await Promise.all([
               loadOverview(),
@@ -528,12 +540,16 @@ function InternoProcessosContent() {
                 Notification.requestPermission().catch(() => {});
               } else if (Notification.permission === "granted") {
                 new Notification("HMADV concluiu um job de processos", {
-                  body: `${ACTION_LABELS[job?.acao] || job?.acao}: ${buildJobPreview(job)}`,
+                  body: result.completedAll
+                    ? "Todas as pendencias de processos desta fila foram drenadas."
+                    : `${ACTION_LABELS[job?.acao] || job?.acao}: ${buildJobPreview(job)}`,
                 });
               }
             }
+            setDrainInFlight(false);
             return;
           }
+          setDrainInFlight(false);
           await new Promise((resolve) => setTimeout(resolve, 1800));
         } catch (error) {
           if (!cancelled) {
@@ -541,6 +557,7 @@ function InternoProcessosContent() {
             setActiveJobId(null);
             await Promise.all([loadJobs(), loadRemoteHistory()]);
           }
+          setDrainInFlight(false);
           return;
         }
       }
@@ -685,6 +702,32 @@ function InternoProcessosContent() {
     await Promise.all([loadJobs(), loadRemoteHistory()]);
     return job;
   }
+  async function runPendingJobsNow() {
+    setActionState({ loading: true, error: null, result: null });
+    updateView("resultado");
+    try {
+      const payload = await adminFetch("/api/admin-hmadv-processos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "run_pending_jobs", id: activeJobId, maxChunks: 8 }),
+      }, { timeoutMs: 120000, maxRetries: 0 });
+      const result = payload.data || {};
+      setActionState({ loading: false, error: null, result: result.job ? { job: result.job, drain: result } : { drain: result } });
+      setActiveJobId(result.completedAll ? null : (result.job?.id || null));
+      await Promise.all([
+        loadOverview(),
+        loadQueue("sem_movimentacoes", setWithoutMovements, wmPage),
+        loadQueue("monitoramento_ativo", setMonitoringActive, maPage),
+        loadQueue("monitoramento_inativo", setMonitoringInactive, miPage),
+        loadQueue("campos_orfaos", setFieldGaps, fgPage),
+        loadOrphans(orphanPage),
+        loadRemoteHistory(),
+        loadJobs(),
+      ]);
+    } catch (error) {
+      setActionState({ loading: false, error: error.message || "Falha ao drenar fila.", result: null });
+    }
+  }
   async function handleAction(action, payload = {}) {
     setActionState({ loading: true, error: null, result: null });
     updateView("resultado");
@@ -825,6 +868,7 @@ function InternoProcessosContent() {
             <ActionButton onClick={() => handleAction("repair_freshsales_accounts", { processNumbers: getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n"), limit })} disabled={actionState.loading}>Corrigir campos no Freshsales</ActionButton>
             <ActionButton onClick={() => handleAction("backfill_audiencias", { processNumbers: getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n"), limit, apply: true })} disabled={actionState.loading}>Retroagir audiencias</ActionButton>
             <ActionButton onClick={() => handleAction("auditoria_sync")} disabled={actionState.loading} className="md:col-span-2">Rodar auditoria</ActionButton>
+            <ActionButton onClick={runPendingJobsNow} disabled={actionState.loading || drainInFlight || !jobs.some((item) => ["pending", "running"].includes(String(item.status || "")))} className="md:col-span-2">{drainInFlight ? "Drenando fila..." : "Drenar fila HMADV"}</ActionButton>
           </div>
           <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-xs leading-6 opacity-70">
             <p><strong className="text-[#F4F1EA]">Selecao atual:</strong> {combinedSelectedNumbers.length ? combinedSelectedNumbers.slice(0, 8).join(", ") : "nenhum processo selecionado nas filas"}</p>
@@ -876,10 +920,11 @@ function InternoProcessosContent() {
             <div className="mt-3 flex flex-wrap gap-2">
               {recurringProcessActions.map((action) => <StatusBadge key={action} tone="warning">{action}</StatusBadge>)}
             </div>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <StatusBadge tone="success">proximo disparo: {primaryProcessAction}</StatusBadge>
-              <ActionButton className="px-3 py-2 text-xs" onClick={() => updateView("operacao")}>Ir para operacao</ActionButton>
-            </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <StatusBadge tone="success">proximo disparo: {primaryProcessAction}</StatusBadge>
+                <ActionButton className="px-3 py-2 text-xs" onClick={() => updateView("operacao")}>Ir para operacao</ActionButton>
+                <ActionButton className="px-3 py-2 text-xs" onClick={runPendingJobsNow} disabled={actionState.loading || drainInFlight}>{drainInFlight ? "Drenando..." : "Rodar drenagem agora"}</ActionButton>
+              </div>
             <div className="mt-4 space-y-2">
               {recurringProcessChecklist.map((step, index) => <div key={step} className="flex items-start gap-3 text-sm opacity-80">
                 <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#6E5630] text-[11px] font-semibold text-[#F8E7B5]">{index + 1}</span>
@@ -941,7 +986,7 @@ function InternoProcessosContent() {
     </Panel> : null}
 
     {view === "resultado" ? <div id="resultado" className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-      <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">{actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}{actionState.error ? <p className="rounded-2xl border border-[#4B2222] bg-[rgba(127,29,29,0.18)] p-4 text-sm text-red-200">{actionState.error}</p> : null}{jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}{!actionState.loading && !actionState.error && actionState.result ? <OperationResult result={actionState.result} /> : null}{!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p> : null}</Panel>
+      <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">{actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}{actionState.error ? <p className="rounded-2xl border border-[#4B2222] bg-[rgba(127,29,29,0.18)] p-4 text-sm text-red-200">{actionState.error}</p> : null}{!actionState.loading && actionState.result?.drain ? <div className="mb-4 rounded-[20px] border border-[#30543A] bg-[rgba(48,84,58,0.12)] p-4 text-sm"><p className="font-semibold">Drenagem de fila</p><p className="mt-2 opacity-75">{buildDrainPreview(actionState.result.drain)}</p></div> : null}{jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}{!actionState.loading && !actionState.error && actionState.result ? <OperationResult result={actionState.result} /> : null}{!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p> : null}</Panel>
       <Panel title="Historico de execucao" eyebrow="Memoria local da operacao">
         <div className="mb-4 flex flex-wrap gap-3">
           <ActionButton onClick={() => updateView("operacao")} className="px-4 py-2">Voltar para operacao</ActionButton>
