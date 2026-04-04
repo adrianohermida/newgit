@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .orchestrator import Coordinator, OrchestrationResult, OrchestrationState
+from .models import OrchestrationError, OrchestrationResult, OrchestrationState
+from .orchestrator import Coordinator
+from .services import DefaultRagService, NullMemoryNoteSink, ObsidianMemoryNoteSink
 
 SNAPSHOT_PATH = Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'coordinator.json'
 _SNAPSHOT = json.loads(SNAPSHOT_PATH.read_text())
@@ -16,10 +18,13 @@ PORTING_NOTE = f"Python placeholder package for '{ARCHIVE_NAME}' with {MODULE_CO
 __all__ = [
     'ARCHIVE_NAME',
     'Coordinator',
+    'DefaultRagService',
     'MODULE_COUNT',
+    'NullMemoryNoteSink',
+    'ObsidianMemoryNoteSink',
+    'OrchestrationError',
     'OrchestrationResult',
     'OrchestrationState',
     'PORTING_NOTE',
     'SAMPLE_FILES',
 ]
-

@@ -14,7 +14,7 @@ from .port_manifest import build_port_manifest
 from .query_engine import QueryEnginePort
 from .remote_runtime import run_remote_mode, run_ssh_mode, run_teleport_mode
 from .runtime import PortRuntime
-from .session_store import load_session
+from .session_store import SessionStoreError, load_session
 from .setup import run_setup
 from .tool_pool import assemble_tool_pool
 from .tools import execute_tool, get_tool, get_tools, render_tool_index
@@ -172,7 +172,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f'flushed={engine.transcript_store.flushed}')
         return 0
     if args.command == 'load-session':
-        session = load_session(args.session_id)
+        try:
+            session = load_session(args.session_id)
+        except SessionStoreError as exc:
+            print(f'load-session-error: {exc}')
+            return 1
         print(f'{session.session_id}\n{len(session.messages)} messages\nin={session.input_tokens} out={session.output_tokens}')
         return 0
     if args.command == 'remote-mode':

@@ -5,7 +5,7 @@ from typing import Any
 
 from ..execution_registry import build_execution_registry
 from ..tool_pool import ToolDescriptor, select_best_tool
-from .contracts import ExecutionPlan, ExecutionReport, StepExecutionResult
+from .contracts import ExecutionPlan, ExecutionReport, ExecutionResultPayload, StepExecutionResult
 
 
 @dataclass(frozen=True)
@@ -27,9 +27,9 @@ class ExecutorAgent:
             report.results.append(result)
             report.logs.append(f"step={step.id} status={result.status} tool={result.tool or 'none'} attempts={result.attempts}")
         if report.results:
-            report.final_output = report.results[-1].output
+            report.final_output = ExecutionResultPayload.from_raw(report.results[-1].output)
         else:
-            report.final_output = {'message': 'No steps to execute'}
+            report.final_output = ExecutionResultPayload(kind='message', message='No steps to execute')
         return report
 
     def retry_steps(self, plan: ExecutionPlan, step_ids: set[int], suggestion: str | None = None) -> ExecutionReport:
@@ -45,7 +45,7 @@ class ExecutorAgent:
             report.results.append(result)
             report.logs.append(f"retry_step={step.id} status={result.status} attempts={result.attempts}")
         if report.results:
-            report.final_output = report.results[-1].output
+            report.final_output = ExecutionResultPayload.from_raw(report.results[-1].output)
         return report
 
     def _execute_step(self, step_id: int, action: str, tool_name: str | None, payload: str | dict[str, Any] | None) -> StepExecutionResult:

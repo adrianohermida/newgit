@@ -1,45 +1,20 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any
 from uuid import uuid4
 
-from ..agents import CriticAgent, CriticVerdict, ExecutionPlan, ExecutionReport, ExecutorAgent, PlannerAgent
-from adapters.obsidian_adapter import ObsidianRagContext, search_obsidian_context, write_obsidian_memory_note
-from ..memory import FileBackedLongTermMemory, LongTermMemoryRecord, SessionMemory
-
-
-@dataclass
-class OrchestrationState:
-    session_id: str
-    plan: ExecutionPlan | None = None
-    report: ExecutionReport | None = None
-    retry_report: ExecutionReport | None = None
-    verdict: CriticVerdict | None = None
-    retry_count: int = 0
-    logs: list[str] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class OrchestrationResult:
-    result: dict[str, Any] | str | None
-    steps: list[dict[str, Any]]
-    logs: list[str]
-    status: str
-    session_id: str
-    rag: dict[str, Any] | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        payload = {
-            'result': self.result,
-            'steps': self.steps,
-            'logs': self.logs,
-            'status': self.status,
-            'session_id': self.session_id,
-        }
-        if self.rag is not None:
-            payload['rag'] = self.rag
-        return payload
+from adapters.obsidian_adapter import ObsidianRagContext
+from ..agents import CriticAgent, ExecutionResultPayload, ExecutorAgent, PlannerAgent
+from ..memory import LongTermMemoryRecord, SessionMemory
+from .models import OrchestrationError, OrchestrationResult, OrchestrationState
+from .services import (
+    DefaultRagService,
+    LongTermMemoryStore,
+    MemoryNoteSink,
+    ObsidianMemoryNoteSink,
+    RagService,
+    build_default_memory_store,
+)
 
 
 class Coordinator:
@@ -48,21 +23,26 @@ class Coordinator:
         planner: PlannerAgent | None = None,
         executor: ExecutorAgent | None = None,
         critic: CriticAgent | None = None,
-        memory_store: FileBackedLongTermMemory | None = None,
+        memory_store: LongTermMemoryStore | None = None,
+        rag_service: RagService | None = None,
+        memory_note_sink: MemoryNoteSink | None = None,
     ) -> None:
         self._planner = planner or PlannerAgent()
         self._executor = executor or ExecutorAgent()
         self._critic = critic or CriticAgent()
-        self._memory_store = memory_store or FileBackedLongTermMemory()
+        self._memory_store = memory_store or build_default_memory_store()
+        self._rag_service = rag_service or DefaultRagService()
+        self._memory_note_sink = memory_note_sink or ObsidianMemoryNoteSink()
 
     def execute(self, query: str, context: dict[str, Any] | None = None) -> OrchestrationResult:
         normalized_context = context or {}
         session_id = str(normalized_context.get('session_id') or uuid4().hex)
         state = OrchestrationState(session_id=session_id)
-        rag_context = search_obsidian_context(query=query, top_k=5)
+        errors: list[OrchestrationError] = []
+        rag_context = self._safe_rag_search(query=query, top_k=5, errors=errors, logs=state.logs)
         rag_matches = tuple(match.to_dict() for match in rag_context.matches)
 
-        long_term_record = self._memory_store.load(session_id)
+        long_term_record = self._safe_load_memory(session_id=session_id, errors=errors, logs=state.logs)
         short_term = SessionMemory(session_id=session_id, entries=list(long_term_record.entries))
         state.logs.append(f'session={session_id}')
         state.logs.append(f'memory_loaded={len(short_term.entries)}')
@@ -100,37 +80,115 @@ class Coordinator:
                 else:
                     state.verdict = retry_verdict
 
-        self._persist_memory(short_term=short_term, query=query, final_report=final_report, rag_context=rag_context, context=normalized_context)
+        self._persist_memory(
+            short_term=short_term,
+            query=query,
+            final_report=final_report,
+            rag_context=rag_context,
+            context=normalized_context,
+            errors=errors,
+            logs=state.logs,
+        )
 
         status = state.verdict.status if state.verdict else 'fail'
-        steps = [step.to_dict() for step in (final_report.results if final_report else [])]
-        result_payload = final_report.final_output if final_report else {'message': 'No report produced'}
+        steps = list(final_report.results if final_report else [])
+        result_payload = final_report.final_output if final_report and final_report.final_output else ExecutionResultPayload(
+            kind='message',
+            message='No report produced',
+        )
         return OrchestrationResult(
             result=result_payload,
             steps=steps,
             logs=state.logs,
             status=status,
             session_id=session_id,
-            rag=rag_context.to_dict(),
+            rag=rag_context,
+            errors=tuple(errors),
         )
 
     def _persist_memory(
         self,
         short_term: SessionMemory,
         query: str,
-        final_report: ExecutionReport,
+        final_report,
         rag_context: ObsidianRagContext,
         context: dict[str, Any],
+        errors: list[OrchestrationError],
+        logs: list[str],
     ) -> None:
         short_term.append(f'user_query: {query}')
         short_term.append(f'final_output: {final_report.final_output}')
         record = LongTermMemoryRecord(session_id=short_term.session_id, entries=tuple(short_term.entries))
-        self._memory_store.persist(record)
-        write_obsidian_memory_note(
-            query=query,
-            answer=str(final_report.final_output),
-            session_id=short_term.session_id,
-            context=context,
-            rag_matches=rag_context.matches,
-            title=str(final_report.final_output)[:120] if final_report.final_output else None,
-        )
+        try:
+            self._memory_store.persist(record)
+            logs.append('memory_persisted=true')
+        except Exception as exc:
+            logs.append(f'memory_persisted=false reason={exc}')
+            errors.append(
+                OrchestrationError(
+                    code='memory_persist_failed',
+                    message='Unable to persist long-term memory.',
+                    details={'error': str(exc), 'session_id': short_term.session_id},
+                )
+            )
+
+        try:
+            self._memory_note_sink.write(
+                query=query,
+                answer=final_report.final_output.message if final_report.final_output else '',
+                session_id=short_term.session_id,
+                context=context,
+                rag_matches=rag_context.matches,
+                title=final_report.final_output.message[:120] if final_report.final_output else None,
+            )
+            logs.append('memory_note_written=true')
+        except Exception as exc:
+            logs.append(f'memory_note_written=false reason={exc}')
+            errors.append(
+                OrchestrationError(
+                    code='memory_note_write_failed',
+                    message='Unable to write the memory note.',
+                    details={'error': str(exc), 'session_id': short_term.session_id},
+                )
+            )
+
+    def _safe_load_memory(
+        self,
+        *,
+        session_id: str,
+        errors: list[OrchestrationError],
+        logs: list[str],
+    ) -> LongTermMemoryRecord:
+        try:
+            return self._memory_store.load(session_id)
+        except Exception as exc:
+            logs.append(f'memory_loaded=false reason={exc}')
+            errors.append(
+                OrchestrationError(
+                    code='memory_load_failed',
+                    message='Unable to load long-term memory.',
+                    details={'error': str(exc), 'session_id': session_id},
+                )
+            )
+            return LongTermMemoryRecord(session_id=session_id, entries=())
+
+    def _safe_rag_search(
+        self,
+        *,
+        query: str,
+        top_k: int,
+        errors: list[OrchestrationError],
+        logs: list[str],
+    ) -> ObsidianRagContext:
+        try:
+            return self._rag_service.search(query=query, top_k=top_k)
+        except Exception as exc:
+            logs.append(f'obsidian_rag_failed reason={exc}')
+            errors.append(
+                OrchestrationError(
+                    code='rag_lookup_failed',
+                    message='Unable to fetch RAG context.',
+                    details={'error': str(exc)},
+                )
+            )
+            return ObsidianRagContext(enabled=False, vault_path=None, memory_dir=None, error=str(exc))

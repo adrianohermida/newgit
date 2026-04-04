@@ -107,8 +107,8 @@ class ObsidianRagTests(unittest.TestCase):
 
             self.assertEqual(result.session_id, 'obsidian-session')
             self.assertIsNotNone(result.rag)
-            self.assertTrue(result.rag and result.rag.get('enabled'))
-            self.assertTrue(result.rag and result.rag.get('memory_dir'))
+            self.assertTrue(result.rag.enabled)
+            self.assertTrue(result.rag.memory_dir)
             self.assertEqual(result.status, 'fail')
 
             memory_dir = temp_vault / 'Dotobot' / 'Memory'

@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 from uuid import uuid4
 
+from adapters.obsidian_adapter import ObsidianRagContext
 from core.agents import CriticAgent, ExecutionPlan, ExecutorAgent, PlanStep, PlannerAgent
 from core.coordinator import Coordinator
 from core.memory import FileBackedLongTermMemory
@@ -70,7 +71,7 @@ class OrchestrationEngineTests(unittest.TestCase):
 
             second = coordinator.execute('Use prior context and respond', context={'session_id': 'memory-session'})
             self.assertTrue(second.steps)
-            step_input = second.steps[0].get('input', {})
+            step_input = second.steps[0].input or {}
             self.assertTrue(step_input.get('memory'))
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
@@ -115,6 +116,55 @@ class OrchestrationEngineTests(unittest.TestCase):
             )
         )
         self.assertEqual(verdict.status, 'fail')
+
+    def test_coordinator_uses_injected_services(self) -> None:
+        class FakeMemoryStore:
+            def __init__(self) -> None:
+                self.loaded_session_ids: list[str] = []
+                self.persisted_records: list[object] = []
+
+            def load(self, session_id: str):
+                from core.memory import LongTermMemoryRecord
+
+                self.loaded_session_ids.append(session_id)
+                return LongTermMemoryRecord(session_id=session_id, entries=('prior context',))
+
+            def persist(self, record):
+                self.persisted_records.append(record)
+                return Path('.test_tmp_memory') / 'persisted.json'
+
+        class FakeRagService:
+            def __init__(self) -> None:
+                self.queries: list[tuple[str, int]] = []
+
+            def search(self, query: str, top_k: int = 5) -> ObsidianRagContext:
+                self.queries.append((query, top_k))
+                return ObsidianRagContext(enabled=True, vault_path='fake-vault', memory_dir='fake-memory')
+
+        class FakeMemoryNoteSink:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, object]] = []
+
+            def write(self, **kwargs):
+                self.calls.append(kwargs)
+                return None
+
+        memory_store = FakeMemoryStore()
+        rag_service = FakeRagService()
+        note_sink = FakeMemoryNoteSink()
+        coordinator = Coordinator(
+            memory_store=memory_store,
+            rag_service=rag_service,
+            memory_note_sink=note_sink,
+        )
+
+        result = coordinator.execute('Summarize workspace', context={'session_id': 'injected-session'})
+
+        self.assertEqual(memory_store.loaded_session_ids, ['injected-session'])
+        self.assertEqual(rag_service.queries, [('Summarize workspace', 5)])
+        self.assertEqual(len(memory_store.persisted_records), 1)
+        self.assertEqual(len(note_sink.calls), 1)
+        self.assertEqual(result.rag.vault_path, 'fake-vault')
 
 
 if __name__ == '__main__':
