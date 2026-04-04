@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Any
 
 from ..execution_registry import build_execution_registry
@@ -58,6 +59,7 @@ class ExecutorAgent:
         last_error: str | None = None
         while attempts < self._config.max_attempts_per_step:
             attempts += 1
+            started_at = perf_counter()
             try:
                 if not selected_tool:
                     output = {
@@ -74,6 +76,10 @@ class ExecutorAgent:
                         output=output,
                         status='ok',
                         attempts=attempts,
+                        telemetry={
+                            'duration_ms': round((perf_counter() - started_at) * 1000, 3),
+                            'selection_reason': 'No tool selected; reasoning-only step.',
+                        },
                     )
 
                 registry_tool = self._registry.tool(selected_tool)
@@ -92,6 +98,10 @@ class ExecutorAgent:
                         status='unimplemented',
                         attempts=attempts,
                         error=f"Tool '{selected_tool}' is not implemented in the execution registry.",
+                        telemetry={
+                            'duration_ms': round((perf_counter() - started_at) * 1000, 3),
+                            'selection_reason': f"Tool '{selected_tool}' was selected but is not executable.",
+                        },
                     )
 
                 output = registry_tool.execute(self._serialize_payload(payload))
@@ -110,6 +120,10 @@ class ExecutorAgent:
                         status='unimplemented',
                         attempts=attempts,
                         error=f"Tool '{selected_tool}' only has a mirrored placeholder implementation.",
+                        telemetry={
+                            'duration_ms': round((perf_counter() - started_at) * 1000, 3),
+                            'selection_reason': f"Tool '{selected_tool}' resolved to a placeholder shim.",
+                        },
                     )
 
                 return StepExecutionResult(
@@ -120,6 +134,10 @@ class ExecutorAgent:
                     output=output,
                     status='ok',
                     attempts=attempts,
+                    telemetry={
+                        'duration_ms': round((perf_counter() - started_at) * 1000, 3),
+                        'selection_reason': f"Tool '{selected_tool}' executed successfully.",
+                    },
                 )
             except Exception as exc:  # pragma: no cover - defensive branch
                 last_error = str(exc)
@@ -133,6 +151,9 @@ class ExecutorAgent:
             status='fail',
             attempts=attempts,
             error=last_error or 'unknown execution failure',
+            telemetry={
+                'selection_reason': f"Tool '{selected_tool}' raised an exception during execution." if selected_tool else 'Reasoning-only step failed.',
+            },
         )
 
     @staticmethod

@@ -4,7 +4,7 @@ import os
 import unittest
 from pathlib import Path
 
-from adapters.obsidian_adapter import search_obsidian_context
+from adapters.obsidian_adapter import _INDEX_CACHE, search_obsidian_context
 from core.coordinator import Coordinator
 from core.memory import FileBackedLongTermMemory
 from tests.fixtures import TempPathsMixin
@@ -88,6 +88,24 @@ class ObsidianRagTests(TempPathsMixin):
 
         self.assertTrue(context.enabled)
         self.assertEqual(context.matches, ())
+
+    def test_search_obsidian_context_respects_index_limit(self) -> None:
+        temp_vault = self.make_temp_vault()
+        self.set_env('DOTOBOT_OBSIDIAN_VAULT_PATH', str(temp_vault))
+        self.set_env('DOTOBOT_OBSIDIAN_RAG_MAX_FILES', '1')
+        memory_dir = temp_vault / 'Dotobot' / 'Memory'
+        memory_dir.mkdir(parents=True, exist_ok=True)
+        _INDEX_CACHE.clear()
+        older = memory_dir / 'older.md'
+        newer = memory_dir / 'newer.md'
+        older.write_text('# Query\nalpha note\n', encoding='utf-8')
+        newer.write_text('# Query\nbeta note\n', encoding='utf-8')
+        newer.touch()
+
+        context = search_obsidian_context('beta', top_k=2)
+
+        self.assertEqual(len(context.matches), 1)
+        self.assertEqual(context.matches[0].id, 'newer')
 
     def test_coordinator_injects_rag_and_writes_obsidian_note(self) -> None:
         temp_vault = self.make_temp_vault()

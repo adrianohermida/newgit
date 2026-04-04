@@ -13,6 +13,7 @@ class PlanStep:
     action: str
     tool: str | None = None
     input: str | dict[str, Any] | None = None
+    selection: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -37,6 +38,7 @@ class StepExecutionResult:
     status: ExecutionStatus
     attempts: int = 1
     error: str | None = None
+    telemetry: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

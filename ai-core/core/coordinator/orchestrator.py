@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from time import perf_counter
 from typing import Any
 from uuid import uuid4
 
@@ -35,14 +36,19 @@ class Coordinator:
         self._memory_note_sink = memory_note_sink or ObsidianMemoryNoteSink()
 
     def execute(self, query: str, context: dict[str, Any] | None = None) -> OrchestrationResult:
+        run_started_at = perf_counter()
         normalized_context = context or {}
         session_id = str(normalized_context.get('session_id') or uuid4().hex)
         state = OrchestrationState(session_id=session_id)
         errors: list[OrchestrationError] = []
+        rag_started_at = perf_counter()
         rag_context = self._safe_rag_search(query=query, top_k=5, errors=errors, logs=state.logs)
+        self._record_event(state, 'rag_lookup', duration_ms=round((perf_counter() - rag_started_at) * 1000, 3), matches=len(rag_context.matches))
         rag_matches = tuple(match.to_dict() for match in rag_context.matches)
 
+        memory_load_started_at = perf_counter()
         long_term_record = self._safe_load_memory(session_id=session_id, errors=errors, logs=state.logs)
+        self._record_event(state, 'memory_load', duration_ms=round((perf_counter() - memory_load_started_at) * 1000, 3), entries=len(long_term_record.entries))
         short_term = SessionMemory(session_id=session_id, entries=list(long_term_record.entries))
         state.logs.append(f'session={session_id}')
         state.logs.append(f'memory_loaded={len(short_term.entries)}')
@@ -52,6 +58,7 @@ class Coordinator:
             **normalized_context,
             'rag': rag_context.to_dict(),
         }
+        plan_started_at = perf_counter()
         state.plan = self._planner.build_plan(
             query=query,
             context=planner_context,
@@ -59,21 +66,59 @@ class Coordinator:
             rag_matches=rag_matches,
         )
         state.logs.append(f'planned_steps={len(state.plan.steps)}')
+        self._record_event(
+            state,
+            'plan_built',
+            duration_ms=round((perf_counter() - plan_started_at) * 1000, 3),
+            steps=len(state.plan.steps),
+            tool_selection=[step.selection for step in state.plan.steps],
+        )
 
+        execution_started_at = perf_counter()
         state.report = self._executor.execute_plan(state.plan)
         state.logs.extend(state.report.logs)
+        self._record_event(
+            state,
+            'execute_plan',
+            duration_ms=round((perf_counter() - execution_started_at) * 1000, 3),
+            steps=[
+                {
+                    'step_id': result.step_id,
+                    'status': result.status,
+                    'tool': result.tool,
+                    'telemetry': dict(result.telemetry),
+                }
+                for result in state.report.results
+            ],
+        )
         state.verdict = self._critic.validate(state.report)
         state.logs.append(f'critic_status={state.verdict.status}')
+        self._record_event(
+            state,
+            'critic_verdict',
+            status=state.verdict.status,
+            reason=state.verdict.reason,
+            suggestion=state.verdict.suggestion,
+        )
 
         final_report = state.report
         if state.verdict.status == 'retry' and state.retry_count == 0:
             failed_step_ids = {result.step_id for result in state.report.results if result.status != 'ok'}
             if failed_step_ids:
                 state.retry_count += 1
+                retry_started_at = perf_counter()
                 state.retry_report = self._executor.retry_steps(state.plan, failed_step_ids, suggestion=state.verdict.suggestion)
                 state.logs.extend(state.retry_report.logs)
                 retry_verdict = self._critic.validate(state.retry_report)
                 state.logs.append(f'retry_critic_status={retry_verdict.status}')
+                self._record_event(
+                    state,
+                    'retry_execution',
+                    duration_ms=round((perf_counter() - retry_started_at) * 1000, 3),
+                    failed_step_ids=sorted(failed_step_ids),
+                    verdict=retry_verdict.status,
+                    suggestion=state.verdict.suggestion,
+                )
                 if retry_verdict.status == 'ok':
                     final_report = state.retry_report
                     state.verdict = retry_verdict
@@ -104,6 +149,11 @@ class Coordinator:
             session_id=session_id,
             rag=rag_context,
             errors=tuple(errors),
+            telemetry=tuple(state.telemetry + [{
+                'event': 'orchestration_complete',
+                'duration_ms': round((perf_counter() - run_started_at) * 1000, 3),
+                'status': status,
+            }]),
         )
 
     def _persist_memory(
@@ -122,8 +172,10 @@ class Coordinator:
         try:
             self._memory_store.persist(record)
             logs.append('memory_persisted=true')
+            self._record_event_for_logs(logs, 'memory_persist', status='ok', session_id=short_term.session_id)
         except Exception as exc:
             logs.append(f'memory_persisted=false reason={exc}')
+            self._record_event_for_logs(logs, 'memory_persist', status='fail', reason=str(exc), session_id=short_term.session_id)
             errors.append(
                 OrchestrationError(
                     code='memory_persist_failed',
@@ -142,8 +194,10 @@ class Coordinator:
                 title=final_report.final_output.message[:120] if final_report.final_output else None,
             )
             logs.append('memory_note_written=true')
+            self._record_event_for_logs(logs, 'memory_note_write', status='ok', session_id=short_term.session_id)
         except Exception as exc:
             logs.append(f'memory_note_written=false reason={exc}')
+            self._record_event_for_logs(logs, 'memory_note_write', status='fail', reason=str(exc), session_id=short_term.session_id)
             errors.append(
                 OrchestrationError(
                     code='memory_note_write_failed',
@@ -151,6 +205,16 @@ class Coordinator:
                     details={'error': str(exc), 'session_id': short_term.session_id},
                 )
             )
+
+    @staticmethod
+    def _record_event(state: OrchestrationState, event: str, **details: Any) -> None:
+        payload = {'event': event, **details}
+        state.telemetry.append(payload)
+
+    @staticmethod
+    def _record_event_for_logs(logs: list[str], event: str, **details: Any) -> None:
+        detail_parts = ' '.join(f'{key}={value}' for key, value in details.items())
+        logs.append(f'event={event} {detail_parts}'.strip())
 
     def _safe_load_memory(
         self,

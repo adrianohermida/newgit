@@ -1,0 +1,46 @@
+[project]
+name = "ai-core"
+version = "0.1.0"
+description = "Python orchestration workspace for the Lawdesk rewrite effort."
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [
+  ".memory_store",
+  ".port_sessions",
+  ".test_tmp_memory",
+  ".test_tmp_obsidian",
+  ".test_tmp_sessions",
+  "__pycache__",
+]
+
+[tool.ruff.lint]
+select = [
+  "E",
+  "F",
+  "I",
+  "B",
+  "UP",
+]
+ignore = [
+  "B008",
+]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = false
+warn_unreachable = true
+strict_optional = true
+check_untyped_defs = true
+exclude = [
+  "^runtime/",
+]

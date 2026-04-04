@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..query_engine import QueryEnginePort
-from ..tool_pool import ToolDescriptor, select_best_tool
+from ..tool_pool import RankedTool, ToolDescriptor, select_tools_ranked
 from .contracts import ExecutionPlan, PlanStep
 
 
@@ -40,15 +40,24 @@ class PlannerAgent:
         step_inputs = self._split_into_steps(planning_context.query)
         steps: list[PlanStep] = []
         for idx, step_input in enumerate(step_inputs, start=1):
-            tool = self._pick_tool(step_input)
-            steps.append(PlanStep(id=idx, action=step_input, tool=tool.name if tool else None, input=self._compose_step_input(step_input, planning_context)))
+            ranked_tools = self._rank_tools(step_input)
+            tool = ranked_tools[0].descriptor if ranked_tools else None
+            steps.append(
+                PlanStep(
+                    id=idx,
+                    action=step_input,
+                    tool=tool.name if tool else None,
+                    input=self._compose_step_input(step_input, planning_context),
+                    selection=self._build_selection_payload(step_input, ranked_tools),
+                )
+            )
         goal = planning_context.query
         if planning_context.context.get('goal_hint'):
             goal = str(planning_context.context['goal_hint'])
         return ExecutionPlan(goal=goal, steps=steps)
 
-    def _pick_tool(self, step_input: str) -> ToolDescriptor | None:
-        return select_best_tool(step_input)
+    def _rank_tools(self, step_input: str) -> list[RankedTool]:
+        return select_tools_ranked(input_text=step_input, limit=3)
 
     def _compose_step_input(self, step_input: str, planning_context: PlanningContext) -> dict[str, Any]:
         return {
@@ -57,6 +66,27 @@ class PlannerAgent:
             'context': planning_context.context,
             'memory': list(planning_context.memory_items[-5:]),
             'rag': list(planning_context.rag_matches[-5:]),
+        }
+
+    def _build_selection_payload(self, step_input: str, ranked_tools: list[RankedTool]) -> dict[str, Any]:
+        if not ranked_tools:
+            return {
+                'reason': 'No catalog tool matched the step tokens.',
+                'candidates': [],
+                'step': step_input,
+            }
+        selected = ranked_tools[0]
+        return {
+            'reason': f"Selected '{selected.descriptor.name}' with score {selected.score}.",
+            'candidates': [
+                {
+                    'name': ranked.descriptor.name,
+                    'score': ranked.score,
+                    'source_hint': ranked.descriptor.source_hint,
+                }
+                for ranked in ranked_tools
+            ],
+            'step': step_input,
         }
 
     def _split_into_steps(self, query: str) -> list[str]:

@@ -16,6 +16,7 @@ class OrchestrationState:
     verdict: CriticVerdict | None = None
     retry_count: int = 0
     logs: list[str] = field(default_factory=list)
+    telemetry: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,7 @@ class OrchestrationResult:
     session_id: str
     rag: ObsidianRagContext | None = None
     errors: tuple[OrchestrationError, ...] = ()
+    telemetry: tuple[dict[str, Any], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         payload = {
@@ -54,4 +56,6 @@ class OrchestrationResult:
             payload['rag'] = self.rag.to_dict()
         if self.errors:
             payload['errors'] = [error.to_dict() for error in self.errors]
+        if self.telemetry:
+            payload['telemetry'] = [dict(event) for event in self.telemetry]
         return payload

@@ -164,6 +164,8 @@ class OrchestrationEngineTests(TempPathsMixin):
 
         self.assertTrue(any(error.code == 'memory_note_write_failed' for error in result.errors))
         self.assertTrue(any('memory_note_written=false' in line for line in result.logs))
+        self.assertTrue(any(event['event'] == 'critic_verdict' for event in result.telemetry))
+        self.assertTrue(any(event['event'] == 'orchestration_complete' for event in result.telemetry))
 
     def test_coordinator_uses_injected_services(self) -> None:
         class FakeMemoryStore:
