@@ -473,6 +473,15 @@ function InternoProcessosContent() {
       ...getSelectedNumbers(orphans.items, selectedOrphans),
     ])];
   }
+  function selectVisibleRecurringProcesses() {
+    const recurringKeys = new Set(recurringProcesses.map((item) => item.key));
+    setSelectedWithoutMovements(withoutMovements.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
+    setSelectedMonitoringActive(monitoringActive.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
+    setSelectedMonitoringInactive(monitoringInactive.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
+    setSelectedFieldGaps(fieldGaps.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
+    setSelectedOrphans(orphans.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
+    updateView("filas");
+  }
   function updateView(nextView) {
     setView(nextView);
     if (typeof window === "undefined") return;
@@ -653,6 +662,7 @@ function InternoProcessosContent() {
               <StatusBadge tone="success">lote sugerido {recurringProcessBatch.size}</StatusBadge>
               <StatusBadge tone="default">{recurringProcessBatch.reason}</StatusBadge>
               <ActionButton className="px-3 py-2 text-xs" onClick={() => setLimit(recurringProcessBatch.size)}>Usar lote sugerido</ActionButton>
+              <ActionButton className="px-3 py-2 text-xs" onClick={selectVisibleRecurringProcesses}>Selecionar reincidentes visiveis</ActionButton>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               {recurringProcessActions.map((action) => <StatusBadge key={action} tone="warning">{action}</StatusBadge>)}
