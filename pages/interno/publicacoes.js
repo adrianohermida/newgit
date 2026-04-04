@@ -720,6 +720,16 @@ function PublicacoesContent() {
     setSelectedPartesKeys(partesCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
     updateView("filas");
   }
+  function clearQueueSelections() {
+    setSelectedProcessKeys([]);
+    setSelectedPartesKeys([]);
+  }
+  const visibleRecurringCount = [...processCandidates.items, ...partesCandidates.items]
+    .filter((item, index, array) => array.findIndex((other) => (other.numero_cnj || other.key) === (item.numero_cnj || item.key)) === index)
+    .filter((item) => recurringPublicacoes.some((recurring) => recurring.key === (item.numero_cnj || item.key))).length;
+  const visibleSevereRecurringCount = [...processCandidates.items, ...partesCandidates.items]
+    .filter((item, index, array) => array.findIndex((other) => (other.numero_cnj || other.key) === (item.numero_cnj || item.key)) === index)
+    .filter((item) => recurringPublicacoes.some((recurring) => recurring.key === (item.numero_cnj || item.key) && recurring.hits >= 3)).length;
 
   function updateView(nextView) {
     setView(nextView);
@@ -1003,9 +1013,12 @@ function PublicacoesContent() {
               <div className="mt-3 flex flex-wrap gap-2">
                 <HealthBadge label={`lote sugerido ${recurringPublicacoesBatch.size}`} tone="success" />
                 <HealthBadge label={recurringPublicacoesBatch.reason} tone="default" />
+                <HealthBadge label={`${visibleRecurringCount} reincidentes visiveis`} tone="default" />
+                <HealthBadge label={`${visibleSevereRecurringCount} graves visiveis`} tone="warning" />
                 <button type="button" onClick={() => setLimit(recurringPublicacoesBatch.size)} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">Usar lote sugerido</button>
                 <button type="button" onClick={selectVisibleRecurringPublicacoes} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">Selecionar reincidentes visiveis</button>
                 <button type="button" onClick={selectVisibleSevereRecurringPublicacoes} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">Selecionar 3x+ visiveis</button>
+                <button type="button" onClick={clearQueueSelections} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">Limpar selecao</button>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {recurringPublicacoesActions.map((action) => <HealthBadge key={action} label={action} tone="warning" />)}

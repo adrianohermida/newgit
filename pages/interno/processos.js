@@ -491,6 +491,19 @@ function InternoProcessosContent() {
     setSelectedOrphans(orphans.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
     updateView("filas");
   }
+  function clearAllQueueSelections() {
+    setSelectedWithoutMovements([]);
+    setSelectedMonitoringActive([]);
+    setSelectedMonitoringInactive([]);
+    setSelectedFieldGaps([]);
+    setSelectedOrphans([]);
+  }
+  const visibleRecurringCount = [...withoutMovements.items, ...monitoringActive.items, ...monitoringInactive.items, ...fieldGaps.items, ...orphans.items]
+    .filter((item, index, array) => array.findIndex((other) => (other.numero_cnj || other.key) === (item.numero_cnj || item.key)) === index)
+    .filter((item) => recurringProcesses.some((recurring) => recurring.key === (item.numero_cnj || item.key))).length;
+  const visibleSevereRecurringCount = [...withoutMovements.items, ...monitoringActive.items, ...monitoringInactive.items, ...fieldGaps.items, ...orphans.items]
+    .filter((item, index, array) => array.findIndex((other) => (other.numero_cnj || other.key) === (item.numero_cnj || item.key)) === index)
+    .filter((item) => recurringProcesses.some((recurring) => recurring.key === (item.numero_cnj || item.key) && recurring.hits >= 3)).length;
   function updateView(nextView) {
     setView(nextView);
     if (typeof window === "undefined") return;
@@ -670,9 +683,12 @@ function InternoProcessosContent() {
             <div className="mt-3 flex flex-wrap gap-2">
               <StatusBadge tone="success">lote sugerido {recurringProcessBatch.size}</StatusBadge>
               <StatusBadge tone="default">{recurringProcessBatch.reason}</StatusBadge>
+              <StatusBadge tone="default">{visibleRecurringCount} reincidentes visiveis</StatusBadge>
+              <StatusBadge tone="warning">{visibleSevereRecurringCount} graves visiveis</StatusBadge>
               <ActionButton className="px-3 py-2 text-xs" onClick={() => setLimit(recurringProcessBatch.size)}>Usar lote sugerido</ActionButton>
               <ActionButton className="px-3 py-2 text-xs" onClick={selectVisibleRecurringProcesses}>Selecionar reincidentes visiveis</ActionButton>
               <ActionButton className="px-3 py-2 text-xs" onClick={selectVisibleSevereRecurringProcesses}>Selecionar 3x+ visiveis</ActionButton>
+              <ActionButton className="px-3 py-2 text-xs" onClick={clearAllQueueSelections}>Limpar selecao</ActionButton>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               {recurringProcessActions.map((action) => <StatusBadge key={action} tone="warning">{action}</StatusBadge>)}
