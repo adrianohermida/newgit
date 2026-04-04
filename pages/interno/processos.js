@@ -285,6 +285,13 @@ function deriveSuggestedProcessBatch(summary, bands) {
   if (summary.stagnant > 0) return { size: 8, reason: "Reduza o lote para isolar por que a fila nao esta progredindo." };
   return { size: 20, reason: "A fila parece sob controle para um lote operacional padrao." };
 }
+function deriveSuggestedProcessActions(summary, bands) {
+  if (bands.critical > 0 || summary.manual > 0) return ["Rodar auditoria", "Sincronizar Supabase + Freshsales", "Buscar movimentacoes no DataJud"];
+  if (summary.freshsales > 0) return ["Criar accounts no Freshsales", "Corrigir campos no Freshsales", "Sincronizar Supabase + Freshsales"];
+  if (summary.datajud > 0) return ["Buscar movimentacoes no DataJud", "Reenriquecer via DataJud", "Sincronizar Supabase + Freshsales"];
+  if (summary.stagnant > 0) return ["Rodar auditoria", "Sincronizar Supabase + Freshsales"];
+  return ["Sincronizar Supabase + Freshsales", "Rodar sync-worker"];
+}
 function suggestProcessNextAction(source, row, current) {
   if (current?.needsManualReview) return "revisar manualmente o retorno";
   if (source === "freshsales") {
@@ -543,6 +550,7 @@ function InternoProcessosContent() {
   const recurringProcessGroups = groupRecurringProcessEntries(recurringProcesses);
   const recurringProcessFocus = deriveRecurringProcessFocus(recurringProcessSummary, recurringProcessBands);
   const recurringProcessBatch = deriveSuggestedProcessBatch(recurringProcessSummary, recurringProcessBands);
+  const recurringProcessActions = deriveSuggestedProcessActions(recurringProcessSummary, recurringProcessBands);
   const combinedSelectedNumbers = getCombinedSelectedNumbers();
 
   return <div className="space-y-8">
@@ -615,6 +623,9 @@ function InternoProcessosContent() {
             <div className="mt-3 flex flex-wrap gap-2">
               <StatusBadge tone="success">lote sugerido {recurringProcessBatch.size}</StatusBadge>
               <StatusBadge tone="default">{recurringProcessBatch.reason}</StatusBadge>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {recurringProcessActions.map((action) => <StatusBadge key={action} tone="warning">{action}</StatusBadge>)}
             </div>
           </div>
           <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">

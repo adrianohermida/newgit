@@ -210,6 +210,13 @@ function deriveSuggestedPublicacoesBatch(summary, bands) {
   if (summary.stagnant > 0) return { size: 8, reason: "Reduza o lote para isolar por que a fila nao esta ganhando progresso." };
   return { size: 20, reason: "A fila parece sob controle para uma rodada operacional padrao." };
 }
+function deriveSuggestedPublicacoesActions(summary, bands) {
+  if (bands.critical > 0 || summary.manual > 0) return ["Extracao retroativa de partes", "Salvar partes + atualizar polos + corrigir CRM", "Rodar sync-worker"];
+  if (summary.advise > 0) return ["Criar processos das publicacoes", "Extracao retroativa de partes", "Salvar partes + atualizar polos + corrigir CRM"];
+  if (summary.freshsales > 0) return ["Rodar sync-worker", "Salvar partes + atualizar polos + corrigir CRM"];
+  if (summary.stagnant > 0) return ["Extracao retroativa de partes", "Rodar sync-worker"];
+  return ["Salvar partes + atualizar polos + corrigir CRM", "Rodar sync-worker"];
+}
 function suggestPublicacaoNextAction(source, row, current) {
   if (current?.needsManualReview) return "revisar manualmente a publicacao";
   if (source === "freshsales") return "rodar sync-worker";
@@ -771,6 +778,7 @@ function PublicacoesContent() {
   const recurringPublicacoesGroups = groupRecurringPublicacoes(recurringPublicacoes);
   const recurringPublicacoesFocus = deriveRecurringPublicacoesFocus(recurringPublicacoesSummary, recurringPublicacoesBands);
   const recurringPublicacoesBatch = deriveSuggestedPublicacoesBatch(recurringPublicacoesSummary, recurringPublicacoesBands);
+  const recurringPublicacoesActions = deriveSuggestedPublicacoesActions(recurringPublicacoesSummary, recurringPublicacoesBands);
 
   return (
     <div className="space-y-8">
@@ -954,6 +962,9 @@ function PublicacoesContent() {
               <div className="mt-3 flex flex-wrap gap-2">
                 <HealthBadge label={`lote sugerido ${recurringPublicacoesBatch.size}`} tone="success" />
                 <HealthBadge label={recurringPublicacoesBatch.reason} tone="default" />
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {recurringPublicacoesActions.map((action) => <HealthBadge key={action} label={action} tone="warning" />)}
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
