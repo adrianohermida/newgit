@@ -210,6 +210,15 @@ function deriveRecurringProcessEntries(history = []) {
   }
   return Array.from(counts.values()).filter((item) => item.hits > 1).sort((a, b) => b.hits - a.hits).slice(0, 8);
 }
+function summarizeRecurringProcessEntries(items = []) {
+  return items.reduce((acc, item) => {
+    acc.total += 1;
+    acc[item.source] = (acc[item.source] || 0) + 1;
+    if (item.needsManualReview) acc.manual += 1;
+    if (item.noProgress) acc.stagnant += 1;
+    return acc;
+  }, { total: 0, supabase: 0, freshsales: 0, datajud: 0, advise: 0, manual: 0, stagnant: 0 });
+}
 function classifyProcessRecurringSource(entry, row) {
   if (entry?.acao === "enriquecer_datajud") return "datajud";
   if (row?.freshsales_repair || entry?.acao === "repair_freshsales_accounts" || entry?.acao === "push_orfaos") return "freshsales";
@@ -467,6 +476,7 @@ function InternoProcessosContent() {
   const latestRemoteRun = remoteHistory[0] || null;
   const remoteHealth = deriveRemoteHealth(remoteHistory);
   const recurringProcesses = deriveRecurringProcessEntries(remoteHistory);
+  const recurringProcessSummary = summarizeRecurringProcessEntries(recurringProcesses);
   const combinedSelectedNumbers = getCombinedSelectedNumbers();
 
   return <div className="space-y-8">
@@ -531,7 +541,16 @@ function InternoProcessosContent() {
 
     {view === "filas" ? <div id="filas" className="space-y-6">
       {recurringProcesses.length ? <Panel title="Pendencias reincidentes" eyebrow="Prioridade operacional">
-        <div className="space-y-3">
+        <div className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+            <QueueSummaryCard title="Supabase" count={recurringProcessSummary.supabase} helper="Itens que pedem correcao ou consolidacao interna." />
+            <QueueSummaryCard title="Freshsales" count={recurringProcessSummary.freshsales} helper="Reparos ou criacao de account no CRM." />
+            <QueueSummaryCard title="DataJud" count={recurringProcessSummary.datajud} helper="Reconsulta ou falta de progresso no enriquecimento." />
+            <QueueSummaryCard title="Manual" count={recurringProcessSummary.manual} helper="Casos que merecem revisao humana." accent="text-[#FECACA]" />
+            <QueueSummaryCard title="Sem progresso" count={recurringProcessSummary.stagnant} helper="Reincidencias sem ganho util no lote." accent="text-[#FDE68A]" />
+            <QueueSummaryCard title="Recorrentes" count={recurringProcessSummary.total} helper="Itens que voltaram em multiplos ciclos recentes." />
+          </div>
+          <div className="space-y-3">
           {recurringProcesses.map((item) => <div key={item.key} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm">
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-semibold break-all">{item.key}</p>
@@ -544,6 +563,7 @@ function InternoProcessosContent() {
             </div>
             {item.titulo ? <p className="mt-2 opacity-70">{item.titulo}</p> : null}
           </div>)}
+          </div>
         </div>
       </Panel> : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

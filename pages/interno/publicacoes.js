@@ -133,6 +133,15 @@ function deriveRecurringPublicacoes(history = []) {
   }
   return Array.from(counts.values()).filter((item) => item.hits > 1).sort((a, b) => b.hits - a.hits).slice(0, 8);
 }
+function summarizeRecurringPublicacoes(items = []) {
+  return items.reduce((acc, item) => {
+    acc.total += 1;
+    acc[item.source] = (acc[item.source] || 0) + 1;
+    if (item.needsManualReview) acc.manual += 1;
+    if (item.noProgress) acc.stagnant += 1;
+    return acc;
+  }, { total: 0, supabase: 0, freshsales: 0, datajud: 0, advise: 0, manual: 0, stagnant: 0 });
+}
 function classifyPublicacaoRecurringSource(entry, row) {
   if (entry?.acao === "run_sync_worker") return "freshsales";
   if (entry?.acao === "criar_processos_publicacoes") return "advise";
@@ -695,6 +704,7 @@ function PublicacoesContent() {
   const latestRemoteRun = remoteHistory[0] || null;
   const remoteHealth = deriveRemoteHealth(remoteHistory);
   const recurringPublicacoes = deriveRecurringPublicacoes(remoteHistory);
+  const recurringPublicacoesSummary = summarizeRecurringPublicacoes(recurringPublicacoes);
 
   return (
     <div className="space-y-8">
@@ -870,7 +880,16 @@ function PublicacoesContent() {
 
       {view === "filas" ? <div className="space-y-6">
         {recurringPublicacoes.length ? <Panel title="Pendencias reincidentes" eyebrow="Prioridade operacional">
-          <div className="space-y-3">
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+              <QueueSummaryCard title="Advise" count={recurringPublicacoesSummary.advise} helper="Leitura ou extracao ainda sem fechamento." />
+              <QueueSummaryCard title="Freshsales" count={recurringPublicacoesSummary.freshsales} helper="Activity ou reparo de CRM pendente." />
+              <QueueSummaryCard title="Supabase" count={recurringPublicacoesSummary.supabase} helper="Persistencia interna ou vinculo ainda incompleto." />
+              <QueueSummaryCard title="Manual" count={recurringPublicacoesSummary.manual} helper="Publicacoes que pedem revisao humana." accent="text-[#FECACA]" />
+              <QueueSummaryCard title="Sem progresso" count={recurringPublicacoesSummary.stagnant} helper="Lotes recorrentes sem ganho util." accent="text-[#FDE68A]" />
+              <QueueSummaryCard title="Recorrentes" count={recurringPublicacoesSummary.total} helper="Itens que voltaram em multiplos ciclos recentes." />
+            </div>
+            <div className="space-y-3">
             {recurringPublicacoes.map((item) => <div key={item.key} className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold break-all">{item.key}</p>
@@ -883,6 +902,7 @@ function PublicacoesContent() {
               </div>
               {item.titulo ? <p className="mt-2 opacity-70">{item.titulo}</p> : null}
             </div>)}
+            </div>
           </div>
         </Panel> : null}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
