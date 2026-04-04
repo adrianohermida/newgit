@@ -1,3 +1,6 @@
+# Exportação mínima de subsistemas reais
+from .assistant import SessionHistory
+from .history import HistoryLog
 """Python porting workspace for the Lawdesk rewrite effort."""
 
 from .commands import PORTED_COMMANDS, build_command_backlog

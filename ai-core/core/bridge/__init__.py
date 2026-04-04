@@ -13,4 +13,6 @@ MODULE_COUNT = _SNAPSHOT['module_count']
 SAMPLE_FILES = tuple(_SNAPSHOT['sample_files'])
 PORTING_NOTE = f"Python placeholder package for '{ARCHIVE_NAME}' with {MODULE_COUNT} archived module references."
 
-__all__ = ['ARCHIVE_NAME', 'MODULE_COUNT', 'PORTING_NOTE', 'SAMPLE_FILES']
+from .bridge_utils import bridge_status
+
+__all__ = ['ARCHIVE_NAME', 'MODULE_COUNT', 'PORTING_NOTE', 'SAMPLE_FILES', 'bridge_status']
