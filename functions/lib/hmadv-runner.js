@@ -400,6 +400,22 @@ export async function getHmadvQueueSnapshot(env) {
           : focusModule === "processos"
             ? "Abrir modulo prioritario"
             : "Acompanhar fila",
+      urgency:
+        healthStatus === "error" && latestErroredProcessJob
+          ? "Critica"
+          : focusModule === "processos"
+            ? "Alta"
+            : processosPressure >= 20
+              ? "Media"
+              : "Baixa",
+      suggestedBatch:
+        healthStatus === "error" && latestErroredProcessJob
+          ? 5
+          : processosPressure >= 40
+            ? 20
+            : processosPressure >= 15
+              ? 10
+              : 5,
     },
     publicacoes: {
       label: "Publicacoes",
@@ -415,6 +431,22 @@ export async function getHmadvQueueSnapshot(env) {
           : focusModule === "publicacoes"
             ? "Abrir modulo prioritario"
             : "Acompanhar fila",
+      urgency:
+        healthStatus === "error" && latestErroredPublicacaoJob
+          ? "Critica"
+          : focusModule === "publicacoes"
+            ? "Alta"
+            : publicacoesPressure >= 20
+              ? "Media"
+              : "Baixa",
+      suggestedBatch:
+        healthStatus === "error" && latestErroredPublicacaoJob
+          ? 5
+          : publicacoesPressure >= 40
+            ? 20
+            : publicacoesPressure >= 15
+              ? 10
+              : 5,
     },
   };
 

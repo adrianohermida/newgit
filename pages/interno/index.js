@@ -158,6 +158,14 @@ function AlertCard({ alert }) {
 }
 
 function ModuleCommandCard({ module }) {
+  const urgencyClass =
+    module?.urgency === "Critica"
+      ? "border-[#5B3535] bg-[rgba(91,53,53,0.12)] text-[#E7B3B3]"
+      : module?.urgency === "Alta"
+        ? "border-[#7A6431] bg-[rgba(122,100,49,0.12)] text-[#E7C98C]"
+        : module?.urgency === "Media"
+          ? "border-[#2D4E63] bg-[rgba(45,78,99,0.12)] text-[#B8D9F0]"
+          : "border-[#2D2E2E] opacity-75";
   return (
     <Link
       href={module?.href || "/interno"}
@@ -169,6 +177,9 @@ function ModuleCommandCard({ module }) {
       <div className="flex flex-wrap items-center gap-2 mb-2">
         <p className="font-semibold">{module?.label || "Modulo"}</p>
         {module?.focused ? <ModeBadge active={true} label="foco" /> : null}
+        <span className={`inline-flex items-center border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${urgencyClass}`}>
+          {module?.urgency || "Baixa"}
+        </span>
       </div>
       <div className="grid gap-2 sm:grid-cols-3 mb-3">
         <div className="border border-[#2D2E2E] p-2">
@@ -185,6 +196,7 @@ function ModuleCommandCard({ module }) {
         </div>
       </div>
       <p className="opacity-65 mb-1">Pressao operacional: {module?.pressure || 0}</p>
+      <p className="opacity-65 mb-1">Lote sugerido: {module?.suggestedBatch || 5}</p>
       <p className="font-semibold">{module?.recommendedAction || "Abrir modulo"}</p>
     </Link>
   );
