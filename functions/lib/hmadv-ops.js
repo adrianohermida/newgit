@@ -266,7 +266,7 @@ export async function listAdminOperations(env, { modulo, limit = 20 } = {}) {
   if (modulo) filters.unshift(`modulo=eq.${encodeURIComponent(String(modulo))}`);
   const items = await listTableSafe(
     env,
-    `operacao_execucoes?${filters.join("&")}&select=id,modulo,acao,status,resumo,result_summary,result_sample,requested_count,affected_count,error_message,created_at,finished_at`,
+    `operacao_execucoes?${filters.join("&")}&select=id,modulo,acao,status,payload,resumo,result_summary,result_sample,requested_count,affected_count,error_message,created_at,finished_at`,
     "judiciario",
     []
   );
@@ -570,7 +570,35 @@ async function resolveProcessJobTargets(env, action, processNumbers = []) {
     ]);
     return uniqueNonEmpty([...withoutMoves, ...gaps]);
   }
+  if (action === "backfill_audiencias") {
+    return collectAudienciaBackfillTargets(env);
+  }
   return selected;
+}
+
+async function collectAudienciaBackfillTargets(env) {
+  const pageSize = 200;
+  let offset = 0;
+  let scans = 0;
+  const maxScans = 60;
+  const processIds = [];
+  while (scans < maxScans) {
+    const rows = await listTableSafe(
+      env,
+      `publicacoes?select=processo_id&processo_id=not.is.null&conteudo=ilike.${encodeURIComponent("*audien*")}&order=data_publicacao.desc.nullslast&limit=${pageSize}&offset=${offset}`
+    );
+    if (!rows.length) break;
+    for (const row of rows) {
+      if (row?.processo_id) processIds.push(row.processo_id);
+    }
+    if (rows.length < pageSize) break;
+    offset += rows.length;
+    scans += 1;
+  }
+  const uniqueIds = uniqueNonEmpty(processIds);
+  if (!uniqueIds.length) return [];
+  const processes = await loadProcessesByIds(env, uniqueIds, "id,numero_cnj");
+  return uniqueNonEmpty(processes.map((item) => item.numero_cnj));
 }
 
 function getProcessActionLimitConfig(action) {
@@ -1319,13 +1347,9 @@ export async function backfillAudiencias(env, { processNumbers = [], limit = 100
   if (processNumbers.length) {
     processes = await loadProcessesByNumbers(env, processNumbers);
   } else {
-    const candidatePublicacoes = await listTableSafe(
-      env,
-      `publicacoes?select=id,processo_id,numero_processo_api,data_publicacao&processo_id=not.is.null&conteudo=ilike.${encodeURIComponent("*audien*")}&order=data_publicacao.desc.nullslast&limit=${safeLimit * 12}`
-    );
-    const candidateProcessIds = uniqueNonEmpty(candidatePublicacoes.map((item) => item.processo_id));
-    processes = candidateProcessIds.length
-      ? await loadProcessesByIds(env, candidateProcessIds.slice(0, safeLimit), "id,numero_cnj,titulo")
+    const candidateNumbers = await collectAudienciaBackfillTargets(env);
+    processes = candidateNumbers.length
+      ? await loadProcessesByNumbers(env, candidateNumbers.slice(0, safeLimit))
       : await hmadvRest(env, `processos?select=id,numero_cnj,titulo&limit=${safeLimit}`);
   }
   const processIds = processes.map((item) => item.id);
@@ -1869,6 +1893,9 @@ async function runProcessJobAction(env, action, processNumbers, limit) {
   }
   if (action === "sync_supabase_crm") {
     return syncProcessesSupabaseCrm(env, { processNumbers, limit });
+  }
+  if (action === "backfill_audiencias") {
+    return backfillAudiencias(env, { processNumbers, limit, apply: true });
   }
   throw new Error(`Acao de job nao suportada: ${action}`);
 }

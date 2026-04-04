@@ -29,7 +29,26 @@ const ASYNC_PROCESS_ACTIONS = new Set([
   "enriquecer_datajud",
   "repair_freshsales_accounts",
   "sync_supabase_crm",
+  "backfill_audiencias",
 ]);
+
+function getProcessActionLabel(action, payload = {}) {
+  const intent = String(payload?.intent || "").trim();
+  if (action === "enriquecer_datajud") {
+    if (intent === "buscar_movimentacoes") return "Buscar movimentacoes no DataJud";
+    if (intent === "sincronizar_monitorados") return "Sincronizar monitorados";
+    if (intent === "reenriquecer_gaps") return "Reenriquecer processos com gap";
+  }
+  return ACTION_LABELS[action] || action;
+}
+
+function getProcessIntentBadge(payload = {}) {
+  const intent = String(payload?.intent || "").trim();
+  if (intent === "buscar_movimentacoes") return "subtipo: buscar movimentacoes";
+  if (intent === "sincronizar_monitorados") return "subtipo: sincronizar monitorados";
+  if (intent === "reenriquecer_gaps") return "subtipo: reenriquecer gaps";
+  return "";
+}
 
 function buildJobPreview(job) {
   if (!job) return "";
@@ -160,7 +179,7 @@ function OperationResult({ result }) {
 function HistoryCard({ entry, onReuse }) {
   return <div className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><p className="font-semibold">{entry.label}</p><p className="text-xs opacity-60">{new Date(entry.createdAt).toLocaleString("pt-BR")}</p></div>
+      <div><p className="font-semibold">{entry.label}</p>{entry.meta?.intentLabel ? <p className="mt-1 text-xs uppercase tracking-[0.14em] text-[#C5A059]">{entry.meta.intentLabel}</p> : null}<p className="text-xs opacity-60">{new Date(entry.createdAt).toLocaleString("pt-BR")}</p></div>
       <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${entry.status === "running" ? "border-[#6E5630] text-[#FDE68A]" : entry.status === "error" ? "border-[#4B2222] text-red-200" : "border-[#2D2E2E] opacity-70"}`}>{entry.status}</span>
     </div>
     {entry.preview ? <p className="mt-3 opacity-70">{entry.preview}</p> : null}
@@ -654,10 +673,12 @@ function InternoProcessosContent() {
   function buildActionMeta(payload = {}) {
     const explicitNumbers = String(payload.processNumbers || "").trim();
     const fallbackNumbers = String(processNumbers || "").trim();
+    const intentLabel = payload.intent ? getProcessActionLabel(payload.action || "", payload) : "";
     return {
       limit,
       selectedCount: selectedWithoutMovements.length + selectedMonitoringActive.length + selectedMonitoringInactive.length + selectedFieldGaps.length + selectedOrphans.length,
       processNumbersPreview: (explicitNumbers || fallbackNumbers).split(/\r?\n|,|;/).map((item) => item.trim()).filter(Boolean).slice(0, 6).join(", "),
+      intentLabel,
     };
   }
   function pushHistoryEntry(entry) {
@@ -740,7 +761,7 @@ function InternoProcessosContent() {
     pushHistoryEntry({
       id: historyId,
       action,
-      label: ACTION_LABELS[action] || action,
+      label: getProcessActionLabel(action, payload),
       status: "running",
       createdAt: new Date().toISOString(),
       preview: "Execucao iniciada",
@@ -749,6 +770,7 @@ function InternoProcessosContent() {
         action,
         limit,
         processNumbers: payload.processNumbers || processNumbers,
+        intent: payload.intent || "",
       },
     });
     try {
@@ -884,11 +906,11 @@ function InternoProcessosContent() {
         <div className="space-y-4">
           <p className="text-sm opacity-70">Aqui ficam os passos granulares. Eles usam primeiro a selecao da fila atual e, se ela estiver vazia, aproveitam os CNJs digitados manualmente.</p>
           <div className="grid gap-3 md:grid-cols-2">
-            <ActionButton tone="primary" onClick={() => handleAction("enriquecer_datajud", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(withoutMovements.items, selectedWithoutMovements).join("\n")), limit })} disabled={actionState.loading}>Buscar movimentacoes no DataJud</ActionButton>
+            <ActionButton tone="primary" onClick={() => handleAction("enriquecer_datajud", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(withoutMovements.items, selectedWithoutMovements).join("\n")), limit, intent: "buscar_movimentacoes", action: "enriquecer_datajud" })} disabled={actionState.loading}>Buscar movimentacoes no DataJud</ActionButton>
             <ActionButton onClick={() => handleAction("repair_freshsales_accounts", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n")), limit })} disabled={actionState.loading}>Corrigir campos no Freshsales</ActionButton>
             <ActionButton onClick={() => handleAction("backfill_audiencias", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n")), limit, apply: true })} disabled={actionState.loading}>Retroagir audiencias</ActionButton>
-            <ActionButton onClick={() => handleAction("enriquecer_datajud", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n")), limit })} disabled={actionState.loading}>Sincronizar monitorados</ActionButton>
-            <ActionButton onClick={() => handleAction("enriquecer_datajud", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n")), limit })} disabled={actionState.loading} className="md:col-span-2">Reenriquecer processos com gap</ActionButton>
+            <ActionButton onClick={() => handleAction("enriquecer_datajud", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n")), limit, intent: "sincronizar_monitorados", action: "enriquecer_datajud" })} disabled={actionState.loading}>Sincronizar monitorados</ActionButton>
+            <ActionButton onClick={() => handleAction("enriquecer_datajud", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n")), limit, intent: "reenriquecer_gaps", action: "enriquecer_datajud" })} disabled={actionState.loading} className="md:col-span-2">Reenriquecer processos com gap</ActionButton>
           </div>
           <div className="grid gap-3 pt-2 md:grid-cols-3">
             <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Fluxo 1</p><p className="mt-2 font-semibold">Persistir consulta</p><p className="mt-2 opacity-65">Salvar DataJud no Supabase sem depender de reparo imediato no CRM.</p></div>
@@ -998,7 +1020,7 @@ function InternoProcessosContent() {
           <ActionButton onClick={() => updateView("operacao")} className="px-4 py-2">Voltar para operacao</ActionButton>
           <ActionButton onClick={clearHistory} className="px-4 py-2">Limpar historico</ActionButton>
         </div>
-        {remoteHistory.length ? <div className="mb-5 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Historico persistido no HMADV</p>{remoteHistory.map((entry) => <div key={entry.id} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold">{entry.acao}</p><p className="text-xs opacity-60">{new Date(entry.created_at).toLocaleString("pt-BR")}</p></div><span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${entry.status === "error" ? "border-[#4B2222] text-red-200" : "border-[#2D2E2E] opacity-70"}`}>{entry.status}</span></div>{entry.resumo ? <p className="mt-3 opacity-70">{entry.resumo}</p> : null}<div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60"><span>Solicitados: {entry.requested_count || 0}</span><span>Afetados: {entry.affected_count || 0}</span></div></div>)}</div> : null}
+        {remoteHistory.length ? <div className="mb-5 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Historico persistido no HMADV</p>{remoteHistory.map((entry) => <div key={entry.id} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold">{getProcessActionLabel(entry.acao, entry.payload || {})}</p>{entry.payload?.intent ? <p className="mt-1 text-xs uppercase tracking-[0.14em] text-[#C5A059]">{getProcessActionLabel(entry.acao, entry.payload || {})}</p> : null}<p className="text-xs opacity-60">{new Date(entry.created_at).toLocaleString("pt-BR")}</p></div><span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${entry.status === "error" ? "border-[#4B2222] text-red-200" : "border-[#2D2E2E] opacity-70"}`}>{entry.status}</span></div>{entry.resumo ? <p className="mt-3 opacity-70">{entry.resumo}</p> : null}<div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60"><span>Solicitados: {entry.requested_count || 0}</span><span>Afetados: {entry.affected_count || 0}</span></div></div>)}</div> : null}
         {!executionHistory.length ? <p className="text-sm opacity-65">Nenhuma solicitacao registrada ainda neste navegador.</p> : <div className="space-y-3">{executionHistory.map((entry) => <HistoryCard key={entry.id} entry={entry} onReuse={reuseHistoryEntry} />)}</div>}
       </Panel>
     </div> : null}

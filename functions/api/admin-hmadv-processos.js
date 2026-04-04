@@ -61,6 +61,9 @@ async function runInlineProcessAction(env, action, body) {
   if (action === "sync_supabase_crm") {
     return syncProcessesSupabaseCrm(env, { processNumbers, limit: requestedLimit || 1 });
   }
+  if (action === "backfill_audiencias") {
+    return backfillAudiencias(env, { processNumbers, limit: requestedLimit || 2, apply: true });
+  }
   throw new Error(`Acao inline nao suportada: ${action}`);
 }
 
@@ -224,7 +227,7 @@ export async function onRequestPost(context) {
     if (action === "backfill_audiencias") {
       return runLogged(async () => backfillAudiencias(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 100),
+        limit: Number(body.limit || 2),
         apply: Boolean(body.apply),
       }));
     }
@@ -233,13 +236,14 @@ export async function onRequestPost(context) {
     }
     if (action === "create_job") {
       try {
-        const data = await createProcessAdminJob(context.env, {
-          action: String(body.jobAction || ""),
-          payload: {
-            processNumbers: parseProcessNumbers(body.processNumbers),
-            limit: Number(body.limit || 0),
-          },
-        });
+          const data = await createProcessAdminJob(context.env, {
+            action: String(body.jobAction || ""),
+            payload: {
+              processNumbers: parseProcessNumbers(body.processNumbers),
+              limit: Number(body.limit || 0),
+              intent: String(body.intent || ""),
+            },
+          });
         return jsonOk({ data });
       } catch (error) {
         if (isJobInfraError(error)) {
