@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /d/Github/newgit/.claude/worktrees/distracted-tesla -type f \\\\\\(-name *ai-core* -o -name *.ts -o -name *.tsx -o -name *.js \\\\\\))",
+      "Bash(grep -r \"ai-core\\\\|from ai\\\\|import ai\" /d/Github/newgit/.claude/worktrees/distracted-tesla --include=*.py --include=*.ts --include=*.tsx --include=*.js)",
+      "Bash(grep -n except.*: /d/Github/newgit/.claude/worktrees/distracted-tesla/ai-core/core --include=*.py -r)",
+      "Bash(where gh:*)",
+      "Bash(winget list:*)",
+      "Bash(cmd /c \"gh pr create --title \"\"feat: ai-core improvements and processos operation enhancements\"\" --body \"\"## Summary\\\\n\\\\n- **ai-core**: adds telemetry, improves Obsidian RAG search, session store tests, orchestration engine test refactor, UnicodeDecodeError fix, and unimplemented status in ExecutorAgent\\\\n- **processos**: enriches queue row status visibility, guides operation/result states, improves audiencia backlog targeting, batches process reloads\\\\n- **hmadv-ops**: extends operation handling and clarifies datajud job variants\\\\n- **admin APIs**: minor fixes to dotobot-chat, rag-health, and lawdesk-chat exports\\\\n\\\\n## Test plan\\\\n\\\\n- [ ] Run pytest ai-core/tests/ — all tests should pass\\\\n- [ ] Verify processos queue page renders correct status badges\\\\n- [ ] Confirm hmadv-ops batch reload does not regress existing flows\\\\n\\\\n🤖 Generated with Claude Code\"\" 2>&1\")",
+      "Bash(powershell -Command \"cd ''D:\\\\Github\\\\newgit\\\\.claude\\\\worktrees\\\\distracted-tesla''; gh pr create --title ''feat: ai-core improvements and processos operation enhancements'' 2>&1\")",
+      "Bash(\"/c/Program Files/GitHub:*)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -r \"uvicorn\\\\|fastapi\\\\|flask\\\\|gunicorn\" . --include=*.py)",
+      "Bash(grep -r \"PORT\\\\|port\\\\|listen\" . --include=*.json --include=*.js --include=*.toml --include=*.py)",
+      "Bash(grep -r \"wrangler.*dev\\\\|wrangler.*pages dev\" . --include=*.js --include=*.json --include=*.md)",
+      "Bash(grep -r \"localhost\\\\|127.0.0.1\" . --include=*.py --include=*.js --include=*.ts)",
+      "Bash(find . -type f -name *.py -exec grep -l \"if __name__\\\\|app.run\\\\|uvicorn\\\\|uvicorn.run\\\\|uvicorn.asgi\" {})",
+      "Bash(2)",
+      "Bash(grep -r \"next dev\\\\|next start\" . --include=*.md --include=*.json --include=*.js)"
+    ]
+  }
+}
