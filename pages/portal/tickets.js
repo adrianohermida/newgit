@@ -93,6 +93,20 @@ export default function PortalTicketsPage() {
 }
 
 function TicketsContent({ router, state, setState, form, setForm, submitting, setSubmitting, feedback, setFeedback, onShowDetails, lastSeen }) {
+  // Filtros
+  const [statusFilter, setStatusFilter] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState('');
+
+  const filteredItems = state.items.filter(item => {
+    const statusOk = !statusFilter || String(item.status).toLowerCase().includes(statusFilter);
+    const priorityOk = !priorityFilter || String(item.priority).toLowerCase().includes(priorityFilter);
+    return statusOk && priorityOk;
+  });
+  // Paginação simples
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.ceil(filteredItems.length / PAGE_SIZE) || 1;
+  const paginatedItems = filteredItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const setToast = useToast();
   useEffect(() => {
     if (!router.isReady) return;
@@ -261,20 +275,58 @@ function TicketsContent({ router, state, setState, form, setForm, submitting, se
 
       {!state.loading && !state.error && state.items.length ? (
         <div className="space-y-4">
-          {state.items.map((item) => {
+          {/* Filtros */}
+          <div className="flex flex-wrap gap-4 mb-6 items-center">
+            <label className="text-sm">
+              Status:
+              <select
+                className="ml-2 rounded border px-2 py-1 bg-white/10"
+                value={statusFilter}
+                onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
+                aria-label="Filtrar por status"
+              >
+                <option value="">Todos</option>
+                <option value="aberto">Aberto</option>
+                <option value="pend">Pendente</option>
+                <option value="resol">Resolvido</option>
+                <option value="fech">Fechado</option>
+              </select>
+            </label>
+            <label className="text-sm">
+              Prioridade:
+              <select
+                className="ml-2 rounded border px-2 py-1 bg-white/10"
+                value={priorityFilter}
+                onChange={e => { setPriorityFilter(e.target.value); setPage(1); }}
+                aria-label="Filtrar por prioridade"
+              >
+                <option value="">Todas</option>
+                <option value="urg">Urgente</option>
+                <option value="alta">Alta</option>
+                <option value="media">Média</option>
+                <option value="baixa">Baixa</option>
+              </select>
+            </label>
+          </div>
+
+          {paginatedItems.map((item) => {
             const updatedAt = new Date(item.updated_at).getTime();
             const isNew = updatedAt > lastSeen;
             return (
-              <article key={item.id} className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6 cursor-pointer hover:border-[#C49C56] transition"
+              <article
+                key={item.id}
+                className={`rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6 cursor-pointer hover:border-[#C49C56] transition focus:outline-none focus:ring-2 focus:ring-[#C49C56]`}
                 tabIndex={0}
                 aria-label={`Ver detalhes do ticket ${item.id}`}
+                role="button"
+                aria-pressed="false"
                 onClick={() => onShowDetails(item)}
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onShowDetails(item); }}
               >
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between" aria-label={`Conteúdo do ticket ${item.id}`}> 
                   <div className="min-w-0">
                     <div className="mb-3 flex flex-wrap items-center gap-3">
-                      <span className="text-[10px] font-semibold tracking-[0.2em]" style={{ color: "#C49C56" }}>
+                      <span className="text-[10px] font-semibold tracking-[0.2em]" style={{ color: "#C49C56" }} id={`ticket-label-${item.id}`}> 
                         Solicitacao #{item.id}
                       </span>
                       <span className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] ${statusTone(item.status)}`}>
@@ -285,7 +337,7 @@ function TicketsContent({ router, state, setState, form, setForm, submitting, se
                         <span className="ml-2 rounded-full bg-green-500 px-2 py-1 text-[10px] text-white font-bold animate-pulse">Novo</span>
                       )}
                     </div>
-                    <h3 className="font-serif text-2xl">{item.subject}</h3>
+                    <h3 className="font-serif text-2xl" aria-labelledby={`ticket-label-${item.id}`}>{item.subject}</h3>
                     <p className="mt-2 text-sm opacity-55">Atualizado em {formatDateTime(item.updated_at)}</p>
                     {item.description_text ? <p className="mt-4 max-w-3xl text-sm leading-6 opacity-65">{item.description_text}</p> : null}
                   </div>
@@ -320,6 +372,29 @@ function TicketsContent({ router, state, setState, form, setForm, submitting, se
           })}
         </div>
       ) : null}
+
+      {/* Paginação */}
+      {!state.loading && !state.error && state.items.length > PAGE_SIZE && (
+        <div className="flex justify-center gap-2 mt-8">
+          <button
+            className="px-3 py-1 rounded border bg-white/10 hover:bg-[#C49C56] hover:text-[#07110E] disabled:opacity-50"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+            aria-label="Página anterior"
+          >
+            Anterior
+          </button>
+          <span className="px-3 py-1">Página {page} de {totalPages}</span>
+          <button
+            className="px-3 py-1 rounded border bg-white/10 hover:bg-[#C49C56] hover:text-[#07110E] disabled:opacity-50"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            aria-label="Próxima página"
+          >
+            Próxima
+          </button>
+        </div>
+      )}
     </div>
   );
 }

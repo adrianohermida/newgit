@@ -9,15 +9,33 @@ import { getCurrentContext } from "../../lib/ai/context_engine";
 import { useRouter } from "next/router";
 import { adminFetch } from "../../lib/admin/api";
 import { useSupabaseBrowser } from "../../lib/supabase";
-
-const CHAT_STORAGE_PREFIX = "dotobot_internal_chat_v3";
-const TASK_STORAGE_PREFIX = "dotobot_internal_tasks_v2";
-const PREF_STORAGE_PREFIX = "dotobot_internal_prefs_v1";
-const CONVERSATIONS_STORAGE_PREFIX = "dotobot_internal_conversations_v2";
-const MAX_HISTORY = 80;
-const MAX_TASKS = 80;
-const MAX_ATTACHMENTS = 8;
-const MAX_CONVERSATIONS = 30;
+import { pollTaskRun, startTaskRun } from "./dotobotTaskRun";
+import {
+  CHAT_STORAGE_PREFIX,
+  CONVERSATIONS_STORAGE_PREFIX,
+  MAX_ATTACHMENTS,
+  MAX_CONVERSATIONS,
+  MAX_HISTORY,
+  MAX_TASKS,
+  PREF_STORAGE_PREFIX,
+  TASK_STORAGE_PREFIX,
+  buildConversationStorageKey,
+  buildDotobotGlobalContext,
+  buildStorageKey,
+  createConversationSnapshot,
+  createEmptyConversation,
+  deleteConversationFromCollection,
+  extractAssistantResponseText,
+  filterVisibleConversations,
+  inferConversationTitle,
+  isTaskCommand,
+  loadPersistedDotobotState,
+  nowIso,
+  safeText,
+  summarizeConversation,
+  syncConversationSnapshots,
+  updateConversationCollection,
+} from "./dotobotPanelState";
 
 const MODE_OPTIONS = [
   { value: "chat", label: "Chat", hint: "Conversa assistida" },
@@ -52,43 +70,6 @@ const SLASH_COMMANDS = [
   { value: "/resumo", label: "Resumir documentos", hint: "Sintese tecnica e util." },
   { value: "/tarefas", label: "Ver tarefas", hint: "Abre o modo de acompanhamento operacional." },
 ];
-
-function buildStorageKey(prefix, profile) {
-  const profileId = profile?.id || profile?.email || "anonymous";
-  return `${prefix}:${profileId}`;
-}
-
-function buildConversationStorageKey(profile) {
-  return buildStorageKey(CONVERSATIONS_STORAGE_PREFIX, profile);
-}
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function safeParseArray(raw, max = MAX_HISTORY) {
-  if (!raw) return [];
-  try {
-    const data = JSON.parse(raw);
-    return Array.isArray(data) ? data.slice(-max) : [];
-  } catch {
-    return [];
-  }
-}
-
-function safeParseObject(raw, fallback) {
-  if (!raw) return fallback;
-  try {
-    const data = JSON.parse(raw);
-    return data && typeof data === "object" ? data : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function normalizeMessage(item) {
-  return item && typeof item.role === "string" && typeof item.text === "string";
-}
 
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 KB";
@@ -128,51 +109,6 @@ function buildRagSummary(rag) {
 
 function getLastTask(taskHistory) {
   return taskHistory.find((task) => task.status === "running") || taskHistory[0] || null;
-}
-
-function safeText(value, fallback = "") {
-  return typeof value === "string" && value.trim() ? value.trim() : fallback;
-}
-
-function inferConversationTitle(messages = []) {
-  const firstUser = messages.find((item) => item.role === "user" && item.text);
-  if (!firstUser) return "Nova conversa";
-  const text = firstUser.text.replace(/\s+/g, " ").trim();
-  return text.length > 48 ? `${text.slice(0, 48).trim()}...` : text;
-}
-
-function summarizeConversation(conversation) {
-  const messages = Array.isArray(conversation?.messages) ? conversation.messages : [];
-  const lastMessage = messages[messages.length - 1];
-  const attachments = Array.isArray(conversation?.attachments) ? conversation.attachments : [];
-  const taskHistory = Array.isArray(conversation?.taskHistory) ? conversation.taskHistory : [];
-  return {
-    id: conversation?.id || `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-    title: safeText(conversation?.title, inferConversationTitle(messages)),
-    archived: Boolean(conversation?.archived),
-    createdAt: conversation?.createdAt || nowIso(),
-    updatedAt: conversation?.updatedAt || nowIso(),
-    tags: Array.isArray(conversation?.tags) ? conversation.tags : [],
-    messages,
-    taskHistory,
-    attachments,
-    metadata: conversation?.metadata || {},
-    preview: safeText(conversation?.preview, lastMessage?.text || "Sem mensagens ainda"),
-  };
-}
-
-function createConversationFromState(state) {
-  return summarizeConversation({
-    id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    title: "Nova conversa",
-    messages: state.messages || [],
-    taskHistory: state.taskHistory || [],
-    attachments: state.attachments || [],
-    tags: state.tags || [],
-    metadata: state.metadata || {},
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
-  });
 }
 
 function renderRichText(text) {
@@ -375,30 +311,22 @@ export default function DotobotCopilot({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const savedMessages = safeParseArray(window.localStorage.getItem(chatStorageKey), MAX_HISTORY).filter(normalizeMessage);
-    const savedTasks = safeParseArray(window.localStorage.getItem(taskStorageKey), MAX_TASKS);
-    const savedPrefs = safeParseObject(window.localStorage.getItem(prefStorageKey), {});
-    const savedConversations = safeParseArray(window.localStorage.getItem(conversationStorageKey), MAX_CONVERSATIONS)
-      .map(summarizeConversation)
-      .filter(Boolean);
-    const fallbackConversation = createConversationFromState({
-      messages: savedMessages,
-      taskHistory: savedTasks,
-      attachments: [],
-      metadata: {},
+    const persistedState = loadPersistedDotobotState({
+      chatStorageKey,
+      taskStorageKey,
+      prefStorageKey,
+      conversationStorageKey,
+      initialWorkspaceOpen,
     });
-    const nextConversations = savedConversations.length ? savedConversations : [fallbackConversation];
-    const nextActiveId = savedPrefs.activeConversationId || nextConversations[0]?.id || fallbackConversation.id;
-    const activeConversation = nextConversations.find((item) => item.id === nextActiveId) || nextConversations[0] || fallbackConversation;
-    setConversations(nextConversations);
-    setActiveConversationId(activeConversation.id);
-    setMessages(Array.isArray(activeConversation.messages) && activeConversation.messages.length ? activeConversation.messages : savedMessages);
-    setTaskHistory(Array.isArray(activeConversation.taskHistory) && activeConversation.taskHistory.length ? activeConversation.taskHistory : savedTasks);
-    setAttachments(Array.isArray(activeConversation.attachments) ? activeConversation.attachments : []);
-    if (savedPrefs.mode) setMode(savedPrefs.mode);
-    if (savedPrefs.provider) setProvider(savedPrefs.provider);
-    if (typeof savedPrefs.contextEnabled === "boolean") setContextEnabled(savedPrefs.contextEnabled);
-    setWorkspaceOpen(Boolean(savedPrefs.workspaceOpen || initialWorkspaceOpen));
+    setConversations(persistedState.conversations);
+    setActiveConversationId(persistedState.activeConversationId);
+    setMessages(persistedState.messages);
+    setTaskHistory(persistedState.taskHistory);
+    setAttachments(persistedState.attachments);
+    if (persistedState.prefs.mode) setMode(persistedState.prefs.mode);
+    if (persistedState.prefs.provider) setProvider(persistedState.prefs.provider);
+    if (typeof persistedState.prefs.contextEnabled === "boolean") setContextEnabled(persistedState.prefs.contextEnabled);
+    setWorkspaceOpen(persistedState.prefs.workspaceOpen);
   }, [chatStorageKey, taskStorageKey, prefStorageKey, conversationStorageKey, initialWorkspaceOpen]);
 
   useEffect(() => {
@@ -417,15 +345,13 @@ export default function DotobotCopilot({
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!conversations.length) return;
-    const next = conversations.map((conversation) => ({
-      ...summarizeConversation(conversation),
-      messages: conversation.id === activeConversationId ? messages.slice(-MAX_HISTORY) : conversation.messages || [],
-      taskHistory: conversation.id === activeConversationId ? taskHistory.slice(-MAX_TASKS) : conversation.taskHistory || [],
-      attachments: conversation.id === activeConversationId ? attachments.slice(0, MAX_ATTACHMENTS) : conversation.attachments || [],
-      updatedAt: conversation.id === activeConversationId ? nowIso() : conversation.updatedAt || nowIso(),
-      title: safeText(conversation.title, inferConversationTitle(conversation.messages || [])),
-      preview: conversation.id === activeConversationId ? safeText(messages[messages.length - 1]?.text, conversation.preview) : conversation.preview,
-    })).slice(0, MAX_CONVERSATIONS);
+    const next = syncConversationSnapshots({
+      conversations,
+      activeConversationId,
+      messages,
+      taskHistory,
+      attachments,
+    });
     window.localStorage.setItem(conversationStorageKey, JSON.stringify(next));
     setConversations(next);
   }, [messages, taskHistory, attachments, activeConversationId, conversationStorageKey]);
@@ -504,23 +430,19 @@ export default function DotobotCopilot({
     }, 100);
 
     // Monta contexto global inteligente
-    const globalContext = {
-      route: routePath,
-      profile: profile || null,
+    const globalContext = buildDotobotGlobalContext({
+      routePath,
+      profile,
       mode: nextMode,
       provider: nextProvider,
       contextEnabled: nextContextEnabled,
-      device: typeof window !== "undefined" && window.navigator ? window.navigator.userAgent : "server",
-      time: nowIso(),
-      conversationId: activeConversationId,
-      messages: messages.slice(-10),
-      attachments: attachments.map(a => ({ kind: a.kind, type: a.type, name: a.file?.name || null })),
-    };
+      activeConversationId,
+      messages,
+      attachments,
+    });
 
     // Detecta se é comando de skill/task
-    const isTaskCommand = trimmedQuestion.startsWith("/peticao") || trimmedQuestion.startsWith("/analise") || trimmedQuestion.startsWith("/plano") || trimmedQuestion.startsWith("/tarefas");
-
-    if (isTaskCommand) {
+    if (isTaskCommand(trimmedQuestion)) {
       // Dispara TaskRun
       setUiState("executing");
       setTaskHistory((tasks) => [
@@ -534,49 +456,32 @@ export default function DotobotCopilot({
         ...tasks,
       ]);
       try {
-        // Chama backend para iniciar TaskRun
-        const data = await adminFetch("/functions/api/admin-lawdesk-chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "task_run_start",
-            query: trimmedQuestion,
-            mode: nextMode,
-            provider: nextProvider,
-            contextEnabled: nextContextEnabled,
-            context: globalContext,
-          }),
+        const data = await startTaskRun({
+          query: trimmedQuestion,
+          mode: nextMode,
+          provider: nextProvider,
+          contextEnabled: nextContextEnabled,
+          context: globalContext,
         });
         if (data?.ok && data?.result?.id) {
-          // Poll status/logs
           const runId = data.result.id;
-          let finished = false;
-          while (!finished) {
-            await new Promise((r) => setTimeout(r, 1200));
-            const pollData = await adminFetch("/functions/api/admin-lawdesk-chat", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "task_run_get", id: runId }),
-            });
-            if (pollData?.ok && pollData?.result) {
+          await pollTaskRun(runId, {
+            onUpdate: (result) => {
               setTaskHistory((tasks) =>
-                tasks.map((t) =>
-                  t.id === runId
+                tasks.map((task) =>
+                  task.id === runId
                     ? {
-                        ...t,
-                        status: pollData.result.status,
-                        logs: pollData.result.events?.map((e) => e.message) || [],
-                        result: pollData.result.result,
-                        finishedAt: pollData.result.updated_at,
+                        ...task,
+                        status: result.status,
+                        logs: result.events?.map((event) => event.message) || [],
+                        result: result.result,
+                        finishedAt: result.updated_at,
                       }
-                    : t
+                    : task
                 )
               );
-              finished = ["ok", "error", "canceled"].includes(pollData.result.status);
-            } else {
-              finished = true;
-            }
-          }
+            },
+          });
         } else {
           setError(data?.error || "Falha ao iniciar TaskRun.");
         }
@@ -590,7 +495,6 @@ export default function DotobotCopilot({
 
     // Chat normal (streaming)
     try {
-      const controller = new AbortController();
       const data = await adminFetch("/functions/api/admin-lawdesk-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -606,12 +510,7 @@ export default function DotobotCopilot({
         ...msgs,
         {
           role: "assistant",
-          text:
-            data?.data?.result?.message ||
-            data?.data?.resultText ||
-            data?.data?.result ||
-            data?.data ||
-            "(sem resposta)",
+          text: extractAssistantResponseText(data),
           createdAt: nowIso(),
         },
       ]);
@@ -919,30 +818,11 @@ export default function DotobotCopilot({
 
   function updateConversationById(conversationId, updater) {
     if (!conversationId) return;
-    setConversations((current) =>
-      current.map((conversation) => {
-        if (conversation.id !== conversationId) return conversation;
-        const next = typeof updater === "function" ? updater(conversation) : updater;
-        return summarizeConversation({
-          ...conversation,
-          ...next,
-          updatedAt: nowIso(),
-        });
-      })
-    );
+    setConversations((current) => updateConversationCollection(current, conversationId, updater));
   }
 
   function createConversationFromCurrentState(title = inferConversationTitle(messages)) {
-    const nextConversation = summarizeConversation({
-      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      title,
-      messages: messages.slice(-MAX_HISTORY),
-      taskHistory: taskHistory.slice(-MAX_TASKS),
-      attachments: attachments.slice(0, MAX_ATTACHMENTS),
-      tags: [],
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-    });
+    const nextConversation = createConversationSnapshot({ title, messages, taskHistory, attachments });
     setConversations((current) => [nextConversation, ...current].slice(0, MAX_CONVERSATIONS));
     setActiveConversationId(nextConversation.id);
     return nextConversation;
@@ -975,7 +855,7 @@ export default function DotobotCopilot({
     if (typeof window !== "undefined" && !window.confirm(`Excluir a conversa "${conversation.title || "sem titulo"}"?`)) {
       return;
     }
-    const remaining = conversations.filter((item) => item.id !== conversation.id);
+    const remaining = deleteConversationFromCollection(conversations, conversation.id);
     if (remaining.length) {
       setConversations(remaining);
       if (conversation.id === activeConversationId) {
@@ -983,16 +863,7 @@ export default function DotobotCopilot({
       }
       return;
     }
-    const replacement = summarizeConversation({
-      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      title: "Nova conversa",
-      messages: [],
-      taskHistory: [],
-      attachments: [],
-      tags: [],
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-    });
+    const replacement = createEmptyConversation("Nova conversa");
     setConversations([replacement]);
     setActiveConversationId(replacement.id);
     setMessages([]);
@@ -1126,20 +997,7 @@ export default function DotobotCopilot({
   const isWorkspaceShell = workspaceOpen;
   const railCollapsed = compactRail ? true : collapsed;
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
-  const filteredConversations = conversations.filter((conversation) => {
-    if (conversation.archived) return false;
-    if (!conversationSearch.trim()) return true;
-    const haystack = [
-      conversation.title,
-      conversation.preview,
-      ...(conversation.tags || []),
-      ...(Array.isArray(conversation.messages) ? conversation.messages.map((message) => message.text) : []),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    return haystack.includes(conversationSearch.toLowerCase());
-  });
+  const filteredConversations = filterVisibleConversations(conversations, conversationSearch);
 
   // Exemplo de fluxo de login Supabase
   async function handleLogin() {

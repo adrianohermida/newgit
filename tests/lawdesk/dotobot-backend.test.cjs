@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
+const nodeCrypto = require("node:crypto");
 const path = require("node:path");
 const vm = require("node:vm");
 const { pathToFileURL, fileURLToPath } = require("node:url");
@@ -37,12 +38,45 @@ async function loadEsmModule(entryPath) {
 }
 
 async function loadResolvedModule(specifier, parentIdentifier) {
+  if (specifier.startsWith("node:")) {
+    return createBuiltinModule(specifier);
+  }
   if (!specifier.startsWith(".")) {
     throw new Error(`Unsupported external import in test loader: ${specifier}`);
   }
   const parentPath = fileURLToPath(parentIdentifier);
   const resolvedPath = path.resolve(path.dirname(parentPath), specifier);
   return loadEsmModule(resolvedPath);
+}
+
+function createBuiltinModule(specifier) {
+  if (moduleCache.has(specifier)) {
+    return moduleCache.get(specifier);
+  }
+
+  const requiredModule =
+    specifier === "node:fs/promises"
+      ? fs
+      : specifier === "node:path"
+        ? path
+        : specifier === "node:crypto"
+          ? nodeCrypto
+          : null;
+
+  if (!requiredModule) {
+    throw new Error(`Unsupported built-in import in test loader: ${specifier}`);
+  }
+
+  const exportNames = Object.keys(requiredModule);
+  const synthetic = new vm.SyntheticModule([...exportNames, "default"], function () {
+    for (const key of exportNames) {
+      this.setExport(key, requiredModule[key]);
+    }
+    this.setExport("default", requiredModule);
+  }, { identifier: specifier });
+
+  moduleCache.set(specifier, synthetic);
+  return synthetic;
 }
 
 async function evaluateModule(module) {
