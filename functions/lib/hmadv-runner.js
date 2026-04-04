@@ -300,6 +300,17 @@ export async function getHmadvQueueSnapshot(env) {
     blockerCta = "Preparar automacao";
   }
 
+  const focoLabel =
+    focusModule === "publicacoes" ? "Publicacoes" : focusModule === "processos" ? "Processos" : "Torre HMADV";
+  const tendenciaBase =
+    focusModule === "publicacoes"
+      ? buildCycleTrend(publicacaoJobs.items || [])
+      : focusModule === "processos"
+        ? buildCycleTrend(processJobs.items || [])
+        : null;
+  const tendenciaLabel = tendenciaBase?.label || "Estavel";
+  const executiveSummary = `${healthLabel}: foco em ${focoLabel}; tendencia ${tendenciaLabel.toLowerCase()}.`;
+
   return {
     runnerConfigured,
     processosOverview,
@@ -345,6 +356,7 @@ export async function getHmadvQueueSnapshot(env) {
       href: blockerHref,
       cta: blockerCta,
     },
+    executiveSummary,
   };
 }
 

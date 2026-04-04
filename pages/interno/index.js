@@ -210,6 +210,10 @@ export default function InternoHomePage() {
               {hmadvOps.error ? <p className="text-sm text-red-300">{hmadvOps.error}</p> : null}
               {!hmadvOps.loading && hmadvOps.data ? (
                 <div className="space-y-5">
+                  <div className="border border-[#2D2E2E] bg-[rgba(10,12,11,0.82)] p-4 text-sm">
+                    <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Resumo executivo</p>
+                    <p className="text-base font-semibold">{hmadvOps.data.executiveSummary}</p>
+                  </div>
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <StatCard label="Processos pendentes" value={(hmadvOps.data.processosJobs?.pending || 0) + (hmadvOps.data.processosJobs?.running || 0)} helper="Jobs de processos aguardando drenagem." />
                     <StatCard label="Publicações pendentes" value={(hmadvOps.data.publicacoesJobs?.pending || 0) + (hmadvOps.data.publicacoesJobs?.running || 0)} helper="Jobs de publicações aguardando drenagem." />
