@@ -873,15 +873,7 @@ function InternoProcessosContent() {
           setActionState({ loading: false, error: null, result: result.job ? { job: result.job, drain: result } : { drain: result } });
           if (result.completedAll || !job?.id || job?.status === "completed" || job?.status === "error" || job?.status === "cancelled") {
             setActiveJobId(null);
-            await Promise.all([
-              loadOverview(),
-              loadQueue("sem_movimentacoes", setWithoutMovements, wmPage),
-              loadQueue("audiencias_pendentes", setAudienciaCandidates, audPage),
-              loadQueue("monitoramento_ativo", setMonitoringActive, maPage),
-              loadQueue("monitoramento_inativo", setMonitoringInactive, miPage),
-              loadQueue("campos_orfaos", setFieldGaps, fgPage),
-              loadOrphans(orphanPage),
-            ]);
+            await refreshOperationalQueues();
             if (typeof window !== "undefined" && "Notification" in window) {
               if (Notification.permission === "default") {
                 Notification.requestPermission().catch(() => {});
@@ -943,6 +935,24 @@ function InternoProcessosContent() {
     } catch {
       setJobs([]);
     }
+  }
+  async function refreshOperationalQueues() {
+    await Promise.all([
+      loadOverview(),
+      loadQueue("sem_movimentacoes", setWithoutMovements, wmPage),
+      loadQueue("audiencias_pendentes", setAudienciaCandidates, audPage),
+      loadQueue("monitoramento_ativo", setMonitoringActive, maPage),
+      loadQueue("monitoramento_inativo", setMonitoringInactive, miPage),
+      loadQueue("campos_orfaos", setFieldGaps, fgPage),
+      loadOrphans(orphanPage),
+    ]);
+  }
+  async function refreshOperationalContext() {
+    await Promise.all([
+      refreshOperationalQueues(),
+      loadRemoteHistory(),
+      loadJobs(),
+    ]);
   }
   function toggleSelection(setter, current, key) { setter(current.includes(key) ? current.filter((item) => item !== key) : [...current, key]); }
   function togglePageSelection(setter, current, rows, nextState) { const keys = rows.map((item) => getProcessSelectionValue(item)).filter(Boolean); if (nextState) { setter([...new Set([...current, ...keys])]); return; } setter(current.filter((item) => !keys.includes(item))); }
@@ -1051,15 +1061,7 @@ function InternoProcessosContent() {
       setActionState({ loading: false, error: null, result: response.data.result });
       setActiveJobId(null);
       await Promise.all([
-        loadOverview(),
-        loadQueue("sem_movimentacoes", setWithoutMovements, wmPage),
-        loadQueue("audiencias_pendentes", setAudienciaCandidates, audPage),
-        loadQueue("monitoramento_ativo", setMonitoringActive, maPage),
-        loadQueue("monitoramento_inativo", setMonitoringInactive, miPage),
-        loadQueue("campos_orfaos", setFieldGaps, fgPage),
-        loadOrphans(orphanPage),
-        loadRemoteHistory(),
-        loadJobs(),
+        refreshOperationalContext(),
       ]);
       return response.data;
     }
@@ -1081,17 +1083,7 @@ function InternoProcessosContent() {
       const result = payload.data || {};
       setActionState({ loading: false, error: null, result: result.job ? { job: result.job, drain: result } : { drain: result } });
       setActiveJobId(result.completedAll ? null : (result.job?.id || null));
-      await Promise.all([
-        loadOverview(),
-        loadQueue("sem_movimentacoes", setWithoutMovements, wmPage),
-        loadQueue("audiencias_pendentes", setAudienciaCandidates, audPage),
-        loadQueue("monitoramento_ativo", setMonitoringActive, maPage),
-        loadQueue("monitoramento_inativo", setMonitoringInactive, miPage),
-        loadQueue("campos_orfaos", setFieldGaps, fgPage),
-        loadOrphans(orphanPage),
-        loadRemoteHistory(),
-        loadJobs(),
-      ]);
+      await refreshOperationalContext();
     } catch (error) {
       setActionState({ loading: false, error: error.message || "Falha ao drenar fila.", result: null });
     }
@@ -1141,7 +1133,7 @@ function InternoProcessosContent() {
         preview: buildHistoryPreview(response.data),
         result: response.data,
       });
-      await Promise.all([loadOverview(), loadQueue("sem_movimentacoes", setWithoutMovements, wmPage), loadQueue("monitoramento_ativo", setMonitoringActive, maPage), loadQueue("monitoramento_inativo", setMonitoringInactive, miPage), loadQueue("campos_orfaos", setFieldGaps, fgPage), loadOrphans(orphanPage), loadRemoteHistory(), loadJobs()]);
+      await refreshOperationalContext();
     } catch (error) {
       setActionState({ loading: false, error: error.message || "Falha ao executar acao.", result: null });
       replaceHistoryEntry(historyId, {
