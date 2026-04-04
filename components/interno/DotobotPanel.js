@@ -205,11 +205,6 @@ function renderRichText(text) {
         ))}
       </div>
     );
-  }
-
-  // ...restante do componente
-
-}
   });
 }
 
