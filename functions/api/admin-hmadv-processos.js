@@ -11,6 +11,7 @@ import {
   jsonOk,
   listAdminJobs,
   listAdminOperations,
+  listAudienciaBackfillCandidates,
   listFieldGapProcesses,
   listMonitoringProcesses,
   listProcessRelations,
@@ -175,6 +176,13 @@ export async function onRequestGet(context) {
     }
     if (action === "campos_orfaos") {
       const data = await listFieldGapProcesses(context.env, {
+        page: Number(url.searchParams.get("page") || 1),
+        pageSize: Number(url.searchParams.get("pageSize") || 20),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "audiencias_pendentes") {
+      const data = await listAudienciaBackfillCandidates(context.env, {
         page: Number(url.searchParams.get("page") || 1),
         pageSize: Number(url.searchParams.get("pageSize") || 20),
       });

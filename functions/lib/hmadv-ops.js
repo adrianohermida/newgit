@@ -604,7 +604,7 @@ async function resolveProcessJobTargets(env, action, payload = {}) {
   return selected;
 }
 
-async function collectAudienciaBackfillTargets(env) {
+async function collectAudienciaBackfillCandidateRows(env) {
   const pageSize = 200;
   let offset = 0;
   let scans = 0;
@@ -635,18 +635,75 @@ async function collectAudienciaBackfillTargets(env) {
   const uniqueIds = uniqueNonEmpty(candidates.map((item) => item.processo_id));
   if (!uniqueIds.length) return [];
   const existentes = await loadAudienciasByProcessIds(env, uniqueIds);
-  const pendingProcessIds = uniqueNonEmpty(
-    candidates
-      .filter((candidate) => !existentes.some((item) => {
-        const sameOrigin = String(item.origem_id || "") === String(candidate.origem_id || "");
-        const sameDate = item.data_audiencia && new Date(item.data_audiencia).toISOString().slice(0, 19) === String(candidate.data_audiencia || "").slice(0, 19);
-        return sameOrigin && sameDate;
-      }))
-      .map((item) => item.processo_id)
-  );
+  const pendingCandidates = candidates.filter((candidate) => !existentes.some((item) => {
+    const sameOrigin = String(item.origem_id || "") === String(candidate.origem_id || "");
+    const sameDate = item.data_audiencia && new Date(item.data_audiencia).toISOString().slice(0, 19) === String(candidate.data_audiencia || "").slice(0, 19);
+    return sameOrigin && sameDate;
+  }));
+  const pendingProcessIds = uniqueNonEmpty(pendingCandidates.map((item) => item.processo_id));
   if (!pendingProcessIds.length) return [];
-  const processes = await loadProcessesByIds(env, pendingProcessIds, "id,numero_cnj");
-  return uniqueNonEmpty(processes.map((item) => item.numero_cnj));
+  const processes = await loadProcessesByIds(
+    env,
+    pendingProcessIds,
+    "id,numero_cnj,titulo,account_id_freshsales,status_atual_processo"
+  );
+  const processMap = new Map(processes.map((item) => [item.id, item]));
+  const grouped = new Map();
+  for (const candidate of pendingCandidates) {
+    const current = grouped.get(candidate.processo_id) || {
+      processo_id: candidate.processo_id,
+      audiencias_pendentes: 0,
+      proxima_data_audiencia: null,
+      ultima_data_audiencia: null,
+    };
+    current.audiencias_pendentes += 1;
+    if (!current.proxima_data_audiencia || candidate.data_audiencia < current.proxima_data_audiencia) {
+      current.proxima_data_audiencia = candidate.data_audiencia;
+    }
+    if (!current.ultima_data_audiencia || candidate.data_audiencia > current.ultima_data_audiencia) {
+      current.ultima_data_audiencia = candidate.data_audiencia;
+    }
+    grouped.set(candidate.processo_id, current);
+  }
+  return [...grouped.values()]
+    .map((item) => {
+      const process = processMap.get(item.processo_id) || {};
+      return {
+        ...item,
+        numero_cnj: process.numero_cnj || null,
+        titulo: process.titulo || null,
+        account_id_freshsales: process.account_id_freshsales || null,
+        status_atual_processo: process.status_atual_processo || null,
+      };
+    })
+    .filter((item) => item.numero_cnj)
+    .sort((a, b) => {
+      const countDiff = Number(b.audiencias_pendentes || 0) - Number(a.audiencias_pendentes || 0);
+      if (countDiff !== 0) return countDiff;
+      return String(a.proxima_data_audiencia || "").localeCompare(String(b.proxima_data_audiencia || ""));
+    });
+}
+
+async function collectAudienciaBackfillTargets(env) {
+  const rows = await collectAudienciaBackfillCandidateRows(env);
+  return uniqueNonEmpty(rows.map((item) => item.numero_cnj));
+}
+
+export async function listAudienciaBackfillCandidates(env, { page = 1, pageSize = 20 } = {}) {
+  const safePage = Math.max(1, Number(page || 1));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  const rows = await collectAudienciaBackfillCandidateRows(env);
+  const start = (safePage - 1) * safePageSize;
+  const items = rows.slice(start, start + safePageSize).map((item) => ({
+    ...item,
+    key: item.numero_cnj || item.processo_id,
+  }));
+  return {
+    page: safePage,
+    pageSize: safePageSize,
+    totalRows: rows.length,
+    items,
+  };
 }
 
 function getProcessActionLimitConfig(action) {
