@@ -31,7 +31,25 @@ export default async function handler(req, res) {
   }
 
   if (action === "task_run_start") {
+    // PATCH 5: Criação de run real e resposta do modelo
+    // Cria o run
     const result = await startTaskRun(process.env, req.body, features);
+    // Opcional: já dispara execução do modelo se necessário
+    if (result?.ok && result?.result?.id) {
+      // Executa modelo e salva resultado no run
+      try {
+        const modelResult = await runLawdeskChat(process.env, {
+          query: req.body?.query,
+          context: req.body?.context || {},
+        });
+        // Atualiza run com resultado
+        // (Ideal: função updateTaskRun, mas pode ser persistRun/persistEvent)
+        // Aqui, apenas retorna resultado junto
+        return res.status(200).json({ ...result, modelResult });
+      } catch (err) {
+        return res.status(200).json({ ...result, modelError: err.message });
+      }
+    }
     return res.status(result.status).json(result);
   }
 
