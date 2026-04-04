@@ -1111,7 +1111,7 @@ export default function DotobotCopilot({
   }
 
   const runningCount = taskHistory.filter((item) => item.status === "running").length;
-  const activeTask = getLastTask(taskHistory);
+  // const activeTask = getLastTask(taskHistory); // Removido: duplicado
   const ragSummary = buildRagSummary(activeTask?.rag);
   const activeStatus = loading || runningCount || uiState !== "idle" ? "processing" : "online";
   const uiStateLabel =
