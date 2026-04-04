@@ -664,6 +664,21 @@ function InternoProcessosContent() {
         ...payload,
       }),
     });
+    if (response.data?.legacy_inline) {
+      setActionState({ loading: false, error: null, result: response.data.result });
+      setActiveJobId(null);
+      await Promise.all([
+        loadOverview(),
+        loadQueue("sem_movimentacoes", setWithoutMovements, wmPage),
+        loadQueue("monitoramento_ativo", setMonitoringActive, maPage),
+        loadQueue("monitoramento_inativo", setMonitoringInactive, miPage),
+        loadQueue("campos_orfaos", setFieldGaps, fgPage),
+        loadOrphans(orphanPage),
+        loadRemoteHistory(),
+        loadJobs(),
+      ]);
+      return response.data;
+    }
     const job = response.data;
     setActionState({ loading: false, error: null, result: { job } });
     setActiveJobId(job?.id || null);
@@ -693,8 +708,10 @@ function InternoProcessosContent() {
         const job = await queueAsyncAction(action, payload);
         replaceHistoryEntry(historyId, {
           status: "success",
-          preview: `Job criado: ${buildJobPreview(job)}`,
-          result: { job },
+          preview: job?.legacy_inline
+            ? `Fallback inline: ${buildHistoryPreview(job.result)}`
+            : `Job criado: ${buildJobPreview(job)}`,
+          result: job?.legacy_inline ? job.result : { job },
         });
         return;
       }

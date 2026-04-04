@@ -40,7 +40,8 @@
     "nodemailer": "^8.0.2",
     "react": "latest",
     "react-dom": "latest",
-    "react-window": "^2.2.7",
+    "react-transition-group": "^4.4.5",
+    "react-window": "^1.8.7",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

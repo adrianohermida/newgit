@@ -37,6 +37,33 @@ function parseProcessNumbers(value) {
     .filter(Boolean);
 }
 
+function isJobInfraError(error) {
+  const message = String(error?.message || "");
+  return message.includes("operacao_jobs") && (
+    message.includes("schema cache") ||
+    message.includes("Could not find the table") ||
+    message.includes("PGRST205")
+  );
+}
+
+async function runInlineProcessAction(env, action, body) {
+  const processNumbers = parseProcessNumbers(body.processNumbers);
+  const limit = Number(body.limit || 10);
+  if (action === "push_orfaos") {
+    return pushOrphanAccounts(env, { processNumbers, limit: Number(body.limit || 20) });
+  }
+  if (action === "repair_freshsales_accounts") {
+    return repairFreshsalesAccounts(env, { processNumbers, limit });
+  }
+  if (action === "enriquecer_datajud") {
+    return enrichProcessesViaDatajud(env, { processNumbers, limit });
+  }
+  if (action === "sync_supabase_crm") {
+    return syncProcessesSupabaseCrm(env, { processNumbers, limit });
+  }
+  throw new Error(`Acao inline nao suportada: ${action}`);
+}
+
 export async function onRequestGet(context) {
   const auth = await requireAdminAccess(context.request, context.env);
   if (!auth.ok) {
@@ -170,6 +197,35 @@ export async function onRequestPost(context) {
         });
         return jsonOk({ data });
       } catch (error) {
+        if (isJobInfraError(error)) {
+          try {
+            const result = await runInlineProcessAction(context.env, String(body.jobAction || ""), body);
+            await logAdminOperation(context.env, {
+              modulo: "processos",
+              acao: `${String(body.jobAction || "")}_inline_fallback`,
+              status: "success",
+              payload: body,
+              result,
+            });
+            return jsonOk({
+              data: {
+                legacy_inline: true,
+                action: String(body.jobAction || ""),
+                reason: "operacao_jobs_unavailable",
+                result,
+              },
+            });
+          } catch (inlineError) {
+            await logAdminOperation(context.env, {
+              modulo: "processos",
+              acao: `${String(body.jobAction || "")}_inline_fallback`,
+              status: "error",
+              payload: body,
+              error: inlineError.message || "Falha no fallback inline.",
+            });
+            return jsonError(inlineError, 500);
+          }
+        }
         return jsonError(error, 500);
       }
     }

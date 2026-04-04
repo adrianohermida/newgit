@@ -1,8 +1,9 @@
 import useDotobotExtensionBridge from "./DotobotExtensionBridge";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useMediaQuery } from "react-responsive";
 import { TransitionGroup, CSSTransition } from "react-transition-group";
 import { FixedSizeList as VirtualList } from "react-window";
-import "../../styles/chat-animations.css";
+
 import { detectIntent } from "../../lib/ai/intent_router";
 import { getCurrentContext } from "../../lib/ai/context_engine";
 import { useRouter } from "next/router";
@@ -312,8 +313,33 @@ export default function DotobotCopilot({
   const [loading, setLoading] = useState(false);
   const [uiState, setUiState] = useState("idle");
   const [error, setError] = useState(null);
-  const [collapsed, setCollapsed] = useState(false);
+  // Responsividade
+  const isMobile = useMediaQuery({ maxWidth: 767 });
+  const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1023 });
+  const isDesktop = useMediaQuery({ minWidth: 1024 });
+
+  // Estados do painel
+  const [panelState, setPanelState] = useState("open"); // open | collapsed | overlay
   const [workspaceOpen, setWorkspaceOpen] = useState(true);
+
+  // Trigger global (Ctrl+.)
+  useEffect(() => {
+    function handleGlobalShortcut(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === ".") {
+        e.preventDefault();
+        setPanelState("open");
+      }
+    }
+    window.addEventListener("keydown", handleGlobalShortcut);
+    return () => window.removeEventListener("keydown", handleGlobalShortcut);
+  }, []);
+
+  // Responsividade automática
+  useEffect(() => {
+    if (isMobile) setPanelState("overlay");
+    else if (isTablet) setPanelState("collapsed");
+    else setPanelState("open");
+  }, [isMobile, isTablet, isDesktop]);
   const [mode, setMode] = useState("task");
   const [provider, setProvider] = useState("gpt");
   const [contextEnabled, setContextEnabled] = useState(true);
@@ -478,91 +504,111 @@ export default function DotobotCopilot({
     });
   }
 
-    return (
-      <div className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-[480px] flex-col border-l border-[#22342F] bg-[rgba(12,15,14,0.98)] shadow-2xl transition-transform duration-300 ${collapsed ? 'translate-x-full' : 'translate-x-0'}`}
-        style={{ minHeight: '100vh' }}
+    // Classes dinâmicas para painel
+    const panelClass =
+      panelState === "open"
+        ? "copilot-open"
+        : panelState === "collapsed"
+        ? "copilot-collapsed"
+        : "copilot-overlay";
+
+    // Botão flutuante de reabertura
+    const FloatingTrigger = () => (
+      <button
+        className="fixed right-2 top-1/2 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-[#C5A059] shadow-lg hover:bg-[#D9B46A] transition-all"
+        style={{ display: panelState === "open" ? "none" : "flex" }}
+        onClick={() => setPanelState("open")}
+        title="Abrir Copilot (Ctrl + .)"
       >
-        {/* HEADER */}
-        <header className="flex items-center justify-between border-b border-[#22342F] px-3 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4">
-          <div className="flex items-center gap-3">
-            <span className="rounded-full bg-[#D9B46A] px-3 py-1 text-xs font-bold text-[#1A1A1A]">Dotobot Copilot</span>
-            <span className="text-xs text-[#9BAEA8]">{uiState === "responding" ? "Pensando..." : uiState === "executing" ? "Executando..." : "Idle"}</span>
-          </div>
-          <button
-            className="rounded-full border border-[#22342F] px-2 py-1 text-xs text-[#9BAEA8] hover:border-[#C5A059] hover:text-[#C5A059]"
-            onClick={() => setCollapsed((v) => !v)}
-          >
-            {collapsed ? "Abrir" : "Colapsar"}
-          </button>
-        </header>
-        {/* MAIN CHAT AREA */}
-        <main className="flex-1 overflow-y-auto px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4" ref={scrollRef}>
-          <VirtualList
-            height={typeof window !== "undefined" ? window.innerHeight * 0.6 : 400}
-            itemCount={messages.length + (loading ? 1 : 0)}
-            itemSize={110}
-            width={"100%"}
-            overscanCount={6}
-          >
-            {({ index, style }) => {
-              if (index === messages.length && loading) {
+        <span className="text-2xl font-bold text-[#1A1A1A]">🤖</span>
+      </button>
+    );
+
+    // Header de contexto
+    const ContextHeader = () => (
+      <div className="flex items-center gap-3 border-b border-[#22342F] px-4 py-3 bg-[rgba(12,15,14,0.98)]">
+        <span className="rounded-full bg-[#D9B46A] px-3 py-1 text-xs font-bold text-[#1A1A1A]">Dotobot Copilot</span>
+        <span className="text-xs text-[#9BAEA8]">{uiState === "responding" ? "Pensando..." : uiState === "executing" ? "Executando..." : "Idle"}</span>
+        {/* Exemplo de contexto visual */}
+        <span className="ml-auto text-xs text-[#C5A059]">📍 {routePath || "Módulo atual"}</span>
+      </div>
+    );
+
+    return (
+      <>
+        <FloatingTrigger />
+        <aside
+          className={`fixed right-0 top-0 z-40 flex h-full flex-col border-l border-[#22342F] bg-[rgba(12,15,14,0.98)] shadow-2xl transition-all duration-300 ${panelClass}`}
+          style={{
+            width:
+              panelState === "open"
+                ? 360
+                : panelState === "collapsed"
+                ? 48
+                : "100vw",
+            minHeight: "100vh",
+            maxWidth: panelState === "overlay" ? "100vw" : 480,
+            transform: panelState === "collapsed" ? "translateX(312px)" : "none",
+          }}
+        >
+          <ContextHeader />
+          {/* MAIN CHAT AREA */}
+          <main className="flex-1 overflow-y-auto px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4" ref={scrollRef}>
+            <VirtualList
+              height={typeof window !== "undefined" ? window.innerHeight * 0.6 : 400}
+              itemCount={messages.length + (loading ? 1 : 0)}
+              itemSize={110}
+              width={"100%"}
+              overscanCount={6}
+            >
+              {({ index, style }) => {
+                if (index === messages.length && loading) {
+                  return (
+                    <div style={style}>
+                      <MessageBubble
+                        message={{ role: "assistant", text: "", createdAt: null }}
+                        isTyping={true}
+                      />
+                    </div>
+                  );
+                }
+                const msg = messages[index];
                 return (
                   <div style={style}>
-                    <MessageBubble
-                      message={{ role: "assistant", text: "", createdAt: null }}
-                      isTyping={true}
-                    />
+                    <MessageBubble message={msg} />
                   </div>
                 );
-              }
-              const msg = messages[index];
-              return (
-                <div style={style}>
-                  <MessageBubble message={msg} />
-                </div>
-              );
-            }}
-          </VirtualList>
-        </main>
-        {/* INPUT AREA */}
-        <footer className="border-t border-[#22342F] bg-[rgba(12,15,14,0.98)] px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4">
-          <form
-            className="flex items-end gap-2"
-            onSubmit={handleSubmit}
-          >
-            <textarea
-              ref={composerRef}
-              className="flex-1 resize-none rounded-xl border border-[#22342F] bg-transparent px-3 py-2 text-sm text-[#F5F1E8] placeholder-[#7F928C] focus:border-[#C5A059] focus:outline-none"
-              rows={1}
-              placeholder="Digite sua mensagem..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              disabled={loading}
-              style={{ minHeight: 36, maxHeight: 80 }}
-            />
-            <button
-              type="submit"
-              className="rounded-xl bg-[#D9B46A] px-4 py-2 text-sm font-bold text-[#1A1A1A] transition hover:bg-[#C5A059]"
-              disabled={loading || !input.trim()}
+              }}
+            </VirtualList>
+          </main>
+          {/* INPUT AREA */}
+          <footer className="border-t border-[#22342F] bg-[rgba(12,15,14,0.98)] px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4">
+            <form
+              className="flex items-end gap-2"
+              onSubmit={handleSubmit}
             >
-              Enviar
-            </button>
-          </form>
-        </footer>
-              {/* Histórico compacto de sessões */}
-              <div className="absolute left-0 top-0 z-30 w-full flex flex-row flex-wrap gap-1 px-2 pt-2 lg:static lg:w-auto lg:flex-col lg:gap-2 lg:px-0 lg:pt-0">
-                {conversations.slice(0, 6).map((conv) => (
-                  <button
-                    key={conv.id}
-                    className={`rounded-xl px-2 py-1 text-xs border border-[#22342F] bg-[rgba(255,255,255,0.03)] text-[#C5A059] max-w-[90vw] truncate ${conv.id === activeConversationId ? 'bg-[#C5A059] text-[#07110E]' : ''}`}
-                    onClick={() => setActiveConversationId(conv.id)}
-                    title={conv.title}
-                  >
-                    {conv.title}
-                  </button>
-                ))}
-              </div>
-      </div>
+              <textarea
+                ref={composerRef}
+                className="flex-1 resize-none rounded-xl border border-[#22342F] bg-transparent px-3 py-2 text-sm text-[#F5F1E8] placeholder-[#7F928C] focus:border-[#C5A059] focus:outline-none"
+                rows={1}
+                placeholder="Digite sua mensagem..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                disabled={loading}
+                style={{ minHeight: 36, maxHeight: 80 }}
+              />
+              <button
+                type="submit"
+                className="rounded-xl bg-[#D9B46A] px-4 py-2 text-sm font-bold text-[#1A1A1A] transition hover:bg-[#C5A059]"
+                disabled={loading || !input.trim()}
+              >
+                Enviar
+              </button>
+            </form>
+          </footer>
+        </aside>
+      </>
+    );
     );
 
 

@@ -1,4 +1,5 @@
 import '../styles/globals.css';
+import '../styles/chat-animations.css';
 import Head from 'next/head';
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
