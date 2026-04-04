@@ -465,6 +465,12 @@ export default function DotobotCopilot({
       ...msgs,
       { role: "user", text: trimmedQuestion, createdAt: nowIso() },
     ]);
+    // PATCH 8: scroll automático ao enviar
+    setTimeout(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    }, 100);
 
     // Monta contexto global inteligente
     const globalContext = {
@@ -580,18 +586,20 @@ export default function DotobotCopilot({
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let done = false;
+      let lastChunk = "";
       while (!done) {
         const { value, done: doneReading } = await reader.read();
         done = doneReading;
         if (value) {
           const chunk = decoder.decode(value);
+          // PATCH 8: proteção contra loop de resposta fake
+          if (chunk === lastChunk) continue;
+          lastChunk = chunk;
           resultText += chunk;
           setMessages((msgs) => {
-            // Atualiza última mensagem do assistente em tempo real
             const lastUserIdx = msgs.findLastIndex((m) => m.role === "user");
             const assistantMsg = { role: "assistant", text: resultText, createdAt: nowIso() };
             if (lastUserIdx === -1) return [...msgs, assistantMsg];
-            // Se já existe uma resposta parcial, substitui
             if (msgs.length > lastUserIdx + 1 && msgs[lastUserIdx + 1].role === "assistant") {
               return [
                 ...msgs.slice(0, lastUserIdx + 1),
@@ -601,6 +609,12 @@ export default function DotobotCopilot({
             }
             return [...msgs, assistantMsg];
           });
+          // PATCH 8: scroll automático ao receber
+          setTimeout(() => {
+            if (scrollRef.current) {
+              scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            }
+          }, 80);
         }
       }
       setLoading(false);
@@ -701,16 +715,23 @@ export default function DotobotCopilot({
         <FloatingTrigger />
         {showTaskModal && <TaskModal />}
         <div
-          className={`h-full border-l border-neutral-800 transition-all duration-300 bg-[rgba(12,15,14,0.98)] shadow-2xl flex flex-col fixed right-0 top-0 z-40 ${isCollapsed ? "w-[48px]" : "w-[380px]"}`}
-          style={{ minHeight: "100vh", maxWidth: 480 }}
+          className={`h-full border-l border-neutral-800 transition-all duration-300 bg-[rgba(12,15,14,0.98)] shadow-2xl flex flex-col fixed right-0 top-0 z-40
+            ${isCollapsed ? "w-[48px]" : "w-[92vw] sm:w-[340px] md:w-[380px] lg:w-[420px] xl:w-[480px]"}
+            ${isCollapsed ? "min-w-[48px]" : "min-w-[92vw] sm:min-w-[340px] md:min-w-[380px] lg:min-w-[420px] xl:min-w-[480px]"}
+          `}
+          style={{ minHeight: "100vh", maxWidth: "100vw" }}
         >
           <ContextHeader />
           {!isCollapsed && (
             <>
               {/* MAIN CHAT AREA */}
-              <main className="flex-1 overflow-y-auto px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4" ref={scrollRef}>
+              <main
+                className="flex-1 overflow-y-auto px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4"
+                ref={scrollRef}
+                style={{ maxHeight: 'calc(100vh - 60px - 60px)' }}
+              >
                 <VirtualList
-                  height={typeof window !== "undefined" ? window.innerHeight * 0.6 : 400}
+                  height={typeof window !== "undefined" ? Math.max(window.innerHeight * 0.6, 220) : 400}
                   itemCount={messages.length + (uiState === "typing" || loading ? 1 : 0)}
                   itemSize={110}
                   width={"100%"}
