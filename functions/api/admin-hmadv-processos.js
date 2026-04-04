@@ -69,7 +69,11 @@ async function runInlineProcessAction(env, action, body) {
     return enrichProcessesViaDatajud(env, { processNumbers, limit: requestedLimit || 2 });
   }
   if (action === "sync_supabase_crm") {
-    return syncProcessesSupabaseCrm(env, { processNumbers, limit: requestedLimit || 1 });
+    return syncProcessesSupabaseCrm(env, {
+      processNumbers,
+      limit: requestedLimit || 1,
+      intent: String(body.intent || ""),
+    });
   }
   if (action === "backfill_audiencias") {
     return backfillAudiencias(env, { processNumbers, limit: requestedLimit || 2, apply: true });
@@ -329,6 +333,7 @@ export async function onRequestPost(context) {
       return runLogged(async () => syncProcessesSupabaseCrm(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 1),
+        intent: String(body.intent || ""),
       }));
     }
     if (action === "auditoria_sync") {

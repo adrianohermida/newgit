@@ -68,6 +68,10 @@ function getProcessActionLabel(action, payload = {}) {
     if (intent === "reenriquecer_gaps") return `Reenriquecer processos com gap${suffixLabel}`;
     return `Reenriquecer via DataJud${suffixLabel}`;
   }
+  if (normalizedAction === "sync_supabase_crm") {
+    if (intent === "crm_only") return `Sincronizar CRM sem DataJud${suffixLabel}`;
+    if (intent === "datajud_plus_crm") return `Sincronizar DataJud + CRM${suffixLabel}`;
+  }
   return `${ACTION_LABELS[normalizedAction] || normalizedAction}${suffixLabel}`;
 }
 
@@ -76,6 +80,8 @@ function getProcessIntentBadge(payload = {}) {
   if (intent === "buscar_movimentacoes") return "subtipo: buscar movimentacoes";
   if (intent === "sincronizar_monitorados") return "subtipo: sincronizar monitorados";
   if (intent === "reenriquecer_gaps") return "subtipo: reenriquecer gaps";
+  if (intent === "crm_only") return "subtipo: crm only";
+  if (intent === "datajud_plus_crm") return "subtipo: datajud + crm";
   return "";
 }
 

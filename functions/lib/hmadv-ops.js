@@ -586,9 +586,15 @@ async function resolveProcessJobTargets(env, action, payload = {}) {
     return collectProcessNumbersFromPagedList(listFieldGapProcesses, env);
   }
   if (action === "sync_supabase_crm") {
+    if (intent === "crm_only") {
+      return collectProcessNumbersFromPagedList(listCrmOnlyGapProcesses, env);
+    }
+    if (intent === "datajud_plus_crm") {
+      return collectProcessNumbersFromPagedList(listSyncDatajudProcesses, env);
+    }
     const [withoutMoves, gaps] = await Promise.all([
-      collectProcessNumbersFromPagedList(listProcessesWithoutMovements, env),
-      collectProcessNumbersFromPagedList(listFieldGapProcesses, env),
+      collectProcessNumbersFromPagedList(listSyncDatajudProcesses, env),
+      collectProcessNumbersFromPagedList(listCrmOnlyGapProcesses, env),
     ]);
     return uniqueNonEmpty([...withoutMoves, ...gaps]);
   }
@@ -1224,6 +1230,38 @@ export async function listFieldGapProcesses(env, { page = 1, pageSize = 20 } = {
   };
 }
 
+async function listSyncDatajudProcesses(env, { page = 1, pageSize = 20 } = {}) {
+  const safePage = Math.max(1, Number(page || 1));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  const filters = "account_id_freshsales=not.is.null&or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0)";
+  const items = await listTableSafe(
+    env,
+    `processos?select=id,numero_cnj,titulo,account_id_freshsales,quantidade_movimentacoes,status_atual_processo&${filters}&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
+  );
+  return {
+    page: safePage,
+    pageSize: safePageSize,
+    totalRows: await countTableSafe(env, "processos", filters),
+    items,
+  };
+}
+
+async function listCrmOnlyGapProcesses(env, { page = 1, pageSize = 20 } = {}) {
+  const safePage = Math.max(1, Number(page || 1));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  const filters = "account_id_freshsales=not.is.null&quantidade_movimentacoes=gt.0&or=(classe.is.null,assunto_principal.is.null,area.is.null,data_ajuizamento.is.null,sistema.is.null,polo_ativo.is.null,polo_passivo.is.null,status_atual_processo.is.null)";
+  const items = await listTableSafe(
+    env,
+    `processos?select=id,numero_cnj,titulo,account_id_freshsales,quantidade_movimentacoes,classe,assunto_principal,area,data_ajuizamento,sistema,polo_ativo,polo_passivo,status_atual_processo&${filters}&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
+  );
+  return {
+    page: safePage,
+    pageSize: safePageSize,
+    totalRows: await countTableSafe(env, "processos", filters),
+    items,
+  };
+}
+
 async function searchProcessRows(env, term, limit = 12) {
   const normalized = normalizeProcessNumber(term);
   const encodedTerm = encodeURIComponent(`*${String(term || "").trim()}*`);
@@ -1646,16 +1684,25 @@ export async function enrichProcessesViaDatajud(env, { processNumbers = [], limi
   };
 }
 
-export async function syncProcessesSupabaseCrm(env, { processNumbers = [], limit = 10 } = {}) {
+export async function syncProcessesSupabaseCrm(env, { processNumbers = [], limit = 10, intent = "" } = {}) {
   const config = getProcessActionLimitConfig("sync_supabase_crm");
   const safeLimit = Math.max(1, Math.min(Number(limit || config.defaultLimit), config.maxLimit));
   const processSelect = "id,numero_cnj,titulo,quantidade_movimentacoes,account_id_freshsales,classe,assunto_principal,area,data_ajuizamento,sistema,polo_ativo,polo_passivo,status_atual_processo";
-  const processes = processNumbers.length
-    ? await loadProcessesByNumbers(env, processNumbers, processSelect)
-    : await listTableSafe(
-        env,
-        `processos?select=${processSelect}&account_id_freshsales=not.is.null&or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0,classe.is.null,assunto_principal.is.null,area.is.null,data_ajuizamento.is.null,sistema.is.null,polo_ativo.is.null,polo_passivo.is.null,status_atual_processo.is.null)&limit=${safeLimit}`
-      );
+  let processes = [];
+  if (processNumbers.length) {
+    processes = await loadProcessesByNumbers(env, processNumbers, processSelect);
+  } else if (intent === "crm_only") {
+    const data = await listCrmOnlyGapProcesses(env, { page: 1, pageSize: safeLimit });
+    processes = data.items || [];
+  } else if (intent === "datajud_plus_crm") {
+    const data = await listSyncDatajudProcesses(env, { page: 1, pageSize: safeLimit });
+    processes = data.items || [];
+  } else {
+    processes = await listTableSafe(
+      env,
+      `processos?select=${processSelect}&account_id_freshsales=not.is.null&or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0,classe.is.null,assunto_principal.is.null,area.is.null,data_ajuizamento.is.null,sistema.is.null,polo_ativo.is.null,polo_passivo.is.null,status_atual_processo.is.null)&limit=${safeLimit}`
+    );
+  }
   const scopedProcesses = processes.slice(0, safeLimit);
   const beforeMap = new Map();
   const datajudMap = new Map();
@@ -1997,7 +2044,7 @@ export async function getProcessAdminJob(env, id) {
   return fetchOperationJobById(env, id);
 }
 
-async function runProcessJobAction(env, action, processNumbers, limit) {
+async function runProcessJobAction(env, action, processNumbers, limit, intent = "") {
   if (action === "push_orfaos") {
     return pushOrphanAccounts(env, { processNumbers, limit });
   }
@@ -2008,7 +2055,7 @@ async function runProcessJobAction(env, action, processNumbers, limit) {
     return repairFreshsalesAccounts(env, { processNumbers, limit });
   }
   if (action === "sync_supabase_crm") {
-    return syncProcessesSupabaseCrm(env, { processNumbers, limit });
+    return syncProcessesSupabaseCrm(env, { processNumbers, limit, intent });
   }
   if (action === "backfill_audiencias") {
     return backfillAudiencias(env, { processNumbers, limit, apply: true });
@@ -2052,7 +2099,7 @@ export async function processProcessAdminJob(env, id) {
   }
 
   try {
-    const result = await runProcessJobAction(env, job.acao, chunk, chunk.length);
+    const result = await runProcessJobAction(env, job.acao, chunk, chunk.length, payload.intent || "");
     const parsed = summarizeOperationResult(result || {});
     const failures = summarizeChunkFailures(result || {});
     const nextProcessed = offset + chunk.length;
