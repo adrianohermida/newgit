@@ -666,7 +666,11 @@ function PublicacoesContent() {
     setProcessCandidates((state) => ({ ...state, loading: true, error: null }));
     try {
       const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=candidatos_processos&page=${page}&pageSize=20`);
-      setProcessCandidates({ loading: false, error: null, items: payload.data.items || [], totalRows: payload.data.totalRows || 0, totalEstimated: Boolean(payload.data.totalEstimated), pageSize: payload.data.pageSize || 20 });
+      // Filtra itens ignorados (leilão ignorado ou freshsales_repair?.skipped)
+      const filtered = (payload.data.items || []).filter(
+        (item) => !item?.leilao_ignorado && !(item?.freshsales_repair?.skipped)
+      );
+      setProcessCandidates({ loading: false, error: null, items: filtered, totalRows: filtered.length, totalEstimated: Boolean(payload.data.totalEstimated), pageSize: payload.data.pageSize || 20 });
     } catch (error) {
       setProcessCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos.", items: [], totalRows: 0, totalEstimated: false, pageSize: 20 });
     }
@@ -676,7 +680,11 @@ function PublicacoesContent() {
     setPartesCandidates((state) => ({ ...state, loading: true, error: null }));
     try {
       const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=candidatos_partes&page=${page}&pageSize=20`);
-      setPartesCandidates({ loading: false, error: null, items: payload.data.items || [], totalRows: payload.data.totalRows || 0, totalEstimated: Boolean(payload.data.totalEstimated), pageSize: payload.data.pageSize || 20 });
+      // Filtra itens ignorados (leilão ignorado ou freshsales_repair?.skipped)
+      const filtered = (payload.data.items || []).filter(
+        (item) => !item?.leilao_ignorado && !(item?.freshsales_repair?.skipped)
+      );
+      setPartesCandidates({ loading: false, error: null, items: filtered, totalRows: filtered.length, totalEstimated: Boolean(payload.data.totalEstimated), pageSize: payload.data.pageSize || 20 });
     } catch (error) {
       setPartesCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos de partes.", items: [], totalRows: 0, totalEstimated: false, pageSize: 20 });
     }
