@@ -29,6 +29,7 @@ def load_tool_snapshot() -> tuple[PortingModule, ...]:
             responsibility=entry['responsibility'],
             source_hint=entry['source_hint'],
             status='mirrored',
+            execution_status='placeholder',
         )
         for entry in raw_entries
     )
@@ -38,7 +39,7 @@ PORTED_TOOLS = load_tool_snapshot()
 
 
 def build_tool_backlog() -> PortingBacklog:
-    return PortingBacklog(title='Tool surface', modules=list(PORTED_TOOLS))
+    return PortingBacklog(title='Tool catalog', modules=list(PORTED_TOOLS))
 
 
 def tool_names() -> list[str]:
@@ -72,6 +73,10 @@ def get_tools(
     return filter_tools_by_permission_context(tuple(tools), permission_context)
 
 
+def get_executable_tools() -> tuple[PortingModule, ...]:
+    return tuple(module for module in PORTED_TOOLS if module.is_executable)
+
+
 def find_tools(query: str, limit: int = 20) -> list[PortingModule]:
     needle = query.lower()
     matches = [module for module in PORTED_TOOLS if needle in module.name.lower() or needle in module.source_hint.lower()]
@@ -81,16 +86,16 @@ def find_tools(query: str, limit: int = 20) -> list[PortingModule]:
 def execute_tool(name: str, payload: str = '') -> ToolExecution:
     module = get_tool(name)
     if module is None:
-        return ToolExecution(name=name, source_hint='', payload=payload, handled=False, message=f'Unknown mirrored tool: {name}')
-    action = f"Mirrored tool '{module.name}' from {module.source_hint} would handle payload {payload!r}."
+        return ToolExecution(name=name, source_hint='', payload=payload, handled=False, message=f'Unknown catalog tool: {name}')
+    action = f"Placeholder tool shim '{module.name}' from {module.source_hint} would handle payload {payload!r}."
     return ToolExecution(name=module.name, source_hint=module.source_hint, payload=payload, handled=True, message=action)
 
 
 def render_tool_index(limit: int = 20, query: str | None = None) -> str:
     modules = find_tools(query, limit) if query else list(PORTED_TOOLS[:limit])
-    lines = [f'Tool entries: {len(PORTED_TOOLS)}', '']
+    lines = [f'Tool catalog entries: {len(PORTED_TOOLS)}', f'Executable tools: {len(get_executable_tools())}', '']
     if query:
         lines.append(f'Filtered by: {query}')
         lines.append('')
-    lines.extend(f'- {module.name} — {module.source_hint}' for module in modules)
+    lines.extend(f'- {module.name} [{module.status}/{module.execution_status}] - {module.source_hint}' for module in modules)
     return '\n'.join(lines)
