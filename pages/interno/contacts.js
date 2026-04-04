@@ -118,6 +118,7 @@ function ContactsContent() {
   const [syncLimit, setSyncLimit] = useState(100);
   const [reconcileLimit, setReconcileLimit] = useState(20);
   const [selectedPartes, setSelectedPartes] = useState([]);
+  const [selectedLinkedPartes, setSelectedLinkedPartes] = useState([]);
   const [createForm, setCreateForm] = useState({ name: "", type: "Cliente", email: "", phone: "", cpf: "", cnpj: "", cep: "", externalId: "" });
   const [editForm, setEditForm] = useState(buildEditableForm(null));
   const [mergeTargetId, setMergeTargetId] = useState("");
@@ -228,6 +229,9 @@ function ContactsContent() {
 
   function toggleParteSelection(id) {
     setSelectedPartes((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+  function toggleLinkedParteSelection(id) {
+    setSelectedLinkedPartes((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   }
 
   const overviewData = overview.data || {};
@@ -426,25 +430,20 @@ function ContactsContent() {
             {CONTACT_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
           </select>
         </div>
+        <div className="flex flex-wrap gap-3">
+          <ActionButton tone="primary" onClick={() => runAction("vincular_partes", { parteIds: selectedLinkedPartes, contactId: selectedContactId, type: linkType })} disabled={actionState.loading || !selectedContactId || !selectedLinkedPartes.length}>Mover para contato selecionado</ActionButton>
+          <ActionButton onClick={() => runAction("reclassificar_partes", { parteIds: selectedLinkedPartes, type: linkType })} disabled={actionState.loading || !selectedLinkedPartes.length}>Reclassificar tipo</ActionButton>
+          <ActionButton tone="danger" onClick={() => runAction("desvincular_partes", { parteIds: selectedLinkedPartes })} disabled={actionState.loading || !selectedLinkedPartes.length}>Desvincular partes</ActionButton>
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60">
+          <span>Selecionadas para revisao: {selectedLinkedPartes.length}</span>
+          <span>Contato em foco: {selected?.contact?.name || "nenhum selecionado"}</span>
+          <span>Tipo alvo: {linkType}</span>
+        </div>
         {partesVinculadas.loading ? <p className="text-sm opacity-60">Carregando partes vinculadas...</p> : null}
         {partesVinculadas.error ? <p className="text-sm text-red-300">{partesVinculadas.error}</p> : null}
         <div className="space-y-3">
-          {partesVinculadas.items.map((item) => <div key={item.id} className="border border-[#2D2E2E] p-4 text-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="font-semibold">{item.nome}</p>
-              <StatusBadge tone="accent">{item.tipo_contato || "Nao classificado"}</StatusBadge>
-              {item.cliente_hmadv || item.representada_pelo_escritorio ? <StatusBadge tone="success">cliente</StatusBadge> : null}
-              {item.principal_no_account ? <StatusBadge tone="success">principal</StatusBadge> : null}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-65">
-              <span>Polo: {item.polo || "n/d"}</span>
-              <span>Tipo pessoa: {item.tipo_pessoa || "n/d"}</span>
-              {item.processo?.numero_cnj ? <span>Processo: {item.processo.numero_cnj}</span> : null}
-              {item.processo?.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${item.processo.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Account {item.processo.account_id_freshsales}</a> : null}
-              {item.contact?.freshsales_url ? <a href={item.contact.freshsales_url} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Contato {item.contact.freshsales_contact_id}</a> : null}
-            </div>
-            {item.processo?.titulo ? <p className="mt-1 opacity-60">{item.processo.titulo}</p> : null}
-          </div>)}
+          {partesVinculadas.items.map((item) => <label key={item.id} className="block border border-[#2D2E2E] p-4 cursor-pointer text-sm"><div className="flex gap-3"><input type="checkbox" checked={selectedLinkedPartes.includes(item.id)} onChange={() => toggleLinkedParteSelection(item.id)} className="mt-1" /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{item.nome}</p><StatusBadge tone="accent">{item.tipo_contato || "Nao classificado"}</StatusBadge>{item.cliente_hmadv || item.representada_pelo_escritorio ? <StatusBadge tone="success">cliente</StatusBadge> : null}{item.principal_no_account ? <StatusBadge tone="success">principal</StatusBadge> : null}</div><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-65"><span>Polo: {item.polo || "n/d"}</span><span>Tipo pessoa: {item.tipo_pessoa || "n/d"}</span>{item.processo?.numero_cnj ? <span>Processo: {item.processo.numero_cnj}</span> : null}{item.processo?.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${item.processo.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Account {item.processo.account_id_freshsales}</a> : null}{item.contact?.freshsales_url ? <a href={item.contact.freshsales_url} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Contato {item.contact.freshsales_contact_id}</a> : null}</div>{item.processo?.titulo ? <p className="mt-1 opacity-60">{item.processo.titulo}</p> : null}</div></div></label>)}
         </div>
         <div className="flex items-center justify-between gap-3 text-sm">
           <p className="opacity-60">Total estimado: {partesVinculadas.totalRows || 0}</p>

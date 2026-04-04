@@ -587,3 +587,69 @@ export async function linkPartesToExistingContact(env, { parteIds = [], contactI
     sample,
   };
 }
+
+export async function unlinkPartesFromContact(env, { parteIds = [] } = {}) {
+  const ids = Array.isArray(parteIds) ? parteIds.map((item) => cleanValue(item)).filter(Boolean) : [];
+  if (!ids.length) throw new Error("Selecione ao menos uma parte para desvincular.");
+  const partes = await hmadvRest(env, `partes?id=in.(${ids.map((id) => `"${id}"`).join(",")})&select=id,processo_id,nome,contato_freshsales_id`, {}, "judiciario");
+  await hmadvRest(env, `partes?id=in.(${ids.map((id) => `"${id}"`).join(",")})`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", "Content-Profile": "judiciario", Prefer: "return=minimal" },
+    body: JSON.stringify({
+      contato_freshsales_id: null,
+      cliente_hmadv: false,
+      representada_pelo_escritorio: false,
+      principal_no_account: false,
+    }),
+  }, "judiciario");
+  for (const parte of partes) {
+    await hmadvRest(env, `processo_contato_sync?parte_id=eq.${encodeURIComponent(String(parte.id))}`, { method: "DELETE", headers: { "Content-Profile": "judiciario", Prefer: "return=minimal" } }, "judiciario").catch(() => null);
+  }
+  return {
+    checkedAt: new Date().toISOString(),
+    partesAtualizadas: partes.length,
+    sample: partes.map((parte) => ({
+      parte_id: parte.id,
+      nome: parte.nome,
+      processo_id: parte.processo_id,
+      contato_freshsales_id: parte.contato_freshsales_id,
+      modo: "unlinked",
+    })),
+  };
+}
+
+export async function reclassifyLinkedPartes(env, { parteIds = [], type = "" } = {}) {
+  const ids = Array.isArray(parteIds) ? parteIds.map((item) => cleanValue(item)).filter(Boolean) : [];
+  const nextType = cleanValue(type);
+  if (!ids.length) throw new Error("Selecione ao menos uma parte vinculada.");
+  if (!nextType) throw new Error("Informe o tipo para reclassificar.");
+  const partes = await hmadvRest(env, `partes?id=in.(${ids.map((id) => `"${id}"`).join(",")})&select=id,processo_id,nome,polo,contato_freshsales_id`, {}, "judiciario");
+  const contactIds = [...new Set(partes.map((item) => cleanValue(item.contato_freshsales_id)).filter(Boolean))];
+  for (const contactId of contactIds) {
+    await updateFreshsalesContactType(env, contactId, nextType);
+  }
+  for (const parte of partes) {
+    await hmadvRest(env, `partes?id=eq.${encodeURIComponent(String(parte.id))}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "Content-Profile": "judiciario", Prefer: "return=minimal" },
+      body: JSON.stringify({
+        cliente_hmadv: nextType === "Cliente",
+        representada_pelo_escritorio: nextType === "Cliente",
+        principal_no_account: nextType === "Cliente",
+      }),
+    }, "judiciario");
+  }
+  return {
+    checkedAt: new Date().toISOString(),
+    partesAtualizadas: partes.length,
+    tipo_contato: nextType,
+    sample: partes.map((parte) => ({
+      parte_id: parte.id,
+      nome: parte.nome,
+      processo_id: parte.processo_id,
+      contato_freshsales_id: parte.contato_freshsales_id,
+      tipo_contato: nextType,
+      modo: "reclassified",
+    })),
+  };
+}

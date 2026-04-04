@@ -13,8 +13,10 @@ import {
   listLinkedPartes,
   listUnlinkedPartes,
   mergeContacts,
+  reclassifyLinkedPartes,
   reconcilePartesContacts,
   syncFreshsalesContactsMirror,
+  unlinkPartesFromContact,
   updateContact,
 } from "../lib/hmadv-contacts.js";
 import { jsonError, jsonOk } from "../lib/hmadv-ops.js";
@@ -160,6 +162,29 @@ export async function onRequestPost(context) {
       const data = await linkPartesToExistingContact(context.env, {
         parteIds,
         contactId: body.contactId,
+        type: body.type || "",
+      });
+      return jsonOk({ data });
+    }
+    if (action === "desvincular_partes") {
+      const parteIds = Array.isArray(body.parteIds)
+        ? body.parteIds
+        : String(body.parteIds || "")
+            .split(/\r?\n|,|;/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+      const data = await unlinkPartesFromContact(context.env, { parteIds });
+      return jsonOk({ data });
+    }
+    if (action === "reclassificar_partes") {
+      const parteIds = Array.isArray(body.parteIds)
+        ? body.parteIds
+        : String(body.parteIds || "")
+            .split(/\r?\n|,|;/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+      const data = await reclassifyLinkedPartes(context.env, {
+        parteIds,
         type: body.type || "",
       });
       return jsonOk({ data });
