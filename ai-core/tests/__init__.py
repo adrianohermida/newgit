@@ -1,0 +1,1 @@
+# Torna tests um pacote Python para permitir imports absolutos.
