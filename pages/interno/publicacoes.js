@@ -175,6 +175,12 @@ function recurringSourceLabel(source) {
   if (source === "datajud") return "gargalo datajud";
   return "gargalo supabase";
 }
+function recurrenceBand(hits) {
+  if (hits >= 4) return { label: "critico 4x+", tone: "danger" };
+  if (hits >= 3) return { label: "reincidente 3x", tone: "warning" };
+  if (hits >= 2) return { label: "recorrente 2x", tone: "default" };
+  return null;
+}
 function suggestPublicacaoNextAction(source, row, current) {
   if (current?.needsManualReview) return "revisar manualmente a publicacao";
   if (source === "freshsales") return "rodar sync-worker";
@@ -894,6 +900,7 @@ function PublicacoesContent() {
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold break-all">{item.key}</p>
                 <HealthBadge label={`${item.hits} ciclos`} tone="danger" />
+                {recurrenceBand(item.hits) ? <HealthBadge label={recurrenceBand(item.hits).label} tone={recurrenceBand(item.hits).tone} /> : null}
                 <HealthBadge label={ACTION_LABELS[item.lastAction] || item.lastAction} tone="warning" />
                 <HealthBadge label={recurringSourceLabel(item.source)} tone={recurringSourceTone(item.source)} />
                 {item.noProgress ? <HealthBadge label="sem progresso estrutural" tone="warning" /> : null}

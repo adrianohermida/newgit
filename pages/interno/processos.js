@@ -250,6 +250,12 @@ function sourceLabel(source) {
   if (source === "advise") return "gargalo advise";
   return "gargalo supabase";
 }
+function recurrenceBand(hits) {
+  if (hits >= 4) return { label: "critico 4x+", tone: "danger" };
+  if (hits >= 3) return { label: "reincidente 3x", tone: "warning" };
+  if (hits >= 2) return { label: "recorrente 2x", tone: "default" };
+  return null;
+}
 function suggestProcessNextAction(source, row, current) {
   if (current?.needsManualReview) return "revisar manualmente o retorno";
   if (source === "freshsales") {
@@ -555,6 +561,7 @@ function InternoProcessosContent() {
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-semibold break-all">{item.key}</p>
               <StatusBadge tone="danger">{item.hits} ciclos</StatusBadge>
+              {recurrenceBand(item.hits) ? <StatusBadge tone={recurrenceBand(item.hits).tone}>{recurrenceBand(item.hits).label}</StatusBadge> : null}
               <StatusBadge tone="warning">{ACTION_LABELS[item.lastAction] || item.lastAction}</StatusBadge>
               <StatusBadge tone={sourceTone(item.source)}>{sourceLabel(item.source)}</StatusBadge>
               {item.noProgress ? <StatusBadge tone="warning">sem progresso estrutural</StatusBadge> : null}
