@@ -90,6 +90,16 @@ function CycleCard({ title, cycle }) {
               <p className="font-semibold">{cycle.errorCount || 0}</p>
             </div>
           </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="border border-[#2D2E2E] p-2">
+              <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Taxa de sucesso</p>
+              <p className="font-semibold">{cycle.successRate ?? 0}%</p>
+            </div>
+            <div className="border border-[#2D2E2E] p-2">
+              <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Cobertura do lote</p>
+              <p className="font-semibold">{cycle.coverageRate ?? 0}%</p>
+            </div>
+          </div>
         </div>
       ) : (
         <p className="opacity-65">Sem ciclo recente.</p>

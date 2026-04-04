@@ -62,15 +62,23 @@ function minutesSince(isoString) {
 
 function summarizeRecentCycle(job) {
   if (!job) return null;
+  const requestedCount = Number(job.requested_count || 0);
+  const processedCount = Number(job.processed_count || 0);
+  const successCount = Number(job.success_count || 0);
+  const errorCount = Number(job.error_count || 0);
+  const successRate = processedCount > 0 ? Math.round((successCount / processedCount) * 100) : null;
+  const coverageRate = requestedCount > 0 ? Math.round((processedCount / requestedCount) * 100) : null;
   return {
     id: job.id || null,
     acao: job.acao || null,
     status: job.status || null,
     updatedAt: job.updated_at || job.finished_at || job.started_at || job.created_at || null,
-    requestedCount: Number(job.requested_count || 0),
-    processedCount: Number(job.processed_count || 0),
-    successCount: Number(job.success_count || 0),
-    errorCount: Number(job.error_count || 0),
+    requestedCount,
+    processedCount,
+    successCount,
+    errorCount,
+    successRate,
+    coverageRate,
   };
 }
 
