@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useSupabaseBrowser } from "../../lib/supabase";
-import DotobotPanel from "./DotobotPanel";
+import DotobotCopilot from "./DotobotPanel";
 
 const NAV_ITEMS = [
   { href: "/interno", label: "Visao geral" },
@@ -150,7 +150,7 @@ export default function InternoLayout({
             <aside id="dotobot-rail" className="order-2 lg:order-none lg:h-[calc(100vh-1.5rem)]">
               <div className="h-full overflow-y-auto rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(10,17,15,0.96),rgba(8,14,12,0.92))] p-3 md:p-4 lg:sticky lg:top-3">
                 {rightRail || (
-                  <DotobotPanel
+                  <DotobotCopilot
                     profile={profile}
                     routePath={router.pathname}
                     initialWorkspaceOpen={rightRailFullscreen ? true : initialWorkspaceOpen}

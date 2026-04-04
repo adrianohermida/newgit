@@ -244,11 +244,11 @@ function getVoiceRecognition() {
   return window.SpeechRecognition || window.webkitSpeechRecognition || null;
 }
 
-export default function DotobotPanel({
+export default function DotobotCopilot({
   profile,
   routePath,
-  initialWorkspaceOpen = false,
-  defaultCollapsed = true,
+  initialWorkspaceOpen = true,
+  defaultCollapsed = false,
   compactRail = false,
 }) {
   const router = useRouter();
@@ -265,8 +265,8 @@ export default function DotobotPanel({
   const [loading, setLoading] = useState(false);
   const [uiState, setUiState] = useState("idle");
   const [error, setError] = useState(null);
-  const [collapsed, setCollapsed] = useState(Boolean(defaultCollapsed));
-  const [workspaceOpen, setWorkspaceOpen] = useState(Boolean(initialWorkspaceOpen));
+  const [collapsed, setCollapsed] = useState(false);
+  const [workspaceOpen, setWorkspaceOpen] = useState(true);
   const [mode, setMode] = useState("task");
   const [provider, setProvider] = useState("gpt");
   const [contextEnabled, setContextEnabled] = useState(true);
@@ -350,21 +350,19 @@ export default function DotobotPanel({
     );
   }, [mode, provider, contextEnabled, workspaceOpen, activeConversationId, prefStorageKey]);
 
+  // Copilot sempre disponível, apenas colapsa visualmente
   useEffect(() => {
-    if (!workspaceOpen || typeof window === "undefined") return undefined;
+    if (typeof window === "undefined") return undefined;
     const onKeyDown = (event) => {
       const isCmdK = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k";
       if (isCmdK) {
         event.preventDefault();
         composerRef.current?.focus();
       }
-      if (event.key === "Escape") {
-        setWorkspaceOpen(false);
-      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [workspaceOpen]);
+  }, []);
 
   useEffect(() => {
     if (!attachments.length) return undefined;
@@ -400,58 +398,58 @@ export default function DotobotPanel({
     setUiState("responding");
     let finalUiState = "idle";
 
-    const userMessage = {
-      id: `${Date.now()}_u`,
-      role: "user",
-      text: trimmedQuestion,
-      createdAt: nowIso(),
-    };
-    const nextMessages = [...messages, userMessage].slice(-MAX_HISTORY);
-    setMessages(nextMessages);
-    setInput("");
-    setShowSlashCommands(false);
-    if (activeConversationId) {
-      updateConversationById(activeConversationId, {
-        title: inferConversationTitle(nextMessages),
-        preview: trimmedQuestion,
-        messages: nextMessages,
-      });
-    }
-
-    const taskId = `${Date.now()}_task`;
-    setTaskHistory((current) => [
-      {
-        id: taskId,
-        query: trimmedQuestion,
-        status: "running",
-        startedAt: nowIso(),
-        finishedAt: null,
-        steps: [],
-        logs: [],
-        sessionId: null,
-        rag: null,
-        mode: nextMode,
-        provider: nextProvider,
-        contextEnabled: nextContextEnabled,
-        attachments: nextAttachments.map(({ id, name, size, type, kind }) => ({ id, name, size, type, kind })),
-        paused: false,
-        canceled: false,
-      },
-      ...current,
-    ].slice(0, MAX_TASKS));
-
-    try {
-      const payload = await adminFetch("/api/admin-dotobot-chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conversationId: activeConversationId || null,
-          query: trimmedQuestion,
-          mode: nextMode,
-          provider: nextProvider,
-          context: {
-            conversationId: activeConversationId || null,
-            taskId,
+    return (
+      <div className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-[480px] flex-col border-l border-[#22342F] bg-[rgba(12,15,14,0.98)] shadow-2xl transition-transform duration-300 ${collapsed ? 'translate-x-full' : 'translate-x-0'}`}
+        style={{ minHeight: '100vh' }}
+      >
+        {/* HEADER */}
+        <header className="flex items-center justify-between border-b border-[#22342F] px-6 py-4">
+          <div className="flex items-center gap-3">
+            <span className="rounded-full bg-[#D9B46A] px-3 py-1 text-xs font-bold text-[#1A1A1A]">Dotobot Copilot</span>
+            <span className="text-xs text-[#9BAEA8]">{uiState === "responding" ? "Pensando..." : uiState === "executing" ? "Executando..." : "Idle"}</span>
+          </div>
+          <button
+            className="rounded-full border border-[#22342F] px-2 py-1 text-xs text-[#9BAEA8] hover:border-[#C5A059] hover:text-[#C5A059]"
+            onClick={() => setCollapsed((v) => !v)}
+          >
+            {collapsed ? "Abrir" : "Colapsar"}
+          </button>
+        </header>
+        {/* MAIN CHAT AREA */}
+        <main className="flex-1 overflow-y-auto px-6 py-4" ref={scrollRef}>
+          {messages.map((msg) => (
+            <MessageBubble key={msg.id} message={msg} />
+          ))}
+          {loading && (
+            <div className="mt-2 text-xs text-[#D9B46A]">Pensando...</div>
+          )}
+        </main>
+        {/* INPUT AREA */}
+        <footer className="border-t border-[#22342F] bg-[rgba(12,15,14,0.98)] px-6 py-4">
+          <form
+            className="flex items-end gap-3"
+            onSubmit={handleSubmit}
+          >
+            <textarea
+              ref={composerRef}
+              className="flex-1 resize-none rounded-2xl border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] placeholder-[#7F928C] focus:border-[#C5A059] focus:outline-none"
+              rows={2}
+              placeholder="Digite sua mensagem..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              disabled={loading}
+            />
+            <button
+              type="submit"
+              className="rounded-2xl bg-[#D9B46A] px-6 py-3 text-sm font-bold text-[#1A1A1A] transition hover:bg-[#C5A059]"
+              disabled={loading || !input.trim()}
+            >
+              Enviar
+            </button>
+          </form>
+        </footer>
+      </div>
+    );
             route: routePath || "/interno",
             profile: {
               id: profile?.id || null,
