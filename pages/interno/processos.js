@@ -292,6 +292,9 @@ function deriveSuggestedProcessActions(summary, bands) {
   if (summary.stagnant > 0) return ["Rodar auditoria", "Sincronizar Supabase + Freshsales"];
   return ["Sincronizar Supabase + Freshsales", "Rodar sync-worker"];
 }
+function derivePrimaryProcessAction(actions = []) {
+  return actions[0] || "Sincronizar Supabase + Freshsales";
+}
 function deriveSuggestedProcessChecklist(summary, bands) {
   if (bands.critical > 0 || summary.manual > 0) {
     return [
@@ -609,6 +612,7 @@ function InternoProcessosContent() {
   const recurringProcessBatch = deriveSuggestedProcessBatch(recurringProcessSummary, recurringProcessBands);
   const recurringProcessActions = deriveSuggestedProcessActions(recurringProcessSummary, recurringProcessBands);
   const recurringProcessChecklist = deriveSuggestedProcessChecklist(recurringProcessSummary, recurringProcessBands);
+  const primaryProcessAction = derivePrimaryProcessAction(recurringProcessActions);
   const combinedSelectedNumbers = getCombinedSelectedNumbers();
   const visibleRecurringCount = [...withoutMovements.items, ...monitoringActive.items, ...monitoringInactive.items, ...fieldGaps.items, ...orphans.items]
     .filter((item, index, array) => array.findIndex((other) => (other.numero_cnj || other.key) === (item.numero_cnj || item.key)) === index)
@@ -709,6 +713,10 @@ function InternoProcessosContent() {
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               {recurringProcessActions.map((action) => <StatusBadge key={action} tone="warning">{action}</StatusBadge>)}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <StatusBadge tone="success">proximo disparo: {primaryProcessAction}</StatusBadge>
+              <ActionButton className="px-3 py-2 text-xs" onClick={() => updateView("operacao")}>Ir para operacao</ActionButton>
             </div>
             <div className="mt-4 space-y-2">
               {recurringProcessChecklist.map((step, index) => <div key={step} className="flex items-start gap-3 text-sm opacity-80">

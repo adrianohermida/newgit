@@ -217,6 +217,9 @@ function deriveSuggestedPublicacoesActions(summary, bands) {
   if (summary.stagnant > 0) return ["Extracao retroativa de partes", "Rodar sync-worker"];
   return ["Salvar partes + atualizar polos + corrigir CRM", "Rodar sync-worker"];
 }
+function derivePrimaryPublicacoesAction(actions = []) {
+  return actions[0] || "Salvar partes + atualizar polos + corrigir CRM";
+}
 function deriveSuggestedPublicacoesChecklist(summary, bands) {
   if (bands.critical > 0 || summary.manual > 0) {
     return [
@@ -839,6 +842,7 @@ function PublicacoesContent() {
   const recurringPublicacoesBatch = deriveSuggestedPublicacoesBatch(recurringPublicacoesSummary, recurringPublicacoesBands);
   const recurringPublicacoesActions = deriveSuggestedPublicacoesActions(recurringPublicacoesSummary, recurringPublicacoesBands);
   const recurringPublicacoesChecklist = deriveSuggestedPublicacoesChecklist(recurringPublicacoesSummary, recurringPublicacoesBands);
+  const primaryPublicacoesAction = derivePrimaryPublicacoesAction(recurringPublicacoesActions);
   const priorityBatchReady = visibleSevereRecurringCount > 0 && selectedVisibleSevereRecurringCount >= visibleSevereRecurringCount && limit === recurringPublicacoesBatch.size;
 
   return (
@@ -1035,6 +1039,10 @@ function PublicacoesContent() {
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {recurringPublicacoesActions.map((action) => <HealthBadge key={action} label={action} tone="warning" />)}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <HealthBadge label={`proximo disparo: ${primaryPublicacoesAction}`} tone="success" />
+                <button type="button" onClick={() => updateView("operacao")} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">Ir para operacao</button>
               </div>
               <div className="mt-4 space-y-2">
                 {recurringPublicacoesChecklist.map((step, index) => <div key={step} className="flex items-start gap-3 text-sm opacity-80">
