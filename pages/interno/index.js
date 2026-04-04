@@ -114,6 +114,7 @@ export default function InternoHomePage() {
                       <p className="font-semibold">Runner agendado</p>
                       <ModeBadge active={!hmadvOps.data.autoMode?.enabled} label="manual" />
                       <ModeBadge active={hmadvOps.data.autoMode?.enabled} label="automatico" />
+                      <ModeBadge active={true} label={hmadvOps.data.autoMode?.healthLabel || "Saudavel"} />
                     </div>
                     <p className="opacity-75 mb-2">
                       {hmadvOps.data.runnerConfigured
@@ -132,6 +133,20 @@ export default function InternoHomePage() {
                       <div className="border border-[#2D2E2E] p-3">
                         <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Ciclo sugerido</p>
                         <p className="text-lg font-semibold">{hmadvOps.data.autoMode?.recommendedIntervalMinutes || 5} min</p>
+                      </div>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2 mb-3">
+                      <div className="border border-[#2D2E2E] p-3">
+                        <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Ultima atividade</p>
+                        <p className="text-sm font-semibold">
+                          {hmadvOps.data.autoMode?.lastActivityAt
+                            ? new Date(hmadvOps.data.autoMode.lastActivityAt).toLocaleString("pt-BR")
+                            : "Sem atividade registrada"}
+                        </p>
+                      </div>
+                      <div className="border border-[#2D2E2E] p-3">
+                        <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Saude do ciclo</p>
+                        <p className="text-sm font-semibold">{hmadvOps.data.autoMode?.healthReason}</p>
                       </div>
                     </div>
                     <p className="opacity-75 mb-2">{hmadvOps.data.autoMode?.nextStep}</p>

@@ -42,6 +42,24 @@ function summarizeJobs(items = []) {
   };
 }
 
+function pickLatestTimestamp(...values) {
+  const times = values
+    .map((value) => {
+      const parsed = Date.parse(String(value || ""));
+      return Number.isFinite(parsed) ? parsed : null;
+    })
+    .filter((value) => value !== null);
+  if (!times.length) return null;
+  return new Date(Math.max(...times)).toISOString();
+}
+
+function minutesSince(isoString) {
+  if (!isoString) return null;
+  const parsed = Date.parse(String(isoString || ""));
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(0, Math.round((Date.now() - parsed) / 60000));
+}
+
 async function drainModuleJobs(env, modulo, processor, maxChunks = 6) {
   const safeChunks = Math.max(1, Math.min(Number(maxChunks || 6), 30));
   let chunks = 0;
@@ -111,6 +129,34 @@ export async function getHmadvQueueSnapshot(env) {
     nextStep = "Configurar HMADV_RUNNER_TOKEN e o workflow hmadv-runner para reduzir cliques manuais.";
   }
 
+  const latestProcessJob = processosJobs.active || (processJobs.items || [])[0] || null;
+  const latestPublicacaoJob = publicacoesJobs.active || (publicacaoJobs.items || [])[0] || null;
+  const lastActivityAt = pickLatestTimestamp(
+    latestProcessJob?.updated_at,
+    latestProcessJob?.finished_at,
+    latestPublicacaoJob?.updated_at,
+    latestPublicacaoJob?.finished_at
+  );
+  const inactivityMinutes = minutesSince(lastActivityAt);
+
+  let healthStatus = "healthy";
+  let healthLabel = "Saudavel";
+  let healthReason = "A fila HMADV esta sem sinais recentes de travamento.";
+
+  if ((processosJobs.error || 0) + (publicacoesJobs.error || 0) > 0) {
+    healthStatus = "error";
+    healthLabel = "Com erro";
+    healthReason = "Existem jobs com falha recente e a fila precisa de revisao.";
+  } else if (totalPendingJobs > 0 && inactivityMinutes !== null && inactivityMinutes >= 30) {
+    healthStatus = "stalled";
+    healthLabel = "Parado";
+    healthReason = "Ha fila pendente sem atividade recente; vale revisar o runner automatico.";
+  } else if (!runnerConfigured && (totalPendingJobs > 0 || totalBacklogItems > 0)) {
+    healthStatus = "manual_only";
+    healthLabel = "Manual";
+    healthReason = "A fila depende do painel porque o runner automatico ainda nao foi configurado.";
+  }
+
   let focusModule = "processos";
   let focusReason = "A fila de processos concentra mais pendencias operacionais neste momento.";
   if (publicacoesPressure > processosPressure) {
@@ -165,6 +211,11 @@ export async function getHmadvQueueSnapshot(env) {
       totalBacklogItems,
       recommendedIntervalMinutes: 5,
       nextStep,
+      lastActivityAt,
+      inactivityMinutes,
+      healthStatus,
+      healthLabel,
+      healthReason,
     },
     moduleFocus: {
       target: focusModule,
