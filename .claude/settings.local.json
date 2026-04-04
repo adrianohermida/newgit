@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /d/Github/newgit/.claude/worktrees/flamboyant-mayer/ai-core -type f \\\\\\(-name *.py -o -name *.ts -o -name *.js -o -name *.json -o -name *.yaml -o -name *.yml \\\\\\))"
+    ]
+  }
+}
