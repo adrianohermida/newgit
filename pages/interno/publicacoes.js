@@ -799,6 +799,14 @@ function PublicacoesContent() {
       setRemoteHistory([]);
     }
   }
+  async function loadJobs() {
+    try {
+      const payload = await adminFetch("/api/admin-hmadv-publicacoes?action=jobs&limit=12");
+      setJobs(payload.data.items || []);
+    } catch {
+      setJobs([]);
+    }
+  }
 
   function toggleSelection(setter, current, key) {
     setter(current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
@@ -887,6 +895,31 @@ function PublicacoesContent() {
     });
   }
 
+  async function queueAsyncAction(action, apply = false, numbers = []) {
+    const response = await adminFetch("/api/admin-hmadv-publicacoes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create_job",
+        jobAction: action,
+        apply,
+        limit,
+        processNumbers: numbers.length ? numbers.join("\n") : processNumbers,
+      }),
+    });
+    if (response.data?.legacy_inline) {
+      setActionState({ loading: false, error: null, result: response.data.result });
+      setActiveJobId(null);
+      await Promise.all([loadOverview(), loadProcessCandidates(processPage), loadPartesCandidates(partesPage), loadRemoteHistory(), loadJobs()]);
+      return response.data;
+    }
+    const job = response.data;
+    setActionState({ loading: false, error: null, result: { job } });
+    setActiveJobId(job?.id || null);
+    await Promise.all([loadJobs(), loadRemoteHistory()]);
+    return job;
+  }
+
   async function handleAction(action, apply = false, numbers = []) {
     setActionState({ loading: true, error: null, result: null });
     updateView("resultado");
@@ -902,6 +935,17 @@ function PublicacoesContent() {
       payload: { action, apply, limit, processNumbers: numbers.length ? numbers.join("\n") : processNumbers },
     });
     try {
+      if (ASYNC_PUBLICACOES_ACTIONS.has(action)) {
+        const job = await queueAsyncAction(action, apply, numbers);
+        replaceHistoryEntry(historyId, {
+          status: "success",
+          preview: job?.legacy_inline
+            ? `Fallback inline: ${buildHistoryPreview(job.result)}`
+            : `Job criado: ${buildJobPreview(job)}`,
+          result: job?.legacy_inline ? job.result : { job },
+        });
+        return;
+      }
       const payload = await adminFetch("/api/admin-hmadv-publicacoes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -918,7 +962,7 @@ function PublicacoesContent() {
         preview: buildHistoryPreview(payload.data),
         result: payload.data,
       });
-      await Promise.all([loadOverview(), loadProcessCandidates(processPage), loadPartesCandidates(partesPage), loadRemoteHistory()]);
+      await Promise.all([loadOverview(), loadProcessCandidates(processPage), loadPartesCandidates(partesPage), loadRemoteHistory(), loadJobs()]);
     } catch (error) {
       setActionState({ loading: false, error: error.message || "Falha ao executar acao.", result: null });
       replaceHistoryEntry(historyId, {
@@ -943,6 +987,7 @@ function PublicacoesContent() {
   const data = overview.data || {};
   const latestHistory = executionHistory[0] || null;
   const latestRemoteRun = remoteHistory[0] || null;
+  const latestJob = jobs[0] || null;
   const remoteHealth = deriveRemoteHealth(remoteHistory);
   const recurringPublicacoes = deriveRecurringPublicacoes(remoteHistory);
   const recurringPublicacoesSummary = summarizeRecurringPublicacoes(recurringPublicacoes);
@@ -968,6 +1013,7 @@ function PublicacoesContent() {
             <div className="flex items-center justify-between gap-4"><span className="opacity-60">Selecionados no momento</span><strong className="font-serif text-2xl">{selectedProcessKeys.length + selectedPartesKeys.length}</strong></div>
             <div className="flex items-center justify-between gap-4"><span className="opacity-60">Ultima acao</span><span className="text-right text-xs uppercase tracking-[0.16em] text-[#C5A059]">{actionState.loading ? "executando" : actionState.error ? "erro" : actionState.result ? "concluida" : "aguardando"}</span></div>
             {latestHistory ? <p className="text-xs opacity-60">{latestHistory.label}: {latestHistory.preview}</p> : null}
+            {latestJob ? <JobCard job={latestJob} active={latestJob.id === activeJobId} /> : null}
           </div>
         </div>
         <div className="mt-6 space-y-4"><ViewToggle value={view} onChange={updateView} />{latestRemoteRun ? <RemoteRunSummary entry={latestRemoteRun} actionLabels={ACTION_LABELS} /> : null}{remoteHealth.length ? <div className="flex flex-wrap gap-2">{remoteHealth.map((item) => <HealthBadge key={item.label} label={item.label} tone={item.tone} />)}</div> : null}</div>
@@ -1227,6 +1273,7 @@ function PublicacoesContent() {
         <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">
           {actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}
           {actionState.error ? <p className="text-sm text-red-300">{actionState.error}</p> : null}
+          {jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}
           {!actionState.loading && !actionState.error && actionState.result ? <OperationResult result={actionState.result} /> : null}
           {!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p> : null}
         </Panel>
