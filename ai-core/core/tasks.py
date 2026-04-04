@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .task import PortingTask
+from .porting_task import PortingTask
 
 
 def default_tasks() -> list[PortingTask]:

@@ -1678,6 +1678,7 @@ export async function syncProcessesSupabaseCrm(env, { processNumbers = [], limit
   const afterMap = new Map(afterRows.map((row) => [row.id, row]));
   const sample = [];
   let reparados = 0;
+  let crmOnly = 0;
   for (const proc of scopedProcesses) {
     const before = beforeMap.get(proc.id) || {
       quantidade_movimentacoes: proc.quantidade_movimentacoes ?? 0,
@@ -1694,6 +1695,8 @@ export async function syncProcessesSupabaseCrm(env, { processNumbers = [], limit
     const targetProcess = afterRow || proc;
     const hasUsefulChange = movimentosNovos > 0 || gapsReduzidos > 0;
     const stillHasGap = (after.gaps || 0) > 0;
+    const skippedDatajud = !datajudRun;
+    if (skippedDatajud) crmOnly += 1;
     let repair = { skipped: true, reason: "sem_account" };
     if (targetProcess.account_id_freshsales && (hasUsefulChange || stillHasGap)) {
       repair = await runFreshsalesRepairForProcess(env, targetProcess);
@@ -1718,6 +1721,7 @@ export async function syncProcessesSupabaseCrm(env, { processNumbers = [], limit
     processosLidos: processes.length,
     sincronizados: sample.length,
     reparados,
+    crmOnly,
     sample,
   };
 }
