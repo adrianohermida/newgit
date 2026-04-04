@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import DotobotCopilot from "./DotobotPanel";
+import DotobotExtensionManager from "./DotobotExtensionManager";
 
 const NAV_ITEMS = [
   { href: "/interno", label: "Visao geral" },
@@ -143,7 +144,11 @@ export default function InternoLayout({
               </div>
             </header>
 
-            <div className="space-y-6">{children}</div>
+            <div className="space-y-6">
+              {children}
+              {/* Gerenciador de extensão Dotobot - fluxo de instalação/permite */}
+              <DotobotExtensionManager />
+            </div>
           </main>
 
           {shouldRenderDotobotRail ? (
