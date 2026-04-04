@@ -302,6 +302,9 @@ export default function InternoHomePage() {
                         ? "Token do runner configurado. Confirme execucoes recentes do workflow hmadv-runner para validar a automacao."
                         : "Pendente configurar HMADV_RUNNER_TOKEN para liberar execucao agendada fora da aba."}
                     </p>
+                    {hmadvOps.data.autoMode?.runnerTokenKey ? (
+                      <p className="opacity-55 mb-2">Chave detectada no ambiente: {hmadvOps.data.autoMode.runnerTokenKey}</p>
+                    ) : null}
                     <div className="grid gap-3 md:grid-cols-3 mb-3">
                       <div className="border border-[#2D2E2E] p-3">
                         <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Jobs pendentes</p>

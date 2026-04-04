@@ -30,26 +30,46 @@ jobs:
       - name: Validate runner secrets
         env:
           HMADV_RUNNER_URL: ${{ secrets.HMADV_RUNNER_URL }}
+          MADV_RUNNER_URL: ${{ secrets.MADV_RUNNER_URL }}
           HMADV_RUNNER_TOKEN: ${{ secrets.HMADV_RUNNER_TOKEN }}
+          MADV_RUNNER_TOKEN: ${{ secrets.MADV_RUNNER_TOKEN }}
         shell: bash
         run: |
+          if [ -z "$HMADV_RUNNER_URL" ] && [ -n "$MADV_RUNNER_URL" ]; then
+            HMADV_RUNNER_URL="$MADV_RUNNER_URL"
+          fi
+
+          if [ -z "$HMADV_RUNNER_TOKEN" ] && [ -n "$MADV_RUNNER_TOKEN" ]; then
+            HMADV_RUNNER_TOKEN="$MADV_RUNNER_TOKEN"
+          fi
+
           if [ -z "$HMADV_RUNNER_URL" ]; then
-            echo "::error::Missing GitHub secret HMADV_RUNNER_URL"
+            echo "::error::Missing GitHub secret HMADV_RUNNER_URL or MADV_RUNNER_URL"
             exit 1
           fi
 
           if [ -z "$HMADV_RUNNER_TOKEN" ]; then
-            echo "::error::Missing GitHub secret HMADV_RUNNER_TOKEN"
+            echo "::error::Missing GitHub secret HMADV_RUNNER_TOKEN or MADV_RUNNER_TOKEN"
             exit 1
           fi
 
       - name: Drain HMADV queues
         env:
           HMADV_RUNNER_URL: ${{ secrets.HMADV_RUNNER_URL }}
+          MADV_RUNNER_URL: ${{ secrets.MADV_RUNNER_URL }}
           HMADV_RUNNER_TOKEN: ${{ secrets.HMADV_RUNNER_TOKEN }}
+          MADV_RUNNER_TOKEN: ${{ secrets.MADV_RUNNER_TOKEN }}
           MAX_CHUNKS: ${{ steps.runner.outputs.max_chunks }}
         shell: bash
         run: |
+          if [ -z "$HMADV_RUNNER_URL" ] && [ -n "$MADV_RUNNER_URL" ]; then
+            HMADV_RUNNER_URL="$MADV_RUNNER_URL"
+          fi
+
+          if [ -z "$HMADV_RUNNER_TOKEN" ] && [ -n "$MADV_RUNNER_TOKEN" ]; then
+            HMADV_RUNNER_TOKEN="$MADV_RUNNER_TOKEN"
+          fi
+
           RESPONSE_FILE="$(mktemp)"
           HTTP_CODE="$(curl -sS -o "$RESPONSE_FILE" -w "%{http_code}" \
             -X POST "$HMADV_RUNNER_URL" \
@@ -67,9 +87,19 @@ jobs:
       - name: Fetch queue snapshot
         env:
           HMADV_RUNNER_URL: ${{ secrets.HMADV_RUNNER_URL }}
+          MADV_RUNNER_URL: ${{ secrets.MADV_RUNNER_URL }}
           HMADV_RUNNER_TOKEN: ${{ secrets.HMADV_RUNNER_TOKEN }}
+          MADV_RUNNER_TOKEN: ${{ secrets.MADV_RUNNER_TOKEN }}
         shell: bash
         run: |
+          if [ -z "$HMADV_RUNNER_URL" ] && [ -n "$MADV_RUNNER_URL" ]; then
+            HMADV_RUNNER_URL="$MADV_RUNNER_URL"
+          fi
+
+          if [ -z "$HMADV_RUNNER_TOKEN" ] && [ -n "$MADV_RUNNER_TOKEN" ]; then
+            HMADV_RUNNER_TOKEN="$MADV_RUNNER_TOKEN"
+          fi
+
           curl -sS \
             -H "Authorization: Bearer $HMADV_RUNNER_TOKEN" \
             "$HMADV_RUNNER_URL"

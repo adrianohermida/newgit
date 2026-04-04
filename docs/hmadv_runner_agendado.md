@@ -18,8 +18,10 @@ Ele usa autenticacao por token e foi pensado para ser chamado por um agendador e
 Configurar no Cloudflare Pages:
 
 - `HMADV_RUNNER_TOKEN`
+ou, por compatibilidade com configuracao antiga:
+- `MADV_RUNNER_TOKEN`
 
-Sem essa variavel, o endpoint responde `503`.
+Sem uma dessas variaveis, o endpoint responde `503`.
 
 ## Autenticacao
 
@@ -100,9 +102,14 @@ Secrets esperados no GitHub:
   Exemplo: `https://hermidamaia.adv.br/api/admin-hmadv-runner`
 - `HMADV_RUNNER_TOKEN`
 
+Compatibilidade adicional aceita:
+
+- `MADV_RUNNER_URL`
+- `MADV_RUNNER_TOKEN`
+
 O workflow:
 
-- roda em dias uteis
+- roda todos os dias
 - faz POST no runner
 - aceita disparo manual
 - permite sobrescrever `max_chunks` no `workflow_dispatch`

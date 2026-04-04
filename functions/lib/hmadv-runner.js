@@ -19,10 +19,20 @@ function getRunnerToken(request) {
   ).trim();
 }
 
+function getConfiguredRunnerToken(env) {
+  return String(env?.HMADV_RUNNER_TOKEN || env?.MADV_RUNNER_TOKEN || "").trim();
+}
+
+function getConfiguredRunnerTokenKey(env) {
+  if (String(env?.HMADV_RUNNER_TOKEN || "").trim()) return "HMADV_RUNNER_TOKEN";
+  if (String(env?.MADV_RUNNER_TOKEN || "").trim()) return "MADV_RUNNER_TOKEN";
+  return null;
+}
+
 export function requireHmadvRunnerAccess(request, env) {
-  const expectedToken = String(env?.HMADV_RUNNER_TOKEN || "").trim();
+  const expectedToken = getConfiguredRunnerToken(env);
   if (!expectedToken) {
-    return { ok: false, status: 503, error: "HMADV_RUNNER_TOKEN ausente no ambiente." };
+    return { ok: false, status: 503, error: "HMADV_RUNNER_TOKEN/MADV_RUNNER_TOKEN ausente no ambiente." };
   }
 
   const providedToken = getRunnerToken(request);
@@ -248,7 +258,8 @@ export async function getHmadvQueueSnapshot(env) {
     listAdminOperations(env, { modulo: "runner", limit: 5 }),
   ]);
 
-  const runnerConfigured = Boolean(String(env?.HMADV_RUNNER_TOKEN || "").trim());
+  const runnerTokenKey = getConfiguredRunnerTokenKey(env);
+  const runnerConfigured = Boolean(runnerTokenKey);
   const processosJobs = summarizeJobs(processJobs.items || []);
   const publicacoesJobs = summarizeJobs(publicacaoJobs.items || []);
   const totalPendingJobs =
@@ -506,6 +517,7 @@ export async function getHmadvQueueSnapshot(env) {
       healthStatus,
       healthLabel,
       healthReason,
+      runnerTokenKey,
     },
     moduleFocus: {
       target: focusModule,
