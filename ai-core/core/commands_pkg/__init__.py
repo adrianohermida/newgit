@@ -1,0 +1,1 @@
+# Pacote de comandos reais para evitar conflito com commands.py
