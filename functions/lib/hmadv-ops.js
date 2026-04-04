@@ -562,13 +562,20 @@ async function collectProcessNumbersFromPagedList(loader, env, { active } = {}) 
   return uniqueNonEmpty(numbers);
 }
 
-async function resolveProcessJobTargets(env, action, processNumbers = []) {
-  const selected = uniqueNonEmpty(processNumbers);
+async function resolveProcessJobTargets(env, action, payload = {}) {
+  const selected = uniqueNonEmpty(payload?.processNumbers || []);
+  const intent = String(payload?.intent || "").trim();
   if (selected.length) return selected;
   if (action === "push_orfaos") {
     return collectProcessNumbersFromPagedList(scanOrphanProcesses, env);
   }
   if (action === "enriquecer_datajud") {
+    if (intent === "sincronizar_monitorados") {
+      return collectProcessNumbersFromPagedList(listMonitoringProcesses, env, { active: true });
+    }
+    if (intent === "reenriquecer_gaps") {
+      return collectProcessNumbersFromPagedList(listFieldGapProcesses, env);
+    }
     return collectProcessNumbersFromPagedList(listProcessesWithoutMovements, env);
   }
   if (action === "repair_freshsales_accounts") {
@@ -1893,11 +1900,23 @@ export async function repairFreshsalesAccounts(env, { processNumbers = [], limit
     ? await loadProcessesByNumbers(env, processNumbers)
     : await hmadvRest(
         env,
-        `processos?select=id,numero_cnj,titulo,account_id_freshsales&account_id_freshsales=not.is.null&limit=${safeLimit}`
+        `processos?select=id,numero_cnj,titulo,account_id_freshsales,classe,assunto_principal,area,data_ajuizamento,sistema,polo_ativo,polo_passivo,status_atual_processo&account_id_freshsales=not.is.null&or=(classe.is.null,assunto_principal.is.null,area.is.null,data_ajuizamento.is.null,sistema.is.null,polo_ativo.is.null,polo_passivo.is.null,status_atual_processo.is.null)&limit=${safeLimit}`
       );
   const sample = [];
+  let reparados = 0;
   for (const proc of processes.slice(0, safeLimit)) {
+    const hasGap = countProcessFieldGaps(proc) > 0;
+    if (!hasGap) {
+      sample.push({
+        processo_id: proc.id,
+        numero_cnj: proc.numero_cnj,
+        titulo: proc.titulo,
+        result: { skipped: true, reason: "sem_gap_crm" },
+      });
+      continue;
+    }
     const result = await runFreshsalesRepairForProcess(env, proc);
+    reparados += 1;
     sample.push({
       processo_id: proc.id,
       numero_cnj: proc.numero_cnj,
@@ -1908,7 +1927,7 @@ export async function repairFreshsalesAccounts(env, { processNumbers = [], limit
   return {
     checkedAt: new Date().toISOString(),
     processosLidos: processes.length,
-    reparados: sample.length,
+    reparados,
     sample,
   };
 }
@@ -1935,7 +1954,7 @@ function buildProcessActionLogName(action, payload = {}, suffix = "") {
 
 export async function createProcessAdminJob(env, { action, payload = {} } = {}) {
   const normalizedPayload = normalizeProcessJobPayload(action, payload);
-  const targets = await resolveProcessJobTargets(env, action, normalizedPayload.processNumbers);
+  const targets = await resolveProcessJobTargets(env, action, normalizedPayload);
   const job = await insertOperationJob(env, {
     modulo: "processos",
     acao: action,

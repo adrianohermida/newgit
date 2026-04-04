@@ -277,7 +277,7 @@ export async function onRequestPost(context) {
           } catch (inlineError) {
             await logAdminOperation(context.env, {
               modulo: "processos",
-              acao: `${String(body.jobAction || "")}_inline_fallback`,
+              acao: buildProcessActionLogName(String(body.jobAction || ""), body, "inline_fallback"),
               status: "error",
               payload: body,
               error: inlineError.message || "Falha no fallback inline.",
