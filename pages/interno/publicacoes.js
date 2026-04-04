@@ -839,6 +839,7 @@ function PublicacoesContent() {
   const recurringPublicacoesBatch = deriveSuggestedPublicacoesBatch(recurringPublicacoesSummary, recurringPublicacoesBands);
   const recurringPublicacoesActions = deriveSuggestedPublicacoesActions(recurringPublicacoesSummary, recurringPublicacoesBands);
   const recurringPublicacoesChecklist = deriveSuggestedPublicacoesChecklist(recurringPublicacoesSummary, recurringPublicacoesBands);
+  const priorityBatchReady = visibleSevereRecurringCount > 0 && selectedVisibleSevereRecurringCount >= visibleSevereRecurringCount && limit === recurringPublicacoesBatch.size;
 
   return (
     <div className="space-y-8">
@@ -1025,6 +1026,7 @@ function PublicacoesContent() {
                 <HealthBadge label={`${visibleRecurringCount} reincidentes visiveis`} tone="default" />
                 <HealthBadge label={`${visibleSevereRecurringCount} graves visiveis`} tone="warning" />
                 <HealthBadge label={`selecao cobre ${selectedVisibleSevereRecurringCount}/${visibleSevereRecurringCount || 0} graves`} tone={visibleSevereRecurringCount > 0 && selectedVisibleSevereRecurringCount >= visibleSevereRecurringCount ? "success" : "default"} />
+                <HealthBadge label={priorityBatchReady ? "lote prioritario pronto" : "lote prioritario pendente"} tone={priorityBatchReady ? "success" : "warning"} />
                 <button type="button" onClick={() => setLimit(recurringPublicacoesBatch.size)} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">Usar lote sugerido</button>
                 <button type="button" onClick={applySevereRecurringPreset} className="bg-[#C5A059] px-3 py-2 text-xs text-[#050706] hover:brightness-110">Montar lote prioritario</button>
                 <button type="button" onClick={selectVisibleRecurringPublicacoes} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">Selecionar reincidentes visiveis</button>
