@@ -10,10 +10,11 @@ from ..memory import LongTermMemoryRecord, SessionMemory
 from .models import OrchestrationError, OrchestrationResult, OrchestrationState
 from .services import (
     DefaultRagService,
+    DualMemoryNoteSink,
     LongTermMemoryStore,
     MemoryNoteSink,
-    ObsidianMemoryNoteSink,
     RagService,
+    build_default_memory_note_sink,
     build_default_memory_store,
 )
 
@@ -33,7 +34,7 @@ class Coordinator:
         self._critic = critic or CriticAgent()
         self._memory_store = memory_store or build_default_memory_store()
         self._rag_service = rag_service or DefaultRagService()
-        self._memory_note_sink = memory_note_sink or ObsidianMemoryNoteSink()
+        self._memory_note_sink = memory_note_sink or build_default_memory_note_sink()
 
     def execute(self, query: str, context: dict[str, Any] | None = None) -> OrchestrationResult:
         run_started_at = perf_counter()
