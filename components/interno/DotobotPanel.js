@@ -505,7 +505,7 @@ export default function DotobotCopilot({
       ]);
       try {
         // Chama backend para iniciar TaskRun
-        const response = await fetch("/api/admin-lawdesk-chat", {
+        const data = await adminFetch("/api/admin-lawdesk-chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -517,19 +517,17 @@ export default function DotobotCopilot({
             context: globalContext,
           }),
         });
-        const data = await response.json();
         if (data?.ok && data?.result?.id) {
           // Poll status/logs
           const runId = data.result.id;
           let finished = false;
           while (!finished) {
             await new Promise((r) => setTimeout(r, 1200));
-            const poll = await fetch("/api/admin-lawdesk-chat", {
+            const pollData = await adminFetch("/api/admin-lawdesk-chat", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ action: "task_run_get", id: runId }),
             });
-            const pollData = await poll.json();
             if (pollData?.ok && pollData?.result) {
               setTaskHistory((tasks) =>
                 tasks.map((t) =>
@@ -563,68 +561,29 @@ export default function DotobotCopilot({
     // Chat normal (streaming)
     try {
       const controller = new AbortController();
-      const response = await fetch("/api/admin-lawdesk-chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          query: trimmedQuestion,
-          mode: nextMode,
-          provider: nextProvider,
-          contextEnabled: nextContextEnabled,
-          context: globalContext,
-        }),
-        signal: controller.signal,
-      });
-
-      if (!response.body) {
-        throw new Error("Resposta do backend sem streaming.");
+      try {
+        const data = await adminFetch("/api/admin-lawdesk-chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: trimmedQuestion,
+            mode: nextMode,
+            provider: nextProvider,
+            contextEnabled: nextContextEnabled,
+            context: globalContext,
+          }),
+        });
+        setMessages((msgs) => [
+          ...msgs,
+          { role: "assistant", text: data?.data?.result || data?.data || "(sem resposta)", createdAt: nowIso() },
+        ]);
+        setLoading(false);
+        setUiState("idle");
+      } catch (err) {
+        setError(err.message || "Erro ao conectar ao backend.");
+        setLoading(false);
+        setUiState("idle");
       }
-
-      setUiState("typing");
-      let resultText = "";
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let done = false;
-      let lastChunk = "";
-      while (!done) {
-        const { value, done: doneReading } = await reader.read();
-        done = doneReading;
-        if (value) {
-          const chunk = decoder.decode(value);
-          // PATCH 8: proteção contra loop de resposta fake
-          if (chunk === lastChunk) continue;
-          lastChunk = chunk;
-          resultText += chunk;
-          setMessages((msgs) => {
-            const lastUserIdx = msgs.findLastIndex((m) => m.role === "user");
-            const assistantMsg = { role: "assistant", text: resultText, createdAt: nowIso() };
-            if (lastUserIdx === -1) return [...msgs, assistantMsg];
-            if (msgs.length > lastUserIdx + 1 && msgs[lastUserIdx + 1].role === "assistant") {
-              return [
-                ...msgs.slice(0, lastUserIdx + 1),
-                assistantMsg,
-                ...msgs.slice(lastUserIdx + 2),
-              ];
-            }
-            return [...msgs, assistantMsg];
-          });
-          // PATCH 8: scroll automático ao receber
-          setTimeout(() => {
-            if (scrollRef.current) {
-              scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-            }
-          }, 80);
-        }
-      }
-      setLoading(false);
-      setUiState("idle");
-    } catch (err) {
-      setError(err.message || "Erro ao conectar ao backend.");
-      setLoading(false);
-      setUiState("idle");
-    }
   }
 
 
