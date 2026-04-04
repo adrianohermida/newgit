@@ -330,6 +330,7 @@ export default function DotobotCopilot({
   }, []);
 
 
+  const [workspaceOpen, setWorkspaceOpen] = useState(initialWorkspaceOpen);
   const [mode, setMode] = useState("task");
   const [provider, setProvider] = useState("gpt");
   const [contextEnabled, setContextEnabled] = useState(true);

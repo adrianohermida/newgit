@@ -1,0 +1,75 @@
+name: HMADV Queue Runner
+
+on:
+  schedule:
+    - cron: "*/5 11-23 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      max_chunks:
+        description: "Quantidade maxima de chunks por rodada"
+        required: false
+        default: "8"
+
+jobs:
+  drain-hmadv-queues:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Resolve runner inputs
+        id: runner
+        shell: bash
+        run: |
+          MAX_CHUNKS="${{ github.event.inputs.max_chunks }}"
+          if [ -z "$MAX_CHUNKS" ]; then
+            MAX_CHUNKS="8"
+          fi
+          echo "max_chunks=$MAX_CHUNKS" >> "$GITHUB_OUTPUT"
+
+      - name: Validate runner secrets
+        env:
+          HMADV_RUNNER_URL: ${{ secrets.HMADV_RUNNER_URL }}
+          HMADV_RUNNER_TOKEN: ${{ secrets.HMADV_RUNNER_TOKEN }}
+        shell: bash
+        run: |
+          if [ -z "$HMADV_RUNNER_URL" ]; then
+            echo "::error::Missing GitHub secret HMADV_RUNNER_URL"
+            exit 1
+          fi
+
+          if [ -z "$HMADV_RUNNER_TOKEN" ]; then
+            echo "::error::Missing GitHub secret HMADV_RUNNER_TOKEN"
+            exit 1
+          fi
+
+      - name: Drain HMADV queues
+        env:
+          HMADV_RUNNER_URL: ${{ secrets.HMADV_RUNNER_URL }}
+          HMADV_RUNNER_TOKEN: ${{ secrets.HMADV_RUNNER_TOKEN }}
+          MAX_CHUNKS: ${{ steps.runner.outputs.max_chunks }}
+        shell: bash
+        run: |
+          RESPONSE_FILE="$(mktemp)"
+          HTTP_CODE="$(curl -sS -o "$RESPONSE_FILE" -w "%{http_code}" \
+            -X POST "$HMADV_RUNNER_URL" \
+            -H "Authorization: Bearer $HMADV_RUNNER_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "{\"action\":\"drain_all\",\"maxChunks\":$MAX_CHUNKS}")"
+
+          cat "$RESPONSE_FILE"
+
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "::error::HMADV runner returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: Fetch queue snapshot
+        env:
+          HMADV_RUNNER_URL: ${{ secrets.HMADV_RUNNER_URL }}
+          HMADV_RUNNER_TOKEN: ${{ secrets.HMADV_RUNNER_TOKEN }}
+        shell: bash
+        run: |
+          curl -sS \
+            -H "Authorization: Bearer $HMADV_RUNNER_TOKEN" \
+            "$HMADV_RUNNER_URL"

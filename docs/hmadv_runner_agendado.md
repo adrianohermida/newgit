@@ -88,6 +88,25 @@ Invoke-RestMethod `
 - manter o `/interno` como painel de acompanhamento e disparo manual
 - usar o runner para drenagem de continuidade
 
+## GitHub Actions pronto no repositorio
+
+Workflow incluido:
+
+- [D:\\Github\\newgit\\.github\\workflows\\hmadv-runner.yml](D:/Github/newgit/.github/workflows/hmadv-runner.yml)
+
+Secrets esperados no GitHub:
+
+- `HMADV_RUNNER_URL`
+  Exemplo: `https://hermidamaia.adv.br/api/admin-hmadv-runner`
+- `HMADV_RUNNER_TOKEN`
+
+O workflow:
+
+- roda em dias uteis
+- faz POST no runner
+- aceita disparo manual
+- permite sobrescrever `max_chunks` no `workflow_dispatch`
+
 ## Limite honesto
 
 Isso ainda nao cria cron nativo no projeto Pages.
