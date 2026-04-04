@@ -15,6 +15,16 @@ function StatCard({ label, value, helper }) {
   );
 }
 
+function ModeBadge({ active, label }) {
+  return (
+    <span className={`inline-flex items-center border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${
+      active ? "border-[#C5A059] bg-[rgba(197,160,89,0.12)] text-[#E7C98C]" : "border-[#2D2E2E] opacity-65"
+    }`}>
+      {label}
+    </span>
+  );
+}
+
 export default function InternoHomePage() {
   const [hmadvOps, setHmadvOps] = useState({ loading: true, error: null, data: null });
   const [draining, setDraining] = useState(false);
@@ -91,12 +101,31 @@ export default function InternoHomePage() {
                     <StatCard label="Sem processo" value={hmadvOps.data.publicacoesOverview?.publicacoesSemProcesso || 0} helper="Publicações ainda sem processo vinculado." />
                   </div>
                   <div className="border border-[#2D2E2E] bg-[rgba(10,12,11,0.82)] p-4 text-sm">
-                    <p className="font-semibold mb-2">Runner agendado</p>
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                      <p className="font-semibold">Runner agendado</p>
+                      <ModeBadge active={!hmadvOps.data.autoMode?.enabled} label="manual" />
+                      <ModeBadge active={hmadvOps.data.autoMode?.enabled} label="automatico" />
+                    </div>
                     <p className="opacity-75 mb-2">
                       {hmadvOps.data.runnerConfigured
                         ? "Pronto para scheduler externo via /api/admin-hmadv-runner."
                         : "Pendente configurar HMADV_RUNNER_TOKEN para liberar execucao agendada fora da aba."}
                     </p>
+                    <div className="grid gap-3 md:grid-cols-3 mb-3">
+                      <div className="border border-[#2D2E2E] p-3">
+                        <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Jobs pendentes</p>
+                        <p className="text-lg font-semibold">{hmadvOps.data.autoMode?.totalPendingJobs || 0}</p>
+                      </div>
+                      <div className="border border-[#2D2E2E] p-3">
+                        <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Backlog base</p>
+                        <p className="text-lg font-semibold">{hmadvOps.data.autoMode?.totalBacklogItems || 0}</p>
+                      </div>
+                      <div className="border border-[#2D2E2E] p-3">
+                        <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Ciclo sugerido</p>
+                        <p className="text-lg font-semibold">{hmadvOps.data.autoMode?.recommendedIntervalMinutes || 5} min</p>
+                      </div>
+                    </div>
+                    <p className="opacity-75 mb-2">{hmadvOps.data.autoMode?.nextStep}</p>
                     <p className="opacity-55 break-all">POST /api/admin-hmadv-runner</p>
                   </div>
                   <div className="flex flex-wrap gap-3">

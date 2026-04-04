@@ -82,12 +82,40 @@ export async function getHmadvQueueSnapshot(env) {
     listAdminJobs(env, { modulo: "publicacoes", limit: 20 }),
   ]);
 
+  const runnerConfigured = Boolean(String(env?.HMADV_RUNNER_TOKEN || "").trim());
+  const processosJobs = summarizeJobs(processJobs.items || []);
+  const publicacoesJobs = summarizeJobs(publicacaoJobs.items || []);
+  const totalPendingJobs =
+    (processosJobs.pending || 0) +
+    (processosJobs.running || 0) +
+    (publicacoesJobs.pending || 0) +
+    (publicacoesJobs.running || 0);
+  const totalBacklogItems =
+    Number(processosOverview?.processosSemAccount || 0) +
+    Number(publicacoesOverview?.publicacoesSemProcesso || 0);
+
+  let nextStep = "Operacao pronta para drenagem manual pelo /interno.";
+  if (runnerConfigured) {
+    nextStep = totalPendingJobs
+      ? "Runner pronto; vale ativar o scheduler externo para consumir a fila continuamente."
+      : "Runner pronto; manter scheduler externo para capturar novas pendencias automaticamente.";
+  } else if (totalPendingJobs || totalBacklogItems) {
+    nextStep = "Configurar HMADV_RUNNER_TOKEN e o workflow hmadv-runner para reduzir cliques manuais.";
+  }
+
   return {
-    runnerConfigured: Boolean(String(env?.HMADV_RUNNER_TOKEN || "").trim()),
+    runnerConfigured,
     processosOverview,
     publicacoesOverview,
-    processosJobs: summarizeJobs(processJobs.items || []),
-    publicacoesJobs: summarizeJobs(publicacaoJobs.items || []),
+    processosJobs,
+    publicacoesJobs,
+    autoMode: {
+      enabled: runnerConfigured,
+      totalPendingJobs,
+      totalBacklogItems,
+      recommendedIntervalMinutes: 5,
+      nextStep,
+    },
   };
 }
 
