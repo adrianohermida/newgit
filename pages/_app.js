@@ -1,9 +1,11 @@
+
 import '../styles/globals.css';
 import '../styles/chat-animations.css';
 import Head from 'next/head';
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
+import { ToastProvider } from '../components/ui/toast';
 
 const FreshchatWebMessenger = dynamic(() => import('../components/FreshchatWebMessenger'), { ssr: false });
 
@@ -138,7 +140,9 @@ export default function App({ Component, pageProps }) {
         `}} />
       </Head>
       <FreshchatWebMessenger />
-      <Component {...pageProps} />
+      <ToastProvider>
+        <Component {...pageProps} />
+      </ToastProvider>
     </>
   );
 }

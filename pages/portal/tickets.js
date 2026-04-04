@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useToast } from "../../components/ui/toast";
 import { useRouter } from "next/router";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
@@ -71,6 +72,7 @@ export default function PortalTicketsPage() {
 }
 
 function TicketsContent({ router, state, setState, form, setForm, submitting, setSubmitting, feedback, setFeedback }) {
+  const setToast = useToast();
   useEffect(() => {
     if (!router.isReady) return;
     const subject = String(router.query.subject || "").trim();
@@ -132,15 +134,15 @@ function TicketsContent({ router, state, setState, form, setForm, submitting, se
       });
 
       setForm({ subject: "", description: "" });
-      setFeedback({
+      setToast({
         type: "success",
         message: payload.ticket?.urls?.ticket_url
-          ? "Solicitacao criada com sucesso. Voce ja pode acompanhar o andamento pelo portal e continuar a conversa pelo atendimento."
-          : "Solicitacao criada com sucesso.",
+          ? "Solicitação criada com sucesso. Você já pode acompanhar o andamento pelo portal e continuar a conversa pelo atendimento."
+          : "Solicitação criada com sucesso.",
       });
       await loadTickets();
     } catch (error) {
-      setFeedback({ type: "error", message: error.message });
+      setToast({ type: "error", message: error.message });
     } finally {
       setSubmitting(false);
     }
@@ -182,9 +184,19 @@ function TicketsContent({ router, state, setState, form, setForm, submitting, se
               <button
                 type="submit"
                 disabled={submitting}
-                className="rounded-2xl bg-[#C49C56] px-5 py-3 text-sm font-semibold text-[#07110E] transition hover:brightness-110 disabled:opacity-60"
+                className="rounded-2xl bg-[#C49C56] px-5 py-3 text-sm font-semibold text-[#07110E] transition hover:brightness-110 disabled:opacity-60 flex items-center gap-2"
               >
-                {submitting ? "Enviando..." : "Enviar solicitacao"}
+                {submitting ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                    </svg>
+                    Enviando...
+                  </>
+                ) : (
+                  "Enviar solicitacao"
+                )}
               </button>
               {state.urls?.new_ticket_url ? (
                 <a
@@ -198,11 +210,7 @@ function TicketsContent({ router, state, setState, form, setForm, submitting, se
               ) : null}
             </div>
           </form>
-          {feedback ? (
-            <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${feedback.type === "error" ? "border-[#7f1d1d] bg-[rgba(127,29,29,0.18)]" : "border-[#24533D] bg-[rgba(19,72,49,0.22)]"}`}>
-              {feedback.message}
-            </div>
-          ) : null}
+          {/* Toasts globais substituem feedback local */}
         </div>
 
         <div className="space-y-4">
