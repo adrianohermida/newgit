@@ -60,6 +60,20 @@ function minutesSince(isoString) {
   return Math.max(0, Math.round((Date.now() - parsed) / 60000));
 }
 
+function summarizeRecentCycle(job) {
+  if (!job) return null;
+  return {
+    id: job.id || null,
+    acao: job.acao || null,
+    status: job.status || null,
+    updatedAt: job.updated_at || job.finished_at || job.started_at || job.created_at || null,
+    requestedCount: Number(job.requested_count || 0),
+    processedCount: Number(job.processed_count || 0),
+    successCount: Number(job.success_count || 0),
+    errorCount: Number(job.error_count || 0),
+  };
+}
+
 async function drainModuleJobs(env, modulo, processor, maxChunks = 6) {
   const safeChunks = Math.max(1, Math.min(Number(maxChunks || 6), 30));
   let chunks = 0;
@@ -240,6 +254,10 @@ export async function getHmadvQueueSnapshot(env) {
     recentJobs: {
       processos: (processJobs.items || []).slice(0, 3),
       publicacoes: (publicacaoJobs.items || []).slice(0, 3),
+    },
+    recentCycle: {
+      processos: summarizeRecentCycle((processJobs.items || [])[0] || null),
+      publicacoes: summarizeRecentCycle((publicacaoJobs.items || [])[0] || null),
     },
     autoMode: {
       enabled: runnerConfigured,

@@ -59,6 +59,45 @@ function RecentJobList({ title, items }) {
   );
 }
 
+function CycleCard({ title, cycle }) {
+  return (
+    <div className="border border-[#2D2E2E] p-4 text-sm">
+      <p className="font-semibold mb-2">{title}</p>
+      {cycle ? (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold">{cycle.acao || "acao"}</span>
+            <ModeBadge active={true} label={String(cycle.status || "desconhecido")} />
+          </div>
+          <p className="opacity-65">
+            {cycle.updatedAt ? new Date(cycle.updatedAt).toLocaleString("pt-BR") : "Sem horario"}
+          </p>
+          <div className="grid gap-2 sm:grid-cols-4">
+            <div className="border border-[#2D2E2E] p-2">
+              <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Solicitados</p>
+              <p className="font-semibold">{cycle.requestedCount || 0}</p>
+            </div>
+            <div className="border border-[#2D2E2E] p-2">
+              <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Processados</p>
+              <p className="font-semibold">{cycle.processedCount || 0}</p>
+            </div>
+            <div className="border border-[#2D2E2E] p-2">
+              <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Sucessos</p>
+              <p className="font-semibold">{cycle.successCount || 0}</p>
+            </div>
+            <div className="border border-[#2D2E2E] p-2">
+              <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Falhas</p>
+              <p className="font-semibold">{cycle.errorCount || 0}</p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <p className="opacity-65">Sem ciclo recente.</p>
+      )}
+    </div>
+  );
+}
+
 export default function InternoHomePage() {
   const [hmadvOps, setHmadvOps] = useState({ loading: true, error: null, data: null });
   const [draining, setDraining] = useState(false);
@@ -265,6 +304,16 @@ export default function InternoHomePage() {
                     <RecentJobList
                       title="Ultimos jobs de publicacoes"
                       items={hmadvOps.data.recentJobs?.publicacoes || []}
+                    />
+                  </div>
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <CycleCard
+                      title="Resumo do ultimo ciclo de processos"
+                      cycle={hmadvOps.data.recentCycle?.processos || null}
+                    />
+                    <CycleCard
+                      title="Resumo do ultimo ciclo de publicacoes"
+                      cycle={hmadvOps.data.recentCycle?.publicacoes || null}
                     />
                   </div>
                 </div>
