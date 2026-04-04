@@ -25,6 +25,15 @@ function ModeBadge({ active, label }) {
   );
 }
 
+function FocusLink({ href, title, helper }) {
+  return (
+    <Link href={href} prefetch={false} className="block border border-[#2D2E2E] bg-[rgba(10,12,11,0.82)] p-4 hover:border-[#C5A059]">
+      <p className="text-sm font-semibold mb-1">{title}</p>
+      <p className="text-sm opacity-65">{helper}</p>
+    </Link>
+  );
+}
+
 export default function InternoHomePage() {
   const [hmadvOps, setHmadvOps] = useState({ loading: true, error: null, data: null });
   const [draining, setDraining] = useState(false);
@@ -135,6 +144,32 @@ export default function InternoHomePage() {
                     <button type="button" onClick={loadHmadvOps} disabled={draining} className="border border-[#2D2E2E] px-4 py-3 text-sm hover:border-[#C5A059] disabled:opacity-50">
                       Atualizar leitura
                     </button>
+                  </div>
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    <div className="border border-[#2D2E2E] bg-[rgba(10,12,11,0.82)] p-4 text-sm">
+                      <p className="font-semibold mb-2">Foco recomendado</p>
+                      <p className="opacity-75 mb-2">{hmadvOps.data.moduleFocus?.reason}</p>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        <ModeBadge active={hmadvOps.data.moduleFocus?.target === "processos"} label="processos" />
+                        <ModeBadge active={hmadvOps.data.moduleFocus?.target === "publicacoes"} label="publicacoes" />
+                        <ModeBadge active={hmadvOps.data.moduleFocus?.target === "torre"} label="torre" />
+                      </div>
+                      <p className="opacity-55">
+                        Pressao: processos {hmadvOps.data.moduleFocus?.processosPressure || 0} | publicacoes {hmadvOps.data.moduleFocus?.publicacoesPressure || 0}
+                      </p>
+                    </div>
+                    <div className="grid gap-3">
+                      <FocusLink
+                        href="/interno/processos"
+                        title="Abrir Processos"
+                        helper="Sincronismo DataJud, monitoramento, gaps de CRM e accounts orfas."
+                      />
+                      <FocusLink
+                        href="/interno/publicacoes"
+                        title="Abrir Publicacoes"
+                        helper="Criacao de processos, extracao de partes, polos e reflexo no CRM."
+                      />
+                    </div>
                   </div>
                   <div className="grid gap-4 lg:grid-cols-2">
                     <div className="border border-[#2D2E2E] p-4 text-sm opacity-75">

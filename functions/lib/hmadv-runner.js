@@ -93,6 +93,14 @@ export async function getHmadvQueueSnapshot(env) {
   const totalBacklogItems =
     Number(processosOverview?.processosSemAccount || 0) +
     Number(publicacoesOverview?.publicacoesSemProcesso || 0);
+  const processosPressure =
+    Number(processosJobs.pending || 0) +
+    Number(processosJobs.running || 0) +
+    Number(processosOverview?.processosSemAccount || 0);
+  const publicacoesPressure =
+    Number(publicacoesJobs.pending || 0) +
+    Number(publicacoesJobs.running || 0) +
+    Number(publicacoesOverview?.publicacoesSemProcesso || 0);
 
   let nextStep = "Operacao pronta para drenagem manual pelo /interno.";
   if (runnerConfigured) {
@@ -101,6 +109,16 @@ export async function getHmadvQueueSnapshot(env) {
       : "Runner pronto; manter scheduler externo para capturar novas pendencias automaticamente.";
   } else if (totalPendingJobs || totalBacklogItems) {
     nextStep = "Configurar HMADV_RUNNER_TOKEN e o workflow hmadv-runner para reduzir cliques manuais.";
+  }
+
+  let focusModule = "processos";
+  let focusReason = "A fila de processos concentra mais pendencias operacionais neste momento.";
+  if (publicacoesPressure > processosPressure) {
+    focusModule = "publicacoes";
+    focusReason = "A fila de publicacoes concentra mais pendencias e tende a alimentar novas correcoes na base.";
+  } else if (publicacoesPressure === processosPressure && totalPendingJobs === 0 && totalBacklogItems === 0) {
+    focusModule = "torre";
+    focusReason = "As filas estao equilibradas; a Torre HMADV basta para acompanhamento do ciclo atual.";
   }
 
   return {
@@ -115,6 +133,12 @@ export async function getHmadvQueueSnapshot(env) {
       totalBacklogItems,
       recommendedIntervalMinutes: 5,
       nextStep,
+    },
+    moduleFocus: {
+      target: focusModule,
+      processosPressure,
+      publicacoesPressure,
+      reason: focusReason,
     },
   };
 }
