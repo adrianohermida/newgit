@@ -316,20 +316,38 @@ export default function InternoHomePage() {
                         <p className="text-lg font-semibold">{hmadvOps.data.autoMode?.recommendedIntervalMinutes || 5} min</p>
                       </div>
                     </div>
-                    <div className="grid gap-3 md:grid-cols-2 mb-3">
-                      <div className="border border-[#2D2E2E] p-3">
-                        <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Ultima atividade</p>
-                        <p className="text-sm font-semibold">
+                      <div className="grid gap-3 md:grid-cols-2 mb-3">
+                        <div className="border border-[#2D2E2E] p-3">
+                          <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Ultima atividade</p>
+                          <p className="text-sm font-semibold">
                           {hmadvOps.data.autoMode?.lastActivityAt
                             ? `${new Date(hmadvOps.data.autoMode.lastActivityAt).toLocaleString("pt-BR")} (${hmadvOps.data.autoMode.lastActivityLabel || "atividade recente"})`
                             : "Sem atividade registrada"}
                         </p>
+                        </div>
+                        <div className="border border-[#2D2E2E] p-3">
+                          <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Saude do ciclo</p>
+                          <p className="text-sm font-semibold">{hmadvOps.data.autoMode?.healthReason}</p>
+                        </div>
                       </div>
-                      <div className="border border-[#2D2E2E] p-3">
-                        <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Saude do ciclo</p>
-                        <p className="text-sm font-semibold">{hmadvOps.data.autoMode?.healthReason}</p>
+                      <div className="grid gap-3 md:grid-cols-2 mb-3">
+                        <div className="border border-[#2D2E2E] p-3">
+                          <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Ultimo runner real</p>
+                          <p className="text-sm font-semibold">
+                            {hmadvOps.data.autoMode?.latestRunnerExecution?.created_at
+                              ? `${new Date(hmadvOps.data.autoMode.latestRunnerExecution.created_at).toLocaleString("pt-BR")} (${hmadvOps.data.autoMode.lastActivityLabel || "atividade recente"})`
+                              : "Nenhuma execucao real registrada ainda"}
+                          </p>
+                        </div>
+                        <div className="border border-[#2D2E2E] p-3">
+                          <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Ultimo runner com sucesso</p>
+                          <p className="text-sm font-semibold">
+                            {hmadvOps.data.autoMode?.latestRunnerSuccess?.created_at
+                              ? new Date(hmadvOps.data.autoMode.latestRunnerSuccess.created_at).toLocaleString("pt-BR")
+                              : "Sem sucesso registrado no HMADV"}
+                          </p>
+                        </div>
                       </div>
-                    </div>
                     <p className="opacity-75 mb-2">{hmadvOps.data.autoMode?.nextStep}</p>
                     <p className="opacity-55 break-all">POST /api/admin-hmadv-runner</p>
                   </div>

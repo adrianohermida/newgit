@@ -2,6 +2,7 @@ import {
   getProcessosOverview,
   getPublicacoesOverview,
   listAdminJobs,
+  listAdminOperations,
   processProcessAdminJob,
   processPublicacoesAdminJob,
 } from "./hmadv-ops.js";
@@ -239,11 +240,12 @@ async function drainModuleJobs(env, modulo, processor, maxChunks = 6) {
 }
 
 export async function getHmadvQueueSnapshot(env) {
-  const [processosOverview, publicacoesOverview, processJobs, publicacaoJobs] = await Promise.all([
+  const [processosOverview, publicacoesOverview, processJobs, publicacaoJobs, runnerOps] = await Promise.all([
     getProcessosOverview(env),
     getPublicacoesOverview(env),
     listAdminJobs(env, { modulo: "processos", limit: 20 }),
     listAdminJobs(env, { modulo: "publicacoes", limit: 20 }),
+    listAdminOperations(env, { modulo: "runner", limit: 5 }),
   ]);
 
   const runnerConfigured = Boolean(String(env?.HMADV_RUNNER_TOKEN || "").trim());
@@ -277,7 +279,11 @@ export async function getHmadvQueueSnapshot(env) {
 
   const latestProcessJob = processosJobs.active || (processJobs.items || [])[0] || null;
   const latestPublicacaoJob = publicacoesJobs.active || (publicacaoJobs.items || [])[0] || null;
+  const latestRunnerExecution = (runnerOps.items || [])[0] || null;
+  const latestRunnerSuccess = (runnerOps.items || []).find((item) => String(item.status || "") === "success") || null;
   const lastActivityAt = pickLatestTimestamp(
+    latestRunnerExecution?.finished_at,
+    latestRunnerExecution?.created_at,
     latestProcessJob?.updated_at,
     latestProcessJob?.finished_at,
     latestPublicacaoJob?.updated_at,
@@ -494,6 +500,8 @@ export async function getHmadvQueueSnapshot(env) {
       nextStep,
       lastActivityAt,
       lastActivityLabel,
+      latestRunnerExecution,
+      latestRunnerSuccess,
       inactivityMinutes,
       healthStatus,
       healthLabel,

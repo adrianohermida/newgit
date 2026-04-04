@@ -1,4 +1,4 @@
-import { jsonError, jsonOk } from "../lib/hmadv-ops.js";
+import { jsonError, jsonOk, logAdminOperation } from "../lib/hmadv-ops.js";
 import {
   drainHmadvQueues,
   getHmadvQueueSnapshot,
@@ -35,8 +35,22 @@ export async function onRequestPost(context) {
     const data = await drainHmadvQueues(context.env, {
       maxChunks: Number(body.maxChunks || 2),
     });
+    await logAdminOperation(context.env, {
+      modulo: "runner",
+      acao: "drain_all",
+      status: "success",
+      payload: { maxChunks: Number(body.maxChunks || 2) },
+      result: data,
+    });
     return jsonOk({ data });
   } catch (error) {
+    await logAdminOperation(context.env, {
+      modulo: "runner",
+      acao: "drain_all",
+      status: "error",
+      payload: {},
+      error: error.message || "Falha no runner HMADV.",
+    });
     return jsonError(error, 500);
   }
 }
