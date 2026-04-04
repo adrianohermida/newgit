@@ -199,6 +199,38 @@ export async function getHmadvQueueSnapshot(env) {
     ];
   }
 
+  let blockerTitle = "Fila sob controle";
+  let blockerReason = "Nao ha bloqueio principal evidente neste momento.";
+  let blockerHref = primaryHref;
+  let blockerCta = primaryLabel;
+
+  const latestErroredProcessJob = (processJobs.items || []).find((item) => String(item.status || "") === "error") || null;
+  const latestErroredPublicacaoJob = (publicacaoJobs.items || []).find((item) => String(item.status || "") === "error") || null;
+
+  if (healthStatus === "error") {
+    if (latestErroredPublicacaoJob) {
+      blockerTitle = "Falha recente em publicacoes";
+      blockerReason = latestErroredPublicacaoJob.last_error || "A fila de publicacoes tem erro recente e precisa de revisao.";
+      blockerHref = "/interno/publicacoes";
+      blockerCta = "Revisar publicacoes";
+    } else if (latestErroredProcessJob) {
+      blockerTitle = "Falha recente em processos";
+      blockerReason = latestErroredProcessJob.last_error || "A fila de processos tem erro recente e precisa de revisao.";
+      blockerHref = "/interno/processos";
+      blockerCta = "Revisar processos";
+    }
+  } else if (healthStatus === "stalled") {
+    blockerTitle = "Fila sem progresso recente";
+    blockerReason = "Existem pendencias sem atividade recente; vale drenar a fila e revisar o scheduler.";
+    blockerHref = "/interno";
+    blockerCta = "Drenar fila";
+  } else if (!runnerConfigured && (totalPendingJobs > 0 || totalBacklogItems > 0)) {
+    blockerTitle = "Automacao ainda nao configurada";
+    blockerReason = "Sem HMADV_RUNNER_TOKEN, a fila continua dependente de acao manual no painel.";
+    blockerHref = "/interno";
+    blockerCta = "Preparar automacao";
+  }
+
   return {
     runnerConfigured,
     processosOverview,
@@ -225,6 +257,12 @@ export async function getHmadvQueueSnapshot(env) {
       primaryHref,
       primaryLabel,
       checklist,
+    },
+    blocker: {
+      title: blockerTitle,
+      reason: blockerReason,
+      href: blockerHref,
+      cta: blockerCta,
     },
   };
 }

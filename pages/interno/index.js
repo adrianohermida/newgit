@@ -206,6 +206,18 @@ export default function InternoHomePage() {
                       ))}
                     </div>
                   </div>
+                  <div className="border border-[#2D2E2E] bg-[rgba(10,12,11,0.82)] p-4 text-sm">
+                    <p className="font-semibold mb-2">Bloqueio principal</p>
+                    <p className="opacity-75 mb-2">{hmadvOps.data.blocker?.title}</p>
+                    <p className="opacity-65 mb-4">{hmadvOps.data.blocker?.reason}</p>
+                    <Link
+                      href={hmadvOps.data.blocker?.href || "/interno"}
+                      prefetch={false}
+                      className="inline-flex border border-[#C5A059] px-4 py-2 text-sm hover:border-[#E7C98C]"
+                    >
+                      {hmadvOps.data.blocker?.cta || "Abrir torre"}
+                    </Link>
+                  </div>
                   <div className="grid gap-4 lg:grid-cols-2">
                     <div className="border border-[#2D2E2E] p-4 text-sm opacity-75">
                       <p className="font-semibold mb-2">Processos</p>
