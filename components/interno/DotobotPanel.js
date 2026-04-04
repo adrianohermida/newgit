@@ -459,11 +459,6 @@ export default function DotobotCopilot({
     setError(null);
     setLoading(true);
     setUiState("responding");
-    let finalUiState = "idle";
-
-    // Detectar intenção/contexto
-    const detected = detectIntent(trimmedQuestion);
-    const context = getCurrentContext({ route: routePath });
 
     // Adiciona mensagem do usuário
     setMessages((msgs) => [
@@ -471,35 +466,63 @@ export default function DotobotCopilot({
       { role: "user", text: trimmedQuestion, createdAt: nowIso() },
     ]);
 
-    // Integração: executa ação real se necessário
-    let result = null;
-    if (["web_search", "local_file_access"].includes(detected.intent)) {
-      setUiState("executing");
-      result = await handleExtensionActionIfNeeded(detected.intent, trimmedQuestion);
-    }
+    try {
+      // Chamada real ao backend com streaming
+      const controller = new AbortController();
+      const response = await fetch("/api/admin-lawdesk-chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query: trimmedQuestion,
+          mode: nextMode,
+          provider: nextProvider,
+          contextEnabled: nextContextEnabled,
+          context: { route: routePath },
+        }),
+        signal: controller.signal,
+      });
 
-    // Simular estados visuais
-    setUiState("thinking");
-    setTimeout(() => {
+      if (!response.body) {
+        throw new Error("Resposta do backend sem streaming.");
+      }
+
       setUiState("typing");
-      setTimeout(() => {
-        // Camada de resposta natural
-        import("../../lib/ai/response_generator").then(({ generateNaturalResponse }) => {
-          const responseText = generateNaturalResponse({
-            intent: detected.intent,
-            result,
-            userInput: trimmedQuestion,
-            context,
+      let resultText = "";
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
+        if (value) {
+          const chunk = decoder.decode(value);
+          resultText += chunk;
+          setMessages((msgs) => {
+            // Atualiza última mensagem do assistente em tempo real
+            const lastUserIdx = msgs.findLastIndex((m) => m.role === "user");
+            const assistantMsg = { role: "assistant", text: resultText, createdAt: nowIso() };
+            if (lastUserIdx === -1) return [...msgs, assistantMsg];
+            // Se já existe uma resposta parcial, substitui
+            if (msgs.length > lastUserIdx + 1 && msgs[lastUserIdx + 1].role === "assistant") {
+              return [
+                ...msgs.slice(0, lastUserIdx + 1),
+                assistantMsg,
+                ...msgs.slice(lastUserIdx + 2),
+              ];
+            }
+            return [...msgs, assistantMsg];
           });
-          setMessages((msgs) => [
-            ...msgs,
-            { role: "assistant", text: responseText, createdAt: nowIso() },
-          ]);
-          setLoading(false);
-          setUiState(finalUiState);
-        });
-      }, 1200);
-    }, 900);
+        }
+      }
+      setLoading(false);
+      setUiState("idle");
+    } catch (err) {
+      setError(err.message || "Erro ao conectar ao backend.");
+      setLoading(false);
+      setUiState("idle");
+    }
   }
 
 
