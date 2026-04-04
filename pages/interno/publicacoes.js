@@ -217,6 +217,34 @@ function deriveSuggestedPublicacoesActions(summary, bands) {
   if (summary.stagnant > 0) return ["Extracao retroativa de partes", "Rodar sync-worker"];
   return ["Salvar partes + atualizar polos + corrigir CRM", "Rodar sync-worker"];
 }
+function deriveSuggestedPublicacoesChecklist(summary, bands) {
+  if (bands.critical > 0 || summary.manual > 0) {
+    return [
+      "Revise primeiro a amostra das publicacoes criticas.",
+      "Rode extracao retroativa em lote minimo.",
+      "So depois repare polos e CRM no lote validado.",
+    ];
+  }
+  if (summary.advise > 0) {
+    return [
+      "Crie os processos faltantes a partir das publicacoes.",
+      "Extraia e salve as partes no Supabase.",
+      "Atualize polos e corrija o reflexo no Freshsales.",
+    ];
+  }
+  if (summary.freshsales > 0) {
+    return [
+      "Rode o sync-worker em lote curto.",
+      "Reaplique a consolidacao de partes e polos.",
+      "Confirme que as activities passaram a refletir no CRM.",
+    ];
+  }
+  return [
+    "Execute a trilha principal em lote controlado.",
+    "Reavalie os itens sem progresso antes de ampliar a rodada.",
+    "Aumente o lote apenas quando o ganho vier consistente.",
+  ];
+}
 function suggestPublicacaoNextAction(source, row, current) {
   if (current?.needsManualReview) return "revisar manualmente a publicacao";
   if (source === "freshsales") return "rodar sync-worker";
@@ -779,6 +807,7 @@ function PublicacoesContent() {
   const recurringPublicacoesFocus = deriveRecurringPublicacoesFocus(recurringPublicacoesSummary, recurringPublicacoesBands);
   const recurringPublicacoesBatch = deriveSuggestedPublicacoesBatch(recurringPublicacoesSummary, recurringPublicacoesBands);
   const recurringPublicacoesActions = deriveSuggestedPublicacoesActions(recurringPublicacoesSummary, recurringPublicacoesBands);
+  const recurringPublicacoesChecklist = deriveSuggestedPublicacoesChecklist(recurringPublicacoesSummary, recurringPublicacoesBands);
 
   return (
     <div className="space-y-8">
@@ -965,6 +994,12 @@ function PublicacoesContent() {
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {recurringPublicacoesActions.map((action) => <HealthBadge key={action} label={action} tone="warning" />)}
+              </div>
+              <div className="mt-4 space-y-2">
+                {recurringPublicacoesChecklist.map((step, index) => <div key={step} className="flex items-start gap-3 text-sm opacity-80">
+                  <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#6E5630] text-[11px] font-semibold text-[#F8E7B5]">{index + 1}</span>
+                  <p>{step}</p>
+                </div>)}
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">

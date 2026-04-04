@@ -292,6 +292,34 @@ function deriveSuggestedProcessActions(summary, bands) {
   if (summary.stagnant > 0) return ["Rodar auditoria", "Sincronizar Supabase + Freshsales"];
   return ["Sincronizar Supabase + Freshsales", "Rodar sync-worker"];
 }
+function deriveSuggestedProcessChecklist(summary, bands) {
+  if (bands.critical > 0 || summary.manual > 0) {
+    return [
+      "Audite primeiro a amostra reincidente antes de ampliar o lote.",
+      "Rode um lote curto de sincronismo Supabase + Freshsales.",
+      "Se ainda faltar progresso, reconsulte movimentacoes no DataJud.",
+    ];
+  }
+  if (summary.freshsales > 0) {
+    return [
+      "Crie ou recupere as accounts ausentes no Freshsales.",
+      "Rode a correcao de campos do CRM.",
+      "Feche o ciclo com sincronismo Supabase + Freshsales.",
+    ];
+  }
+  if (summary.datajud > 0) {
+    return [
+      "Busque movimentacoes para os processos mais vazios.",
+      "Reenriqueca os campos DataJud do lote curto.",
+      "Sincronize o resultado consolidado no CRM.",
+    ];
+  }
+  return [
+    "Execute o sincronismo principal em lote controlado.",
+    "Revise os itens que permanecerem sem progresso.",
+    "Aumente o lote apenas se o ganho vier consistente.",
+  ];
+}
 function suggestProcessNextAction(source, row, current) {
   if (current?.needsManualReview) return "revisar manualmente o retorno";
   if (source === "freshsales") {
@@ -551,6 +579,7 @@ function InternoProcessosContent() {
   const recurringProcessFocus = deriveRecurringProcessFocus(recurringProcessSummary, recurringProcessBands);
   const recurringProcessBatch = deriveSuggestedProcessBatch(recurringProcessSummary, recurringProcessBands);
   const recurringProcessActions = deriveSuggestedProcessActions(recurringProcessSummary, recurringProcessBands);
+  const recurringProcessChecklist = deriveSuggestedProcessChecklist(recurringProcessSummary, recurringProcessBands);
   const combinedSelectedNumbers = getCombinedSelectedNumbers();
 
   return <div className="space-y-8">
@@ -626,6 +655,12 @@ function InternoProcessosContent() {
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               {recurringProcessActions.map((action) => <StatusBadge key={action} tone="warning">{action}</StatusBadge>)}
+            </div>
+            <div className="mt-4 space-y-2">
+              {recurringProcessChecklist.map((step, index) => <div key={step} className="flex items-start gap-3 text-sm opacity-80">
+                <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#6E5630] text-[11px] font-semibold text-[#F8E7B5]">{index + 1}</span>
+                <p>{step}</p>
+              </div>)}
             </div>
           </div>
           <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
