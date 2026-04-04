@@ -103,9 +103,9 @@ function normalizeAttachment(file) {
   // Responsivo: lateral no desktop, desliza de baixo no mobile
   return (
     <div
-      className={`fixed lg:static right-0 top-auto bottom-0 z-50 flex h-[60vh] lg:h-full w-full max-w-full lg:max-w-[480px] flex-col border-t lg:border-t-0 lg:border-l border-[#22342F] bg-[rgba(12,15,14,0.98)] shadow-2xl transition-transform duration-300
+      className={`fixed lg:static right-0 top-auto bottom-0 z-50 flex h-[55vh] sm:h-[50vh] md:h-[60vh] lg:h-full w-full max-w-full lg:max-w-[420px] flex-col border-t lg:border-t-0 lg:border-l border-[#22342F] bg-[rgba(12,15,14,0.98)] shadow-2xl transition-transform duration-300
         ${collapsed ? 'translate-y-full lg:translate-x-full' : 'translate-y-0 lg:translate-x-0'}`}
-      style={{ minHeight: 'unset', pointerEvents: 'auto' }}
+      style={{ minHeight: 'unset', pointerEvents: 'auto', maxHeight: '100dvh' }}
     >
     type: file.type || "application/octet-stream",
     kind,
@@ -444,7 +444,7 @@ export default function DotobotCopilot({
         style={{ minHeight: '100vh' }}
       >
         {/* HEADER */}
-        <header className="flex items-center justify-between border-b border-[#22342F] px-4 py-3 lg:px-6 lg:py-4">
+        <header className="flex items-center justify-between border-b border-[#22342F] px-3 py-2 sm:px-4 sm:py-3 lg:px-6 lg:py-4">
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-[#D9B46A] px-3 py-1 text-xs font-bold text-[#1A1A1A]">Dotobot Copilot</span>
             <span className="text-xs text-[#9BAEA8]">{uiState === "responding" ? "Pensando..." : uiState === "executing" ? "Executando..." : "Idle"}</span>
@@ -457,38 +457,52 @@ export default function DotobotCopilot({
           </button>
         </header>
         {/* MAIN CHAT AREA */}
-        <main className="flex-1 overflow-y-auto px-4 py-3 lg:px-6 lg:py-4" ref={scrollRef}>
-          {messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} />
+        <main className="flex-1 overflow-y-auto px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4" ref={scrollRef}>
+          {messages.map((msg, idx) => (
+            <MessageBubble key={msg.id || idx} message={msg} />
           ))}
           {loading && (
             <div className="mt-2 text-xs text-[#D9B46A]">Pensando...</div>
           )}
         </main>
         {/* INPUT AREA */}
-        <footer className="border-t border-[#22342F] bg-[rgba(12,15,14,0.98)] px-4 py-3 lg:px-6 lg:py-4">
+        <footer className="border-t border-[#22342F] bg-[rgba(12,15,14,0.98)] px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4">
           <form
-            className="flex items-end gap-3"
+            className="flex items-end gap-2"
             onSubmit={handleSubmit}
           >
             <textarea
               ref={composerRef}
-              className="flex-1 resize-none rounded-2xl border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] placeholder-[#7F928C] focus:border-[#C5A059] focus:outline-none"
-              rows={2}
+              className="flex-1 resize-none rounded-xl border border-[#22342F] bg-transparent px-3 py-2 text-sm text-[#F5F1E8] placeholder-[#7F928C] focus:border-[#C5A059] focus:outline-none"
+              rows={1}
               placeholder="Digite sua mensagem..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={loading}
+              style={{ minHeight: 36, maxHeight: 80 }}
             />
             <button
               type="submit"
-              className="rounded-2xl bg-[#D9B46A] px-6 py-3 text-sm font-bold text-[#1A1A1A] transition hover:bg-[#C5A059]"
+              className="rounded-xl bg-[#D9B46A] px-4 py-2 text-sm font-bold text-[#1A1A1A] transition hover:bg-[#C5A059]"
               disabled={loading || !input.trim()}
             >
               Enviar
             </button>
           </form>
         </footer>
+              {/* Histórico compacto de sessões */}
+              <div className="absolute left-0 top-0 z-30 w-full flex flex-row flex-wrap gap-1 px-2 pt-2 lg:static lg:w-auto lg:flex-col lg:gap-2 lg:px-0 lg:pt-0">
+                {conversations.slice(0, 6).map((conv) => (
+                  <button
+                    key={conv.id}
+                    className={`rounded-xl px-2 py-1 text-xs border border-[#22342F] bg-[rgba(255,255,255,0.03)] text-[#C5A059] max-w-[90vw] truncate ${conv.id === activeConversationId ? 'bg-[#C5A059] text-[#07110E]' : ''}`}
+                    onClick={() => setActiveConversationId(conv.id)}
+                    title={conv.title}
+                  >
+                    {conv.title}
+                  </button>
+                ))}
+              </div>
       </div>
     );
 
