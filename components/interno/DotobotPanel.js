@@ -419,24 +419,33 @@ export default function DotobotCopilot({
     const detected = detectIntent(trimmedQuestion);
     const context = getCurrentContext({ route: routePath });
 
-    // Exemplo: mensagem de status no chat
+    // Adiciona mensagem do usuário
     setMessages((msgs) => [
       ...msgs,
       { role: "user", text: trimmedQuestion, createdAt: nowIso() },
-      { role: "assistant", text: `Entendi sua intenção: ${detected.intent}. Estou processando...`, createdAt: nowIso() },
     ]);
 
-    // Se for intenção de extensão, aciona
-    await handleExtensionActionIfNeeded(detected.intent, trimmedQuestion);
+    // Integração: executa ação real se necessário
+    let result = null;
+    if (["web_search", "local_file_access"].includes(detected.intent)) {
+      result = await handleExtensionActionIfNeeded(detected.intent, trimmedQuestion);
+    }
 
-    setTimeout(() => {
+    // Camada de resposta natural
+    import("../../lib/ai/response_generator").then(({ generateNaturalResponse }) => {
+      const responseText = generateNaturalResponse({
+        intent: detected.intent,
+        result,
+        userInput: trimmedQuestion,
+        context,
+      });
       setMessages((msgs) => [
         ...msgs,
-        { role: "assistant", text: `Ação '${detected.intent}' concluída (simulação).`, createdAt: nowIso() },
+        { role: "assistant", text: responseText, createdAt: nowIso() },
       ]);
       setLoading(false);
       setUiState(finalUiState);
-    }, 1200);
+    });
   }
 
     return (
