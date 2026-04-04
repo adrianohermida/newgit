@@ -11,7 +11,7 @@ function parseBoolean(value, defaultValue = true) {
   return defaultValue;
 }
 
-export async function onRequestGet(context) {
+async function onRequestGet(context) {
   const { request, env } = context;
   const auth = await requireAdminAccess(request, env);
   if (!auth.ok) {
@@ -46,4 +46,6 @@ export async function onRequestGet(context) {
     );
   }
 }
+
+export default { onRequestGet };
 
