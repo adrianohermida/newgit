@@ -262,11 +262,64 @@ function renderProcessSyncStatuses(row) {
   if ((row.movimentos_novos || 0) > 0) statuses.push({ label: `+${row.movimentos_novos} movimentos`, tone: "success" });
   if ((row.gaps_reduzidos || 0) > 0) statuses.push({ label: `-${row.gaps_reduzidos} gaps`, tone: "success" });
   if (row.quantidade_movimentacoes === 0 || row.quantidade_movimentacoes === null) statuses.push({ label: "sem movimentacoes", tone: "warning" });
-  if (row.freshsales_repair?.skipped) statuses.push({ label: "crm pendente", tone: "warning" });
+  if (row.freshsales_repair?.reason === "sem_gap_crm") statuses.push({ label: "sem gap crm", tone: "default" });
+  else if (row.freshsales_repair?.reason === "sem_mudanca_util") statuses.push({ label: "sem mudanca util", tone: "default" });
+  else if (row.freshsales_repair?.skipped) statuses.push({ label: "crm pendente", tone: "warning" });
   else if (row.freshsales_repair) statuses.push({ label: "crm reparado", tone: "success" });
   if (row.monitoramento_ativo === true) statuses.push({ label: "monitorado", tone: "default" });
   if (row.monitoramento_ativo === false) statuses.push({ label: "monitoramento inativo", tone: "danger" });
   return statuses;
+}
+function deriveSelectionActionHint({
+  selectedWithoutMovements = [],
+  selectedMonitoringActive = [],
+  selectedMonitoringInactive = [],
+  selectedFieldGaps = [],
+  selectedOrphans = [],
+  monitoringUnsupported = false,
+}) {
+  if (selectedOrphans.length) {
+    return {
+      title: "Criar accounts primeiro",
+      body: "Ha processos orfaos selecionados. Priorize a criacao de Sales Accounts para liberar as proximas trilhas de sincronismo.",
+      badges: [`${selectedOrphans.length} orfaos`, "acao: criar accounts"],
+    };
+  }
+  if (selectedFieldGaps.length) {
+    return {
+      title: "Reparar CRM agora",
+      body: "Os itens selecionados tem gap entre HMADV e Freshsales. O melhor proximo passo e corrigir campos no CRM.",
+      badges: [`${selectedFieldGaps.length} gaps`, "acao: corrigir crm"],
+    };
+  }
+  if (selectedWithoutMovements.length) {
+    return {
+      title: "Buscar movimentacoes no DataJud",
+      body: "A selecao atual esta concentrada em processos sem andamento local. Reenriquecer pelo DataJud tende a gerar o maior ganho.",
+      badges: [`${selectedWithoutMovements.length} sem mov.`, "acao: datajud"],
+    };
+  }
+  if (selectedMonitoringInactive.length) {
+    return {
+      title: monitoringUnsupported ? "Schema pendente para monitoramento" : "Reativar monitoramento",
+      body: monitoringUnsupported
+        ? "Existe selecao em monitoramento inativo, mas a coluna monitoramento_ativo ainda nao existe no HMADV."
+        : "Ha processos fora do monitoramento. Reative a fila para recolocar o sync continuo em andamento.",
+      badges: [`${selectedMonitoringInactive.length} inativos`, monitoringUnsupported ? "schema pendente" : "acao: ativar"],
+    };
+  }
+  if (selectedMonitoringActive.length) {
+    return {
+      title: "Sincronizar monitorados",
+      body: "A selecao atual ja esta em acompanhamento. Vale priorizar sincronismo e retroacao de audiencias nesse recorte.",
+      badges: [`${selectedMonitoringActive.length} monitorados`, "acao: sincronizar"],
+    };
+  }
+  return {
+    title: "Selecione uma fila para priorizar",
+    body: "Use as filas para montar o lote operacional e o painel destaca automaticamente a proxima acao mais util.",
+    badges: ["sem selecao ativa"],
+  };
 }
 function OperationResult({ result }) {
   if (result?.job) {
@@ -304,7 +357,7 @@ function JobCard({ job, active = false }) {
   return <div className={`rounded-[24px] border p-4 text-sm ${active ? "border-[#C5A059] bg-[rgba(76,57,26,0.18)]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}>
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <p className="font-semibold">{ACTION_LABELS[job?.acao] || job?.acao}</p>
+        <p className="font-semibold">{getProcessActionLabel(job?.acao, job?.payload || {})}</p>
         <p className="text-xs opacity-60">{job?.created_at ? new Date(job.created_at).toLocaleString("pt-BR") : "sem horario"}</p>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -1008,6 +1061,14 @@ function InternoProcessosContent() {
     .filter((item) => combinedSelectedNumbers.includes(item.numero_cnj))
     .length;
   const priorityBatchReady = visibleSevereRecurringCount > 0 && selectedVisibleSevereRecurringCount >= visibleSevereRecurringCount && limit === recurringProcessBatch.size;
+  const selectionActionHint = deriveSelectionActionHint({
+    selectedWithoutMovements,
+    selectedMonitoringActive,
+    selectedMonitoringInactive,
+    selectedFieldGaps,
+    selectedOrphans,
+    monitoringUnsupported,
+  });
 
   return <div className="space-y-8">
     <section className="rounded-[34px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-6 py-6 md:px-7">
@@ -1048,6 +1109,14 @@ function InternoProcessosContent() {
           <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-xs leading-6 opacity-70">
             <p><strong className="text-[#F4F1EA]">Selecao atual:</strong> {combinedSelectedNumbers.length ? combinedSelectedNumbers.slice(0, 8).join(", ") : "nenhum processo selecionado nas filas"}</p>
             <p className="mt-2">As acoes principais agora podem virar job persistido no HMADV. O painel acompanha progresso, continua em lote curto e avisa ao concluir sem depender de cliques repetidos.</p>
+          </div>
+          <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Proximo passo sugerido</p>
+            <p className="mt-2 font-semibold">{selectionActionHint.title}</p>
+            <p className="mt-2 opacity-70">{selectionActionHint.body}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {selectionActionHint.badges.map((badge) => <StatusBadge key={badge} tone="warning">{badge}</StatusBadge>)}
+            </div>
           </div>
         </div>
       </Panel>
