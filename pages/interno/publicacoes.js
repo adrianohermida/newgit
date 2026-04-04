@@ -111,14 +111,58 @@ function deriveRecurringPublicacoes(history = []) {
     for (const row of rows) {
       const key = row?.numero_cnj || row?.processo_id || row?.id;
       if (!key) continue;
-      const current = counts.get(key) || { key, titulo: row?.titulo || row?.titulo_processo || "", hits: 0, lastAction: entry.acao };
+      const current = counts.get(key) || {
+        key,
+        titulo: row?.titulo || row?.titulo_processo || "",
+        hits: 0,
+        lastAction: entry.acao,
+        source: "advise",
+        needsManualReview: false,
+        noProgress: false,
+      };
       current.hits += 1;
       if (!current.titulo && (row?.titulo || row?.titulo_processo)) current.titulo = row?.titulo || row?.titulo_processo;
       current.lastAction = entry.acao;
+      current.source = classifyPublicacaoRecurringSource(entry, row);
+      current.needsManualReview = current.needsManualReview || publicacaoNeedsManualReview(row);
+      current.noProgress = current.noProgress || publicacaoHasNoProgress(entry, row);
       counts.set(key, current);
     }
   }
   return Array.from(counts.values()).filter((item) => item.hits > 1).sort((a, b) => b.hits - a.hits).slice(0, 8);
+}
+function classifyPublicacaoRecurringSource(entry, row) {
+  if (entry?.acao === "run_sync_worker") return "freshsales";
+  if (entry?.acao === "criar_processos_publicacoes") return "advise";
+  if (row?.accountsReparadas || row?.freshsales_repair) return "freshsales";
+  if ((row?.partes_detectadas || row?.partes_novas || 0) > 0 || row?.publicacoes_lidas > 0) return "advise";
+  return "supabase";
+}
+function publicacaoNeedsManualReview(row) {
+  return Boolean(
+    row?.erro ||
+    row?.freshsales_repair?.ok === false ||
+    row?.freshsales_repair?.skipped
+  );
+}
+function publicacaoHasNoProgress(entry, row) {
+  if (Number(entry?.affected_count || 0) === 0) return true;
+  return Number(row?.partesInseridas || 0) === 0 &&
+    Number(row?.processosAtualizados || 0) === 0 &&
+    Number(row?.accountsReparadas || 0) === 0 &&
+    !row?.processo_criado;
+}
+function recurringSourceTone(source) {
+  if (source === "freshsales") return "warning";
+  if (source === "advise") return "danger";
+  if (source === "datajud") return "danger";
+  return "default";
+}
+function recurringSourceLabel(source) {
+  if (source === "freshsales") return "gargalo freshsales";
+  if (source === "advise") return "gargalo advise";
+  if (source === "datajud") return "gargalo datajud";
+  return "gargalo supabase";
 }
 
 function HealthBadge({ label, tone }) {
@@ -819,6 +863,9 @@ function PublicacoesContent() {
                 <p className="font-semibold break-all">{item.key}</p>
                 <HealthBadge label={`${item.hits} ciclos`} tone="danger" />
                 <HealthBadge label={ACTION_LABELS[item.lastAction] || item.lastAction} tone="warning" />
+                <HealthBadge label={recurringSourceLabel(item.source)} tone={recurringSourceTone(item.source)} />
+                {item.noProgress ? <HealthBadge label="sem progresso estrutural" tone="warning" /> : null}
+                {item.needsManualReview ? <HealthBadge label="precisa intervencao manual" tone="danger" /> : null}
               </div>
               {item.titulo ? <p className="mt-2 opacity-70">{item.titulo}</p> : null}
             </div>)}

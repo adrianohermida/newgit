@@ -188,14 +188,56 @@ function deriveRecurringProcessEntries(history = []) {
     for (const row of rows) {
       const key = row?.numero_cnj || row?.id || row?.processo_id;
       if (!key) continue;
-      const current = counts.get(key) || { key, titulo: row?.titulo || "", hits: 0, lastAction: entry.acao };
+      const current = counts.get(key) || {
+        key,
+        titulo: row?.titulo || "",
+        hits: 0,
+        lastAction: entry.acao,
+        source: "supabase",
+        needsManualReview: false,
+        noProgress: false,
+      };
       current.hits += 1;
       if (!current.titulo && row?.titulo) current.titulo = row.titulo;
       current.lastAction = entry.acao;
+      current.source = classifyProcessRecurringSource(entry, row);
+      current.needsManualReview = current.needsManualReview || processNeedsManualReview(row);
+      current.noProgress = current.noProgress || processHasNoProgress(entry, row);
       counts.set(key, current);
     }
   }
   return Array.from(counts.values()).filter((item) => item.hits > 1).sort((a, b) => b.hits - a.hits).slice(0, 8);
+}
+function classifyProcessRecurringSource(entry, row) {
+  if (entry?.acao === "enriquecer_datajud") return "datajud";
+  if (row?.freshsales_repair || entry?.acao === "repair_freshsales_accounts" || entry?.acao === "push_orfaos") return "freshsales";
+  if (row?.quantidade_movimentacoes === 0 || row?.before?.quantidade_movimentacoes === row?.after?.quantidade_movimentacoes) return "datajud";
+  if (row?.monitoramento_ativo === false) return "supabase";
+  return "supabase";
+}
+function processNeedsManualReview(row) {
+  return Boolean(
+    row?.result?.ok === false ||
+    row?.datajud?.ok === false ||
+    row?.freshsales_repair?.ok === false ||
+    row?.freshsales_repair?.skipped
+  );
+}
+function processHasNoProgress(entry, row) {
+  if (Number(entry?.affected_count || 0) === 0) return true;
+  return Number(row?.movimentos_novos || 0) === 0 && Number(row?.gaps_reduzidos || 0) === 0 && !row?.freshsales_repair;
+}
+function sourceTone(source) {
+  if (source === "freshsales") return "warning";
+  if (source === "datajud") return "danger";
+  if (source === "advise") return "warning";
+  return "default";
+}
+function sourceLabel(source) {
+  if (source === "freshsales") return "gargalo freshsales";
+  if (source === "datajud") return "gargalo datajud";
+  if (source === "advise") return "gargalo advise";
+  return "gargalo supabase";
 }
 
 export default function InternoProcessosPage() {
@@ -477,6 +519,9 @@ function InternoProcessosContent() {
               <p className="font-semibold break-all">{item.key}</p>
               <StatusBadge tone="danger">{item.hits} ciclos</StatusBadge>
               <StatusBadge tone="warning">{ACTION_LABELS[item.lastAction] || item.lastAction}</StatusBadge>
+              <StatusBadge tone={sourceTone(item.source)}>{sourceLabel(item.source)}</StatusBadge>
+              {item.noProgress ? <StatusBadge tone="warning">sem progresso estrutural</StatusBadge> : null}
+              {item.needsManualReview ? <StatusBadge tone="danger">precisa intervencao manual</StatusBadge> : null}
             </div>
             {item.titulo ? <p className="mt-2 opacity-70">{item.titulo}</p> : null}
           </div>)}
