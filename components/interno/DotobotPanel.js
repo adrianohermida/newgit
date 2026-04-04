@@ -542,6 +542,38 @@ export default function DotobotCopilot({
       waiting: "Aguardando aprovação...",
     }[uiState] || "Pronto";
 
+    // Modal de detalhes da Task
+    const [showTaskModal, setShowTaskModal] = useState(false);
+    const activeTask = getLastTask(taskHistory);
+
+    const TaskModal = () => (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+        <div className="w-full max-w-xl rounded-2xl bg-[#181B19] p-6 shadow-2xl border border-[#22342F] relative">
+          <button className="absolute right-4 top-4 text-[#C5A059] text-xl" onClick={() => setShowTaskModal(false)} title="Fechar">×</button>
+          <h2 className="mb-4 text-lg font-bold text-[#F5F1E8]">Detalhes da Execução</h2>
+          {activeTask ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-semibold">Status:</span>
+                <TaskStatusChip status={activeTask.status} />
+              </div>
+              <div className="text-xs text-[#C5A059]">{activeTask.query}</div>
+              <div className="mt-2">
+                <h3 className="font-semibold text-[#D9B46A] mb-1">Logs</h3>
+                <div className="max-h-40 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
+                  {(activeTask.logs || []).map((log, idx) => (
+                    <div key={idx} className="mb-1">{log}</div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-[#9BAEA8]">Nenhuma execução ativa.</div>
+          )}
+        </div>
+      </div>
+    );
+
     // Header de contexto
     const ContextHeader = () => (
       <div className="flex items-center gap-3 border-b border-[#22342F] px-4 py-3 bg-[rgba(12,15,14,0.98)]">
@@ -549,12 +581,20 @@ export default function DotobotCopilot({
         <span className="text-xs text-[#9BAEA8]">{stateLabel}</span>
         {/* Exemplo de contexto visual */}
         <span className="ml-auto text-xs text-[#C5A059]">📍 {routePath || "Módulo atual"}</span>
+        <button
+          className="ml-4 rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none text-xs"
+          onClick={() => setShowTaskModal(true)}
+          title="Ver detalhes da execução"
+        >
+          Execução
+        </button>
       </div>
     );
 
     return (
       <>
         <FloatingTrigger />
+        {showTaskModal && <TaskModal />}
         <aside
           className={`fixed right-0 top-0 z-40 flex h-full flex-col border-l border-[#22342F] bg-[rgba(12,15,14,0.98)] shadow-2xl transition-all duration-300 ${panelClass}`}
           style={{
