@@ -652,6 +652,7 @@ function InternoProcessosContent() {
             <div className="mt-3 flex flex-wrap gap-2">
               <StatusBadge tone="success">lote sugerido {recurringProcessBatch.size}</StatusBadge>
               <StatusBadge tone="default">{recurringProcessBatch.reason}</StatusBadge>
+              <ActionButton className="px-3 py-2 text-xs" onClick={() => setLimit(recurringProcessBatch.size)}>Usar lote sugerido</ActionButton>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               {recurringProcessActions.map((action) => <StatusBadge key={action} tone="warning">{action}</StatusBadge>)}

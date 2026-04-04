@@ -991,6 +991,7 @@ function PublicacoesContent() {
               <div className="mt-3 flex flex-wrap gap-2">
                 <HealthBadge label={`lote sugerido ${recurringPublicacoesBatch.size}`} tone="success" />
                 <HealthBadge label={recurringPublicacoesBatch.reason} tone="default" />
+                <button type="button" onClick={() => setLimit(recurringPublicacoesBatch.size)} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">Usar lote sugerido</button>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {recurringPublicacoesActions.map((action) => <HealthBadge key={action} label={action} tone="warning" />)}
