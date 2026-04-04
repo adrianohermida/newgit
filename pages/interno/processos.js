@@ -256,6 +256,14 @@ function recurrenceBand(hits) {
   if (hits >= 2) return { label: "recorrente 2x", tone: "default" };
   return null;
 }
+function summarizeRecurrenceBands(items = []) {
+  return items.reduce((acc, item) => {
+    if (item.hits >= 4) acc.critical += 1;
+    else if (item.hits >= 3) acc.reincident += 1;
+    else if (item.hits >= 2) acc.recurring += 1;
+    return acc;
+  }, { recurring: 0, reincident: 0, critical: 0 });
+}
 function suggestProcessNextAction(source, row, current) {
   if (current?.needsManualReview) return "revisar manualmente o retorno";
   if (source === "freshsales") {
@@ -483,6 +491,7 @@ function InternoProcessosContent() {
   const remoteHealth = deriveRemoteHealth(remoteHistory);
   const recurringProcesses = deriveRecurringProcessEntries(remoteHistory);
   const recurringProcessSummary = summarizeRecurringProcessEntries(recurringProcesses);
+  const recurringProcessBands = summarizeRecurrenceBands(recurringProcesses);
   const combinedSelectedNumbers = getCombinedSelectedNumbers();
 
   return <div className="space-y-8">
@@ -555,6 +564,11 @@ function InternoProcessosContent() {
             <QueueSummaryCard title="Manual" count={recurringProcessSummary.manual} helper="Casos que merecem revisao humana." accent="text-[#FECACA]" />
             <QueueSummaryCard title="Sem progresso" count={recurringProcessSummary.stagnant} helper="Reincidencias sem ganho util no lote." accent="text-[#FDE68A]" />
             <QueueSummaryCard title="Recorrentes" count={recurringProcessSummary.total} helper="Itens que voltaram em multiplos ciclos recentes." />
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <QueueSummaryCard title="Faixa 2x" count={recurringProcessBands.recurring} helper="Pendencias que reapareceram em dois ciclos." />
+            <QueueSummaryCard title="Faixa 3x" count={recurringProcessBands.reincident} helper="Itens reincidentes que merecem atencao prioritaria." accent="text-[#FDE68A]" />
+            <QueueSummaryCard title="Faixa 4x+" count={recurringProcessBands.critical} helper="Gargalos cronicos que pedem acao estrutural." accent="text-[#FECACA]" />
           </div>
           <div className="space-y-3">
           {recurringProcesses.map((item) => <div key={item.key} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm">

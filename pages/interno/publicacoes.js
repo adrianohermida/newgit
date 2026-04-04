@@ -181,6 +181,14 @@ function recurrenceBand(hits) {
   if (hits >= 2) return { label: "recorrente 2x", tone: "default" };
   return null;
 }
+function summarizeRecurrenceBands(items = []) {
+  return items.reduce((acc, item) => {
+    if (item.hits >= 4) acc.critical += 1;
+    else if (item.hits >= 3) acc.reincident += 1;
+    else if (item.hits >= 2) acc.recurring += 1;
+    return acc;
+  }, { recurring: 0, reincident: 0, critical: 0 });
+}
 function suggestPublicacaoNextAction(source, row, current) {
   if (current?.needsManualReview) return "revisar manualmente a publicacao";
   if (source === "freshsales") return "rodar sync-worker";
@@ -711,6 +719,7 @@ function PublicacoesContent() {
   const remoteHealth = deriveRemoteHealth(remoteHistory);
   const recurringPublicacoes = deriveRecurringPublicacoes(remoteHistory);
   const recurringPublicacoesSummary = summarizeRecurringPublicacoes(recurringPublicacoes);
+  const recurringPublicacoesBands = summarizeRecurrenceBands(recurringPublicacoes);
 
   return (
     <div className="space-y-8">
@@ -894,6 +903,11 @@ function PublicacoesContent() {
               <QueueSummaryCard title="Manual" count={recurringPublicacoesSummary.manual} helper="Publicacoes que pedem revisao humana." accent="text-[#FECACA]" />
               <QueueSummaryCard title="Sem progresso" count={recurringPublicacoesSummary.stagnant} helper="Lotes recorrentes sem ganho util." accent="text-[#FDE68A]" />
               <QueueSummaryCard title="Recorrentes" count={recurringPublicacoesSummary.total} helper="Itens que voltaram em multiplos ciclos recentes." />
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <QueueSummaryCard title="Faixa 2x" count={recurringPublicacoesBands.recurring} helper="Pendencias que reapareceram em dois ciclos." />
+              <QueueSummaryCard title="Faixa 3x" count={recurringPublicacoesBands.reincident} helper="Itens reincidentes que merecem atencao prioritaria." accent="text-[#FDE68A]" />
+              <QueueSummaryCard title="Faixa 4x+" count={recurringPublicacoesBands.critical} helper="Gargalos cronicos que pedem acao estrutural." accent="text-[#FECACA]" />
             </div>
             <div className="space-y-3">
             {recurringPublicacoes.map((item) => <div key={item.key} className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
