@@ -839,6 +839,13 @@ function InternoProcessosContent() {
       if (saved.view && PROCESS_VIEW_ITEMS.some((item) => item.key === saved.view)) setView(saved.view);
       if (saved.processNumbers) setProcessNumbers(String(saved.processNumbers));
       if (saved.limit) setLimit(Number(saved.limit) || 2);
+      if (saved.wmPage) setWmPage(Math.max(1, Number(saved.wmPage) || 1));
+      if (saved.audPage) setAudPage(Math.max(1, Number(saved.audPage) || 1));
+      if (saved.maPage) setMaPage(Math.max(1, Number(saved.maPage) || 1));
+      if (saved.miPage) setMiPage(Math.max(1, Number(saved.miPage) || 1));
+      if (saved.fgPage) setFgPage(Math.max(1, Number(saved.fgPage) || 1));
+      if (saved.orphanPage) setOrphanPage(Math.max(1, Number(saved.orphanPage) || 1));
+      if (saved.search) setSearch(String(saved.search));
       if (Array.isArray(saved.selectedWithoutMovements)) setSelectedWithoutMovements(saved.selectedWithoutMovements);
       if (Array.isArray(saved.selectedAudienciaCandidates)) setSelectedAudienciaCandidates(saved.selectedAudienciaCandidates);
       if (Array.isArray(saved.selectedMonitoringActive)) setSelectedMonitoringActive(saved.selectedMonitoringActive);
@@ -874,6 +881,13 @@ function InternoProcessosContent() {
       view,
       processNumbers,
       limit,
+      wmPage,
+      audPage,
+      maPage,
+      miPage,
+      fgPage,
+      orphanPage,
+      search,
       selectedWithoutMovements,
       selectedAudienciaCandidates,
       selectedMonitoringActive,
@@ -881,7 +895,7 @@ function InternoProcessosContent() {
       selectedFieldGaps,
       selectedOrphans,
     });
-  }, [view, processNumbers, limit, selectedWithoutMovements, selectedAudienciaCandidates, selectedMonitoringActive, selectedMonitoringInactive, selectedFieldGaps, selectedOrphans]);
+  }, [view, processNumbers, limit, wmPage, audPage, maPage, miPage, fgPage, orphanPage, search, selectedWithoutMovements, selectedAudienciaCandidates, selectedMonitoringActive, selectedMonitoringInactive, selectedFieldGaps, selectedOrphans]);
   useEffect(() => {
     const cachedAt = new Date().toISOString();
     setSnapshotAt(cachedAt);
