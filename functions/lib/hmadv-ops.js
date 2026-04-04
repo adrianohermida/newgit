@@ -310,6 +310,36 @@ async function loadProcessesByNumbers(env, processNumbers) {
   return output;
 }
 
+async function loadProcessesByIds(env, processIds, select = "id,numero_cnj,titulo,account_id_freshsales,quantidade_movimentacoes,classe,assunto_principal,area,data_ajuizamento,sistema,polo_ativo,polo_passivo,status_atual_processo") {
+  const output = [];
+  for (const chunk of splitIntoChunks(uniqueNonEmpty(processIds), 25)) {
+    const rows = await hmadvRest(
+      env,
+      `processos?${buildInFilter("id", chunk)}&select=${select}`
+    );
+    output.push(...rows);
+  }
+  return output;
+}
+
+function countProcessFieldGaps(row) {
+  const fields = [
+    "classe",
+    "assunto_principal",
+    "area",
+    "data_ajuizamento",
+    "sistema",
+    "polo_ativo",
+    "polo_passivo",
+    "status_atual_processo",
+  ];
+  return fields.reduce((acc, field) => {
+    const value = row?.[field];
+    if (value === null || value === undefined || value === "") acc += 1;
+    return acc;
+  }, 0);
+}
+
 async function loadPublicacoesByProcessIds(env, processIds, limitPerProcess = 50) {
   const output = [];
   for (const chunk of splitIntoChunks(processIds, 25)) {
@@ -1019,15 +1049,28 @@ export async function enrichProcessesViaDatajud(env, { processNumbers = [], limi
   for (const proc of processes.slice(0, safeLimit)) {
     const numero = String(proc.numero_cnj || "").replace(/\D+/g, "");
     if (!numero) continue;
+    const before = {
+      quantidade_movimentacoes: proc.quantidade_movimentacoes ?? 0,
+      gaps: countProcessFieldGaps(proc),
+    };
     const result = await hmadvFunction(
       env,
       "datajud-search",
       {},
       { method: "POST", body: { numeroProcesso: numero, persistir: true } }
     );
+    const [afterRow] = await loadProcessesByIds(env, [proc.id]);
+    const after = afterRow ? {
+      quantidade_movimentacoes: afterRow.quantidade_movimentacoes ?? 0,
+      gaps: countProcessFieldGaps(afterRow),
+    } : before;
     sample.push({
       processo_id: proc.id,
       numero_cnj: numero,
+      before,
+      after,
+      movimentos_novos: Math.max(0, (after.quantidade_movimentacoes || 0) - (before.quantidade_movimentacoes || 0)),
+      gaps_reduzidos: Math.max(0, (before.gaps || 0) - (after.gaps || 0)),
       result,
     });
   }
@@ -1053,7 +1096,16 @@ export async function syncProcessesSupabaseCrm(env, { processNumbers = [], limit
   for (const proc of processes.slice(0, safeLimit)) {
     const numero = String(proc.numero_cnj || "").replace(/\D+/g, "");
     if (!numero) continue;
+    const before = {
+      quantidade_movimentacoes: proc.quantidade_movimentacoes ?? 0,
+      gaps: countProcessFieldGaps(proc),
+    };
     const datajud = await runDatajudPersistForProcess(env, numero);
+    const [afterRow] = await loadProcessesByIds(env, [proc.id]);
+    const after = afterRow ? {
+      quantidade_movimentacoes: afterRow.quantidade_movimentacoes ?? 0,
+      gaps: countProcessFieldGaps(afterRow),
+    } : before;
     let repair = { skipped: true, reason: "sem_account" };
     if (proc.account_id_freshsales) {
       repair = await runFreshsalesRepairForProcess(env, proc);
@@ -1063,6 +1115,10 @@ export async function syncProcessesSupabaseCrm(env, { processNumbers = [], limit
       processo_id: proc.id,
       numero_cnj: numero,
       account_id_freshsales: proc.account_id_freshsales || null,
+      before,
+      after,
+      movimentos_novos: Math.max(0, (after.quantidade_movimentacoes || 0) - (before.quantidade_movimentacoes || 0)),
+      gaps_reduzidos: Math.max(0, (before.gaps || 0) - (after.gaps || 0)),
       datajud,
       freshsales_repair: repair,
     });
