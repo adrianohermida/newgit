@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { detectIntent } from "../../lib/ai/intent_router";
+import { getCurrentContext } from "../../lib/ai/context_engine";
 import { useRouter } from "next/router";
 import { adminFetch } from "../../lib/admin/api";
 
@@ -397,6 +399,30 @@ export default function DotobotCopilot({
     setLoading(true);
     setUiState("responding");
     let finalUiState = "idle";
+
+    // Integração operacional: detectar intenção e contexto
+    const detected = detectIntent(trimmedQuestion);
+    const context = getCurrentContext({ route: routePath });
+
+    // Exemplo: mensagem de status no chat
+    setMessages((msgs) => [
+      ...msgs,
+      { role: "user", text: trimmedQuestion, createdAt: nowIso() },
+      { role: "assistant", text: `Entendi sua intenção: ${detected.intent}. Estou processando...`, createdAt: nowIso() },
+    ]);
+
+    // Aqui entraria chamada real ao system_tool conforme a intenção
+    // Exemplo: se detected.intent === "create_task", chamar system_tools/tasks_tool
+
+    setTimeout(() => {
+      setMessages((msgs) => [
+        ...msgs,
+        { role: "assistant", text: `Ação '${detected.intent}' concluída (simulação).`, createdAt: nowIso() },
+      ]);
+      setLoading(false);
+      setUiState(finalUiState);
+    }, 1200);
+  }
 
     return (
       <div className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-[480px] flex-col border-l border-[#22342F] bg-[rgba(12,15,14,0.98)] shadow-2xl transition-transform duration-300 ${collapsed ? 'translate-x-full' : 'translate-x-0'}`}
