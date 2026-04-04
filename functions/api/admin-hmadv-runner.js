@@ -33,7 +33,7 @@ export async function onRequestPost(context) {
     }
 
     const data = await drainHmadvQueues(context.env, {
-      maxChunks: Number(body.maxChunks || 8),
+      maxChunks: Number(body.maxChunks || 2),
     });
     return jsonOk({ data });
   } catch (error) {

@@ -299,7 +299,7 @@ export default function InternoHomePage() {
                     </div>
                     <p className="opacity-75 mb-2">
                       {hmadvOps.data.runnerConfigured
-                        ? "Pronto para scheduler externo via /api/admin-hmadv-runner."
+                        ? "Token do runner configurado. Confirme execucoes recentes do workflow hmadv-runner para validar a automacao."
                         : "Pendente configurar HMADV_RUNNER_TOKEN para liberar execucao agendada fora da aba."}
                     </p>
                     <div className="grid gap-3 md:grid-cols-3 mb-3">
@@ -321,7 +321,7 @@ export default function InternoHomePage() {
                         <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Ultima atividade</p>
                         <p className="text-sm font-semibold">
                           {hmadvOps.data.autoMode?.lastActivityAt
-                            ? new Date(hmadvOps.data.autoMode.lastActivityAt).toLocaleString("pt-BR")
+                            ? `${new Date(hmadvOps.data.autoMode.lastActivityAt).toLocaleString("pt-BR")} (${hmadvOps.data.autoMode.lastActivityLabel || "atividade recente"})`
                             : "Sem atividade registrada"}
                         </p>
                       </div>

@@ -2,13 +2,13 @@ name: HMADV Queue Runner
 
 on:
   schedule:
-    - cron: "*/5 11-23 * * 1-5"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
     inputs:
       max_chunks:
         description: "Quantidade maxima de chunks por rodada"
         required: false
-        default: "8"
+        default: "2"
 
 jobs:
   drain-hmadv-queues:
@@ -23,7 +23,7 @@ jobs:
         run: |
           MAX_CHUNKS="${{ github.event.inputs.max_chunks }}"
           if [ -z "$MAX_CHUNKS" ]; then
-            MAX_CHUNKS="8"
+            MAX_CHUNKS="2"
           fi
           echo "max_chunks=$MAX_CHUNKS" >> "$GITHUB_OUTPUT"
 

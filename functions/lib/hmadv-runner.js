@@ -60,6 +60,19 @@ function minutesSince(isoString) {
   return Math.max(0, Math.round((Date.now() - parsed) / 60000));
 }
 
+function formatLastActivityLabel(isoString) {
+  const minutes = minutesSince(isoString);
+  if (minutes === null) return "Sem atividade registrada";
+  if (minutes < 1) return "Agora mesmo";
+  if (minutes === 1) return "Ha 1 minuto";
+  if (minutes < 60) return `Ha ${minutes} minutos`;
+  const hours = Math.floor(minutes / 60);
+  if (hours === 1) return "Ha 1 hora";
+  if (hours < 24) return `Ha ${hours} horas`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "Ha 1 dia" : `Ha ${days} dias`;
+}
+
 function summarizeRecentCycle(job) {
   if (!job) return null;
   const requestedCount = Number(job.requested_count || 0);
@@ -256,8 +269,8 @@ export async function getHmadvQueueSnapshot(env) {
   let nextStep = "Operacao pronta para drenagem manual pelo /interno.";
   if (runnerConfigured) {
     nextStep = totalPendingJobs
-      ? "Runner pronto; vale ativar o scheduler externo para consumir a fila continuamente."
-      : "Runner pronto; manter scheduler externo para capturar novas pendencias automaticamente.";
+      ? "Token do runner configurado; confirme se o workflow hmadv-runner esta habilitado e com execucoes recentes."
+      : "Token do runner configurado; manter o workflow hmadv-runner ativo para capturar novas pendencias automaticamente.";
   } else if (totalPendingJobs || totalBacklogItems) {
     nextStep = "Configurar HMADV_RUNNER_TOKEN e o workflow hmadv-runner para reduzir cliques manuais.";
   }
@@ -271,6 +284,7 @@ export async function getHmadvQueueSnapshot(env) {
     latestPublicacaoJob?.finished_at
   );
   const inactivityMinutes = minutesSince(lastActivityAt);
+  const lastActivityLabel = formatLastActivityLabel(lastActivityAt);
 
   let healthStatus = "healthy";
   let healthLabel = "Saudavel";
@@ -280,10 +294,14 @@ export async function getHmadvQueueSnapshot(env) {
     healthStatus = "error";
     healthLabel = "Com erro";
     healthReason = "Existem jobs com falha recente e a fila precisa de revisao.";
-  } else if (totalPendingJobs > 0 && inactivityMinutes !== null && inactivityMinutes >= 30) {
+  } else if (totalPendingJobs > 0 && inactivityMinutes !== null && inactivityMinutes >= 15) {
     healthStatus = "stalled";
     healthLabel = "Parado";
     healthReason = "Ha fila pendente sem atividade recente; vale revisar o runner automatico.";
+  } else if (runnerConfigured && (totalPendingJobs > 0 || totalBacklogItems > 0) && inactivityMinutes !== null && inactivityMinutes >= 15) {
+    healthStatus = "attention";
+    healthLabel = "Sem prova recente";
+    healthReason = "O token existe, mas nao ha atividade recente suficiente para confiar na automacao.";
   } else if (!runnerConfigured && (totalPendingJobs > 0 || totalBacklogItems > 0)) {
     healthStatus = "manual_only";
     healthLabel = "Manual";
@@ -475,6 +493,7 @@ export async function getHmadvQueueSnapshot(env) {
       recommendedIntervalMinutes: 5,
       nextStep,
       lastActivityAt,
+      lastActivityLabel,
       inactivityMinutes,
       healthStatus,
       healthLabel,
@@ -501,7 +520,7 @@ export async function getHmadvQueueSnapshot(env) {
   };
 }
 
-export async function drainHmadvQueues(env, { maxChunks = 8 } = {}) {
+export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
   const [processos, publicacoes] = await Promise.all([
     drainModuleJobs(env, "processos", processProcessAdminJob, maxChunks),
     drainModuleJobs(env, "publicacoes", processPublicacoesAdminJob, maxChunks),
