@@ -133,6 +133,9 @@ function renderProcessSyncStatuses(row) {
   return statuses;
 }
 function OperationResult({ result }) {
+  if (result?.job) {
+    return <JobCard job={result.job} active />;
+  }
   const rows = Array.isArray(result?.items) ? result.items : Array.isArray(result?.sample) ? result.sample : [];
   const counters = rows.reduce((acc, row) => {
     if (row.datajud || row.result) acc.persistidos += 1;
@@ -743,6 +746,7 @@ function InternoProcessosContent() {
   const selectedSummary = selectedWithoutMovements.length + selectedMonitoringActive.length + selectedMonitoringInactive.length + selectedFieldGaps.length + selectedOrphans.length;
   const latestHistory = executionHistory[0] || null;
   const latestRemoteRun = remoteHistory[0] || null;
+  const latestJob = jobs[0] || null;
   const remoteHealth = deriveRemoteHealth(remoteHistory);
   const recurringProcesses = deriveRecurringProcessEntries(remoteHistory);
   const recurringProcessSummary = summarizeRecurringProcessEntries(recurringProcesses);
@@ -794,6 +798,7 @@ function InternoProcessosContent() {
     {view === "operacao" ? <div id="operacao" className="grid gap-6 xl:grid-cols-2">
       <Panel title="Fila operacional" eyebrow="Sincronismo Freshsales + Supabase">
         <div className="space-y-4">
+          {latestJob ? <JobCard job={latestJob} active={latestJob.id === activeJobId} /> : null}
           <label className="block"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">CNJs para foco manual</span><textarea value={processNumbers} onChange={(e) => setProcessNumbers(e.target.value)} rows={4} placeholder="Opcional: cole CNJs manualmente, um por linha." className="w-full rounded-[22px] border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" /></label>
           <label className="block max-w-[160px]"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Lote</span><input type="number" min="1" max="20" value={limit} onChange={(e) => setLimit(Number(e.target.value || 10))} className="w-full rounded-2xl border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" /></label>
           <div className="grid gap-3 md:grid-cols-2">
@@ -806,7 +811,7 @@ function InternoProcessosContent() {
           </div>
           <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-xs leading-6 opacity-70">
             <p><strong className="text-[#F4F1EA]">Selecao atual:</strong> {combinedSelectedNumbers.length ? combinedSelectedNumbers.slice(0, 8).join(", ") : "nenhum processo selecionado nas filas"}</p>
-            <p className="mt-2">Use <strong className="text-[#F4F1EA]">Sincronizar Supabase + Freshsales</strong> quando quiser persistir DataJud no banco e reparar o CRM no mesmo lote. A criacao de accounts roda em lote controlado para respeitar o teto remoto.</p>
+            <p className="mt-2">As acoes principais agora podem virar job persistido no HMADV. O painel acompanha progresso, continua em lote curto e avisa ao concluir sem depender de cliques repetidos.</p>
           </div>
         </div>
       </Panel>
@@ -919,7 +924,7 @@ function InternoProcessosContent() {
     </Panel> : null}
 
     {view === "resultado" ? <div id="resultado" className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-      <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">{actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}{actionState.error ? <p className="rounded-2xl border border-[#4B2222] bg-[rgba(127,29,29,0.18)] p-4 text-sm text-red-200">{actionState.error}</p> : null}{!actionState.loading && !actionState.error && actionState.result ? <OperationResult result={actionState.result} /> : null}{!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p> : null}</Panel>
+      <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">{actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}{actionState.error ? <p className="rounded-2xl border border-[#4B2222] bg-[rgba(127,29,29,0.18)] p-4 text-sm text-red-200">{actionState.error}</p> : null}{jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}{!actionState.loading && !actionState.error && actionState.result ? <OperationResult result={actionState.result} /> : null}{!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p> : null}</Panel>
       <Panel title="Historico de execucao" eyebrow="Memoria local da operacao">
         <div className="mb-4 flex flex-wrap gap-3">
           <ActionButton onClick={() => updateView("operacao")} className="px-4 py-2">Voltar para operacao</ActionButton>

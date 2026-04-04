@@ -160,16 +160,26 @@ export async function onRequestPost(context) {
       return runLogged(async () => runSyncWorker(context.env));
     }
     if (action === "create_job") {
-      return runLogged(async () => createProcessAdminJob(context.env, {
-        action: String(body.jobAction || ""),
-        payload: {
-          processNumbers: parseProcessNumbers(body.processNumbers),
-          limit: Number(body.limit || 10),
-        },
-      }));
+      try {
+        const data = await createProcessAdminJob(context.env, {
+          action: String(body.jobAction || ""),
+          payload: {
+            processNumbers: parseProcessNumbers(body.processNumbers),
+            limit: Number(body.limit || 10),
+          },
+        });
+        return jsonOk({ data });
+      } catch (error) {
+        return jsonError(error, 500);
+      }
     }
     if (action === "run_job_chunk") {
-      return runLogged(async () => processProcessAdminJob(context.env, body.id));
+      try {
+        const data = await processProcessAdminJob(context.env, body.id);
+        return jsonOk({ data });
+      } catch (error) {
+        return jsonError(error, 500);
+      }
     }
     if (action === "push_orfaos") {
       return runLogged(async () => pushOrphanAccounts(context.env, {
