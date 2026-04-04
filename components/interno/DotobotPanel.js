@@ -99,10 +99,13 @@ function detectAttachmentKind(file) {
 
 function normalizeAttachment(file) {
   const kind = detectAttachmentKind(file);
-  return {
-    id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    name: file.name,
-    size: file.size,
+  // Responsivo: lateral no desktop, desliza de baixo no mobile
+  return (
+    <div
+      className={`fixed lg:static right-0 top-auto bottom-0 z-50 flex h-[60vh] lg:h-full w-full max-w-full lg:max-w-[480px] flex-col border-t lg:border-t-0 lg:border-l border-[#22342F] bg-[rgba(12,15,14,0.98)] shadow-2xl transition-transform duration-300
+        ${collapsed ? 'translate-y-full lg:translate-x-full' : 'translate-y-0 lg:translate-x-0'}`}
+      style={{ minHeight: 'unset', pointerEvents: 'auto' }}
+    >
     type: file.type || "application/octet-stream",
     kind,
     previewUrl: kind === "image" ? URL.createObjectURL(file) : null,
@@ -429,7 +432,7 @@ export default function DotobotCopilot({
         style={{ minHeight: '100vh' }}
       >
         {/* HEADER */}
-        <header className="flex items-center justify-between border-b border-[#22342F] px-6 py-4">
+        <header className="flex items-center justify-between border-b border-[#22342F] px-4 py-3 lg:px-6 lg:py-4">
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-[#D9B46A] px-3 py-1 text-xs font-bold text-[#1A1A1A]">Dotobot Copilot</span>
             <span className="text-xs text-[#9BAEA8]">{uiState === "responding" ? "Pensando..." : uiState === "executing" ? "Executando..." : "Idle"}</span>
@@ -442,7 +445,7 @@ export default function DotobotCopilot({
           </button>
         </header>
         {/* MAIN CHAT AREA */}
-        <main className="flex-1 overflow-y-auto px-6 py-4" ref={scrollRef}>
+        <main className="flex-1 overflow-y-auto px-4 py-3 lg:px-6 lg:py-4" ref={scrollRef}>
           {messages.map((msg) => (
             <MessageBubble key={msg.id} message={msg} />
           ))}
@@ -451,7 +454,7 @@ export default function DotobotCopilot({
           )}
         </main>
         {/* INPUT AREA */}
-        <footer className="border-t border-[#22342F] bg-[rgba(12,15,14,0.98)] px-6 py-4">
+        <footer className="border-t border-[#22342F] bg-[rgba(12,15,14,0.98)] px-4 py-3 lg:px-6 lg:py-4">
           <form
             className="flex items-end gap-3"
             onSubmit={handleSubmit}

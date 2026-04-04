@@ -211,6 +211,34 @@ function HistoryCard({ entry, onReuse }) {
   </div>;
 }
 
+function StatusBadge({ children, tone = "default" }) {
+  const tones = {
+    default: "border-[#2D2E2E] text-[#F4F1EA]",
+    success: "border-[#30543A] text-[#B7F7C6]",
+    warning: "border-[#6E5630] text-[#FDE68A]",
+    danger: "border-[#5B2D2D] text-[#FECACA]",
+  };
+  return <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${tones[tone] || tones.default}`}>{children}</span>;
+}
+
+function renderSyncStatuses(row) {
+  const statuses = [];
+  if (row.partes_novas?.length) {
+    statuses.push({ label: `detectadas ${row.partes_novas.length}`, tone: "warning" });
+  } else if (typeof row.partes_detectadas === "number") {
+    statuses.push({ label: "sem novas partes", tone: "default" });
+  }
+  if (row.polos_atualizados?.polo_ativo || row.polos_atualizados?.polo_passivo) {
+    statuses.push({ label: "polos atualizados", tone: "success" });
+  }
+  if (row.freshsales_repair?.skipped) {
+    statuses.push({ label: "crm pendente", tone: "warning" });
+  } else if (row.freshsales_repair) {
+    statuses.push({ label: "crm reparado", tone: "success" });
+  }
+  return statuses;
+}
+
 function OperationResult({ result }) {
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -245,6 +273,11 @@ function OperationResult({ result }) {
               <div key={`${row.numero_cnj || row.processo_id || index}`} className="border border-[#2D2E2E] p-4 text-sm">
                 <p className="font-semibold">{row.numero_cnj || row.processo_id || `Linha ${index + 1}`}</p>
                 {row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}
+                {renderSyncStatuses(row).length ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {renderSyncStatuses(row).map((item) => <StatusBadge key={item.label} tone={item.tone}>{item.label}</StatusBadge>)}
+                  </div>
+                ) : null}
                 {row.account_id_freshsales ? (
                   <a
                     href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`}
@@ -264,6 +297,12 @@ function OperationResult({ result }) {
                   <p className="mt-2 text-xs opacity-50">
                     Partes existentes: {row.partes_existentes_preview.map((item) => `${item.nome} (${item.polo})`).join(" | ")}
                   </p>
+                ) : null}
+                {row.polos_atualizados?.polo_ativo || row.polos_atualizados?.polo_passivo ? (
+                  <div className="mt-2 text-xs opacity-70">
+                    {row.polos_atualizados?.polo_ativo ? <p>Polo ativo: {row.polos_atualizados.polo_ativo}</p> : null}
+                    {row.polos_atualizados?.polo_passivo ? <p>Polo passivo: {row.polos_atualizados.polo_passivo}</p> : null}
+                  </div>
                 ) : null}
                 {row.result ? <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs opacity-70">{JSON.stringify(row.result, null, 2)}</pre> : null}
               </div>
@@ -601,7 +640,7 @@ function PublicacoesContent() {
               <QueueSummaryCard
                 title="Partes extraiveis"
                 count={partesCandidates.totalRows || partesCandidates.items.length || 0}
-                helper={`${selectedPartesKeys.length} selecionado(s) nesta sessao.`}
+                helper={`${selectedPartesKeys.length} selecionado(s) nesta sessao.${partesCandidates.totalEstimated ? " Total estimado." : ""}`}
               />
               <QueueSummaryCard
                 title="Partes totais"
@@ -677,7 +716,7 @@ function PublicacoesContent() {
       {view === "filas" ? <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <QueueSummaryCard title="Processos criaveis" count={processCandidates.totalRows || processCandidates.items.length || 0} helper="Fila para gerar processo a partir da publicacao." />
-          <QueueSummaryCard title="Partes extraiveis" count={partesCandidates.totalRows || partesCandidates.items.length || 0} helper="Fila para enriquecer judiciario.partes." />
+          <QueueSummaryCard title="Partes extraiveis" count={partesCandidates.totalRows || partesCandidates.items.length || 0} helper={partesCandidates.totalEstimated ? "Fila estimada para enriquecer judiciario.partes." : "Fila para enriquecer judiciario.partes."} />
           <QueueSummaryCard title="Com activity" count={data.publicacoesComActivity || 0} helper="Publicacoes ja refletidas no Freshsales." />
           <QueueSummaryCard title="Pendentes" count={data.publicacoesPendentesComAccount || 0} helper="Publicacoes ainda sem activity." />
         </div>

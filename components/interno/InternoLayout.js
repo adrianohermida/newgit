@@ -64,11 +64,12 @@ export default function InternoLayout({
   const { supabase } = useSupabaseBrowser();
   const initialWorkspaceOpen = router.pathname === "/interno/agentlab/conversations";
   const shouldRenderDotobotRail = !hideDotobotRail || forceDotobotRail;
+  // Grid responsivo e mobile-first
   const gridClassName = !shouldRenderDotobotRail
-    ? "grid min-h-[calc(100vh-1.5rem)] gap-3 lg:grid-cols-[272px_minmax(0,1fr)]"
+    ? "grid min-h-[calc(100vh-1.5rem)] gap-3 grid-cols-1 lg:grid-cols-[272px_minmax(0,1fr)]"
     : rightRailFullscreen
-      ? "grid min-h-[calc(100vh-1.5rem)] gap-3 lg:grid-cols-[272px_minmax(0,1fr)_minmax(420px,46vw)]"
-      : "grid min-h-[calc(100vh-1.5rem)] gap-3 lg:grid-cols-[272px_minmax(0,1fr)_320px]";
+      ? "grid min-h-[calc(100vh-1.5rem)] gap-3 grid-cols-1 lg:grid-cols-[272px_minmax(0,1fr)_minmax(420px,46vw)]"
+      : "grid min-h-[calc(100vh-1.5rem)] gap-3 grid-cols-1 lg:grid-cols-[272px_minmax(0,1fr)_360px]";
 
   async function handleSignOut() {
     if (supabase) {
@@ -81,7 +82,7 @@ export default function InternoLayout({
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.24),transparent_30%),linear-gradient(180deg,#050706_0%,#070A09_100%)] text-[#F4F1EA]">
       <div className="w-full px-3 py-3 md:px-4 xl:px-5">
           <div className={gridClassName}>
-          <aside className="lg:sticky lg:top-3 lg:h-[calc(100vh-1.5rem)]">
+          <aside className="sticky top-0 z-20 h-auto lg:sticky lg:top-3 lg:h-[calc(100vh-1.5rem)]">
             <div className="flex h-full flex-col rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(10,18,16,0.98),rgba(8,15,13,0.94))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.22)]">
               <Link href="/interno" prefetch={false} className="mb-8 block">
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C5A059]">Hermida Maia</p>
@@ -125,7 +126,7 @@ export default function InternoLayout({
             </div>
           </aside>
 
-          <main className="order-3 lg:order-none min-w-0 rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(9,16,14,0.97),rgba(8,14,12,0.93))] px-5 py-5 md:px-6 xl:px-7">
+          <main className="order-3 lg:order-none min-w-0 rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(9,16,14,0.97),rgba(8,14,12,0.93))] px-2 py-3 sm:px-4 md:px-6 xl:px-7">
             <header className="mb-6 border-b border-[#1E2E29] pb-5">
               <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                 <div className="min-w-0">
@@ -152,8 +153,14 @@ export default function InternoLayout({
           </main>
 
           {shouldRenderDotobotRail ? (
-            <aside id="dotobot-rail" className="order-2 lg:order-none lg:h-[calc(100vh-1.5rem)]">
-              <div className="h-full overflow-y-auto rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(10,17,15,0.96),rgba(8,14,12,0.92))] p-3 md:p-4 lg:sticky lg:top-3">
+            <aside
+              id="dotobot-rail"
+              className="order-2 lg:order-none w-full max-w-full fixed bottom-0 left-0 right-0 z-40 lg:static lg:h-[calc(100vh-1.5rem)] lg:max-w-[360px]"
+              style={{ pointerEvents: 'none' }}
+            >
+              <div className="h-full overflow-y-auto rounded-t-2xl lg:rounded-[28px] border border-[#1C2B27] bg-[linear-gradient(180deg,rgba(10,17,15,0.96),rgba(8,14,12,0.92))] p-2 md:p-4 lg:sticky lg:top-3"
+                style={{ pointerEvents: 'auto' }}
+              >
                 {rightRail || (
                   <DotobotCopilot
                     profile={profile}
