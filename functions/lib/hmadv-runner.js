@@ -98,6 +98,37 @@ function summarizeRecentCycle(job) {
   };
 }
 
+function buildCycleTrend(items = []) {
+  const latest = summarizeRecentCycle(items[0] || null);
+  const previous = summarizeRecentCycle(items[1] || null);
+  if (!latest) return null;
+
+  let label = "Estavel";
+  let reason = "Sem base suficiente para comparar a tendencia recente.";
+
+  if (previous) {
+    const latestScore = Number(latest.successRate ?? 0) + Number(latest.coverageRate ?? 0);
+    const previousScore = Number(previous.successRate ?? 0) + Number(previous.coverageRate ?? 0);
+    if (latestScore >= previousScore + 20) {
+      label = "Melhorando";
+      reason = "O ciclo mais recente entregou melhor cobertura e/ou sucesso do que o anterior.";
+    } else if (latestScore + 20 <= previousScore) {
+      label = "Piorando";
+      reason = "O ciclo mais recente perdeu cobertura ou taxa de sucesso frente ao anterior.";
+    } else {
+      label = "Estavel";
+      reason = "Os dois ciclos recentes ficaram em faixa parecida de desempenho.";
+    }
+  }
+
+  return {
+    label,
+    reason,
+    latest,
+    previous,
+  };
+}
+
 async function drainModuleJobs(env, modulo, processor, maxChunks = 6) {
   const safeChunks = Math.max(1, Math.min(Number(maxChunks || 6), 30));
   let chunks = 0;
@@ -282,6 +313,10 @@ export async function getHmadvQueueSnapshot(env) {
     recentCycle: {
       processos: summarizeRecentCycle((processJobs.items || [])[0] || null),
       publicacoes: summarizeRecentCycle((publicacaoJobs.items || [])[0] || null),
+    },
+    recentTrend: {
+      processos: buildCycleTrend(processJobs.items || []),
+      publicacoes: buildCycleTrend(publicacaoJobs.items || []),
     },
     autoMode: {
       enabled: runnerConfigured,

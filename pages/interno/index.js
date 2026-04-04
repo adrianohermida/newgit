@@ -117,6 +117,30 @@ function CycleCard({ title, cycle }) {
   );
 }
 
+function TrendCard({ title, trend }) {
+  const toneClass =
+    trend?.label === "Melhorando"
+      ? "border-[#3A5E46] bg-[rgba(58,94,70,0.12)] text-[#A7D7B4]"
+      : trend?.label === "Piorando"
+        ? "border-[#5B3535] bg-[rgba(91,53,53,0.12)] text-[#E7B3B3]"
+        : "border-[#7A6431] bg-[rgba(122,100,49,0.12)] text-[#E7C98C]";
+  return (
+    <div className="border border-[#2D2E2E] p-4 text-sm">
+      <p className="font-semibold mb-2">{title}</p>
+      {trend ? (
+        <div className="space-y-2">
+          <span className={`inline-flex items-center border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${toneClass}`}>
+            {trend.label}
+          </span>
+          <p className="opacity-75">{trend.reason}</p>
+        </div>
+      ) : (
+        <p className="opacity-65">Sem tendencia recente.</p>
+      )}
+    </div>
+  );
+}
+
 export default function InternoHomePage() {
   const [hmadvOps, setHmadvOps] = useState({ loading: true, error: null, data: null });
   const [draining, setDraining] = useState(false);
@@ -333,6 +357,16 @@ export default function InternoHomePage() {
                     <CycleCard
                       title="Resumo do ultimo ciclo de publicacoes"
                       cycle={hmadvOps.data.recentCycle?.publicacoes || null}
+                    />
+                  </div>
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <TrendCard
+                      title="Tendencia recente de processos"
+                      trend={hmadvOps.data.recentTrend?.processos || null}
+                    />
+                    <TrendCard
+                      title="Tendencia recente de publicacoes"
+                      trend={hmadvOps.data.recentTrend?.publicacoes || null}
                     />
                   </div>
                 </div>
