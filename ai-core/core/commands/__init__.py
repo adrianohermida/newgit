@@ -1,0 +1,1 @@
+# Torna commands um pacote Python para permitir imports absolutos.

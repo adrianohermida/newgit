@@ -644,8 +644,8 @@ async function collectAudienciaBackfillTargets(env) {
 }
 
 function getProcessActionLimitConfig(action) {
-  if (action === "sync_supabase_crm") return { defaultLimit: 1, maxLimit: 2 };
-  if (action === "repair_freshsales_accounts") return { defaultLimit: 2, maxLimit: 3 };
+  if (action === "sync_supabase_crm") return { defaultLimit: 1, maxLimit: 1 };
+  if (action === "repair_freshsales_accounts") return { defaultLimit: 1, maxLimit: 1 };
   if (action === "enriquecer_datajud") return { defaultLimit: 2, maxLimit: 3 };
   if (action === "push_orfaos") return { defaultLimit: 2, maxLimit: 3 };
   if (action === "backfill_audiencias") return { defaultLimit: 2, maxLimit: 3 };
