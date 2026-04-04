@@ -1654,6 +1654,7 @@ export async function syncProcessesSupabaseCrm(env, { processNumbers = [], limit
   const scopedProcesses = processes.slice(0, safeLimit);
   const beforeMap = new Map();
   const datajudMap = new Map();
+  const processesNeedingDatajud = [];
   for (const proc of scopedProcesses) {
     beforeMap.set(proc.id, {
       quantidade_movimentacoes: proc.quantidade_movimentacoes ?? 0,
@@ -1661,22 +1662,28 @@ export async function syncProcessesSupabaseCrm(env, { processNumbers = [], limit
     });
   }
   for (const proc of scopedProcesses) {
-    const numero = String(proc.numero_cnj || "").replace(/\D+/g, "");
-    if (!numero) continue;
-    const datajud = await runDatajudPersistForProcess(env, numero);
-    datajudMap.set(proc.id, { numero, datajud });
-  }
-  const afterRows = await loadProcessesByIds(env, scopedProcesses.map((item) => item.id));
-  const afterMap = new Map(afterRows.map((row) => [row.id, row]));
-  const sample = [];
-  let reparados = 0;
-  for (const proc of scopedProcesses) {
-    const datajudRun = datajudMap.get(proc.id);
-    if (!datajudRun?.numero) continue;
     const before = beforeMap.get(proc.id) || {
       quantidade_movimentacoes: proc.quantidade_movimentacoes ?? 0,
       gaps: countProcessFieldGaps(proc),
     };
+    const needsDatajud = Number(before.quantidade_movimentacoes || 0) <= 0;
+    if (!needsDatajud) continue;
+    const numero = String(proc.numero_cnj || "").replace(/\D+/g, "");
+    if (!numero) continue;
+    const datajud = await runDatajudPersistForProcess(env, numero);
+    datajudMap.set(proc.id, { numero, datajud });
+    processesNeedingDatajud.push(proc.id);
+  }
+  const afterRows = processesNeedingDatajud.length ? await loadProcessesByIds(env, processesNeedingDatajud) : [];
+  const afterMap = new Map(afterRows.map((row) => [row.id, row]));
+  const sample = [];
+  let reparados = 0;
+  for (const proc of scopedProcesses) {
+    const before = beforeMap.get(proc.id) || {
+      quantidade_movimentacoes: proc.quantidade_movimentacoes ?? 0,
+      gaps: countProcessFieldGaps(proc),
+    };
+    const datajudRun = datajudMap.get(proc.id);
     const afterRow = afterMap.get(proc.id);
     const after = afterRow ? {
       quantidade_movimentacoes: afterRow.quantidade_movimentacoes ?? 0,
@@ -1696,13 +1703,13 @@ export async function syncProcessesSupabaseCrm(env, { processNumbers = [], limit
     }
     sample.push({
       processo_id: proc.id,
-      numero_cnj: datajudRun.numero,
+      numero_cnj: String(proc.numero_cnj || "").replace(/\D+/g, ""),
       account_id_freshsales: targetProcess.account_id_freshsales || null,
       before,
       after,
       movimentos_novos: movimentosNovos,
       gaps_reduzidos: gapsReduzidos,
-      datajud: datajudRun.datajud,
+      datajud: datajudRun?.datajud || { skipped: true, reason: "crm_only" },
       freshsales_repair: repair,
     });
   }
