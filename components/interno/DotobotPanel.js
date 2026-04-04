@@ -591,30 +591,28 @@ export default function DotobotCopilot({
     // Chat normal (streaming)
     try {
       const controller = new AbortController();
-      try {
-        const data = await adminFetch("/api/admin-lawdesk-chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query: trimmedQuestion,
-            mode: nextMode,
-            provider: nextProvider,
-            contextEnabled: nextContextEnabled,
-            context: globalContext,
-          }),
-        });
-        setMessages((msgs) => [
-          ...msgs,
-          { role: "assistant", text: data?.data?.result || data?.data || "(sem resposta)", createdAt: nowIso() },
-        ]);
-        setLoading(false);
-        setUiState("idle");
-      } catch (err) {
-        setError(err.message || "Erro ao conectar ao backend.");
-        setLoading(false);
-        setUiState("idle");
-      }
-  }
+      const data = await adminFetch("/api/admin-lawdesk-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: trimmedQuestion,
+          mode: nextMode,
+          provider: nextProvider,
+          contextEnabled: nextContextEnabled,
+          context: globalContext,
+        }),
+      });
+      setMessages((msgs) => [
+        ...msgs,
+        { role: "assistant", text: data?.data?.result || data?.data || "(sem resposta)", createdAt: nowIso() },
+      ]);
+      setLoading(false);
+      setUiState("idle");
+    } catch (err) {
+      setError(err.message || "Erro ao conectar ao backend.");
+      setLoading(false);
+      setUiState("idle");
+    }
 
 
 

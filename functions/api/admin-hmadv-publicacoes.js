@@ -37,31 +37,31 @@ function isJobInfraError(error) {
 
 async function runInlinePublicacoesAction(env, action, body) {
   const processNumbers = parseProcessNumbers(body.processNumbers);
-  const limit = Number(body.limit || 10);
+  const requestedLimit = Number(body.limit || 0);
   if (action === "backfill_partes") {
     return backfillPartesFromPublicacoes(env, {
       processNumbers,
-      limit: Number(body.limit || 50),
+      limit: requestedLimit || 3,
       apply: Boolean(body.apply),
     });
   }
   if (action === "sincronizar_partes") {
     return syncPartesFromPublicacoes(env, {
       processNumbers,
-      limit: Number(body.limit || 20),
+      limit: requestedLimit || 2,
     });
   }
   if (action === "criar_processos_publicacoes") {
     return createProcessesFromPublicacoes(env, {
       processNumbers,
-      limit,
+      limit: requestedLimit || 2,
     });
   }
   throw new Error(`Acao inline de publicacoes nao suportada: ${action}`);
 }
 
 async function drainPublicacoesJobs(env, { preferredId = null, maxChunks = 6 } = {}) {
-  const safeChunks = Math.max(1, Math.min(Number(maxChunks || 6), 20));
+  const safeChunks = Math.max(1, Math.min(Number(maxChunks || 1), 1));
   let chunks = 0;
   let activeJob = null;
   let completedAll = false;
@@ -178,19 +178,19 @@ export async function onRequestPost(context) {
     if (action === "backfill_partes") {
       return runLogged(async () => backfillPartesFromPublicacoes(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 50),
+        limit: Number(body.limit || 3),
         apply: Boolean(body.apply),
       }));
     }
     if (action === "create_job") {
       try {
-        const data = await createPublicacoesAdminJob(context.env, {
-          action: String(body.jobAction || ""),
-          payload: {
-            processNumbers: parseProcessNumbers(body.processNumbers),
-            limit: Number(body.limit || 10),
-          },
-        });
+          const data = await createPublicacoesAdminJob(context.env, {
+            action: String(body.jobAction || ""),
+            payload: {
+              processNumbers: parseProcessNumbers(body.processNumbers),
+              limit: Number(body.limit || 0),
+            },
+          });
         return jsonOk({ data });
       } catch (error) {
         if (isJobInfraError(error)) {
@@ -237,7 +237,7 @@ export async function onRequestPost(context) {
       try {
         const data = await drainPublicacoesJobs(context.env, {
           preferredId: body.id || null,
-          maxChunks: Number(body.maxChunks || 6),
+          maxChunks: Number(body.maxChunks || 1),
         });
         return jsonOk({ data });
       } catch (error) {
@@ -247,13 +247,13 @@ export async function onRequestPost(context) {
     if (action === "sincronizar_partes") {
       return runLogged(async () => syncPartesFromPublicacoes(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 20),
+        limit: Number(body.limit || 2),
       }));
     }
     if (action === "criar_processos_publicacoes") {
       return runLogged(async () => createProcessesFromPublicacoes(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 10),
+        limit: Number(body.limit || 2),
       }));
     }
     if (action === "run_sync_worker") {

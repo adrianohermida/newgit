@@ -728,7 +728,7 @@ function PublicacoesContent() {
           const payload = await adminFetch("/api/admin-hmadv-publicacoes", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "run_pending_jobs", id: activeJobId, maxChunks: 6 }),
+            body: JSON.stringify({ action: "run_pending_jobs", id: activeJobId, maxChunks: 1 }),
           }, { timeoutMs: 120000, maxRetries: 0 });
           const result = payload.data || {};
           const job = result.job || null;
@@ -950,7 +950,7 @@ function PublicacoesContent() {
       const payload = await adminFetch("/api/admin-hmadv-publicacoes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "run_pending_jobs", id: activeJobId, maxChunks: 8 }),
+        body: JSON.stringify({ action: "run_pending_jobs", id: activeJobId, maxChunks: 1 }),
       }, { timeoutMs: 120000, maxRetries: 0 });
       const result = payload.data || {};
       setActionState({ loading: false, error: null, result: result.job ? { job: result.job, drain: result } : { drain: result } });
