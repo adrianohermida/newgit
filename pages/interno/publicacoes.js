@@ -534,7 +534,7 @@ function PublicacoesContent() {
               <QueueSummaryCard
                 title="Processos criaveis"
                 count={processCandidates.totalRows || processCandidates.items.length || 0}
-                helper={`${selectedProcessKeys.length} selecionado(s) nesta sessao.${processCandidates.totalEstimated ? " Total estimado." : ""}`}
+                helper={`${selectedProcessKeys.length} selecionado(s) nesta sessao.${processCandidates.totalEstimated ? " Total estimado de processos unicos ainda sem vinculo." : ""}`}
               />
               <QueueSummaryCard
                 title="Sem processo vinculado"
