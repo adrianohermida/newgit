@@ -773,6 +773,7 @@ function InternoProcessosContent() {
   const [drainInFlight, setDrainInFlight] = useState(false);
   const [snapshotAt, setSnapshotAt] = useState(null);
   const [uiHydrated, setUiHydrated] = useState(false);
+  const [pageVisible, setPageVisible] = useState(true);
   const bootstrappedRef = useRef(false);
   const [limit, setLimit] = useState(2);
   const [processNumbers, setProcessNumbers] = useState("");
@@ -818,6 +819,17 @@ function InternoProcessosContent() {
     if (typeof window !== "undefined") window.addEventListener("hashchange", syncViewFromLocation);
     return () => {
       if (typeof window !== "undefined") window.removeEventListener("hashchange", syncViewFromLocation);
+    };
+  }, []);
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    const handleVisibilityChange = () => {
+      setPageVisible(document.visibilityState !== "hidden");
+    };
+    handleVisibilityChange();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
   useEffect(() => { setExecutionHistory(loadHistoryEntries()); }, []);
@@ -965,9 +977,15 @@ function InternoProcessosContent() {
   useEffect(() => {
     if (!activeJobId) return undefined;
     let cancelled = false;
+    const idleDelayMs = pageVisible ? 1800 : 6000;
     async function runLoop() {
       while (!cancelled) {
         try {
+          if (!pageVisible) {
+            setDrainInFlight(false);
+            await new Promise((resolve) => setTimeout(resolve, idleDelayMs));
+            continue;
+          }
           setDrainInFlight(true);
           const payload = await adminFetch("/api/admin-hmadv-processos", {
             method: "POST",
@@ -997,7 +1015,7 @@ function InternoProcessosContent() {
             return;
           }
           setDrainInFlight(false);
-          await new Promise((resolve) => setTimeout(resolve, 1800));
+          await new Promise((resolve) => setTimeout(resolve, idleDelayMs));
         } catch (error) {
           if (!cancelled) {
             setActionState({ loading: false, error: error.message || "Falha ao processar job.", result: null });
@@ -1013,7 +1031,7 @@ function InternoProcessosContent() {
     return () => {
       cancelled = true;
     };
-  }, [activeJobId, wmPage, audPage, maPage, miPage, fgPage, orphanPage]);
+  }, [activeJobId, pageVisible, wmPage, audPage, maPage, miPage, fgPage, orphanPage]);
 
   async function loadOverview() { try { const payload = await adminFetch("/api/admin-hmadv-processos?action=overview"); setOverview({ loading: false, data: payload.data }); } catch { setOverview({ loading: false, data: null }); } }
   async function loadQueue(action, setter, page) {
