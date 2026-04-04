@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch } from "../../lib/admin/api";
@@ -772,6 +772,8 @@ function InternoProcessosContent() {
   const [activeJobId, setActiveJobId] = useState(null);
   const [drainInFlight, setDrainInFlight] = useState(false);
   const [snapshotAt, setSnapshotAt] = useState(null);
+  const [uiHydrated, setUiHydrated] = useState(false);
+  const bootstrappedRef = useRef(false);
   const [limit, setLimit] = useState(2);
   const [processNumbers, setProcessNumbers] = useState("");
   const [withoutMovements, setWithoutMovements] = useState({ loading: true, items: [] });
@@ -821,16 +823,18 @@ function InternoProcessosContent() {
   useEffect(() => { setExecutionHistory(loadHistoryEntries()); }, []);
   useEffect(() => {
     const saved = loadUiState();
-    if (!saved) return;
-    if (saved.view && PROCESS_VIEW_ITEMS.some((item) => item.key === saved.view)) setView(saved.view);
-    if (saved.processNumbers) setProcessNumbers(String(saved.processNumbers));
-    if (saved.limit) setLimit(Number(saved.limit) || 2);
-    if (Array.isArray(saved.selectedWithoutMovements)) setSelectedWithoutMovements(saved.selectedWithoutMovements);
-    if (Array.isArray(saved.selectedAudienciaCandidates)) setSelectedAudienciaCandidates(saved.selectedAudienciaCandidates);
-    if (Array.isArray(saved.selectedMonitoringActive)) setSelectedMonitoringActive(saved.selectedMonitoringActive);
-    if (Array.isArray(saved.selectedMonitoringInactive)) setSelectedMonitoringInactive(saved.selectedMonitoringInactive);
-    if (Array.isArray(saved.selectedFieldGaps)) setSelectedFieldGaps(saved.selectedFieldGaps);
-    if (Array.isArray(saved.selectedOrphans)) setSelectedOrphans(saved.selectedOrphans);
+    if (saved) {
+      if (saved.view && PROCESS_VIEW_ITEMS.some((item) => item.key === saved.view)) setView(saved.view);
+      if (saved.processNumbers) setProcessNumbers(String(saved.processNumbers));
+      if (saved.limit) setLimit(Number(saved.limit) || 2);
+      if (Array.isArray(saved.selectedWithoutMovements)) setSelectedWithoutMovements(saved.selectedWithoutMovements);
+      if (Array.isArray(saved.selectedAudienciaCandidates)) setSelectedAudienciaCandidates(saved.selectedAudienciaCandidates);
+      if (Array.isArray(saved.selectedMonitoringActive)) setSelectedMonitoringActive(saved.selectedMonitoringActive);
+      if (Array.isArray(saved.selectedMonitoringInactive)) setSelectedMonitoringInactive(saved.selectedMonitoringInactive);
+      if (Array.isArray(saved.selectedFieldGaps)) setSelectedFieldGaps(saved.selectedFieldGaps);
+      if (Array.isArray(saved.selectedOrphans)) setSelectedOrphans(saved.selectedOrphans);
+    }
+    setUiHydrated(true);
   }, []);
   useEffect(() => {
     const snapshot = loadOperationalSnapshot();
@@ -886,16 +890,58 @@ function InternoProcessosContent() {
       },
     });
   }, [overview, withoutMovements, audienciaCandidates, monitoringActive, monitoringInactive, fieldGaps, orphans, remoteHistory, jobs, actionState.error, actionState.result]);
-  useEffect(() => { loadRemoteHistory(); }, []);
-  useEffect(() => { loadJobs(); }, []);
-  useEffect(() => { loadOverview(); }, []);
-  useEffect(() => { loadQueue("sem_movimentacoes", setWithoutMovements, wmPage); }, [wmPage]);
-  useEffect(() => { loadQueue("audiencias_pendentes", setAudienciaCandidates, audPage); }, [audPage]);
-  useEffect(() => { loadQueue("monitoramento_ativo", setMonitoringActive, maPage); }, [maPage]);
-  useEffect(() => { loadQueue("monitoramento_inativo", setMonitoringInactive, miPage); }, [miPage]);
-  useEffect(() => { loadQueue("campos_orfaos", setFieldGaps, fgPage); }, [fgPage]);
-  useEffect(() => { loadOrphans(orphanPage); }, [orphanPage]);
-  useEffect(() => { loadRelations(1, search); }, [search]);
+  useEffect(() => {
+    if (!uiHydrated) return undefined;
+    let cancelled = false;
+    bootstrappedRef.current = false;
+    async function bootstrap() {
+      await Promise.all([
+        loadOverview(),
+        loadQueue("sem_movimentacoes", setWithoutMovements, wmPage),
+        loadQueue("audiencias_pendentes", setAudienciaCandidates, audPage),
+        loadQueue("monitoramento_ativo", setMonitoringActive, maPage),
+        loadQueue("monitoramento_inativo", setMonitoringInactive, miPage),
+        loadQueue("campos_orfaos", setFieldGaps, fgPage),
+        loadOrphans(orphanPage),
+        loadRemoteHistory(),
+        loadJobs(),
+        loadRelations(1, search),
+      ]);
+      if (!cancelled) bootstrappedRef.current = true;
+    }
+    bootstrap();
+    return () => {
+      cancelled = true;
+    };
+  }, [uiHydrated]);
+  useEffect(() => {
+    if (!bootstrappedRef.current) return;
+    loadQueue("sem_movimentacoes", setWithoutMovements, wmPage);
+  }, [wmPage]);
+  useEffect(() => {
+    if (!bootstrappedRef.current) return;
+    loadQueue("audiencias_pendentes", setAudienciaCandidates, audPage);
+  }, [audPage]);
+  useEffect(() => {
+    if (!bootstrappedRef.current) return;
+    loadQueue("monitoramento_ativo", setMonitoringActive, maPage);
+  }, [maPage]);
+  useEffect(() => {
+    if (!bootstrappedRef.current) return;
+    loadQueue("monitoramento_inativo", setMonitoringInactive, miPage);
+  }, [miPage]);
+  useEffect(() => {
+    if (!bootstrappedRef.current) return;
+    loadQueue("campos_orfaos", setFieldGaps, fgPage);
+  }, [fgPage]);
+  useEffect(() => {
+    if (!bootstrappedRef.current) return;
+    loadOrphans(orphanPage);
+  }, [orphanPage]);
+  useEffect(() => {
+    if (!bootstrappedRef.current) return;
+    loadRelations(1, search);
+  }, [search]);
   useEffect(() => {
     const term = lookupTerm.trim();
     if (!term) { setLookup({ loading: false, items: [] }); return undefined; }
