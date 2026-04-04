@@ -1,14 +1,18 @@
 import { requireAdminAccess } from "../lib/admin-auth.js";
 import {
   backfillPartesFromPublicacoes,
+  createPublicacoesAdminJob,
   createProcessesFromPublicacoes,
+  getPublicacoesAdminJob,
   getPublicacoesOverview,
   jsonError,
   jsonOk,
+  listAdminJobs,
   listAdminOperations,
   listCreateProcessCandidates,
   listPartesExtractionCandidates,
   logAdminOperation,
+  processPublicacoesAdminJob,
   runSyncWorker,
   syncPartesFromPublicacoes,
 } from "../lib/hmadv-ops.js";
@@ -20,6 +24,40 @@ function parseProcessNumbers(value) {
     .split(/\r?\n|,|;/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function isJobInfraError(error) {
+  const message = String(error?.message || "");
+  return message.includes("operacao_jobs") && (
+    message.includes("schema cache") ||
+    message.includes("Could not find the table") ||
+    message.includes("PGRST205")
+  );
+}
+
+async function runInlinePublicacoesAction(env, action, body) {
+  const processNumbers = parseProcessNumbers(body.processNumbers);
+  const limit = Number(body.limit || 10);
+  if (action === "backfill_partes") {
+    return backfillPartesFromPublicacoes(env, {
+      processNumbers,
+      limit: Number(body.limit || 50),
+      apply: Boolean(body.apply),
+    });
+  }
+  if (action === "sincronizar_partes") {
+    return syncPartesFromPublicacoes(env, {
+      processNumbers,
+      limit: Number(body.limit || 20),
+    });
+  }
+  if (action === "criar_processos_publicacoes") {
+    return createProcessesFromPublicacoes(env, {
+      processNumbers,
+      limit,
+    });
+  }
+  throw new Error(`Acao inline de publicacoes nao suportada: ${action}`);
 }
 
 export async function onRequestGet(context) {
@@ -56,6 +94,17 @@ export async function onRequestGet(context) {
       });
       return jsonOk({ data });
     }
+    if (action === "jobs") {
+      const data = await listAdminJobs(context.env, {
+        modulo: "publicacoes",
+        limit: Number(url.searchParams.get("limit") || 20),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "job_status") {
+      const data = await getPublicacoesAdminJob(context.env, url.searchParams.get("id"));
+      return jsonOk({ data });
+    }
     return jsonError(new Error("Acao GET invalida."), 400);
   } catch (error) {
     return jsonError(error, 500);
@@ -87,6 +136,57 @@ export async function onRequestPost(context) {
         limit: Number(body.limit || 50),
         apply: Boolean(body.apply),
       }));
+    }
+    if (action === "create_job") {
+      try {
+        const data = await createPublicacoesAdminJob(context.env, {
+          action: String(body.jobAction || ""),
+          payload: {
+            processNumbers: parseProcessNumbers(body.processNumbers),
+            limit: Number(body.limit || 10),
+          },
+        });
+        return jsonOk({ data });
+      } catch (error) {
+        if (isJobInfraError(error)) {
+          try {
+            const result = await runInlinePublicacoesAction(context.env, String(body.jobAction || ""), body);
+            await logAdminOperation(context.env, {
+              modulo: "publicacoes",
+              acao: `${String(body.jobAction || "")}_inline_fallback`,
+              status: "success",
+              payload: body,
+              result,
+            });
+            return jsonOk({
+              data: {
+                legacy_inline: true,
+                action: String(body.jobAction || ""),
+                reason: "operacao_jobs_unavailable",
+                result,
+              },
+            });
+          } catch (inlineError) {
+            await logAdminOperation(context.env, {
+              modulo: "publicacoes",
+              acao: `${String(body.jobAction || "")}_inline_fallback`,
+              status: "error",
+              payload: body,
+              error: inlineError.message || "Falha no fallback inline.",
+            });
+            return jsonError(inlineError, 500);
+          }
+        }
+        return jsonError(error, 500);
+      }
+    }
+    if (action === "run_job_chunk") {
+      try {
+        const data = await processPublicacoesAdminJob(context.env, body.id);
+        return jsonOk({ data });
+      } catch (error) {
+        return jsonError(error, 500);
+      }
     }
     if (action === "sincronizar_partes") {
       return runLogged(async () => syncPartesFromPublicacoes(context.env, {

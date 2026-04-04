@@ -15,6 +15,11 @@ const ACTION_LABELS = {
   sincronizar_partes: "Salvar partes + atualizar polos + corrigir CRM",
   run_sync_worker: "Rodar sync-worker",
 };
+const ASYNC_PUBLICACOES_ACTIONS = new Set([
+  "criar_processos_publicacoes",
+  "backfill_partes",
+  "sincronizar_partes",
+]);
 
 function buildHistoryPreview(result) {
   if (!result) return "";
@@ -28,6 +33,16 @@ function buildHistoryPreview(result) {
   if (typeof result.items?.length === "number") return `Itens retornados: ${result.items.length}`;
   if (typeof result.sample?.length === "number") return `Amostra: ${result.sample.length}`;
   return "Execucao concluida";
+}
+
+function buildJobPreview(job) {
+  if (!job) return "";
+  const processed = Number(job.processed_count || 0);
+  const requested = Number(job.requested_count || 0);
+  const errors = Number(job.error_count || 0);
+  if (job.status === "completed") return `Concluido: ${processed}/${requested} processado(s)`;
+  if (job.status === "error") return job.last_error || `Falha apos ${processed}/${requested}`;
+  return `Em andamento: ${processed}/${requested} processado(s), ${errors} falha(s)`;
 }
 
 function loadHistoryEntries() {

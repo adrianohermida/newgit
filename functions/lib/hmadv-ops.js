@@ -565,6 +565,35 @@ async function resolveProcessJobTargets(env, action, processNumbers = []) {
   return selected;
 }
 
+async function collectPublicacoesTargets(loader, env) {
+  const pageSize = 50;
+  let page = 1;
+  let totalRows = null;
+  const numbers = [];
+  while (totalRows === null || (page - 1) * pageSize < totalRows) {
+    const data = await loader(env, { page, pageSize });
+    totalRows = Number(data?.totalRows || 0);
+    for (const item of data?.items || []) {
+      if (item?.numero_cnj) numbers.push(item.numero_cnj);
+    }
+    if (!(data?.items || []).length || (data?.items || []).length < pageSize) break;
+    page += 1;
+  }
+  return uniqueNonEmpty(numbers);
+}
+
+async function resolvePublicacoesJobTargets(env, action, processNumbers = []) {
+  const selected = uniqueNonEmpty(processNumbers);
+  if (selected.length) return selected;
+  if (action === "criar_processos_publicacoes") {
+    return collectPublicacoesTargets(listCreateProcessCandidates, env);
+  }
+  if (action === "backfill_partes" || action === "sincronizar_partes") {
+    return collectPublicacoesTargets(listPartesExtractionCandidates, env);
+  }
+  return selected;
+}
+
 function countProcessFieldGaps(row) {
   const fields = [
     "classe",
@@ -1793,6 +1822,138 @@ export async function processProcessAdminJob(env, id) {
       status: "error",
       payload: job.payload || {},
       error: error.message || "Falha ao processar job operacional.",
+    });
+    return failedJob || job;
+  }
+}
+
+function normalizePublicacoesJobPayload(action, payload = {}) {
+  const maxLimit = action === "backfill_partes" ? 50 : 20;
+  return {
+    ...payload,
+    action,
+    processNumbers: uniqueNonEmpty(payload.processNumbers || []),
+    limit: Math.max(1, Math.min(Number(payload.limit || 10), maxLimit)),
+  };
+}
+
+export async function createPublicacoesAdminJob(env, { action, payload = {} } = {}) {
+  const normalizedPayload = normalizePublicacoesJobPayload(action, payload);
+  const targets = await resolvePublicacoesJobTargets(env, action, normalizedPayload.processNumbers);
+  const job = await insertOperationJob(env, {
+    modulo: "publicacoes",
+    acao: action,
+    status: targets.length ? "pending" : "completed",
+    payload: {
+      ...normalizedPayload,
+      processNumbers: targets,
+    },
+    requested_count: targets.length,
+    processed_count: 0,
+    success_count: 0,
+    error_count: 0,
+    result_summary: targets.length ? {} : { requested_count: 0 },
+    result_sample: [],
+    last_error: null,
+    started_at: null,
+    finished_at: targets.length ? new Date().toISOString() : null,
+  });
+  return job;
+}
+
+export async function getPublicacoesAdminJob(env, id) {
+  return fetchOperationJobById(env, id);
+}
+
+async function runPublicacoesJobAction(env, action, processNumbers, limit) {
+  if (action === "criar_processos_publicacoes") {
+    return createProcessesFromPublicacoes(env, { processNumbers, limit });
+  }
+  if (action === "backfill_partes") {
+    return backfillPartesFromPublicacoes(env, { processNumbers, limit, apply: true });
+  }
+  if (action === "sincronizar_partes") {
+    return syncPartesFromPublicacoes(env, { processNumbers, limit });
+  }
+  throw new Error(`Acao de job de publicacoes nao suportada: ${action}`);
+}
+
+export async function processPublicacoesAdminJob(env, id) {
+  const job = await fetchOperationJobById(env, id);
+  if (!job) throw new Error("Job operacional de publicacoes nao encontrado.");
+  if (["completed", "error", "cancelled"].includes(String(job.status || ""))) return job;
+
+  const payload = normalizePublicacoesJobPayload(job.acao, job.payload || {});
+  const targets = uniqueNonEmpty(payload.processNumbers || []);
+  const offset = Math.max(0, Number(job.processed_count || 0));
+  const chunk = targets.slice(offset, offset + payload.limit);
+
+  if (!chunk.length) {
+    const completedJob = await patchOperationJob(env, job.id, {
+      status: "completed",
+      finished_at: new Date().toISOString(),
+    });
+    await logAdminOperation(env, {
+      modulo: "publicacoes",
+      acao: `${job.acao}_job`,
+      status: "success",
+      payload: job.payload || {},
+      result: {
+        sample: job.result_sample || [],
+        ...(job.result_summary || {}),
+      },
+    });
+    return completedJob || job;
+  }
+
+  const now = new Date().toISOString();
+  if (!job.started_at) {
+    await patchOperationJob(env, job.id, { status: "running", started_at: now });
+  } else if (job.status !== "running") {
+    await patchOperationJob(env, job.id, { status: "running" });
+  }
+
+  try {
+    const result = await runPublicacoesJobAction(env, job.acao, chunk, chunk.length);
+    const parsed = summarizeOperationResult(result || {});
+    const failures = summarizeChunkFailures(result || {});
+    const nextProcessed = offset + chunk.length;
+    const nextJob = await patchOperationJob(env, job.id, {
+      status: nextProcessed >= targets.length ? "completed" : "running",
+      processed_count: nextProcessed,
+      success_count: Number(job.success_count || 0) + Math.max(0, chunk.length - failures),
+      error_count: Number(job.error_count || 0) + failures,
+      result_summary: mergeNumericSummary(job.result_summary || {}, parsed.summary || {}),
+      result_sample: parsed.rows || [],
+      last_error: null,
+      finished_at: nextProcessed >= targets.length ? new Date().toISOString() : null,
+    });
+    if (nextProcessed >= targets.length) {
+      await logAdminOperation(env, {
+        modulo: "publicacoes",
+        acao: `${job.acao}_job`,
+        status: failures ? "error" : "success",
+        payload: job.payload || {},
+        result: {
+          sample: parsed.rows || [],
+          ...(nextJob?.result_summary || parsed.summary || {}),
+        },
+        error: failures ? `${failures} item(ns) com falha no lote final.` : null,
+      });
+    }
+    return nextJob || job;
+  } catch (error) {
+    const failedJob = await patchOperationJob(env, job.id, {
+      status: "error",
+      last_error: error.message || "Falha ao processar job operacional de publicacoes.",
+      finished_at: new Date().toISOString(),
+    });
+    await logAdminOperation(env, {
+      modulo: "publicacoes",
+      acao: `${job.acao}_job`,
+      status: "error",
+      payload: job.payload || {},
+      error: error.message || "Falha ao processar job operacional de publicacoes.",
     });
     return failedJob || job;
   }
