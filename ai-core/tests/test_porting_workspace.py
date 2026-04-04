@@ -84,7 +84,7 @@ class PortingWorkspaceTests(unittest.TestCase):
         session = PortRuntime().bootstrap_session('review MCP tool', limit=5)
         session_id = Path(session.persisted_session_path).stem
         result = subprocess.run(
-            [sys.executable, '-m', 'src.main', 'load-session', session_id],
+            [sys.executable, '-m', 'core.main', 'load-session', session_id],
             check=True,
             capture_output=True,
             text=True,
@@ -94,7 +94,7 @@ class PortingWorkspaceTests(unittest.TestCase):
 
     def test_summary_cli_runs(self) -> None:
         result = subprocess.run(
-            [sys.executable, '-m', 'src.main', 'summary'],
+            [sys.executable, '-m', 'core.main', 'summary'],
             check=True,
             capture_output=True,
             text=True,
@@ -103,7 +103,7 @@ class PortingWorkspaceTests(unittest.TestCase):
 
     def test_orchestrate_cli_runs(self) -> None:
         result = subprocess.run(
-            [sys.executable, '-m', 'src.main', 'orchestrate', 'summarize workspace', '--context', '{"channel":"cli"}'],
+            [sys.executable, '-m', 'core.main', 'orchestrate', 'summarize workspace', '--context', '{"channel":"cli"}'],
             check=True,
             capture_output=True,
             text=True,
