@@ -821,7 +821,6 @@ export default function DotobotCopilot({
         </div>
       </>
     );
-    );
 
 
   async function handleSubmit(event) {
