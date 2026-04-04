@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from ...adapters.obsidian_adapter import ObsidianMatch, ObsidianRagContext, search_obsidian_context, write_obsidian_memory_note
-from ...adapters.supabase_rag_adapter import is_configured as supabase_is_configured
-from ...adapters.supabase_rag_adapter import search_supabase_context
+from adapters.obsidian_adapter import ObsidianMatch, ObsidianRagContext, search_obsidian_context, write_obsidian_memory_note
+from adapters.supabase_rag_adapter import is_configured as supabase_is_configured
+from adapters.supabase_rag_adapter import search_supabase_context
 from ..memory import FileBackedLongTermMemory, LongTermMemoryRecord
 
 

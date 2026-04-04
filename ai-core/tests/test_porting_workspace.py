@@ -5,13 +5,13 @@ import sys
 import unittest
 from pathlib import Path
 
-from src.commands import PORTED_COMMANDS
-from src.execution_registry import build_execution_registry
-from src.parity_audit import run_parity_audit
-from src.port_manifest import build_port_manifest
-from src.query_engine import QueryEnginePort
-from src.runtime import PortRuntime
-from src.tools import PORTED_TOOLS
+from core.commands import PORTED_COMMANDS
+from core.execution_registry import build_execution_registry
+from core.parity_audit import run_parity_audit
+from core.port_manifest import build_port_manifest
+from core.query_engine import QueryEnginePort
+from core.runtime import PortRuntime
+from core.tools import PORTED_TOOLS
 
 
 class PortingWorkspaceTests(unittest.TestCase):

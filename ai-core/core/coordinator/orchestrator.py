@@ -4,7 +4,7 @@ from time import perf_counter
 from typing import Any
 from uuid import uuid4
 
-from ...adapters.obsidian_adapter import ObsidianRagContext
+from adapters.obsidian_adapter import ObsidianRagContext
 from ..agents import CriticAgent, ExecutionResultPayload, ExecutorAgent, PlannerAgent
 from ..memory import LongTermMemoryRecord, SessionMemory
 from .models import OrchestrationError, OrchestrationResult, OrchestrationState
