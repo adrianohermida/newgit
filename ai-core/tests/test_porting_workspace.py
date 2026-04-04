@@ -88,6 +88,7 @@ class PortingWorkspaceTests(unittest.TestCase):
             check=True,
             capture_output=True,
             text=True,
+            cwd=Path(__file__).parent.parent,
         )
         self.assertIn(session_id, result.stdout)
         self.assertIn('messages', result.stdout)
@@ -98,6 +99,7 @@ class PortingWorkspaceTests(unittest.TestCase):
             check=True,
             capture_output=True,
             text=True,
+            cwd=Path(__file__).parent.parent,
         )
         self.assertIn('Python Porting Workspace Summary', result.stdout)
 
@@ -107,6 +109,7 @@ class PortingWorkspaceTests(unittest.TestCase):
             check=True,
             capture_output=True,
             text=True,
+            cwd=Path(__file__).parent.parent,
         )
         self.assertIn('"status"', result.stdout)
         self.assertIn('"steps"', result.stdout)
