@@ -264,6 +264,13 @@ function summarizeRecurrenceBands(items = []) {
     return acc;
   }, { recurring: 0, reincident: 0, critical: 0 });
 }
+function groupRecurringProcessEntries(items = []) {
+  return {
+    critical: items.filter((item) => item.hits >= 4),
+    reincident: items.filter((item) => item.hits === 3),
+    recurring: items.filter((item) => item.hits === 2),
+  };
+}
 function suggestProcessNextAction(source, row, current) {
   if (current?.needsManualReview) return "revisar manualmente o retorno";
   if (source === "freshsales") {
@@ -279,6 +286,33 @@ function suggestProcessNextAction(source, row, current) {
   if (row?.monitoramento_ativo === false) return "reativar monitoramento";
   if (current?.noProgress) return "rodar auditoria do lote";
   return "sincronizar supabase + freshsales";
+}
+function RecurringProcessItem({ item }) {
+  return <div className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm">
+    <div className="flex flex-wrap items-center gap-2">
+      <p className="font-semibold break-all">{item.key}</p>
+      <StatusBadge tone="danger">{item.hits} ciclos</StatusBadge>
+      {recurrenceBand(item.hits) ? <StatusBadge tone={recurrenceBand(item.hits).tone}>{recurrenceBand(item.hits).label}</StatusBadge> : null}
+      <StatusBadge tone="warning">{ACTION_LABELS[item.lastAction] || item.lastAction}</StatusBadge>
+      <StatusBadge tone={sourceTone(item.source)}>{sourceLabel(item.source)}</StatusBadge>
+      {item.noProgress ? <StatusBadge tone="warning">sem progresso estrutural</StatusBadge> : null}
+      {item.needsManualReview ? <StatusBadge tone="danger">precisa intervencao manual</StatusBadge> : null}
+      {item.nextAction ? <StatusBadge tone="success">{item.nextAction}</StatusBadge> : null}
+    </div>
+    {item.titulo ? <p className="mt-2 opacity-70">{item.titulo}</p> : null}
+  </div>;
+}
+function RecurringProcessGroup({ title, helper, items }) {
+  if (!items.length) return null;
+  return <div className="space-y-3">
+    <div>
+      <p className="text-sm font-semibold">{title}</p>
+      <p className="text-xs opacity-60">{helper}</p>
+    </div>
+    <div className="space-y-3">
+      {items.map((item) => <RecurringProcessItem key={item.key} item={item} />)}
+    </div>
+  </div>;
 }
 
 export default function InternoProcessosPage() {
@@ -492,6 +526,7 @@ function InternoProcessosContent() {
   const recurringProcesses = deriveRecurringProcessEntries(remoteHistory);
   const recurringProcessSummary = summarizeRecurringProcessEntries(recurringProcesses);
   const recurringProcessBands = summarizeRecurrenceBands(recurringProcesses);
+  const recurringProcessGroups = groupRecurringProcessEntries(recurringProcesses);
   const combinedSelectedNumbers = getCombinedSelectedNumbers();
 
   return <div className="space-y-8">
@@ -570,20 +605,10 @@ function InternoProcessosContent() {
             <QueueSummaryCard title="Faixa 3x" count={recurringProcessBands.reincident} helper="Itens reincidentes que merecem atencao prioritaria." accent="text-[#FDE68A]" />
             <QueueSummaryCard title="Faixa 4x+" count={recurringProcessBands.critical} helper="Gargalos cronicos que pedem acao estrutural." accent="text-[#FECACA]" />
           </div>
-          <div className="space-y-3">
-          {recurringProcesses.map((item) => <div key={item.key} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="font-semibold break-all">{item.key}</p>
-              <StatusBadge tone="danger">{item.hits} ciclos</StatusBadge>
-              {recurrenceBand(item.hits) ? <StatusBadge tone={recurrenceBand(item.hits).tone}>{recurrenceBand(item.hits).label}</StatusBadge> : null}
-              <StatusBadge tone="warning">{ACTION_LABELS[item.lastAction] || item.lastAction}</StatusBadge>
-              <StatusBadge tone={sourceTone(item.source)}>{sourceLabel(item.source)}</StatusBadge>
-              {item.noProgress ? <StatusBadge tone="warning">sem progresso estrutural</StatusBadge> : null}
-              {item.needsManualReview ? <StatusBadge tone="danger">precisa intervencao manual</StatusBadge> : null}
-              {item.nextAction ? <StatusBadge tone="success">{item.nextAction}</StatusBadge> : null}
-            </div>
-            {item.titulo ? <p className="mt-2 opacity-70">{item.titulo}</p> : null}
-          </div>)}
+          <div className="space-y-6">
+            <RecurringProcessGroup title="Criticos (4x+)" helper="Gargalos cronicos que repetem em quatro ou mais ciclos." items={recurringProcessGroups.critical} />
+            <RecurringProcessGroup title="Reincidentes (3x)" helper="Itens que persistem por tres ciclos e merecem prioridade alta." items={recurringProcessGroups.reincident} />
+            <RecurringProcessGroup title="Recorrentes (2x)" helper="Itens que reapareceram duas vezes e ainda cabem em correcao operacional." items={recurringProcessGroups.recurring} />
           </div>
         </div>
       </Panel> : null}

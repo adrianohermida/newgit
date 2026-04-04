@@ -189,6 +189,13 @@ function summarizeRecurrenceBands(items = []) {
     return acc;
   }, { recurring: 0, reincident: 0, critical: 0 });
 }
+function groupRecurringPublicacoes(items = []) {
+  return {
+    critical: items.filter((item) => item.hits >= 4),
+    reincident: items.filter((item) => item.hits === 3),
+    recurring: items.filter((item) => item.hits === 2),
+  };
+}
 function suggestPublicacaoNextAction(source, row, current) {
   if (current?.needsManualReview) return "revisar manualmente a publicacao";
   if (source === "freshsales") return "rodar sync-worker";
@@ -199,6 +206,33 @@ function suggestPublicacaoNextAction(source, row, current) {
   }
   if (current?.noProgress) return "auditar fila de publicacoes";
   return "salvar partes + corrigir crm";
+}
+function RecurringPublicacaoItem({ item }) {
+  return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
+    <div className="flex flex-wrap items-center gap-2">
+      <p className="font-semibold break-all">{item.key}</p>
+      <HealthBadge label={`${item.hits} ciclos`} tone="danger" />
+      {recurrenceBand(item.hits) ? <HealthBadge label={recurrenceBand(item.hits).label} tone={recurrenceBand(item.hits).tone} /> : null}
+      <HealthBadge label={ACTION_LABELS[item.lastAction] || item.lastAction} tone="warning" />
+      <HealthBadge label={recurringSourceLabel(item.source)} tone={recurringSourceTone(item.source)} />
+      {item.noProgress ? <HealthBadge label="sem progresso estrutural" tone="warning" /> : null}
+      {item.needsManualReview ? <HealthBadge label="precisa intervencao manual" tone="danger" /> : null}
+      {item.nextAction ? <HealthBadge label={item.nextAction} tone="success" /> : null}
+    </div>
+    {item.titulo ? <p className="mt-2 opacity-70">{item.titulo}</p> : null}
+  </div>;
+}
+function RecurringPublicacaoGroup({ title, helper, items }) {
+  if (!items.length) return null;
+  return <div className="space-y-3">
+    <div>
+      <p className="text-sm font-semibold">{title}</p>
+      <p className="text-xs opacity-60">{helper}</p>
+    </div>
+    <div className="space-y-3">
+      {items.map((item) => <RecurringPublicacaoItem key={item.key} item={item} />)}
+    </div>
+  </div>;
 }
 
 function HealthBadge({ label, tone }) {
@@ -720,6 +754,7 @@ function PublicacoesContent() {
   const recurringPublicacoes = deriveRecurringPublicacoes(remoteHistory);
   const recurringPublicacoesSummary = summarizeRecurringPublicacoes(recurringPublicacoes);
   const recurringPublicacoesBands = summarizeRecurrenceBands(recurringPublicacoes);
+  const recurringPublicacoesGroups = groupRecurringPublicacoes(recurringPublicacoes);
 
   return (
     <div className="space-y-8">
@@ -909,20 +944,10 @@ function PublicacoesContent() {
               <QueueSummaryCard title="Faixa 3x" count={recurringPublicacoesBands.reincident} helper="Itens reincidentes que merecem atencao prioritaria." accent="text-[#FDE68A]" />
               <QueueSummaryCard title="Faixa 4x+" count={recurringPublicacoesBands.critical} helper="Gargalos cronicos que pedem acao estrutural." accent="text-[#FECACA]" />
             </div>
-            <div className="space-y-3">
-            {recurringPublicacoes.map((item) => <div key={item.key} className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="font-semibold break-all">{item.key}</p>
-                <HealthBadge label={`${item.hits} ciclos`} tone="danger" />
-                {recurrenceBand(item.hits) ? <HealthBadge label={recurrenceBand(item.hits).label} tone={recurrenceBand(item.hits).tone} /> : null}
-                <HealthBadge label={ACTION_LABELS[item.lastAction] || item.lastAction} tone="warning" />
-                <HealthBadge label={recurringSourceLabel(item.source)} tone={recurringSourceTone(item.source)} />
-                {item.noProgress ? <HealthBadge label="sem progresso estrutural" tone="warning" /> : null}
-                {item.needsManualReview ? <HealthBadge label="precisa intervencao manual" tone="danger" /> : null}
-                {item.nextAction ? <HealthBadge label={item.nextAction} tone="success" /> : null}
-              </div>
-              {item.titulo ? <p className="mt-2 opacity-70">{item.titulo}</p> : null}
-            </div>)}
+            <div className="space-y-6">
+              <RecurringPublicacaoGroup title="Criticos (4x+)" helper="Gargalos cronicos que repetem em quatro ou mais ciclos." items={recurringPublicacoesGroups.critical} />
+              <RecurringPublicacaoGroup title="Reincidentes (3x)" helper="Itens que persistem por tres ciclos e merecem prioridade alta." items={recurringPublicacoesGroups.reincident} />
+              <RecurringPublicacaoGroup title="Recorrentes (2x)" helper="Itens que reapareceram duas vezes e ainda cabem em correcao operacional." items={recurringPublicacoesGroups.recurring} />
             </div>
           </div>
         </Panel> : null}
