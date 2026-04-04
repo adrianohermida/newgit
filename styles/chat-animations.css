@@ -1,0 +1,19 @@
+/* Animações para mensagens do chat (entrada/saída) */
+.message-enter {
+  opacity: 0;
+  transform: translateY(16px) scale(0.98);
+}
+.message-enter-active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity 220ms cubic-bezier(.4,0,.2,1), transform 220ms cubic-bezier(.4,0,.2,1);
+}
+.message-exit {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.message-exit-active {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.98);
+  transition: opacity 180ms cubic-bezier(.4,0,.2,1), transform 180ms cubic-bezier(.4,0,.2,1);
+}

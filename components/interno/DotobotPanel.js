@@ -1,5 +1,7 @@
 import useDotobotExtensionBridge from "./DotobotExtensionBridge";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { TransitionGroup, CSSTransition } from "react-transition-group";
+import "../../styles/chat-animations.css";
 import { detectIntent } from "../../lib/ai/intent_router";
 import { getCurrentContext } from "../../lib/ai/context_engine";
 import { useRouter } from "next/router";
@@ -203,7 +205,7 @@ function renderRichText(text) {
   });
 }
 
-function MessageBubble({ message }) {
+function MessageBubble({ message, isTyping }) {
   const isAssistant = message.role === "assistant";
   const isSystem = message.role === "system";
   const alignClass = isAssistant ? "justify-start" : "justify-end";
@@ -220,7 +222,14 @@ function MessageBubble({ message }) {
           <span>{isAssistant ? "Dotobot" : isSystem ? "Sistema" : "Administrador / equipe"}</span>
           {message.createdAt ? <span>{new Date(message.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span> : null}
         </div>
-        {renderRichText(message.text)}
+        {isTyping ? (
+          <span className="inline-flex items-center gap-1 loading">
+            <span className="loading-dot" />
+            <span className="loading-dot" />
+            <span className="loading-dot" />
+            <span className="ml-2">Digitando...</span>
+          </span>
+        ) : renderRichText(message.text)}
       </article>
     </div>
   );
@@ -461,12 +470,29 @@ export default function DotobotCopilot({
         </header>
         {/* MAIN CHAT AREA */}
         <main className="flex-1 overflow-y-auto px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4" ref={scrollRef}>
-          {messages.map((msg, idx) => (
-            <MessageBubble key={msg.id || idx} message={msg} />
-          ))}
-          {loading && (
-            <div className="mt-2 text-xs text-[#D9B46A]">Pensando...</div>
-          )}
+          <TransitionGroup>
+            {messages.map((msg, idx) => (
+              <CSSTransition
+                key={msg.id || idx}
+                timeout={250}
+                classNames="message"
+              >
+                <div>
+                  <MessageBubble message={msg} />
+                </div>
+              </CSSTransition>
+            ))}
+            {loading && (
+              <CSSTransition key="typing-indicator" timeout={250} classNames="message">
+                <div>
+                  <MessageBubble
+                    message={{ role: "assistant", text: "", createdAt: null }}
+                    isTyping={true}
+                  />
+                </div>
+              </CSSTransition>
+            )}
+          </TransitionGroup>
         </main>
         {/* INPUT AREA */}
         <footer className="border-t border-[#22342F] bg-[rgba(12,15,14,0.98)] px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4">
@@ -939,7 +965,7 @@ export default function DotobotCopilot({
 
             <div ref={scrollRef} className="max-h-[46vh] overflow-y-auto px-4 py-4 space-y-3">
               {messages.length ? (
-                messages.map((message) => <MessageBubble key={message.id} message={message} />)
+                messages.map((message, idx) => <MessageBubble key={message.id || idx} message={message} />)
               ) : (
                 <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm text-[#9BAEA8]">
                   <p className="font-medium text-[#F5F1E8]">Pronto para operar.</p>
@@ -948,7 +974,12 @@ export default function DotobotCopilot({
                   </p>
                 </div>
               )}
-              {loading ? <p className="text-sm text-[#9BAEA8]">Dotobot esta analisando o contexto e montando a resposta...</p> : null}
+              {loading ? (
+                <MessageBubble
+                  message={{ role: "assistant", text: "", createdAt: null }}
+                  isTyping={true}
+                />
+              ) : null}
               {error ? <p className="text-sm text-[#f2b2b2]">{error}</p> : null}
             </div>
 
@@ -1287,22 +1318,44 @@ export default function DotobotCopilot({
 
                   <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto space-y-3 px-4 py-4 md:px-5">
                     {messages.length ? (
-                      messages.map((message) => <MessageBubble key={message.id} message={message} />)
+                      messages.map((message, idx) => <MessageBubble key={message.id || idx} message={message} />)
                     ) : (
                       <div className="rounded-[28px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-5 text-sm text-[#9BAEA8]">
                         <p className="text-base font-semibold text-[#F5F1E8]">Pronto para operar.</p>
                       </div>
                     )}
                     {loading ? (
-                      <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm text-[#9BAEA8]">
-                        {uiStateLabel}...
-                      </div>
+                      <MessageBubble
+                        message={{ role: "assistant", text: "", createdAt: null }}
+                        isTyping={true}
+                      />
                     ) : null}
                     {error ? (
                       <div className="rounded-[24px] border border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] px-4 py-3 text-sm text-[#f2b2b2]">
                         {error}
                       </div>
                     ) : null}
+                  // Estilos para animação de "Digitando..."
+                  // Adicione ao topo do arquivo ou em um CSS global se preferir
+                  //
+                  // .loading {
+                  //   display: inline-flex;
+                  //   gap: 4px;
+                  //   align-items: center;
+                  // }
+                  // .loading-dot {
+                  //   width: 6px;
+                  //   height: 6px;
+                  //   border-radius: 50%;
+                  //   background: #D9B46A;
+                  //   animation: loading 1.4s infinite;
+                  // }
+                  // .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+                  // .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+                  // @keyframes loading {
+                  //   0%, 100% { opacity: 0.3; }
+                  //   50% { opacity: 1; }
+                  // }
                   </div>
 
                   <div className="border-t border-[#22342F] px-4 py-4 md:px-5">

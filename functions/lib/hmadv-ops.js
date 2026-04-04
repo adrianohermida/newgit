@@ -1,5 +1,6 @@
 import { fetchSupabaseAdmin } from "./supabase-rest.js";
-import { getSupabaseBaseUrl, getSupabaseServerKey } from "./env.js";
+import { getCleanEnvValue, getSupabaseBaseUrl, getSupabaseServerKey } from "./env.js";
+import { freshsalesRequest } from "./freshsales-crm.js";
 
 function jsonOk(payload, status = 200) {
   return new Response(JSON.stringify({ ok: true, ...payload }), {
@@ -123,6 +124,47 @@ function uniqueNonEmpty(values = []) {
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
 }
 
+function formatCnj(value) {
+  const digits = normalizeProcessNumber(value);
+  if (digits.length !== 20) return String(value || "").trim();
+  return `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16)}`;
+}
+
+function buildProcessTitle(row) {
+  const cnj = formatCnj(row?.numero_cnj || row?.numero_processo || "");
+  const active = String(row?.polo_ativo || "").trim();
+  const passive = String(row?.polo_passivo || "").trim();
+  if (active && passive) return `${cnj} (${active} x ${passive})`;
+  if (active) return `${cnj} (${active})`;
+  return row?.titulo || cnj || "Processo";
+}
+
+function summarizeChunkFailures(result = {}) {
+  const rows = Array.isArray(result?.sample)
+    ? result.sample
+    : Array.isArray(result?.items)
+      ? result.items
+      : [];
+  return rows.reduce((count, row) => {
+    if (row?.result?.ok === false || row?.datajud?.ok === false || row?.freshsales_repair?.ok === false) {
+      return count + 1;
+    }
+    return count;
+  }, 0);
+}
+
+function mergeNumericSummary(current = {}, next = {}) {
+  const merged = { ...(current || {}) };
+  for (const [key, value] of Object.entries(next || {})) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      merged[key] = Number(merged[key] || 0) + value;
+    } else if (merged[key] === undefined) {
+      merged[key] = value;
+    }
+  }
+  return merged;
+}
+
 function summarizeOperationResult(result) {
   const rows = Array.isArray(result?.sample)
     ? result.sample
@@ -217,6 +259,68 @@ export async function listAdminOperations(env, { modulo, limit = 20 } = {}) {
   const items = await listTableSafe(
     env,
     `operacao_execucoes?${filters.join("&")}&select=id,modulo,acao,status,resumo,result_summary,result_sample,requested_count,affected_count,error_message,created_at,finished_at`,
+    "judiciario",
+    []
+  );
+  return { items };
+}
+
+async function fetchOperationJobById(env, id) {
+  const rows = await listTableSafe(
+    env,
+    `operacao_jobs?id=eq.${encodeURIComponent(String(id || ""))}&select=*`,
+    "judiciario",
+    []
+  );
+  return rows[0] || null;
+}
+
+async function insertOperationJob(env, body) {
+  const rows = await hmadvRest(
+    env,
+    "operacao_jobs",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Profile": "judiciario",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify(body),
+    },
+    "judiciario"
+  );
+  return rows?.[0] || null;
+}
+
+async function patchOperationJob(env, id, body) {
+  const rows = await hmadvRest(
+    env,
+    `operacao_jobs?id=eq.${encodeURIComponent(String(id || ""))}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Profile": "judiciario",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({
+        ...body,
+        updated_at: new Date().toISOString(),
+      }),
+    },
+    "judiciario"
+  );
+  return rows?.[0] || null;
+}
+
+export async function listAdminJobs(env, { modulo, limit = 20 } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 20), 50));
+  const filters = [`limit=${safeLimit}`, "order=created_at.desc"];
+  if (modulo) filters.unshift(`modulo=eq.${encodeURIComponent(String(modulo))}`);
+  const items = await listTableSafe(
+    env,
+    `operacao_jobs?${filters.join("&")}&select=id,modulo,acao,status,payload,requested_count,processed_count,success_count,error_count,result_summary,last_error,created_at,started_at,updated_at,finished_at`,
     "judiciario",
     []
   );
@@ -422,6 +526,45 @@ async function loadProcessesByIds(env, processIds, select = "id,numero_cnj,titul
   return output;
 }
 
+async function collectProcessNumbersFromPagedList(loader, env, { active } = {}) {
+  const pageSize = 50;
+  let page = 1;
+  let totalRows = null;
+  const numbers = [];
+  while (totalRows === null || (page - 1) * pageSize < totalRows) {
+    const data = await loader(env, { page, pageSize, ...(active === undefined ? {} : { active }) });
+    totalRows = Number(data?.totalRows || 0);
+    for (const item of data?.items || []) {
+      if (item?.numero_cnj) numbers.push(item.numero_cnj);
+    }
+    if (!(data?.items || []).length || (data?.items || []).length < pageSize) break;
+    page += 1;
+  }
+  return uniqueNonEmpty(numbers);
+}
+
+async function resolveProcessJobTargets(env, action, processNumbers = []) {
+  const selected = uniqueNonEmpty(processNumbers);
+  if (selected.length) return selected;
+  if (action === "push_orfaos") {
+    return collectProcessNumbersFromPagedList(scanOrphanProcesses, env);
+  }
+  if (action === "enriquecer_datajud") {
+    return collectProcessNumbersFromPagedList(listProcessesWithoutMovements, env);
+  }
+  if (action === "repair_freshsales_accounts") {
+    return collectProcessNumbersFromPagedList(listFieldGapProcesses, env);
+  }
+  if (action === "sync_supabase_crm") {
+    const [withoutMoves, gaps] = await Promise.all([
+      collectProcessNumbersFromPagedList(listProcessesWithoutMovements, env),
+      collectProcessNumbersFromPagedList(listFieldGapProcesses, env),
+    ]);
+    return uniqueNonEmpty([...withoutMoves, ...gaps]);
+  }
+  return selected;
+}
+
 function countProcessFieldGaps(row) {
   const fields = [
     "classe",
@@ -552,6 +695,109 @@ async function patchProcessRow(env, processId, body) {
       body: JSON.stringify(payload),
     }
   );
+}
+
+function buildFreshsalesProcessCustomFields(proc, cnjFmt) {
+  const customFields = {
+    cf_processo: cnjFmt,
+  };
+  const set = (key, value) => {
+    if (value !== null && value !== undefined && value !== "") {
+      customFields[key] = value;
+    }
+  };
+  set("cf_tribunal", proc.tribunal);
+  set("cf_vara", proc.orgao_julgador);
+  set("cf_numero_do_juizo", proc.orgao_julgador_codigo);
+  set("cf_classe", proc.classe);
+  set("cf_assunto", proc.assunto_principal || proc.assunto);
+  set("cf_instancia", proc.instancia);
+  set("cf_polo_ativo", proc.polo_ativo);
+  set("cf_parte_adversa", proc.polo_passivo);
+  set("cf_status", proc.status_atual_processo);
+  set("cf_data_de_distribuio", proc.data_ajuizamento);
+  set("cf_data_ultimo_movimento", proc.data_ultima_movimentacao);
+  set("cf_descricao_ultimo_movimento", proc.ultimo_movimento_descricao);
+  set("cf_area", proc.area);
+  set("cf_sistema", proc.sistema);
+  if (proc.segredo_justica !== null && proc.segredo_justica !== undefined) {
+    set("cf_segredo_de_justica", proc.segredo_justica);
+  }
+  return customFields;
+}
+
+async function lookupFreshsalesAccountByProcess(env, cnjFmt) {
+  try {
+    const { payload } = await freshsalesRequest(env, "/filtered_search/sales_account", {
+      method: "POST",
+      body: JSON.stringify({
+        filter_rule: [{ attribute: "cf_processo", operator: "is_in", value: [cnjFmt] }],
+        page: 1,
+        per_page: 3,
+      }),
+    });
+    const items = Array.isArray(payload?.sales_accounts) ? payload.sales_accounts : [];
+    return items[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+async function ensureFreshsalesAccountForProcess(env, proc) {
+  const cnjFmt = formatCnj(proc?.numero_cnj || proc?.numero_processo || "");
+  if (!cnjFmt) {
+    return { skipped: true, reason: "sem_cnj" };
+  }
+  const existing = await lookupFreshsalesAccountByProcess(env, cnjFmt);
+  if (existing?.id) {
+    await patchProcessRow(env, proc.id, {
+      account_id_freshsales: String(existing.id),
+      fs_sync_at: new Date().toISOString(),
+    });
+    return {
+      ok: true,
+      action: "linked_existing",
+      account_id_freshsales: String(existing.id),
+      title: String(existing.name || ""),
+    };
+  }
+
+  const title = buildProcessTitle(proc);
+  const customFields = buildFreshsalesProcessCustomFields(proc, cnjFmt);
+  const standardFields = {};
+  if (proc.link_externo_processo) standardFields.website = proc.link_externo_processo;
+  if (proc.comarca) standardFields.city = proc.comarca;
+  if (proc.valor_causa) standardFields.annual_revenue = proc.valor_causa;
+  const ownerId = Number(getCleanEnvValue(env.FS_OWNER_ID) || "31000147944");
+
+  const { payload } = await freshsalesRequest(env, "/sales_accounts", {
+    method: "POST",
+    body: JSON.stringify({
+      sales_account: {
+        name: title,
+        owner_id: ownerId,
+        ...standardFields,
+        custom_fields: customFields,
+        custom_field: customFields,
+      },
+    }),
+  });
+  const account = payload?.sales_account || payload;
+  const accountId = String(account?.id || "");
+  if (!accountId) {
+    throw new Error("Freshsales nao retornou account_id para o processo criado.");
+  }
+  await patchProcessRow(env, proc.id, {
+    account_id_freshsales: accountId,
+    titulo: title,
+    fs_sync_at: new Date().toISOString(),
+  });
+  return {
+    ok: true,
+    action: "created",
+    account_id_freshsales: accountId,
+    title,
+  };
 }
 
 async function runFreshsalesRepairForProcess(env, proc) {

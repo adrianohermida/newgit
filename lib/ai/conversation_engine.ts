@@ -1,3 +1,21 @@
+// Função simples de similaridade (baseada em caracteres)
+function calculateSimilarity(str1: string, str2: string): number {
+  if (!str1 || !str2) return 0;
+  const s1 = str1.toLowerCase().replace(/\s+/g, "");
+  const s2 = str2.toLowerCase().replace(/\s+/g, "");
+  let matches = 0;
+  for (let i = 0; i < Math.min(s1.length, s2.length); i++) {
+    if (s1[i] === s2[i]) matches++;
+  }
+  return matches / Math.max(s1.length, s2.length);
+}
+
+function isRepeatedAssistantResponse(conversation: any, newText: string, threshold = 0.9): boolean {
+  const turns = conversation?.turns || [];
+  const lastAssistant = [...turns].reverse().find((t) => t.role === "assistant" && typeof t.text === "string");
+  if (!lastAssistant) return false;
+  return calculateSimilarity(lastAssistant.text, newText) >= threshold;
+}
 import { runLawdeskChat } from "../lawdesk/chat.js";
 import { buildDotobotRepositoryContext } from "../lawdesk/capabilities.js";
 import { canExecuteSkill, detectSkillFromQuery, enrichContextWithSkill } from "../lawdesk/skill_registry.js";
@@ -142,10 +160,15 @@ export async function processConversationTurn(
           ? chatData.result
           : "Sem resposta do assistente.";
 
+    // Anti-loop: evitar resposta repetida
+    let finalResultText = resultText;
+    if (isRepeatedAssistantResponse(conversation, resultText)) {
+      finalResultText = "(⚠️ Resposta semelhante à anterior detectada. Por favor, refine sua pergunta ou aguarde nova informação/contexto.)";
+    }
     appendTurn(conversation, {
       id: `a_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       role: "assistant",
-      text: resultText,
+      text: finalResultText,
       created_at: nowIso(),
       meta: { intent: "chat" },
     });
@@ -154,7 +177,7 @@ export async function processConversationTurn(
       ...chatData,
       conversationId,
       intent: routedIntent,
-      resultText,
+      resultText: finalResultText,
       uiState: "responding",
       mode: "chat",
     });
