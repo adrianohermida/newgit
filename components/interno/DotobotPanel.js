@@ -466,6 +466,20 @@ export default function DotobotCopilot({
       { role: "user", text: trimmedQuestion, createdAt: nowIso() },
     ]);
 
+    // Monta contexto global inteligente
+    const globalContext = {
+      route: routePath,
+      profile: profile || null,
+      mode: nextMode,
+      provider: nextProvider,
+      contextEnabled: nextContextEnabled,
+      device: typeof window !== "undefined" && window.navigator ? window.navigator.userAgent : "server",
+      time: nowIso(),
+      conversationId: activeConversationId,
+      messages: messages.slice(-10),
+      attachments: attachments.map(a => ({ kind: a.kind, type: a.type, name: a.file?.name || null })),
+    };
+
     // Detecta se é comando de skill/task
     const isTaskCommand = trimmedQuestion.startsWith("/peticao") || trimmedQuestion.startsWith("/analise") || trimmedQuestion.startsWith("/plano") || trimmedQuestion.startsWith("/tarefas");
 
@@ -493,7 +507,7 @@ export default function DotobotCopilot({
             mode: nextMode,
             provider: nextProvider,
             contextEnabled: nextContextEnabled,
-            context: { route: routePath },
+            context: globalContext,
           }),
         });
         const data = await response.json();
@@ -552,7 +566,7 @@ export default function DotobotCopilot({
           mode: nextMode,
           provider: nextProvider,
           contextEnabled: nextContextEnabled,
-          context: { route: routePath },
+          context: globalContext,
         }),
         signal: controller.signal,
       });
