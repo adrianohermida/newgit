@@ -504,6 +504,11 @@ function InternoProcessosContent() {
   const visibleSevereRecurringCount = [...withoutMovements.items, ...monitoringActive.items, ...monitoringInactive.items, ...fieldGaps.items, ...orphans.items]
     .filter((item, index, array) => array.findIndex((other) => (other.numero_cnj || other.key) === (item.numero_cnj || item.key)) === index)
     .filter((item) => recurringProcesses.some((recurring) => recurring.key === (item.numero_cnj || item.key) && recurring.hits >= 3)).length;
+  const selectedVisibleSevereRecurringCount = [...withoutMovements.items, ...monitoringActive.items, ...monitoringInactive.items, ...fieldGaps.items, ...orphans.items]
+    .filter((item, index, array) => array.findIndex((other) => (other.numero_cnj || other.key) === (item.numero_cnj || item.key)) === index)
+    .filter((item) => recurringProcesses.some((recurring) => recurring.key === (item.numero_cnj || item.key) && recurring.hits >= 3))
+    .filter((item) => combinedSelectedNumbers.includes(item.numero_cnj))
+    .length;
   function updateView(nextView) {
     setView(nextView);
     if (typeof window === "undefined") return;
@@ -685,6 +690,9 @@ function InternoProcessosContent() {
               <StatusBadge tone="default">{recurringProcessBatch.reason}</StatusBadge>
               <StatusBadge tone="default">{visibleRecurringCount} reincidentes visiveis</StatusBadge>
               <StatusBadge tone="warning">{visibleSevereRecurringCount} graves visiveis</StatusBadge>
+              <StatusBadge tone={visibleSevereRecurringCount > 0 && selectedVisibleSevereRecurringCount >= visibleSevereRecurringCount ? "success" : "default"}>
+                selecao cobre {selectedVisibleSevereRecurringCount}/{visibleSevereRecurringCount || 0} graves
+              </StatusBadge>
               <ActionButton className="px-3 py-2 text-xs" onClick={() => setLimit(recurringProcessBatch.size)}>Usar lote sugerido</ActionButton>
               <ActionButton className="px-3 py-2 text-xs" onClick={selectVisibleRecurringProcesses}>Selecionar reincidentes visiveis</ActionButton>
               <ActionButton className="px-3 py-2 text-xs" onClick={selectVisibleSevereRecurringProcesses}>Selecionar 3x+ visiveis</ActionButton>

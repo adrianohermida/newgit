@@ -730,6 +730,11 @@ function PublicacoesContent() {
   const visibleSevereRecurringCount = [...processCandidates.items, ...partesCandidates.items]
     .filter((item, index, array) => array.findIndex((other) => (other.numero_cnj || other.key) === (item.numero_cnj || item.key)) === index)
     .filter((item) => recurringPublicacoes.some((recurring) => recurring.key === (item.numero_cnj || item.key) && recurring.hits >= 3)).length;
+  const selectedVisibleSevereRecurringCount = [...processCandidates.items, ...partesCandidates.items]
+    .filter((item, index, array) => array.findIndex((other) => (other.numero_cnj || other.key) === (item.numero_cnj || item.key)) === index)
+    .filter((item) => recurringPublicacoes.some((recurring) => recurring.key === (item.numero_cnj || item.key) && recurring.hits >= 3))
+    .filter((item) => selectedProcessKeys.includes(item.key) || selectedPartesKeys.includes(item.key))
+    .length;
 
   function updateView(nextView) {
     setView(nextView);
@@ -1015,6 +1020,7 @@ function PublicacoesContent() {
                 <HealthBadge label={recurringPublicacoesBatch.reason} tone="default" />
                 <HealthBadge label={`${visibleRecurringCount} reincidentes visiveis`} tone="default" />
                 <HealthBadge label={`${visibleSevereRecurringCount} graves visiveis`} tone="warning" />
+                <HealthBadge label={`selecao cobre ${selectedVisibleSevereRecurringCount}/${visibleSevereRecurringCount || 0} graves`} tone={visibleSevereRecurringCount > 0 && selectedVisibleSevereRecurringCount >= visibleSevereRecurringCount ? "success" : "default"} />
                 <button type="button" onClick={() => setLimit(recurringPublicacoesBatch.size)} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">Usar lote sugerido</button>
                 <button type="button" onClick={selectVisibleRecurringPublicacoes} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">Selecionar reincidentes visiveis</button>
                 <button type="button" onClick={selectVisibleSevereRecurringPublicacoes} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">Selecionar 3x+ visiveis</button>
