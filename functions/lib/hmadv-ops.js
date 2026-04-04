@@ -483,7 +483,11 @@ function parsePartesFromText(text) {
   }, []);
 }
 
-async function loadProcessesByNumbers(env, processNumbers) {
+async function loadProcessesByNumbers(
+  env,
+  processNumbers,
+  select = "id,numero_cnj,titulo,account_id_freshsales,status_atual_processo"
+) {
   const output = [];
   const exactCnjs = [];
   const fallbackTerms = [];
@@ -497,12 +501,12 @@ async function loadProcessesByNumbers(env, processNumbers) {
 
   for (const chunk of splitIntoChunks([...new Set(exactCnjs)], 50)) {
     const candidatePaths = [
-      `processos?${buildInFilter("numero_cnj", chunk)}&select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo`,
+      `processos?${buildInFilter("numero_cnj", chunk)}&select=${select}`,
     ];
     for (const numero of chunk) {
       candidatePaths.push(
-        `processos?numero_cnj=ilike.${encodeURIComponent(`*${numero}*`)}&select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo&limit=5`,
-        `processos?titulo=ilike.${encodeURIComponent(`*${numero}*`)}&select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo&limit=5`
+        `processos?numero_cnj=ilike.${encodeURIComponent(`*${numero}*`)}&select=${select}&limit=5`,
+        `processos?titulo=ilike.${encodeURIComponent(`*${numero}*`)}&select=${select}&limit=5`
       );
     }
     for (const path of candidatePaths) {
@@ -516,11 +520,11 @@ async function loadProcessesByNumbers(env, processNumbers) {
   for (const value of [...new Set(fallbackTerms)]) {
     const normalized = value.replace(/\D+/g, "");
     const candidatePaths = [
-      `processos?titulo=ilike.${encodeURIComponent(`*${value}*`)}&select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo&limit=5`,
+      `processos?titulo=ilike.${encodeURIComponent(`*${value}*`)}&select=${select}&limit=5`,
     ];
     if (normalized) {
       candidatePaths.push(
-        `processos?numero_cnj=ilike.${encodeURIComponent(`*${normalized}*`)}&select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo&limit=5`
+        `processos?numero_cnj=ilike.${encodeURIComponent(`*${normalized}*`)}&select=${select}&limit=5`
       );
     }
     for (const path of candidatePaths) {
@@ -1645,11 +1649,12 @@ export async function enrichProcessesViaDatajud(env, { processNumbers = [], limi
 export async function syncProcessesSupabaseCrm(env, { processNumbers = [], limit = 10 } = {}) {
   const config = getProcessActionLimitConfig("sync_supabase_crm");
   const safeLimit = Math.max(1, Math.min(Number(limit || config.defaultLimit), config.maxLimit));
+  const processSelect = "id,numero_cnj,titulo,quantidade_movimentacoes,account_id_freshsales,classe,assunto_principal,area,data_ajuizamento,sistema,polo_ativo,polo_passivo,status_atual_processo";
   const processes = processNumbers.length
-    ? await loadProcessesByNumbers(env, processNumbers)
+    ? await loadProcessesByNumbers(env, processNumbers, processSelect)
     : await listTableSafe(
         env,
-        `processos?select=id,numero_cnj,titulo,quantidade_movimentacoes,account_id_freshsales&account_id_freshsales=not.is.null&or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0,classe.is.null,assunto_principal.is.null,area.is.null,data_ajuizamento.is.null,sistema.is.null,polo_ativo.is.null,polo_passivo.is.null,status_atual_processo.is.null)&limit=${safeLimit}`
+        `processos?select=${processSelect}&account_id_freshsales=not.is.null&or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0,classe.is.null,assunto_principal.is.null,area.is.null,data_ajuizamento.is.null,sistema.is.null,polo_ativo.is.null,polo_passivo.is.null,status_atual_processo.is.null)&limit=${safeLimit}`
       );
   const scopedProcesses = processes.slice(0, safeLimit);
   const beforeMap = new Map();
@@ -1907,11 +1912,12 @@ export async function pushOrphanAccounts(env, { processNumbers = [], limit = 20 
 export async function repairFreshsalesAccounts(env, { processNumbers = [], limit = 10 } = {}) {
   const config = getProcessActionLimitConfig("repair_freshsales_accounts");
   const safeLimit = Math.max(1, Math.min(Number(limit || config.defaultLimit), config.maxLimit));
+  const processSelect = "id,numero_cnj,titulo,account_id_freshsales,classe,assunto_principal,area,data_ajuizamento,sistema,polo_ativo,polo_passivo,status_atual_processo";
   const processes = processNumbers.length
-    ? await loadProcessesByNumbers(env, processNumbers)
+    ? await loadProcessesByNumbers(env, processNumbers, processSelect)
     : await hmadvRest(
         env,
-        `processos?select=id,numero_cnj,titulo,account_id_freshsales,classe,assunto_principal,area,data_ajuizamento,sistema,polo_ativo,polo_passivo,status_atual_processo&account_id_freshsales=not.is.null&or=(classe.is.null,assunto_principal.is.null,area.is.null,data_ajuizamento.is.null,sistema.is.null,polo_ativo.is.null,polo_passivo.is.null,status_atual_processo.is.null)&limit=${safeLimit}`
+        `processos?select=${processSelect}&account_id_freshsales=not.is.null&or=(classe.is.null,assunto_principal.is.null,area.is.null,data_ajuizamento.is.null,sistema.is.null,polo_ativo.is.null,polo_passivo.is.null,status_atual_processo.is.null)&limit=${safeLimit}`
       );
   const sample = [];
   let reparados = 0;
