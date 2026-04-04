@@ -129,6 +129,70 @@ function buildCycleTrend(items = []) {
   };
 }
 
+function buildAlerts({
+  runnerConfigured,
+  totalPendingJobs,
+  totalBacklogItems,
+  healthStatus,
+  healthReason,
+  blockerTitle,
+  blockerReason,
+  latestErroredProcessJob,
+  latestErroredPublicacaoJob,
+}) {
+  const alerts = [];
+
+  if (healthStatus === "error") {
+    alerts.push({
+      level: "critico",
+      title: blockerTitle,
+      message: blockerReason,
+    });
+  }
+
+  if (healthStatus === "stalled") {
+    alerts.push({
+      level: "atencao",
+      title: "Fila parada",
+      message: healthReason,
+    });
+  }
+
+  if (!runnerConfigured && (totalPendingJobs > 0 || totalBacklogItems > 0)) {
+    alerts.push({
+      level: "atencao",
+      title: "Automacao pendente",
+      message: "Configure HMADV_RUNNER_TOKEN e mantenha o workflow hmadv-runner ativo.",
+    });
+  }
+
+  if (totalBacklogItems > 0) {
+    alerts.push({
+      level: "info",
+      title: "Backlog de base",
+      message: `${totalBacklogItems} itens ainda dependem de criacao ou vinculacao estrutural.`,
+    });
+  }
+
+  if (latestErroredProcessJob && healthStatus !== "error") {
+    alerts.push({
+      level: "info",
+      title: "Historico de erro em processos",
+      message: latestErroredProcessJob.last_error || "Existe falha recente registrada em processos.",
+    });
+  }
+
+  if (latestErroredPublicacaoJob && healthStatus !== "error") {
+    alerts.push({
+      level: "info",
+      title: "Historico de erro em publicacoes",
+      message: latestErroredPublicacaoJob.last_error || "Existe falha recente registrada em publicacoes.",
+    });
+  }
+
+  return alerts.slice(0, 4);
+}
+
 async function drainModuleJobs(env, modulo, processor, maxChunks = 6) {
   const safeChunks = Math.max(1, Math.min(Number(maxChunks || 6), 30));
   let chunks = 0;
@@ -310,6 +374,17 @@ export async function getHmadvQueueSnapshot(env) {
         : null;
   const tendenciaLabel = tendenciaBase?.label || "Estavel";
   const executiveSummary = `${healthLabel}: foco em ${focoLabel}; tendencia ${tendenciaLabel.toLowerCase()}.`;
+  const alerts = buildAlerts({
+    runnerConfigured,
+    totalPendingJobs,
+    totalBacklogItems,
+    healthStatus,
+    healthReason,
+    blockerTitle,
+    blockerReason,
+    latestErroredProcessJob,
+    latestErroredPublicacaoJob,
+  });
 
   return {
     runnerConfigured,
@@ -357,6 +432,7 @@ export async function getHmadvQueueSnapshot(env) {
       cta: blockerCta,
     },
     executiveSummary,
+    alerts,
   };
 }
 

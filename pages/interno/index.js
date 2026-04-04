@@ -141,6 +141,22 @@ function TrendCard({ title, trend }) {
   );
 }
 
+function AlertCard({ alert }) {
+  const toneClass =
+    alert?.level === "critico"
+      ? "border-[#5B3535] bg-[rgba(91,53,53,0.12)]"
+      : alert?.level === "atencao"
+        ? "border-[#7A6431] bg-[rgba(122,100,49,0.12)]"
+        : "border-[#2D4E63] bg-[rgba(45,78,99,0.12)]";
+  return (
+    <div className={`border p-4 text-sm ${toneClass}`}>
+      <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">{alert?.level || "info"}</p>
+      <p className="font-semibold mb-1">{alert?.title || "Alerta"}</p>
+      <p className="opacity-75">{alert?.message || ""}</p>
+    </div>
+  );
+}
+
 export default function InternoHomePage() {
   const [hmadvOps, setHmadvOps] = useState({ loading: true, error: null, data: null });
   const [draining, setDraining] = useState(false);
@@ -213,6 +229,11 @@ export default function InternoHomePage() {
                   <div className="border border-[#2D2E2E] bg-[rgba(10,12,11,0.82)] p-4 text-sm">
                     <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Resumo executivo</p>
                     <p className="text-base font-semibold">{hmadvOps.data.executiveSummary}</p>
+                  </div>
+                  <div className="grid gap-3 lg:grid-cols-3">
+                    {(hmadvOps.data.alerts || []).map((alert, index) => (
+                      <AlertCard key={`${alert.level}-${index}`} alert={alert} />
+                    ))}
                   </div>
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <StatCard label="Processos pendentes" value={(hmadvOps.data.processosJobs?.pending || 0) + (hmadvOps.data.processosJobs?.running || 0)} helper="Jobs de processos aguardando drenagem." />
