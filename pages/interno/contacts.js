@@ -3,6 +3,21 @@ import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch } from "../../lib/admin/api";
 
+const CONTACT_TYPE_OPTIONS = [
+  "Cliente",
+  "Parte Adversa",
+  "Advogado Adverso",
+  "Correspondente",
+  "Terceiro Interessado",
+  "Prestador de Servico",
+  "Fornecedor",
+  "Perito",
+  "Juiz",
+  "Promotor",
+  "Desembargador",
+  "Testemunha",
+];
+
 function MetricCard({ label, value, helper }) {
   return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-5"><p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] opacity-50">{label}</p><p className="mb-2 font-serif text-3xl">{value}</p>{helper ? <p className="text-sm leading-relaxed opacity-65">{helper}</p> : null}</div>;
 }
@@ -59,6 +74,7 @@ function ContactsContent() {
   const [mergeTargetId, setMergeTargetId] = useState("");
   const [cep, setCep] = useState("");
   const [personType, setPersonType] = useState("pf");
+  const [linkType, setLinkType] = useState("Cliente");
 
   useEffect(() => { loadOverview(); }, []);
   useEffect(() => { loadList(page, query, type); }, [page, query, type]);
@@ -241,7 +257,9 @@ function ContactsContent() {
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <input value={editForm.name} onChange={(event) => setEditForm((current) => ({ ...current, name: event.target.value }))} placeholder="Nome" className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
-            <input value={editForm.type} onChange={(event) => setEditForm((current) => ({ ...current, type: event.target.value }))} placeholder="Tipo" className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
+            <select value={editForm.type} onChange={(event) => setEditForm((current) => ({ ...current, type: event.target.value }))} className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]">
+              {CONTACT_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
             <input value={editForm.email} onChange={(event) => setEditForm((current) => ({ ...current, email: event.target.value }))} placeholder="E-mail" className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
             <input value={editForm.phone} onChange={(event) => setEditForm((current) => ({ ...current, phone: event.target.value }))} placeholder="Telefone" className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
             <input value={editForm.cpf} onChange={(event) => setEditForm((current) => ({ ...current, cpf: event.target.value }))} placeholder="CPF" className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
@@ -275,7 +293,9 @@ function ContactsContent() {
       <Panel title="Criar novo contato" eyebrow="CRUD">
         <div className="grid gap-3 md:grid-cols-2">
           <input value={createForm.name} onChange={(event) => setCreateForm((current) => ({ ...current, name: event.target.value }))} placeholder="Nome completo" className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
-          <input value={createForm.type} onChange={(event) => setCreateForm((current) => ({ ...current, type: event.target.value }))} placeholder="Tipo" className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
+          <select value={createForm.type} onChange={(event) => setCreateForm((current) => ({ ...current, type: event.target.value }))} className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]">
+            {CONTACT_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
           <input value={createForm.email} onChange={(event) => setCreateForm((current) => ({ ...current, email: event.target.value }))} placeholder="E-mail" className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
           <input value={createForm.phone} onChange={(event) => setCreateForm((current) => ({ ...current, phone: event.target.value }))} placeholder="Telefone" className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
           <input value={createForm.cpf} onChange={(event) => setCreateForm((current) => ({ ...current, cpf: event.target.value }))} placeholder="CPF" className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
@@ -305,11 +325,20 @@ function ContactsContent() {
 
     <Panel title="Partes pendentes de vinculacao" eyebrow="HMADV -> Contacts">
       <div className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-[1fr_120px_auto_auto]">
+        <div className="grid gap-4 md:grid-cols-[1fr_120px_220px_auto_auto_auto]">
           <input value={partesQuery} onChange={(event) => { setPartesPage(1); setPartesQuery(event.target.value); }} placeholder="Buscar parte por nome" className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
           <input type="number" min="1" max="50" value={reconcileLimit} onChange={(event) => setReconcileLimit(Number(event.target.value || 20))} className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
+          <select value={linkType} onChange={(event) => setLinkType(event.target.value)} className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]">
+            {CONTACT_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
           <ActionButton onClick={() => runAction("reconcile_partes", { processNumbers: selectedParteNumbers.join("\n"), limit: reconcileLimit, apply: false })} disabled={actionState.loading}>Simular vinculacao</ActionButton>
           <ActionButton tone="primary" onClick={() => runAction("reconcile_partes", { processNumbers: selectedParteNumbers.join("\n"), limit: reconcileLimit, apply: true })} disabled={actionState.loading}>Aplicar vinculacao</ActionButton>
+          <ActionButton tone="primary" onClick={() => runAction("vincular_partes", { parteIds: selectedPartes, contactId: selectedContactId, type: linkType })} disabled={actionState.loading || !selectedContactId || !selectedPartes.length}>Vincular ao contato selecionado</ActionButton>
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60">
+          <span>Contato em foco: {selected?.contact?.name || "nenhum selecionado"}</span>
+          <span>Partes marcadas: {selectedPartes.length}</span>
+          <span>Tipo ao vincular: {linkType}</span>
         </div>
         {partesPendentes.loading ? <p className="text-sm opacity-60">Carregando partes pendentes...</p> : null}
         {partesPendentes.error ? <p className="text-sm text-red-300">{partesPendentes.error}</p> : null}

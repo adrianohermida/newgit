@@ -172,6 +172,24 @@ function getParteRole(parte, representedPole) {
   return "Terceiro Interessado";
 }
 
+async function updateFreshsalesContactType(env, contactId, type) {
+  const id = cleanValue(contactId);
+  const nextType = cleanValue(type);
+  if (!id || !nextType) return null;
+  const crm = await viewFreshsalesContact(env, id);
+  return updateContact(env, {
+    contactId: id,
+    name: cleanValue(crm?.display_name) || cleanValue(crm?.name) || [cleanValue(crm?.first_name), cleanValue(crm?.last_name)].filter(Boolean).join(" ") || "Contato HMADV",
+    type: nextType,
+    email: cleanValue(crm?.email),
+    phone: cleanValue(crm?.mobile_number) || cleanValue(crm?.phone),
+    cpf: getCustomField(crm, "cf_cpf"),
+    cnpj: getCustomField(crm, "cf_cnpj"),
+    cep: getCustomField(crm, "cf_cep"),
+    externalId: cleanValue(crm?.external_id),
+  });
+}
+
 async function patchParteLink(env, parteId, processId, processNumber, accountId, contactId, role) {
   await hmadvRest(env, `partes?id=eq.${encodeURIComponent(String(parteId))}`, {
     method: "PATCH",
@@ -493,4 +511,43 @@ export async function reconcilePartesContacts(env, { processNumbers = [], limit 
     if (partesOut.length) sample.push({ processo_id: proc.id, numero_cnj: proc.numero_cnj, account_id_freshsales: proc.account_id_freshsales || null, represented_pole: representedPole, partes: partesOut });
   }
   return { checkedAt: new Date().toISOString(), apply, processosLidos: processos.length, contatosVinculados, contatosCriados, sample: sample.slice(0, 20) };
+}
+
+export async function linkPartesToExistingContact(env, { parteIds = [], contactId, type = "" } = {}) {
+  const ids = Array.isArray(parteIds) ? parteIds.map((item) => cleanValue(item)).filter(Boolean) : [];
+  const linkedContactId = cleanValue(contactId);
+  if (!ids.length) throw new Error("Selecione ao menos uma parte para vincular.");
+  if (!linkedContactId) throw new Error("Selecione um contato para vincular as partes.");
+  const partes = await hmadvRest(env, `partes?id=in.(${ids.map((id) => `"${id}"`).join(",")})&select=id,processo_id,nome,polo,tipo_pessoa,cliente_hmadv,representada_pelo_escritorio,principal_no_account`, {}, "judiciario");
+  const processIds = [...new Set(partes.map((item) => item.processo_id).filter(Boolean))];
+  const processos = processIds.length
+    ? await hmadvRest(env, `processos?id=in.(${processIds.map((id) => `"${id}"`).join(",")})&select=id,numero_cnj,account_id_freshsales,titulo`, {}, "judiciario")
+    : [];
+  const procMap = new Map(processos.map((row) => [row.id, row]));
+  if (type) {
+    await updateFreshsalesContactType(env, linkedContactId, type);
+  }
+  const sample = [];
+  for (const parte of partes) {
+    const processo = procMap.get(parte.processo_id) || null;
+    const role = cleanValue(type) || getParteRole(parte, null);
+    await patchParteLink(env, parte.id, parte.processo_id, processo?.numero_cnj || null, processo?.account_id_freshsales || null, linkedContactId, role);
+    sample.push({
+      parte_id: parte.id,
+      nome: parte.nome,
+      polo: parte.polo,
+      processo_id: parte.processo_id,
+      numero_cnj: processo?.numero_cnj || null,
+      account_id_freshsales: processo?.account_id_freshsales || null,
+      contato_freshsales_id: linkedContactId,
+      tipo_contato: role,
+    });
+  }
+  return {
+    checkedAt: new Date().toISOString(),
+    partesAtualizadas: partes.length,
+    contato_freshsales_id: linkedContactId,
+    tipo_contato: cleanValue(type) || null,
+    sample,
+  };
 }

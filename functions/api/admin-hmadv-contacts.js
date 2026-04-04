@@ -7,6 +7,7 @@ import {
   enrichContactViaDirectData,
   getContactDetail,
   getContactsOverview,
+  linkPartesToExistingContact,
   listContacts,
   listDuplicateContacts,
   listUnlinkedPartes,
@@ -136,6 +137,20 @@ export async function onRequestPost(context) {
         processNumbers,
         limit: Number(body.limit || 20),
         apply: Boolean(body.apply),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "vincular_partes") {
+      const parteIds = Array.isArray(body.parteIds)
+        ? body.parteIds
+        : String(body.parteIds || "")
+            .split(/\r?\n|,|;/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+      const data = await linkPartesToExistingContact(context.env, {
+        parteIds,
+        contactId: body.contactId,
+        type: body.type || "",
       });
       return jsonOk({ data });
     }
