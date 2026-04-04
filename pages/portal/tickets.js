@@ -116,8 +116,12 @@ function TicketsContent({ router, state, setState, form, setForm, submitting, se
       }
     }
     load();
+    const interval = setInterval(() => {
+      load();
+    }, 15000); // 15 segundos
     return () => {
       cancelled = true;
+      clearInterval(interval);
     };
   }, [setState]);
 
