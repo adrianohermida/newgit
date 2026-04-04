@@ -15,6 +15,7 @@ const ACTION_LABELS = {
   run_sync_worker: "Rodar sync-worker",
   push_orfaos: "Criar accounts no Freshsales",
   repair_freshsales_accounts: "Corrigir campos no Freshsales",
+  sync_supabase_crm: "Sincronizar Supabase + Freshsales",
   backfill_audiencias: "Retroagir audiencias",
   auditoria_sync: "Rodar auditoria",
   enriquecer_datajud: "Reenriquecer via DataJud",
@@ -26,6 +27,8 @@ const ACTION_LABELS = {
 function buildHistoryPreview(result) {
   if (!result) return "";
   if (result.erro) return String(result.erro);
+  if (typeof result.sincronizados === "number") return `Sincronizados: ${result.sincronizados}`;
+  if (typeof result.reparados === "number") return `Reparados: ${result.reparados}`;
   if (typeof result.publicacoes === "number") return `Publicacoes processadas: ${result.publicacoes}`;
   if (typeof result.updated === "number") return `Atualizados: ${result.updated}`;
   if (typeof result.inserted === "number") return `Inseridos: ${result.inserted}`;
@@ -206,6 +209,15 @@ function InternoProcessosContent() {
   function toggleSelection(setter, current, key) { setter(current.includes(key) ? current.filter((item) => item !== key) : [...current, key]); }
   function togglePageSelection(setter, current, rows, nextState) { const keys = rows.map((item) => item.key); if (nextState) { setter([...new Set([...current, ...keys])]); return; } setter(current.filter((item) => !keys.includes(item))); }
   function getSelectedNumbers(rows, selected) { return rows.filter((item) => selected.includes(item.key)).map((item) => item.numero_cnj).filter(Boolean); }
+  function getCombinedSelectedNumbers() {
+    return [...new Set([
+      ...getSelectedNumbers(withoutMovements.items, selectedWithoutMovements),
+      ...getSelectedNumbers(monitoringActive.items, selectedMonitoringActive),
+      ...getSelectedNumbers(monitoringInactive.items, selectedMonitoringInactive),
+      ...getSelectedNumbers(fieldGaps.items, selectedFieldGaps),
+      ...getSelectedNumbers(orphans.items, selectedOrphans),
+    ])];
+  }
   function updateView(nextView) {
     setView(nextView);
     if (typeof window === "undefined") return;
@@ -303,6 +315,7 @@ function InternoProcessosContent() {
   const relationTypeSummary = useMemo(() => relations.items.reduce((acc, item) => { acc[item.tipo_relacao] = (acc[item.tipo_relacao] || 0) + 1; return acc; }, {}), [relations.items]);
   const selectedSummary = selectedWithoutMovements.length + selectedMonitoringActive.length + selectedMonitoringInactive.length + selectedFieldGaps.length + selectedOrphans.length;
   const latestHistory = executionHistory[0] || null;
+  const combinedSelectedNumbers = getCombinedSelectedNumbers();
 
   return <div className="space-y-8">
     <section className="rounded-[34px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-6 py-6 md:px-7">
@@ -334,25 +347,29 @@ function InternoProcessosContent() {
           <div className="grid gap-3 md:grid-cols-2">
             <ActionButton onClick={() => handleAction("run_sync_worker")} disabled={actionState.loading}>Rodar sync-worker</ActionButton>
             <ActionButton tone="primary" onClick={() => handleAction("push_orfaos", { limit })} disabled={actionState.loading}>Criar accounts no Freshsales</ActionButton>
+            <ActionButton tone="primary" onClick={() => handleAction("sync_supabase_crm", { processNumbers: combinedSelectedNumbers.join("\n"), limit })} disabled={actionState.loading}>Sincronizar Supabase + Freshsales</ActionButton>
             <ActionButton onClick={() => handleAction("repair_freshsales_accounts", { processNumbers: getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n"), limit })} disabled={actionState.loading}>Corrigir campos no Freshsales</ActionButton>
             <ActionButton onClick={() => handleAction("backfill_audiencias", { processNumbers: getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n"), limit, apply: true })} disabled={actionState.loading}>Retroagir audiencias</ActionButton>
             <ActionButton onClick={() => handleAction("auditoria_sync")} disabled={actionState.loading} className="md:col-span-2">Rodar auditoria</ActionButton>
           </div>
-          <p className="text-xs opacity-55">A criacao de accounts roda em lote controlado para respeitar o sync remoto e evitar inconsistencias entre Freshsales e Supabase.</p>
+          <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-xs leading-6 opacity-70">
+            <p><strong className="text-[#F4F1EA]">Selecao atual:</strong> {combinedSelectedNumbers.length ? combinedSelectedNumbers.slice(0, 8).join(", ") : "nenhum processo selecionado nas filas"}</p>
+            <p className="mt-2">Use <strong className="text-[#F4F1EA]">Sincronizar Supabase + Freshsales</strong> quando quiser persistir DataJud no banco e reparar o CRM no mesmo lote. A criacao de accounts roda em lote controlado para respeitar o teto remoto.</p>
+          </div>
         </div>
       </Panel>
       <Panel title="Reenriquecimento DataJud" eyebrow="Consulta e persistencia">
         <div className="space-y-4">
-          <p className="text-sm opacity-70">A consulta do DataJud precisa persistir primeiro no Supabase; a correcao no Freshsales vem como segunda etapa.</p>
+          <p className="text-sm opacity-70">Aqui ficam os passos granulares. Quando quiser resolver o ciclo inteiro, prefira o comando combinado da coluna ao lado.</p>
           <div className="grid gap-3 md:grid-cols-2">
             <ActionButton tone="primary" onClick={() => handleAction("enriquecer_datajud", { processNumbers: getSelectedNumbers(withoutMovements.items, selectedWithoutMovements).join("\n"), limit })} disabled={actionState.loading}>Buscar movimentacoes no DataJud</ActionButton>
             <ActionButton onClick={() => handleAction("enriquecer_datajud", { processNumbers: getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n"), limit })} disabled={actionState.loading}>Sincronizar monitorados</ActionButton>
             <ActionButton onClick={() => handleAction("enriquecer_datajud", { processNumbers: getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n"), limit })} disabled={actionState.loading} className="md:col-span-2">Reenriquecer processos com gap</ActionButton>
           </div>
           <div className="grid gap-3 pt-2 md:grid-cols-3">
-            <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Fluxo 1</p><p className="mt-2 font-semibold">Dados judiciais</p><p className="mt-2 opacity-65">Reenriquecer o Supabase antes de reparar o Freshsales.</p></div>
-            <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Fluxo 2</p><p className="mt-2 font-semibold">Accounts orfaos</p><p className="mt-2 opacity-65">Criar accounts para os processos sem vinculo e depois rodar o sync.</p></div>
-            <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Fluxo 3</p><p className="mt-2 font-semibold">Audiencias</p><p className="mt-2 opacity-65">Retroagir audiencias em lotes pequenos e acompanhar no historico.</p></div>
+            <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Fluxo 1</p><p className="mt-2 font-semibold">Persistir consulta</p><p className="mt-2 opacity-65">Salvar DataJud no Supabase sem depender de reparo imediato no CRM.</p></div>
+            <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Fluxo 2</p><p className="mt-2 font-semibold">Corrigir CRM</p><p className="mt-2 opacity-65">Refletir os campos no Freshsales depois que o processo ja estiver consistente no banco.</p></div>
+            <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Fluxo 3</p><p className="mt-2 font-semibold">Usar pipeline unica</p><p className="mt-2 opacity-65">O comando combinado executa as duas etapas e devolve o que foi persistido e o que foi reparado.</p></div>
           </div>
         </div>
       </Panel>

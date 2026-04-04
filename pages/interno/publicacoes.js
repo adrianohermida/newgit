@@ -12,6 +12,7 @@ const HISTORY_STORAGE_KEY = "hmadv:interno-publicacoes:history:v1";
 const ACTION_LABELS = {
   criar_processos_publicacoes: "Criar processos das publicacoes",
   backfill_partes: "Extracao retroativa de partes",
+  sincronizar_partes: "Salvar partes + atualizar polos + corrigir CRM",
   run_sync_worker: "Rodar sync-worker",
 };
 
@@ -20,6 +21,8 @@ function buildHistoryPreview(result) {
   if (result.erro) return String(result.erro);
   if (typeof result.processosCriados === "number") return `Processos criados: ${result.processosCriados}`;
   if (typeof result.partesInseridas === "number") return `Partes inseridas: ${result.partesInseridas}`;
+  if (typeof result.processosAtualizados === "number") return `Processos atualizados: ${result.processosAtualizados}`;
+  if (typeof result.accountsReparadas === "number") return `Accounts reparadas: ${result.accountsReparadas}`;
   if (typeof result.publicacoes === "number") return `Publicacoes processadas: ${result.publicacoes}`;
   if (typeof result.total === "number") return `Total: ${result.total}`;
   if (typeof result.items?.length === "number") return `Itens retornados: ${result.items.length}`;
@@ -99,6 +102,7 @@ function QueueList({
   loading,
   totalRows = 0,
   pageSize = 20,
+  totalEstimated = false,
 }) {
   const allSelected = rows.length > 0 && rows.every((row) => selected.includes(row.key));
   const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / Math.max(1, pageSize)));
@@ -370,9 +374,9 @@ function PublicacoesContent() {
     setProcessCandidates((state) => ({ ...state, loading: true, error: null }));
     try {
       const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=candidatos_processos&page=${page}&pageSize=20`);
-      setProcessCandidates({ loading: false, error: null, items: payload.data.items || [], totalRows: payload.data.totalRows || 0, pageSize: payload.data.pageSize || 20 });
+      setProcessCandidates({ loading: false, error: null, items: payload.data.items || [], totalRows: payload.data.totalRows || 0, totalEstimated: Boolean(payload.data.totalEstimated), pageSize: payload.data.pageSize || 20 });
     } catch (error) {
-      setProcessCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos.", items: [], totalRows: 0, pageSize: 20 });
+      setProcessCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos.", items: [], totalRows: 0, totalEstimated: false, pageSize: 20 });
     }
   }
 
@@ -380,9 +384,9 @@ function PublicacoesContent() {
     setPartesCandidates((state) => ({ ...state, loading: true, error: null }));
     try {
       const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=candidatos_partes&page=${page}&pageSize=20`);
-      setPartesCandidates({ loading: false, error: null, items: payload.data.items || [], totalRows: payload.data.totalRows || 0, pageSize: payload.data.pageSize || 20 });
+      setPartesCandidates({ loading: false, error: null, items: payload.data.items || [], totalRows: payload.data.totalRows || 0, totalEstimated: Boolean(payload.data.totalEstimated), pageSize: payload.data.pageSize || 20 });
     } catch (error) {
-      setPartesCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos de partes.", items: [], totalRows: 0, pageSize: 20 });
+      setPartesCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos de partes.", items: [], totalRows: 0, totalEstimated: false, pageSize: 20 });
     }
   }
 
@@ -530,7 +534,7 @@ function PublicacoesContent() {
               <QueueSummaryCard
                 title="Processos criaveis"
                 count={processCandidates.totalRows || processCandidates.items.length || 0}
-                helper={`${selectedProcessKeys.length} selecionado(s) nesta sessao.`}
+                helper={`${selectedProcessKeys.length} selecionado(s) nesta sessao.${processCandidates.totalEstimated ? " Total estimado." : ""}`}
               />
               <QueueSummaryCard
                 title="Sem processo vinculado"
@@ -634,6 +638,14 @@ function PublicacoesContent() {
               </button>
               <button
                 type="button"
+                onClick={() => handleAction("sincronizar_partes", true, selectedPartesNumbers)}
+                disabled={actionState.loading}
+                className="border border-[#6E5630] bg-[rgba(197,160,89,0.08)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#F8E7B5] hover:border-[#C5A059] disabled:opacity-50"
+              >
+                Salvar + corrigir CRM
+              </button>
+              <button
+                type="button"
                 onClick={async () => {
                   await Promise.all([loadOverview(), loadProcessCandidates(processPage), loadPartesCandidates(partesPage)]);
                 }}
@@ -683,6 +695,7 @@ function PublicacoesContent() {
             loading={processCandidates.loading}
             totalRows={processCandidates.totalRows}
             pageSize={processCandidates.pageSize}
+            totalEstimated={processCandidates.totalEstimated}
           />
         </Panel>
         <Panel title="Fila de partes extraiveis" eyebrow="Backfill pelo conteudo das publicacoes">
@@ -698,6 +711,7 @@ function PublicacoesContent() {
             loading={partesCandidates.loading}
             totalRows={partesCandidates.totalRows}
             pageSize={partesCandidates.pageSize}
+            totalEstimated={partesCandidates.totalEstimated}
           />
         </Panel>
         </div>

@@ -441,8 +441,13 @@ export default function AITaskModule({ profile, routePath }) {
   }
 
   useEffect(() => {
-    const runId = activeRun?.id;
-    if (!runId) return undefined;
+    let runId = activeRun?.id;
+    // Se não houver runId, cria um novo automaticamente
+    if (!runId) {
+      const localRunId = `${Date.now()}_run`;
+      setActiveRun({ id: localRunId, startedAt: nowIso(), mission });
+      runId = localRunId;
+    }
 
     const terminalStates = new Set(["done", "failed", "stopped"]);
     if (terminalStates.has(automation)) return undefined;
