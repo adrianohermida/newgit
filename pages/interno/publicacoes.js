@@ -454,6 +454,35 @@ function HistoryCard({ entry, onReuse }) {
   </div>;
 }
 
+function JobCard({ job, active = false }) {
+  const processed = Number(job?.processed_count || 0);
+  const requested = Number(job?.requested_count || 0);
+  const percent = requested ? Math.min(100, Math.round((processed / requested) * 100)) : 0;
+  const statusTone = job?.status === "completed" ? "success" : job?.status === "error" ? "danger" : "warning";
+  return <div className={`border p-4 text-sm ${active ? "border-[#C5A059] bg-[rgba(76,57,26,0.18)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p className="font-semibold">{ACTION_LABELS[job?.acao] || job?.acao}</p>
+        <p className="text-xs opacity-60">{job?.created_at ? new Date(job.created_at).toLocaleString("pt-BR") : "sem horario"}</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <HealthBadge label={job?.status || "pending"} tone={statusTone} />
+        {active ? <HealthBadge label="ativo na tela" tone="default" /> : null}
+      </div>
+    </div>
+    <div className="mt-3 flex flex-wrap gap-2 text-xs">
+      <span className="rounded-full border border-[#2D2E2E] px-2 py-1">Solicitados {requested}</span>
+      <span className="rounded-full border border-[#30543A] px-2 py-1 text-[#B7F7C6]">Processados {processed}</span>
+      <span className="rounded-full border border-[#6E5630] px-2 py-1 text-[#FDE68A]">Falhas {Number(job?.error_count || 0)}</span>
+    </div>
+    <div className="mt-3 h-2 overflow-hidden rounded-full bg-[rgba(255,255,255,0.08)]">
+      <div className="h-full rounded-full bg-[#C5A059]" style={{ width: `${percent}%` }} />
+    </div>
+    <p className="mt-2 text-xs opacity-65">{buildJobPreview(job)}</p>
+    {job?.last_error ? <p className="mt-2 text-xs text-red-200">{job.last_error}</p> : null}
+  </div>;
+}
+
 function StatusBadge({ children, tone = "default" }) {
   const tones = {
     default: "border-[#2D2E2E] text-[#F4F1EA]",
@@ -488,6 +517,9 @@ function renderSyncStatuses(row) {
 }
 
 function OperationResult({ result }) {
+  if (result?.job) {
+    return <JobCard job={result.job} active />;
+  }
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const rows = Array.isArray(result?.sample)
@@ -626,6 +658,8 @@ function PublicacoesContent() {
   const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
   const [executionHistory, setExecutionHistory] = useState([]);
   const [remoteHistory, setRemoteHistory] = useState([]);
+  const [jobs, setJobs] = useState([]);
+  const [activeJobId, setActiveJobId] = useState(null);
   const [processNumbers, setProcessNumbers] = useState("");
   const [limit, setLimit] = useState(10);
   const [processPage, setProcessPage] = useState(1);
@@ -654,6 +688,7 @@ function PublicacoesContent() {
   }, []);
   useEffect(() => { setExecutionHistory(loadHistoryEntries()); }, []);
   useEffect(() => { loadRemoteHistory(); }, []);
+  useEffect(() => { loadJobs(); }, []);
 
   useEffect(() => {
     loadOverview();
@@ -666,6 +701,58 @@ function PublicacoesContent() {
   useEffect(() => {
     loadPartesCandidates(partesPage);
   }, [partesPage]);
+  useEffect(() => {
+    if (!jobs.length) return;
+    const runningJob = jobs.find((item) => item.status === "running" || item.status === "pending");
+    if (runningJob?.id && !activeJobId) {
+      setActiveJobId(runningJob.id);
+    }
+  }, [jobs, activeJobId]);
+  useEffect(() => {
+    if (!activeJobId) return undefined;
+    let cancelled = false;
+    async function runLoop() {
+      while (!cancelled) {
+        try {
+          const payload = await adminFetch("/api/admin-hmadv-publicacoes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "run_job_chunk", id: activeJobId }),
+          }, { timeoutMs: 120000, maxRetries: 0 });
+          const job = payload.data;
+          if (cancelled) return;
+          await Promise.all([loadJobs(), loadRemoteHistory()]);
+          setActionState({ loading: false, error: null, result: { job } });
+          if (job?.status === "completed" || job?.status === "error" || job?.status === "cancelled") {
+            setActiveJobId(null);
+            await Promise.all([loadOverview(), loadProcessCandidates(processPage), loadPartesCandidates(partesPage)]);
+            if (typeof window !== "undefined" && "Notification" in window) {
+              if (Notification.permission === "default") {
+                Notification.requestPermission().catch(() => {});
+              } else if (Notification.permission === "granted") {
+                new Notification("HMADV concluiu um job de publicacoes", {
+                  body: `${ACTION_LABELS[job?.acao] || job?.acao}: ${buildJobPreview(job)}`,
+                });
+              }
+            }
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 1800));
+        } catch (error) {
+          if (!cancelled) {
+            setActionState({ loading: false, error: error.message || "Falha ao processar job.", result: null });
+            setActiveJobId(null);
+            await Promise.all([loadJobs(), loadRemoteHistory()]);
+          }
+          return;
+        }
+      }
+    }
+    runLoop();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeJobId, processPage, partesPage]);
 
   async function loadOverview() {
     setOverview({ loading: true, error: null, data: null });
