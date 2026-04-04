@@ -568,15 +568,15 @@ async function resolveProcessJobTargets(env, action, processNumbers = []) {
 async function collectPublicacoesTargets(loader, env) {
   const pageSize = 50;
   let page = 1;
-  let totalRows = null;
   const numbers = [];
-  while (totalRows === null || (page - 1) * pageSize < totalRows) {
+  let hasMore = true;
+  while (hasMore) {
     const data = await loader(env, { page, pageSize });
-    totalRows = Number(data?.totalRows || 0);
     for (const item of data?.items || []) {
       if (item?.numero_cnj) numbers.push(item.numero_cnj);
     }
-    if (!(data?.items || []).length || (data?.items || []).length < pageSize) break;
+    hasMore = Boolean(data?.hasMore);
+    if (!(data?.items || []).length) break;
     page += 1;
   }
   return uniqueNonEmpty(numbers);
@@ -666,6 +666,138 @@ async function loadAllPublicacoesSemProcesso(env) {
     if (rows.length < pageSize) break;
   }
   return output;
+}
+
+async function collectCreateProcessCandidatePage(env, { page = 1, pageSize = 20 } = {}) {
+  const safePage = Math.max(1, Number(page || 1));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  const targetStart = (safePage - 1) * safePageSize;
+  const targetEnd = targetStart + safePageSize;
+  const rawBatchSize = Math.max(200, safePageSize * 12);
+  const maxScans = 40;
+  const grouped = new Map();
+  let offset = 0;
+  let scans = 0;
+  let hasMore = true;
+
+  while (hasMore && scans < maxScans && grouped.size < targetEnd) {
+    const rows = await loadPublicacoesSemProcesso(env, rawBatchSize, offset);
+    offset += rows.length;
+    scans += 1;
+    for (const row of rows) {
+      const numero = normalizeProcessNumber(row.numero_processo_api);
+      if (!numero) continue;
+      const current = grouped.get(numero);
+      if (current) {
+        current.publicacoes += 1;
+        if (row.data_publicacao && (!current.ultima_publicacao || row.data_publicacao > current.ultima_publicacao)) {
+          current.ultima_publicacao = row.data_publicacao;
+        }
+        if (!current.snippet && row.conteudo) current.snippet = String(row.conteudo || "").slice(0, 220);
+        continue;
+      }
+      grouped.set(numero, {
+        key: numero,
+        numero_cnj: numero,
+        publicacoes: 1,
+        ultima_publicacao: row.data_publicacao || null,
+        exemplo_publicacao_id: row.id,
+        snippet: String(row.conteudo || "").slice(0, 220),
+      });
+    }
+    if (rows.length < rawBatchSize) hasMore = false;
+  }
+
+  const items = [...grouped.values()].sort((left, right) => {
+    const a = left.ultima_publicacao || "";
+    const b = right.ultima_publicacao || "";
+    return a < b ? 1 : a > b ? -1 : 0;
+  });
+
+  return {
+    page: safePage,
+    pageSize: safePageSize,
+    totalRows: hasMore ? Math.max(targetEnd + 1, items.length) : items.length,
+    totalEstimated: hasMore,
+    hasMore,
+    items: items.slice(targetStart, targetEnd),
+  };
+}
+
+async function collectPartesExtractionCandidatePage(env, { page = 1, pageSize = 20 } = {}) {
+  const safePage = Math.max(1, Number(page || 1));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  const targetStart = (safePage - 1) * safePageSize;
+  const targetEnd = targetStart + safePageSize;
+  const processBatchSize = Math.max(100, safePageSize * 8);
+  const maxScans = 40;
+  const collected = [];
+  const seen = new Set();
+  let offset = 0;
+  let scans = 0;
+  let hasMore = true;
+
+  while (hasMore && scans < maxScans && collected.length < targetEnd) {
+    const processRows = await hmadvRest(
+      env,
+      `processos?select=id,numero_cnj,titulo,account_id_freshsales,polo_ativo,polo_passivo&limit=${processBatchSize}&offset=${offset}&order=updated_at.desc.nullslast`
+    );
+    offset += processRows.length;
+    scans += 1;
+    if (!processRows.length) {
+      hasMore = false;
+      break;
+    }
+    const processIds = processRows.map((item) => item.id);
+    const [publicacoes, partes] = await Promise.all([
+      processIds.length ? loadPublicacoesByProcessIds(env, processIds, 10) : Promise.resolve([]),
+      processIds.length ? loadPartesByProcessIds(env, processIds) : Promise.resolve([]),
+    ]);
+
+    for (const proc of processRows) {
+      const dedupeKey = proc.numero_cnj || proc.id;
+      if (!dedupeKey || seen.has(dedupeKey)) continue;
+      const pubs = publicacoes.filter((item) => item.processo_id === proc.id).slice(0, 25);
+      if (!pubs.length) continue;
+      const existing = partes.filter((item) => item.processo_id === proc.id);
+      const parsed = pubs.flatMap((pub) => parsePartesFromText(pub.conteudo));
+      const uniqueParsed = parsed.reduce((acc, item) => {
+        const key = partyKey(item.nome, item.polo);
+        if (!acc.some((row) => partyKey(row.nome, row.polo) === key)) acc.push(item);
+        return acc;
+      }, []);
+      const novas = uniqueParsed.filter(
+        (parte) => !existing.some((item) => partyKey(item.nome, item.polo) === partyKey(parte.nome, parte.polo))
+      );
+      if (!novas.length) continue;
+      seen.add(dedupeKey);
+      collected.push({
+        key: dedupeKey,
+        processo_id: proc.id,
+        numero_cnj: proc.numero_cnj,
+        titulo: proc.titulo,
+        account_id_freshsales: proc.account_id_freshsales || null,
+        partes_existentes: existing.length,
+        partes_detectadas: uniqueParsed.length,
+        partes_novas: novas.length,
+        sample_partes_novas: novas.slice(0, 4),
+        sample_partes_existentes: existing.slice(0, 4),
+        sample_partes: novas.slice(0, 4),
+      });
+      if (collected.length >= targetEnd) break;
+    }
+
+    if (processRows.length < processBatchSize) hasMore = false;
+  }
+
+  return {
+    page: safePage,
+    pageSize: safePageSize,
+    totalRows: hasMore ? Math.max(targetEnd + 1, collected.length) : collected.length,
+    totalEstimated: hasMore,
+    hasMore,
+    items: collected.slice(targetStart, targetEnd),
+  };
 }
 
 function groupCreateProcessCandidates(rows = []) {
@@ -851,70 +983,11 @@ async function runDatajudPersistForProcess(env, numero) {
 }
 
 export async function listCreateProcessCandidates(env, { page = 1, pageSize = 20 } = {}) {
-  const safePage = Math.max(1, Number(page || 1));
-  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
-  const rows = await loadAllPublicacoesSemProcesso(env);
-  const grouped = groupCreateProcessCandidates(rows);
-  const offset = (safePage - 1) * safePageSize;
-  return {
-    page: safePage,
-    pageSize: safePageSize,
-    totalRows: grouped.length,
-    items: grouped.slice(offset, offset + safePageSize),
-  };
+  return collectCreateProcessCandidatePage(env, { page, pageSize });
 }
 
 export async function listPartesExtractionCandidates(env, { page = 1, pageSize = 20 } = {}) {
-  const safePage = Math.max(1, Number(page || 1));
-  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
-  const fetchSize = safePageSize * 4;
-  const processRows = await hmadvRest(
-    env,
-    `processos?select=id,numero_cnj,titulo,account_id_freshsales,polo_ativo,polo_passivo&processo_id=not.is.null&limit=${fetchSize}&offset=${(safePage - 1) * fetchSize}`
-      .replace("processo_id=not.is.null&", "")
-  );
-  const processIds = processRows.map((item) => item.id);
-  const [publicacoes, partes] = await Promise.all([
-    processIds.length ? loadPublicacoesByProcessIds(env, processIds, 10) : Promise.resolve([]),
-    processIds.length ? loadPartesByProcessIds(env, processIds) : Promise.resolve([]),
-  ]);
-  const items = [];
-  for (const proc of processRows) {
-    const pubs = publicacoes.filter((item) => item.processo_id === proc.id).slice(0, 25);
-    if (!pubs.length) continue;
-    const existing = partes.filter((item) => item.processo_id === proc.id);
-    const parsed = pubs.flatMap((pub) => parsePartesFromText(pub.conteudo));
-    const uniqueParsed = parsed.reduce((acc, item) => {
-      const key = partyKey(item.nome, item.polo);
-      if (!acc.some((row) => partyKey(row.nome, row.polo) === key)) acc.push(item);
-      return acc;
-    }, []);
-    const novas = uniqueParsed.filter(
-      (parte) => !existing.some((item) => partyKey(item.nome, item.polo) === partyKey(parte.nome, parte.polo))
-    );
-    if (!novas.length) continue;
-    items.push({
-      key: proc.numero_cnj || proc.id,
-      processo_id: proc.id,
-      numero_cnj: proc.numero_cnj,
-      titulo: proc.titulo,
-      account_id_freshsales: proc.account_id_freshsales || null,
-      partes_existentes: existing.length,
-      partes_detectadas: uniqueParsed.length,
-      partes_novas: novas.length,
-      sample_partes_novas: novas.slice(0, 4),
-      sample_partes_existentes: existing.slice(0, 4),
-      sample_partes: novas.slice(0, 4),
-    });
-  }
-  const totalEstimate = Math.max((safePage - 1) * safePageSize + items.length, safePageSize);
-  return {
-    page: safePage,
-    pageSize: safePageSize,
-    totalRows: totalEstimate,
-    totalEstimated: true,
-    items: items.slice(0, safePageSize),
-  };
+  return collectPartesExtractionCandidatePage(env, { page, pageSize });
 }
 
 export async function getProcessosOverview(env) {
