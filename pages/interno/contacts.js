@@ -103,12 +103,15 @@ function ContactsContent() {
   const [detailState, setDetailState] = useState({ loading: false, error: null, data: null });
   const [duplicatesState, setDuplicatesState] = useState({ loading: true, error: null, items: [], totalRows: 0 });
   const [partesPendentes, setPartesPendentes] = useState({ loading: true, error: null, items: [], totalRows: 0 });
+  const [partesVinculadas, setPartesVinculadas] = useState({ loading: true, error: null, items: [], totalRows: 0 });
   const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
   const [page, setPage] = useState(1);
   const [duplicatesPage, setDuplicatesPage] = useState(1);
   const [partesPage, setPartesPage] = useState(1);
   const [query, setQuery] = useState("");
   const [partesQuery, setPartesQuery] = useState("");
+  const [linkedQuery, setLinkedQuery] = useState("");
+  const [linkedType, setLinkedType] = useState("");
   const [type, setType] = useState("");
   const [selectedContactId, setSelectedContactId] = useState("");
   const [syncLimit, setSyncLimit] = useState(100);
@@ -125,6 +128,7 @@ function ContactsContent() {
   useEffect(() => { loadList(page, query, type); }, [page, query, type]);
   useEffect(() => { loadDuplicates(duplicatesPage); }, [duplicatesPage]);
   useEffect(() => { loadPartesPendentes(partesPage, partesQuery); }, [partesPage, partesQuery]);
+  useEffect(() => { loadPartesVinculadas(partesPage, linkedQuery, linkedType); }, [partesPage, linkedQuery, linkedType]);
   useEffect(() => {
     if (!selectedContactId) {
       setDetailState({ loading: false, error: null, data: null });
@@ -175,6 +179,16 @@ function ContactsContent() {
     }
   }
 
+  async function loadPartesVinculadas(nextPage, nextQuery, nextType) {
+    setPartesVinculadas((current) => ({ ...current, loading: true, error: null }));
+    try {
+      const payload = await adminFetch(`/api/admin-hmadv-contacts?action=partes_vinculadas&page=${nextPage}&pageSize=20&query=${encodeURIComponent(nextQuery || "")}&type=${encodeURIComponent(nextType || "")}`);
+      setPartesVinculadas({ loading: false, error: null, items: payload.data.items || [], totalRows: payload.data.totalRows || 0 });
+    } catch (error) {
+      setPartesVinculadas({ loading: false, error: error.message || "Falha ao carregar partes vinculadas.", items: [], totalRows: 0 });
+    }
+  }
+
   async function loadDetail(contactId) {
     setDetailState({ loading: true, error: null, data: null });
     try {
@@ -201,6 +215,7 @@ function ContactsContent() {
         loadList(page, query, type),
         loadDuplicates(duplicatesPage),
         loadPartesPendentes(partesPage, partesQuery),
+        loadPartesVinculadas(partesPage, linkedQuery, linkedType),
         selectedContactId ? loadDetail(selectedContactId) : Promise.resolve(),
       ]);
       return response.data;
@@ -368,6 +383,7 @@ function ContactsContent() {
       </Panel>
     </div>
 
+    <div className="grid gap-6 xl:grid-cols-2">
     <Panel title="Partes pendentes de vinculacao" eyebrow="HMADV -> Contacts">
       <div className="space-y-4">
         <div className="grid gap-4 md:grid-cols-[1fr_120px_220px_auto_auto_auto]">
@@ -399,6 +415,46 @@ function ContactsContent() {
         </div>
       </div>
     </Panel>
+
+    <Panel title="Partes ja vinculadas" eyebrow="Revisao e correcao">
+      <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-[1fr_220px]">
+          <input value={linkedQuery} onChange={(event) => { setPartesPage(1); setLinkedQuery(event.target.value); }} placeholder="Buscar vinculadas por nome ou processo" className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
+          <select value={linkedType} onChange={(event) => { setPartesPage(1); setLinkedType(event.target.value); }} className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]">
+            <option value="">Todos os tipos</option>
+            {CONTACT_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+        </div>
+        {partesVinculadas.loading ? <p className="text-sm opacity-60">Carregando partes vinculadas...</p> : null}
+        {partesVinculadas.error ? <p className="text-sm text-red-300">{partesVinculadas.error}</p> : null}
+        <div className="space-y-3">
+          {partesVinculadas.items.map((item) => <div key={item.id} className="border border-[#2D2E2E] p-4 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-semibold">{item.nome}</p>
+              <StatusBadge tone="accent">{item.tipo_contato || "Nao classificado"}</StatusBadge>
+              {item.cliente_hmadv || item.representada_pelo_escritorio ? <StatusBadge tone="success">cliente</StatusBadge> : null}
+              {item.principal_no_account ? <StatusBadge tone="success">principal</StatusBadge> : null}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-65">
+              <span>Polo: {item.polo || "n/d"}</span>
+              <span>Tipo pessoa: {item.tipo_pessoa || "n/d"}</span>
+              {item.processo?.numero_cnj ? <span>Processo: {item.processo.numero_cnj}</span> : null}
+              {item.processo?.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${item.processo.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Account {item.processo.account_id_freshsales}</a> : null}
+              {item.contact?.freshsales_url ? <a href={item.contact.freshsales_url} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Contato {item.contact.freshsales_contact_id}</a> : null}
+            </div>
+            {item.processo?.titulo ? <p className="mt-1 opacity-60">{item.processo.titulo}</p> : null}
+          </div>)}
+        </div>
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <p className="opacity-60">Total estimado: {partesVinculadas.totalRows || 0}</p>
+          <div className="flex gap-2">
+            <ActionButton onClick={() => setPartesPage(Math.max(1, partesPage - 1))} disabled={partesPage <= 1 || partesVinculadas.loading}>Anterior</ActionButton>
+            <ActionButton onClick={() => setPartesPage(partesPage + 1)} disabled={partesVinculadas.loading}>Proxima</ActionButton>
+          </div>
+        </div>
+      </div>
+    </Panel>
+    </div>
 
     <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">
       {actionState.loading ? <p className="text-sm opacity-60">Executando acao...</p> : null}

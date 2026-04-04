@@ -285,6 +285,42 @@ export async function listUnlinkedPartes(env, { page = 1, pageSize = 20, query =
   return { page: safePage, pageSize: safePageSize, totalRows: await hmadvCount(env, "partes", `${query ? `nome=ilike.${encodeURIComponent(`*${query}*`)}&` : ""}contato_freshsales_id=is.null`, "judiciario"), items: partes.map((item) => ({ ...item, processo: procMap.get(item.processo_id) || null })) };
 }
 
+export async function listLinkedPartes(env, { page = 1, pageSize = 20, query = "", type = "" } = {}) {
+  const safePage = Math.max(1, Number(page || 1));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  const filters = [
+    query ? `nome=ilike.${encodeURIComponent(`*${query}*`)}` : null,
+    "contato_freshsales_id=not.is.null",
+    "select=id,processo_id,nome,polo,tipo_pessoa,cliente_hmadv,representada_pelo_escritorio,principal_no_account,contato_freshsales_id",
+    `limit=${safePageSize}`,
+    `offset=${(safePage - 1) * safePageSize}`,
+  ].filter(Boolean).join("&");
+  const partes = await hmadvRest(env, `partes?${filters}`, {}, "judiciario");
+  const processIds = [...new Set(partes.map((item) => item.processo_id).filter(Boolean))];
+  const contactIds = [...new Set(partes.map((item) => item.contato_freshsales_id).filter(Boolean))];
+  const [processos, contacts] = await Promise.all([
+    processIds.length ? hmadvRest(env, `processos?id=in.(${processIds.map((id) => `"${id}"`).join(",")})&select=id,numero_cnj,titulo,account_id_freshsales`, {}, "judiciario") : [],
+    contactIds.length ? hmadvRest(env, `freshsales_contacts?freshsales_contact_id=in.(${contactIds.map((id) => `"${id}"`).join(",")})&select=id,freshsales_contact_id,name,raw_payload`) : [],
+  ]);
+  const procMap = new Map(processos.map((row) => [row.id, row]));
+  const contactMap = new Map(contacts.map((row) => [row.freshsales_contact_id, mapMirrorRow(row)]));
+  let items = partes.map((item) => {
+    const linkedContact = contactMap.get(String(item.contato_freshsales_id)) || null;
+    const inferredType = linkedContact?.type || (item.cliente_hmadv || item.representada_pelo_escritorio ? "Cliente" : item.polo ? "Parte Adversa" : "Terceiro Interessado");
+    return { ...item, processo: procMap.get(item.processo_id) || null, contact: linkedContact, tipo_contato: inferredType };
+  });
+  if (type) {
+    const normalized = normalizeText(type);
+    items = items.filter((item) => normalizeText(item.tipo_contato) === normalized);
+  }
+  return {
+    page: safePage,
+    pageSize: safePageSize,
+    totalRows: await hmadvCount(env, "partes", `${query ? `nome=ilike.${encodeURIComponent(`*${query}*`)}&` : ""}contato_freshsales_id=not.is.null`, "judiciario"),
+    items,
+  };
+}
+
 export async function getContactDetail(env, contactId) {
   const rows = await hmadvRest(env, `freshsales_contacts?freshsales_contact_id=eq.${encodeURIComponent(String(contactId))}&select=id,freshsales_contact_id,name,email,phone,last_synced_at,raw_payload&limit=1`);
   const row = rows[0];

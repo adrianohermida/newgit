@@ -10,6 +10,7 @@ import {
   linkPartesToExistingContact,
   listContacts,
   listDuplicateContacts,
+  listLinkedPartes,
   listUnlinkedPartes,
   mergeContacts,
   reconcilePartesContacts,
@@ -52,6 +53,15 @@ export async function onRequestGet(context) {
         page: Number(url.searchParams.get("page") || 1),
         pageSize: Number(url.searchParams.get("pageSize") || 20),
         query: String(url.searchParams.get("query") || ""),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "partes_vinculadas") {
+      const data = await listLinkedPartes(context.env, {
+        page: Number(url.searchParams.get("page") || 1),
+        pageSize: Number(url.searchParams.get("pageSize") || 20),
+        query: String(url.searchParams.get("query") || ""),
+        type: String(url.searchParams.get("type") || ""),
       });
       return jsonOk({ data });
     }
