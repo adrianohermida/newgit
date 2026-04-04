@@ -22,7 +22,9 @@
       "Bash(grep -r \"rpc\\\\|search_dotobot\\\\|upsert_dotobot\\\\|match_\" /d/Github/newgit/.claude/worktrees/distracted-tesla --include=*.ts --include=*.js)",
       "Bash(grep -r \"VECTORIZE\\\\|CLOUDFLARE_WORKER_ACCOUNT_ID\\\\|CLOUDFLARE_WORKER_API_TOKEN\\\\|DOTOBOT_VECTORIZE_INDEX\\\\|SUPABASE_URL\\\\|SUPABASE_SERVICE_ROLE_KEY\" /d/Github/newgit/.claude/worktrees/distracted-tesla --include=*.md)",
       "Bash(python -m pytest tests/test_supabase_rag.py -v)",
-      "Bash(python -m pytest tests/test_supabase_rag.py -q)"
+      "Bash(python -m pytest tests/test_supabase_rag.py -q)",
+      "Bash(python -c \"from core.coordinator.services import DualMemoryNoteSink, build_default_memory_note_sink; print\\(''import ok''\\)\")",
+      "Bash(python -m pytest tests/ -q)"
     ]
   }
 }
