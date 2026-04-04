@@ -513,6 +513,7 @@ function InternoProcessosContent() {
     .filter((item) => recurringProcesses.some((recurring) => recurring.key === (item.numero_cnj || item.key) && recurring.hits >= 3))
     .filter((item) => combinedSelectedNumbers.includes(item.numero_cnj))
     .length;
+  const priorityBatchReady = visibleSevereRecurringCount > 0 && selectedVisibleSevereRecurringCount >= visibleSevereRecurringCount && limit === recurringProcessBatch.size;
   function updateView(nextView) {
     setView(nextView);
     if (typeof window === "undefined") return;
@@ -696,6 +697,9 @@ function InternoProcessosContent() {
               <StatusBadge tone="warning">{visibleSevereRecurringCount} graves visiveis</StatusBadge>
               <StatusBadge tone={visibleSevereRecurringCount > 0 && selectedVisibleSevereRecurringCount >= visibleSevereRecurringCount ? "success" : "default"}>
                 selecao cobre {selectedVisibleSevereRecurringCount}/{visibleSevereRecurringCount || 0} graves
+              </StatusBadge>
+              <StatusBadge tone={priorityBatchReady ? "success" : "warning"}>
+                {priorityBatchReady ? "lote prioritario pronto" : "lote prioritario pendente"}
               </StatusBadge>
               <ActionButton className="px-3 py-2 text-xs" onClick={() => setLimit(recurringProcessBatch.size)}>Usar lote sugerido</ActionButton>
               <ActionButton tone="primary" className="px-3 py-2 text-xs" onClick={applySevereRecurringPreset}>Montar lote prioritario</ActionButton>
