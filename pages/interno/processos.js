@@ -279,6 +279,12 @@ function deriveRecurringProcessFocus(summary, bands) {
   if (summary.stagnant > 0) return { title: "Auditar lote sem progresso", body: "Ha recorrencias sem ganho util. Revise selecao, regra e cobertura antes de insistir no mesmo lote." };
   return { title: "Ciclo sob controle", body: "As recorrencias atuais parecem operacionais e podem ser drenadas pela fila normal com lotes menores." };
 }
+function deriveSuggestedProcessBatch(summary, bands) {
+  if (bands.critical > 0 || summary.manual > 0) return { size: 5, reason: "Use lote minimo para validar correcao estrutural ou manual." };
+  if (summary.freshsales > 0 || summary.datajud > 0) return { size: 10, reason: "Use lote curto para medir ganho antes de ampliar a rodada." };
+  if (summary.stagnant > 0) return { size: 8, reason: "Reduza o lote para isolar por que a fila nao esta progredindo." };
+  return { size: 20, reason: "A fila parece sob controle para um lote operacional padrao." };
+}
 function suggestProcessNextAction(source, row, current) {
   if (current?.needsManualReview) return "revisar manualmente o retorno";
   if (source === "freshsales") {
@@ -536,6 +542,7 @@ function InternoProcessosContent() {
   const recurringProcessBands = summarizeRecurrenceBands(recurringProcesses);
   const recurringProcessGroups = groupRecurringProcessEntries(recurringProcesses);
   const recurringProcessFocus = deriveRecurringProcessFocus(recurringProcessSummary, recurringProcessBands);
+  const recurringProcessBatch = deriveSuggestedProcessBatch(recurringProcessSummary, recurringProcessBands);
   const combinedSelectedNumbers = getCombinedSelectedNumbers();
 
   return <div className="space-y-8">
@@ -605,6 +612,10 @@ function InternoProcessosContent() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#F8E7B5]">Foco recomendado</p>
             <p className="mt-2 font-semibold">{recurringProcessFocus.title}</p>
             <p className="mt-2 text-sm opacity-75">{recurringProcessFocus.body}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <StatusBadge tone="success">lote sugerido {recurringProcessBatch.size}</StatusBadge>
+              <StatusBadge tone="default">{recurringProcessBatch.reason}</StatusBadge>
+            </div>
           </div>
           <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
             <QueueSummaryCard title="Supabase" count={recurringProcessSummary.supabase} helper="Itens que pedem correcao ou consolidacao interna." />

@@ -204,6 +204,12 @@ function deriveRecurringPublicacoesFocus(summary, bands) {
   if (summary.stagnant > 0) return { title: "Auditar lote sem progresso", body: "Ha recorrencias sem ganho util. Revise selecao, regra de extração e limite do lote." };
   return { title: "Ciclo sob controle", body: "As recorrencias atuais parecem operacionais e podem ser drenadas com lotes menores e correcoes pontuais." };
 }
+function deriveSuggestedPublicacoesBatch(summary, bands) {
+  if (bands.critical > 0 || summary.manual > 0) return { size: 5, reason: "Use lote minimo para validar regra e evitar retrabalho em massa." };
+  if (summary.advise > 0 || summary.freshsales > 0) return { size: 10, reason: "Use lote curto para medir extracao, reparo e reflexo em CRM." };
+  if (summary.stagnant > 0) return { size: 8, reason: "Reduza o lote para isolar por que a fila nao esta ganhando progresso." };
+  return { size: 20, reason: "A fila parece sob controle para uma rodada operacional padrao." };
+}
 function suggestPublicacaoNextAction(source, row, current) {
   if (current?.needsManualReview) return "revisar manualmente a publicacao";
   if (source === "freshsales") return "rodar sync-worker";
@@ -764,6 +770,7 @@ function PublicacoesContent() {
   const recurringPublicacoesBands = summarizeRecurrenceBands(recurringPublicacoes);
   const recurringPublicacoesGroups = groupRecurringPublicacoes(recurringPublicacoes);
   const recurringPublicacoesFocus = deriveRecurringPublicacoesFocus(recurringPublicacoesSummary, recurringPublicacoesBands);
+  const recurringPublicacoesBatch = deriveSuggestedPublicacoesBatch(recurringPublicacoesSummary, recurringPublicacoesBands);
 
   return (
     <div className="space-y-8">
@@ -944,6 +951,10 @@ function PublicacoesContent() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#F8E7B5]">Foco recomendado</p>
               <p className="mt-2 font-semibold">{recurringPublicacoesFocus.title}</p>
               <p className="mt-2 text-sm opacity-75">{recurringPublicacoesFocus.body}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <HealthBadge label={`lote sugerido ${recurringPublicacoesBatch.size}`} tone="success" />
+                <HealthBadge label={recurringPublicacoesBatch.reason} tone="default" />
+              </div>
             </div>
             <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
               <QueueSummaryCard title="Advise" count={recurringPublicacoesSummary.advise} helper="Leitura ou extracao ainda sem fechamento." />
