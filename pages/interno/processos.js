@@ -1009,11 +1009,11 @@ function InternoProcessosContent() {
           const result = payload.data || {};
           const job = result.job || null;
           if (cancelled) return;
-          await Promise.all([loadJobs(), loadRemoteHistory()]);
+          mergeJobIntoState(job);
           setActionState({ loading: false, error: null, result: result.job ? { job: result.job, drain: result } : { drain: result } });
           if (result.completedAll || !job?.id || job?.status === "completed" || job?.status === "error" || job?.status === "cancelled") {
             setActiveJobId(null);
-            await refreshOperationalQueues();
+            await Promise.all([refreshOperationalQueues(), loadRemoteHistory(), loadJobs()]);
             if (typeof window !== "undefined" && "Notification" in window) {
               if (Notification.permission === "default") {
                 Notification.requestPermission().catch(() => {});
@@ -1075,6 +1075,16 @@ function InternoProcessosContent() {
     } catch {
       setJobs([]);
     }
+  }
+  function mergeJobIntoState(job) {
+    if (!job?.id) return;
+    setJobs((current) => {
+      const next = Array.isArray(current) ? [...current] : [];
+      const index = next.findIndex((item) => item.id === job.id);
+      if (index >= 0) next[index] = { ...next[index], ...job };
+      else next.unshift(job);
+      return next.slice(0, 12);
+    });
   }
   async function refreshOperationalQueues() {
     await Promise.all([
@@ -1205,12 +1215,13 @@ function InternoProcessosContent() {
       ]);
       return response.data;
     }
-    const job = response.data;
-    setActionState({ loading: false, error: null, result: { job } });
-    setActiveJobId(job?.id || null);
-    await Promise.all([loadJobs(), loadRemoteHistory()]);
-    return job;
-  }
+      const job = response.data;
+      setActionState({ loading: false, error: null, result: { job } });
+      setActiveJobId(job?.id || null);
+      mergeJobIntoState(job);
+      await loadRemoteHistory();
+      return job;
+    }
   async function runPendingJobsNow() {
     setActionState({ loading: true, error: null, result: null });
     updateView("resultado");
@@ -1219,14 +1230,19 @@ function InternoProcessosContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "run_pending_jobs", id: activeJobId, maxChunks: 1 }),
-      }, { timeoutMs: 120000, maxRetries: 0 });
-      const result = payload.data || {};
-      setActionState({ loading: false, error: null, result: result.job ? { job: result.job, drain: result } : { drain: result } });
-      setActiveJobId(result.completedAll ? null : (result.job?.id || null));
-      await refreshOperationalContext();
-    } catch (error) {
-      setActionState({ loading: false, error: error.message || "Falha ao drenar fila.", result: null });
-    }
+        }, { timeoutMs: 120000, maxRetries: 0 });
+        const result = payload.data || {};
+        mergeJobIntoState(result.job || null);
+        setActionState({ loading: false, error: null, result: result.job ? { job: result.job, drain: result } : { drain: result } });
+        setActiveJobId(result.completedAll ? null : (result.job?.id || null));
+        if (result.completedAll || !result.job?.id || ["completed", "error", "cancelled"].includes(String(result.job?.status || ""))) {
+          await refreshOperationalContext();
+        } else {
+          await loadRemoteHistory();
+        }
+      } catch (error) {
+        setActionState({ loading: false, error: error.message || "Falha ao drenar fila.", result: null });
+      }
   }
   async function handleAction(action, payload = {}) {
     setActionState({ loading: true, error: null, result: null });
