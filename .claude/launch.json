@@ -19,5 +19,17 @@
       "runtimeArgs": ["wrangler", "dev", "--config", "workers/hmadv-process-ai/wrangler.toml"],
       "port": 8787
     }
+    {
+      "name": "Build",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "build"],
+      "port": null
+    },
+    {
+      "name": "Deploy to Cloudflare Pages",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["wrangler", "pages", "deploy", "out", "--project-name=newgit-pages"],
+      "port": null
+    }
   ]
 }

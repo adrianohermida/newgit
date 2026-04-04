@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from adapters.obsidian_adapter import ObsidianRagContext
+from ...adapters.obsidian_adapter import ObsidianRagContext
 from ..agents import CriticVerdict, ExecutionReport, ExecutionResultPayload, ExecutionStatus, StepExecutionResult
 
 

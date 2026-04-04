@@ -34,6 +34,11 @@ class ToolDescriptor:
     source_hint: str
     tags: tuple[str, ...] = ()
 
+    @property
+    def _search_corpus(self) -> str:
+        """Pre-joined lowercased haystack for scoring — avoids repeated allocs."""
+        return f'{self.name} {self.description} {self.source_hint} {" ".join(self.tags)}'.lower()
+
 
 @dataclass(frozen=True)
 class RankedTool:
@@ -124,12 +129,8 @@ def _tokenize(text: str) -> set[str]:
 
 
 def _score_tool(descriptor: ToolDescriptor, tokens: set[str]) -> int:
-    haystacks = [descriptor.name.lower(), descriptor.description.lower(), descriptor.source_hint.lower(), ' '.join(descriptor.tags)]
-    score = 0
-    for token in tokens:
-        if any(token in haystack for haystack in haystacks):
-            score += 1
-    return score
+    corpus = descriptor._search_corpus
+    return sum(1 for token in tokens if token in corpus)
 
 
 def _infer_tags(module: PortingModule) -> tuple[str, ...]:

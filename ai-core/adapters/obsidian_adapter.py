@@ -18,6 +18,7 @@ _OBSIDIAN_ENV_KEYS = (
 
 _TOKEN_PATTERN = re.compile(r"[a-z0-9_]+")
 _DEFAULT_MAX_INDEXED_NOTES = 256
+_INDEX_CACHE_MAX_SIZE = 16  # max distinct vault paths held in memory
 
 
 @dataclass(frozen=True)
@@ -36,7 +37,23 @@ class ObsidianIndexCache:
     scanned_at_mtime_ns: int = 0
 
 
-_INDEX_CACHE: dict[str, ObsidianIndexCache] = {}
+_INDEX_CACHE: dict[str, ObsidianIndexCache] = {}  # insertion-order LRU via dict (Python 3.7+)
+
+
+def _cache_get(key: str) -> ObsidianIndexCache | None:
+    """Return cached entry and promote it to MRU position."""
+    entry = _INDEX_CACHE.pop(key, None)
+    if entry is not None:
+        _INDEX_CACHE[key] = entry
+    return entry
+
+
+def _cache_put(key: str, value: ObsidianIndexCache) -> None:
+    """Insert/update entry, evicting the oldest when over capacity."""
+    _INDEX_CACHE.pop(key, None)
+    if len(_INDEX_CACHE) >= _INDEX_CACHE_MAX_SIZE:
+        _INDEX_CACHE.pop(next(iter(_INDEX_CACHE)))
+    _INDEX_CACHE[key] = value
 
 
 @dataclass(frozen=True)
@@ -211,7 +228,8 @@ def _get_cached_index(memory_dir: Path) -> dict[str, IndexedObsidianNote]:
     max_files = _get_max_indexed_notes()
     selected_files = sorted(files, key=lambda item: item.stat().st_mtime_ns, reverse=True)[:max_files]
     cache_key = str(memory_dir.resolve())
-    cache = _INDEX_CACHE.setdefault(cache_key, ObsidianIndexCache())
+    cache = _cache_get(cache_key) or ObsidianIndexCache()
+    _cache_put(cache_key, cache)
     current_paths = {str(path.resolve()) for path in selected_files}
     stale_paths = [path for path in cache.notes if path not in current_paths]
     for path in stale_paths:

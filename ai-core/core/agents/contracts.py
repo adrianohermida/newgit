@@ -1,7 +1,19 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
+
+
+class StepTelemetry(TypedDict, total=False):
+    duration_ms: float
+    selection_reason: str
+
+
+class StepOutputPayload(TypedDict, total=False):
+    status: str
+    tool: str | None
+    payload: str | dict[str, Any] | None
+    message: str
 
 
 ExecutionStatus = Literal['ok', 'retry', 'fail', 'unimplemented']
@@ -13,7 +25,6 @@ class PlanStep:
     action: str
     tool: str | None = None
     input: str | dict[str, Any] | None = None
-    selection: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -34,11 +45,11 @@ class StepExecutionResult:
     action: str
     tool: str | None
     input: str | dict[str, Any] | None
-    output: dict[str, Any] | str | None
+    output: StepOutputPayload | str | None
     status: ExecutionStatus
     attempts: int = 1
     error: str | None = None
-    telemetry: dict[str, Any] = field(default_factory=dict)
+    telemetry: StepTelemetry = field(default_factory=StepTelemetry)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

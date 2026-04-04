@@ -36,10 +36,15 @@ def rag_context_request(request: RagContextRequest) -> dict[str, Any]:
     return rag_context.to_dict()
 
 
+_MAX_QUERY_LENGTH = 8_000  # ~2k tokens; guards against runaway budget and DoS
+
+
 def execute_json(payload: dict[str, Any]) -> dict[str, Any]:
     query = str(payload.get('query') or '').strip()
     if not query:
         raise ValueError('query is required')
+    if len(query) > _MAX_QUERY_LENGTH:
+        raise ValueError(f'query exceeds maximum length of {_MAX_QUERY_LENGTH} characters')
     context = payload.get('context') if isinstance(payload.get('context'), dict) else {}
     return execute_request(ExecuteRequest(query=query, context=context))
 
@@ -48,6 +53,8 @@ def rag_context_json(payload: dict[str, Any]) -> dict[str, Any]:
     query = str(payload.get('query') or '').strip()
     if not query:
         raise ValueError('query is required')
+    if len(query) > _MAX_QUERY_LENGTH:
+        raise ValueError(f'query exceeds maximum length of {_MAX_QUERY_LENGTH} characters')
     context = payload.get('context') if isinstance(payload.get('context'), dict) else {}
     top_k = payload.get('top_k', 5)
     try:

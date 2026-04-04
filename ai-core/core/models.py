@@ -36,9 +36,11 @@ class UsageSummary:
     output_tokens: int = 0
 
     def add_turn(self, prompt: str, output: str) -> 'UsageSummary':
+        # Approximation: ~4 chars per token (GPT-family heuristic).
+        # Replace with tiktoken.encode() when available for exact counts.
         return UsageSummary(
-            input_tokens=self.input_tokens + len(prompt.split()),
-            output_tokens=self.output_tokens + len(output.split()),
+            input_tokens=self.input_tokens + max(1, len(prompt) // 4),
+            output_tokens=self.output_tokens + max(1, len(output) // 4),
         )
 
 
