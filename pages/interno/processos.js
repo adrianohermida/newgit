@@ -321,6 +321,94 @@ function deriveSelectionActionHint({
     badges: ["sem selecao ativa"],
   };
 }
+function buildSelectionSuggestedAction({
+  selectedWithoutMovements = [],
+  selectedMonitoringActive = [],
+  selectedMonitoringInactive = [],
+  selectedFieldGaps = [],
+  selectedOrphans = [],
+  monitoringUnsupported = false,
+  withoutMovements = [],
+  monitoringActive = [],
+  monitoringInactive = [],
+  fieldGaps = [],
+  orphans = [],
+  resolveActionProcessNumbers,
+  getSelectedNumbers,
+  limit,
+}) {
+  if (selectedOrphans.length) {
+    return {
+      key: "push_orfaos",
+      label: "Criar accounts agora",
+      tone: "primary",
+      payload: {
+        processNumbers: resolveActionProcessNumbers(getSelectedNumbers(orphans, selectedOrphans).join("\n")),
+        limit,
+      },
+    };
+  }
+  if (selectedFieldGaps.length) {
+    return {
+      key: "repair_freshsales_accounts",
+      label: "Corrigir CRM agora",
+      tone: "primary",
+      payload: {
+        processNumbers: resolveActionProcessNumbers(getSelectedNumbers(fieldGaps, selectedFieldGaps).join("\n")),
+        limit,
+      },
+    };
+  }
+  if (selectedWithoutMovements.length) {
+    return {
+      key: "enriquecer_datajud",
+      intent: "buscar_movimentacoes",
+      label: "Buscar movimentacoes agora",
+      tone: "primary",
+      payload: {
+        processNumbers: resolveActionProcessNumbers(getSelectedNumbers(withoutMovements, selectedWithoutMovements).join("\n")),
+        limit,
+        intent: "buscar_movimentacoes",
+        action: "enriquecer_datajud",
+      },
+    };
+  }
+  if (selectedMonitoringInactive.length) {
+    if (monitoringUnsupported) {
+      return {
+        key: "monitoramento_status",
+        label: "Schema pendente para monitoramento",
+        tone: "subtle",
+        disabled: true,
+      };
+    }
+    return {
+      key: "monitoramento_status",
+      label: "Ativar monitoramento agora",
+      tone: "primary",
+      payload: {
+        processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringInactive, selectedMonitoringInactive).join("\n")),
+        active: true,
+        limit,
+      },
+    };
+  }
+  if (selectedMonitoringActive.length) {
+    return {
+      key: "enriquecer_datajud",
+      intent: "sincronizar_monitorados",
+      label: "Sincronizar monitorados agora",
+      tone: "primary",
+      payload: {
+        processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringActive, selectedMonitoringActive).join("\n")),
+        limit,
+        intent: "sincronizar_monitorados",
+        action: "enriquecer_datajud",
+      },
+    };
+  }
+  return null;
+}
 function OperationResult({ result }) {
   if (result?.job) {
     return <JobCard job={result.job} active />;
@@ -1069,6 +1157,26 @@ function InternoProcessosContent() {
     selectedOrphans,
     monitoringUnsupported,
   });
+  const selectionSuggestedAction = buildSelectionSuggestedAction({
+    selectedWithoutMovements,
+    selectedMonitoringActive,
+    selectedMonitoringInactive,
+    selectedFieldGaps,
+    selectedOrphans,
+    monitoringUnsupported,
+    withoutMovements: withoutMovements.items,
+    monitoringActive: monitoringActive.items,
+    monitoringInactive: monitoringInactive.items,
+    fieldGaps: fieldGaps.items,
+    orphans: orphans.items,
+    resolveActionProcessNumbers,
+    getSelectedNumbers,
+    limit,
+  });
+  const isSuggestedAction = (action, intent = "") => {
+    if (!selectionSuggestedAction) return false;
+    return selectionSuggestedAction.key === action && String(selectionSuggestedAction.intent || "") === String(intent || "");
+  };
 
   return <div className="space-y-8">
     <section className="rounded-[34px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-6 py-6 md:px-7">
@@ -1100,10 +1208,11 @@ function InternoProcessosContent() {
           <label className="block"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">CNJs para foco manual</span><textarea value={processNumbers} onChange={(e) => setProcessNumbers(e.target.value)} rows={4} placeholder="Opcional: cole CNJs manualmente, um por linha." className="w-full rounded-[22px] border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" /></label>
           <label className="block max-w-[220px]"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Lote</span><input type="number" min="1" max="20" value={limit} onChange={(e) => setLimit(Number(e.target.value || 2))} className="w-full rounded-2xl border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" /><span className="mt-2 block text-xs leading-5 opacity-55">Acoes pesadas como sincronismo, reparo CRM, criacao de accounts e retroativo de audiencias sao reduzidas automaticamente para lote curto seguro.</span></label>
           <div className="grid gap-3 md:grid-cols-2">
-            <ActionButton onClick={() => handleAction("run_sync_worker")} disabled={actionState.loading}>Rodar sync-worker</ActionButton>
-            <ActionButton tone="primary" onClick={() => handleAction("push_orfaos", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(orphans.items, selectedOrphans).join("\n")), limit })} disabled={actionState.loading}>Criar accounts no Freshsales</ActionButton>
-            <ActionButton tone="primary" onClick={() => handleAction("sync_supabase_crm", { processNumbers: resolveActionProcessNumbers(combinedSelectedNumbers.join("\n")), limit })} disabled={actionState.loading}>Sincronizar Supabase + Freshsales</ActionButton>
-            <ActionButton onClick={() => handleAction("auditoria_sync")} disabled={actionState.loading} className="md:col-span-2">Rodar auditoria</ActionButton>
+            {selectionSuggestedAction ? <ActionButton tone={selectionSuggestedAction.tone || "primary"} onClick={() => handleAction(selectionSuggestedAction.key, selectionSuggestedAction.payload || {})} disabled={actionState.loading || selectionSuggestedAction.disabled} className="md:col-span-2">{selectionSuggestedAction.label}</ActionButton> : null}
+            <ActionButton onClick={() => handleAction("run_sync_worker")} disabled={actionState.loading} tone={isSuggestedAction("run_sync_worker") ? "primary" : "subtle"}>Rodar sync-worker</ActionButton>
+            <ActionButton tone={isSuggestedAction("push_orfaos") ? "primary" : "subtle"} onClick={() => handleAction("push_orfaos", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(orphans.items, selectedOrphans).join("\n")), limit })} disabled={actionState.loading}>Criar accounts no Freshsales</ActionButton>
+            <ActionButton tone={isSuggestedAction("sync_supabase_crm") ? "primary" : "subtle"} onClick={() => handleAction("sync_supabase_crm", { processNumbers: resolveActionProcessNumbers(combinedSelectedNumbers.join("\n")), limit })} disabled={actionState.loading}>Sincronizar Supabase + Freshsales</ActionButton>
+            <ActionButton onClick={() => handleAction("auditoria_sync")} disabled={actionState.loading} className="md:col-span-2" tone={isSuggestedAction("auditoria_sync") ? "primary" : "subtle"}>Rodar auditoria</ActionButton>
             <ActionButton onClick={runPendingJobsNow} disabled={actionState.loading || drainInFlight || !jobs.some((item) => ["pending", "running"].includes(String(item.status || "")))} className="md:col-span-2">{drainInFlight ? "Drenando fila..." : "Drenar fila HMADV"}</ActionButton>
           </div>
           <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-xs leading-6 opacity-70">
