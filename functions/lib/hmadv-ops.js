@@ -1214,6 +1214,7 @@ export async function createProcessesFromPublicacoes(env, { processNumbers = [],
 
   const sample = [];
   for (const item of uniqueTargets.slice(0, safeLimit)) {
+    const beforeRows = await loadProcessesByNumbers(env, [item.numero]);
     const result = await hmadvFunction(
       env,
       "datajud-search",
@@ -1226,9 +1227,16 @@ export async function createProcessesFromPublicacoes(env, { processNumbers = [],
         },
       }
     );
+    const afterRows = await loadProcessesByNumbers(env, [item.numero]);
+    const createdProcess = afterRows[0] || null;
     sample.push({
       numero_cnj: item.numero,
       publicacao_id: item.publication.id,
+      processo_antes: beforeRows[0]?.id || null,
+      processo_depois: createdProcess?.id || null,
+      processo_criado: !beforeRows.length && Boolean(createdProcess?.id),
+      titulo_processo: createdProcess?.titulo || null,
+      account_id_freshsales: createdProcess?.account_id_freshsales || null,
       result,
     });
   }

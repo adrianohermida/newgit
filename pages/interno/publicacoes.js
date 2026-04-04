@@ -223,6 +223,11 @@ function StatusBadge({ children, tone = "default" }) {
 
 function renderSyncStatuses(row) {
   const statuses = [];
+  if (row.processo_criado) {
+    statuses.push({ label: "processo criado", tone: "success" });
+  } else if (row.processo_depois) {
+    statuses.push({ label: "processo localizado", tone: "default" });
+  }
   if (row.partes_novas?.length) {
     statuses.push({ label: `detectadas ${row.partes_novas.length}`, tone: "warning" });
   } else if (typeof row.partes_detectadas === "number") {
@@ -252,17 +257,19 @@ function OperationResult({ result }) {
   const paged = rows.slice((page - 1) * pageSize, page * pageSize);
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const counters = rows.reduce((acc, row) => {
+    if (row.processo_criado) acc.processosCriados += 1;
     if (Array.isArray(row.partes_novas) && row.partes_novas.length) acc.detectadas += row.partes_novas.length;
     if (row.polos_atualizados?.polo_ativo || row.polos_atualizados?.polo_passivo) acc.polosAtualizados += 1;
     if (row.freshsales_repair?.skipped) acc.pendentes += 1;
     else if (row.freshsales_repair) acc.crmReparado += 1;
     if (row.result?.ok === false || row.freshsales_repair?.ok === false) acc.falhas += 1;
     return acc;
-  }, { detectadas: 0, polosAtualizados: 0, crmReparado: 0, pendentes: 0, falhas: 0 });
+  }, { processosCriados: 0, detectadas: 0, polosAtualizados: 0, crmReparado: 0, pendentes: 0, falhas: 0 });
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-5 text-sm">
+      <div className="grid gap-3 md:grid-cols-6 text-sm">
+        <QueueSummaryCard title="Processos criados" count={counters.processosCriados} helper="Publicacoes que viraram processo no HMADV." accent="text-[#B7F7C6]" />
         <QueueSummaryCard title="Partes detectadas" count={counters.detectadas} helper="Novas partes encontradas no lote." accent="text-[#FDE68A]" />
         <QueueSummaryCard title="Partes salvas" count={result?.partesInseridas || 0} helper="Registros inseridos em judiciario.partes." accent="text-[#B7F7C6]" />
         <QueueSummaryCard title="Polos atualizados" count={counters.polosAtualizados} helper="Processos com polo ativo/passivo recalculado." accent="text-[#B7F7C6]" />
@@ -303,6 +310,7 @@ function OperationResult({ result }) {
                     Abrir account {row.account_id_freshsales}
                   </a>
                 ) : null}
+                {row.titulo_processo ? <p className="mt-2 text-xs opacity-70">Processo HMADV: {row.titulo_processo}</p> : null}
                 {row.partes_novas?.length ? (
                   <p className="mt-2 text-xs opacity-70">
                     Partes novas: {row.partes_novas.map((item) => `${item.nome} (${item.polo})`).join(" | ")}
