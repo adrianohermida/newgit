@@ -181,6 +181,22 @@ function deriveRemoteHealth(history = []) {
   if (!badges.length && latest.status === "success") badges.push({ label: "ciclo saudavel", tone: "success" });
   return badges;
 }
+function deriveRecurringProcessEntries(history = []) {
+  const counts = new Map();
+  for (const entry of history.slice(0, 6)) {
+    const rows = Array.isArray(entry?.result_sample) ? entry.result_sample : [];
+    for (const row of rows) {
+      const key = row?.numero_cnj || row?.id || row?.processo_id;
+      if (!key) continue;
+      const current = counts.get(key) || { key, titulo: row?.titulo || "", hits: 0, lastAction: entry.acao };
+      current.hits += 1;
+      if (!current.titulo && row?.titulo) current.titulo = row.titulo;
+      current.lastAction = entry.acao;
+      counts.set(key, current);
+    }
+  }
+  return Array.from(counts.values()).filter((item) => item.hits > 1).sort((a, b) => b.hits - a.hits).slice(0, 8);
+}
 
 export default function InternoProcessosPage() {
   return <RequireAdmin>{(profile) => <InternoLayout profile={profile} title="Gestao de Processos" description="Painel operacional para sincronizacao DataJud, criacao de accounts, correcao de gaps no Freshsales e vinculacao de processos relacionados."><InternoProcessosContent /></InternoLayout>}</RequireAdmin>;
@@ -390,6 +406,7 @@ function InternoProcessosContent() {
   const latestHistory = executionHistory[0] || null;
   const latestRemoteRun = remoteHistory[0] || null;
   const remoteHealth = deriveRemoteHealth(remoteHistory);
+  const recurringProcesses = deriveRecurringProcessEntries(remoteHistory);
   const combinedSelectedNumbers = getCombinedSelectedNumbers();
 
   return <div className="space-y-8">
@@ -453,6 +470,18 @@ function InternoProcessosContent() {
     </div> : null}
 
     {view === "filas" ? <div id="filas" className="space-y-6">
+      {recurringProcesses.length ? <Panel title="Pendencias reincidentes" eyebrow="Prioridade operacional">
+        <div className="space-y-3">
+          {recurringProcesses.map((item) => <div key={item.key} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-semibold break-all">{item.key}</p>
+              <StatusBadge tone="danger">{item.hits} ciclos</StatusBadge>
+              <StatusBadge tone="warning">{ACTION_LABELS[item.lastAction] || item.lastAction}</StatusBadge>
+            </div>
+            {item.titulo ? <p className="mt-2 opacity-70">{item.titulo}</p> : null}
+          </div>)}
+        </div>
+      </Panel> : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <QueueSummaryCard title="Sem movimentacoes" count={withoutMovements.totalRows || 0} helper="Processos prontos para reconsulta no DataJud." />
         <QueueSummaryCard title="Monitorados" count={monitoringActive.totalRows || 0} helper="Carteira ativa em acompanhamento." />
