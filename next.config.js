@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
+  // output: 'export',
   images: { unoptimized: true },
   env: {
     NEXT_PUBLIC_SUPABASE_URL:
