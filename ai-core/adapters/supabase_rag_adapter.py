@@ -10,8 +10,13 @@ Environment variables (same keys used by lib/lawdesk/rag.js):
   SUPABASE_SERVICE_ROLE_KEY                   - Service role key
   DOTOBOT_SUPABASE_EMBED_SECRET               - dotobot-embed auth secret (optional)
   DOTOBOT_SUPABASE_EMBED_FUNCTION             - edge function name (default: dotobot-embed)
-  DOTOBOT_SUPABASE_EMBEDDING_MODEL            - model name (default: gte-small)
+  DOTOBOT_SUPABASE_EMBEDDING_MODEL            - Supabase model (default: gte-small)
   DOTOBOT_SUPABASE_MEMORY_TABLE               - table name (default: dotobot_memory_embeddings)
+
+NOTE: DOTOBOT_EMBEDDING_MODEL is the Cloudflare Workers AI model key — not used here.
+NOTE: CLOUDFLARE_WORKER_ACCOUNT_ID / CLOUDFLARE_WORKER_API_TOKEN drive the secondary
+      Vectorize path in lib/lawdesk/rag.js; Python uses Supabase only (CF=768-dim BGE,
+      Supabase=384-dim gte-small — indexes are incompatible).
 """
 from __future__ import annotations
 
