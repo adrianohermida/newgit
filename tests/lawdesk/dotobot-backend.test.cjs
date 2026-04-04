@@ -58,18 +58,24 @@ async function evaluateModule(module) {
 async function loadLawdeskModules() {
   const chatModule = await evaluateModule(await loadEsmModule("D:/Github/newgit/lib/lawdesk/chat.js"));
   const ragModule = await evaluateModule(await loadEsmModule("D:/Github/newgit/lib/lawdesk/rag.js"));
+  const obsidianModule = await evaluateModule(await loadEsmModule("D:/Github/newgit/lib/lawdesk/obsidian.js"));
   return {
     runLawdeskChat: chatModule.namespace.runLawdeskChat,
     persistDotobotMemory: ragModule.namespace.persistDotobotMemory,
     retrieveDotobotRagContext: ragModule.namespace.retrieveDotobotRagContext,
     runDotobotRagHealth: ragModule.namespace.runDotobotRagHealth,
+    queryObsidianMemory: obsidianModule.namespace.queryObsidianMemory,
+    writeObsidianMemory: obsidianModule.namespace.writeObsidianMemory,
   };
 }
 
 registerTest("retrieveDotobotRagContext returns disabled when no providers are configured", async () => {
   const { retrieveDotobotRagContext } = await loadLawdeskModules();
   const result = await retrieveDotobotRagContext({}, { query: "teste", topK: 3 });
-  assert.deepEqual(result, { enabled: false, matches: [] });
+  assert.equal(result.enabled, false);
+  assert.deepEqual(result.matches, []);
+  assert.deepEqual(result.trace, []);
+  assert.deepEqual(result.providers, {});
 });
 
 registerTest("persistDotobotMemory skips persistence when no providers are configured", async () => {
@@ -107,9 +113,13 @@ registerTest("runLawdeskChat falls back to Workers AI direct execution", async (
   });
 
   assert.equal(result.status, "ok");
+  assert.equal(result.result.kind, "structured");
+  assert.equal(result.result.message, "Resposta do fallback local.");
   assert.equal(result.resultText, "Resposta do fallback local.");
   assert.equal(result._metadata.source, "workers_ai_direct");
   assert.equal(result.rag.retrieval.enabled, false);
+  assert.ok(Array.isArray(result.telemetry));
+  assert.equal(result.telemetry.at(-1).event, "chat_complete");
 });
 
 registerTest("runLawdeskChat retries transient primary backend failures", async () => {
@@ -146,11 +156,55 @@ registerTest("runLawdeskChat retries transient primary backend failures", async 
 
     assert.equal(calls.length, 2);
     assert.equal(result.status, "ok");
+    assert.equal(result.result.kind, "structured");
+    assert.equal(result.result.message, "Resposta do backend primario.");
     assert.equal(result.resultText, "Resposta do backend primario.");
     assert.equal(result._metadata.source, "primary_api");
     assert.equal(result._metadata.retriesUsed, 1);
+    assert.ok(result.telemetry.some((item) => item.event === "backend_execute" && item.provider === "primary_api"));
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+registerTest("queryObsidianMemory respects configured index limit", async () => {
+  const { queryObsidianMemory, writeObsidianMemory } = await loadLawdeskModules();
+  const tempDir = path.join("D:/Github/newgit", ".tmp-dotobot-obsidian-test");
+  const originalLimit = process.env.DOTOBOT_OBSIDIAN_RAG_MAX_FILES;
+
+  await fs.rm(tempDir, { recursive: true, force: true });
+  process.env.DOTOBOT_OBSIDIAN_RAG_MAX_FILES = "1";
+
+  try {
+    const env = { DOTOBOT_OBSIDIAN_VAULT_PATH: tempDir, DOTOBOT_OBSIDIAN_RAG_MAX_FILES: "1" };
+    await writeObsidianMemory(env, {
+      source_key: "older-note",
+      query: "Caso antigo",
+      responseText: "Discussao sobre acordo antigo.",
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z",
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    await writeObsidianMemory(env, {
+      source_key: "recent-note",
+      query: "Caso recente",
+      responseText: "Resumo sobre estrategia recente e urgente.",
+      created_at: "2026-04-01T00:00:00.000Z",
+      updated_at: "2026-04-01T00:00:00.000Z",
+    });
+
+    const results = await queryObsidianMemory(env, { query: "estrategia recente", topK: 5 });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].id, "recent-note");
+  } finally {
+    if (originalLimit == null) {
+      delete process.env.DOTOBOT_OBSIDIAN_RAG_MAX_FILES;
+    } else {
+      process.env.DOTOBOT_OBSIDIAN_RAG_MAX_FILES = originalLimit;
+    }
+    await fs.rm(tempDir, { recursive: true, force: true });
   }
 });
 

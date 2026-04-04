@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "../../components/ui/toast";
+import TicketModal from "../../components/portal/TicketModal";
 import { useRouter } from "next/router";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
@@ -43,6 +44,23 @@ export default function PortalTicketsPage() {
   const [form, setForm] = useState({ subject: "", description: "" });
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState(null);
+  const [modalTicket, setModalTicket] = useState(null);
+  // Salva o timestamp do último acesso aos tickets
+  const [lastSeen, setLastSeen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return Number(localStorage.getItem('dotobot_tickets_last_seen') || 0);
+    }
+    return 0;
+  });
+
+  // Atualiza o lastSeen ao abrir o painel
+  useEffect(() => {
+    const now = Date.now();
+    setLastSeen(now);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dotobot_tickets_last_seen', String(now));
+    }
+  }, []);
 
   return (
     <RequireClient>
@@ -64,14 +82,17 @@ export default function PortalTicketsPage() {
             setSubmitting={setSubmitting}
             feedback={feedback}
             setFeedback={setFeedback}
+            onShowDetails={setModalTicket}
+            lastSeen={lastSeen}
           />
+          <TicketModal ticket={modalTicket} onClose={() => setModalTicket(null)} />
         </PortalLayout>
       )}
     </RequireClient>
   );
 }
 
-function TicketsContent({ router, state, setState, form, setForm, submitting, setSubmitting, feedback, setFeedback }) {
+function TicketsContent({ router, state, setState, form, setForm, submitting, setSubmitting, feedback, setFeedback, onShowDetails, lastSeen }) {
   const setToast = useToast();
   useEffect(() => {
     if (!router.isReady) return;
@@ -240,49 +261,63 @@ function TicketsContent({ router, state, setState, form, setForm, submitting, se
 
       {!state.loading && !state.error && state.items.length ? (
         <div className="space-y-4">
-          {state.items.map((item) => (
-            <article key={item.id} className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0">
-                  <div className="mb-3 flex flex-wrap items-center gap-3">
-                    <span className="text-[10px] font-semibold tracking-[0.2em]" style={{ color: "#C49C56" }}>
-                      Solicitacao #{item.id}
-                    </span>
-                    <span className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] ${statusTone(item.status)}`}>
-                      {item.status}
-                    </span>
-                    <span className={`text-[10px] uppercase tracking-[0.15em] ${priorityTone(item.priority)}`}>Prioridade {item.priority}</span>
+          {state.items.map((item) => {
+            const updatedAt = new Date(item.updated_at).getTime();
+            const isNew = updatedAt > lastSeen;
+            return (
+              <article key={item.id} className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6 cursor-pointer hover:border-[#C49C56] transition"
+                tabIndex={0}
+                aria-label={`Ver detalhes do ticket ${item.id}`}
+                onClick={() => onShowDetails(item)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onShowDetails(item); }}
+              >
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="mb-3 flex flex-wrap items-center gap-3">
+                      <span className="text-[10px] font-semibold tracking-[0.2em]" style={{ color: "#C49C56" }}>
+                        Solicitacao #{item.id}
+                      </span>
+                      <span className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] ${statusTone(item.status)}`}>
+                        {item.status}
+                      </span>
+                      <span className={`text-[10px] uppercase tracking-[0.15em] ${priorityTone(item.priority)}`}>Prioridade {item.priority}</span>
+                      {isNew && (
+                        <span className="ml-2 rounded-full bg-green-500 px-2 py-1 text-[10px] text-white font-bold animate-pulse">Novo</span>
+                      )}
+                    </div>
+                    <h3 className="font-serif text-2xl">{item.subject}</h3>
+                    <p className="mt-2 text-sm opacity-55">Atualizado em {formatDateTime(item.updated_at)}</p>
+                    {item.description_text ? <p className="mt-4 max-w-3xl text-sm leading-6 opacity-65">{item.description_text}</p> : null}
                   </div>
-                  <h3 className="font-serif text-2xl">{item.subject}</h3>
-                  <p className="mt-2 text-sm opacity-55">Atualizado em {formatDateTime(item.updated_at)}</p>
-                  {item.description_text ? <p className="mt-4 max-w-3xl text-sm leading-6 opacity-65">{item.description_text}</p> : null}
-                </div>
 
-                <div className="flex flex-wrap gap-3">
-                  {item.urls?.ticket_url ? (
-                    <a
-                      href={item.urls.ticket_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-2xl bg-[#C49C56] px-4 py-3 text-sm font-semibold text-[#07110E] transition hover:brightness-110"
-                    >
-                      Abrir atendimento
-                    </a>
-                  ) : null}
-                  {item.urls?.agent_ticket_url ? (
-                    <a
-                      href={item.urls.agent_ticket_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-2xl border border-[#20332D] px-4 py-3 text-sm transition hover:border-[#C49C56]"
-                    >
-                      Link alternativo
-                    </a>
-                  ) : null}
+                  <div className="flex flex-wrap gap-3">
+                    {item.urls?.ticket_url ? (
+                      <a
+                        href={item.urls.ticket_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-2xl bg-[#C49C56] px-4 py-3 text-sm font-semibold text-[#07110E] transition hover:brightness-110"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        Abrir atendimento
+                      </a>
+                    ) : null}
+                    {item.urls?.agent_ticket_url ? (
+                      <a
+                        href={item.urls.agent_ticket_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-2xl border border-[#20332D] px-4 py-3 text-sm transition hover:border-[#C49C56]"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        Link alternativo
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       ) : null}
     </div>

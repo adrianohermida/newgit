@@ -7,6 +7,7 @@ import { cancelTaskRun, continueTaskRun, getTaskRun, startTaskRun } from "../../
 import { processConversationTurn } from "../../lib/ai/conversation_engine.ts";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
+const CHAT_CONTRACT_VERSION = "2026-04-sprint-2";
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -95,6 +96,7 @@ export async function onRequestPost(context) {
         metadata: {
           duration_ms: duration,
           orchestrator: "hybrid",
+          contract_version: CHAT_CONTRACT_VERSION,
         },
       }), {
         status: result.status,
@@ -148,7 +150,14 @@ export async function onRequestPost(context) {
       },
     });
     const duration = Date.now() - startTime;
-    return new Response(JSON.stringify({ ok: true, data, metadata: { duration_ms: duration } }), {
+    return new Response(JSON.stringify({
+      ok: true,
+      data,
+      metadata: {
+        duration_ms: duration,
+        contract_version: CHAT_CONTRACT_VERSION,
+      },
+    }), {
       status: 200,
       headers: JSON_HEADERS,
     });

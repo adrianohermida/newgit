@@ -604,7 +604,16 @@ export default function DotobotCopilot({
       });
       setMessages((msgs) => [
         ...msgs,
-        { role: "assistant", text: data?.data?.result || data?.data || "(sem resposta)", createdAt: nowIso() },
+        {
+          role: "assistant",
+          text:
+            data?.data?.result?.message ||
+            data?.data?.resultText ||
+            data?.data?.result ||
+            data?.data ||
+            "(sem resposta)",
+          createdAt: nowIso(),
+        },
       ]);
       setLoading(false);
       setUiState("idle");
