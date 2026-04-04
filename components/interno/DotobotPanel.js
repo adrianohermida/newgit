@@ -8,6 +8,7 @@ import { detectIntent } from "../../lib/ai/intent_router";
 import { getCurrentContext } from "../../lib/ai/context_engine";
 import { useRouter } from "next/router";
 import { adminFetch } from "../../lib/admin/api";
+import { useSupabaseBrowser } from "../../lib/supabase";
 
 const CHAT_STORAGE_PREFIX = "dotobot_internal_chat_v3";
 const TASK_STORAGE_PREFIX = "dotobot_internal_tasks_v2";
@@ -287,6 +288,35 @@ function getVoiceRecognition() {
 }
 
 export default function DotobotCopilot({
+    // Estado de autenticação/admin
+    const { supabase, loading: supaLoading, configError } = useSupabaseBrowser();
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [authChecked, setAuthChecked] = useState(false);
+
+    // Valida sessão e perfil admin
+    useEffect(() => {
+      if (!supaLoading && supabase) {
+        supabase.auth.getSession().then(async ({ data }) => {
+          const session = data?.session;
+          if (!session?.access_token) {
+            setIsAdmin(false);
+            setAuthChecked(true);
+            return;
+          }
+          // Consulta perfil admin
+          try {
+            const res = await fetch("/api/admin-auth-config", {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            });
+            const payload = await res.json();
+            setIsAdmin(!!payload?.ok);
+          } catch {
+            setIsAdmin(false);
+          }
+          setAuthChecked(true);
+        });
+      }
+    }, [supabase, supaLoading]);
   profile,
   routePath,
   initialWorkspaceOpen = true,
@@ -1106,6 +1136,36 @@ export default function DotobotCopilot({
       .toLowerCase();
     return haystack.includes(conversationSearch.toLowerCase());
   });
+
+  // Exemplo de fluxo de login Supabase
+  async function handleLogin() {
+    if (!supabase) return;
+    const { error } = await supabase.auth.signInWithPassword({
+      email: window.prompt("Email admin:"),
+      password: window.prompt("Senha:"),
+    });
+    if (error) alert("Falha no login: " + error.message);
+    else window.location.reload();
+  }
+
+  // Alerta visual de login/admin ausente
+  if (!authChecked || supaLoading) {
+    return <div className="p-8 text-center text-lg text-[#C5A059]">Verificando autenticação...</div>;
+  }
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
+        <div className="mb-6 text-2xl text-[#C5A059]">⚠️ Acesso restrito</div>
+        <div className="mb-4 text-[#EAE3D6]">Faça login como administrador para usar o Dotobot.</div>
+        <button
+          className="rounded-xl bg-[#D9B46A] px-6 py-3 text-lg font-bold text-[#1A1A1A] transition hover:bg-[#C5A059]"
+          onClick={handleLogin}
+        >
+          Login admin
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>
