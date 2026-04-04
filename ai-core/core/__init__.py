@@ -3,7 +3,6 @@ from .assistant import SessionHistory
 from .history import HistoryLog
 """Python porting workspace for the Lawdesk rewrite effort."""
 
-from .commands import PORTED_COMMANDS, build_command_backlog
 from .coordinator import Coordinator, OrchestrationResult
 from .parity_audit import ParityAuditResult, run_parity_audit
 from .port_manifest import PortManifest, build_port_manifest
