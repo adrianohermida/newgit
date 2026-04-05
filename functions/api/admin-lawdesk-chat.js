@@ -10,32 +10,6 @@ export async function onRequest(context) {
     { status: 405, headers: { "Content-Type": "application/json" } }
   );
 }
-import { requireAdminAccess } from "../lib/admin-auth.js";
-import { runLawdeskChat } from "../../lib/lawdesk/chat.js";
-import { buildDotobotRepositoryContext } from "../../lib/lawdesk/capabilities.js";
-import { detectSkillFromQuery, enrichContextWithSkill } from "../../lib/lawdesk/skill_registry.js";
-import { buildFeatureFlags } from "../../lib/lawdesk/feature-flags.js";
-import { cancelTaskRun, continueTaskRun, getTaskRun, startTaskRun } from "../../lib/lawdesk/task_runs.js";
-import { processConversationTurn } from "../../lib/ai/conversation_engine.ts";
-
-// Novo orchestrator Python
-async function callPythonOrchestrator(message, context) {
-  const response = await fetch("http://localhost:8000/orchestrate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      input: message,
-      context: context
-    })
-  });
-  if (!response.ok) {
-    throw new Error("Erro ao chamar orchestrator Python");
-  }
-  return await response.json();
-}
-const JSON_HEADERS = { "Content-Type": "application/json" };
-const CHAT_CONTRACT_VERSION = "2026-04-sprint-2";
-
 // MOCK: responde sempre com echo para teste de integração
 export async function onRequestPost(context) {
   try {
@@ -203,6 +177,4 @@ export async function onRequestPost(context) {
       }
     );
   }
-}
-
-export default { onRequestPost };
+// Fim do arquivo
