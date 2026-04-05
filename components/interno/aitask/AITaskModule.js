@@ -11,6 +11,16 @@ import {
   TaskCard,
   ThinkingBlock,
 } from "./AiTaskPanels";
+import {
+  buildAgentLanes,
+  buildTaskColumns,
+  filterLogsBySearch,
+  filterLogsByType,
+  findSelectedTask,
+  normalizeAttachmentsFromEvent,
+  resolveAutomationLabel,
+  trimRecentHistory,
+} from "./aiTaskState";
 
 function detectModules(mission) {
   if (!mission) return ["geral"];
@@ -880,52 +890,13 @@ export default function AITaskModule({ profile, routePath }) {
     }
   }
 
-  const taskColumns = useMemo(() => {
-    const base = {
-      pending: [],
-      running: [],
-      done: [],
-      failed: [],
-    };
-    tasks.forEach((task) => {
-      const key = task.status === "done" ? "done" : task.status === "failed" ? "failed" : task.status === "running" ? "running" : "pending";
-      base[key].push(task);
-    });
-    return base;
-  }, [tasks]);
-  const agentLanes = useMemo(() => {
-    const lanes = new Map();
-    tasks.forEach((task) => {
-      const key = task.assignedAgent || "Dotobot";
-      if (!lanes.has(key)) {
-        lanes.set(key, { agent: key, tasks: [], runningCount: 0 });
-      }
-      const lane = lanes.get(key);
-      lane.tasks.push(task);
-      if (task.status === "running" || task.status === "pending") {
-        lane.runningCount += 1;
-      }
-    });
-    return Array.from(lanes.values());
-  }, [tasks]);
+  const taskColumns = useMemo(() => buildTaskColumns(tasks), [tasks]);
+  const agentLanes = useMemo(() => buildAgentLanes(tasks), [tasks]);
 
-  const visibleLogs = logs.filter((log) => selectedLogFilter === "all" || log.type === selectedLogFilter);
-  const selectedTask = tasks.find((task) => task.id === selectedTaskId) || tasks[0] || null;
+  const visibleLogs = useMemo(() => filterLogsByType(logs, selectedLogFilter), [logs, selectedLogFilter]);
+  const selectedTask = useMemo(() => findSelectedTask(tasks, selectedTaskId), [tasks, selectedTaskId]);
   const activeMode = MODE_OPTIONS.find((item) => item.value === mode) || MODE_OPTIONS[1];
-  const stateLabel =
-    automation === "running"
-      ? "Executando"
-      : automation === "paused"
-        ? "Pausado"
-        : automation === "waiting_approval"
-          ? "Aguardando aprovacao"
-          : automation === "done"
-            ? "Concluido"
-            : automation === "failed"
-              ? "Falhou"
-              : automation === "stopped"
-                ? "Parado"
-                : "Pronto";
+  const stateLabel = resolveAutomationLabel(automation);
 
   function handleMissionChange(value) {
     setMission(value);
@@ -939,12 +910,7 @@ export default function AITaskModule({ profile, routePath }) {
   }
 
   function handleAttachmentChange(event) {
-    const files = Array.from(event.target.files || []).slice(0, 6).map((file) => ({
-      name: file.name,
-      type: file.type || "file",
-      size: file.size,
-    }));
-    setAttachments(files);
+    setAttachments(normalizeAttachmentsFromEvent(event));
   }
 
   function handleReplay(task) {
@@ -961,12 +927,8 @@ export default function AITaskModule({ profile, routePath }) {
     missionInputRef.current?.focus();
   }
 
-  const compactLogs = visibleLogs.filter((log) => {
-    if (!search.trim()) return true;
-    const value = `${log.type} ${log.action} ${log.result}`.toLowerCase();
-    return value.includes(search.toLowerCase());
-  });
-  const recentHistory = missionHistory.slice(0, 6);
+  const compactLogs = useMemo(() => filterLogsBySearch(visibleLogs, search), [visibleLogs, search]);
+  const recentHistory = useMemo(() => trimRecentHistory(missionHistory), [missionHistory]);
 
   return (
     <div className="space-y-4">

@@ -39,10 +39,7 @@ import {
   updateConversationCollection,
 } from "./dotobotPanelState";
 
-const MODE_OPTIONS = [
-  { value: "chat", label: "Chat", hint: "Conversa assistida" },
-  { value: "task", label: "Task", hint: "Execucao em etapas" },
-  { value: "analysis", label: "Analysis", hint: "Raciocinio guiado" },
+
 // Utilitário para sumarizar contexto RAG
 function buildRagSummary(rag) {
   if (!rag) return { count: 0, sources: [], documents: [] };
@@ -56,6 +53,11 @@ function buildRagSummary(rag) {
     documents,
   };
 }
+
+const MODE_OPTIONS = [
+  { value: "chat", label: "Chat", hint: "Conversa assistida" },
+  { value: "task", label: "Task", hint: "Execucao em etapas" },
+  { value: "analysis", label: "Analysis", hint: "Raciocinio guiado" },
 ];
 
 const PROVIDER_OPTIONS = [
