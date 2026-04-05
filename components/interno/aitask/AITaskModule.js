@@ -58,6 +58,61 @@ const PROVIDER_OPTIONS = [
   { value: "custom", label: "Custom" },
 ];
 
+const AI_TASK_ENDPOINT = "/functions/api/admin-lawdesk-chat";
+
+function extractTaskRunResultText(...sources) {
+  for (const source of sources) {
+    if (!source) continue;
+    if (typeof source?.result?.message === "string" && source.result.message.trim()) {
+      return source.result.message.trim();
+    }
+    if (typeof source?.resultText === "string" && source.resultText.trim()) {
+      return source.resultText.trim();
+    }
+    if (typeof source?.result === "string" && source.result.trim()) {
+      return source.result.trim();
+    }
+    if (source?.result != null && typeof source.result !== "string") {
+      try {
+        return JSON.stringify(source.result);
+      } catch {
+        return String(source.result);
+      }
+    }
+  }
+  return "";
+}
+
+function extractTaskRunMemoryMatches(rag) {
+  if (!rag) return [];
+  if (Array.isArray(rag?.retrieval?.matches)) return rag.retrieval.matches;
+  if (Array.isArray(rag?.retrieved_context)) return rag.retrieved_context;
+  return [];
+}
+
+function normalizeTaskRunPayload(payload) {
+  const data = payload?.data || {};
+  const run = data?.run || null;
+  const runResult = run?.result || null;
+  const steps = Array.isArray(data?.steps) ? data.steps : Array.isArray(runResult?.steps) ? runResult.steps : [];
+  const events = Array.isArray(data?.events) ? data.events : [];
+  const rag = data?.rag || runResult?.rag || null;
+  return {
+    run,
+    steps,
+    events,
+    rag,
+    resultText: extractTaskRunResultText(data, runResult),
+    source: data?.source || runResult?.source || null,
+    model: data?.model || runResult?.model || null,
+    status: run?.status || (payload?.ok ? "completed" : "failed"),
+    eventsCursor: data?.eventsCursor || null,
+    eventsCursorSequence: Number.isFinite(Number(data?.eventsCursorSequence)) ? Number(data.eventsCursorSequence) : null,
+    eventsTotal: Number.isFinite(Number(data?.eventsTotal)) ? Number(data.eventsTotal) : null,
+    pollIntervalMs: Number.isFinite(Number(data?.pollIntervalMs)) ? Number(data.pollIntervalMs) : null,
+  };
+}
+
 function ChatHistory({ history }) {
   if (!Array.isArray(history) || !history.length) return null;
   return (
@@ -429,7 +484,7 @@ export default function AITaskModule({ profile, routePath }) {
       if (disposed || pollingInFlightRef.current) return;
       pollingInFlightRef.current = true;
       try {
-        const payload = await adminFetch("/functions/api/admin-dotobot-chat", {
+        const payload = await adminFetch(AI_TASK_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -441,21 +496,22 @@ export default function AITaskModule({ profile, routePath }) {
           }),
         });
 
-        const run = payload?.data?.run || null;
-        const events = Array.isArray(payload?.data?.events) ? payload.data.events : [];
-        if (payload?.data?.eventsCursor) {
-          lastEventCursorRef.current = payload.data.eventsCursor;
+        const normalized = normalizeTaskRunPayload(payload);
+        const run = normalized.run;
+        const events = normalized.events;
+        if (normalized.eventsCursor) {
+          lastEventCursorRef.current = normalized.eventsCursor;
         }
-        if (Number.isFinite(Number(payload?.data?.eventsCursorSequence))) {
-          lastEventSequenceRef.current = Number(payload.data.eventsCursorSequence);
+        if (normalized.eventsCursorSequence != null) {
+          lastEventSequenceRef.current = normalized.eventsCursorSequence;
         }
-        if (Number.isFinite(Number(payload?.data?.pollIntervalMs))) {
-          nextDelayMs = Number(payload.data.pollIntervalMs);
+        if (normalized.pollIntervalMs != null) {
+          nextDelayMs = normalized.pollIntervalMs;
         } else {
           nextDelayMs = 2500;
         }
-        if (Number.isFinite(Number(payload?.data?.eventsTotal))) {
-          setEventsTotal(Number(payload.data.eventsTotal));
+        if (normalized.eventsTotal != null) {
+          setEventsTotal(normalized.eventsTotal);
         }
         for (const event of events.slice(-20)) {
           const eventId = event?.id;
@@ -473,18 +529,18 @@ export default function AITaskModule({ profile, routePath }) {
         }
 
         const runStatus = run?.status;
-        if (run?.result?.source) {
-          setExecutionSource(run.result.source);
+        if (normalized.source) {
+          setExecutionSource(normalized.source);
         }
-        if (run?.result?.model) {
-          setExecutionModel(run.result.model);
+        if (normalized.model) {
+          setExecutionModel(normalized.model);
         }
-        if (run?.result?.resultText) {
-          setLatestResult(run.result.resultText);
+        if (normalized.resultText) {
+          setLatestResult(normalized.resultText);
         }
 
-        if (Array.isArray(run?.result?.steps) && run.result.steps.length) {
-          const mappedTasks = run.result.steps.map((step, index) => ({
+        if (normalized.steps.length) {
+          const mappedTasks = normalized.steps.map((step, index) => ({
             id: `${run?.id || runId}_step_${index + 1}`,
             title: step?.action || step?.title || `Etapa ${index + 1}`,
             goal: step?.action || step?.title || `Etapa ${index + 1}`,
@@ -503,12 +559,12 @@ export default function AITaskModule({ profile, routePath }) {
           setSelectedTaskId(mappedTasks[0]?.id || null);
         }
 
-        if (run?.result?.rag) {
+        if (normalized.rag) {
           setContextSnapshot({
             module: detectModules(run?.mission || mission).join(", "),
-            memory: run.result.rag?.retrieval?.matches || run.result.rag?.retrieved_context || [],
-            documents: run.result.rag?.documents || [],
-            ragEnabled: Boolean(run.result.rag?.retrieval?.enabled || run.result.rag?.documents?.length),
+            memory: extractTaskRunMemoryMatches(normalized.rag),
+            documents: normalized.rag?.documents || [],
+            ragEnabled: Boolean(normalized.rag?.retrieval?.enabled || normalized.rag?.documents?.length),
             route: routePath || "/interno/ai-task",
           });
         }
@@ -641,10 +697,10 @@ export default function AITaskModule({ profile, routePath }) {
       pushLog({
         type: "api",
         action: "Iniciando TaskRun",
-        result: "POST /functions/api/admin-dotobot-chat (action=task_run_start)",
+        result: `POST ${AI_TASK_ENDPOINT} (action=task_run_start)`,
       });
 
-      const payload = await adminFetch("/functions/api/admin-dotobot-chat", {
+      const payload = await adminFetch(AI_TASK_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -672,12 +728,13 @@ export default function AITaskModule({ profile, routePath }) {
         }),
       });
 
-      const run = payload?.data?.run || null;
+      const normalized = normalizeTaskRunPayload(payload);
+      const run = normalized.run;
       if (run?.id) {
         setActiveRun({ id: run.id, startedAt: run.created_at || nowIso(), mission: normalizedMission });
       }
 
-      const backendEvents = Array.isArray(payload?.data?.events) ? payload.data.events : [];
+      const backendEvents = normalized.events;
       backendEvents.slice(-12).forEach((event) => {
         if (event?.id) runEventIdsRef.current.add(event.id);
         const eventSource = event?.data?.source ? formatExecutionSourceLabel(event.data.source) : null;
@@ -690,24 +747,24 @@ export default function AITaskModule({ profile, routePath }) {
           }`,
         });
       });
-      if (payload?.data?.eventsCursor) {
-        lastEventCursorRef.current = payload.data.eventsCursor;
+      if (normalized.eventsCursor) {
+        lastEventCursorRef.current = normalized.eventsCursor;
       } else if (backendEvents.length) {
         lastEventCursorRef.current = backendEvents[backendEvents.length - 1]?.id || null;
       }
-      if (Number.isFinite(Number(payload?.data?.eventsCursorSequence))) {
-        lastEventSequenceRef.current = Number(payload.data.eventsCursorSequence);
+      if (normalized.eventsCursorSequence != null) {
+        lastEventSequenceRef.current = normalized.eventsCursorSequence;
       } else if (backendEvents.length) {
         const seq = Number(backendEvents[backendEvents.length - 1]?.seq);
         lastEventSequenceRef.current = Number.isFinite(seq) ? seq : null;
       }
-      if (Number.isFinite(Number(payload?.data?.eventsTotal))) {
-        setEventsTotal(Number(payload.data.eventsTotal));
+      if (normalized.eventsTotal != null) {
+        setEventsTotal(normalized.eventsTotal);
       } else if (backendEvents.length) {
         setEventsTotal(backendEvents.length);
       }
 
-      const backendSteps = Array.isArray(payload?.data?.steps) ? payload.data.steps : [];
+      const backendSteps = normalized.steps;
       if (backendSteps.length) {
         const mappedTasks = backendSteps.map((step, index) => ({
           id: `${run?.id || localRunId}_step_${index + 1}`,
@@ -736,9 +793,9 @@ export default function AITaskModule({ profile, routePath }) {
         );
       }
 
-      const resultText = payload?.data?.resultText || payload?.data?.result || run?.result?.resultText || "";
-      const responseSource = payload?.data?.source || run?.result?.source || null;
-      const responseModel = payload?.data?.model || run?.result?.model || null;
+      const resultText = normalized.resultText;
+      const responseSource = normalized.source;
+      const responseModel = normalized.model;
       if (responseSource) {
         setExecutionSource(responseSource);
       }
@@ -777,17 +834,17 @@ export default function AITaskModule({ profile, routePath }) {
         ]);
       }
 
-      if (payload?.data?.rag) {
+      if (normalized.rag) {
         setContextSnapshot({
           module: detectModules(normalizedMission).join(", "),
-          memory: payload.data.rag?.retrieval?.matches || payload.data.retrieved_context || [],
-          documents: payload.data.rag?.documents || [],
-          ragEnabled: Boolean(payload.data.rag?.retrieval?.enabled || payload.data.rag?.documents?.length),
+          memory: extractTaskRunMemoryMatches(normalized.rag),
+          documents: normalized.rag?.documents || [],
+          ragEnabled: Boolean(normalized.rag?.retrieval?.enabled || normalized.rag?.documents?.length),
           route: routePath || "/interno/ai-task",
         });
       }
 
-      const runStatus = run?.status || (payload?.ok ? "completed" : "failed");
+      const runStatus = normalized.status;
       if (runStatus === "completed" || runStatus === "failed" || runStatus === "canceled") {
         setActiveRun(null);
       }
@@ -799,7 +856,7 @@ export default function AITaskModule({ profile, routePath }) {
                 id: run?.id || item.id,
                 status: runStatus === "completed" ? "done" : runStatus === "failed" ? "failed" : "running",
                 updated_at: nowIso(),
-                result: payload?.data?.status || runStatus,
+                result: run?.result?.status || runStatus,
                 source: responseSource || item.source || null,
                 model: responseModel || item.model || null,
               }
@@ -868,7 +925,7 @@ export default function AITaskModule({ profile, routePath }) {
     const runId = activeRun?.id;
     if (runId) {
       try {
-        const payload = await adminFetch("/functions/api/admin-dotobot-chat", {
+        const payload = await adminFetch(AI_TASK_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "task_run_cancel", runId }),
@@ -925,7 +982,7 @@ export default function AITaskModule({ profile, routePath }) {
       lastEventCursorRef.current = null;
       lastEventSequenceRef.current = null;
       setEventsTotal(0);
-      const payload = await adminFetch("/functions/api/admin-dotobot-chat", {
+      const payload = await adminFetch(AI_TASK_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
