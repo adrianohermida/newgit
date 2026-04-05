@@ -56,8 +56,8 @@ function buildRagSummary(rag) {
 
 const MODE_OPTIONS = [
   { value: "chat", label: "Chat", hint: "Conversa assistida" },
-  { value: "task", label: "Task", hint: "Execucao em etapas" },
-  { value: "analysis", label: "Analysis", hint: "Raciocinio guiado" },
+  { value: "task", label: "Tarefa", hint: "Execução em etapas" },
+  { value: "analysis", label: "Análise", hint: "Raciocínio guiado" },
 ];
 
 const PROVIDER_OPTIONS = [
@@ -219,6 +219,57 @@ function TaskStatusChip({ status }) {
   return <span>{mapping[status] || String(status || "Indefinido")}</span>;
 }
 
+function DotobotModal({
+  open,
+  title,
+  body,
+  confirmLabel = "Confirmar",
+  cancelLabel = "Cancelar",
+  inputLabel = null,
+  inputValue = "",
+  onInputChange = null,
+  onConfirm,
+  onCancel,
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[rgba(3,5,4,0.74)] px-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-[28px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(12,16,15,0.98),rgba(8,11,10,0.98))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.4)]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#C5A059]">Hermida Maia Advocacia</p>
+        <h3 className="mt-3 text-xl font-semibold text-[#F5F1E8]">{title}</h3>
+        {body ? <p className="mt-3 text-sm leading-7 text-[#9BAEA8]">{body}</p> : null}
+        {inputLabel ? (
+          <label className="mt-4 block">
+            <span className="mb-2 block text-xs uppercase tracking-[0.16em] text-[#7F928C]">{inputLabel}</span>
+            <input
+              value={inputValue}
+              onChange={(event) => onInputChange?.(event.target.value)}
+              className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.98)] px-4 text-sm text-[#F5F1E8] outline-none placeholder:text-[#60706A] focus:border-[#C5A059]"
+            />
+          </label>
+        ) : null}
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-full border border-[#22342F] px-4 py-2 text-sm text-[#D8DEDA] transition hover:border-[#35554B]"
+          >
+            {cancelLabel}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-full border border-[#4f2525] bg-[rgba(91,45,45,0.24)] px-4 py-2 text-sm text-[#f2b2b2] transition hover:border-[#f2b2b2]"
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function getVoiceRecognition() {
   if (typeof window === "undefined") return null;
   return window.SpeechRecognition || window.webkitSpeechRecognition || null;
@@ -312,6 +363,8 @@ export default function DotobotCopilot({
   const [showSlashCommands, setShowSlashCommands] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [pendingRetrigger, setPendingRetrigger] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
+  const [renameModal, setRenameModal] = useState({ open: false, conversationId: null, value: "" });
   const scrollRef = useRef(null);
   const composerRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -852,10 +905,10 @@ export default function DotobotCopilot({
 
   function renameConversation(conversation) {
     const currentTitle = conversation?.title || inferConversationTitle(conversation?.messages || []);
-    const nextTitle = typeof window !== "undefined" ? window.prompt("Renomear conversa", currentTitle) : null;
-    if (!nextTitle || !nextTitle.trim()) return;
-    updateConversationById(conversation.id, {
-      title: nextTitle.trim(),
+    setRenameModal({
+      open: true,
+      conversationId: conversation?.id || null,
+      value: currentTitle,
     });
   }
 
@@ -864,26 +917,32 @@ export default function DotobotCopilot({
   }
 
   function deleteConversation(conversation) {
-    if (typeof window !== "undefined" && !window.confirm(`Excluir a conversa "${conversation.title || "sem titulo"}"?`)) {
-      return;
-    }
-    const remaining = deleteConversationFromCollection(conversations, conversation.id);
-    if (remaining.length) {
-      setConversations(remaining);
-      if (conversation.id === activeConversationId) {
-        selectConversation(remaining[0]);
-      }
-      return;
-    }
-    const replacement = createEmptyConversation("Nova conversa");
-    setConversations([replacement]);
-    setActiveConversationId(replacement.id);
-    setMessages([]);
-    setTaskHistory([]);
-    setAttachments([]);
-    if (conversation.id === activeConversationId) {
-      selectConversation(replacement);
-    }
+    setConfirmModal({
+      title: "Excluir conversa",
+      body: `Deseja excluir a conversa "${conversation.title || "sem título"}"?`,
+      confirmLabel: "Excluir",
+      onConfirm: () => {
+        const remaining = deleteConversationFromCollection(conversations, conversation.id);
+        if (remaining.length) {
+          setConversations(remaining);
+          if (conversation.id === activeConversationId) {
+            selectConversation(remaining[0]);
+          }
+          setConfirmModal(null);
+          return;
+        }
+        const replacement = createEmptyConversation("Nova conversa");
+        setConversations([replacement]);
+        setActiveConversationId(replacement.id);
+        setMessages([]);
+        setTaskHistory([]);
+        setAttachments([]);
+        if (conversation.id === activeConversationId) {
+          selectConversation(replacement);
+        }
+        setConfirmModal(null);
+      },
+    });
   }
   // ...existing code...
 
@@ -972,15 +1031,20 @@ export default function DotobotCopilot({
   }
 
   function handleCancel(task) {
-    if (typeof window !== "undefined" && !window.confirm("Cancelar esta execucao do Dotobot?")) {
-      return;
-    }
-    syncTaskHistory(task.id, (current) => ({
-      ...current,
-      status: "canceled",
-      canceled: true,
-      logs: [...(current.logs || []), "Execucao cancelada pelo operador."],
-    }));
+    setConfirmModal({
+      title: "Cancelar execução",
+      body: "Deseja cancelar esta execução do Dotobot?",
+      confirmLabel: "Cancelar execução",
+      onConfirm: () => {
+        syncTaskHistory(task.id, (current) => ({
+          ...current,
+          status: "canceled",
+          canceled: true,
+          logs: [...(current.logs || []), "Execucao cancelada pelo operador."],
+        }));
+        setConfirmModal(null);
+      },
+    });
   }
 
   const runningCount = taskHistory.filter((item) => item.status === "running").length;
@@ -1014,13 +1078,7 @@ export default function DotobotCopilot({
 
   // Exemplo de fluxo de login Supabase
   async function handleLogin() {
-    if (!supabase) return;
-    const { error } = await supabase.auth.signInWithPassword({
-      email: window.prompt("Email admin:"),
-      password: window.prompt("Senha:"),
-    });
-    if (error) alert("Falha no login: " + error.message);
-    else window.location.reload();
+    router.push("/interno/login");
   }
 
   // Alerta visual de login/admin ausente
@@ -1044,6 +1102,37 @@ export default function DotobotCopilot({
 
   return (
     <>
+      <DotobotModal
+        open={Boolean(confirmModal)}
+        title={confirmModal?.title || "Confirmar ação"}
+        body={confirmModal?.body || ""}
+        confirmLabel={confirmModal?.confirmLabel || "Confirmar"}
+        cancelLabel="Voltar"
+        onCancel={() => setConfirmModal(null)}
+        onConfirm={() => confirmModal?.onConfirm?.()}
+      />
+      <DotobotModal
+        open={renameModal.open}
+        title="Renomear conversa"
+        body="Defina um título claro para identificar esta conversa no histórico."
+        inputLabel="Título da conversa"
+        inputValue={renameModal.value}
+        onInputChange={(value) => setRenameModal((current) => ({ ...current, value }))}
+        confirmLabel="Salvar"
+        cancelLabel="Voltar"
+        onCancel={() => setRenameModal({ open: false, conversationId: null, value: "" })}
+        onConfirm={() => {
+          const nextTitle = renameModal.value?.trim();
+          if (!nextTitle || !renameModal.conversationId) {
+            setRenameModal({ open: false, conversationId: null, value: "" });
+            return;
+          }
+          updateConversationById(renameModal.conversationId, {
+            title: nextTitle,
+          });
+          setRenameModal({ open: false, conversationId: null, value: "" });
+        }}
+      />
       <section className="border border-[#22342F] bg-[rgba(10,12,11,0.98)] backdrop-blur-sm">
         <header className="border-b border-[#22342F] px-4 py-4">
           <div className="flex items-start justify-between gap-3">
@@ -1283,7 +1372,7 @@ export default function DotobotCopilot({
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-2xl font-semibold tracking-[-0.03em] text-[#F5F1E8] md:text-[30px]">Dotobot Command Center</h2>
+                    <h2 className="text-2xl font-semibold tracking-[-0.03em] text-[#F5F1E8] md:text-[30px]">Dotobot Hermida Maia</h2>
                     <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] ${activeStatus === "processing" ? "border-[#8b6f33] text-[#D9B46A]" : "border-[#234034] text-[#80C7A1]"}`}>
                       <span className={`h-2 w-2 rounded-full ${activeStatus === "processing" ? "bg-[#D9B46A]" : "bg-[#80C7A1]"}`} />
                       {activeStatus === "processing" ? "Processando" : "Online"}
@@ -1651,7 +1740,7 @@ export default function DotobotCopilot({
                   <section className="rounded-[28px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Tasks</p>
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Tarefas</p>
                       </div>
                       <button type="button" onClick={handleResetTasks} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
                         Limpar
@@ -1686,7 +1775,7 @@ export default function DotobotCopilot({
 
                             <div className="mt-3 flex flex-wrap gap-2">
                               <button type="button" onClick={() => handlePause(task)} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
-                                {task.status === "paused" ? "Resume" : "Pause"}
+                                {task.status === "paused" ? "Retomar" : "Pausar"}
                               </button>
                               <button type="button" onClick={() => handleRetry(task)} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
                                 Replay
@@ -1708,7 +1797,7 @@ export default function DotobotCopilot({
                         ))
                       ) : (
                         <div className="rounded-[24px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm text-[#9BAEA8]">
-                          No tasks yet.
+                          Nenhuma tarefa ainda.
                         </div>
                       )}
                     </div>

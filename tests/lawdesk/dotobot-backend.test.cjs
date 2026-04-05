@@ -126,7 +126,36 @@ registerTest("runDotobotRagHealth reports disabled providers when no backend is 
   const { runDotobotRagHealth } = await loadLawdeskModules();
   const result = await runDotobotRagHealth({}, { includeUpsert: false });
   assert.equal(result.ok, false);
+  assert.equal(result.status, "failed");
   assert.match(result.error, /RAG Dotobot nao habilitado/i);
+  assert.ok(Array.isArray(result.recommendations));
+  assert.ok(result.recommendations.length >= 1);
+});
+
+registerTest("runDotobotRagHealth reports degraded when only Obsidian fallback is configured", async () => {
+  const { runDotobotRagHealth, writeObsidianMemory } = await loadLawdeskModules();
+  const tempDir = path.join("D:/Github/newgit", ".tmp-dotobot-health-obsidian");
+
+  await fs.rm(tempDir, { recursive: true, force: true });
+
+  try {
+    const env = { DOTOBOT_OBSIDIAN_VAULT_PATH: tempDir };
+    await writeObsidianMemory(env, {
+      source_key: "health-note",
+      query: "Saude do fallback",
+      responseText: "Nota local para validar o fallback.",
+      created_at: "2026-04-05T00:00:00.000Z",
+      updated_at: "2026-04-05T00:00:00.000Z",
+    });
+
+    const result = await runDotobotRagHealth(env, { includeUpsert: false, query: "fallback local" });
+    assert.equal(result.ok, false);
+    assert.equal(result.available, true);
+    assert.equal(result.status, "degraded");
+    assert.equal(result.report.obsidian.ok, true);
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  }
 });
 
 registerTest("runLawdeskChat falls back to Workers AI direct execution", async () => {

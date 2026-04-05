@@ -41,7 +41,7 @@ function getDotobotRagHealthStatus(health) {
       tone: "text-emerald-400",
       label: "Operacional",
       headline: "OK",
-      summary: "Embedding e consulta vetorial estao funcionais em pelo menos um backend principal.",
+      summary: "Embedding e consulta vetorial estão funcionais em pelo menos um backend principal.",
     };
   }
 
@@ -50,7 +50,7 @@ function getDotobotRagHealthStatus(health) {
       tone: "text-amber-300",
       label: "Degradado",
       headline: "Degradado",
-      summary: "O fallback local esta ativo, mas os provedores principais de embedding e busca vetorial nao estao saudaveis.",
+      summary: "O fallback local está ativo, mas os provedores principais de embedding e busca vetorial não estão saudáveis.",
     };
   }
 
@@ -58,7 +58,7 @@ function getDotobotRagHealthStatus(health) {
     tone: "text-rose-300",
     label: "Falha",
     headline: "Falha",
-    summary: "Nenhum backend de RAG esta operacional no momento.",
+    summary: "Nenhum backend de RAG está operacional no momento.",
   };
 }
 
@@ -70,8 +70,8 @@ export default function AgentLabEnvironmentPage() {
       {(profile) => (
         <InternoLayout
           profile={profile}
-          title="AgentLab · Ambiente"
-          description="Diagnostico do schema, bootstrap do Supabase e estado operacional do ambiente do AgentLab."
+          title="AgentLab - Ambiente"
+          description="Diagnóstico do schema, bootstrap do Supabase e estado operacional do ambiente do AgentLab."
         >
           <AgentLabModuleNav />
           <EnvironmentContent state={state} />
@@ -83,7 +83,7 @@ export default function AgentLabEnvironmentPage() {
 
 function EnvironmentContent({ state }) {
   if (state.loading) {
-    return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando diagnostico do laboratorio...</div>;
+    return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando diagnóstico do laboratório...</div>;
   }
 
   if (state.error) {
@@ -100,6 +100,7 @@ function EnvironmentContent({ state }) {
   const dotobotSupabase = dotobotRagReport.supabase || {};
   const dotobotObsidian = dotobotRagReport.obsidian || {};
   const dotobotRagStatus = getDotobotRagHealthStatus(dotobotRagHealth);
+  const dotobotSignals = dotobotRagHealth.signals || {};
   const widgetEventSummary = state.data?.conversations?.widgetEventSummary || {};
   const readyCount = schemaChecklist.filter((item) => item.status === "ready").length;
   const missingCount = schemaChecklist.filter((item) => item.status !== "ready").length;
@@ -107,11 +108,11 @@ function EnvironmentContent({ state }) {
   return (
     <div className="space-y-8">
       <div className="grid gap-4 md:grid-cols-3">
-        <Panel title={`Modo: ${environment.mode === "degraded" ? "Contingencia" : "Conectado"}`}>
+        <Panel title={`Modo: ${environment.mode === "degraded" ? "Contingência" : "Conectado"}`}>
           <p className="text-sm opacity-75">{environment.message}</p>
         </Panel>
         <Panel title={`Tabelas prontas: ${readyCount}`}>
-          <p className="text-sm opacity-75">Tabelas do AgentLab encontradas no schema atual e prontas para evolucao do laboratorio.</p>
+          <p className="text-sm opacity-75">Tabelas do AgentLab encontradas no schema atual e prontas para evolução do laboratório.</p>
         </Panel>
         <Panel title={`Tabelas ausentes: ${missingCount}`}>
           <p className="text-sm opacity-75">Tabelas que ainda precisam existir no projeto Supabase do Pages.</p>
@@ -130,21 +131,21 @@ function EnvironmentContent({ state }) {
             {" "}
             [agentlab-bootstrap-supabase.md](/D:/Github/newgit/docs/agentlab-bootstrap-supabase.md)
           </p>
-          <p>Depois de aplicar o SQL no projeto correto, faca um hard refresh autenticado e valide o painel novamente.</p>
+          <p>Depois de aplicar o SQL no projeto correto, faça um hard refresh autenticado e valide o painel novamente.</p>
         </div>
       </Panel>
 
-      <Panel title="Diagnostico Freshchat API">
+      <Panel title="Diagnóstico Freshchat API">
         <div className="space-y-3 text-sm opacity-75">
           <p>
             Status:{" "}
             <span className={freshchatApi.ok ? "text-emerald-400" : "text-amber-300"}>
-              {freshchatApi.ok ? "Valido" : freshchatApi.configured ? "Configurado com ressalvas" : "Nao configurado"}
+              {freshchatApi.ok ? "Válido" : freshchatApi.configured ? "Configurado com ressalvas" : "Não configurado"}
             </span>
           </p>
-          <p>Base configurada: {freshchatApi.baseUrlPreview || "nao informada"}</p>
+          <p>Base configurada: {freshchatApi.baseUrlPreview || "não informada"}</p>
           <p>Tipo de token: {freshchatApi.tokenType || "missing"}</p>
-          <p>{freshchatApi.message || "Sem diagnostico adicional."}</p>
+          <p>{freshchatApi.message || "Sem diagnóstico adicional."}</p>
           {(freshchatApi.issues || []).length ? (
             <div>
               <p className="font-semibold">Sinais detectados:</p>
@@ -158,7 +159,7 @@ function EnvironmentContent({ state }) {
         </div>
       </Panel>
 
-      <Panel title="Diagnostico Freshchat Web Messenger">
+      <Panel title="Diagnóstico Freshchat Web Messenger">
         <div className="space-y-3 text-sm opacity-75">
           <p>
             Status:{" "}
@@ -166,15 +167,15 @@ function EnvironmentContent({ state }) {
               {freshchatWeb.enabled ? "Widget habilitado" : "Widget desabilitado"}
             </span>
           </p>
-          <p>Modo: {freshchatWeb.mode || "nao configurado"}</p>
-          <p>Script embed: {freshchatWeb.scriptUrl || "nao informado"}</p>
-          <p>Host do widget: {freshchatWeb.widgetHost || "nao informado"}</p>
+          <p>Modo: {freshchatWeb.mode || "não configurado"}</p>
+          <p>Script embed: {freshchatWeb.scriptUrl || "não informado"}</p>
+          <p>Host do widget: {freshchatWeb.widgetHost || "não informado"}</p>
           <p>Token do Web Messenger: {freshchatWeb.messengerTokenPresent ? "presente" : "ausente"}</p>
-          <p>JWT: {freshchatWeb.jwtEnabled ? "habilitado" : "nao configurado"}</p>
+          <p>JWT: {freshchatWeb.jwtEnabled ? "habilitado" : "não configurado"}</p>
           <p>Env do host em uso: {freshchatWeb.resolvedKeys?.host || "nenhuma detectada"}</p>
           <p>Env do token em uso: {freshchatWeb.resolvedKeys?.token || "nenhuma detectada"}</p>
           <p>Env do JWT em uso: {freshchatWeb.resolvedKeys?.jwtSecret || "nenhuma detectada"}</p>
-          <p>{freshchatWeb.message || "Sem diagnostico adicional."}</p>
+          <p>{freshchatWeb.message || "Sem diagnóstico adicional."}</p>
           {(freshchatWeb.issues || []).length ? (
             <div>
               <p className="font-semibold">Sinais detectados:</p>
@@ -196,9 +197,7 @@ function EnvironmentContent({ state }) {
         </div>
       </Panel>
 
-      <Panel
-        title={`Healthcheck Dotobot RAG: ${dotobotRagStatus.headline}`}
-      >
+      <Panel title={`Healthcheck Dotobot RAG: ${dotobotRagStatus.headline}`}>
         <div className="space-y-3 text-sm opacity-75">
           <p>
             Status:{" "}
@@ -207,25 +206,34 @@ function EnvironmentContent({ state }) {
             </span>
           </p>
           <p>{dotobotRagStatus.summary}</p>
-          <p>Atualizado em: {dotobotRagReport.timestamp ? new Date(dotobotRagReport.timestamp).toLocaleString("pt-BR") : "nao informado"}</p>
+          <p>Estado do backend: <span className={dotobotRagStatus.tone}>{dotobotRagHealth.status || "desconhecido"}</span></p>
+          <p>Atualizado em: {dotobotRagReport.timestamp ? new Date(dotobotRagReport.timestamp).toLocaleString("pt-BR") : "não informado"}</p>
           <p>
-            Embedding:{" "}
+            Embedding Cloudflare:{" "}
             <span className={dotobotRagReport.embedding?.ok ? "text-emerald-400" : "text-amber-300"}>
               {dotobotRagReport.embedding?.ok ? `OK${dotobotRagReport.embedding?.dimensions ? ` (${dotobotRagReport.embedding.dimensions} dims)` : ""}` : "falhou"}
             </span>
           </p>
           <p>
-            Consulta vetorial:{" "}
+            Consulta vetorial Cloudflare:{" "}
             <span className={dotobotRagReport.query?.skipped ? "text-slate-300" : dotobotRagReport.query?.ok ? "text-emerald-400" : "text-amber-300"}>
               {dotobotRagReport.query?.skipped
-                ? "ignorado no dashboard"
+                ? "ignorada"
                 : dotobotRagReport.query?.ok
                 ? `OK${typeof dotobotRagReport.query?.matches === "number" ? ` (${dotobotRagReport.query.matches} matches)` : ""}`
                 : "falhou"}
             </span>
           </p>
           <p>
-            Supabase embeddings:{" "}
+            Embedding Supabase:{" "}
+            <span className={dotobotRagReport.supabaseEmbedding?.ok ? "text-emerald-400" : "text-amber-300"}>
+              {dotobotRagReport.supabaseEmbedding?.ok
+                ? `OK${dotobotRagReport.supabaseEmbedding?.dimensions ? ` (${dotobotRagReport.supabaseEmbedding.dimensions} dims)` : ""}`
+                : "falhou"}
+            </span>
+          </p>
+          <p>
+            Consulta vetorial Supabase:{" "}
             <span className={dotobotRagReport.supabaseQuery?.ok ? "text-emerald-400" : "text-amber-300"}>
               {dotobotRagReport.supabaseQuery?.ok
                 ? `OK${typeof dotobotRagReport.supabaseQuery?.matches === "number" ? ` (${dotobotRagReport.supabaseQuery.matches} matches)` : ""}`
@@ -233,57 +241,70 @@ function EnvironmentContent({ state }) {
             </span>
           </p>
           <p>
-            Upsert de memoria:{" "}
+            Upsert Cloudflare:{" "}
             <span className={dotobotRagReport.upsert?.skipped ? "text-slate-300" : dotobotRagReport.upsert?.ok ? "text-emerald-400" : "text-amber-300"}>
-              {dotobotRagReport.upsert?.skipped ? "ignorado no dashboard" : dotobotRagReport.upsert?.ok ? "OK" : "falhou"}
+              {dotobotRagReport.upsert?.skipped ? "ignorado" : dotobotRagReport.upsert?.ok ? "OK" : "falhou"}
             </span>
           </p>
           <p>
-            Persistencia Supabase:{" "}
+            Persistência Supabase:{" "}
             <span className={dotobotRagReport.supabaseUpsert?.skipped ? "text-slate-300" : dotobotRagReport.supabaseUpsert?.ok ? "text-emerald-400" : "text-amber-300"}>
-              {dotobotRagReport.supabaseUpsert?.skipped ? "ignorada no dashboard" : dotobotRagReport.supabaseUpsert?.ok ? "OK" : "falhou"}
+              {dotobotRagReport.supabaseUpsert?.skipped ? "ignorada" : dotobotRagReport.supabaseUpsert?.ok ? "OK" : "falhou"}
             </span>
           </p>
           {dotobotSupabase?.enabled !== undefined ? (
             <p>
               Backend Supabase:{" "}
               <span className={dotobotSupabase.enabled ? "text-emerald-400" : "text-amber-300"}>
-                {dotobotSupabase.enabled ? "habilitado" : "nao configurado"}
+                {dotobotSupabase.enabled ? "habilitado" : "não configurado"}
               </span>
             </p>
           ) : null}
-          {dotobotSupabase?.memoryTable ? (
-            <p>Table: {dotobotSupabase.memoryTable}</p>
+          <p>SUPABASE_URL: {dotobotSupabase.baseUrlConfigured ? "configurado" : "ausente"}</p>
+          <p>SUPABASE_SERVICE_ROLE_KEY: {dotobotSupabase.serviceKeyConfigured ? "configurado" : "ausente"}</p>
+          <p>DOTOBOT_SUPABASE_EMBED_SECRET: {dotobotSupabase.embedSecretConfigured ? "configurado" : "ausente"}</p>
+          {dotobotSignals.appEmbedSecretMissing ? (
+            <p className="text-amber-300">Sinal: o app que chama o healthcheck não tem DOTOBOT_SUPABASE_EMBED_SECRET configurado.</p>
           ) : null}
-          {dotobotSupabase?.embeddingFunction ? (
-            <p>Function: {dotobotSupabase.embeddingFunction}</p>
+          {dotobotSignals.supabaseAuthMismatch ? (
+            <p className="text-amber-300">Sinal: a autenticação do dotobot-embed falhou; confira se o mesmo segredo está presente no app e na Edge Function.</p>
           ) : null}
-          {dotobotSupabase?.embeddingModel ? (
-            <p>Modelo: {dotobotSupabase.embeddingModel}</p>
-          ) : null}
+          {dotobotSupabase?.memoryTable ? <p>Tabela: {dotobotSupabase.memoryTable}</p> : null}
+          {dotobotSupabase?.embeddingFunction ? <p>Function: {dotobotSupabase.embeddingFunction}</p> : null}
+          {dotobotSupabase?.embeddingModel ? <p>Modelo: {dotobotSupabase.embeddingModel}</p> : null}
           {dotobotObsidian?.enabled !== undefined ? (
             <p>
               Obsidian fallback:{" "}
               <span className={dotobotObsidian.enabled ? "text-emerald-400" : "text-amber-300"}>
-                {dotobotObsidian.enabled ? "habilitado" : "nao configurado"}
+                {dotobotObsidian.enabled ? "habilitado" : "não configurado"}
               </span>
             </p>
           ) : null}
           {dotobotObsidian?.memoryDir ? <p>Vault memory dir: {dotobotObsidian.memoryDir}</p> : null}
+          {(dotobotRagHealth.recommendations || []).length ? (
+            <div>
+              <p className="font-semibold">Recomendações:</p>
+              <ul className="mt-2 space-y-1">
+                {dotobotRagHealth.recommendations.map((item) => (
+                  <li key={item}>- {item}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <p className="text-xs uppercase tracking-[0.16em] opacity-50">
-            Query: {dotobotRagReport.query?.skipped ? "healthcheck superficial sem upsert: rode o diagnostico profundo e verifique as secrets do RAG" : dotobotRagReport.query?.ok ? "healthcheck dotobot memory retrieval" : "verifique as secrets do RAG"}
+            Query: {dotobotRagReport.query?.skipped ? "healthcheck superficial sem upsert: rode o diagnóstico profundo e verifique as secrets do RAG" : dotobotRagReport.query?.ok ? "healthcheck dotobot memory retrieval" : "verifique as secrets do RAG"}
           </p>
           {dotobotRagHealth.error ? <p className="text-[#f2b2b2]">{dotobotRagHealth.error}</p> : null}
-          {(dotobotRagReport.embedding?.error || dotobotRagReport.query?.error || dotobotRagReport.upsert?.error) ? (
+          {(dotobotRagReport.embedding?.error || dotobotRagReport.query?.error || dotobotRagReport.supabaseEmbedding?.error || dotobotRagReport.supabaseQuery?.error || dotobotRagReport.upsert?.error || dotobotRagReport.supabaseUpsert?.error) ? (
             <div>
               <p className="font-semibold">Detalhe do erro:</p>
-              <p>{dotobotRagReport.embedding?.error || dotobotRagReport.query?.error || dotobotRagReport.upsert?.error}</p>
+              <p>{dotobotRagReport.embedding?.error || dotobotRagReport.query?.error || dotobotRagReport.supabaseEmbedding?.error || dotobotRagReport.supabaseQuery?.error || dotobotRagReport.upsert?.error || dotobotRagReport.supabaseUpsert?.error}</p>
             </div>
           ) : null}
         </div>
       </Panel>
 
-      <Panel title="Saude do widget em producao">
+      <Panel title="Saúde do widget em produção">
         <div className="grid gap-3 md:grid-cols-4 text-sm opacity-75">
           <p>Eventos: {widgetEventSummary.total || 0}</p>
           <p>Aberturas: {widgetEventSummary.openedCount || 0}</p>
@@ -298,7 +319,7 @@ function EnvironmentContent({ state }) {
           </div>
         ) : (
           <p className="mt-4 text-sm opacity-75">
-            Ainda nao existem eventos suficientes do widget para analise. Abra e autentique o chat no site para popular esta visao.
+            Ainda não existem eventos suficientes do widget para análise. Abra e autentique o chat no site para popular esta visão.
           </p>
         )}
       </Panel>
@@ -309,7 +330,7 @@ function EnvironmentContent({ state }) {
             <div key={item.table} className="border border-[#2D2E2E] p-3">
               <p className="font-semibold">{item.table}</p>
               <p className={item.status === "ready" ? "text-emerald-400" : "text-amber-300"}>
-                {item.status === "ready" ? "Disponivel" : "Ausente"}
+                {item.status === "ready" ? "Disponível" : "Ausente"}
               </p>
             </div>
           ))}
