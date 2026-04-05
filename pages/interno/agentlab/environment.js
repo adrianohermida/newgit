@@ -13,6 +13,24 @@ function Panel({ title, children }) {
 }
 
 function getDotobotRagHealthStatus(health) {
+  if (health?.status === "operational") {
+    return {
+      tone: "text-emerald-400",
+      label: "Operacional",
+      headline: "OK",
+      summary: "Embedding e consulta vetorial estão funcionais em pelo menos um backend principal.",
+    };
+  }
+
+  if (health?.status === "degraded") {
+    return {
+      tone: "text-amber-300",
+      label: "Degradado",
+      headline: "Degradado",
+      summary: "O fallback local está ativo, mas os provedores principais de embedding e busca vetorial não estão saudáveis.",
+    };
+  }
+
   const report = health?.report || {};
   const cloudflareOk = Boolean(report.embedding?.ok && report.query?.ok);
   const supabaseOk = Boolean(report.supabaseEmbedding?.ok && report.supabaseQuery?.ok);
