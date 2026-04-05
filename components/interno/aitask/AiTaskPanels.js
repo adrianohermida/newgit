@@ -166,7 +166,7 @@ export function WorkspaceHeader({
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C5A059]">Hermida Maia Advocacia</p>
-          <h2 className="mt-2 text-[30px] font-semibold tracking-[-0.04em] text-[#F5F1E8]">AI Task Copilot</h2>
+          <h2 className="mt-2 text-[30px] font-semibold tracking-[-0.04em] text-[#F5F1E8]">AI Task Hermida Maia</h2>
           <p className="mt-2 max-w-2xl text-sm leading-7 text-[#9BAEA8]">
             Histórico na esquerda, conversa no centro e contexto operacional na direita para conduzir tarefas jurídicas com clareza.
           </p>
@@ -174,7 +174,7 @@ export function WorkspaceHeader({
         <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[520px] xl:grid-cols-4">
           <MetricPill label="Status" value={stateLabel} tone={stateLabel === "Falhou" ? "danger" : stateLabel === "Concluído" ? "success" : "accent"} />
           <MetricPill label="Modo" value={activeModeLabel} />
-          <MetricPill label="Provider" value={provider} />
+          <MetricPill label="Modelo" value={provider} />
           <MetricPill label="Eventos" value={eventsTotal} />
         </div>
       </div>
