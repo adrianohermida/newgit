@@ -203,9 +203,11 @@ export default function AITaskModule({ profile, routePath }) {
     tasks,
     thinking,
     handleAttachmentChange,
+    handleAttachmentDrop,
     handleMissionChange,
     handleQuickMission,
     handleReplay,
+    handleSelectRun,
     patchThinking,
     pushLog,
     setActiveRun,
@@ -236,6 +238,7 @@ export default function AITaskModule({ profile, routePath }) {
     nowIso,
     maxThinking: MAX_THINKING,
     maxLogs: MAX_LOGS,
+    profile,
   });
 
   const { executeMission, handleContinueLastRun, handlePause, handleStart, handleStop } = useAiTaskRun({
@@ -317,10 +320,7 @@ export default function AITaskModule({ profile, routePath }) {
           formatHistoryStatus={formatHistoryStatus}
           formatExecutionSourceLabel={formatExecutionSourceLabel}
           nowIso={nowIso}
-          onSelectRun={(item) => {
-            if (!item?.mission) return;
-            setMission(item.mission);
-          }}
+          onSelectRun={handleSelectRun}
         />
 
         <section className="min-h-0 overflow-hidden rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] shadow-[0_16px_48px_rgba(0,0,0,0.2)]">
@@ -377,6 +377,7 @@ export default function AITaskModule({ profile, routePath }) {
             handleMissionChange={handleMissionChange}
             handleStart={handleStart}
             handleAttachmentChange={handleAttachmentChange}
+            handleAttachmentDrop={handleAttachmentDrop}
             attachments={attachments}
             error={error}
             quickMissions={QUICK_MISSIONS}

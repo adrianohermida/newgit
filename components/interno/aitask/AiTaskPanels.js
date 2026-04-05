@@ -341,6 +341,7 @@ export function ConversationComposer({
   handleMissionChange,
   handleStart,
   handleAttachmentChange,
+  handleAttachmentDrop,
   attachments,
   error,
   quickMissions,
@@ -360,7 +361,14 @@ export function ConversationComposer({
           </button>
         ))}
       </div>
-      <div className="rounded-[28px] border border-[#22342F] bg-[rgba(7,9,8,0.98)] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.18)]">
+      <div
+        className="rounded-[28px] border border-[#22342F] bg-[rgba(7,9,8,0.98)] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.18)]"
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          handleAttachmentDrop?.(event.dataTransfer?.files || []);
+        }}
+      >
         <textarea
           ref={missionInputRef}
           value={mission}
