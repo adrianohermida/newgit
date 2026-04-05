@@ -783,11 +783,45 @@ export default function DotobotCopilot({
         </div>
       );
       // Painel de anexos
+      // Exporta anexos como .zip
+      async function exportAttachmentsZip() {
+        if (!attachments.length) return;
+        const JSZip = (await import("jszip")).default;
+        const zip = new JSZip();
+        for (const att of attachments) {
+          if (att.file && att.file instanceof File) {
+            zip.file(att.file.name || "arquivo", att.file);
+          } else if (att.blob) {
+            zip.file(att.name || "arquivo", att.blob);
+          }
+        }
+        const blob = await zip.generateAsync({ type: "blob" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `dotobot-anexos-${Date.now()}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 100);
+      }
+
       const AttachmentPanel = () => (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
           <div className="w-full max-w-lg rounded-2xl bg-[#181B19] p-6 shadow-2xl border border-[#22342F] relative">
             <button className="absolute right-4 top-4 text-[#C5A059] text-xl" onClick={() => setShowAttachmentPanel(false)} title="Fechar">×</button>
             <h2 className="mb-4 text-lg font-bold text-[#F5F1E8]">Anexos da Sessão</h2>
+            <button
+              className="mb-3 rounded border border-[#C5A059] bg-[#232823] px-3 py-1 text-xs text-[#C5A059] hover:bg-[#C5A059] hover:text-[#181B19]"
+              onClick={exportAttachmentsZip}
+              disabled={!attachments.length}
+              title="Exportar todos os anexos (.zip)"
+            >
+              <span className="material-icons align-middle mr-1" style={{ fontSize: 16 }}>download</span>
+              Exportar anexos
+            </button>
             <div
               className="flex flex-col gap-2 min-h-[120px] max-h-80 overflow-y-auto border border-[#22342F] rounded-lg p-3 bg-[#232823]"
               onDrop={e => {
@@ -806,16 +840,13 @@ export default function DotobotCopilot({
                   <input
                     className="bg-transparent border-b border-dashed border-[#C5A059] text-[#EAE3D6] px-1 w-32"
                     defaultValue={att.file?.name || att.file?.type || "Arquivo"}
-                    onBlur={e => {
-                      const newName = e.target.value;
-                      setAttachments((prev) => prev.map((a, i) => i === idx ? { ...a, file: { ...a.file, name: newName } } : a));
-                    }}
+                    onBlur={e => handleRenameAttachment(idx, e.target.value)}
                     title="Renomear arquivo"
                   />
                   <button
                     className="ml-1 text-[#C5A059] hover:text-red-500 flex items-center"
                     title="Remover"
-                    onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                    onClick={() => handleRemoveAttachment(idx)}
                     aria-label="Remover anexo"
                   >
                     <span className="material-icons text-base">close</span>
