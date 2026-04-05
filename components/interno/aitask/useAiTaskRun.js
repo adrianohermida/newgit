@@ -115,9 +115,9 @@ export function useAiTaskRun({
             id: `${run?.id || runId}_step_${index + 1}`,
             title: step?.action || step?.title || `Etapa ${index + 1}`,
             goal: step?.action || step?.title || `Etapa ${index + 1}`,
-            description: step?.action || step?.title || "Execucao backend",
+            description: step?.action || step?.title || "Execução do backend",
             step,
-            steps: [step?.action || step?.title || "Execucao backend"],
+            steps: [step?.action || step?.title || "Execução do backend"],
             status: step?.status === "ok" ? "done" : step?.status === "fail" ? "failed" : "running",
             priority: "high",
             assignedAgent: step?.tool || "Dotobot",
@@ -171,7 +171,7 @@ export function useAiTaskRun({
             setTasks((current) =>
               current.map((task) =>
                 task.status === "pending" || task.status === "running"
-                  ? { ...task, status: "failed", updated_at: nowIso(), logs: [...(task.logs || []), run?.error || "Execucao interrompida."] }
+                  ? { ...task, status: "failed", updated_at: nowIso(), logs: [...(task.logs || []), run?.error || "Execução interrompida."] }
                   : task
               )
             );
@@ -183,7 +183,7 @@ export function useAiTaskRun({
           pushLog({
             type: "warning",
             action: "Polling TaskRun",
-            result: pollError?.message || "Falha ao consultar status da execucao.",
+            result: pollError?.message || "Falha ao consultar status da execução.",
           });
         }
         nextDelayMs = 4000;
@@ -261,23 +261,23 @@ export function useAiTaskRun({
 
     pushLog({
       type: "planner",
-      action: "Missao recebida",
-      result: `Classificada como ${blueprint.critical ? "critica" : "operacional"} no modo ${mode}.`,
+      action: "Missão recebida",
+      result: `Classificada como ${blueprint.critical ? "crítica" : "operacional"} no modo ${mode}.`,
     });
     pushLog({
       type: "planner",
       action: "Mapa de contexto",
-      result: `Modulos prioritarios: ${blueprint.modules.join(", ")}.`,
+      result: `Módulos prioritários: ${blueprint.modules.join(", ")}.`,
     });
 
     if (mode === "manual" || (mode === "assisted" && blueprint.critical && !approved)) {
       setAutomation("waiting_approval");
       pushLog({
         type: "control",
-        action: "Aguardando aprovacao",
+        action: "Aguardando aprovação",
         result: blueprint.critical
-          ? "A missao aciona criterio sensivel e requer confirmacao humana."
-          : "Modo assistido aguardando liberacao para seguir com a execucao.",
+          ? "A missão aciona critério sensível e requer confirmação humana."
+          : "Modo assistido aguardando liberação para seguir com a execução.",
       });
       return;
     }
@@ -354,9 +354,9 @@ export function useAiTaskRun({
           id: `${run?.id || localRunId}_step_${index + 1}`,
           title: step?.action || step?.title || `Etapa ${index + 1}`,
           goal: step?.action || step?.title || `Etapa ${index + 1}`,
-          description: step?.action || step?.title || "Execucao backend",
+          description: step?.action || step?.title || "Execução do backend",
           step,
-          steps: [step?.action || step?.title || "Execucao backend"],
+          steps: [step?.action || step?.title || "Execução do backend"],
           status: step?.status === "ok" ? "done" : step?.status === "fail" ? "failed" : "running",
           priority: "high",
           assignedAgent: step?.tool || "Dotobot",
@@ -395,7 +395,7 @@ export function useAiTaskRun({
         pushLog({
           type: "reporter",
           action: "Resposta pendente",
-          result: "TaskRun iniciado. O resultado final sera carregado automaticamente.",
+          result: "TaskRun iniciado. O resultado final será carregado automaticamente.",
         });
       }
 
@@ -455,7 +455,7 @@ export function useAiTaskRun({
               : "Execucao iniciada no backend e aguardando conclusao.",
       });
     } catch (missionError) {
-      const message = missionError?.message || "Falha ao executar a missao.";
+      const message = missionError?.message || "Falha ao executar a missão.";
       setError(message);
       setAutomation("failed");
       setMissionHistory((current) =>
@@ -468,7 +468,7 @@ export function useAiTaskRun({
             : task
         )
       );
-      pushLog({ type: "error", action: "Execucao interrompida", result: message });
+      pushLog({ type: "error", action: "Execução interrompida", result: message });
     } finally {
       abortRef.current = null;
     }
@@ -484,8 +484,8 @@ export function useAiTaskRun({
     setAutomation(pauseRef.current ? "paused" : "running");
     pushLog({
       type: "control",
-      action: pauseRef.current ? "Pausa acionada" : "Execucao retomada",
-      result: pauseRef.current ? "A orquestracao foi pausada pelo operador." : "A orquestracao retomou o fluxo.",
+      action: pauseRef.current ? "Pausa acionada" : "Execução retomada",
+      result: pauseRef.current ? "A orquestração foi pausada pelo operador." : "A orquestração retomou o fluxo.",
     });
   }
 
@@ -522,13 +522,13 @@ export function useAiTaskRun({
     setTasks((current) =>
       current.map((task) => (task.status === "running" ? { ...task, status: "failed", updated_at: nowIso(), logs: [...(task.logs || []), "Interrompido pelo operador."] } : task))
     );
-    pushLog({ type: "control", action: "Execucao parada", result: "Operador interrompeu a orquestracao." });
+    pushLog({ type: "control", action: "Execução parada", result: "Operador interrompeu a orquestração." });
   }
 
   async function handleContinueLastRun() {
     const lastRecoverable = missionHistory.find((item) => item.status === "failed" || item.status === "stopped");
     if (!lastRecoverable?.id) {
-      pushLog({ type: "warning", action: "Retomada", result: "Nao ha run falhado/parado para retomar." });
+      pushLog({ type: "warning", action: "Retomada", result: "Não há run falhada/parada para retomar." });
       return;
     }
 

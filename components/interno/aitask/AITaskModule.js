@@ -122,7 +122,7 @@ function buildBlueprint(normalizedMission, profile, mode, provider) {
       details: [
         `Pedido normalizado: ${normalizedMission || "missão vazia"}`,
         `Módulos candidatos: ${modules.join(", ")}`,
-        `Responsável visível: ${profile?.full_name || profile?.email || "Hermida Maia"}`,
+        `Responsável visível: ${profile?.full_name || profile?.email || "Hermida Maia Advocacia"}`,
       ],
       expanded: true,
     },
