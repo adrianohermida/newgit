@@ -280,6 +280,8 @@ export default function DotobotCopilot({
   const [conversations, setConversations] = useState([]);
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [conversationSearch, setConversationSearch] = useState("");
+  const [conversationSort, setConversationSort] = useState("recent"); // "recent" | "oldest" | "title"
+  const [showArchived, setShowArchived] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [uiState, setUiState] = useState("idle");
@@ -344,6 +346,17 @@ export default function DotobotCopilot({
       }, 50);
     }
   }, [messages, chatStorageKey, activeConversationId]);
+
+  // Restaura anexos ao alternar conversa
+  useEffect(() => {
+    if (!activeConversationId) return;
+    const conv = conversations.find(c => c.id === activeConversationId);
+    if (conv && Array.isArray(conv.attachments)) {
+      setAttachments(conv.attachments);
+    } else {
+      setAttachments([]);
+    }
+  }, [activeConversationId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1281,7 +1294,17 @@ export default function DotobotCopilot({
   const isWorkspaceShell = workspaceOpen;
   const railCollapsed = compactRail ? true : collapsed;
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
-  const filteredConversations = filterVisibleConversations(conversations, conversationSearch);
+  let filteredConversations = filterVisibleConversations(conversations, conversationSearch);
+  if (!showArchived) {
+    filteredConversations = filteredConversations.filter(c => !c.archived);
+  }
+  if (conversationSort === "recent") {
+    filteredConversations = filteredConversations.slice().sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+  } else if (conversationSort === "oldest") {
+    filteredConversations = filteredConversations.slice().sort((a, b) => (a.updatedAt || a.createdAt || 0) - (b.updatedAt || b.createdAt || 0));
+  } else if (conversationSort === "title") {
+    filteredConversations = filteredConversations.slice().sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+  }
 
   // Exemplo de fluxo de login Supabase
   async function handleLogin() {
@@ -1630,13 +1653,33 @@ export default function DotobotCopilot({
                         Nova
                       </button>
                     </div>
-                    <div className="mt-4">
+                    <div className="mt-4 flex flex-col gap-2">
                       <input
                         value={conversationSearch}
                         onChange={(event) => setConversationSearch(event.target.value)}
                         placeholder="Buscar conversas"
                         className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.98)] px-4 text-sm text-[#F5F1E8] outline-none placeholder:text-[#60706A] focus:border-[#C5A059]"
                       />
+                      <div className="flex gap-2 mt-2">
+                        <select
+                          value={conversationSort}
+                          onChange={e => setConversationSort(e.target.value)}
+                          className="rounded-xl border border-[#22342F] bg-[#181B19] px-2 py-1 text-xs text-[#C5A059] focus:border-[#C5A059]"
+                        >
+                          <option value="recent">Mais recentes</option>
+                          <option value="oldest">Mais antigas</option>
+                          <option value="title">Título (A-Z)</option>
+                        </select>
+                        <label className="flex items-center gap-1 text-xs text-[#C5A059] cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={showArchived}
+                            onChange={e => setShowArchived(e.target.checked)}
+                            className="accent-[#C5A059]"
+                          />
+                          Arquivadas
+                        </label>
+                      </div>
                     </div>
                   </div>
 
