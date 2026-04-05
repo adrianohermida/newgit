@@ -1,5 +1,16 @@
 ﻿import { useState, useEffect, useMemo, useRef } from "react";
 import { adminFetch } from "../../../lib/admin/api";
+import {
+  AgentLane,
+  Bubble,
+  ContextRail,
+  LogRow,
+  MetricPill,
+  MissionControlPanel,
+  RunsPane,
+  TaskCard,
+  ThinkingBlock,
+} from "./AiTaskPanels";
 
 function detectModules(mission) {
   if (!mission) return ["geral"];
@@ -25,10 +36,6 @@ function formatExecutionSourceLabel(source) {
 function formatHistoryStatus(status) {
   const labels = { running: "Executando", done: "Concluído", failed: "Falhou", stopped: "Parado", idle: "Pronto" };
   return labels[status] || String(status || "Indefinido");
-}
-
-function buildStorageKey(profile) {
-  return `aitask:${profile?.id || profile?.email || "anonymous"}`;
 }
 
 function nowIso() {
@@ -111,51 +118,6 @@ function normalizeTaskRunPayload(payload) {
     eventsTotal: Number.isFinite(Number(data?.eventsTotal)) ? Number(data.eventsTotal) : null,
     pollIntervalMs: Number.isFinite(Number(data?.pollIntervalMs)) ? Number(data.pollIntervalMs) : null,
   };
-}
-
-function ChatHistory({ history }) {
-  if (!Array.isArray(history) || !history.length) return null;
-  return (
-    <div className="space-y-3 pb-4">
-      {history.map((item) => (
-        <div key={item.id || item.timestamp} className={`flex ${item.role === "user" ? "justify-end" : "justify-start"}`}>
-          <article className="max-w-[92%] rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[#F4F1EA]">
-            <p className="mb-1 text-[10px] uppercase tracking-[0.2em] opacity-60">{item.title || item.role}</p>
-            <p className="whitespace-pre-wrap leading-7">{String(item.goal || "")}</p>
-          </article>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// Input compacto fixo no rodapé
-function TaskInputFooter({ value, onChange, onSubmit, disabled }) {
-  const inputRef = useRef();
-  return (
-    <form
-      className="fixed left-0 right-0 bottom-0 z-30 w-full max-w-2xl mx-auto flex items-end gap-2 bg-[rgba(12,15,14,0.98)] border-t border-[#22342F] px-3 py-2"
-      style={{ boxShadow: '0 -2px 16px rgba(0,0,0,0.08)' }}
-      onSubmit={onSubmit}
-    >
-      <input
-        ref={inputRef}
-        className="flex-1 rounded-xl border border-[#22342F] bg-transparent px-3 py-2 text-sm text-[#F5F1E8] placeholder-[#7F928C] focus:border-[#C5A059] focus:outline-none"
-        placeholder="Descreva a missão..."
-        value={value}
-        onChange={onChange}
-        disabled={disabled}
-        autoComplete="off"
-      />
-      <button
-        type="submit"
-        className="rounded-xl bg-[#D9B46A] px-4 py-2 text-sm font-bold text-[#1A1A1A] hover:bg-[#C5A059] disabled:opacity-50"
-        disabled={disabled || !value?.trim()}
-      >
-        Enviar
-      </button>
-    </form>
-  );
 }
 
 function buildBlueprint(normalizedMission, profile, mode, provider) {
