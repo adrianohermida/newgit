@@ -138,6 +138,8 @@ export default function App({ Component, pageProps }) {
           gtag('js', new Date());
           gtag('config', 'G-72669401');
         `}} />
+        {/* Material Icons CDN */}
+        <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
       </Head>
       <FreshchatWebMessenger />
       <ToastProvider>
