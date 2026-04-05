@@ -762,6 +762,7 @@ export default function DotobotCopilot({
               </button>
             )}
           </div>
+          /*
         </div>
       );
       // Painel de anexos
@@ -852,6 +853,7 @@ export default function DotobotCopilot({
               Execução
             </button>
           )}
+          */
         </div>
           {/* Área de entrada de mensagem e ações */}
           <div className="fixed bottom-0 right-0 w-[min(420px,100vw)] min-w-[320px] max-w-full bg-[rgba(12,15,14,0.98)] border-t border-[#22342F] px-4 py-3 flex flex-col gap-2 z-50">
