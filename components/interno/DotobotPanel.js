@@ -90,21 +90,21 @@ function normalizeAttachment(file) {
   const kind = detectAttachmentKind(file);
   return {
     type: file.type || "application/octet-stream",
-    kind,
-    previewUrl: kind === "image" ? URL.createObjectURL(file) : null,
-    file,
-  };
-}
-
-function buildRagSummary(rag) {
-  if (!rag) return { count: 0, sources: [], documents: [] };
-  const retrieval = rag.retrieval || rag.supabase || rag.context || {};
-  const matches = retrieval.matches || retrieval.items || retrieval.results || [];
-  const documents = rag.documents || retrieval.documents || [];
-  const sources = [...new Set(matches.map((item) => item?.source || item?.source_key || item?.provider || "context"))];
-  return {
-    count: Array.isArray(matches) ? matches.length : 0,
-    sources,
+        <div
+          className={`h-full border-l border-neutral-800 transition-all duration-300 bg-[rgba(12,15,14,0.98)] shadow-2xl flex flex-col fixed right-0 top-0 z-40
+            ${isCollapsed ? "translate-x-full" : "translate-x-0"}
+            w-[min(420px,100vw)] min-w-[320px] max-w-full"
+          }
+        >
+          <ContextHeader />
+          <div className="flex-1 flex flex-col overflow-y-auto" ref={scrollRef} style={{paddingBottom: 0, paddingTop: 0}}>
+            {/* Conversa principal */}
+            <div className="flex-1 flex flex-col gap-3 px-4 pt-4 pb-36" style={{marginBottom: 0}}>
+              {messages.map((msg, idx) => (
+                <MessageBubble key={idx} message={msg} isTyping={loading && idx === messages.length - 1} />
+              ))}
+            </div>
+          </div>
     documents,
   };
 }
@@ -334,10 +334,13 @@ export default function DotobotCopilot({
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(chatStorageKey, JSON.stringify(messages.slice(-MAX_HISTORY)));
+    // Scroll automático para o final ao carregar/trocar conversa
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      setTimeout(() => {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }, 50);
     }
-  }, [messages, chatStorageKey]);
+  }, [messages, chatStorageKey, activeConversationId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
