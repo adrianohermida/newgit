@@ -43,6 +43,19 @@ const MODE_OPTIONS = [
   { value: "chat", label: "Chat", hint: "Conversa assistida" },
   { value: "task", label: "Task", hint: "Execucao em etapas" },
   { value: "analysis", label: "Analysis", hint: "Raciocinio guiado" },
+// Utilitário para sumarizar contexto RAG
+function buildRagSummary(rag) {
+  if (!rag) return { count: 0, sources: [], documents: [] };
+  const retrieval = rag.retrieval || rag.supabase || rag.context || {};
+  const matches = retrieval.matches || retrieval.items || retrieval.results || [];
+  const documents = rag.documents || retrieval.documents || [];
+  const sources = [...new Set(matches.map((item) => item?.source || item?.source_key || item?.provider || "context"))];
+  return {
+    count: Array.isArray(matches) ? matches.length : 0,
+    sources,
+    documents,
+  };
+}
 ];
 
 const PROVIDER_OPTIONS = [
