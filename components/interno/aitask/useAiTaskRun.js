@@ -490,7 +490,6 @@ export function useAiTaskRun({
   }
 
   async function handleStop() {
-    if (typeof window !== "undefined" && !window.confirm("Parar a execucao do AI TASK?")) return;
     abortRef.current?.abort();
     const runId = activeRun?.id;
     if (runId) {
