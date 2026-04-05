@@ -309,7 +309,7 @@ export default function AITaskModule({ profile, routePath }) {
         eventsTotal={eventsTotal}
         paused={paused}
         handlePause={handlePause}
-        handleStop={handleStop}
+        handleStop={() => setStopModalOpen(true)}
         handleContinueLastRun={handleContinueLastRun}
         handleApprove={handleApprove}
         formatExecutionSourceLabel={formatExecutionSourceLabel}
@@ -412,6 +412,19 @@ export default function AITaskModule({ profile, routePath }) {
           />
         </div>
       </div>
+
+      <ConfirmModal
+        open={stopModalOpen}
+        title="Parar execução atual"
+        body="Esta ação interrompe a run ativa, marca as tarefas em andamento como interrompidas e encerra o acompanhamento atual."
+        confirmLabel="Parar execução"
+        cancelLabel="Voltar"
+        onCancel={() => setStopModalOpen(false)}
+        onConfirm={async () => {
+          setStopModalOpen(false);
+          await handleStop();
+        }}
+      />
     </div>
   );
 }
