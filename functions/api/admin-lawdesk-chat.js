@@ -22,38 +22,6 @@ export async function onRequestPost(context) {
     return new Response("Bad Request", { status: 400 });
   }
 }
-    }
-  }
-
-  try {
-    const repositoryContext = buildDotobotRepositoryContext(body?.context || {});
-    let enhancedContext = repositoryContext;
-
-    // Detecção opcional de skill (Fase 2)
-    if (features.chat.skillsDetection) {
-      try {
-        const query = typeof body?.query === "string" ? body.query.trim() : "";
-        const detectedSkill = detectSkillFromQuery(query);
-        if (detectedSkill) {
-          enhancedContext = enrichContextWithSkill(repositoryContext, detectedSkill);
-        }
-      } catch (skillError) {
-        console.warn("Skill detection failed, continuing without:", skillError?.message);
-        // Continue sem skill, não quebra o fluxo
-      }
-    }
-
-    const startTime = Date.now();
-    const data = await runLawdeskChat(env, {
-      query,
-      context: {
-        ...(body?.context || {}),
-        repositoryContext: enhancedContext,
-        features,
-      },
-    });
-    const duration = Date.now() - startTime;
-    return new Response(JSON.stringify({
       ok: true,
       data,
       metadata: {
