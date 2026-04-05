@@ -1,6 +1,7 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Bubble,
+  ConfirmModal,
   ConversationComposer,
   ContextRail,
   LogRow,
@@ -177,6 +178,7 @@ function buildBlueprint(normalizedMission, profile, mode, provider) {
 export default function AITaskModule({ profile, routePath }) {
   const missionInputRef = useRef(null);
   const chatViewportRef = useRef(null);
+  const [stopModalOpen, setStopModalOpen] = useState(false);
   const {
     activeRun,
     approved,
