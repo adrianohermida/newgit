@@ -1,4 +1,4 @@
-import useDotobotExtensionBridge from "./DotobotExtensionBridge";
+﻿import useDotobotExtensionBridge from "./DotobotExtensionBridge";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMediaQuery } from "react-responsive";
 import { TransitionGroup, CSSTransition } from "react-transition-group";
@@ -53,7 +53,7 @@ const PROVIDER_OPTIONS = [
 
 const LEGAL_ACTIONS = [
   { label: "Gerar peticao", prompt: "/peticao Estruture a peticao com fatos, fundamentos e pedidos." },
-  { label: "Analisar processo", prompt: "/analise Faça uma leitura juridica do processo e destaque riscos." },
+  { label: "Analisar processo", prompt: "/analise FaÃ§a uma leitura juridica do processo e destaque riscos." },
   { label: "Criar plano", prompt: "/plano Monte um plano de pagamento ou de negociacao em etapas." },
   { label: "Resumir docs", prompt: "/resumo Resuma os documentos e indique pontos sensiveis." },
 ];
@@ -145,7 +145,7 @@ function MessageBubble({ message, isTyping }) {
       ? "border-[#2E3A36] bg-[rgba(255,255,255,0.02)] text-[#9FB1AA]"
       : "border-[#3C3320] bg-[rgba(40,32,19,0.28)] text-[#F7F1E6]";
 
-  // Suporte multimodal: imagens/áudios
+  // Suporte multimodal: imagens/Ã¡udios
   const media = Array.isArray(message.media) ? message.media : [];
 
   return (
@@ -216,12 +216,12 @@ export default function DotobotCopilot({
   defaultCollapsed = false,
   compactRail = false,
 }) {
-  // Estado de autenticação/admin
+  // Estado de autenticaÃ§Ã£o/admin
   const { supabase, loading: supaLoading, configError } = useSupabaseBrowser();
   const [isAdmin, setIsAdmin] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
-  // Valida sessão e perfil admin
+  // Valida sessÃ£o e perfil admin
   useEffect(() => {
     if (!supaLoading && supabase) {
       supabase.auth.getSession().then(async ({ data }) => {
@@ -245,13 +245,13 @@ export default function DotobotCopilot({
       });
     }
   }, [supabase, supaLoading]);
-  // Integração com extensão
+  // IntegraÃ§Ã£o com extensÃ£o
   const { extensionReady, lastResponse, sendCommand } = useDotobotExtensionBridge();
 
-  // Exemplo: enviar comando para extensão ao detectar intenção específica
+  // Exemplo: enviar comando para extensÃ£o ao detectar intenÃ§Ã£o especÃ­fica
   async function handleExtensionActionIfNeeded(intent, question) {
     if (!extensionReady) return;
-    // Exemplo: se intenção for "web_search" ou "local_file_access"
+    // Exemplo: se intenÃ§Ã£o for "web_search" ou "local_file_access"
     if (["web_search", "local_file_access"].includes(intent)) {
       await sendCommand(intent, { query: question });
     }
@@ -325,7 +325,7 @@ export default function DotobotCopilot({
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(chatStorageKey, JSON.stringify(messages.slice(-MAX_HISTORY)));
-    // Scroll automático para o final ao carregar/trocar conversa
+    // Scroll automÃ¡tico para o final ao carregar/trocar conversa
     if (scrollRef.current) {
       setTimeout(() => {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -377,7 +377,7 @@ export default function DotobotCopilot({
     );
   }, [mode, provider, contextEnabled, workspaceOpen, activeConversationId, prefStorageKey]);
 
-  // Copilot sempre disponível, apenas colapsa visualmente
+  // Copilot sempre disponÃ­vel, apenas colapsa visualmente
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     const onKeyDown = (event) => {
@@ -424,12 +424,12 @@ export default function DotobotCopilot({
     setLoading(true);
     setUiState("responding");
 
-    // Adiciona mensagem do usuário
+    // Adiciona mensagem do usuÃ¡rio
     setMessages((msgs) => [
       ...msgs,
       { role: "user", text: trimmedQuestion, createdAt: nowIso() },
     ]);
-    // PATCH 8: scroll automático ao enviar
+    // PATCH 8: scroll automÃ¡tico ao enviar
     setTimeout(() => {
       if (scrollRef.current) {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -448,7 +448,7 @@ export default function DotobotCopilot({
       attachments,
     });
 
-    // Detecta se é comando de skill/task
+    // Detecta se Ã© comando de skill/task
     if (isTaskCommand(trimmedQuestion)) {
       // Dispara TaskRun
       setUiState("executing");
@@ -457,7 +457,7 @@ export default function DotobotCopilot({
           id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
           status: "running",
           query: trimmedQuestion,
-          logs: ["Execução iniciada..."],
+          logs: ["ExecuÃ§Ã£o iniciada..."],
           startedAt: nowIso(),
         },
         ...tasks,
@@ -529,7 +529,7 @@ export default function DotobotCopilot({
         setUiState("idle");
         return;
       }
-      // Mensagem inicial de execução
+      // Mensagem inicial de execuÃ§Ã£o
       setMessages((msgs) => [
         ...msgs,
         { role: "assistant", text: "", createdAt: nowIso(), status: "thinking" },
@@ -546,7 +546,7 @@ export default function DotobotCopilot({
           fullText += chunk;
           setMessages((msgs) => {
             const last = msgs[msgs.length - 1];
-            // Atualiza última mensagem do assistente
+            // Atualiza Ãºltima mensagem do assistente
             return [
               ...msgs.slice(0, -1),
               { ...last, text: fullText, status: done ? "ok" : "running" },
@@ -565,7 +565,7 @@ export default function DotobotCopilot({
 
 
 
-    // Botão flutuante de reabertura
+    // BotÃ£o flutuante de reabertura
   }
 
     const FloatingTrigger = () => (
@@ -575,7 +575,7 @@ export default function DotobotCopilot({
           onClick={() => setIsCollapsed(false)}
           title="Abrir Copilot (Ctrl + .)"
         >
-          <span className="text-2xl font-bold text-[#1A1A1A]">💬</span>
+          <span className="text-2xl font-bold text-[#1A1A1A]">ðŸ’¬</span>
         </button>
       )
     );
@@ -587,14 +587,14 @@ export default function DotobotCopilot({
       thinking: "Pensando...",
       typing: "Digitando...",
       executing: "Executando...",
-      waiting: "Aguardando aprovação...",
+      waiting: "Aguardando aprovaÃ§Ã£o...",
     }[uiState] || "Pronto";
 
     // Modal de detalhes da Task
     const [showTaskModal, setShowTaskModal] = useState(false);
     const activeTask = getLastTask(taskHistory);
 
-    // Filtros e exportação
+    // Filtros e exportaÃ§Ã£o
     const [taskFilter, setTaskFilter] = useState("");
     const [statusFilter, setStatusFilter] = useState("");
     const filteredTasks = taskHistory.filter(task =>
@@ -618,8 +618,8 @@ export default function DotobotCopilot({
     const TaskModal = () => (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
         <div className="w-full max-w-2xl rounded-2xl bg-[#181B19] p-6 shadow-2xl border border-[#22342F] relative">
-          <button className="absolute right-4 top-4 text-[#C5A059] text-xl" onClick={() => setShowTaskModal(false)} title="Fechar">×</button>
-          <h2 className="mb-4 text-lg font-bold text-[#F5F1E8]">Detalhes da Execução</h2>
+          <button className="absolute right-4 top-4 text-[#C5A059] text-xl" onClick={() => setShowTaskModal(false)} title="Fechar">Ã—</button>
+          <h2 className="mb-4 text-lg font-bold text-[#F5F1E8]">Detalhes da ExecuÃ§Ã£o</h2>
           <div className="flex flex-wrap gap-2 mb-4">
             <input
               className="rounded border border-[#22342F] bg-[#232823] px-2 py-1 text-xs text-[#EAE3D6]"
@@ -721,330 +721,11 @@ export default function DotobotCopilot({
               ))}
             </div>
           ) : (
-            <div className="text-[#9BAEA8]">Nenhuma execução encontrada.</div>
+            <div className="text-[#9BAEA8]">Nenhuma execuÃ§Ã£o encontrada.</div>
           )}
         </div>
       </div>
     );
-
-    // Header de contexto com histórico de conversas
-    const ContextHeader = () => (
-      <div className="flex flex-col border-b border-[#22342F] bg-[rgba(12,15,14,0.98)]">
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <div className="flex items-center gap-3">
-              {!isCollapsed && <span className="rounded-full bg-[#D9B46A] px-3 py-1 text-xs font-bold text-[#1A1A1A]">Histórico</span>}
-              {!isCollapsed && <span className="text-xs text-[#9BAEA8]">{stateLabel}</span>}
-              {!isCollapsed && <span className="ml-2 text-xs text-[#C5A059]">{routePath || "Módulo atual"}</span>}
-              {!isCollapsed && (
-                <button
-                  className="ml-2 rounded-xl border border-[#22342F] bg-[#181B19] px-2 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none flex items-center justify-center"
-                  onClick={() => setShowAttachmentPanel(true)}
-                  title="Ver anexos da sessão"
-                  aria-label="Ver anexos"
-                >
-                  <span className="material-icons">folder</span>
-                </button>
-              )}
-            </div>
-            <button
-              className="rounded-xl border border-[#22342F] bg-[#181B19] px-2 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none text-xs"
-              onClick={() => setIsCollapsed((v) => !v)}
-              title={isCollapsed ? "Expandir Copilot" : "Colapsar Copilot"}
-            >
-              {isCollapsed ? "→" : "←"}
-            </button>
-            {!isCollapsed && (
-              <button
-                className="ml-2 rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none text-xs"
-                onClick={() => setShowTaskModal(true)}
-                title="Ver detalhes da execução"
-              >
-                Execução
-              </button>
-            )}
-          </div>
-          /*
-        </div>
-      );
-      // Painel de anexos
-      // Exporta anexos como .zip
-      async function exportAttachmentsZip() {
-        if (!attachments.length) return;
-        const JSZip = (await import("jszip")).default;
-        const zip = new JSZip();
-        for (const att of attachments) {
-          if (att.file && att.file instanceof File) {
-            zip.file(att.file.name || "arquivo", att.file);
-          } else if (att.blob) {
-            zip.file(att.name || "arquivo", att.blob);
-          }
-        }
-        const blob = await zip.generateAsync({ type: "blob" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `dotobot-anexos-${Date.now()}.zip`;
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => {
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }, 100);
-      }
-
-      const AttachmentPanel = () => (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-          <div className="w-full max-w-lg rounded-2xl bg-[#181B19] p-6 shadow-2xl border border-[#22342F] relative">
-            <button className="absolute right-4 top-4 text-[#C5A059] text-xl" onClick={() => setShowAttachmentPanel(false)} title="Fechar">×</button>
-            <h2 className="mb-4 text-lg font-bold text-[#F5F1E8]">Anexos da Sessão</h2>
-            <button
-              className="mb-3 rounded border border-[#C5A059] bg-[#232823] px-3 py-1 text-xs text-[#C5A059] hover:bg-[#C5A059] hover:text-[#181B19]"
-              onClick={exportAttachmentsZip}
-              disabled={!attachments.length}
-              title="Exportar todos os anexos (.zip)"
-            >
-              <span className="material-icons align-middle mr-1" style={{ fontSize: 16 }}>download</span>
-              Exportar anexos
-            </button>
-            <div
-              className="flex flex-col gap-2 min-h-[120px] max-h-80 overflow-y-auto border border-[#22342F] rounded-lg p-3 bg-[#232823]"
-              onDrop={e => {
-                e.preventDefault();
-                const files = Array.from(e.dataTransfer.files || []);
-                if (files.length) setAttachments((prev) => [...prev, ...files.map(normalizeAttachment)]);
-              }}
-              onDragOver={e => e.preventDefault()}
-            >
-              {attachments.length === 0 && <span className="text-xs text-[#9BAEA8]">Nenhum anexo nesta sessão.</span>}
-              {attachments.map((att, idx) => (
-                <div key={idx} className="flex items-center gap-2 bg-[#232823] px-2 py-1 rounded-lg text-xs text-[#EAE3D6]">
-                  {att.kind === "image" && <span className="material-icons text-base">image</span>}
-                  {att.kind === "audio" && <span className="material-icons text-base">audiotrack</span>}
-                  {att.kind === "file" && <span className="material-icons text-base">attach_file</span>}
-                  <input
-                    className="bg-transparent border-b border-dashed border-[#C5A059] text-[#EAE3D6] px-1 w-32"
-                    defaultValue={att.file?.name || att.file?.type || "Arquivo"}
-                    onBlur={e => handleRenameAttachment(idx, e.target.value)}
-                    title="Renomear arquivo"
-                  />
-                  <button
-                    className="ml-1 text-[#C5A059] hover:text-red-500 flex items-center"
-                    title="Remover"
-                    onClick={() => handleRemoveAttachment(idx)}
-                    aria-label="Remover anexo"
-                  >
-                    <span className="material-icons text-base">close</span>
-                  </button>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 text-xs text-[#9BAEA8]">Arraste arquivos para anexar ou clique no clipe na área de mensagem.</div>
-          </div>
-        </div>
-      );
-      // Renderização do modal de tarefas
-          </div>
-            {isCollapsed ? "→" : "←"}
-          {!isCollapsed && (
-            <button
-              className="ml-2 rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none text-xs"
-              onClick={() => setShowTaskModal(true)}
-              title="Ver detalhes da execução"
-            >
-              Execução
-            </button>
-          )}
-          */
-        </div>
-          {/* Área de entrada de mensagem e ações */}
-          <div className="fixed bottom-0 right-0 w-[min(420px,100vw)] min-w-[320px] max-w-full bg-[rgba(12,15,14,0.98)] border-t border-[#22342F] px-4 py-3 flex flex-col gap-2 z-50">
-            <div className="flex items-end gap-2">
-              <button
-                className="rounded-xl border border-[#22342F] bg-[#181B19] p-2 text-[#C5A059] hover:border-[#C5A059] focus:outline-none flex items-center justify-center"
-                title="Anexar arquivo"
-                onClick={() => fileInputRef.current?.click()}
-                aria-label="Anexar arquivo"
-              >
-                <span className="material-icons">attach_file</span>
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  const files = Array.from(e.target.files || []);
-                  setAttachments((prev) => [...prev, ...files.map(normalizeAttachment)]);
-                }}
-              />
-              <button
-                className="rounded-xl border border-[#22342F] bg-[#181B19] p-2 text-[#C5A059] hover:border-[#C5A059] focus:outline-none flex items-center justify-center"
-                title="Gravar voz (em breve)"
-                aria-label="Gravar voz"
-              >
-                <span className="material-icons">mic</span>
-              </button>
-              <textarea
-                ref={composerRef}
-                className="flex-1 min-h-[56px] max-h-32 resize-y rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-2 text-[#F4F1EA] placeholder-[#9BAEA8] focus:outline-none text-sm scrollbar-thin"
-                rows={2}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    submitQuery(input);
-                  }
-                }}
-                placeholder="Digite sua mensagem..."
-                style={{overflowY: 'auto'}}
-                onDrop={e => {
-                  e.preventDefault();
-                  const files = Array.from(e.dataTransfer.files || []);
-                  if (files.length) setAttachments((prev) => [...prev, ...files.map(normalizeAttachment)]);
-                }}
-                onDragOver={e => e.preventDefault()}
-              />
-              <button
-                className="rounded-xl border border-[#C5A059] bg-[#C5A059] p-2 text-[#181B19] hover:bg-[#D9B46A] focus:outline-none flex items-center justify-center"
-                title="Enviar"
-                onClick={() => submitQuery(input)}
-                disabled={loading || !input.trim()}
-                aria-label="Enviar"
-              >
-                <span className="material-icons">send</span>
-              </button>
-            </div>
-            {/* Lista de anexos da sessão */}
-            {attachments.length > 0 && (
-              <div className="flex flex-wrap gap-2 items-center border-t border-[#22342F] pt-2">
-                {attachments.map((att, idx) => (
-                  <div key={idx} className="flex items-center gap-1 bg-[#232823] px-2 py-1 rounded-lg text-xs text-[#EAE3D6]">
-                    {att.kind === "image" && <span className="material-icons text-base">image</span>}
-                    {att.kind === "audio" && <span className="material-icons text-base">audiotrack</span>}
-                    {att.kind === "file" && <span className="material-icons text-base">attach_file</span>}
-                    <span>{att.file?.name || att.file?.type || "Arquivo"}</span>
-                    <button
-                      className="ml-1 text-[#C5A059] hover:text-red-500 flex items-center"
-                      title="Remover"
-                      onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
-                      aria-label="Remover anexo"
-                    >
-                      <span className="material-icons text-base">close</span>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-                      },
-                    ]);
-                    setTaskHistory((tasks) => [
-                      {
-                        id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-                        status: data?.ok ? "ok" : "error",
-                        query: trimmedQuestion,
-                        logs: [data?.error || "Execução concluída."],
-                        request: payload,
-                        response: data,
-                        expected,
-                        route,
-                        error: !data?.ok ? data : undefined,
-                      },
-                      ...tasks,
-                    ]);
-                    setLoading(false);
-                    setUiState("idle");
-                    return;
-                  }
-                  // Mensagem inicial de execução
-                  setMessages((msgs) => [
-                    ...msgs,
-                    { role: "assistant", text: "", createdAt: nowIso(), status: "thinking" },
-                  ]);
-                  setUiState("thinking");
-                  const reader = response.body.getReader();
-                  let fullText = "";
-                  let done = false;
-                  let debugTrace = { route, request: payload, expected, response: "", error: undefined };
-                  while (!done) {
-                    const { value, done: streamDone } = await reader.read();
-                    done = streamDone;
-                    if (value) {
-                      const chunk = new TextDecoder().decode(value);
-                      fullText += chunk;
-                      debugTrace.response = fullText;
-                      setMessages((msgs) => {
-                        const last = msgs[msgs.length - 1];
-                        return [
-                          ...msgs.slice(0, -1),
-                          { ...last, text: fullText, status: done ? "ok" : "running" },
-                        ];
-                      });
-                      setUiState(done ? "idle" : "running");
-                    }
-                  }
-                  setTaskHistory((tasks) => [
-                    {
-                      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-                      status: "ok",
-                      query: trimmedQuestion,
-                      logs: ["Execução concluída."],
-                      debug: debugTrace,
-                      request: payload,
-                      response: fullText,
-                      expected,
-                      route,
-                    },
-                    ...tasks,
-                  ]);
-                  setLoading(false);
-                  setUiState("idle");
-                } catch (err) {
-                  setError(err.message || "Erro ao conectar ao backend.");
-                  setTaskHistory((tasks) => [
-                    {
-                      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-                      status: "error",
-                      query: trimmedQuestion,
-                      logs: [err.message || "Erro ao conectar ao backend."],
-                      error: err,
-                    },
-                    ...tasks,
-                  ]);
-                  setLoading(false);
-                  setUiState("idle");
-                }
-                  >
-                    <span className="text-lg">⚡</span>
-                  </button>
-                  {/* Campo de texto */}
-                  <textarea
-                    ref={composerRef}
-                    className="flex-1 resize-none rounded-xl border border-[#22342F] bg-transparent px-3 py-2 text-sm text-[#F5F1E8] placeholder-[#7F928C] focus:border-[#C5A059] focus:outline-none"
-                    rows={1}
-                    placeholder="Digite sua mensagem..."
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    disabled={loading}
-                    style={{ minHeight: 36, maxHeight: 80 }}
-                  />
-                  {/* Botão enviar */}
-                  <button
-                    type="submit"
-                    className="rounded-xl bg-[#D9B46A] px-4 py-2 text-sm font-bold text-[#1A1A1A] transition hover:bg-[#C5A059]"
-                    disabled={loading || !input.trim()}
-                  >
-                    ⏎
-                  </button>
-                </form>
-              </footer>
-            </>
-          )}
-        </div>
-      </>
-    );
-
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -1136,6 +817,7 @@ export default function DotobotCopilot({
     setConversations((current) => updateConversationCollection(current, conversationId, updater));
   }
 
+  // ...existing code...
   function createConversationFromCurrentState(title = inferConversationTitle(messages)) {
     const nextConversation = createConversationSnapshot({ title, messages, taskHistory, attachments });
     setConversations((current) => [nextConversation, ...current].slice(0, MAX_CONVERSATIONS));
@@ -1188,6 +870,7 @@ export default function DotobotCopilot({
       selectConversation(replacement);
     }
   }
+  // ...existing code...
 
   function attachFilesToConversation(conversationId, files) {
     const attachmentsToAdd = Array.from(files || [])
@@ -1327,13 +1010,13 @@ export default function DotobotCopilot({
 
   // Alerta visual de login/admin ausente
   if (!authChecked || supaLoading) {
-    return <div className="p-8 text-center text-lg text-[#C5A059]">Verificando autenticação...</div>;
+    return <div className="p-8 text-center text-lg text-[#C5A059]">Verificando autenticaÃ§Ã£o...</div>;
   }
   if (!isAdmin) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
-        <div className="mb-6 text-2xl text-[#C5A059]">⚠️ Acesso restrito</div>
-        <div className="mb-4 text-[#EAE3D6]">Faça login como administrador para usar o Dotobot.</div>
+        <div className="mb-6 text-2xl text-[#C5A059]">âš ï¸ Acesso restrito</div>
+        <div className="mb-4 text-[#EAE3D6]">FaÃ§a login como administrador para usar o Dotobot.</div>
         <button
           className="rounded-xl bg-[#D9B46A] px-6 py-3 text-lg font-bold text-[#1A1A1A] transition hover:bg-[#C5A059]"
           onClick={handleLogin}
@@ -1592,7 +1275,7 @@ export default function DotobotCopilot({
                     </span>
                   </div>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-[#9BAEA8]">
-                    {activeConversation?.title || "Nova conversa"} · conversa ativa no centro, contexto e documentos na lateral direita.
+                    {activeConversation?.title || "Nova conversa"} Â· conversa ativa no centro, contexto e documentos na lateral direita.
                   </p>
                 </div>
 
@@ -1676,7 +1359,7 @@ export default function DotobotCopilot({
                         >
                           <option value="recent">Mais recentes</option>
                           <option value="oldest">Mais antigas</option>
-                          <option value="title">Título (A-Z)</option>
+                          <option value="title">TÃ­tulo (A-Z)</option>
                         </select>
                         <label className="flex items-center gap-1 text-xs text-[#C5A059] cursor-pointer">
                           <input
@@ -1885,7 +1568,7 @@ export default function DotobotCopilot({
                           onKeyDown={handleComposerKeyDown}
                           onPaste={handlePaste}
                           rows={5}
-                          placeholder="Digite uma instrução jurídica ou operacional..."
+                          placeholder="Digite uma instruÃ§Ã£o jurÃ­dica ou operacional..."
                           className="w-full resize-none border-0 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-[#60706A]"
                         />
 
