@@ -48,16 +48,6 @@ export async function onRequestPost(context) {
     return new Response("Bad Request", { status: 400 });
   }
 }
-  const features = buildFeatureFlags(env);
-  const auth = await requireAdminAccess(request, env);
-  if (!auth.ok) {
-    return new Response(JSON.stringify({ ok: false, error: auth.error }), {
-      status: auth.status,
-      headers: JSON_HEADERS,
-    });
-  }
-
-  let body = {};
   try {
     body = await request.json();
   } catch {
