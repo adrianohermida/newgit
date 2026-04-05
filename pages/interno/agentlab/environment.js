@@ -12,6 +12,38 @@ function Panel({ title, children }) {
   );
 }
 
+function getDotobotRagHealthStatus(health) {
+  const report = health?.report || {};
+  const cloudflareOk = Boolean(report.embedding?.ok && report.query?.ok);
+  const supabaseOk = Boolean(report.supabaseEmbedding?.ok && report.supabaseQuery?.ok);
+  const obsidianOk = Boolean(report.obsidian?.ok);
+
+  if (cloudflareOk || supabaseOk) {
+    return {
+      tone: "text-emerald-400",
+      label: "Operacional",
+      headline: "OK",
+      summary: "Embedding e consulta vetorial estao funcionais em pelo menos um backend principal.",
+    };
+  }
+
+  if (obsidianOk) {
+    return {
+      tone: "text-amber-300",
+      label: "Degradado",
+      headline: "Degradado",
+      summary: "O fallback local esta ativo, mas os provedores principais de embedding e busca vetorial nao estao saudaveis.",
+    };
+  }
+
+  return {
+    tone: "text-rose-300",
+    label: "Falha",
+    headline: "Falha",
+    summary: "Nenhum backend de RAG esta operacional no momento.",
+  };
+}
+
 export default function AgentLabEnvironmentPage() {
   const state = useAgentLabData();
 
@@ -49,6 +81,7 @@ function EnvironmentContent({ state }) {
   const dotobotRagReport = dotobotRagHealth.report || {};
   const dotobotSupabase = dotobotRagReport.supabase || {};
   const dotobotObsidian = dotobotRagReport.obsidian || {};
+  const dotobotRagStatus = getDotobotRagHealthStatus(dotobotRagHealth);
   const widgetEventSummary = state.data?.conversations?.widgetEventSummary || {};
   const readyCount = schemaChecklist.filter((item) => item.status === "ready").length;
   const missingCount = schemaChecklist.filter((item) => item.status !== "ready").length;
@@ -146,15 +179,16 @@ function EnvironmentContent({ state }) {
       </Panel>
 
       <Panel
-        title={`Healthcheck Dotobot RAG: ${dotobotRagHealth.ok ? "OK" : "Falha"}`}
+        title={`Healthcheck Dotobot RAG: ${dotobotRagStatus.headline}`}
       >
         <div className="space-y-3 text-sm opacity-75">
           <p>
             Status:{" "}
-            <span className={dotobotRagHealth.ok ? "text-emerald-400" : "text-amber-300"}>
-              {dotobotRagHealth.ok ? "Operacional" : "Necessita atencao"}
+            <span className={dotobotRagStatus.tone}>
+              {dotobotRagStatus.label}
             </span>
           </p>
+          <p>{dotobotRagStatus.summary}</p>
           <p>Atualizado em: {dotobotRagReport.timestamp ? new Date(dotobotRagReport.timestamp).toLocaleString("pt-BR") : "nao informado"}</p>
           <p>
             Embedding:{" "}
@@ -219,7 +253,7 @@ function EnvironmentContent({ state }) {
           ) : null}
           {dotobotObsidian?.memoryDir ? <p>Vault memory dir: {dotobotObsidian.memoryDir}</p> : null}
           <p className="text-xs uppercase tracking-[0.16em] opacity-50">
-            Query: {dotobotRagReport.query?.skipped ? "consulta vetorial sem permissao: verifique as secrets do RAG" : dotobotRagReport.query?.ok ? "healthcheck dotobot memory retrieval" : "verifique as secrets do RAG"}
+            Query: {dotobotRagReport.query?.skipped ? "healthcheck superficial sem upsert: rode o diagnostico profundo e verifique as secrets do RAG" : dotobotRagReport.query?.ok ? "healthcheck dotobot memory retrieval" : "verifique as secrets do RAG"}
           </p>
           {dotobotRagHealth.error ? <p className="text-[#f2b2b2]">{dotobotRagHealth.error}</p> : null}
           {(dotobotRagReport.embedding?.error || dotobotRagReport.query?.error || dotobotRagReport.upsert?.error) ? (

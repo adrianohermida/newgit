@@ -130,16 +130,17 @@ export default function InternoLayout({
             <DotobotExtensionManager />
           </div>
         </div>
-        {/* COPILOT SEMPRE PRESENTE */}
-        <div className="h-full">
-          <DotobotCopilot
-            profile={profile}
-            routePath={router.pathname}
-            initialWorkspaceOpen={rightRailFullscreen ? true : initialWorkspaceOpen}
-            defaultCollapsed={rightRailFullscreen ? false : true}
-            compactRail={rightRailFullscreen ? false : true}
-          />
-        </div>
+        {shouldRenderDotobotRail ? (
+          <div className="h-full">
+            <DotobotCopilot
+              profile={profile}
+              routePath={router.pathname}
+              initialWorkspaceOpen={rightRailFullscreen ? true : initialWorkspaceOpen}
+              defaultCollapsed={rightRailFullscreen ? false : true}
+              compactRail={rightRailFullscreen ? false : true}
+            />
+          </div>
+        ) : null}
       </div>
     </div>
   );
