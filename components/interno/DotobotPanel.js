@@ -1,3 +1,6 @@
+import { useState } from "react"; // Ensure this import is present
+// Other necessary imports...
+
 import useDotobotExtensionBridge from "./DotobotExtensionBridge";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMediaQuery } from "react-responsive";
@@ -672,10 +675,91 @@ export default function DotobotCopilot({
     const ContextHeader = () => (
       <div className="flex flex-col border-b border-[#22342F] bg-[rgba(12,15,14,0.98)]">
         <div className="flex items-center justify-between gap-3 px-4 py-3">
+      const ContextHeader = () => (
+        <div className="flex flex-col border-b border-[#22342F] bg-[rgba(12,15,14,0.98)]">
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-3">
-            {!isCollapsed && <span className="rounded-full bg-[#D9B46A] px-3 py-1 text-xs font-bold text-[#1A1A1A]">Histórico</span>}
-            {!isCollapsed && <span className="text-xs text-[#9BAEA8]">{stateLabel}</span>}
-            {!isCollapsed && <span className="ml-2 text-xs text-[#C5A059]">{routePath || "Módulo atual"}</span>}
+              {!isCollapsed && <span className="rounded-full bg-[#D9B46A] px-3 py-1 text-xs font-bold text-[#1A1A1A]">Histórico</span>}
+              {!isCollapsed && <span className="text-xs text-[#9BAEA8]">{stateLabel}</span>}
+              {!isCollapsed && <span className="ml-2 text-xs text-[#C5A059]">{routePath || "Módulo atual"}</span>}
+              {!isCollapsed && (
+                <button
+                  className="ml-2 rounded-xl border border-[#22342F] bg-[#181B19] px-2 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none flex items-center justify-center"
+                  onClick={() => setShowAttachmentPanel(true)}
+                  title="Ver anexos da sessão"
+                  aria-label="Ver anexos"
+                >
+                  <span className="material-icons">folder</span>
+                </button>
+              )}
+            </div>
+            <button
+              className="rounded-xl border border-[#22342F] bg-[#181B19] px-2 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none text-xs"
+              onClick={() => setIsCollapsed((v) => !v)}
+              title={isCollapsed ? "Expandir Copilot" : "Colapsar Copilot"}
+            >
+              {isCollapsed ? "→" : "←"}
+            </button>
+            {!isCollapsed && (
+              <button
+                className="ml-2 rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none text-xs"
+                onClick={() => setShowTaskModal(true)}
+                title="Ver detalhes da execução"
+              >
+                Execução
+              </button>
+            )}
+          </div>
+        </div>
+      );
+      // Painel de anexos
+      const AttachmentPanel = () => (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="w-full max-w-lg rounded-2xl bg-[#181B19] p-6 shadow-2xl border border-[#22342F] relative">
+            <button className="absolute right-4 top-4 text-[#C5A059] text-xl" onClick={() => setShowAttachmentPanel(false)} title="Fechar">×</button>
+            <h2 className="mb-4 text-lg font-bold text-[#F5F1E8]">Anexos da Sessão</h2>
+            <div
+              className="flex flex-col gap-2 min-h-[120px] max-h-80 overflow-y-auto border border-[#22342F] rounded-lg p-3 bg-[#232823]"
+              onDrop={e => {
+                e.preventDefault();
+                const files = Array.from(e.dataTransfer.files || []);
+                if (files.length) setAttachments((prev) => [...prev, ...files.map(normalizeAttachment)]);
+              }}
+              onDragOver={e => e.preventDefault()}
+            >
+              {attachments.length === 0 && <span className="text-xs text-[#9BAEA8]">Nenhum anexo nesta sessão.</span>}
+              {attachments.map((att, idx) => (
+                <div key={idx} className="flex items-center gap-2 bg-[#232823] px-2 py-1 rounded-lg text-xs text-[#EAE3D6]">
+                  {att.kind === "image" && <span className="material-icons text-base">image</span>}
+                  {att.kind === "audio" && <span className="material-icons text-base">audiotrack</span>}
+                  {att.kind === "file" && <span className="material-icons text-base">attach_file</span>}
+                  <input
+                    className="bg-transparent border-b border-dashed border-[#C5A059] text-[#EAE3D6] px-1 w-32"
+                    defaultValue={att.file?.name || att.file?.type || "Arquivo"}
+                    onBlur={e => {
+                      const newName = e.target.value;
+                      setAttachments((prev) => prev.map((a, i) => i === idx ? { ...a, file: { ...a.file, name: newName } } : a));
+                    }}
+                    title="Renomear arquivo"
+                  />
+                  <button
+                    className="ml-1 text-[#C5A059] hover:text-red-500 flex items-center"
+                    title="Remover"
+                    onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                    aria-label="Remover anexo"
+                  >
+                    <span className="material-icons text-base">close</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 text-xs text-[#9BAEA8]">Arraste arquivos para anexar ou clique no clipe na área de mensagem.</div>
+          </div>
+        </div>
+      );
+      // Renderização do modal de tarefas
+      {showTaskModal && <TaskModal />}
+      {showAttachmentPanel && <AttachmentPanel />}
           </div>
           <button
             className="rounded-xl border border-[#22342F] bg-[#181B19] px-2 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none text-xs"
@@ -694,76 +778,87 @@ export default function DotobotCopilot({
             </button>
           )}
         </div>
-        {/* Lista de histórico de conversas */}
-        <div className="flex gap-2 overflow-x-auto px-4 pb-2">
-          {conversations.length === 0 && (
-            <span className="text-xs text-[#9BAEA8]">Nenhuma conversa salva.</span>
-          )}
-          {conversations.map((conv) => (
-            <button
-              key={conv.id}
-              className={`px-3 py-1 rounded-lg text-xs border ${conv.id === activeConversationId ? "bg-[#C5A059] text-[#181B19] border-[#C5A059]" : "bg-[#232823] text-[#EAE3D6] border-[#22342F] hover:border-[#C5A059]"}`}
-              onClick={() => {
-                setActiveConversationId(conv.id);
-                setMessages(conv.messages || []);
-                setTaskHistory(conv.taskHistory || []);
-                setAttachments(conv.attachments || []);
-              }}
-              title={conv.title || "Conversa"}
-            >
-              {conv.title || `Conversa ${conv.id.slice(-4)}`}
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-
-    return (
-      <>
-        <FloatingTrigger />
-        {showTaskModal && <TaskModal />}
-        <div
-          className={`h-full border-l border-neutral-800 transition-all duration-300 bg-[rgba(12,15,14,0.98)] shadow-2xl flex flex-col fixed right-0 top-0 z-40
-            ${isCollapsed ? "w-[48px]" : "w-[92vw] sm:w-[340px] md:w-[380px] lg:w-[420px] xl:w-[480px]"}
-            ${isCollapsed ? "min-w-[48px]" : "min-w-[92vw] sm:min-w-[340px] md:min-w-[380px] lg:min-w-[420px] xl:min-w-[480px]"}
-          `}
-          style={{ minHeight: "100vh", maxWidth: "100vw" }}
-        >
-          <ContextHeader />
-          {!isCollapsed && (
-            <>
-              {/* MAIN CHAT AREA */}
-              <main
-                className="flex-1 overflow-y-auto px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4"
-                ref={scrollRef}
-                style={{ maxHeight: 'calc(100vh - 60px - 60px)' }}
+          {/* Área de entrada de mensagem e ações */}
+          <div className="fixed bottom-0 right-0 w-[min(420px,100vw)] min-w-[320px] max-w-full bg-[rgba(12,15,14,0.98)] border-t border-[#22342F] px-4 py-3 flex flex-col gap-2 z-50">
+            <div className="flex items-end gap-2">
+              <button
+                className="rounded-xl border border-[#22342F] bg-[#181B19] p-2 text-[#C5A059] hover:border-[#C5A059] focus:outline-none flex items-center justify-center"
+                title="Anexar arquivo"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Anexar arquivo"
               >
-                // Chat normal (streaming)
-                try {
-                  // PATCH 2.8/2.9: Streaming + debug trace
-                  const route = "/functions/api/admin-lawdesk-chat";
-                  const payload = {
-                    query: trimmedQuestion,
-                    mode: nextMode,
-                    provider: nextProvider,
-                    contextEnabled: nextContextEnabled,
-                    context: globalContext,
-                  };
-                  const expected = { status: 200, json: true };
-                  const response = await fetch(route, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                  });
-                  if (!response.body || !window.ReadableStream) {
-                    // Fallback para resposta normal
-                    const data = await response.json();
-                    setMessages((msgs) => [
-                      ...msgs,
-                      {
-                        role: "assistant",
-                        text: extractAssistantResponseText(data),
-                        createdAt: nowIso(),
+                <span className="material-icons">attach_file</span>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  setAttachments((prev) => [...prev, ...files.map(normalizeAttachment)]);
+                }}
+              />
+              <button
+                className="rounded-xl border border-[#22342F] bg-[#181B19] p-2 text-[#C5A059] hover:border-[#C5A059] focus:outline-none flex items-center justify-center"
+                title="Gravar voz (em breve)"
+                aria-label="Gravar voz"
+              >
+                <span className="material-icons">mic</span>
+              </button>
+              <textarea
+                ref={composerRef}
+                className="flex-1 min-h-[56px] max-h-32 resize-y rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-2 text-[#F4F1EA] placeholder-[#9BAEA8] focus:outline-none text-sm scrollbar-thin"
+                rows={2}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    submitQuery(input);
+                  }
+                }}
+                placeholder="Digite sua mensagem..."
+                style={{overflowY: 'auto'}}
+                onDrop={e => {
+                  e.preventDefault();
+                  const files = Array.from(e.dataTransfer.files || []);
+                  if (files.length) setAttachments((prev) => [...prev, ...files.map(normalizeAttachment)]);
+                }}
+                onDragOver={e => e.preventDefault()}
+              />
+              <button
+                className="rounded-xl border border-[#C5A059] bg-[#C5A059] p-2 text-[#181B19] hover:bg-[#D9B46A] focus:outline-none flex items-center justify-center"
+                title="Enviar"
+                onClick={() => submitQuery(input)}
+                disabled={loading || !input.trim()}
+                aria-label="Enviar"
+              >
+                <span className="material-icons">send</span>
+              </button>
+            </div>
+            {/* Lista de anexos da sessão */}
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2 items-center border-t border-[#22342F] pt-2">
+                {attachments.map((att, idx) => (
+                  <div key={idx} className="flex items-center gap-1 bg-[#232823] px-2 py-1 rounded-lg text-xs text-[#EAE3D6]">
+                    {att.kind === "image" && <span className="material-icons text-base">image</span>}
+                    {att.kind === "audio" && <span className="material-icons text-base">audiotrack</span>}
+                    {att.kind === "file" && <span className="material-icons text-base">attach_file</span>}
+                    <span>{att.file?.name || att.file?.type || "Arquivo"}</span>
+                    <button
+                      className="ml-1 text-[#C5A059] hover:text-red-500 flex items-center"
+                      title="Remover"
+                      onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                      aria-label="Remover anexo"
+                    >
+                      <span className="material-icons text-base">close</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
                       },
                     ]);
                     setTaskHistory((tasks) => [
