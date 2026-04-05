@@ -497,7 +497,8 @@ export default function DotobotCopilot({
 
     // Chat normal (streaming)
     try {
-      const data = await adminFetch("/functions/api/admin-lawdesk-chat", {
+      // PATCH 2.8/2.9: Streaming
+      const response = await fetch("/functions/api/admin-lawdesk-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -508,14 +509,47 @@ export default function DotobotCopilot({
           context: globalContext,
         }),
       });
+      if (!response.body || !window.ReadableStream) {
+        // Fallback para resposta normal
+        const data = await response.json();
+        setMessages((msgs) => [
+          ...msgs,
+          {
+            role: "assistant",
+            text: extractAssistantResponseText(data),
+            createdAt: nowIso(),
+          },
+        ]);
+        setLoading(false);
+        setUiState("idle");
+        return;
+      }
+      // Mensagem inicial de execução
       setMessages((msgs) => [
         ...msgs,
-        {
-          role: "assistant",
-          text: extractAssistantResponseText(data),
-          createdAt: nowIso(),
-        },
+        { role: "assistant", text: "", createdAt: nowIso(), status: "thinking" },
       ]);
+      setUiState("thinking");
+      const reader = response.body.getReader();
+      let fullText = "";
+      let done = false;
+      while (!done) {
+        const { value, done: streamDone } = await reader.read();
+        done = streamDone;
+        if (value) {
+          const chunk = new TextDecoder().decode(value);
+          fullText += chunk;
+          setMessages((msgs) => {
+            const last = msgs[msgs.length - 1];
+            // Atualiza última mensagem do assistente
+            return [
+              ...msgs.slice(0, -1),
+              { ...last, text: fullText, status: done ? "ok" : "running" },
+            ];
+          });
+          setUiState(done ? "idle" : "running");
+        }
+      }
       setLoading(false);
       setUiState("idle");
     } catch (err) {
