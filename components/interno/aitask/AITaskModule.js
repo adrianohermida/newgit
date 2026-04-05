@@ -992,7 +992,8 @@ export default function AITaskModule({ profile, routePath }) {
         }),
       });
 
-      const continuedRun = payload?.data?.run || null;
+      const normalized = normalizeTaskRunPayload(payload);
+      const continuedRun = normalized.run;
       if (continuedRun?.id) {
         setActiveRun({
           id: continuedRun.id,
@@ -1015,9 +1016,9 @@ export default function AITaskModule({ profile, routePath }) {
           ...current,
         ].slice(0, MAX_TASKS));
       }
-        if (Number.isFinite(Number(payload?.data?.eventsTotal))) {
-          setEventsTotal(Number(payload.data.eventsTotal));
-        }
+      if (normalized.eventsTotal != null) {
+        setEventsTotal(normalized.eventsTotal);
+      }
 
       pushLog({
         type: "control",
