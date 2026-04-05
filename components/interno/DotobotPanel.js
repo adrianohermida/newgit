@@ -731,9 +731,6 @@ export default function DotobotCopilot({
     const ContextHeader = () => (
       <div className="flex flex-col border-b border-[#22342F] bg-[rgba(12,15,14,0.98)]">
         <div className="flex items-center justify-between gap-3 px-4 py-3">
-      const ContextHeader = () => (
-        <div className="flex flex-col border-b border-[#22342F] bg-[rgba(12,15,14,0.98)]">
-          <div className="flex items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-3">
               {!isCollapsed && <span className="rounded-full bg-[#D9B46A] px-3 py-1 text-xs font-bold text-[#1A1A1A]">Histórico</span>}
               {!isCollapsed && <span className="text-xs text-[#9BAEA8]">{stateLabel}</span>}
