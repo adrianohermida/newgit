@@ -591,7 +591,7 @@ export default function DotobotCopilot({
 
     const TaskModal = () => (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-        <div className="w-full max-w-xl rounded-2xl bg-[#181B19] p-6 shadow-2xl border border-[#22342F] relative">
+        <div className="w-full max-w-2xl rounded-2xl bg-[#181B19] p-6 shadow-2xl border border-[#22342F] relative">
           <button className="absolute right-4 top-4 text-[#C5A059] text-xl" onClick={() => setShowTaskModal(false)} title="Fechar">×</button>
           <h2 className="mb-4 text-lg font-bold text-[#F5F1E8]">Detalhes da Execução</h2>
           {activeTask ? (
@@ -609,6 +609,54 @@ export default function DotobotCopilot({
                   ))}
                 </div>
               </div>
+              {activeTask.debug && (
+                <div className="mt-2">
+                  <h3 className="font-semibold text-[#D9B46A] mb-1">Debug & Trace</h3>
+                  <div className="max-h-40 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
+                    <pre className="whitespace-pre-wrap break-all">{JSON.stringify(activeTask.debug, null, 2)}</pre>
+                  </div>
+                </div>
+              )}
+              {activeTask.request && (
+                <div className="mt-2">
+                  <h3 className="font-semibold text-[#D9B46A] mb-1">Chamada (Request)</h3>
+                  <div className="max-h-40 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
+                    <pre className="whitespace-pre-wrap break-all">{JSON.stringify(activeTask.request, null, 2)}</pre>
+                  </div>
+                </div>
+              )}
+              {activeTask.response && (
+                <div className="mt-2">
+                  <h3 className="font-semibold text-[#D9B46A] mb-1">Resposta Obtida</h3>
+                  <div className="max-h-40 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
+                    <pre className="whitespace-pre-wrap break-all">{JSON.stringify(activeTask.response, null, 2)}</pre>
+                  </div>
+                </div>
+              )}
+              {activeTask.expected && (
+                <div className="mt-2">
+                  <h3 className="font-semibold text-[#D9B46A] mb-1">O que se esperava obter</h3>
+                  <div className="max-h-40 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
+                    <pre className="whitespace-pre-wrap break-all">{JSON.stringify(activeTask.expected, null, 2)}</pre>
+                  </div>
+                </div>
+              )}
+              {activeTask.route && (
+                <div className="mt-2">
+                  <h3 className="font-semibold text-[#D9B46A] mb-1">Rota chamada</h3>
+                  <div className="max-h-40 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
+                    <pre className="whitespace-pre-wrap break-all">{activeTask.route}</pre>
+                  </div>
+                </div>
+              )}
+              {activeTask.error && (
+                <div className="mt-2">
+                  <h3 className="font-semibold text-[#D9B46A] mb-1">Erro Detalhado</h3>
+                  <div className="max-h-40 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
+                    <pre className="whitespace-pre-wrap break-all">{JSON.stringify(activeTask.error, null, 2)}</pre>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-[#9BAEA8]">Nenhuma execução ativa.</div>
@@ -664,68 +712,110 @@ export default function DotobotCopilot({
                 ref={scrollRef}
                 style={{ maxHeight: 'calc(100vh - 60px - 60px)' }}
               >
-                <VirtualList
-                  height={typeof window !== "undefined" ? Math.max(window.innerHeight * 0.6, 220) : 400}
-                  itemCount={messages.length + (uiState === "typing" || loading ? 1 : 0)}
-                  itemSize={110}
-                  width={"100%"}
-                  overscanCount={6}
-                >
-                  {({ index, style }) => {
-                    // Estado visual: digitando
-                    if (index === messages.length && (uiState === "typing" || loading)) {
-                      return (
-                        <div style={style}>
-                          <MessageBubble
-                            message={{ role: "assistant", text: "", createdAt: null }}
-                            isTyping={true}
-                          />
-                        </div>
-                      );
+                // Chat normal (streaming)
+                try {
+                  // PATCH 2.8/2.9: Streaming + debug trace
+                  const route = "/functions/api/admin-lawdesk-chat";
+                  const payload = {
+                    query: trimmedQuestion,
+                    mode: nextMode,
+                    provider: nextProvider,
+                    contextEnabled: nextContextEnabled,
+                    context: globalContext,
+                  };
+                  const expected = { status: 200, json: true };
+                  const response = await fetch(route, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                  });
+                  if (!response.body || !window.ReadableStream) {
+                    // Fallback para resposta normal
+                    const data = await response.json();
+                    setMessages((msgs) => [
+                      ...msgs,
+                      {
+                        role: "assistant",
+                        text: extractAssistantResponseText(data),
+                        createdAt: nowIso(),
+                      },
+                    ]);
+                    setTaskHistory((tasks) => [
+                      {
+                        id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                        status: data?.ok ? "ok" : "error",
+                        query: trimmedQuestion,
+                        logs: [data?.error || "Execução concluída."],
+                        request: payload,
+                        response: data,
+                        expected,
+                        route,
+                        error: !data?.ok ? data : undefined,
+                      },
+                      ...tasks,
+                    ]);
+                    setLoading(false);
+                    setUiState("idle");
+                    return;
+                  }
+                  // Mensagem inicial de execução
+                  setMessages((msgs) => [
+                    ...msgs,
+                    { role: "assistant", text: "", createdAt: nowIso(), status: "thinking" },
+                  ]);
+                  setUiState("thinking");
+                  const reader = response.body.getReader();
+                  let fullText = "";
+                  let done = false;
+                  let debugTrace = { route, request: payload, expected, response: "", error: undefined };
+                  while (!done) {
+                    const { value, done: streamDone } = await reader.read();
+                    done = streamDone;
+                    if (value) {
+                      const chunk = new TextDecoder().decode(value);
+                      fullText += chunk;
+                      debugTrace.response = fullText;
+                      setMessages((msgs) => {
+                        const last = msgs[msgs.length - 1];
+                        return [
+                          ...msgs.slice(0, -1),
+                          { ...last, text: fullText, status: done ? "ok" : "running" },
+                        ];
+                      });
+                      setUiState(done ? "idle" : "running");
                     }
-                    const msg = messages[index];
-                    return (
-                      <div style={style}>
-                        <MessageBubble message={msg} />
-                      </div>
-                    );
-                  }}
-                </VirtualList>
-              </main>
-              {/* INPUT AREA */}
-              <footer className="border-t border-[#22342F] bg-[rgba(12,15,14,0.98)] px-2 py-2 sm:px-3 sm:py-3 lg:px-6 lg:py-4">
-                <form className="flex items-end gap-2" onSubmit={handleSubmit}>
-                  {/* Botão de anexar */}
-                  <button
-                    type="button"
-                    className="rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-2 text-[#C5A059] hover:border-[#C5A059] focus:outline-none"
-                    title="Anexar arquivo"
-                    onClick={handleOpenFiles}
-                  >
-                    <span className="text-lg">📎</span>
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    className="hidden"
-                    onChange={handleFilesSelected}
-                  />
-                  {/* Botão de voz */}
-                  <button
-                    type="button"
-                    className={`rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-2 text-[#C5A059] hover:border-[#C5A059] focus:outline-none ${isRecording ? "animate-pulse border-[#D9B46A]" : ""}`}
-                    title="Entrada por voz"
-                    onClick={toggleVoiceInput}
-                  >
-                    <span className="text-lg">🎤</span>
-                  </button>
-                  {/* Botão de ação rápida */}
-                  <button
-                    type="button"
-                    className="rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-2 text-[#C5A059] hover:border-[#C5A059] focus:outline-none"
-                    title="Ações rápidas"
-                    onClick={() => setShowSlashCommands(true)}
+                  }
+                  setTaskHistory((tasks) => [
+                    {
+                      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                      status: "ok",
+                      query: trimmedQuestion,
+                      logs: ["Execução concluída."],
+                      debug: debugTrace,
+                      request: payload,
+                      response: fullText,
+                      expected,
+                      route,
+                    },
+                    ...tasks,
+                  ]);
+                  setLoading(false);
+                  setUiState("idle");
+                } catch (err) {
+                  setError(err.message || "Erro ao conectar ao backend.");
+                  setTaskHistory((tasks) => [
+                    {
+                      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                      status: "error",
+                      query: trimmedQuestion,
+                      logs: [err.message || "Erro ao conectar ao backend."],
+                      error: err,
+                    },
+                    ...tasks,
+                  ]);
+                  setLoading(false);
+                  setUiState("idle");
+                }
                   >
                     <span className="text-lg">⚡</span>
                   </button>
