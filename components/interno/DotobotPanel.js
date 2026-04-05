@@ -595,77 +595,134 @@ export default function DotobotCopilot({
     const [showTaskModal, setShowTaskModal] = useState(false);
     const activeTask = getLastTask(taskHistory);
 
+    // Filtros e exportação
+    const [taskFilter, setTaskFilter] = useState("");
+    const [statusFilter, setStatusFilter] = useState("");
+    const filteredTasks = taskHistory.filter(task =>
+      (!taskFilter || (task.query && task.query.toLowerCase().includes(taskFilter.toLowerCase()))) &&
+      (!statusFilter || task.status === statusFilter)
+    );
+    function exportTasks() {
+      const data = JSON.stringify(filteredTasks, null, 2);
+      const blob = new Blob([data], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `dotobot-tasks-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+    }
     const TaskModal = () => (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
         <div className="w-full max-w-2xl rounded-2xl bg-[#181B19] p-6 shadow-2xl border border-[#22342F] relative">
           <button className="absolute right-4 top-4 text-[#C5A059] text-xl" onClick={() => setShowTaskModal(false)} title="Fechar">×</button>
           <h2 className="mb-4 text-lg font-bold text-[#F5F1E8]">Detalhes da Execução</h2>
-          {activeTask ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-semibold">Status:</span>
-                <TaskStatusChip status={activeTask.status} />
-              </div>
-              <div className="text-xs text-[#C5A059]">{activeTask.query}</div>
-              <div className="mt-2">
-                <h3 className="font-semibold text-[#D9B46A] mb-1">Logs</h3>
-                <div className="max-h-40 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
-                  {(activeTask.logs || []).map((log, idx) => (
-                    <div key={idx} className="mb-1">{log}</div>
-                  ))}
-                </div>
-              </div>
-              {activeTask.debug && (
-                <div className="mt-2">
-                  <h3 className="font-semibold text-[#D9B46A] mb-1">Debug & Trace</h3>
-                  <div className="max-h-40 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
-                    <pre className="whitespace-pre-wrap break-all">{JSON.stringify(activeTask.debug, null, 2)}</pre>
+          <div className="flex flex-wrap gap-2 mb-4">
+            <input
+              className="rounded border border-[#22342F] bg-[#232823] px-2 py-1 text-xs text-[#EAE3D6]"
+              placeholder="Buscar por texto..."
+              value={taskFilter}
+              onChange={e => setTaskFilter(e.target.value)}
+              style={{ minWidth: 140 }}
+            />
+            <select
+              className="rounded border border-[#22342F] bg-[#232823] px-2 py-1 text-xs text-[#EAE3D6]"
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              style={{ minWidth: 120 }}
+            >
+              <option value="">Todos status</option>
+              <option value="queued">Na fila</option>
+              <option value="executing">Executando</option>
+              <option value="running">Executando</option>
+              <option value="paused">Pausado</option>
+              <option value="canceled">Cancelado</option>
+              <option value="error">Erro</option>
+              <option value="ok">Concluido</option>
+            </select>
+            <button
+              className="rounded border border-[#C5A059] bg-[#232823] px-3 py-1 text-xs text-[#C5A059] hover:bg-[#C5A059] hover:text-[#181B19]"
+              onClick={exportTasks}
+              title="Exportar tarefas filtradas"
+            >
+              <span className="material-icons align-middle mr-1" style={{ fontSize: 16 }}>download</span>
+              Exportar
+            </button>
+          </div>
+          {filteredTasks.length > 0 ? (
+            <div className="space-y-6 max-h-[50vh] overflow-y-auto pr-1">
+              {filteredTasks.map((task, idx) => (
+                <div key={task.id || idx} className="p-3 rounded-lg border border-[#22342F] bg-[#232823]">
+                  <div className="flex items-center gap-2 text-sm mb-1">
+                    <span className="font-semibold">Status:</span>
+                    <TaskStatusChip status={task.status} />
                   </div>
-                </div>
-              )}
-              {activeTask.request && (
-                <div className="mt-2">
-                  <h3 className="font-semibold text-[#D9B46A] mb-1">Chamada (Request)</h3>
-                  <div className="max-h-40 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
-                    <pre className="whitespace-pre-wrap break-all">{JSON.stringify(activeTask.request, null, 2)}</pre>
+                  <div className="text-xs text-[#C5A059] mb-1">{task.query}</div>
+                  <div>
+                    <h3 className="font-semibold text-[#D9B46A] mb-1">Logs</h3>
+                    <div className="max-h-24 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
+                      {(task.logs || []).map((log, lidx) => (
+                        <div key={lidx} className="mb-1">{log}</div>
+                      ))}
+                    </div>
                   </div>
+                  {task.debug && (
+                    <div className="mt-2">
+                      <h3 className="font-semibold text-[#D9B46A] mb-1">Debug & Trace</h3>
+                      <div className="max-h-24 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
+                        <pre className="whitespace-pre-wrap break-all">{JSON.stringify(task.debug, null, 2)}</pre>
+                      </div>
+                    </div>
+                  )}
+                  {task.request && (
+                    <div className="mt-2">
+                      <h3 className="font-semibold text-[#D9B46A] mb-1">Chamada (Request)</h3>
+                      <div className="max-h-24 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
+                        <pre className="whitespace-pre-wrap break-all">{JSON.stringify(task.request, null, 2)}</pre>
+                      </div>
+                    </div>
+                  )}
+                  {task.response && (
+                    <div className="mt-2">
+                      <h3 className="font-semibold text-[#D9B46A] mb-1">Resposta Obtida</h3>
+                      <div className="max-h-24 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
+                        <pre className="whitespace-pre-wrap break-all">{JSON.stringify(task.response, null, 2)}</pre>
+                      </div>
+                    </div>
+                  )}
+                  {task.expected && (
+                    <div className="mt-2">
+                      <h3 className="font-semibold text-[#D9B46A] mb-1">O que se esperava obter</h3>
+                      <div className="max-h-24 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
+                        <pre className="whitespace-pre-wrap break-all">{JSON.stringify(task.expected, null, 2)}</pre>
+                      </div>
+                    </div>
+                  )}
+                  {task.route && (
+                    <div className="mt-2">
+                      <h3 className="font-semibold text-[#D9B46A] mb-1">Rota chamada</h3>
+                      <div className="max-h-24 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
+                        <pre className="whitespace-pre-wrap break-all">{task.route}</pre>
+                      </div>
+                    </div>
+                  )}
+                  {task.error && (
+                    <div className="mt-2">
+                      <h3 className="font-semibold text-[#D9B46A] mb-1">Erro Detalhado</h3>
+                      <div className="max-h-24 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
+                        <pre className="whitespace-pre-wrap break-all">{JSON.stringify(task.error, null, 2)}</pre>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-              {activeTask.response && (
-                <div className="mt-2">
-                  <h3 className="font-semibold text-[#D9B46A] mb-1">Resposta Obtida</h3>
-                  <div className="max-h-40 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
-                    <pre className="whitespace-pre-wrap break-all">{JSON.stringify(activeTask.response, null, 2)}</pre>
-                  </div>
-                </div>
-              )}
-              {activeTask.expected && (
-                <div className="mt-2">
-                  <h3 className="font-semibold text-[#D9B46A] mb-1">O que se esperava obter</h3>
-                  <div className="max-h-40 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
-                    <pre className="whitespace-pre-wrap break-all">{JSON.stringify(activeTask.expected, null, 2)}</pre>
-                  </div>
-                </div>
-              )}
-              {activeTask.route && (
-                <div className="mt-2">
-                  <h3 className="font-semibold text-[#D9B46A] mb-1">Rota chamada</h3>
-                  <div className="max-h-40 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
-                    <pre className="whitespace-pre-wrap break-all">{activeTask.route}</pre>
-                  </div>
-                </div>
-              )}
-              {activeTask.error && (
-                <div className="mt-2">
-                  <h3 className="font-semibold text-[#D9B46A] mb-1">Erro Detalhado</h3>
-                  <div className="max-h-40 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
-                    <pre className="whitespace-pre-wrap break-all">{JSON.stringify(activeTask.error, null, 2)}</pre>
-                  </div>
-                </div>
-              )}
+              ))}
             </div>
           ) : (
-            <div className="text-[#9BAEA8]">Nenhuma execução ativa.</div>
+            <div className="text-[#9BAEA8]">Nenhuma execução encontrada.</div>
           )}
         </div>
       </div>
