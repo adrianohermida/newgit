@@ -6,6 +6,21 @@ import { buildFeatureFlags } from "../../lib/lawdesk/feature-flags.js";
 import { cancelTaskRun, continueTaskRun, getTaskRun, startTaskRun } from "../../lib/lawdesk/task_runs.js";
 import { processConversationTurn } from "../../lib/ai/conversation_engine.ts";
 
+// Novo orchestrator Python
+async function callPythonOrchestrator(message, context) {
+  const response = await fetch("http://localhost:8000/orchestrate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      input: message,
+      context: context
+    })
+  });
+  if (!response.ok) {
+    throw new Error("Erro ao chamar orchestrator Python");
+  }
+  return await response.json();
+}
 const JSON_HEADERS = { "Content-Type": "application/json" };
 const CHAT_CONTRACT_VERSION = "2026-04-sprint-2";
 
@@ -83,39 +98,34 @@ export async function onRequestPost(context) {
     );
   }
 
-  if (features?.chat?.hybridOrchestrator) {
+  // Feature flag para ativar orchestrator Python
+  if (features?.chat?.pythonOrchestrator) {
     try {
       const startTime = Date.now();
-      const result = await processConversationTurn(env, body || {}, features, {
-        waitUntil: typeof context?.waitUntil === "function" ? context.waitUntil.bind(context) : null,
-      });
+      const result = await callPythonOrchestrator(query, body?.context || {});
       const duration = Date.now() - startTime;
       return new Response(JSON.stringify({
-        ok: result.ok,
-        data: result.data,
+        ok: true,
+        data: result,
         metadata: {
           duration_ms: duration,
-          orchestrator: "hybrid",
+          orchestrator: "python",
           contract_version: CHAT_CONTRACT_VERSION,
         },
       }), {
-        status: result.status,
+        status: 200,
         headers: JSON_HEADERS,
       });
     } catch (error) {
-      const isTimeout = error?.message?.includes("Timeout") || error?.name === "AbortError";
-      const isNetworkError = error?.message?.includes("fetch") || error?.message?.includes("connection");
-      const statusCode = isTimeout || isNetworkError ? 504 : 500;
-      const errorType = isTimeout ? "timeout" : isNetworkError ? "network" : "internal";
       return new Response(
         JSON.stringify({
           ok: false,
-          error: error?.message || "Falha no orchestrator híbrido.",
-          errorType,
+          error: error?.message || "Falha no orchestrator Python.",
+          errorType: "python_orchestrator",
           timestamp: new Date().toISOString(),
         }),
         {
-          status: statusCode,
+          status: 500,
           headers: JSON_HEADERS,
         }
       );
