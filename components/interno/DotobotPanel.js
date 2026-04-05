@@ -651,6 +651,7 @@ export default function DotobotCopilot({
               <span className="material-icons align-middle mr-1" style={{ fontSize: 16 }}>download</span>
               Exportar
             </button>
+          </div>
           {filteredTasks.length > 0 ? (
             <div className="space-y-6 max-h-[50vh] overflow-y-auto pr-1">
               {filteredTasks.map((task, idx) => (
