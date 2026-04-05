@@ -651,7 +651,6 @@ export default function DotobotCopilot({
               <span className="material-icons align-middle mr-1" style={{ fontSize: 16 }}>download</span>
               Exportar
             </button>
-          </div>
           {filteredTasks.length > 0 ? (
             <div className="space-y-6 max-h-[50vh] overflow-y-auto pr-1">
               {filteredTasks.map((task, idx) => (
@@ -843,13 +842,7 @@ export default function DotobotCopilot({
       );
       // Renderização do modal de tarefas
           </div>
-          <button
-            className="rounded-xl border border-[#22342F] bg-[#181B19] px-2 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none text-xs"
-            onClick={() => setIsCollapsed((v) => !v)}
-            title={isCollapsed ? "Expandir Copilot" : "Colapsar Copilot"}
-          >
             {isCollapsed ? "→" : "←"}
-          </button>
           {!isCollapsed && (
             <button
               className="ml-2 rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none text-xs"
