@@ -36,8 +36,8 @@ async function callPythonOrchestrator(message, context) {
 const JSON_HEADERS = { "Content-Type": "application/json" };
 const CHAT_CONTRACT_VERSION = "2026-04-sprint-2";
 
+// MOCK: responde sempre com echo para teste de integração
 export async function onRequestPost(context) {
-  // MOCK: responde sempre com echo para teste de integração
   try {
     const { query } = await context.request.json();
     return new Response(
@@ -48,6 +48,8 @@ export async function onRequestPost(context) {
     return new Response("Bad Request", { status: 400 });
   }
 }
+
+// Removido código antigo duplicado/solto para evitar erro de sintaxe
   try {
     body = await request.json();
   } catch {
