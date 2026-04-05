@@ -842,8 +842,6 @@ export default function DotobotCopilot({
         </div>
       );
       // Renderização do modal de tarefas
-      {showTaskModal && <TaskModal />}
-      {showAttachmentPanel && <AttachmentPanel />}
           </div>
           <button
             className="rounded-xl border border-[#22342F] bg-[#181B19] px-2 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none text-xs"
