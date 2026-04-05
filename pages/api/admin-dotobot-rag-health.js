@@ -30,7 +30,8 @@ export default async function handler(req, res) {
       topK: Number.isFinite(topK) && topK > 0 ? topK : 3,
       query,
     });
-    return res.status(result.ok ? 200 : 500).json(result);
+    const statusCode = result.status === "failed" ? 500 : 200;
+    return res.status(statusCode).json(result);
   } catch (error) {
     return res.status(500).json({
       ok: false,
@@ -38,4 +39,3 @@ export default async function handler(req, res) {
     });
   }
 }
-
