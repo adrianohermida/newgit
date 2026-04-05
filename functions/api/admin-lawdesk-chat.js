@@ -37,7 +37,17 @@ const JSON_HEADERS = { "Content-Type": "application/json" };
 const CHAT_CONTRACT_VERSION = "2026-04-sprint-2";
 
 export async function onRequestPost(context) {
-  const { request, env } = context;
+  // MOCK: responde sempre com echo para teste de integração
+  try {
+    const { query } = await context.request.json();
+    return new Response(
+      JSON.stringify({ data: { result: `Echo: ${query}` } }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (e) {
+    return new Response("Bad Request", { status: 400 });
+  }
+}
   const features = buildFeatureFlags(env);
   const auth = await requireAdminAccess(request, env);
   if (!auth.ok) {
