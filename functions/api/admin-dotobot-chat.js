@@ -1,3 +1,2 @@
-import { onRequestPost } from "./admin-lawdesk-chat.js";
-export default onRequestPost;
+export { onRequest } from "./admin-lawdesk-chat.js";
 

@@ -1,3 +1,15 @@
+export async function onRequest(context) {
+  if (context.request.method === "POST") {
+    return onRequestPost(context);
+  }
+  if (context.request.method === "OPTIONS") {
+    return new Response("", { status: 204 });
+  }
+  return new Response(
+    JSON.stringify({ ok: false, error: "Método não permitido" }),
+    { status: 405, headers: { "Content-Type": "application/json" } }
+  );
+}
 import { requireAdminAccess } from "../lib/admin-auth.js";
 import { runLawdeskChat } from "../../lib/lawdesk/chat.js";
 import { buildDotobotRepositoryContext } from "../../lib/lawdesk/capabilities.js";
