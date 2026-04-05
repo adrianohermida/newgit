@@ -665,30 +665,53 @@ export default function DotobotCopilot({
       </div>
     );
 
-    // Header de contexto
+    // Header de contexto com histórico de conversas
     const ContextHeader = () => (
-      <div className="flex items-center justify-between gap-3 border-b border-[#22342F] px-4 py-3 bg-[rgba(12,15,14,0.98)]">
-        <div className="flex items-center gap-3">
-          {!isCollapsed && <span className="rounded-full bg-[#D9B46A] px-3 py-1 text-xs font-bold text-[#1A1A1A]">Dotobot Copilot</span>}
-          {!isCollapsed && <span className="text-xs text-[#9BAEA8]">{stateLabel}</span>}
-          {!isCollapsed && <span className="ml-2 text-xs text-[#C5A059]">📍 {routePath || "Módulo atual"}</span>}
-        </div>
-        <button
-          className="rounded-xl border border-[#22342F] bg-[#181B19] px-2 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none text-xs"
-          onClick={() => setIsCollapsed((v) => !v)}
-          title={isCollapsed ? "Expandir Copilot" : "Colapsar Copilot"}
-        >
-          {isCollapsed ? "→" : "←"}
-        </button>
-        {!isCollapsed && (
+      <div className="flex flex-col border-b border-[#22342F] bg-[rgba(12,15,14,0.98)]">
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
+          <div className="flex items-center gap-3">
+            {!isCollapsed && <span className="rounded-full bg-[#D9B46A] px-3 py-1 text-xs font-bold text-[#1A1A1A]">Histórico</span>}
+            {!isCollapsed && <span className="text-xs text-[#9BAEA8]">{stateLabel}</span>}
+            {!isCollapsed && <span className="ml-2 text-xs text-[#C5A059]">{routePath || "Módulo atual"}</span>}
+          </div>
           <button
-            className="ml-2 rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none text-xs"
-            onClick={() => setShowTaskModal(true)}
-            title="Ver detalhes da execução"
+            className="rounded-xl border border-[#22342F] bg-[#181B19] px-2 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none text-xs"
+            onClick={() => setIsCollapsed((v) => !v)}
+            title={isCollapsed ? "Expandir Copilot" : "Colapsar Copilot"}
           >
-            Execução
+            {isCollapsed ? "→" : "←"}
           </button>
-        )}
+          {!isCollapsed && (
+            <button
+              className="ml-2 rounded-xl border border-[#22342F] bg-[#181B19] px-3 py-1 text-[#C5A059] hover:border-[#C5A059] focus:outline-none text-xs"
+              onClick={() => setShowTaskModal(true)}
+              title="Ver detalhes da execução"
+            >
+              Execução
+            </button>
+          )}
+        </div>
+        {/* Lista de histórico de conversas */}
+        <div className="flex gap-2 overflow-x-auto px-4 pb-2">
+          {conversations.length === 0 && (
+            <span className="text-xs text-[#9BAEA8]">Nenhuma conversa salva.</span>
+          )}
+          {conversations.map((conv) => (
+            <button
+              key={conv.id}
+              className={`px-3 py-1 rounded-lg text-xs border ${conv.id === activeConversationId ? "bg-[#C5A059] text-[#181B19] border-[#C5A059]" : "bg-[#232823] text-[#EAE3D6] border-[#22342F] hover:border-[#C5A059]"}`}
+              onClick={() => {
+                setActiveConversationId(conv.id);
+                setMessages(conv.messages || []);
+                setTaskHistory(conv.taskHistory || []);
+                setAttachments(conv.attachments || []);
+              }}
+              title={conv.title || "Conversa"}
+            >
+              {conv.title || `Conversa ${conv.id.slice(-4)}`}
+            </button>
+          ))}
+        </div>
       </div>
     );
 
