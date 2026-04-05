@@ -1,6 +1,3 @@
-import { useState } from "react"; // Ensure this import is present
-// Other necessary imports...
-
 import useDotobotExtensionBridge from "./DotobotExtensionBridge";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMediaQuery } from "react-responsive";
@@ -92,23 +89,12 @@ function detectAttachmentKind(file) {
 function normalizeAttachment(file) {
   const kind = detectAttachmentKind(file);
   return {
+    kind,
+    file,
+    name: file.name || "Arquivo",
+    size: file.size,
     type: file.type || "application/octet-stream",
-        <div
-          className={`h-full border-l border-neutral-800 transition-all duration-300 bg-[rgba(12,15,14,0.98)] shadow-2xl flex flex-col fixed right-0 top-0 z-40
-            ${isCollapsed ? "translate-x-full" : "translate-x-0"}
-            w-[min(420px,100vw)] min-w-[320px] max-w-full"
-          }
-        >
-          <ContextHeader />
-          <div className="flex-1 flex flex-col overflow-y-auto" ref={scrollRef} style={{paddingBottom: 0, paddingTop: 0}}>
-            {/* Conversa principal */}
-            <div className="flex-1 flex flex-col gap-3 px-4 pt-4 pb-36" style={{marginBottom: 0}}>
-              {messages.map((msg, idx) => (
-                <MessageBubble key={idx} message={msg} isTyping={loading && idx === messages.length - 1} />
-              ))}
-            </div>
-          </div>
-    documents,
+    previewUrl: file.type?.startsWith("image/") ? URL.createObjectURL(file) : undefined,
   };
 }
 
