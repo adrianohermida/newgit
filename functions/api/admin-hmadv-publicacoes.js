@@ -4,6 +4,7 @@ import {
   createPublicacoesAdminJob,
   createProcessesFromPublicacoes,
   getPublicacoesAdminJob,
+  getPublicationActivityTypes,
   getPublicacoesOverview,
   jsonError,
   jsonOk,
@@ -145,6 +146,10 @@ export async function onRequestGet(context) {
         page: Number(url.searchParams.get("page") || 1),
         pageSize: Number(url.searchParams.get("pageSize") || 20),
       });
+      return jsonOk({ data });
+    }
+    if (action === "activity_types") {
+      const data = await getPublicationActivityTypes(context.env);
       return jsonOk({ data });
     }
     if (action === "historico") {

@@ -1250,6 +1250,31 @@ async function patchPublicacaoFreshsalesActivityId(env, publicationId, activityI
 
 export async function syncPublicationActivities(env, { processNumbers = [], limit = 5 } = {}) {
   const safeLimit = Math.max(1, Math.min(Number(limit || 5), 10));
+  if (!processNumbers.length) {
+    try {
+      const remote = await hmadvFunction(
+        env,
+        "publicacoes-freshsales",
+        { action: "sync", batch: safeLimit },
+        { method: "POST", body: {} }
+      );
+      return {
+        checkedAt: new Date().toISOString(),
+        source: "edge_function_publicacoes_freshsales",
+        processosLidos: Number(remote?.total || 0),
+        publicacoes: Number(remote?.sucesso || 0),
+        activitiesCriadas: Number(remote?.sucesso || 0),
+        publicacoesAtualizadas: Number(remote?.sucesso || 0),
+        semAccount: Number(remote?.sem_account || 0),
+        errors: Number(remote?.erro || 0),
+        sample: Array.isArray(remote?.detalhes) ? remote.detalhes.slice(0, 10) : [],
+        remote,
+      };
+    } catch (error) {
+      // Fallback local keeps the panel usable even when the HMADV edge function is unavailable.
+    }
+  }
+
   let processes = [];
   if (processNumbers.length) {
     processes = await loadProcessesByNumbers(
@@ -1347,12 +1372,17 @@ export async function syncPublicationActivities(env, { processNumbers = [], limi
 
   return {
     checkedAt: new Date().toISOString(),
+    source: "local_worker_fallback",
     processosLidos: processesRead,
     publicacoes: publicacoesUpdated,
     activitiesCriadas: activitiesCreated,
     publicacoesAtualizadas: publicacoesUpdated,
     sample,
   };
+}
+
+export async function getPublicationActivityTypes(env) {
+  return hmadvFunction(env, "publicacoes-freshsales", { action: "activity_types" });
 }
 
 export async function scanOrphanProcesses(env, { page = 1, pageSize = 20, limit = null } = {}) {
