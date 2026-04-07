@@ -122,6 +122,123 @@ function extractProcessCandidates(input = {}, contact360 = {}) {
   );
 }
 
+function pickProcessStatus(process) {
+  if (!process || typeof process !== "object") return null;
+  return (
+    safeText(process.status) ||
+    safeText(process.status_atual_processo) ||
+    safeText(process.status_label) ||
+    safeText(process.court) ||
+    safeText(process.tribunal) ||
+    null
+  );
+}
+
+function buildSafeProcessStatus(process, processDetail) {
+  const target = processDetail?.process || process || null;
+  if (!target) {
+    return {
+      label: null,
+      stale_days: null,
+      latest_activity_at: null,
+      alerts: [],
+      caution: "Nenhum processo foco foi resolvido para consulta segura de status.",
+    };
+  }
+
+  return {
+    label: pickProcessStatus(target),
+    stale_days: target?.stale_days ?? null,
+    latest_activity_at: target?.latest_activity_at || target?.updated_at || null,
+    alerts: normalizeArray(target?.alerts).slice(0, 5),
+    caution:
+      "Usar apenas como contexto operacional. Status processual individualizado exige validacao humana antes de resposta conclusiva.",
+  };
+}
+
+function summarizeParties(parts = []) {
+  const normalized = normalizeArray(parts).map((item) => ({
+    id: item?.id || null,
+    name: item?.name || "Parte",
+    role: item?.role || "parte",
+    document: item?.document || null,
+    is_client: Boolean(item?.is_client),
+    person_type: item?.person_type || null,
+  }));
+
+  const byRole = normalized.reduce((acc, item) => {
+    const key = item.role || "parte";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  return {
+    total: normalized.length,
+    by_role: byRole,
+    client_parties: normalized.filter((item) => item.is_client).slice(0, 10),
+    entities: normalized.slice(0, 20),
+  };
+}
+
+function summarizeRelations(process) {
+  const parentLinks = normalizeArray(process?.parent_links).slice(0, 10);
+  const childLinks = normalizeArray(process?.child_links).slice(0, 10);
+  const relationTags = normalizeArray(process?.relation_tags).slice(0, 10);
+
+  return {
+    total_related: Number(process?.total_related || 0),
+    parent_links: parentLinks,
+    child_links: childLinks,
+    relation_tags: relationTags,
+    cnj_links: Array.from(
+      new Set(
+        [...parentLinks, ...childLinks]
+          .map((item) => safeText(item?.number || item?.numero_cnj || item?.process_number || item?.id))
+          .filter(Boolean)
+      )
+    ),
+  };
+}
+
+function summarizeIdentifiers(email, contact360, processItems = [], processDetail = null) {
+  const processCandidates = [
+    processDetail?.process?.number,
+    processDetail?.process?.numero_cnj,
+    processDetail?.process?.id,
+    ...processItems.flatMap((item) => [item?.number, item?.numero_cnj, item?.id]),
+  ];
+
+  const accountCandidates = [
+    contact360?.salesAccount?.id,
+    ...processItems.map((item) => item?.account_id_freshsales),
+    processDetail?.process?.account_id_freshsales,
+  ];
+
+  const partyDocuments = normalizeArray(processDetail?.parts)
+    .map((item) => safeText(item?.document))
+    .filter(Boolean);
+
+  return {
+    email,
+    contact_id: contact360?.identifiers?.contact_id || extractContactId(contact360?.contact) || null,
+    account_ids: Array.from(new Set(accountCandidates.map((value) => safeText(value)).filter(Boolean))),
+    deal_ids: normalizeArray(contact360?.identifiers?.deal_ids).filter(Boolean),
+    process_ids: Array.from(new Set(processCandidates.map((value) => safeText(value)).filter(Boolean))),
+    party_documents: Array.from(new Set(partyDocuments)).slice(0, 20),
+  };
+}
+
+function summarizeMemoryMatches(ragContext) {
+  return normalizeArray(ragContext?.matches)
+    .slice(0, 5)
+    .map((item) => ({
+      id: item?.id || null,
+      score: item?.score ?? null,
+      text: item?.text || null,
+      metadata: item?.metadata || {},
+    }));
+}
+
 async function resolveJudicial360(env, input = {}, contact360 = {}) {
   const email =
     safeText(input.email) ||
@@ -200,6 +317,10 @@ async function resolveJudicial360(env, input = {}, contact360 = {}) {
   const publicationItems = normalizeArray(publications?.items);
   const documentItems = normalizeArray(documents?.items);
   const highlightedProcess = processDetail?.process || processItems[0] || null;
+  const partySummary = summarizeParties(processDetail?.parts);
+  const relationSummary = summarizeRelations(processDetail?.process);
+  const safeStatus = buildSafeProcessStatus(highlightedProcess, processDetail);
+  const identifiers = summarizeIdentifiers(email, contact360, processItems, processDetail);
 
   if (dashboard?.summary) {
     const counts = [];
@@ -213,7 +334,7 @@ async function resolveJudicial360(env, input = {}, contact360 = {}) {
 
   if (highlightedProcess) {
     const processLabel = highlightedProcess.title || highlightedProcess.number || highlightedProcess.numero_cnj || highlightedProcess.id;
-    const processStatus = highlightedProcess.status || highlightedProcess.status_label || highlightedProcess.court || highlightedProcess.tribunal;
+    const processStatus = safeStatus.label;
     summaryParts.push(`Processo foco: ${processLabel}${processStatus ? ` (${processStatus})` : ""}.`);
   }
 
@@ -237,13 +358,24 @@ async function resolveJudicial360(env, input = {}, contact360 = {}) {
     summaryParts.push(`Audiencias vinculadas: ${processDetail.audiencias.length}${nextAudience?.date ? `, proxima referencia em ${nextAudience.date}` : ""}.`);
   }
 
+  if (partySummary.total) {
+    summaryParts.push(`Partes identificadas: ${partySummary.total}.`);
+  }
+
+  if (relationSummary.total_related) {
+    summaryParts.push(`Relacoes CNJ identificadas: ${relationSummary.total_related}.`);
+  }
+
   return {
     enabled: true,
     identifiers: {
-      email,
+      ...identifiers,
       process_reference: processReference,
     },
     summary: summaryParts.join(" "),
+    safe_process_status: safeStatus,
+    process_relations: relationSummary,
+    parties: partySummary,
     process_portfolio: processItems.slice(0, 10),
     recent_publications: publicationItems.slice(0, 10),
     recent_documents: documentItems.slice(0, 10),
@@ -472,6 +604,7 @@ export async function handleFreddyGetContact360(request, env) {
       activities: contact360.activities,
       judicial: judicialContext,
       rag: ragContext,
+      memory_matches: summarizeMemoryMatches(ragContext),
       summary: buildContactSummary({ ...contact360, ragContext, judicialContext }),
     },
   });

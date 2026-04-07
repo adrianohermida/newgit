@@ -41,6 +41,28 @@ create table if not exists public.dotobot_task_run_events (
   created_at timestamptz not null default now()
 );
 
+alter table public.dotobot_task_run_events
+  add column if not exists sequence_id bigint null;
+
+alter table public.dotobot_task_run_events
+  add column if not exists event_type text null;
+
+alter table public.dotobot_task_run_events
+  add column if not exists message text null;
+
+alter table public.dotobot_task_run_events
+  add column if not exists data jsonb not null default '{}'::jsonb;
+
+alter table public.dotobot_task_run_events
+  add column if not exists created_at timestamptz not null default now();
+
+update public.dotobot_task_run_events
+set event_type = coalesce(nullif(event_type, ''), 'event')
+where event_type is null;
+
+alter table public.dotobot_task_run_events
+  alter column event_type set not null;
+
 create sequence if not exists public.dotobot_task_run_events_sequence_id_seq;
 
 alter sequence public.dotobot_task_run_events_sequence_id_seq

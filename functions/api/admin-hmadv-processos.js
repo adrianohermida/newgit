@@ -27,12 +27,14 @@ import {
   scanOrphanProcesses,
   searchProcessesForRelations,
   syncMovementActivities,
+  syncPublicationActivities,
   syncProcessesSupabaseCrm,
   processProcessAdminJob,
   updateMonitoringStatus,
   upsertProcessRelation,
   logAdminOperation,
 } from "../lib/hmadv-ops.js";
+import { reconcilePartesContacts } from "../lib/hmadv-contacts.js";
 
 function parseProcessNumbers(value) {
   if (!value) return [];
@@ -86,6 +88,9 @@ async function runInlineProcessAction(env, action, body) {
   }
   if (action === "sincronizar_movimentacoes_activity") {
     return syncMovementActivities(env, { processNumbers, limit: requestedLimit || 10 });
+  }
+  if (action === "sincronizar_publicacoes_activity") {
+    return syncPublicationActivities(env, { processNumbers, limit: requestedLimit || 5 });
   }
   throw new Error(`Acao inline nao suportada: ${action}`);
 }
@@ -383,6 +388,19 @@ export async function onRequestPost(context) {
       return runLogged(async () => syncMovementActivities(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 10),
+      }));
+    }
+    if (action === "sincronizar_publicacoes_activity") {
+      return runLogged(async () => syncPublicationActivities(context.env, {
+        processNumbers: parseProcessNumbers(body.processNumbers),
+        limit: Number(body.limit || 5),
+      }));
+    }
+    if (action === "reconciliar_partes_contatos") {
+      return runLogged(async () => reconcilePartesContacts(context.env, {
+        processNumbers: parseProcessNumbers(body.processNumbers),
+        limit: Number(body.limit || 20),
+        apply: true,
       }));
     }
     if (action === "auditoria_sync") {
