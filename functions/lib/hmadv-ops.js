@@ -182,6 +182,16 @@ function summarizeOperationResult(result) {
   const summary = {};
   for (const key of [
     "processosLidos",
+    "totalProcessos",
+    "processosComAccount",
+    "processosSemAccount",
+    "processosBaseCompleta",
+    "processosSemMovimentacao",
+    "processosComGapCrm",
+    "processosComPartesSemContato",
+    "partesSemContato",
+    "publicacoesPendentes",
+    "audienciasPendentes",
     "sincronizados",
     "reparados",
     "partesInseridas",
@@ -1893,7 +1903,122 @@ export async function updateMonitoringStatus(env, { processNumbers = [], active 
 }
 
 export async function runProcessAudit(env) {
-  return hmadvFunction(env, "processo-sync", { action: "auditoria" }, { method: "POST", body: {} });
+  const crmGapFilter = "account_id_freshsales=not.is.null&or=(classe.is.null,assunto_principal.is.null,area.is.null,data_ajuizamento.is.null,sistema.is.null,polo_ativo.is.null,polo_passivo.is.null,status_atual_processo.is.null)";
+  const completeBaseFilter = [
+    "account_id_freshsales=not.is.null",
+    "quantidade_movimentacoes=gt.0",
+    "classe=not.is.null",
+    "assunto_principal=not.is.null",
+    "area=not.is.null",
+    "data_ajuizamento=not.is.null",
+    "sistema=not.is.null",
+    "polo_ativo=not.is.null",
+    "polo_passivo=not.is.null",
+    "status_atual_processo=not.is.null",
+  ].join("&");
+
+  const [totals, semMovimentacoesQueue, crmGapQueue, orphanQueue, audienciasQueue, monitoringActiveQueue, remoteAudit] = await Promise.all([
+    Promise.all([
+      countTableSafe(env, "processos"),
+      countTableSafe(env, "processos", "account_id_freshsales=not.is.null"),
+      countTableSafe(env, "processos", "account_id_freshsales=is.null"),
+      countTableSafe(env, "processos", "or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0)"),
+      countTableSafe(env, "processos", crmGapFilter),
+      countTableSafe(env, "processos", completeBaseFilter),
+      countTableSafe(env, "partes", "contato_freshsales_id=is.null", "judiciario", 0),
+      countTableSafe(env, "publicacoes", "freshsales_activity_id=is.null&processo_id=not.is.null", "judiciario", 0),
+      countTableSafe(env, "audiencias", "freshsales_activity_id=is.null", "judiciario", 0),
+    ]),
+    listProcessesWithoutMovements(env, { page: 1, pageSize: 8 }).catch(() => ({ items: [] })),
+    listFieldGapProcesses(env, { page: 1, pageSize: 8 }).catch(() => ({ items: [] })),
+    scanOrphanProcesses(env, { page: 1, pageSize: 8 }).catch(() => ({ items: [] })),
+    listAudienciaBackfillCandidates(env, { page: 1, pageSize: 8 }).catch(() => ({ items: [] })),
+    listMonitoringProcesses(env, { page: 1, pageSize: 8, active: true }).catch(() => ({ items: [], unsupported: true })),
+    hmadvFunction(env, "processo-sync", { action: "auditoria" }, { method: "POST", body: {} }).catch((error) => ({
+      ok: false,
+      error: error?.message || "Falha ao consultar auditoria remota.",
+    })),
+  ]);
+
+  const [
+    totalProcessos,
+    processosComAccount,
+    processosSemAccount,
+    processosSemMovimentacao,
+    processosComGapCrm,
+    processosBaseCompleta,
+    partesSemContato,
+    publicacoesPendentes,
+    audienciasPendentes,
+  ] = totals;
+
+  const combinedSampleMap = new Map();
+  const queueDescriptors = [
+    { key: "sem_movimentacoes", label: "pendente_datajud", items: semMovimentacoesQueue.items || [] },
+    { key: "campos_orfaos", label: "gap_crm", items: crmGapQueue.items || [] },
+    { key: "orfaos", label: "sem_account", items: orphanQueue.items || [] },
+    { key: "audiencias_pendentes", label: "audiencia_pendente", items: audienciasQueue.items || [] },
+  ];
+
+  for (const descriptor of queueDescriptors) {
+    for (const row of descriptor.items) {
+      const key = row?.numero_cnj || row?.processo_id || row?.id;
+      if (!key) continue;
+      const current = combinedSampleMap.get(key) || {
+        key,
+        numero_cnj: row?.numero_cnj || null,
+        processo_id: row?.processo_id || row?.id || null,
+        titulo: row?.titulo || row?.titulo_processo || null,
+        account_id_freshsales: row?.account_id_freshsales || null,
+        status_atual_processo: row?.status_atual_processo || null,
+        flags: [],
+      };
+      current.flags = uniqueNonEmpty([...current.flags, descriptor.label]);
+      if (!current.titulo && row?.titulo) current.titulo = row.titulo;
+      if (!current.account_id_freshsales && row?.account_id_freshsales) current.account_id_freshsales = row.account_id_freshsales;
+      if (!current.status_atual_processo && row?.status_atual_processo) current.status_atual_processo = row.status_atual_processo;
+      if (row?.audiencias_pendentes !== undefined) current.audiencias_pendentes = row.audiencias_pendentes;
+      if (row?.proxima_data_audiencia) current.proxima_data_audiencia = row.proxima_data_audiencia;
+      if (row?.quantidade_movimentacoes !== undefined) current.quantidade_movimentacoes = row.quantidade_movimentacoes;
+      combinedSampleMap.set(key, current);
+    }
+  }
+
+  const sample = [...combinedSampleMap.values()]
+    .sort((left, right) => Number(right.flags?.length || 0) - Number(left.flags?.length || 0))
+    .slice(0, 12);
+
+  const accountCoveragePct = totalProcessos ? Math.round((processosComAccount / totalProcessos) * 100) : 0;
+  const baseCompletenessPct = processosComAccount ? Math.round((processosBaseCompleta / processosComAccount) * 100) : 0;
+  const monitoramentoEscritaDisponivel = !Boolean(monitoringActiveQueue?.unsupported);
+
+  return {
+    checkedAt: new Date().toISOString(),
+    audit_version: "local_v1",
+    totalProcessos,
+    processosComAccount,
+    processosSemAccount,
+    processosBaseCompleta,
+    processosSemMovimentacao,
+    processosComGapCrm,
+    processosComPartesSemContato: partesSemContato,
+    partesSemContato,
+    publicacoesPendentes,
+    audienciasPendentes,
+    monitoramentoEscritaDisponivel,
+    metrics: {
+      accountCoveragePct,
+      baseCompletenessPct,
+    },
+    queues: {
+      sem_movimentacoes: semMovimentacoesQueue.items || [],
+      campos_orfaos: crmGapQueue.items || [],
+      orfaos: orphanQueue.items || [],
+      audiencias_pendentes: audienciasQueue.items || [],
+    },
+    remoteAudit,
+    sample,
+  };
 }
 
 export async function createProcessesFromPublicacoes(env, { processNumbers = [], limit = 10 } = {}) {
