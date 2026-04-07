@@ -202,6 +202,11 @@ function ModuleCommandCard({ module }) {
   );
 }
 
+function formatPercent(value) {
+  const numeric = Number(value || 0);
+  return `${Math.max(0, Math.min(100, Math.round(numeric)))}%`;
+}
+
 export default function InternoHomePage() {
   const [hmadvOps, setHmadvOps] = useState({ loading: true, error: null, data: null });
   const [draining, setDraining] = useState(false);
@@ -209,8 +214,18 @@ export default function InternoHomePage() {
   async function loadHmadvOps() {
     setHmadvOps((current) => ({ ...current, loading: true, error: null }));
     try {
-      const payload = await adminFetch("/api/admin-hmadv-filas");
-      setHmadvOps({ loading: false, error: null, data: payload.data });
+      const [payload, auditPayload] = await Promise.all([
+        adminFetch("/api/admin-hmadv-filas"),
+        adminFetch("/api/admin-hmadv-processos?action=auditoria_completude&sampleSize=8"),
+      ]);
+      setHmadvOps({
+        loading: false,
+        error: null,
+        data: {
+          ...payload.data,
+          completeness: auditPayload.data || null,
+        },
+      });
     } catch (error) {
       setHmadvOps({ loading: false, error: error.message || "Falha ao carregar controle HMADV.", data: null });
     }
@@ -290,6 +305,31 @@ export default function InternoHomePage() {
                     <StatCard label="Sem account" value={hmadvOps.data.processosOverview?.processosSemAccount || 0} helper="Processos órfãos ainda sem Sales Account." />
                     <StatCard label="Sem processo" value={hmadvOps.data.publicacoesOverview?.publicacoesSemProcesso || 0} helper="Publicações ainda sem processo vinculado." />
                   </div>
+                  {hmadvOps.data.completeness ? (
+                    <div className="border border-[#2D2E2E] bg-[rgba(10,12,11,0.82)] p-4 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Completude Freshsales x Supabase</p>
+                          <p className="font-semibold">Cobertura real por processo, com base na auditoria local do HMADV.</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <ModeBadge active={true} label={`base ${formatPercent(((hmadvOps.data.completeness.processosBaseCompleta || 0) / Math.max(1, hmadvOps.data.completeness.processosTotal || 1)) * 100)}`} />
+                          <ModeBadge active={true} label={`crm ${formatPercent((((hmadvOps.data.completeness.processosComAccount || 0) - (hmadvOps.data.completeness.processosComGapCrm || 0)) / Math.max(1, hmadvOps.data.completeness.processosTotal || 1)) * 100)}`} />
+                        </div>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                        <StatCard label="Base completa" value={hmadvOps.data.completeness.processosBaseCompleta || 0} helper="Processos com account, sinais operacionais e base minimamente refletida." />
+                        <StatCard label="Gap CRM" value={hmadvOps.data.completeness.processosComGapCrm || 0} helper="Processos ainda com campos/account fora de equilíbrio no Freshsales." />
+                        <StatCard label="Publicações pendentes" value={hmadvOps.data.completeness.publicacoesPendentes || 0} helper="Publicações ainda sem sales_activity no CRM." />
+                        <StatCard label="Movimentações pendentes" value={hmadvOps.data.completeness.movimentacoesPendentes || 0} helper="Andamentos ainda sem sales_activity no CRM." />
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 mt-3">
+                        <StatCard label="Partes sem contato" value={hmadvOps.data.completeness.partesSemContato || 0} helper="Partes ainda sem contato_freshsales_id resolvido." />
+                        <StatCard label="Sem account" value={hmadvOps.data.completeness.processosSemAccount || 0} helper="Processos ainda fora do CRM." />
+                        <StatCard label="Audiências pendentes" value={hmadvOps.data.completeness.audienciasPendentes || 0} helper="Audiências detectadas e ainda não refletidas." />
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="border border-[#2D2E2E] bg-[rgba(10,12,11,0.82)] p-4 text-sm">
                     <div className="flex flex-wrap items-center gap-2 mb-3">
                       <p className="font-semibold">Runner agendado</p>
