@@ -9,6 +9,14 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+function envFirst(...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = Deno.env.get(key)?.trim();
+    if (value) return value;
+  }
+  return undefined;
+}
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SVC_KEY      = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const SYNC_BASE    = `${SUPABASE_URL}/functions/v1/processo-sync`;
@@ -26,10 +34,25 @@ const LOTE_SYNC_BI = 10;
 const LOTE_MOV_DJ  = 20;
 const LOTE_PUBS    = 25;
 
-const FS_OWNER_ID         = Number(Deno.env.get('FS_OWNER_ID') ?? '31000147944');
+const FS_OWNER_ID         = Number(envFirst(
+  'FRESHSALES_OWNER_ID',
+  'FS_OWNER_ID',
+) ?? '31000147944');
 const FS_TYPE_CONSULTA    = Number(Deno.env.get('FRESHSALES_ACTIVITY_TYPE_CONSULTA') ?? '31001147694');
-const FS_TYPE_ANDAMENTOS  = 31001147751;
-const FS_TYPE_PUBLICACOES = 31001147699;
+const FS_TYPE_ANDAMENTOS  = Number(envFirst(
+  'FRESHSALES_ACTIVITY_TYPE_ANDAMENTO',
+  'FRESHSALES_ACTIVITY_TYPE_ANDAMENTOS',
+  'FRESHSALES_ANDAMENTO_ACTIVITY_TYPE_ID',
+  'FS_TYPE_ANDAMENTOS',
+) ?? '31001147751');
+const FS_TYPE_PUBLICACOES = Number(envFirst(
+  'FRESHSALES_PUBLICACAO_ACTIVITY_TYPE_ID',
+  'FRESHSALES_PUBLICACOES_ACTIVITY_TYPE_ID',
+  'FRESHSALES_ACTIVITY_TYPE_PUBLICACAO_ID',
+  'FRESHSALES_SALES_ACTIVITY_TYPE_PUBLICACAO_ID',
+  'FRESHSALES_DEFAULT_ACTIVITY_TYPE_ID',
+  'FS_TYPE_PUBLICACOES',
+) ?? '31001147699');
 const FS_TYPE_AUDIENCIAS  = Number(Deno.env.get('FRESHSALES_ACTIVITY_TYPE_AUDIENCIA') ?? '31001147752');
 const FS_TYPE_AUDIENCIAS_FALLBACK = Number(
   Deno.env.get('FRESHSALES_ACTIVITY_TYPE_AUDIENCIA_FALLBACK') ?? String(FS_TYPE_CONSULTA),
