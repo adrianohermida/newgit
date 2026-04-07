@@ -1297,6 +1297,131 @@ export async function listFieldGapProcesses(env, { page = 1, pageSize = 20 } = {
   };
 }
 
+async function collectGroupedBacklogByProcess(env, {
+  path,
+  page = 1,
+  pageSize = 20,
+  rawBatchSize = 200,
+  maxScans = 40,
+  mapRow,
+}) {
+  const safePage = Math.max(1, Number(page || 1));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  const targetStart = (safePage - 1) * safePageSize;
+  const targetEnd = targetStart + safePageSize;
+  const grouped = new Map();
+  let offset = 0;
+  let scans = 0;
+  let hasMore = true;
+
+  while (hasMore && scans < maxScans && grouped.size < targetEnd) {
+    const rows = await listTableSafe(
+      env,
+      `${path}&limit=${rawBatchSize}&offset=${offset}`
+    );
+    offset += rows.length;
+    scans += 1;
+    for (const row of rows) {
+      mapRow(grouped, row);
+    }
+    if (rows.length < rawBatchSize) hasMore = false;
+  }
+
+  const processIds = [...new Set([...grouped.values()].map((item) => item.processo_id).filter(Boolean))];
+  const processRows = processIds.length
+    ? await loadProcessesByIds(
+        env,
+        processIds,
+        "id,numero_cnj,titulo,account_id_freshsales,status_atual_processo,quantidade_movimentacoes"
+      )
+    : [];
+  const processMap = new Map(processRows.map((item) => [item.id, item]));
+  const items = [...grouped.values()]
+    .map((item) => {
+      const process = processMap.get(item.processo_id) || {};
+      return {
+        ...item,
+        numero_cnj: process.numero_cnj || null,
+        titulo: process.titulo || item.titulo || null,
+        account_id_freshsales: process.account_id_freshsales || null,
+        status_atual_processo: process.status_atual_processo || null,
+        quantidade_movimentacoes: process.quantidade_movimentacoes ?? null,
+        key: process.numero_cnj || item.processo_id,
+      };
+    })
+    .filter((item) => item.numero_cnj)
+    .sort((left, right) => {
+      const countDiff = Number(right.total_pendente || 0) - Number(left.total_pendente || 0);
+      if (countDiff !== 0) return countDiff;
+      return String(right.ultima_data || "").localeCompare(String(left.ultima_data || ""));
+    });
+
+  return {
+    page: safePage,
+    pageSize: safePageSize,
+    totalRows: hasMore ? Math.max(targetEnd + 1, items.length) : items.length,
+    items: items.slice(targetStart, targetEnd),
+    hasMore,
+  };
+}
+
+export async function listPublicationActivityBacklog(env, { page = 1, pageSize = 20 } = {}) {
+  return collectGroupedBacklogByProcess(env, {
+    page,
+    pageSize,
+    rawBatchSize: 200,
+    maxScans: 60,
+    path: `publicacoes?select=id,processo_id,data_publicacao,conteudo,freshsales_activity_id&processo_id=not.is.null&freshsales_activity_id=is.null&order=data_publicacao.desc.nullslast`,
+    mapRow(grouped, row) {
+      if (!row?.processo_id) return;
+      const current = grouped.get(row.processo_id) || {
+        processo_id: row.processo_id,
+        total_pendente: 0,
+        ultima_data: null,
+        sample_ids: [],
+        sample_conteudo: [],
+      };
+      current.total_pendente += 1;
+      if (row.data_publicacao && (!current.ultima_data || row.data_publicacao > current.ultima_data)) {
+        current.ultima_data = row.data_publicacao;
+      }
+      if (row.id && current.sample_ids.length < 5) current.sample_ids.push(row.id);
+      const snippet = String(row.conteudo || "").trim().slice(0, 220);
+      if (snippet && current.sample_conteudo.length < 3) current.sample_conteudo.push(snippet);
+      grouped.set(row.processo_id, current);
+    },
+  });
+}
+
+export async function listPartesSemContatoBacklog(env, { page = 1, pageSize = 20 } = {}) {
+  return collectGroupedBacklogByProcess(env, {
+    page,
+    pageSize,
+    rawBatchSize: 200,
+    maxScans: 60,
+    path: `partes?select=id,processo_id,nome,polo,tipo_pessoa,contato_freshsales_id&contato_freshsales_id=is.null`,
+    mapRow(grouped, row) {
+      if (!row?.processo_id) return;
+      const current = grouped.get(row.processo_id) || {
+        processo_id: row.processo_id,
+        total_pendente: 0,
+        ultima_data: null,
+        sample_partes: [],
+      };
+      current.total_pendente += 1;
+      if (current.sample_partes.length < 5) {
+        current.sample_partes.push({
+          parte_id: row.id,
+          nome: row.nome,
+          polo: row.polo || null,
+          tipo_pessoa: row.tipo_pessoa || null,
+        });
+      }
+      grouped.set(row.processo_id, current);
+    },
+  });
+}
+
 async function listSyncDatajudProcesses(env, { page = 1, pageSize = 20 } = {}) {
   const safePage = Math.max(1, Number(page || 1));
   const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
@@ -1917,7 +2042,7 @@ async function collectLocalProcessAudit(env, { sampleSize = 8 } = {}) {
     "status_atual_processo=not.is.null",
   ].join("&");
 
-  const [totals, semMovimentacoesQueue, crmGapQueue, orphanQueue, audienciasQueue, monitoringActiveQueue, remoteAudit] = await Promise.all([
+  const [totals, semMovimentacoesQueue, crmGapQueue, orphanQueue, audienciasQueue, monitoringActiveQueue, publicationBacklogQueue, partesSemContatoQueue, remoteAudit] = await Promise.all([
     Promise.all([
       countTableSafe(env, "processos"),
       countTableSafe(env, "processos", "account_id_freshsales=not.is.null"),
@@ -1934,6 +2059,8 @@ async function collectLocalProcessAudit(env, { sampleSize = 8 } = {}) {
     scanOrphanProcesses(env, { page: 1, pageSize: sampleSize }).catch(() => ({ items: [] })),
     listAudienciaBackfillCandidates(env, { page: 1, pageSize: sampleSize }).catch(() => ({ items: [] })),
     listMonitoringProcesses(env, { page: 1, pageSize: sampleSize, active: true }).catch(() => ({ items: [], unsupported: true })),
+    listPublicationActivityBacklog(env, { page: 1, pageSize: sampleSize }).catch(() => ({ items: [] })),
+    listPartesSemContatoBacklog(env, { page: 1, pageSize: sampleSize }).catch(() => ({ items: [] })),
     hmadvFunction(env, "processo-sync", { action: "auditoria" }, { method: "POST", body: {} }).catch((error) => ({
       ok: false,
       error: error?.message || "Falha ao consultar auditoria remota.",
@@ -1958,6 +2085,8 @@ async function collectLocalProcessAudit(env, { sampleSize = 8 } = {}) {
     { key: "campos_orfaos", label: "gap_crm", items: crmGapQueue.items || [] },
     { key: "orfaos", label: "sem_account", items: orphanQueue.items || [] },
     { key: "audiencias_pendentes", label: "audiencia_pendente", items: audienciasQueue.items || [] },
+    { key: "publicacoes_pendentes", label: "publicacao_pendente", items: publicationBacklogQueue.items || [] },
+    { key: "partes_sem_contato", label: "parte_sem_contato", items: partesSemContatoQueue.items || [] },
   ];
 
   for (const descriptor of queueDescriptors) {
@@ -2015,6 +2144,8 @@ async function collectLocalProcessAudit(env, { sampleSize = 8 } = {}) {
       campos_orfaos: crmGapQueue.items || [],
       orfaos: orphanQueue.items || [],
       audiencias_pendentes: audienciasQueue.items || [],
+      publicacoes_pendentes: publicationBacklogQueue.items || [],
+      partes_sem_contato: partesSemContatoQueue.items || [],
     },
     remoteAudit,
     sample,

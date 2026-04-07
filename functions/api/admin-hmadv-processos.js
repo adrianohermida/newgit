@@ -15,6 +15,8 @@ import {
   listAudienciaBackfillCandidates,
   listFieldGapProcesses,
   listMonitoringProcesses,
+  listPartesSemContatoBacklog,
+  listPublicationActivityBacklog,
   listProcessRelations,
   listProcessesWithoutMovements,
   pushOrphanAccounts,
@@ -190,6 +192,20 @@ export async function onRequestGet(context) {
     }
     if (action === "audiencias_pendentes") {
       const data = await listAudienciaBackfillCandidates(context.env, {
+        page: Number(url.searchParams.get("page") || 1),
+        pageSize: Number(url.searchParams.get("pageSize") || 20),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "publicacoes_pendentes") {
+      const data = await listPublicationActivityBacklog(context.env, {
+        page: Number(url.searchParams.get("page") || 1),
+        pageSize: Number(url.searchParams.get("pageSize") || 20),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "partes_sem_contato") {
+      const data = await listPartesSemContatoBacklog(context.env, {
         page: Number(url.searchParams.get("page") || 1),
         pageSize: Number(url.searchParams.get("pageSize") || 20),
       });
