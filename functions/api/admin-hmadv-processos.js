@@ -6,6 +6,7 @@ import {
   enrichProcessesViaDatajud,
   getProcessAdminJob,
   getProcessosOverview,
+  getLocalProcessAudit,
   inspectAudiencias,
   jsonError,
   jsonOk,
@@ -138,6 +139,12 @@ export async function onRequestGet(context) {
     const action = String(url.searchParams.get("action") || "overview");
     if (action === "overview") {
       const data = await getProcessosOverview(context.env);
+      return jsonOk({ data });
+    }
+    if (action === "auditoria_completude") {
+      const data = await getLocalProcessAudit(context.env, {
+        sampleSize: Number(url.searchParams.get("sampleSize") || 8),
+      });
       return jsonOk({ data });
     }
     if (action === "orfaos") {

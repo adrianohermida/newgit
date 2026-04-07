@@ -1902,7 +1902,7 @@ export async function updateMonitoringStatus(env, { processNumbers = [], active 
   };
 }
 
-export async function runProcessAudit(env) {
+async function collectLocalProcessAudit(env, { sampleSize = 8 } = {}) {
   const crmGapFilter = "account_id_freshsales=not.is.null&or=(classe.is.null,assunto_principal.is.null,area.is.null,data_ajuizamento.is.null,sistema.is.null,polo_ativo.is.null,polo_passivo.is.null,status_atual_processo.is.null)";
   const completeBaseFilter = [
     "account_id_freshsales=not.is.null",
@@ -1929,11 +1929,11 @@ export async function runProcessAudit(env) {
       countTableSafe(env, "publicacoes", "freshsales_activity_id=is.null&processo_id=not.is.null", "judiciario", 0),
       countTableSafe(env, "audiencias", "freshsales_activity_id=is.null", "judiciario", 0),
     ]),
-    listProcessesWithoutMovements(env, { page: 1, pageSize: 8 }).catch(() => ({ items: [] })),
-    listFieldGapProcesses(env, { page: 1, pageSize: 8 }).catch(() => ({ items: [] })),
-    scanOrphanProcesses(env, { page: 1, pageSize: 8 }).catch(() => ({ items: [] })),
-    listAudienciaBackfillCandidates(env, { page: 1, pageSize: 8 }).catch(() => ({ items: [] })),
-    listMonitoringProcesses(env, { page: 1, pageSize: 8, active: true }).catch(() => ({ items: [], unsupported: true })),
+    listProcessesWithoutMovements(env, { page: 1, pageSize: sampleSize }).catch(() => ({ items: [] })),
+    listFieldGapProcesses(env, { page: 1, pageSize: sampleSize }).catch(() => ({ items: [] })),
+    scanOrphanProcesses(env, { page: 1, pageSize: sampleSize }).catch(() => ({ items: [] })),
+    listAudienciaBackfillCandidates(env, { page: 1, pageSize: sampleSize }).catch(() => ({ items: [] })),
+    listMonitoringProcesses(env, { page: 1, pageSize: sampleSize, active: true }).catch(() => ({ items: [], unsupported: true })),
     hmadvFunction(env, "processo-sync", { action: "auditoria" }, { method: "POST", body: {} }).catch((error) => ({
       ok: false,
       error: error?.message || "Falha ao consultar auditoria remota.",
@@ -1986,7 +1986,7 @@ export async function runProcessAudit(env) {
 
   const sample = [...combinedSampleMap.values()]
     .sort((left, right) => Number(right.flags?.length || 0) - Number(left.flags?.length || 0))
-    .slice(0, 12);
+    .slice(0, Math.max(1, Math.min(Number(sampleSize || 8) * 2, 20)));
 
   const accountCoveragePct = totalProcessos ? Math.round((processosComAccount / totalProcessos) * 100) : 0;
   const baseCompletenessPct = processosComAccount ? Math.round((processosBaseCompleta / processosComAccount) * 100) : 0;
@@ -2019,6 +2019,14 @@ export async function runProcessAudit(env) {
     remoteAudit,
     sample,
   };
+}
+
+export async function getLocalProcessAudit(env, { sampleSize = 8 } = {}) {
+  return collectLocalProcessAudit(env, { sampleSize });
+}
+
+export async function runProcessAudit(env) {
+  return collectLocalProcessAudit(env, { sampleSize: 8 });
 }
 
 export async function createProcessesFromPublicacoes(env, { processNumbers = [], limit = 10 } = {}) {
