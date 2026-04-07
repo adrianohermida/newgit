@@ -1391,6 +1391,36 @@ export async function getPublicationActivityTypes(env) {
 
 export async function syncMovementActivities(env, { processNumbers = [], limit = 10 } = {}) {
   const safeLimit = Math.max(1, Math.min(Number(limit || 10), 25));
+  if (processNumbers.length) {
+    try {
+      const remote = await hmadvFunction(
+        env,
+        "fs-exec",
+        { action: "sync_andamentos_scoped", limite: safeLimit },
+        {
+          method: "POST",
+          body: {
+            processNumbers,
+          },
+        }
+      );
+      return {
+        checkedAt: new Date().toISOString(),
+        source: "edge_function_fs_exec_scoped",
+        processosLidos: Number(remote?.processos || 0),
+        movimentacoes: Number(remote?.enviados || 0),
+        activitiesCriadas: Number(remote?.enviados || 0),
+        movimentacoesAtualizadas: Number(remote?.enviados || 0),
+        semAccount: Number(remote?.sem_account || 0),
+        errors: Number(remote?.erros || 0),
+        sample: Array.isArray(remote?.detalhes) ? remote.detalhes.slice(0, 10) : [],
+        remote,
+      };
+    } catch {
+      // fall through to backlog diagnostics if the scoped edge function is unavailable
+    }
+  }
+
   if (!processNumbers.length) {
     try {
       const remote = await hmadvFunction(env, "fs-exec", { action: "sync_andamentos", limite: safeLimit });

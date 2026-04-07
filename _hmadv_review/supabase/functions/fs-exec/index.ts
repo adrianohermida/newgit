@@ -43,6 +43,23 @@ const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, { db: { schema: 'jud
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
+function uniqueStrings(values: unknown[]): string[] {
+  return [...new Set((values ?? []).map((value) => String(value ?? '').trim()).filter(Boolean))];
+}
+
+function normalizeProcessNumber(value: string | null | undefined): string {
+  return String(value ?? '').replace(/[^0-9]/g, '');
+}
+
+function splitProcessNumbers(value: unknown): string[] {
+  if (Array.isArray(value)) return uniqueStrings(value);
+  return uniqueStrings(
+    String(value ?? '')
+      .split(/\r?\n|,|;/)
+      .map((item) => item.trim()),
+  );
+}
+
 function log(n: 'info'|'warn'|'error', m: string, e: Record<string,unknown> = {}) {
   console[n](JSON.stringify({ ts: new Date().toISOString(), msg: m, ...e }));
 }
@@ -313,6 +330,109 @@ async function syncAndamentos(limite: number) {
   return { ok: true, total: movs.length, enviados, sem_account, erros };
 }
 
+async function syncAndamentosScoped(processNumbers: string[], limite: number) {
+  const targets = uniqueStrings(processNumbers.map((item) => normalizeProcessNumber(item)).filter(Boolean));
+  if (!targets.length) return { ok: true, total: 0, msg: 'Nenhum processo selecionado' };
+
+  const { data: processos } = await db.from('processos')
+    .select('id,numero_cnj,numero_processo,account_id_freshsales')
+    .or(targets.map((item) => `numero_cnj.eq.${item},numero_processo.eq.${item}`).join(','))
+    .limit(Math.max(targets.length * 2, targets.length));
+
+  const scoped = (processos ?? []).filter((row) => {
+    const cnj = normalizeProcessNumber(String(row.numero_cnj ?? ''));
+    const numero = normalizeProcessNumber(String(row.numero_processo ?? ''));
+    return targets.includes(cnj) || targets.includes(numero);
+  });
+  if (!scoped.length) {
+    return { ok: true, total: 0, msg: 'Nenhum processo encontrado para os CNJs informados', processNumbers: targets };
+  }
+
+  const processIds = scoped.map((row) => row.id);
+  const accountMap = new Map<string, string>();
+  for (const row of scoped) {
+    if (row.account_id_freshsales) accountMap.set(row.id, String(row.account_id_freshsales));
+  }
+
+  const { data: movs } = await db.from('movimentacoes')
+    .select('id,processo_id,conteudo,data_movimentacao,fonte,freshsales_activity_id')
+    .in('processo_id', processIds)
+    .is('freshsales_activity_id', null)
+    .order('data_movimentacao', { ascending: false })
+    .limit(Math.max(1, limite));
+
+  if (!movs?.length) {
+    return {
+      ok: true,
+      total: 0,
+      enviados: 0,
+      sem_account: 0,
+      erros: 0,
+      processNumbers: targets,
+      processos: scoped.length,
+      msg: 'Nenhum andamento pendente para os processos selecionados',
+    };
+  }
+
+  let enviados = 0;
+  let sem_account = 0;
+  let erros = 0;
+  const detalhes: Record<string, unknown>[] = [];
+  const isoDate = (d: Date) => d.toISOString().split('T')[0];
+
+  for (const mov of movs) {
+    const aid = accountMap.get(mov.processo_id);
+    if (!aid) {
+      sem_account++;
+      if (detalhes.length < 10) detalhes.push({ mov_id: mov.id, processo_id: mov.processo_id, status: 'sem_account' });
+      continue;
+    }
+    try {
+      const dtBase = mov.data_movimentacao ? new Date(mov.data_movimentacao) : new Date();
+      const dtFim  = new Date(dtBase); dtFim.setDate(dtBase.getDate() + 1);
+      const { status, data: actData } = await fsPost('sales_activities', {
+        sales_activity: {
+          sales_account_id: Number(aid),
+          owner_id: FS_OWNER_ID,
+          activity_type_id: FS_TYPE_ANDAMENTOS,
+          title: `[Andamento] ${String(mov.conteudo ?? '').substring(0, 80)}`,
+          starts_at: `${isoDate(dtBase)}T00:01:00Z`,
+          ends_at: `${isoDate(dtFim)}T23:59:00Z`,
+          notes: `=== ANDAMENTO ===\nData: ${isoDate(dtBase)}\nFonte: ${mov.fonte ?? 'DataJud'}\n\n${mov.conteudo ?? ''}`,
+        },
+      });
+      if (status === 200 || status === 201) {
+        const actId = String(((actData as Record<string,Record<string,unknown>>).sales_activity?.id) ?? '');
+        if (actId) {
+          await db.from('movimentacoes').update({ freshsales_activity_id: actId }).eq('id', mov.id);
+          enviados++;
+          if (detalhes.length < 10) detalhes.push({ mov_id: mov.id, processo_id: mov.processo_id, freshsales_activity_id: actId, status: 'enviado' });
+        } else {
+          erros++;
+        }
+      } else {
+        erros++;
+        if (detalhes.length < 10) detalhes.push({ mov_id: mov.id, processo_id: mov.processo_id, status, erro: actData });
+      }
+    } catch (e) {
+      erros++;
+      if (detalhes.length < 10) detalhes.push({ mov_id: mov.id, processo_id: mov.processo_id, erro: String(e) });
+    }
+    await sleep(80);
+  }
+
+  return {
+    ok: true,
+    total: movs.length,
+    enviados,
+    sem_account,
+    erros,
+    processos: scoped.length,
+    processNumbers: targets,
+    detalhes,
+  };
+}
+
 // ── MAIN ──────────────────────────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
   // Permite CORS para chamadas diretas do browser
@@ -329,6 +449,7 @@ Deno.serve(async (req: Request) => {
   const action = url.searchParams.get('action') ?? 'status';
   const limite = Number(url.searchParams.get('limite') ?? '200');
   const batch  = Number(url.searchParams.get('batch')  ?? '25');
+  const body   = req.method === 'POST' ? await req.json().catch(() => ({})) as Record<string, unknown> : {};
 
   try {
     let result: unknown;
@@ -338,6 +459,11 @@ Deno.serve(async (req: Request) => {
       case 'sync_campos':        result = await syncCampos(limite);    break;
       case 'sync_publicacoes':   result = await syncPublicacoes(batch); break;
       case 'sync_andamentos':    result = await syncAndamentos(limite); break;
+      case 'sync_andamentos_scoped': {
+        const processNumbers = splitProcessNumbers(body.processNumbers ?? body.process_numbers ?? url.searchParams.get('processNumbers') ?? '');
+        result = await syncAndamentosScoped(processNumbers, limite);
+        break;
+      }
       case 'pipeline_completo': {
         log('info','pipeline_inicio',{limite,batch});
         const p2 = await resolverAccounts(limite);
