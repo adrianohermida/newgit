@@ -49,6 +49,23 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
+function summarizeCoverage(items = []) {
+  const safeItems = Array.isArray(items) ? items.filter(Boolean) : [];
+  const total = safeItems.length;
+  const withAccount = safeItems.filter((item) => item.account_id_freshsales).length;
+  const withMovements = safeItems.filter((item) => Number(item?.movement_count || 0) > 0 || item?.latest_movement).length;
+  const withPublications = safeItems.filter((item) => item?.latest_publication).length;
+  const baseCovered = safeItems.filter((item) => item.account_id_freshsales && (Number(item?.movement_count || 0) > 0 || item?.latest_movement || item?.latest_publication)).length;
+  return {
+    total,
+    withAccount,
+    withMovements,
+    withPublications,
+    baseCovered,
+    baseCoverageRate: total ? Math.round((baseCovered / total) * 100) : 0,
+  };
+}
+
 export default function PortalProcessosPage() {
   const router = useRouter();
   const [state, setState] = useState({
@@ -150,10 +167,14 @@ function ProcessosContent({ state, setState, router }) {
   }
 
   const stats = useMemo(() => {
+    const coverage = summarizeCoverage(state.items);
     return {
       total: state.pagination?.total || state.items.length,
       active: state.items.filter((item) => !String(item.status || "").toLowerCase().includes("arquiv")).length,
       withActs: state.items.filter((item) => item.movement_count > 0).length,
+      withAccount: coverage.withAccount,
+      withPublications: coverage.withPublications,
+      baseCoverageRate: coverage.baseCoverageRate,
     };
   }, [state.items]);
 
@@ -174,10 +195,12 @@ function ProcessosContent({ state, setState, router }) {
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Processos totais" value={stats.total} helper="Processos vinculados ao seu cadastro." />
         <StatCard label="Em acompanhamento" value={stats.active} helper="Processos nao arquivados no portal." />
         <StatCard label="Com atos visiveis" value={stats.withActs} helper="Processos com andamentos identificados." />
+        <StatCard label="Com account" value={stats.withAccount} helper="Processos ja refletidos como Sales Account no CRM." />
+        <StatCard label="Cobertura base" value={`${stats.baseCoverageRate}%`} helper={`Publicacoes visiveis em ${stats.withPublications} processo(s).`} />
       </section>
 
       {state.warning ? <div className="rounded-[28px] border border-[#6E5630] bg-[rgba(76,57,26,0.22)] p-6 text-sm">{sanitizePortalCopy(state.warning)}</div> : null}

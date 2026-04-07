@@ -1023,6 +1023,45 @@ function normalizeProcessRow(row) {
   };
 }
 
+function summarizeClientProcessCoverage(items = []) {
+  const safeItems = Array.isArray(items) ? items.filter(Boolean) : [];
+  const total = safeItems.length;
+  const withAccount = safeItems.filter((item) => item.account_id_freshsales).length;
+  const withMovements = safeItems.filter((item) =>
+    Number(item?.movement_count || 0) > 0 || item?.latest_movement || item?.latest_movement_description
+  ).length;
+  const withPublications = safeItems.filter((item) =>
+    item?.latest_publication || item?.latest_publication_date
+  ).length;
+  const withSignals = safeItems.filter((item) =>
+    Number(item?.movement_count || 0) > 0
+      || item?.latest_movement
+      || item?.latest_movement_description
+      || item?.latest_publication
+      || item?.latest_publication_date
+  ).length;
+  const baseCovered = safeItems.filter((item) => item.account_id_freshsales && (
+    Number(item?.movement_count || 0) > 0
+      || item?.latest_movement
+      || item?.latest_movement_description
+      || item?.latest_publication
+      || item?.latest_publication_date
+  )).length;
+  const baseCoverageRate = total ? Math.round((baseCovered / total) * 100) : 0;
+  const crmCoverageRate = total ? Math.round((withAccount / total) * 100) : 0;
+  return {
+    total,
+    withAccount,
+    withoutAccount: Math.max(0, total - withAccount),
+    withMovements,
+    withPublications,
+    withSignals,
+    baseCovered,
+    baseCoverageRate,
+    crmCoverageRate,
+  };
+}
+
 function normalizePartRow(row) {
   return {
     id: row.id || `${row.processo_id || "proc"}-${row.nome || row.parte_nome || Math.random()}`,
@@ -2814,6 +2853,8 @@ export async function getClientSummary(env, profile) {
       })),
   ].slice(0, 6);
 
+  const coverage = summarizeClientProcessCoverage(processos.items);
+
   return {
     summary: {
       processos: processos.items.length,
@@ -2823,6 +2864,7 @@ export async function getClientSummary(env, profile) {
       financeiro: financeiro.items.length,
       publicacoes: publicacoes.items.length,
     },
+    coverage,
     recentActivity,
     attentionItems,
     warnings,

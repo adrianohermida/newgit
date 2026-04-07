@@ -28,7 +28,7 @@ function QuickPill({ label, value }) {
 }
 
 export default function PortalHomePage() {
-  const [state, setState] = useState({ loading: true, summary: null, warnings: [], recentActivity: [], attentionItems: [], error: null });
+  const [state, setState] = useState({ loading: true, summary: null, coverage: null, warnings: [], recentActivity: [], attentionItems: [], error: null });
 
   return (
     <RequireClient>
@@ -56,6 +56,7 @@ function OverviewContent({ state, setState }) {
           setState({
             loading: false,
             summary: payload.summary,
+            coverage: payload.coverage || null,
             warnings: sanitizePortalList(payload.warnings || []),
             recentActivity: payload.recentActivity || [],
             attentionItems: payload.attentionItems || [],
@@ -64,7 +65,7 @@ function OverviewContent({ state, setState }) {
         }
       } catch (error) {
         if (!cancelled) {
-          setState({ loading: false, summary: null, warnings: [], recentActivity: [], attentionItems: [], error: error.message });
+          setState({ loading: false, summary: null, coverage: null, warnings: [], recentActivity: [], attentionItems: [], error: error.message });
         }
       }
     }
@@ -83,6 +84,16 @@ function OverviewContent({ state, setState }) {
   }
 
   const summary = state.summary || { processos: 0, tickets: 0, consultas: 0, documentos: 0, financeiro: 0, publicacoes: 0 };
+  const coverage = state.coverage || {
+    total: summary.processos || 0,
+    withAccount: 0,
+    withoutAccount: 0,
+    withMovements: 0,
+    withPublications: 0,
+    baseCovered: 0,
+    baseCoverageRate: 0,
+    crmCoverageRate: 0,
+  };
 
   return (
     <div className="space-y-6">
@@ -138,6 +149,24 @@ function OverviewContent({ state, setState }) {
         <StatCard label="Consultas" value={summary.consultas} helper="Leitura real dos agendamentos ja registrados no site." />
         <StatCard label="Documentos" value={summary.documentos} helper="Estante documental ligada progressivamente conforme o projeto." />
         <StatCard label="Publicacoes" value={summary.publicacoes} helper="Atos e publicacoes judiciais vinculados aos seus processos." />
+      </section>
+
+      <section className="rounded-[28px] border border-[#1F302B] bg-[rgba(255,255,255,0.02)] p-6">
+        <div className="flex flex-col gap-3 border-b border-[#1F302B] pb-5 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Cobertura da carteira</p>
+            <h3 className="mt-3 text-[28px] font-semibold tracking-[-0.03em] text-[#F8F4EB]">Quanto do Freshsales ja esta refletido nos seus processos</h3>
+          </div>
+          <span className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-[#C49C56]">
+            Base {coverage.baseCoverageRate}%
+          </span>
+        </div>
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Com account" value={coverage.withAccount} helper={`Cobertura CRM ${coverage.crmCoverageRate}% da carteira.`} />
+          <StatCard label="Com movimentos" value={coverage.withMovements} helper="Processos com andamentos visiveis no portal ou no CRM." />
+          <StatCard label="Com publicacoes" value={coverage.withPublications} helper="Processos com publicacoes recentes refletidas no acompanhamento." />
+          <StatCard label="Base coberta" value={coverage.baseCovered} helper="Processos com account e algum sinal operacional util no Freshsales/base judicial." />
+        </div>
       </section>
 
       {state.warnings.length ? (
