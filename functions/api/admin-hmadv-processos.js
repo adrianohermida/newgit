@@ -14,6 +14,7 @@ import {
   listAdminOperations,
   listAudienciaBackfillCandidates,
   listFieldGapProcesses,
+  listMovementActivityBacklog,
   listMonitoringProcesses,
   listPartesSemContatoBacklog,
   listPublicationActivityBacklog,
@@ -25,6 +26,7 @@ import {
   runSyncWorker,
   scanOrphanProcesses,
   searchProcessesForRelations,
+  syncMovementActivities,
   syncProcessesSupabaseCrm,
   processProcessAdminJob,
   updateMonitoringStatus,
@@ -81,6 +83,9 @@ async function runInlineProcessAction(env, action, body) {
   }
   if (action === "backfill_audiencias") {
     return backfillAudiencias(env, { processNumbers, limit: requestedLimit || 2, apply: true });
+  }
+  if (action === "sincronizar_movimentacoes_activity") {
+    return syncMovementActivities(env, { processNumbers, limit: requestedLimit || 10 });
   }
   throw new Error(`Acao inline nao suportada: ${action}`);
 }
@@ -199,6 +204,13 @@ export async function onRequestGet(context) {
     }
     if (action === "publicacoes_pendentes") {
       const data = await listPublicationActivityBacklog(context.env, {
+        page: Number(url.searchParams.get("page") || 1),
+        pageSize: Number(url.searchParams.get("pageSize") || 20),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "movimentacoes_pendentes") {
+      const data = await listMovementActivityBacklog(context.env, {
         page: Number(url.searchParams.get("page") || 1),
         pageSize: Number(url.searchParams.get("pageSize") || 20),
       });
@@ -365,6 +377,12 @@ export async function onRequestPost(context) {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 1),
         intent: String(body.intent || ""),
+      }));
+    }
+    if (action === "sincronizar_movimentacoes_activity") {
+      return runLogged(async () => syncMovementActivities(context.env, {
+        processNumbers: parseProcessNumbers(body.processNumbers),
+        limit: Number(body.limit || 10),
       }));
     }
     if (action === "auditoria_sync") {

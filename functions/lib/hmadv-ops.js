@@ -192,6 +192,7 @@ function summarizeOperationResult(result) {
     "partesSemContato",
     "publicacoesPendentes",
     "audienciasPendentes",
+    "movimentacoesPendentes",
     "sincronizados",
     "reparados",
     "partesInseridas",
@@ -200,6 +201,9 @@ function summarizeOperationResult(result) {
     "processosCriados",
     "processosDisparados",
     "publicacoes",
+    "movimentacoes",
+    "activitiesCriadas",
+    "movimentacoesAtualizadas",
     "audienciasInseridas",
     "disparados",
     "monitoramento_ativo",
@@ -1385,6 +1389,75 @@ export async function getPublicationActivityTypes(env) {
   return hmadvFunction(env, "publicacoes-freshsales", { action: "activity_types" });
 }
 
+export async function syncMovementActivities(env, { processNumbers = [], limit = 10 } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 10), 25));
+  if (!processNumbers.length) {
+    try {
+      const remote = await hmadvFunction(env, "fs-exec", { action: "sync_andamentos", limite: safeLimit });
+      return {
+        checkedAt: new Date().toISOString(),
+        source: "edge_function_fs_exec",
+        processosLidos: Number(remote?.total || 0),
+        movimentacoes: Number(remote?.enviados || 0),
+        activitiesCriadas: Number(remote?.enviados || 0),
+        movimentacoesAtualizadas: Number(remote?.enviados || 0),
+        semAccount: Number(remote?.sem_account || 0),
+        errors: Number(remote?.erros || 0),
+        sample: Array.isArray(remote?.detalhes) ? remote.detalhes.slice(0, 10) : [],
+        remote,
+      };
+    } catch {
+      try {
+        const remote = await hmadvFunction(env, "sync-worker", { action: "run" }, { method: "POST", body: {} });
+        return {
+          checkedAt: new Date().toISOString(),
+          source: "edge_function_sync_worker",
+          movimentacoes: Number(remote?.andamentos_dj || remote?.movs_advise || 0),
+          activitiesCriadas: Number(remote?.andamentos_dj || remote?.movs_advise || 0),
+          movimentacoesAtualizadas: Number(remote?.andamentos_dj || remote?.movs_advise || 0),
+          sample: [],
+          remote,
+        };
+      } catch {
+        // keep falling through to explicit local diagnostics below
+      }
+    }
+  }
+
+  const processes = processNumbers.length
+    ? await loadProcessesByNumbers(
+        env,
+        processNumbers,
+        "id,numero_cnj,titulo,account_id_freshsales,status_atual_processo,quantidade_movimentacoes"
+      )
+    : await listMovementActivityBacklog(env, { page: 1, pageSize: safeLimit }).then(async (data) => {
+        const ids = uniqueNonEmpty((data.items || []).map((item) => item.processo_id));
+        return ids.length
+          ? loadProcessesByIds(
+              env,
+              ids,
+              "id,numero_cnj,titulo,account_id_freshsales,status_atual_processo,quantidade_movimentacoes"
+            )
+          : [];
+      });
+
+  return {
+    checkedAt: new Date().toISOString(),
+    source: "backlog_only",
+    processosLidos: processes.length,
+    movimentacoes: 0,
+    activitiesCriadas: 0,
+    movimentacoesAtualizadas: 0,
+    sample: processes.slice(0, safeLimit).map((proc) => ({
+      processo_id: proc.id,
+      numero_cnj: proc.numero_cnj,
+      titulo: proc.titulo || null,
+      account_id_freshsales: proc.account_id_freshsales || null,
+      status: proc.account_id_freshsales ? "pendente_edge_function" : "sem_sales_account",
+    })),
+  };
+}
+
 export async function scanOrphanProcesses(env, { page = 1, pageSize = 20, limit = null } = {}) {
   const safePageSize = Math.max(1, Math.min(Number(limit || pageSize || 20), 50));
   const safePage = Math.max(1, Number(page || 1));
@@ -1589,6 +1662,34 @@ export async function listPartesSemContatoBacklog(env, { page = 1, pageSize = 20
           tipo_pessoa: row.tipo_pessoa || null,
         });
       }
+      grouped.set(row.processo_id, current);
+    },
+  });
+}
+
+export async function listMovementActivityBacklog(env, { page = 1, pageSize = 20 } = {}) {
+  return collectGroupedBacklogByProcess(env, {
+    page,
+    pageSize,
+    rawBatchSize: 200,
+    maxScans: 60,
+    path: `movimentacoes?select=id,processo_id,conteudo,data_movimentacao,fonte,freshsales_activity_id&processo_id=not.is.null&freshsales_activity_id=is.null&order=data_movimentacao.desc.nullslast`,
+    mapRow(grouped, row) {
+      if (!row?.processo_id) return;
+      const current = grouped.get(row.processo_id) || {
+        processo_id: row.processo_id,
+        total_pendente: 0,
+        ultima_data: null,
+        sample_ids: [],
+        sample_conteudo: [],
+      };
+      current.total_pendente += 1;
+      if (row.data_movimentacao && (!current.ultima_data || row.data_movimentacao > current.ultima_data)) {
+        current.ultima_data = row.data_movimentacao;
+      }
+      if (row.id && current.sample_ids.length < 5) current.sample_ids.push(row.id);
+      const snippet = String(row.conteudo || "").trim().slice(0, 220);
+      if (snippet && current.sample_conteudo.length < 3) current.sample_conteudo.push(snippet);
       grouped.set(row.processo_id, current);
     },
   });
@@ -2214,7 +2315,7 @@ async function collectLocalProcessAudit(env, { sampleSize = 8 } = {}) {
     "status_atual_processo=not.is.null",
   ].join("&");
 
-  const [totals, semMovimentacoesQueue, crmGapQueue, orphanQueue, audienciasQueue, monitoringActiveQueue, publicationBacklogQueue, partesSemContatoQueue, remoteAudit] = await Promise.all([
+  const [totals, semMovimentacoesQueue, crmGapQueue, orphanQueue, audienciasQueue, monitoringActiveQueue, publicationBacklogQueue, movementBacklogQueue, partesSemContatoQueue, remoteAudit] = await Promise.all([
     Promise.all([
       countTableSafe(env, "processos"),
       countTableSafe(env, "processos", "account_id_freshsales=not.is.null"),
@@ -2224,6 +2325,7 @@ async function collectLocalProcessAudit(env, { sampleSize = 8 } = {}) {
       countTableSafe(env, "processos", completeBaseFilter),
       countTableSafe(env, "partes", "contato_freshsales_id=is.null", "judiciario", 0),
       countTableSafe(env, "publicacoes", "freshsales_activity_id=is.null&processo_id=not.is.null", "judiciario", 0),
+      countTableSafe(env, "movimentacoes", "freshsales_activity_id=is.null&processo_id=not.is.null", "judiciario", 0),
       countTableSafe(env, "audiencias", "freshsales_activity_id=is.null", "judiciario", 0),
     ]),
     listProcessesWithoutMovements(env, { page: 1, pageSize: sampleSize }).catch(() => ({ items: [] })),
@@ -2232,6 +2334,7 @@ async function collectLocalProcessAudit(env, { sampleSize = 8 } = {}) {
     listAudienciaBackfillCandidates(env, { page: 1, pageSize: sampleSize }).catch(() => ({ items: [] })),
     listMonitoringProcesses(env, { page: 1, pageSize: sampleSize, active: true }).catch(() => ({ items: [], unsupported: true })),
     listPublicationActivityBacklog(env, { page: 1, pageSize: sampleSize }).catch(() => ({ items: [] })),
+    listMovementActivityBacklog(env, { page: 1, pageSize: sampleSize }).catch(() => ({ items: [] })),
     listPartesSemContatoBacklog(env, { page: 1, pageSize: sampleSize }).catch(() => ({ items: [] })),
     hmadvFunction(env, "processo-sync", { action: "auditoria" }, { method: "POST", body: {} }).catch((error) => ({
       ok: false,
@@ -2248,6 +2351,7 @@ async function collectLocalProcessAudit(env, { sampleSize = 8 } = {}) {
     processosBaseCompleta,
     partesSemContato,
     publicacoesPendentes,
+    movimentacoesPendentes,
     audienciasPendentes,
   ] = totals;
 
@@ -2258,6 +2362,7 @@ async function collectLocalProcessAudit(env, { sampleSize = 8 } = {}) {
     { key: "orfaos", label: "sem_account", items: orphanQueue.items || [] },
     { key: "audiencias_pendentes", label: "audiencia_pendente", items: audienciasQueue.items || [] },
     { key: "publicacoes_pendentes", label: "publicacao_pendente", items: publicationBacklogQueue.items || [] },
+    { key: "movimentacoes_pendentes", label: "movimentacao_pendente", items: movementBacklogQueue.items || [] },
     { key: "partes_sem_contato", label: "parte_sem_contato", items: partesSemContatoQueue.items || [] },
   ];
 
@@ -2305,6 +2410,7 @@ async function collectLocalProcessAudit(env, { sampleSize = 8 } = {}) {
     processosComPartesSemContato: partesSemContato,
     partesSemContato,
     publicacoesPendentes,
+    movimentacoesPendentes,
     audienciasPendentes,
     monitoramentoEscritaDisponivel,
     metrics: {
@@ -2317,6 +2423,7 @@ async function collectLocalProcessAudit(env, { sampleSize = 8 } = {}) {
       orfaos: orphanQueue.items || [],
       audiencias_pendentes: audienciasQueue.items || [],
       publicacoes_pendentes: publicationBacklogQueue.items || [],
+      movimentacoes_pendentes: movementBacklogQueue.items || [],
       partes_sem_contato: partesSemContatoQueue.items || [],
     },
     remoteAudit,
