@@ -41,6 +41,8 @@ Body sugerido:
 {
   "email": "{{customer.email}}",
   "contact_id": "{{customer.contact_id}}",
+  "process_id": "{{customer.process_id}}",
+  "numero_cnj": "{{customer.numero_cnj}}",
   "query": "{{user_query}}",
   "top_k": 6
 }
@@ -55,6 +57,11 @@ Retorna:
 - notes
 - documents
 - activities
+- judicial.process_portfolio
+- judicial.recent_publications
+- judicial.recent_documents
+- judicial.process_detail
+- judicial.dashboard
 - rag.matches
 - summary
 
@@ -62,6 +69,7 @@ Uso:
 
 - chamar no começo da conversa
 - chamar antes de responder duvidas sensíveis
+- usar `judicial.summary` quando a conversa envolver processo, publicacao, audiencia, documento ou status
 
 ### 2. Search Memory
 

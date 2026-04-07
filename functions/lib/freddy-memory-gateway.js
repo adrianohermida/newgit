@@ -8,6 +8,13 @@ import {
 } from "./freshsales-crm.js";
 import { getSupabaseBaseUrl, getSupabaseServerKey, getCleanEnvValue } from "./env.js";
 import { persistDotobotMemory, retrieveDotobotRagContext } from "../../lib/lawdesk/rag.js";
+import {
+  getClientProcessDetails,
+  getClientSummary,
+  listClientDocumentos,
+  listClientProcessos,
+  listClientPublicacoes,
+} from "./client-data.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -81,6 +88,171 @@ function extractDealIds(contact, dealId = null) {
   return Array.from(new Set([dealId, ...fromContact, ...fromIds].filter(Boolean)));
 }
 
+function buildContactName(contact, fallback = "Cliente") {
+  return (
+    [contact?.first_name, contact?.last_name].filter(Boolean).join(" ").trim() ||
+    contact?.display_name ||
+    fallback
+  );
+}
+
+function extractProcessCandidates(input = {}, contact360 = {}) {
+  const rawCandidates = [
+    input.process_id,
+    input.processId,
+    input.process_number,
+    input.processNumber,
+    input.numero_cnj,
+    input.numeroCNJ,
+    input.cnj,
+    input.account_process_reference,
+    contact360?.salesAccount?.cf_processo,
+    contact360?.salesAccount?.custom_field?.cf_processo,
+    contact360?.salesAccount?.name,
+    contact360?.contact?.cf_processo,
+    contact360?.contact?.custom_field?.cf_processo,
+  ];
+
+  return Array.from(
+    new Set(
+      rawCandidates
+        .map((value) => safeText(value))
+        .filter(Boolean)
+    )
+  );
+}
+
+async function resolveJudicial360(env, input = {}, contact360 = {}) {
+  const email =
+    safeText(input.email) ||
+    safeText(contact360?.identifiers?.email) ||
+    safeText(contact360?.contact?.email) ||
+    safeText(normalizeArray(contact360?.contact?.emails)[0]);
+
+  if (!email) {
+    return {
+      enabled: false,
+      warning: "Email do cliente ausente para carregar contexto judicial.",
+      identifiers: {
+        email: null,
+        process_reference: null,
+      },
+      summary: null,
+      process_portfolio: [],
+      recent_publications: [],
+      recent_documents: [],
+      process_detail: null,
+      dashboard: null,
+      warnings: ["Nao foi possivel resolver o email do cliente para consultar a carteira judicial."],
+    };
+  }
+
+  const profile = {
+    email,
+    full_name: safeText(input.full_name || input.fullName) || buildContactName(contact360?.contact, email),
+  };
+
+  const processCandidates = extractProcessCandidates(input, contact360);
+  const processReference = processCandidates[0] || null;
+
+  const [portfolio, publications, documents, dashboard, processDetail] = await Promise.all([
+    listClientProcessos(env, email).catch((error) => ({
+      items: [],
+      warning: error?.message || "Nao foi possivel carregar a carteira processual.",
+    })),
+    listClientPublicacoes(env, profile).catch((error) => ({
+      items: [],
+      warning: error?.message || "Nao foi possivel carregar as publicacoes judiciais.",
+    })),
+    listClientDocumentos(env, email).catch((error) => ({
+      items: [],
+      warning: error?.message || "Nao foi possivel carregar os documentos judiciais.",
+    })),
+    getClientSummary(env, profile).catch((error) => ({
+      summary: {},
+      recentActivity: [],
+      attentionItems: [],
+      warnings: [error?.message || "Nao foi possivel carregar o resumo judicial."],
+    })),
+    processReference
+      ? getClientProcessDetails(env, profile, processReference).catch((error) => ({
+          process: null,
+          parts: [],
+          movements: [],
+          publications: [],
+          audiencias: [],
+          documents: [],
+          warnings: [error?.message || "Nao foi possivel carregar o detalhe do processo solicitado."],
+        }))
+      : Promise.resolve(null),
+  ]);
+
+  const warnings = [
+    portfolio?.warning,
+    publications?.warning,
+    documents?.warning,
+    ...(normalizeArray(dashboard?.warnings)),
+    ...(normalizeArray(processDetail?.warnings)),
+  ].filter(Boolean);
+
+  const summaryParts = [];
+  const processItems = normalizeArray(portfolio?.items);
+  const publicationItems = normalizeArray(publications?.items);
+  const documentItems = normalizeArray(documents?.items);
+  const highlightedProcess = processDetail?.process || processItems[0] || null;
+
+  if (dashboard?.summary) {
+    const counts = [];
+    if (dashboard.summary.processos != null) counts.push(`${dashboard.summary.processos} processos`);
+    if (dashboard.summary.publicacoes != null) counts.push(`${dashboard.summary.publicacoes} publicacoes`);
+    if (dashboard.summary.documentos != null) counts.push(`${dashboard.summary.documentos} documentos`);
+    if (counts.length) {
+      summaryParts.push(`Carteira judicial: ${counts.join(", ")}.`);
+    }
+  }
+
+  if (highlightedProcess) {
+    const processLabel = highlightedProcess.title || highlightedProcess.number || highlightedProcess.numero_cnj || highlightedProcess.id;
+    const processStatus = highlightedProcess.status || highlightedProcess.status_label || highlightedProcess.court || highlightedProcess.tribunal;
+    summaryParts.push(`Processo foco: ${processLabel}${processStatus ? ` (${processStatus})` : ""}.`);
+  }
+
+  if (publicationItems.length) {
+    const latestPublication = publicationItems[0];
+    summaryParts.push(`Ultima publicacao: ${latestPublication?.title || latestPublication?.source || "Publicacao judicial"}${latestPublication?.date ? ` em ${latestPublication.date}` : ""}.`);
+  }
+
+  if (documentItems.length) {
+    const latestDocument = documentItems[0];
+    summaryParts.push(`Documento recente: ${latestDocument?.name || "Documento"}${latestDocument?.status_label ? ` (${latestDocument.status_label})` : ""}.`);
+  }
+
+  if (processDetail?.movements?.length) {
+    const latestMovement = processDetail.movements[0];
+    summaryParts.push(`Ultimo andamento: ${latestMovement?.title || latestMovement?.description || latestMovement?.summary || "Movimentacao processual recente"}.`);
+  }
+
+  if (processDetail?.audiencias?.length) {
+    const nextAudience = processDetail.audiencias[0];
+    summaryParts.push(`Audiencias vinculadas: ${processDetail.audiencias.length}${nextAudience?.date ? `, proxima referencia em ${nextAudience.date}` : ""}.`);
+  }
+
+  return {
+    enabled: true,
+    identifiers: {
+      email,
+      process_reference: processReference,
+    },
+    summary: summaryParts.join(" "),
+    process_portfolio: processItems.slice(0, 10),
+    recent_publications: publicationItems.slice(0, 10),
+    recent_documents: documentItems.slice(0, 10),
+    process_detail: processDetail,
+    dashboard,
+    warnings,
+  };
+}
+
 async function safeFreshsales(env, path, init = {}) {
   try {
     const { payload } = await freshsalesRequest(env, path, init);
@@ -132,11 +304,11 @@ async function listContactDocuments(env, contactId) {
   return [];
 }
 
-function buildContactSummary({ contact, salesAccount, deals, tasks, notes, documents, activities, ragContext }) {
+function buildContactSummary({ contact, salesAccount, deals, tasks, notes, documents, activities, ragContext, judicialContext }) {
   const parts = [];
 
   if (contact) {
-    const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ").trim() || contact.display_name || "Contato";
+    const name = buildContactName(contact, "Contato");
     parts.push(`Contato: ${name}.`);
     if (contact.email || normalizeArray(contact.emails)[0]) {
       parts.push(`Email principal: ${contact.email || normalizeArray(contact.emails)[0]}.`);
@@ -172,6 +344,10 @@ function buildContactSummary({ contact, salesAccount, deals, tasks, notes, docum
 
   if (ragContext?.matches?.length) {
     parts.push(`Memoria relevante: ${ragContext.matches.slice(0, 3).map((item) => item?.text).filter(Boolean).join(" | ")}.`);
+  }
+
+  if (judicialContext?.summary) {
+    parts.push(`Contexto judicial: ${judicialContext.summary}`);
   }
 
   return parts.join(" ");
@@ -279,6 +455,7 @@ export async function handleFreddyGetContact360(request, env) {
   const query = safeText(body.query || body.user_query || body.message);
   const topK = Number(body.top_k || body.topK || 6);
   const contact360 = await resolveContact360(env, body);
+  const judicialContext = await resolveJudicial360(env, body, contact360);
   const ragContext = query
     ? await retrieveDotobotRagContext(env, { query, topK: Number.isFinite(topK) && topK > 0 ? topK : 6 })
     : { enabled: false, matches: [], trace: [], providers: {} };
@@ -293,8 +470,9 @@ export async function handleFreddyGetContact360(request, env) {
       notes: contact360.notes,
       documents: contact360.documents,
       activities: contact360.activities,
+      judicial: judicialContext,
       rag: ragContext,
-      summary: buildContactSummary({ ...contact360, ragContext }),
+      summary: buildContactSummary({ ...contact360, ragContext, judicialContext }),
     },
   });
 }
