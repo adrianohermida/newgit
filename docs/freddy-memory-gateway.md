@@ -57,12 +57,16 @@ Retorna:
 - notes
 - documents
 - activities
+- judicial.safe_process_status
+- judicial.process_relations
+- judicial.parties
 - judicial.process_portfolio
 - judicial.recent_publications
 - judicial.recent_documents
 - judicial.process_detail
 - judicial.dashboard
 - rag.matches
+- memory_matches
 - summary
 
 Uso:
@@ -70,6 +74,8 @@ Uso:
 - chamar no começo da conversa
 - chamar antes de responder duvidas sensíveis
 - usar `judicial.summary` quando a conversa envolver processo, publicacao, audiencia, documento ou status
+- usar `judicial.safe_process_status` como contexto operacional, nunca como base unica para resposta juridica conclusiva
+- usar `judicial.parties` e `judicial.process_relations` para entender vinculos de parte, CNJ e processos relacionados
 
 ### 2. Search Memory
 
