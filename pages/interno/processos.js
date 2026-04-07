@@ -18,6 +18,7 @@ const ACTION_LABELS = {
   push_orfaos: "Criar accounts no Freshsales",
   repair_freshsales_accounts: "Corrigir campos no Freshsales",
   sync_supabase_crm: "Sincronizar Supabase + Freshsales",
+  sincronizar_movimentacoes_activity: "Sincronizar movimentacoes no Freshsales",
   backfill_audiencias: "Retroagir audiencias",
   auditoria_sync: "Rodar auditoria",
   enriquecer_datajud: "Reenriquecer via DataJud",
@@ -31,12 +32,14 @@ const ASYNC_PROCESS_ACTIONS = new Set([
   "enriquecer_datajud",
   "repair_freshsales_accounts",
   "sync_supabase_crm",
+  "sincronizar_movimentacoes_activity",
   "backfill_audiencias",
 ]);
 
 function getProcessActionLimitConfig(action) {
   if (action === "sync_supabase_crm") return { defaultLimit: 1, maxLimit: 1 };
   if (action === "repair_freshsales_accounts") return { defaultLimit: 1, maxLimit: 1 };
+  if (action === "sincronizar_movimentacoes_activity") return { defaultLimit: 2, maxLimit: 5 };
   if (action === "enriquecer_datajud") return { defaultLimit: 2, maxLimit: 3 };
   if (action === "push_orfaos") return { defaultLimit: 2, maxLimit: 3 };
   if (action === "backfill_audiencias") return { defaultLimit: 2, maxLimit: 3 };
@@ -110,6 +113,9 @@ function buildHistoryPreview(result) {
   if (typeof result.sincronizados === "number") return `Sincronizados: ${result.sincronizados}`;
   if (typeof result.reparados === "number") return `Reparados: ${result.reparados}`;
   if (typeof result.publicacoes === "number") return `Publicacoes processadas: ${result.publicacoes}`;
+  if (typeof result.movimentacoes === "number") return `Movimentacoes sincronizadas: ${result.movimentacoes}`;
+  if (typeof result.movimentacoesAtualizadas === "number") return `Movimentacoes atualizadas: ${result.movimentacoesAtualizadas}`;
+  if (typeof result.activitiesCriadas === "number") return `Activities criadas: ${result.activitiesCriadas}`;
   if (typeof result.updated === "number") return `Atualizados: ${result.updated}`;
   if (typeof result.inserted === "number") return `Inseridos: ${result.inserted}`;
   if (typeof result.total === "number") return `Total: ${result.total}`;
@@ -268,6 +274,13 @@ function renderQueueRowStatuses(row, queueKey, { monitoringUnsupported = false }
       statuses.push({ label: "apto para reparo", tone: "success" });
     }
   }
+  if (queueKey === "movimentacoes_pendentes") {
+    const pending = Number(row?.total_pendente || 0);
+    if (pending > 0) statuses.push({ label: `${pending} andamentos pendentes`, tone: "warning" });
+    if (row?.account_id_freshsales) statuses.push({ label: "apto para sync", tone: "success" });
+    else statuses.push({ label: "sem sales account", tone: "danger" });
+    if (row?.ultima_data) statuses.push({ label: `ultima ${new Date(row.ultima_data).toLocaleDateString("pt-BR")}`, tone: "default" });
+  }
   if (queueKey === "orfaos") {
     statuses.push({ label: "sem sales account", tone: "danger" });
     statuses.push({ label: "apto para criar account", tone: "warning" });
@@ -298,6 +311,7 @@ function renderProcessSyncStatuses(row) {
 }
 function deriveSelectionActionHint({
   selectedWithoutMovements = [],
+  selectedMovementBacklog = [],
   selectedAudienciaCandidates = [],
   selectedMonitoringActive = [],
   selectedMonitoringInactive = [],
@@ -324,6 +338,13 @@ function deriveSelectionActionHint({
       title: "Buscar movimentacoes no DataJud",
       body: "A selecao atual esta concentrada em processos sem andamento local. Reenriquecer pelo DataJud tende a gerar o maior ganho.",
       badges: [`${selectedWithoutMovements.length} sem mov.`, "acao: datajud"],
+    };
+  }
+  if (selectedMovementBacklog.length) {
+    return {
+      title: "Sincronizar movimentacoes no Freshsales",
+      body: "Os processos selecionados ja tem andamentos no HMADV, mas ainda faltam activities no CRM. Vale priorizar esse reflexo antes de novos lotes amplos.",
+      badges: [`${selectedMovementBacklog.length} com andamentos pendentes`, "acao: sync movimentacoes"],
     };
   }
   if (selectedAudienciaCandidates.length) {
@@ -357,6 +378,7 @@ function deriveSelectionActionHint({
 }
 function buildSelectionSuggestedAction({
   selectedWithoutMovements = [],
+  selectedMovementBacklog = [],
   selectedAudienciaCandidates = [],
   selectedMonitoringActive = [],
   selectedMonitoringInactive = [],
@@ -364,6 +386,7 @@ function buildSelectionSuggestedAction({
   selectedOrphans = [],
   monitoringUnsupported = false,
   withoutMovements = [],
+  movementBacklog = [],
   audienciaCandidates = [],
   monitoringActive = [],
   monitoringInactive = [],
@@ -406,6 +429,17 @@ function buildSelectionSuggestedAction({
         limit,
         intent: "buscar_movimentacoes",
         action: "enriquecer_datajud",
+      },
+    };
+  }
+  if (selectedMovementBacklog.length) {
+    return {
+      key: "sincronizar_movimentacoes_activity",
+      label: "Sincronizar movimentacoes agora",
+      tone: "primary",
+      payload: {
+        processNumbers: resolveActionProcessNumbers(getSelectedNumbers(movementBacklog, selectedMovementBacklog).join("\n")),
+        limit,
       },
     };
   }
@@ -479,6 +513,41 @@ function buildProcessResultHeadline(row) {
 function OperationResult({ result }) {
   if (result?.job) {
     return <JobCard job={result.job} active />;
+  }
+  if (typeof result?.movimentacoes === "number" || typeof result?.movimentacoesAtualizadas === "number" || Array.isArray(result?.sample)) {
+    const rows = Array.isArray(result?.items) ? result.items : Array.isArray(result?.sample) ? result.sample : [];
+    const counters = {
+      processos: Number(result?.processosLidos || rows.length || 0),
+      movimentacoes: Number(result?.movimentacoes || result?.movimentacoesAtualizadas || 0),
+      activities: Number(result?.activitiesCriadas || 0),
+      semAccount: Number(result?.semAccount || 0),
+      errors: Number(result?.errors || 0),
+    };
+    return <div className="space-y-3">
+      <div className="grid gap-3 md:grid-cols-5">
+        <QueueSummaryCard title="Processos lidos" count={counters.processos} helper="Processos avaliados nesta rodada." accent="text-[#B7F7C6]" />
+        <QueueSummaryCard title="Movimentacoes" count={counters.movimentacoes} helper="Andamentos refletidos no Freshsales." accent="text-[#B7F7C6]" />
+        <QueueSummaryCard title="Activities" count={counters.activities} helper="Sales Activities criadas ou atualizadas." accent="text-[#B7F7C6]" />
+        <QueueSummaryCard title="Sem account" count={counters.semAccount} helper="Pendencias sem Sales Account vinculada." accent="text-[#FDE68A]" />
+        <QueueSummaryCard title="Falhas" count={counters.errors} helper="Itens que pedem revisao manual." accent="text-[#FECACA]" />
+      </div>
+      {result?.source ? <div className="rounded-2xl border border-[#1D2321] bg-[rgba(4,6,6,0.45)] px-4 py-3 text-xs uppercase tracking-[0.16em] opacity-65">Origem da execucao: {result.source}</div> : null}
+      {rows.length ? rows.slice(0, 20).map((row, index) => <div key={`${row.numero_cnj || row.processo_id || row.id || index}`} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm">
+        <p className="font-semibold">{row.numero_cnj || row.id || `Linha ${index + 1}`}</p>
+        {row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}
+        <div className="mt-2 flex flex-wrap gap-2">
+          {row.status ? <StatusBadge tone={String(row.status).includes("sem") ? "warning" : "success"}>{String(row.status).replaceAll("_", " ")}</StatusBadge> : null}
+          {typeof row.total_pendente === "number" ? <StatusBadge tone="warning">{row.total_pendente} pendentes</StatusBadge> : null}
+          {row.account_id_freshsales ? <StatusBadge tone="success">account vinculada</StatusBadge> : <StatusBadge tone="danger">sem sales account</StatusBadge>}
+        </div>
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-65">
+          {row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Abrir account {row.account_id_freshsales}</a> : null}
+          {row.processo_id ? <span>Processo ID: {row.processo_id}</span> : null}
+          {row.ultima_data ? <span>Ultima data: {new Date(row.ultima_data).toLocaleDateString("pt-BR")}</span> : null}
+        </div>
+        {Array.isArray(row.sample_conteudo) && row.sample_conteudo.length ? <PayloadDetails title="Amostra de andamentos" payload={row.sample_conteudo} /> : null}
+      </div>) : <PayloadDetails title="Resultado completo" payload={result} />}
+    </div>;
   }
   const rows = Array.isArray(result?.items) ? result.items : Array.isArray(result?.sample) ? result.sample : [];
   const counters = rows.reduce((acc, row) => {
@@ -779,18 +848,21 @@ function InternoProcessosContent() {
   const [limit, setLimit] = useState(2);
   const [processNumbers, setProcessNumbers] = useState("");
   const [withoutMovements, setWithoutMovements] = useState({ loading: true, items: [] });
+  const [movementBacklog, setMovementBacklog] = useState({ loading: true, items: [] });
   const [audienciaCandidates, setAudienciaCandidates] = useState({ loading: true, items: [] });
   const [monitoringActive, setMonitoringActive] = useState({ loading: true, items: [] });
   const [monitoringInactive, setMonitoringInactive] = useState({ loading: true, items: [] });
   const [fieldGaps, setFieldGaps] = useState({ loading: true, items: [] });
   const [orphans, setOrphans] = useState({ loading: true, items: [] });
   const [wmPage, setWmPage] = useState(1);
+  const [movPage, setMovPage] = useState(1);
   const [audPage, setAudPage] = useState(1);
   const [maPage, setMaPage] = useState(1);
   const [miPage, setMiPage] = useState(1);
   const [fgPage, setFgPage] = useState(1);
   const [orphanPage, setOrphanPage] = useState(1);
   const [selectedWithoutMovements, setSelectedWithoutMovements] = useState([]);
+  const [selectedMovementBacklog, setSelectedMovementBacklog] = useState([]);
   const [selectedAudienciaCandidates, setSelectedAudienciaCandidates] = useState([]);
   const [selectedMonitoringActive, setSelectedMonitoringActive] = useState([]);
   const [selectedMonitoringInactive, setSelectedMonitoringInactive] = useState([]);
@@ -841,6 +913,7 @@ function InternoProcessosContent() {
       if (saved.processNumbers) setProcessNumbers(String(saved.processNumbers));
       if (saved.limit) setLimit(Number(saved.limit) || 2);
       if (saved.wmPage) setWmPage(Math.max(1, Number(saved.wmPage) || 1));
+      if (saved.movPage) setMovPage(Math.max(1, Number(saved.movPage) || 1));
       if (saved.audPage) setAudPage(Math.max(1, Number(saved.audPage) || 1));
       if (saved.maPage) setMaPage(Math.max(1, Number(saved.maPage) || 1));
       if (saved.miPage) setMiPage(Math.max(1, Number(saved.miPage) || 1));
@@ -848,6 +921,7 @@ function InternoProcessosContent() {
       if (saved.orphanPage) setOrphanPage(Math.max(1, Number(saved.orphanPage) || 1));
       if (saved.search) setSearch(String(saved.search));
       if (Array.isArray(saved.selectedWithoutMovements)) setSelectedWithoutMovements(saved.selectedWithoutMovements);
+      if (Array.isArray(saved.selectedMovementBacklog)) setSelectedMovementBacklog(saved.selectedMovementBacklog);
       if (Array.isArray(saved.selectedAudienciaCandidates)) setSelectedAudienciaCandidates(saved.selectedAudienciaCandidates);
       if (Array.isArray(saved.selectedMonitoringActive)) setSelectedMonitoringActive(saved.selectedMonitoringActive);
       if (Array.isArray(saved.selectedMonitoringInactive)) setSelectedMonitoringInactive(saved.selectedMonitoringInactive);
@@ -861,6 +935,7 @@ function InternoProcessosContent() {
     if (!snapshot) return;
     if (snapshot.overview) setOverview(snapshot.overview);
     if (snapshot.withoutMovements) setWithoutMovements(snapshot.withoutMovements);
+    if (snapshot.movementBacklog) setMovementBacklog(snapshot.movementBacklog);
     if (snapshot.audienciaCandidates) setAudienciaCandidates(snapshot.audienciaCandidates);
     if (snapshot.monitoringActive) setMonitoringActive(snapshot.monitoringActive);
     if (snapshot.monitoringInactive) setMonitoringInactive(snapshot.monitoringInactive);
@@ -883,6 +958,7 @@ function InternoProcessosContent() {
       processNumbers,
       limit,
       wmPage,
+      movPage,
       audPage,
       maPage,
       miPage,
@@ -890,17 +966,19 @@ function InternoProcessosContent() {
       orphanPage,
       search,
       selectedWithoutMovements,
+      selectedMovementBacklog,
       selectedAudienciaCandidates,
       selectedMonitoringActive,
       selectedMonitoringInactive,
       selectedFieldGaps,
       selectedOrphans,
     });
-  }, [view, processNumbers, limit, wmPage, audPage, maPage, miPage, fgPage, orphanPage, search, selectedWithoutMovements, selectedAudienciaCandidates, selectedMonitoringActive, selectedMonitoringInactive, selectedFieldGaps, selectedOrphans]);
+  }, [view, processNumbers, limit, wmPage, movPage, audPage, maPage, miPage, fgPage, orphanPage, search, selectedWithoutMovements, selectedMovementBacklog, selectedAudienciaCandidates, selectedMonitoringActive, selectedMonitoringInactive, selectedFieldGaps, selectedOrphans]);
   useEffect(() => {
     const snapshotPayload = {
       overview,
       withoutMovements,
+      movementBacklog,
       audienciaCandidates,
       monitoringActive,
       monitoringInactive,
@@ -922,7 +1000,7 @@ function InternoProcessosContent() {
       cachedAt,
       ...snapshotPayload,
     });
-  }, [overview, withoutMovements, audienciaCandidates, monitoringActive, monitoringInactive, fieldGaps, orphans, remoteHistory, jobs, actionState.error, actionState.result]);
+  }, [overview, withoutMovements, movementBacklog, audienciaCandidates, monitoringActive, monitoringInactive, fieldGaps, orphans, remoteHistory, jobs, actionState.error, actionState.result]);
   useEffect(() => {
     if (!uiHydrated) return undefined;
     let cancelled = false;
@@ -931,6 +1009,7 @@ function InternoProcessosContent() {
       await Promise.all([
         loadOverview(),
         loadQueue("sem_movimentacoes", setWithoutMovements, wmPage),
+        loadQueue("movimentacoes_pendentes", setMovementBacklog, movPage),
         loadQueue("audiencias_pendentes", setAudienciaCandidates, audPage),
         loadQueue("monitoramento_ativo", setMonitoringActive, maPage),
         loadQueue("monitoramento_inativo", setMonitoringInactive, miPage),
@@ -951,6 +1030,10 @@ function InternoProcessosContent() {
     if (!bootstrappedRef.current) return;
     loadQueue("sem_movimentacoes", setWithoutMovements, wmPage);
   }, [wmPage]);
+  useEffect(() => {
+    if (!bootstrappedRef.current) return;
+    loadQueue("movimentacoes_pendentes", setMovementBacklog, movPage);
+  }, [movPage]);
   useEffect(() => {
     if (!bootstrappedRef.current) return;
     loadQueue("audiencias_pendentes", setAudienciaCandidates, audPage);
@@ -1052,7 +1135,7 @@ function InternoProcessosContent() {
     return () => {
       cancelled = true;
     };
-  }, [activeJobId, pageVisible, wmPage, audPage, maPage, miPage, fgPage, orphanPage]);
+  }, [activeJobId, pageVisible, wmPage, movPage, audPage, maPage, miPage, fgPage, orphanPage]);
 
   async function loadOverview() { try { const payload = await adminFetch("/api/admin-hmadv-processos?action=overview"); setOverview({ loading: false, data: payload.data }); } catch { setOverview({ loading: false, data: null }); } }
   async function loadQueue(action, setter, page) {
@@ -1097,6 +1180,7 @@ function InternoProcessosContent() {
     await Promise.all([
       loadOverview(),
       loadQueue("sem_movimentacoes", setWithoutMovements, wmPage),
+      loadQueue("movimentacoes_pendentes", setMovementBacklog, movPage),
       loadQueue("audiencias_pendentes", setAudienciaCandidates, audPage),
       loadQueue("monitoramento_ativo", setMonitoringActive, maPage),
       loadQueue("monitoramento_inativo", setMonitoringInactive, miPage),
@@ -1121,6 +1205,7 @@ function InternoProcessosContent() {
   function getCombinedSelectedNumbers() {
     return [...new Set([
       ...selectedWithoutMovements,
+      ...selectedMovementBacklog,
       ...selectedAudienciaCandidates,
       ...selectedMonitoringActive,
       ...selectedMonitoringInactive,
@@ -1136,6 +1221,7 @@ function InternoProcessosContent() {
   function selectVisibleRecurringProcesses() {
     const recurringKeys = new Set(recurringProcesses.map((item) => item.key));
     setSelectedWithoutMovements(withoutMovements.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
+    setSelectedMovementBacklog(movementBacklog.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
     setSelectedAudienciaCandidates(audienciaCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
     setSelectedMonitoringActive(monitoringActive.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
     setSelectedMonitoringInactive(monitoringInactive.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
@@ -1146,6 +1232,7 @@ function InternoProcessosContent() {
   function selectVisibleSevereRecurringProcesses() {
     const recurringKeys = new Set(recurringProcesses.filter((item) => item.hits >= 3).map((item) => item.key));
     setSelectedWithoutMovements(withoutMovements.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
+    setSelectedMovementBacklog(movementBacklog.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
     setSelectedAudienciaCandidates(audienciaCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
     setSelectedMonitoringActive(monitoringActive.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
     setSelectedMonitoringInactive(monitoringInactive.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
@@ -1159,6 +1246,7 @@ function InternoProcessosContent() {
   }
   function clearAllQueueSelections() {
     setSelectedWithoutMovements([]);
+    setSelectedMovementBacklog([]);
     setSelectedAudienciaCandidates([]);
     setSelectedMonitoringActive([]);
     setSelectedMonitoringInactive([]);
@@ -1335,7 +1423,7 @@ function InternoProcessosContent() {
   }
 
   const data = overview.data || {};
-  const quickStats = useMemo(() => [{ label: "Processos totais", value: data.processosTotal || 0, helper: "Carteira persistida no HMADV." }, { label: "Com account", value: data.processosComAccount || 0, helper: "Sales Accounts ja vinculadas." }, { label: "Sem account", value: data.processosSemAccount || 0, helper: "Processos orfaos." }, { label: "Sem movimentacoes", value: data.processosSemMovimentacao || 0, helper: "Fila de reconsulta DataJud." }, { label: "Audiencias detectaveis", value: audienciaCandidates.totalRows || 0, helper: "Processos com audiencia pendente nas publicacoes." }, { label: "Monitoramento ativo", value: data.monitoramentoAtivo || 0, helper: "Com fallback para processos com account." }, { label: "Campos orfaos", value: data.processosSemPolos || 0, helper: "Polos/status ainda pendentes." }, { label: "Audiencias no banco", value: data.audienciasTotal || 0, helper: "Persistidas em judiciario.audiencias." }], [data, audienciaCandidates.totalRows]);
+  const quickStats = useMemo(() => [{ label: "Processos totais", value: data.processosTotal || 0, helper: "Carteira persistida no HMADV." }, { label: "Com account", value: data.processosComAccount || 0, helper: "Sales Accounts ja vinculadas." }, { label: "Sem account", value: data.processosSemAccount || 0, helper: "Processos orfaos." }, { label: "Sem movimentacoes", value: data.processosSemMovimentacao || 0, helper: "Fila de reconsulta DataJud." }, { label: "Movimentacoes pendentes", value: movementBacklog.totalRows || data.movimentacoesPendentes || 0, helper: "Andamentos ainda sem activity no Freshsales." }, { label: "Audiencias detectaveis", value: audienciaCandidates.totalRows || 0, helper: "Processos com audiencia pendente nas publicacoes." }, { label: "Monitoramento ativo", value: data.monitoramentoAtivo || 0, helper: "Com fallback para processos com account." }, { label: "Campos orfaos", value: data.processosSemPolos || 0, helper: "Polos/status ainda pendentes." }, { label: "Audiencias no banco", value: data.audienciasTotal || 0, helper: "Persistidas em judiciario.audiencias." }], [data, movementBacklog.totalRows, audienciaCandidates.totalRows]);
   const relationTypeSummary = useMemo(() => relations.items.reduce((acc, item) => { acc[item.tipo_relacao] = (acc[item.tipo_relacao] || 0) + 1; return acc; }, {}), [relations.items]);
   const latestHistory = executionHistory[0] || null;
   const latestRemoteRun = remoteHistory[0] || null;
@@ -1353,13 +1441,13 @@ function InternoProcessosContent() {
   const primaryProcessAction = derivePrimaryProcessAction(recurringProcessActions);
   const combinedSelectedNumbers = getCombinedSelectedNumbers();
   const selectedSummary = combinedSelectedNumbers.length;
-  const visibleRecurringCount = [...withoutMovements.items, ...audienciaCandidates.items, ...monitoringActive.items, ...monitoringInactive.items, ...fieldGaps.items, ...orphans.items]
+  const visibleRecurringCount = [...withoutMovements.items, ...movementBacklog.items, ...audienciaCandidates.items, ...monitoringActive.items, ...monitoringInactive.items, ...fieldGaps.items, ...orphans.items]
     .filter((item, index, array) => array.findIndex((other) => (other.numero_cnj || other.key) === (item.numero_cnj || item.key)) === index)
     .filter((item) => recurringProcesses.some((recurring) => recurring.key === (item.numero_cnj || item.key))).length;
-  const visibleSevereRecurringCount = [...withoutMovements.items, ...audienciaCandidates.items, ...monitoringActive.items, ...monitoringInactive.items, ...fieldGaps.items, ...orphans.items]
+  const visibleSevereRecurringCount = [...withoutMovements.items, ...movementBacklog.items, ...audienciaCandidates.items, ...monitoringActive.items, ...monitoringInactive.items, ...fieldGaps.items, ...orphans.items]
     .filter((item, index, array) => array.findIndex((other) => (other.numero_cnj || other.key) === (item.numero_cnj || item.key)) === index)
     .filter((item) => recurringProcesses.some((recurring) => recurring.key === (item.numero_cnj || item.key) && recurring.hits >= 3)).length;
-  const selectedVisibleSevereRecurringCount = [...withoutMovements.items, ...audienciaCandidates.items, ...monitoringActive.items, ...monitoringInactive.items, ...fieldGaps.items, ...orphans.items]
+  const selectedVisibleSevereRecurringCount = [...withoutMovements.items, ...movementBacklog.items, ...audienciaCandidates.items, ...monitoringActive.items, ...monitoringInactive.items, ...fieldGaps.items, ...orphans.items]
     .filter((item, index, array) => array.findIndex((other) => (other.numero_cnj || other.key) === (item.numero_cnj || item.key)) === index)
     .filter((item) => recurringProcesses.some((recurring) => recurring.key === (item.numero_cnj || item.key) && recurring.hits >= 3))
     .filter((item) => combinedSelectedNumbers.includes(item.numero_cnj))
@@ -1367,6 +1455,7 @@ function InternoProcessosContent() {
   const priorityBatchReady = visibleSevereRecurringCount > 0 && selectedVisibleSevereRecurringCount >= visibleSevereRecurringCount && limit === recurringProcessBatch.size;
   const selectionActionHint = deriveSelectionActionHint({
     selectedWithoutMovements,
+    selectedMovementBacklog,
     selectedAudienciaCandidates,
     selectedMonitoringActive,
     selectedMonitoringInactive,
@@ -1376,6 +1465,7 @@ function InternoProcessosContent() {
   });
   const selectionSuggestedAction = buildSelectionSuggestedAction({
     selectedWithoutMovements,
+    selectedMovementBacklog,
     selectedAudienciaCandidates,
     selectedMonitoringActive,
     selectedMonitoringInactive,
@@ -1383,6 +1473,7 @@ function InternoProcessosContent() {
     selectedOrphans,
     monitoringUnsupported,
     withoutMovements: withoutMovements.items,
+    movementBacklog: movementBacklog.items,
     audienciaCandidates: audienciaCandidates.items,
     monitoringActive: monitoringActive.items,
     monitoringInactive: monitoringInactive.items,
@@ -1431,6 +1522,7 @@ function InternoProcessosContent() {
             <ActionButton onClick={() => handleAction("run_sync_worker")} disabled={actionState.loading} tone={isSuggestedAction("run_sync_worker") ? "primary" : "subtle"}>Rodar sync-worker</ActionButton>
             <ActionButton tone={isSuggestedAction("push_orfaos") ? "primary" : "subtle"} onClick={() => handleAction("push_orfaos", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(orphans.items, selectedOrphans).join("\n")), limit })} disabled={actionState.loading}>Criar accounts no Freshsales</ActionButton>
             <ActionButton tone={isSuggestedAction("sync_supabase_crm") ? "primary" : "subtle"} onClick={() => handleAction("sync_supabase_crm", { processNumbers: resolveActionProcessNumbers(combinedSelectedNumbers.join("\n")), limit })} disabled={actionState.loading}>Sincronizar Supabase + Freshsales</ActionButton>
+            <ActionButton tone={isSuggestedAction("sincronizar_movimentacoes_activity") ? "primary" : "subtle"} onClick={() => handleAction("sincronizar_movimentacoes_activity", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(movementBacklog.items, selectedMovementBacklog).join("\n")), limit })} disabled={actionState.loading}>Sincronizar movimentacoes</ActionButton>
             <ActionButton onClick={() => handleAction("auditoria_sync")} disabled={actionState.loading} className="md:col-span-2" tone={isSuggestedAction("auditoria_sync") ? "primary" : "subtle"}>Rodar auditoria</ActionButton>
             <ActionButton onClick={runPendingJobsNow} disabled={actionState.loading || drainInFlight || !jobs.some((item) => ["pending", "running"].includes(String(item.status || "")))} className="md:col-span-2">{drainInFlight ? "Drenando fila..." : "Drenar fila HMADV"}</ActionButton>
           </div>
@@ -1455,6 +1547,7 @@ function InternoProcessosContent() {
           <div className="grid gap-3 md:grid-cols-2">
             <ActionButton tone="primary" onClick={() => handleAction("enriquecer_datajud", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(withoutMovements.items, selectedWithoutMovements).join("\n")), limit, intent: "buscar_movimentacoes", action: "enriquecer_datajud" })} disabled={actionState.loading}>Buscar movimentacoes no DataJud</ActionButton>
             <ActionButton onClick={() => handleAction("repair_freshsales_accounts", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n")), limit })} disabled={actionState.loading}>Corrigir campos no Freshsales</ActionButton>
+            <ActionButton onClick={() => handleAction("sincronizar_movimentacoes_activity", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(movementBacklog.items, selectedMovementBacklog).join("\n")), limit })} disabled={actionState.loading}>Sincronizar movimentacoes no Freshsales</ActionButton>
             <ActionButton onClick={() => handleAction("backfill_audiencias", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(audienciaCandidates.items, selectedAudienciaCandidates).join("\n")), limit, apply: true })} disabled={actionState.loading}>Retroagir audiencias</ActionButton>
             <ActionButton onClick={() => handleAction("enriquecer_datajud", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n")), limit, intent: "sincronizar_monitorados", action: "enriquecer_datajud" })} disabled={actionState.loading}>Sincronizar monitorados</ActionButton>
             <ActionButton onClick={() => handleAction("enriquecer_datajud", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n")), limit, intent: "reenriquecer_gaps", action: "enriquecer_datajud" })} disabled={actionState.loading} className="md:col-span-2">Reenriquecer processos com gap</ActionButton>
@@ -1529,12 +1622,14 @@ function InternoProcessosContent() {
       </Panel> : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <QueueSummaryCard title="Sem movimentacoes" count={withoutMovements.totalRows || 0} helper="Processos prontos para reconsulta no DataJud." />
+        <QueueSummaryCard title="Movimentacoes pendentes" count={movementBacklog.totalRows || 0} helper="Andamentos ainda sem activity no Freshsales." />
         <QueueSummaryCard title="Monitorados" count={monitoringActive.totalRows || 0} helper="Carteira ativa em acompanhamento." />
         <QueueSummaryCard title="Campos orfaos" count={fieldGaps.totalRows || 0} helper="Gaps entre Supabase e Freshsales." />
         <QueueSummaryCard title="Sem Sales Account" count={orphans.totalRows || 0} helper="Processos ainda sem account vinculada." />
       </div>
       <div className="grid gap-6 xl:grid-cols-2">
       <Panel title="Processos sem movimentacoes" eyebrow="Fila paginada"><QueueList title="Sem movimentacoes" helper="Itens sem andamento local para reconsulta no DataJud." rows={withoutMovements.items} selected={selectedWithoutMovements} onToggle={(key) => toggleSelection(setSelectedWithoutMovements, selectedWithoutMovements, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedWithoutMovements, selectedWithoutMovements, withoutMovements.items, nextState)} page={wmPage} setPage={setWmPage} loading={withoutMovements.loading} totalRows={withoutMovements.totalRows} pageSize={withoutMovements.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "sem_movimentacoes")} /></Panel>
+      <Panel title="Movimentacoes pendentes" eyebrow="Fila paginada"><QueueList title="Andamentos sem activity" helper="Processos com movimentacoes no HMADV ainda sem reflexo em sales_activities do Freshsales." rows={movementBacklog.items} selected={selectedMovementBacklog} onToggle={(key) => toggleSelection(setSelectedMovementBacklog, selectedMovementBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMovementBacklog, selectedMovementBacklog, movementBacklog.items, nextState)} page={movPage} setPage={setMovPage} loading={movementBacklog.loading} totalRows={movementBacklog.totalRows} pageSize={movementBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "movimentacoes_pendentes")} /></Panel>
       <Panel title="Audiencias detectaveis" eyebrow="Fila paginada"><QueueList title="Retroativo de audiencias" helper="Processos com sinais concretos de audiencia nas publicacoes e ainda sem persistencia equivalente." rows={audienciaCandidates.items} selected={selectedAudienciaCandidates} onToggle={(key) => toggleSelection(setSelectedAudienciaCandidates, selectedAudienciaCandidates, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedAudienciaCandidates, selectedAudienciaCandidates, audienciaCandidates.items, nextState)} page={audPage} setPage={setAudPage} loading={audienciaCandidates.loading} totalRows={audienciaCandidates.totalRows} pageSize={audienciaCandidates.pageSize} renderStatuses={(row) => [{ label: `${row.audiencias_pendentes || 0} audiencias pendentes`, tone: "warning" }, row.proxima_data_audiencia ? { label: `proxima ${new Date(row.proxima_data_audiencia).toLocaleDateString("pt-BR")}`, tone: "default" } : null].filter(Boolean)} /></Panel>
       <Panel title="Monitoramento ativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">A coluna <strong>monitoramento_ativo</strong> ainda nao existe no HMADV. A fila segue em modo de leitura por fallback, mas ativar/desativar monitoramento fica indisponivel ate a migracao do schema.</div> : null}<QueueList title="Monitorados" helper="Se a base ainda nao marca monitoramento_ativo, o painel usa fallback pelos processos com account." rows={monitoringActive.items} selected={selectedMonitoringActive} onToggle={(key) => toggleSelection(setSelectedMonitoringActive, selectedMonitoringActive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringActive, selectedMonitoringActive, monitoringActive.items, nextState)} page={maPage} setPage={setMaPage} loading={monitoringActive.loading} totalRows={monitoringActive.totalRows} pageSize={monitoringActive.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "monitoramento_ativo", { monitoringUnsupported })} />{monitoringUnsupported ? <div className="rounded-[18px] border border-dashed border-[#6E5630] px-4 py-3 text-xs leading-6 text-[#F8E7B5]">Escrita de monitoramento temporariamente indisponivel: aplique a migracao do schema para liberar ativacao e desativacao pela fila.</div> : <div className="flex flex-wrap gap-3"><ActionButton onClick={() => handleAction("monitoramento_status", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n")), active: false, limit })} disabled={actionState.loading}>Desativar monitoramento</ActionButton></div>}</div></Panel>
       <Panel title="Monitoramento inativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">Sem a coluna <strong>monitoramento_ativo</strong>, esta fila nao consegue gravar alteracoes. O painel mostra apenas o que precisa de adequacao de schema.</div> : null}<QueueList title="Nao monitorados" helper="Use esta fila para reativar o sync dos processos que ficaram fora da rotina." rows={monitoringInactive.items} selected={selectedMonitoringInactive} onToggle={(key) => toggleSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, monitoringInactive.items, nextState)} page={miPage} setPage={setMiPage} loading={monitoringInactive.loading} totalRows={monitoringInactive.totalRows} pageSize={monitoringInactive.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "monitoramento_inativo", { monitoringUnsupported })} />{monitoringUnsupported ? <div className="rounded-[18px] border border-dashed border-[#6E5630] px-4 py-3 text-xs leading-6 text-[#F8E7B5]">A reativacao fica bloqueada ate a criacao da coluna <strong>monitoramento_ativo</strong> no HMADV.</div> : <div className="flex flex-wrap gap-3"><ActionButton tone="primary" onClick={() => handleAction("monitoramento_status", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringInactive.items, selectedMonitoringInactive).join("\n")), active: true, limit })} disabled={actionState.loading}>Ativar monitoramento</ActionButton></div>}</div></Panel>
