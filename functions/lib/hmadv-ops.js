@@ -1,6 +1,6 @@
 import { fetchSupabaseAdmin } from "./supabase-rest.js";
 import { getCleanEnvValue, getSupabaseBaseUrl, getSupabaseServerKey } from "./env.js";
-import { freshsalesRequest } from "./freshsales-crm.js";
+import { createFreshsalesPublicationActivity, freshsalesRequest } from "./freshsales-crm.js";
 
 function jsonOk(payload, status = 200) {
   return new Response(JSON.stringify({ ok: true, ...payload }), {
@@ -748,6 +748,9 @@ async function resolvePublicacoesJobTargets(env, action, processNumbers = []) {
   if (action === "criar_processos_publicacoes") {
     return collectPublicacoesTargets(listCreateProcessCandidates, env);
   }
+  if (action === "sincronizar_publicacoes_activity") {
+    return collectPublicacoesTargets(listPublicationActivityBacklog, env);
+  }
   if (action === "backfill_partes" || action === "sincronizar_partes") {
     return collectPublicacoesTargets(listPartesExtractionCandidates, env);
   }
@@ -778,6 +781,18 @@ async function loadPublicacoesByProcessIds(env, processIds, limitPerProcess = 50
     const rows = await hmadvRest(
       env,
       `publicacoes?${buildInFilter("processo_id", chunk)}&select=id,processo_id,conteudo,data_publicacao&order=data_publicacao.desc.nullslast&limit=${Math.max(chunk.length * limitPerProcess, chunk.length)}`
+    );
+    output.push(...rows);
+  }
+  return output;
+}
+
+async function loadPendingPublicacoesByProcessIds(env, processIds, limitPerProcess = 50) {
+  const output = [];
+  for (const chunk of splitIntoChunks(processIds, 25)) {
+    const rows = await hmadvRest(
+      env,
+      `publicacoes?${buildInFilter("processo_id", chunk)}&freshsales_activity_id=is.null&select=id,processo_id,conteudo,data_publicacao,fonte,numero_processo_api,freshsales_activity_id&order=data_publicacao.desc.nullslast&limit=${Math.max(chunk.length * limitPerProcess, chunk.length)}`
     );
     output.push(...rows);
   }
@@ -1210,6 +1225,133 @@ export async function getPublicacoesOverview(env) {
     publicacoesLeilaoIgnorado,
     publicacoesSemProcesso,
     partesTotal,
+  };
+}
+
+async function patchPublicacaoFreshsalesActivityId(env, publicationId, activityId) {
+  const rows = await hmadvRest(
+    env,
+    `publicacoes?id=eq.${encodeURIComponent(String(publicationId || ""))}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Profile": "judiciario",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({
+        freshsales_activity_id: activityId ? String(activityId) : null,
+      }),
+    },
+    "judiciario"
+  );
+  return rows?.[0] || null;
+}
+
+export async function syncPublicationActivities(env, { processNumbers = [], limit = 5 } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 5), 10));
+  let processes = [];
+  if (processNumbers.length) {
+    processes = await loadProcessesByNumbers(
+      env,
+      processNumbers,
+      "id,numero_cnj,titulo,account_id_freshsales,status_atual_processo,link_externo_processo"
+    );
+  } else {
+    const backlog = await listPublicationActivityBacklog(env, { page: 1, pageSize: safeLimit });
+    const processIds = uniqueNonEmpty((backlog.items || []).map((item) => item.processo_id));
+    processes = processIds.length
+      ? await loadProcessesByIds(
+          env,
+          processIds,
+          "id,numero_cnj,titulo,account_id_freshsales,status_atual_processo,link_externo_processo"
+        )
+      : [];
+  }
+
+  const scopedProcesses = processes.slice(0, safeLimit);
+  const processIds = scopedProcesses.map((item) => item.id);
+  const pendingPublicacoes = processIds.length
+    ? await loadPendingPublicacoesByProcessIds(env, processIds, 25)
+    : [];
+
+  let processesRead = 0;
+  let activitiesCreated = 0;
+  let publicacoesUpdated = 0;
+  const sample = [];
+
+  for (const process of scopedProcesses) {
+    const processPublications = pendingPublicacoes
+      .filter((item) => item.processo_id === process.id)
+      .slice(0, 25);
+    const row = {
+      processo_id: process.id,
+      numero_cnj: process.numero_cnj,
+      titulo: process.titulo || null,
+      account_id_freshsales: process.account_id_freshsales || null,
+      publicacoes_pendentes: processPublications.length,
+      activities_criadas: 0,
+      publicacoes_atualizadas: 0,
+      status: "sem_publicacoes_pendentes",
+      details: [],
+    };
+
+    if (!process.account_id_freshsales) {
+      row.status = "sem_sales_account";
+      sample.push(row);
+      continue;
+    }
+
+    processesRead += 1;
+    if (!processPublications.length) {
+      sample.push(row);
+      continue;
+    }
+
+    row.status = "sincronizado";
+    for (const publication of processPublications) {
+      try {
+        const activityResult = await createFreshsalesPublicationActivity(env, {
+          accountId: process.account_id_freshsales,
+          publication,
+          process,
+        });
+        const activityId = activityResult?.activity?.id ? String(activityResult.activity.id) : null;
+        if (!activityId) {
+          throw new Error("Freshsales nao retornou o id da activity de publicacao.");
+        }
+        await patchPublicacaoFreshsalesActivityId(env, publication.id, activityId);
+        activitiesCreated += 1;
+        publicacoesUpdated += 1;
+        row.activities_criadas += 1;
+        row.publicacoes_atualizadas += 1;
+        if (row.details.length < 5) {
+          row.details.push({
+            publicacao_id: publication.id,
+            freshsales_activity_id: activityId,
+            data_publicacao: publication.data_publicacao || null,
+          });
+        }
+      } catch (error) {
+        row.status = "error";
+        if (row.details.length < 5) {
+          row.details.push({
+            publicacao_id: publication.id,
+            error: error.message || "Falha ao criar activity de publicacao.",
+          });
+        }
+      }
+    }
+    sample.push(row);
+  }
+
+  return {
+    checkedAt: new Date().toISOString(),
+    processosLidos: processesRead,
+    publicacoes: publicacoesUpdated,
+    activitiesCriadas: activitiesCreated,
+    publicacoesAtualizadas: publicacoesUpdated,
+    sample,
   };
 }
 
@@ -2466,7 +2608,7 @@ export async function processProcessAdminJob(env, id) {
 }
 
 function normalizePublicacoesJobPayload(action, payload = {}) {
-  const maxLimit = action === "backfill_partes" ? 50 : 20;
+  const maxLimit = action === "backfill_partes" ? 50 : action === "sincronizar_publicacoes_activity" ? 5 : 20;
   return {
     ...payload,
     action,
@@ -2506,6 +2648,9 @@ export async function getPublicacoesAdminJob(env, id) {
 async function runPublicacoesJobAction(env, action, processNumbers, limit) {
   if (action === "criar_processos_publicacoes") {
     return createProcessesFromPublicacoes(env, { processNumbers, limit });
+  }
+  if (action === "sincronizar_publicacoes_activity") {
+    return syncPublicationActivities(env, { processNumbers, limit });
   }
   if (action === "backfill_partes") {
     return backfillPartesFromPublicacoes(env, { processNumbers, limit, apply: true });

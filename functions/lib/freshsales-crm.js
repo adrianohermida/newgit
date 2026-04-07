@@ -79,6 +79,14 @@ export async function freshsalesRequest(env, path, init = {}) {
   throw lastError || new Error("Falha ao conectar no Freshsales.");
 }
 
+function resolveFreshsalesActivityTypeId(env, candidates = []) {
+  for (const candidate of candidates) {
+    const value = getCleanEnvValue(env?.[candidate]);
+    if (value) return value;
+  }
+  return null;
+}
+
 export async function lookupFreshsalesContactByEmail(env, email) {
   const query = encodeURIComponent(String(email || "").trim());
   const candidates = [
@@ -327,6 +335,70 @@ async function createFreshsalesSalesActivity(env, agendamento, contactId, eventT
       targetable_type: contactId ? "Contact" : null,
       targetable_id: contactId ? String(contactId) : null,
       sales_activity_type_id: activityType,
+    },
+  };
+
+  const { payload, base } = await freshsalesRequest(env, "/sales_activities", {
+    method: "POST",
+    body: JSON.stringify(activityPayload),
+  });
+
+  return {
+    base,
+    activity: payload.sales_activity || payload,
+    requestPayload: activityPayload,
+  };
+}
+
+export async function createFreshsalesPublicationActivity(env, {
+  accountId,
+  publication,
+  process = {},
+} = {}) {
+  const normalizedAccountId = String(accountId || process?.account_id_freshsales || "").trim();
+  if (!normalizedAccountId) {
+    throw new Error("Sales Account ausente para criar activity de publicacao.");
+  }
+
+  const activityTypeId = resolveFreshsalesActivityTypeId(env, [
+    "FRESHSALES_PUBLICACAO_ACTIVITY_TYPE_ID",
+    "FRESHSALES_PUBLICACOES_ACTIVITY_TYPE_ID",
+    "FRESHSALES_ACTIVITY_TYPE_PUBLICACAO_ID",
+    "FRESHSALES_SALES_ACTIVITY_TYPE_PUBLICACAO_ID",
+    "FRESHSALES_DEFAULT_ACTIVITY_TYPE_ID",
+  ]);
+  if (!activityTypeId) {
+    throw new Error("Tipo de activity de publicacao nao configurado no ambiente do Freshsales.");
+  }
+
+  const processNumber = String(process?.numero_cnj || publication?.numero_processo_api || "").trim();
+  const processTitle = String(process?.titulo || "").trim();
+  const content = String(publication?.conteudo || "").trim();
+  const snippet = content.slice(0, 4000);
+  const publicationDate = publication?.data_publicacao
+    ? new Date(publication.data_publicacao).toISOString()
+    : new Date().toISOString();
+
+  const noteLines = [
+    processNumber ? `Processo: ${processNumber}` : null,
+    processTitle ? `Titulo: ${processTitle}` : null,
+    publication?.fonte ? `Fonte: ${publication.fonte}` : null,
+    publication?.data_publicacao ? `Data da publicacao: ${publication.data_publicacao}` : null,
+    publication?.id ? `Publicacao HMADV: ${publication.id}` : null,
+    snippet ? `Conteudo:\n${snippet}` : null,
+  ].filter(Boolean);
+
+  const activityPayload = {
+    sales_activity: {
+      subject: processNumber
+        ? `Publicacao judicial - ${processNumber}`
+        : `Publicacao judicial - conta ${normalizedAccountId}`,
+      note: noteLines.join("\n\n"),
+      activity_date: publicationDate,
+      owner_id: getCleanEnvValue(env.FRESHSALES_OWNER_ID) || null,
+      targetable_type: "SalesAccount",
+      targetable_id: normalizedAccountId,
+      sales_activity_type_id: activityTypeId,
     },
   };
 

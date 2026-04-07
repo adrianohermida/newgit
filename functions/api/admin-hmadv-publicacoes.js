@@ -10,10 +10,12 @@ import {
   listAdminJobs,
   listAdminOperations,
   listCreateProcessCandidates,
+  listPublicationActivityBacklog,
   listPartesExtractionCandidates,
   logAdminOperation,
   processPublicacoesAdminJob,
   runSyncWorker,
+  syncPublicationActivities,
   syncPartesFromPublicacoes,
 } from "../lib/hmadv-ops.js";
 
@@ -53,6 +55,12 @@ async function runInlinePublicacoesAction(env, action, body) {
   }
   if (action === "criar_processos_publicacoes") {
     return createProcessesFromPublicacoes(env, {
+      processNumbers,
+      limit: requestedLimit || 2,
+    });
+  }
+  if (action === "sincronizar_publicacoes_activity") {
+    return syncPublicationActivities(env, {
       processNumbers,
       limit: requestedLimit || 2,
     });
@@ -127,6 +135,13 @@ export async function onRequestGet(context) {
     }
     if (action === "candidatos_partes") {
       const data = await listPartesExtractionCandidates(context.env, {
+        page: Number(url.searchParams.get("page") || 1),
+        pageSize: Number(url.searchParams.get("pageSize") || 20),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "publicacoes_pendentes") {
+      const data = await listPublicationActivityBacklog(context.env, {
         page: Number(url.searchParams.get("page") || 1),
         pageSize: Number(url.searchParams.get("pageSize") || 20),
       });
@@ -252,6 +267,12 @@ export async function onRequestPost(context) {
     }
     if (action === "criar_processos_publicacoes") {
       return runLogged(async () => createProcessesFromPublicacoes(context.env, {
+        processNumbers: parseProcessNumbers(body.processNumbers),
+        limit: Number(body.limit || 2),
+      }));
+    }
+    if (action === "sincronizar_publicacoes_activity") {
+      return runLogged(async () => syncPublicationActivities(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 2),
       }));
