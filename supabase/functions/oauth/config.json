@@ -1,0 +1,15 @@
+{
+  "integrations": {
+    "sampleOAuth": {
+      "display_name": "Sample OAuth",
+      "client_id": "FRESHSALES_OAUTH_CLIENT_ID",
+      "client_secret": "FRESHSALES_OAUTH_CLIENT_SECRET",
+      "authorize_url": "https://login.third-party-domain.com/authorize.srf",
+      "token_url": "https://login.third-party-domain.com/token.srf",
+      "options": {
+        "scope": "read"
+      },
+      "token_type": "account"
+    }
+  }
+}
