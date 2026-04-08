@@ -9,3 +9,6 @@ verify_jwt = false
 
 [functions.fc-update-conversation]
 verify_jwt = false
+
+[functions.fc-ingest-conversations]
+verify_jwt = false
