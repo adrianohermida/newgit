@@ -1,2 +1,5 @@
 [functions.generate-pin]
 verify_jwt = false
+
+[functions.oauth]
+verify_jwt = false
