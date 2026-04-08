@@ -3,3 +3,9 @@ verify_jwt = false
 
 [functions.oauth]
 verify_jwt = false
+
+[functions.fc-last-conversation]
+verify_jwt = false
+
+[functions.fc-update-conversation]
+verify_jwt = false
