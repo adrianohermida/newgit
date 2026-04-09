@@ -1062,6 +1062,34 @@ function summarizeClientProcessCoverage(items = []) {
   };
 }
 
+function summarizeSingleProcessCoverage(process, parts = [], movements = [], publications = [], audiencias = [], documents = []) {
+  const hasAccount = Boolean(process?.account_id_freshsales);
+  const hasMovements = movements.length > 0 || Number(process?.movement_count || 0) > 0 || Boolean(process?.latest_movement);
+  const hasPublications = publications.length > 0 || Boolean(process?.latest_publication);
+  const hasParts = parts.length > 0;
+  const hasAudiencias = audiencias.length > 0;
+  const hasDocuments = documents.length > 0;
+  const coveredDimensions = [hasAccount, hasParts, hasMovements, hasPublications, hasAudiencias, hasDocuments].filter(Boolean).length;
+  return {
+    hasAccount,
+    hasParts,
+    hasMovements,
+    hasPublications,
+    hasAudiencias,
+    hasDocuments,
+    coveredDimensions,
+    coverageRate: Math.round((coveredDimensions / 6) * 100),
+    pendingLabels: [
+      !hasAccount ? "Sem Sales Account" : null,
+      !hasParts ? "Sem partes" : null,
+      !hasMovements ? "Sem andamentos" : null,
+      !hasPublications ? "Sem publicacoes" : null,
+      !hasAudiencias ? "Sem audiencias" : null,
+      !hasDocuments ? "Sem documentos" : null,
+    ].filter(Boolean),
+  };
+}
+
 function normalizePartRow(row) {
   return {
     id: row.id || `${row.processo_id || "proc"}-${row.nome || row.parte_nome || Math.random()}`,
@@ -2172,6 +2200,7 @@ export async function getClientProcessDetails(env, profile, processId) {
   if (!audiencias.length) warnings.push("Nenhuma audiencia vinculada foi localizada para este processo.");
   if (!documents.length) warnings.push("Nenhum documento vinculado foi localizado para este processo.");
   const insights = summarizeProcessInsights(process, movements, publications);
+  const coverage = summarizeSingleProcessCoverage(process, parts, movements, publications, audiencias, documents);
 
   return {
     process: {
@@ -2189,6 +2218,7 @@ export async function getClientProcessDetails(env, profile, processId) {
     publications,
     audiencias,
     documents,
+    coverage,
     warnings,
   };
 }

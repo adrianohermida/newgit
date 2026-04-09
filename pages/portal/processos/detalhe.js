@@ -22,6 +22,7 @@ export default function PortalProcessDetailPage() {
     loading: true,
     error: null,
     process: null,
+    coverage: null,
     parts: [],
     movements: [],
     publications: [],
@@ -79,6 +80,7 @@ function ProcessDetailContent({ processId, state, setState }) {
             loading: false,
             error: null,
             process: payload.process,
+            coverage: payload.coverage || null,
             parts: payload.parts || [],
             movements: payload.movements || [],
             publications: payload.publications || [],
@@ -93,6 +95,7 @@ function ProcessDetailContent({ processId, state, setState }) {
             loading: false,
             error: error.message,
             process: null,
+            coverage: null,
             parts: [],
             movements: [],
             publications: [],
@@ -118,6 +121,17 @@ function ProcessDetailContent({ processId, state, setState }) {
       documents: state.documents.length,
     };
   }, [state.audiencias.length, state.documents.length, state.movements.length, state.parts.length, state.publications.length]);
+  const coverage = state.coverage || {
+    hasAccount: Boolean(state.process?.account_id_freshsales),
+    hasParts: summary.parts > 0,
+    hasMovements: summary.movements > 0,
+    hasPublications: summary.publications > 0,
+    hasAudiencias: summary.audiencias > 0,
+    hasDocuments: summary.documents > 0,
+    coveredDimensions: 0,
+    coverageRate: 0,
+    pendingLabels: [],
+  };
 
   if (state.loading) return <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">Carregando detalhe do processo...</div>;
   if (state.error) return <div className="rounded-[28px] border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] p-6 text-sm">{state.error}</div>;
@@ -151,6 +165,37 @@ function ProcessDetailContent({ processId, state, setState }) {
         <StatCard label="Publicacoes" value={summary.publications} helper="Recortes e atos publicados." />
         <StatCard label="Audiencias" value={summary.audiencias} helper="Audiencias vinculadas ao processo." />
         <StatCard label="Documentos" value={summary.documents} helper="Documentos exibidos no portal." />
+      </section>
+
+      <section className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C49C56]">Cobertura deste processo</p>
+            <h3 className="mt-3 font-serif text-3xl">O que ja foi refletido entre HMADV, portal e Freshsales</h3>
+          </div>
+          <span className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-[#C49C56]">
+            {coverage.coverageRate}% coberto
+          </span>
+        </div>
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <Meta label="Sales Account" value={coverage.hasAccount ? "Refletido" : "Pendente"} />
+          <Meta label="Partes" value={coverage.hasParts ? "Disponiveis" : "Pendentes"} />
+          <Meta label="Andamentos" value={coverage.hasMovements ? "Disponiveis" : "Pendentes"} />
+          <Meta label="Publicacoes" value={coverage.hasPublications ? "Disponiveis" : "Pendentes"} />
+          <Meta label="Audiencias" value={coverage.hasAudiencias ? "Disponiveis" : "Pendentes"} />
+          <Meta label="Documentos" value={coverage.hasDocuments ? "Disponiveis" : "Pendentes"} />
+        </div>
+        {coverage.pendingLabels?.length ? (
+          <div className="mt-5 flex flex-wrap gap-2">
+            {coverage.pendingLabels.map((item) => (
+              <span key={item} className="rounded-full border border-[#6E5630] bg-[rgba(76,57,26,0.18)] px-3 py-1 text-[10px] uppercase tracking-[0.15em] text-[#F2DEB5]">
+                {item}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-5 text-sm text-[#9CB0A8]">Este processo ja tem cobertura operacional completa nas fontes visiveis do portal.</p>
+        )}
       </section>
 
       {state.process.total_related ? (
