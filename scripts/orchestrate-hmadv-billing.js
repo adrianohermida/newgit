@@ -24,29 +24,35 @@ async function main() {
     runStep('Import indices', ['node', 'scripts/import-billing-indices.js', indicesFile, 'IGP-M', 'csv']);
   }
 
-  const importArgs = workspaceId
-    ? ['node', 'scripts/import-hmadv-billing-csv.js', '--workspace-id', workspaceId, ...files]
-    : ['node', 'scripts/import-hmadv-billing-csv.js', ...files];
-  runStep('Import billing CSV', importArgs);
+  const importRunIds = [];
+  for (const file of files) {
+    const importArgs = workspaceId
+      ? ['node', 'scripts/import-hmadv-billing-csv.js', '--workspace-id', workspaceId, file]
+      : ['node', 'scripts/import-hmadv-billing-csv.js', file];
 
-  const importRunId = findLatestImportRunId();
-  if (!importRunId) {
-    throw new Error('Nao foi possivel localizar o ultimo import_run apos a importacao.');
+    runStep(`Import billing CSV (${path.basename(file)})`, importArgs);
+
+    const importRunId = findLatestImportRunId();
+    if (!importRunId) {
+      throw new Error(`Nao foi possivel localizar o ultimo import_run apos a importacao de ${file}.`);
+    }
+    importRunIds.push(importRunId);
+
+    runStep(
+      `Materialize billing (${path.basename(file)})`,
+      workspaceId
+        ? ['node', 'scripts/materialize-hmadv-billing.js', importRunId, workspaceId]
+        : ['node', 'scripts/materialize-hmadv-billing.js', importRunId]
+    );
   }
 
-  runStep(
-    'Materialize billing',
-    workspaceId
-      ? ['node', 'scripts/materialize-hmadv-billing.js', importRunId, workspaceId]
-      : ['node', 'scripts/materialize-hmadv-billing.js', importRunId]
-  );
   runStep('Publish deals', ['node', 'scripts/publish-hmadv-deals.js', publishLimit]);
   runStep('Process CRM queue', ['node', 'scripts/process-hmadv-crm-events.js', queueLimit]);
 
   console.log(JSON.stringify({
     ok: true,
     workspace_id: workspaceId,
-    import_run_id: importRunId,
+    import_run_ids: importRunIds,
     publish_limit: Number(publishLimit),
     queue_limit: Number(queueLimit),
   }, null, 2));

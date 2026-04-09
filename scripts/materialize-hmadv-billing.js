@@ -32,7 +32,9 @@ async function main() {
 
   const indices = await loadIndicesByName();
   const products = await supabaseRequest('freshsales_products?select=id,name,billing_type,late_fee_percent_default,interest_percent_month_default,monetary_index_default');
+  const contacts = await supabaseRequest('freshsales_contacts?select=id,freshsales_contact_id');
   const productByName = new Map(products.map((item) => [String(item.name || '').toLowerCase(), item]));
+  const contactById = new Map(contacts.map((item) => [item.id, item]));
   const contractsByKey = new Map();
 
   const materializableRows = rows.filter((row) =>
@@ -52,6 +54,7 @@ async function main() {
       const contractPayload = {
         workspace_id: effectiveWorkspaceId,
         contact_id: row.resolved_contact_id,
+        freshsales_contact_id: contactById.get(row.resolved_contact_id)?.freshsales_contact_id || null,
         product_id: product ? product.id : row.resolved_product_id,
         contract_kind: row.billing_type_inferred || 'unitario',
         title: buildContractTitle(row),

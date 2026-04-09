@@ -91,7 +91,7 @@ async function loadReceivables(limit, specificReceivableId = null) {
   const rows = await supabaseRequest(query);
   return rows.filter((row) => {
     const contract = firstRelation(row.contracts);
-    return Boolean(contract && (contract.freshsales_contact_id || contract.contact_id));
+    return Boolean(contract && contract.freshsales_contact_id);
   });
 }
 
@@ -151,7 +151,7 @@ async function publishDeal(row, base) {
 
 function buildDealPayload(row, contract, product) {
   const billingConfig = getBillingConfig();
-  const customField = buildBillingCustomFields(billingConfig.dealFieldMap, {
+  const rawValues = {
     external_reference: buildExternalReference(row),
     invoice_number: row.invoice_number || null,
     receivable_status: row.status || null,
@@ -163,7 +163,8 @@ function buildDealPayload(row, contract, product) {
     interest_mora_amount: row.interest_mora_amount || null,
     interest_compensatory_amount: row.interest_compensatory_amount || null,
     process_reference: contract.process_reference || null,
-  });
+  };
+  const { coreFields, customFields } = splitMappedFields(billingConfig.dealFieldMap, rawValues, billingConfig);
 
   return {
     deal: {
@@ -173,8 +174,9 @@ function buildDealPayload(row, contract, product) {
       expected_close: row.due_date || currentDateIso(),
       owner_id: billingConfig.ownerId,
       deal_stage_id: billingConfig.defaultDealStageId,
+      ...coreFields,
       contact_ids: contract.freshsales_contact_id ? [Number(contract.freshsales_contact_id)] : undefined,
-      custom_field: cleanObject(customField),
+      custom_field: cleanObject(customFields),
     },
   };
 }
@@ -267,6 +269,7 @@ function getBillingConfig() {
   return {
     ownerId: cleanValue(process.env.FRESHSALES_OWNER_ID),
     defaultDealStageId: cleanValue(process.env.FRESHSALES_DEFAULT_DEAL_STAGE_ID),
+    dealTypeIdMap: parseJsonEnv(process.env.FRESHSALES_BILLING_DEAL_TYPE_ID_MAP, {}),
     dealFieldMap: parseJsonEnv(process.env.FRESHSALES_BILLING_DEAL_FIELD_MAP, {
       external_reference: 'cf_hmadv_external_reference',
       invoice_number: 'cf_hmadv_invoice_number',
@@ -281,6 +284,42 @@ function getBillingConfig() {
       process_reference: 'cf_hmadv_process_reference',
     }),
   };
+}
+
+function splitMappedFields(fieldMap, values, billingConfig) {
+  const coreFields = {};
+  const customFields = {};
+
+  for (const [key, fieldName] of Object.entries(fieldMap || {})) {
+    if (!fieldName) continue;
+    const mappedValue = resolveMappedFieldValue(fieldName, values[key], billingConfig);
+    if (mappedValue == null || mappedValue === '') continue;
+
+    if (isCoreDealField(fieldName)) {
+      coreFields[fieldName] = mappedValue;
+      continue;
+    }
+
+    customFields[fieldName] = mappedValue;
+  }
+
+  return { coreFields, customFields };
+}
+
+function resolveMappedFieldValue(fieldName, value, billingConfig) {
+  if (value == null || value === '') return null;
+
+  if (fieldName === 'deal_type_id') {
+    if (/^\d+$/.test(String(value))) return Number(value);
+    const mapped = billingConfig.dealTypeIdMap[String(value).toLowerCase()];
+    return mapped != null && /^\d+$/.test(String(mapped)) ? Number(mapped) : null;
+  }
+
+  return value;
+}
+
+function isCoreDealField(fieldName) {
+  return ['deal_type_id', 'deal_stage_id', 'owner_id', 'amount', 'expected_close'].includes(fieldName);
 }
 
 function parseJsonEnv(value, fallback = {}) {

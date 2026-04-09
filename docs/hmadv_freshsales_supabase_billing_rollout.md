@@ -19,6 +19,20 @@ O fluxo recomendado é:
 - biblioteca financeira [hmadv-billing.js](D:/Github/newgit/functions/lib/hmadv-billing.js)
 - importador em lote [import-hmadv-billing-csv.js](D:/Github/newgit/scripts/import-hmadv-billing-csv.js)
 
+## Auditoria de 2026-04-09
+
+Achados principais da auditoria operacional:
+
+1. a orquestração estava importando dois CSVs, mas materializando apenas o último `import_run`;
+2. contratos materializados podiam ficar sem `freshsales_contact_id`, o que quebrava a associação real do `deal` no Freshsales;
+3. o publicador tratava campos core como `deal_type_id` como se fossem `custom_field`, o que inviabiliza o mapeamento correto no tenant.
+
+Correções já aplicadas:
+
+- [orchestrate-hmadv-billing.js](D:/Github/newgit/scripts/orchestrate-hmadv-billing.js) agora importa e materializa cada CSV separadamente;
+- [materialize-hmadv-billing.js](D:/Github/newgit/scripts/materialize-hmadv-billing.js) agora propaga `freshsales_contact_id` para `billing_contracts`;
+- [publish-hmadv-deals.js](D:/Github/newgit/scripts/publish-hmadv-deals.js) agora separa campos core de `custom_field` e suporta `FRESHSALES_BILLING_DEAL_TYPE_ID_MAP`.
+
 ## Como rodar o importador
 
 ### Dry run
@@ -57,6 +71,10 @@ Ao final, o script:
 - materializa contratos e recebíveis
 - publica deals
 - processa a fila de CRM
+
+Observação:
+
+- quando múltiplos CSVs forem passados, cada arquivo agora gera seu próprio `import_run` e sua própria materialização antes da publicação dos deals.
 
 ## Relatório de reconciliação
 
@@ -128,6 +146,12 @@ Se o tenant ainda estiver com poucos ou nenhum contato sincronizado, crie os con
 node scripts/bootstrap-hmadv-contacts.js 100
 ```
 
+O bootstrap agora:
+
+- agrupa por e-mail para evitar criação repetida;
+- tenta múltiplas variantes de payload de `contact`;
+- tenta mais de uma base do Freshsales quando o tenant varia entre `/api` e `/crm/sales/api`.
+
 ## Regras já implementadas
 
 - matching de contato por `e-mail`
@@ -160,10 +184,40 @@ Dois saldos são gravados:
 - `balance_due`: compatível com a lógica nominal do GAS
 - `balance_due_corrected`: saldo considerando o principal corrigido
 
-## Próxima fase recomendada
+## Plano incremental atualizado
 
-1. popular `freshsales_contacts` a partir de `freshsales_sync_snapshots`
-2. sincronizar catálogo `freshsales_products`
-3. transformar staging válido em `billing_contracts` e `billing_receivables`
-4. publicar `deals` com idempotência no `Freshsales`
-5. ligar `crm_event_queue` ao fluxo de jornadas, campanhas e e-mail
+### Fase 1. Ambiente e credenciais
+
+1. estabilizar `.dev.vars` com `SUPABASE_*`, `FRESHSALES_*`, `FRESHSALES_DEFAULT_DEAL_STAGE_ID`;
+2. confirmar `FRESHSALES_BILLING_DEAL_FIELD_MAP`;
+3. preencher `FRESHSALES_BILLING_DEAL_TYPE_ID_MAP` se `billing_type` usar `deal_type_id`.
+
+### Fase 2. Índices financeiros
+
+1. importar CSV real de índices em `billing_indices`;
+2. validar cobertura de meses para as faturas históricas;
+3. só então liberar materialização financeira completa com correção monetária.
+
+### Fase 3. Reconciliação de contatos
+
+1. reexecutar `bootstrap` para ampliar `freshsales_contacts`;
+2. rodar reconciliação assistida para os casos sem e-mail ou sem match automático;
+3. reprocessar apenas linhas reconciliadas.
+
+### Fase 4. Materialização canônica
+
+1. materializar todos os `import_runs` pendentes;
+2. validar `billing_contracts` e `billing_receivables` com vínculo Freshsales;
+3. conferir cálculos de atraso, multa, juros e saldo corrigido.
+
+### Fase 5. Publicação CRM
+
+1. publicar deals apenas para recebíveis com `freshsales_contact_id`;
+2. validar payload aceito pelo tenant para estágio, tipo e custom fields;
+3. confirmar idempotência no `freshsales_deals_registry`.
+
+### Fase 6. Automação operacional
+
+1. processar `crm_event_queue`;
+2. revisar transições de jornada e ciclo de vida;
+3. ativar retry seletivo e relatório operacional como rotina.
