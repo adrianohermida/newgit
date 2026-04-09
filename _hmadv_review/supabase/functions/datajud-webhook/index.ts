@@ -70,6 +70,65 @@ async function fsPost(path: string, body: unknown): Promise<{status:number;data:
   }
   throw new Error('fsPost esgotado');
 }
+
+function normalizeTag(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function salesAccountHasTag(salesAccount: Record<string, unknown>, expectedTag = 'datajud'): boolean {
+  const tags = Array.isArray(salesAccount.tags)
+    ? salesAccount.tags
+    : typeof salesAccount.tags === 'string'
+      ? String(salesAccount.tags).split(',').map((item) => item.trim()).filter(Boolean)
+      : [];
+  const normalizedExpected = normalizeTag(expectedTag);
+  return tags.some((tag) => normalizeTag(tag) === normalizedExpected);
+}
+
+async function enqueueDatajudMonitoring(
+  processoId: string,
+  accountId: string | null,
+  cnj20: string,
+  source = 'freshsales_tag',
+): Promise<{ queued: boolean; skipped?: string }> {
+  const { data: existing } = await db.from('monitoramento_queue')
+    .select('id,status')
+    .eq('processo_id', processoId)
+    .in('status', ['pendente', 'processando'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existing?.id) {
+    return { queued: false, skipped: `fila_${String(existing.status || 'ativa')}` };
+  }
+
+  const { error } = await db.from('monitoramento_queue').insert({
+    processo_id: processoId,
+    fonte: source,
+    tipo: 'processo',
+    status: 'pendente',
+    prioridade: 1,
+    proxima_execucao: new Date().toISOString(),
+    account_id_freshsales: accountId || null,
+    payload: {
+      numero_cnj: cnj20,
+      origem: source,
+      account_id: accountId || null,
+    },
+  });
+
+  if (error) {
+    log('warn', 'monitoramento_queue_insert_erro', { processo_id: processoId, cnj: cnj20, erro: error.message });
+    return { queued: false, skipped: error.message };
+  }
+
+  return { queued: true };
+}
 async function fsPut(path: string, body: unknown): Promise<{status:number}> {
   for (let i=1; i<=3; i++) {
     const r = await fetch(`https://${fsDomain()}/crm/sales/api/${path}`, {
@@ -405,13 +464,8 @@ async function handleTagAdded(payload: Record<string,unknown>) {
     await db.from('processos').update(upd).eq('id',proc.id);
   }
 
-  await db.from('monitoramento_queue').insert({
-    processo_id:proc!.id, fonte:'freshsales_tag', tipo:'datajud_sync',
-    status:'pendente', prioridade:1, proxima_execucao:new Date().toISOString(),
-    payload:{numero_cnj:cnj20},
-  }).select().catch(()=>{});
-
-  return {ok:true, processo_id:proc!.id, cnj:cnj20};
+  const queued = await enqueueDatajudMonitoring(proc!.id, accountId || null, cnj20, 'freshsales_tag');
+  return {ok:true, processo_id:proc!.id, cnj:cnj20, queue: queued};
 }
 
 async function handleTagRemoved(payload: Record<string,unknown>) {
@@ -499,6 +553,122 @@ async function handleDailySync(): Promise<Record<string,unknown>> {
   return {ok:true, processados:resultados.length, resultados};
 }
 
+async function handleReconcileTaggedAccounts(limit = 100, tag = 'datajud'): Promise<Record<string, unknown>> {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 100), 250));
+  const perPage = Math.min(50, safeLimit);
+  const pages = Math.max(1, Math.ceil(safeLimit / perPage));
+  const salesAccounts: Record<string, unknown>[] = [];
+
+  for (let page = 1; page <= pages; page += 1) {
+    const { status, data } = await fsPost('filtered_search/sales_account', {
+      filter_rule: [{ attribute: 'tags', operator: 'is_in', value: [tag] }],
+      page,
+      per_page: perPage,
+    });
+    if (status !== 200) {
+      return { ok: false, erro: `filtered_search tags ${status}` };
+    }
+    const batch = Array.isArray(data.sales_accounts) ? data.sales_accounts as Record<string, unknown>[] : [];
+    salesAccounts.push(...batch);
+    if (batch.length < perPage || salesAccounts.length >= safeLimit) break;
+  }
+
+  let scanned = 0;
+  let activated = 0;
+  let ignored = 0;
+  const sample: unknown[] = [];
+
+  for (const salesAccount of salesAccounts.slice(0, safeLimit)) {
+    scanned += 1;
+    if (!salesAccountHasTag(salesAccount, tag)) {
+      ignored += 1;
+      continue;
+    }
+    const result = await handleTagAdded({
+      account_id: String(salesAccount.id ?? ''),
+      sales_account: salesAccount,
+    });
+    if ((result as Record<string, unknown>).ok) activated += 1;
+    if (sample.length < 10) sample.push({
+      account_id: String(salesAccount.id ?? ''),
+      processo: ((salesAccount.custom_field ?? salesAccount.custom_fields ?? {}) as Record<string, unknown>).cf_processo ?? null,
+      ok: Boolean((result as Record<string, unknown>).ok),
+      queue: (result as Record<string, unknown>).queue ?? null,
+    });
+  }
+
+  return {
+    ok: true,
+    scanned,
+    activated,
+    ignored,
+    sample,
+  };
+}
+
+async function handleEnqueueActiveDatajud(limit = 100): Promise<Record<string, unknown>> {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 100), 250));
+  const { data: rows } = await db.from('datajud_sync_status')
+    .select('numero_processo,status')
+    .eq('status', 'ativo')
+    .limit(safeLimit);
+
+  let queued = 0;
+  let skipped = 0;
+  const sample: unknown[] = [];
+
+  for (const row of rows ?? []) {
+    const cnj20 = normCNJ(String(row.numero_processo ?? ''));
+    if (!cnj20) {
+      skipped += 1;
+      continue;
+    }
+    const { data: proc } = await db.from('processos')
+      .select('id,account_id_freshsales')
+      .or(`numero_cnj.eq.${cnj20},numero_processo.eq.${cnj20}`)
+      .maybeSingle();
+    if (!proc?.id) {
+      skipped += 1;
+      continue;
+    }
+    const result = await enqueueDatajudMonitoring(String(proc.id), proc.account_id_freshsales ? String(proc.account_id_freshsales) : null, cnj20, 'datajud_active_cron');
+    if (result.queued) queued += 1;
+    else skipped += 1;
+    if (sample.length < 10) sample.push({
+      cnj: cnj20,
+      processo_id: proc.id,
+      account_id: proc.account_id_freshsales ?? null,
+      queue: result,
+    });
+  }
+
+  return {
+    ok: true,
+    ativos: rows?.length ?? 0,
+    queued,
+    skipped,
+    sample,
+  };
+}
+
+async function handleCronTaggedDatajud({
+  scanLimit = 50,
+  monitorLimit = 100,
+  movementLimit = 120,
+} = {}): Promise<Record<string, unknown>> {
+  const reconcile = await handleReconcileTaggedAccounts(scanLimit, 'datajud');
+  const enqueue = await handleEnqueueActiveDatajud(monitorLimit);
+  const daily = await handleDailySync();
+  const movimentos = await handleSyncAndamentos(movementLimit);
+  return {
+    ok: true,
+    reconcile,
+    enqueue,
+    daily,
+    movimentos,
+  };
+}
+
 // =============================================================================
 // Main
 // =============================================================================
@@ -528,6 +698,13 @@ Deno.serve(async (req: Request) => {
       case 'tag_removed':     result = await handleTagRemoved(body);               break;
       case 'sync_andamentos': result = await handleSyncAndamentos(Number(url.searchParams.get('limite')??200)); break;
       case 'daily_sync':      result = await handleDailySync();                    break;
+      case 'reconcile_tagged_accounts': result = await handleReconcileTaggedAccounts(Number(url.searchParams.get('limite') ?? 100), String(url.searchParams.get('tag') ?? 'datajud')); break;
+      case 'enqueue_active_datajud': result = await handleEnqueueActiveDatajud(Number(url.searchParams.get('limite') ?? 100)); break;
+      case 'cron_tagged_datajud': result = await handleCronTaggedDatajud({
+        scanLimit: Number(url.searchParams.get('scan_limit') ?? 50),
+        monitorLimit: Number(url.searchParams.get('monitor_limit') ?? 100),
+        movementLimit: Number(url.searchParams.get('movement_limit') ?? 120),
+      }); break;
       default: {
         // Payload generico do FS (sem action na URL)
         const sa = (body.sales_account ?? {}) as Record<string,unknown>;

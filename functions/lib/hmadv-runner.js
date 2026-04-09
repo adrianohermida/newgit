@@ -7,6 +7,42 @@ import {
   processPublicacoesAdminJob,
 } from "./hmadv-ops.js";
 
+function getSupabaseBaseUrl(env) {
+  return String(env?.SUPABASE_URL || env?.NEXT_PUBLIC_SUPABASE_URL || "").trim().replace(/\/$/, "");
+}
+
+function getSupabaseServerKey(env) {
+  return String(env?.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+}
+
+async function callHmadvFunction(env, name, query = {}, init = {}) {
+  const baseUrl = getSupabaseBaseUrl(env);
+  const serviceKey = getSupabaseServerKey(env);
+  if (!baseUrl || !serviceKey) {
+    throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes para chamar edge functions do HMADV.");
+  }
+  const url = new URL(`${baseUrl}/functions/v1/${name}`);
+  Object.entries(query || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    url.searchParams.set(key, String(value));
+  });
+  const response = await fetch(url.toString(), {
+    method: init.method || "POST",
+    headers: {
+      Authorization: `Bearer ${serviceKey}`,
+      apikey: serviceKey,
+      "Content-Type": "application/json",
+      ...(init.headers || {}),
+    },
+    body: init.body ? JSON.stringify(init.body) : undefined,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error || payload?.message || `Falha na edge function ${name} (${response.status}).`);
+  }
+  return payload;
+}
+
 function getRunnerToken(request) {
   const authHeader = request.headers.get("authorization") || request.headers.get("Authorization") || "";
   if (authHeader.startsWith("Bearer ")) {
@@ -247,6 +283,28 @@ async function drainModuleJobs(env, modulo, processor, maxChunks = 6) {
     activeJob: pending[0] || activeJob || null,
     pendingCount: pending.length,
   };
+}
+
+async function runDatajudTaggedPipeline(env) {
+  try {
+    const data = await callHmadvFunction(
+      env,
+      "datajud-webhook",
+      {
+        action: "cron_tagged_datajud",
+        scan_limit: 20,
+        monitor_limit: 40,
+        movement_limit: 80,
+      },
+      { method: "POST", body: {} }
+    );
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error?.message || "Falha ao rodar pipeline DataJud tagged.",
+    };
+  }
 }
 
 export async function getHmadvQueueSnapshot(env) {
@@ -541,12 +599,14 @@ export async function getHmadvQueueSnapshot(env) {
 }
 
 export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
-  const [processos, publicacoes] = await Promise.all([
+  const [datajud, processos, publicacoes] = await Promise.all([
+    runDatajudTaggedPipeline(env),
     drainModuleJobs(env, "processos", processProcessAdminJob, maxChunks),
     drainModuleJobs(env, "publicacoes", processPublicacoesAdminJob, maxChunks),
   ]);
 
   return {
+    datajud,
     processos,
     publicacoes,
     completedAll: Boolean(processos.completedAll && publicacoes.completedAll),
