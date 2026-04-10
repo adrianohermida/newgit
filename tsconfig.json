@@ -14,6 +14,12 @@
     "module": "esnext",
     "esModuleInterop": true,
     "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
@@ -34,8 +40,12 @@
     "pages/**/*.tsx",
     "components/**/*.ts",
     "components/**/*.tsx",
+    "hooks/**/*.ts",
+    "hooks/**/*.tsx",
     "lib/**/*.ts",
     "lib/**/*.tsx",
+    "services/**/*.ts",
+    "services/**/*.tsx",
     "functions/**/*.ts",
     "functions/**/*.tsx"
   ],

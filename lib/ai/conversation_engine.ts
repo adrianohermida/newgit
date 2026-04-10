@@ -20,7 +20,7 @@ import { runLawdeskChat } from "../lawdesk/chat.js";
 import { buildDotobotRepositoryContext } from "../lawdesk/capabilities.js";
 import { canExecuteSkill, detectSkillFromQuery, enrichContextWithSkill } from "../lawdesk/skill_registry.js";
 import { startTaskRun } from "../lawdesk/task_runs.js";
-import { routeIntent } from "./intent_router.ts";
+import { routeIntent } from "./intent_router";
 
 const CONVERSATION_TTL_MS = 6 * 60 * 60 * 1000;
 const MAX_TURNS = 24;

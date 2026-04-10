@@ -31,6 +31,16 @@ export type IntentResult = {
   confidence: number,
   entities: Record<string, any>,
 };
+
+export type RoutedIntent = {
+  type: "chat" | "skill" | "task";
+  reason: string;
+  skill?: {
+    id: string;
+    name: string;
+    category?: string | null;
+  } | null;
+};
 // Padrões de intenção operacional
 const INTENT_PATTERNS: Array<{ intent: IntentResult["intent"], patterns: RegExp[] }> = [
   { intent: "create_task", patterns: [/criar tarefa/i, /nova tarefa/i, /adicionar tarefa/i] },
