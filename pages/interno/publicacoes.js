@@ -775,6 +775,29 @@ function PublicacoesContent() {
     } catch {}
   }
 
+  async function copyFullActivityLog() {
+    if (!activityLogRef.current.length) return;
+    const fullLog = activityLogRef.current
+      .map((entry) => {
+        return [
+          `# ${entry.label || entry.action || "Chamada"}`,
+          `status: ${entry.status}`,
+          `metodo: ${entry.method}`,
+          `acao: ${entry.action || ""}`,
+          `rota: ${entry.path || ""}`,
+          `duracao_ms: ${entry.durationMs ?? ""}`,
+          entry.request ? `request:\n${entry.request}` : "",
+          entry.response ? `response:\n${entry.response}` : "",
+          entry.error ? `error:\n${entry.error}` : "",
+          "---",
+        ]
+          .filter(Boolean)
+          .join("\n");
+      })
+      .join("\n");
+    await copyActivityText(fullLog);
+  }
+
   async function adminFetch(path, init = {}, meta = {}) {
     const startedAt = Date.now();
     const method = String(init?.method || "GET").toUpperCase();
@@ -1369,6 +1392,14 @@ function PublicacoesContent() {
               className="border border-[#2D2E2E] px-3 py-2 text-xs uppercase tracking-[0.14em] transition disabled:opacity-40 hover:border-[#C5A059] hover:text-[#C5A059]"
             >
               Limpar log
+            </button>
+            <button
+              type="button"
+              onClick={copyFullActivityLog}
+              disabled={!activityLog.length}
+              className="border border-[#2D2E2E] px-3 py-2 text-xs uppercase tracking-[0.14em] transition disabled:opacity-40 hover:border-[#C5A059] hover:text-[#C5A059]"
+            >
+              Copiar log completo
             </button>
             <span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.14em] opacity-70">
               {activityLog.length} entradas

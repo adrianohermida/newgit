@@ -1227,11 +1227,26 @@ async function runFreshsalesRepairForProcess(env, proc) {
   if (!proc?.id || !proc?.account_id_freshsales) {
     return { skipped: true, reason: "sem_account" };
   }
+  const payload = {
+    processo_id: proc.id,
+    action: "repair",
+    account_id_freshsales: proc.account_id_freshsales,
+    numero_cnj: proc.numero_cnj,
+    titulo: proc.titulo,
+    classe: proc.classe,
+    assunto_principal: proc.assunto_principal,
+    area: proc.area,
+    data_ajuizamento: proc.data_ajuizamento,
+    sistema: proc.sistema,
+    polo_ativo: proc.polo_ativo,
+    polo_passivo: proc.polo_passivo,
+    status_atual_processo: proc.status_atual_processo,
+  };
   return hmadvFunction(
     env,
     "fs-account-repair",
     { processo_id: proc.id },
-    { method: "POST", body: { processo_id: proc.id, action: "repair" } }
+    { method: "POST", body: payload }
   );
 }
 

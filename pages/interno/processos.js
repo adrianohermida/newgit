@@ -1100,6 +1100,29 @@ function InternoProcessosContent() {
     } catch {}
   }
 
+  async function copyFullActivityLog() {
+    if (!activityLogRef.current.length) return;
+    const fullLog = activityLogRef.current
+      .map((entry) => {
+        return [
+          `# ${entry.label || entry.action || "Chamada"}`,
+          `status: ${entry.status}`,
+          `metodo: ${entry.method}`,
+          `acao: ${entry.action || ""}`,
+          `rota: ${entry.path || ""}`,
+          `duracao_ms: ${entry.durationMs ?? ""}`,
+          entry.request ? `request:\n${entry.request}` : "",
+          entry.response ? `response:\n${entry.response}` : "",
+          entry.error ? `error:\n${entry.error}` : "",
+          "---",
+        ]
+          .filter(Boolean)
+          .join("\n");
+      })
+      .join("\n");
+    await copyActivityText(fullLog);
+  }
+
   async function adminFetch(path, init = {}, meta = {}) {
     const startedAt = Date.now();
     const method = String(init?.method || "GET").toUpperCase();
@@ -2141,6 +2164,9 @@ function InternoProcessosContent() {
         <div className="flex flex-wrap items-center gap-2 border-b border-[#2D2E2E] px-4 py-3 text-xs">
           <ActionButton onClick={clearActivityLog} disabled={!activityLog.length} className="px-3 py-2 text-xs">
             Limpar log
+          </ActionButton>
+          <ActionButton onClick={copyFullActivityLog} disabled={!activityLog.length} className="px-3 py-2 text-xs">
+            Copiar log completo
           </ActionButton>
           <span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.14em] opacity-70">
             {activityLog.length} entradas
