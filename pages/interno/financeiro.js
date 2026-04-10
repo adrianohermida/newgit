@@ -78,6 +78,8 @@ function FinanceiroInternoContent() {
   const [processQuery, setProcessQuery] = useState("");
   const [processSearch, setProcessSearch] = useState({ loading: false, error: null, items: [] });
   const [resolutionState, setResolutionState] = useState({ loading: false, error: null, result: null });
+  const [textualBackfillLimit, setTextualBackfillLimit] = useState(50);
+  const [textualBackfillState, setTextualBackfillState] = useState({ loading: false, error: null, result: null });
 
   async function load() {
     setState((current) => ({ ...current, loading: true, error: null }));
@@ -127,6 +129,24 @@ function FinanceiroInternoContent() {
       await load();
     } catch (error) {
       setResolutionState({ loading: false, error: error.message || "Falha ao aplicar reconciliacao manual.", result: null });
+    }
+  }
+
+  async function backfillTextualAccounts() {
+    setTextualBackfillState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-hmadv-financeiro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "backfill_textual_accounts",
+          limit: textualBackfillLimit,
+        }),
+      });
+      setTextualBackfillState({ loading: false, error: null, result: payload.data || null });
+      await load();
+    } catch (error) {
+      setTextualBackfillState({ loading: false, error: error.message || "Falha ao criar/vincular accounts textuais.", result: null });
     }
   }
 
@@ -208,6 +228,35 @@ function FinanceiroInternoContent() {
         </Panel>
 
         <Panel title="Filas e publicação" eyebrow="Freshsales + CRM">
+          <div className="mb-4 grid gap-3 md:grid-cols-[140px_auto]">
+            <input
+              type="number"
+              min="1"
+              max="200"
+              value={textualBackfillLimit}
+              onChange={(event) => setTextualBackfillLimit(Number(event.target.value || 50))}
+              className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]"
+            />
+            <button
+              type="button"
+              onClick={backfillTextualAccounts}
+              disabled={textualBackfillState.loading}
+              className="border border-[#C5A059] bg-[#C5A059] px-4 py-3 text-sm font-semibold text-[#050706] disabled:opacity-50"
+            >
+              {textualBackfillState.loading ? "Criando/vinculando accounts..." : "Backfill de accounts textuais"}
+            </button>
+          </div>
+          {textualBackfillState.error ? <p className="mb-4 text-sm text-red-200">{textualBackfillState.error}</p> : null}
+          {textualBackfillState.result ? (
+            <div className="mb-4 rounded-[18px] border border-[#35554B] bg-[rgba(11,24,21,0.72)] p-4 text-sm">
+              <p className="font-semibold">
+                {textualBackfillState.result.updated_contracts || 0} contrato(s) atualizados, {textualBackfillState.result.updated_receivables || 0} recebível(is) ligados.
+              </p>
+              <p className="mt-2 opacity-70">
+                Existing: {textualBackfillState.result.linked_existing || 0} | Criadas: {textualBackfillState.result.created_accounts || 0}
+              </p>
+            </div>
+          ) : null}
           <div className="grid gap-3 md:grid-cols-2">
             {Object.entries(counts.deal_sync_status || {}).map(([key, value]) => (
               <div key={key} className="border border-[#2D2E2E] p-4 text-sm">

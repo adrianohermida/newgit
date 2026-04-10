@@ -1,4 +1,6 @@
 import { fetchSupabaseAdmin } from "./supabase-rest.js";
+import { freshsalesRequest, listFreshsalesSalesAccountsFromViews } from "./freshsales-crm.js";
+import { getCleanEnvValue } from "./env.js";
 
 function safeJsonParse(value, fallback = {}) {
   if (!value) return fallback;
@@ -22,6 +24,14 @@ function normalizeText(value) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    const text = String(value || "").trim();
+    if (text) return text;
+  }
+  return "";
 }
 
 function uniqueBy(items, getKey) {
@@ -421,5 +431,175 @@ export async function resolveHmadvFinancePendingAccounts(env, payload = {}) {
     freshsales_account_id: explicitAccountId,
     process_reference: explicitProcessReference,
     rows: updates,
+  };
+}
+
+function extractSalesAccountProcessReference(account) {
+  return firstNonEmpty(
+    account?.custom_field?.cf_processo,
+    account?.custom_fields?.cf_processo,
+    account?.cf_processo,
+    account?.name
+  );
+}
+
+function mapSalesAccountByReference(accounts = []) {
+  const byReference = new Map();
+  for (const account of accounts) {
+    const keys = [
+      normalizeText(account?.name),
+      normalizeText(extractSalesAccountProcessReference(account)),
+    ].filter(Boolean);
+    for (const key of keys) {
+      if (!byReference.has(key)) byReference.set(key, account);
+    }
+  }
+  return byReference;
+}
+
+async function createTextualFreshsalesAccount(env, processReference) {
+  const title = String(processReference || "").trim();
+  if (!title) {
+    throw new Error("Referencia textual do processo ausente para criar Sales Account.");
+  }
+
+  const ownerId = Number(getCleanEnvValue(env.FRESHSALES_OWNER_ID) || getCleanEnvValue(env.FS_OWNER_ID) || "31000147944");
+  const { payload } = await freshsalesRequest(env, "/sales_accounts", {
+    method: "POST",
+    body: JSON.stringify({
+      sales_account: {
+        name: title.slice(0, 255),
+        owner_id: ownerId,
+        custom_field: {
+          cf_processo: title,
+        },
+        custom_fields: {
+          cf_processo: title,
+        },
+      },
+    }),
+  });
+
+  const account = payload?.sales_account || payload || null;
+  const accountId = String(account?.id || "").trim();
+  if (!accountId) {
+    throw new Error("Freshsales nao retornou Sales Account para a referencia textual.");
+  }
+
+  return {
+    id: accountId,
+    name: account?.name || title,
+    cf_processo: title,
+    source: "created",
+  };
+}
+
+export async function backfillHmadvFinanceAccounts(env, { limit = 50 } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 50), 200));
+  const contracts = await fetchSupabaseAdminAll(
+    env,
+    `billing_contracts?select=id,process_reference,freshsales_account_id&freshsales_account_id=is.null&process_reference=not.is.null&order=created_at.asc&limit=${safeLimit}`
+  );
+
+  if (!contracts.length) {
+    return {
+      scanned: 0,
+      linked_existing: 0,
+      created_accounts: 0,
+      updated_contracts: 0,
+      updated_receivables: 0,
+      items: [],
+    };
+  }
+
+  const accounts = await listFreshsalesSalesAccountsFromViews(env, { maxPages: 8, perPage: 100 });
+  const byReference = mapSalesAccountByReference(accounts);
+
+  const items = [];
+  let linkedExisting = 0;
+  let createdAccounts = 0;
+  let updatedContracts = 0;
+  let updatedReceivables = 0;
+
+  for (const contract of contracts) {
+    const processReference = String(contract.process_reference || "").trim();
+    if (!processReference) continue;
+
+    const key = normalizeText(processReference);
+    let account = byReference.get(key) || null;
+    let mode = "linked_existing";
+
+    if (!account) {
+      account = await createTextualFreshsalesAccount(env, processReference);
+      byReference.set(key, account);
+      mode = "created";
+      createdAccounts += 1;
+    } else {
+      linkedExisting += 1;
+    }
+
+    await fetchSupabaseSchema(
+      env,
+      `billing_contracts?id=eq.${encodeURIComponent(contract.id)}`,
+      {
+        schema: "public",
+        init: {
+          method: "PATCH",
+          headers: {
+            Prefer: "return=minimal",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            freshsales_account_id: String(account.id),
+            metadata: {
+              account_resolution_status: mode === "created" ? "created_textual_account" : "linked_textual_account",
+            },
+          }),
+        },
+      }
+    );
+    updatedContracts += 1;
+
+    await fetchSupabaseSchema(
+      env,
+      `billing_receivables?contract_id=eq.${encodeURIComponent(contract.id)}`,
+      {
+        schema: "public",
+        init: {
+          method: "PATCH",
+          headers: {
+            Prefer: "return=minimal",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            freshsales_account_id: String(account.id),
+          }),
+        },
+      }
+    );
+
+    const receivableRows = await fetchSupabaseSchema(
+      env,
+      `billing_receivables?select=id&contract_id=eq.${encodeURIComponent(contract.id)}&limit=1000`,
+      { schema: "public" }
+    );
+    updatedReceivables += Array.isArray(receivableRows) ? receivableRows.length : 0;
+
+    items.push({
+      contract_id: contract.id,
+      process_reference: processReference,
+      freshsales_account_id: String(account.id),
+      mode,
+      account_name: account.name || processReference,
+    });
+  }
+
+  return {
+    scanned: contracts.length,
+    linked_existing: linkedExisting,
+    created_accounts: createdAccounts,
+    updated_contracts: updatedContracts,
+    updated_receivables: updatedReceivables,
+    items,
   };
 }

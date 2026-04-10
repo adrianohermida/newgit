@@ -1,5 +1,6 @@
 import { requireAdminNode } from "../../lib/admin/node-auth.js";
 import {
+  backfillHmadvFinanceAccounts,
   getHmadvFinanceAdminOverview,
   resolveHmadvFinancePendingAccounts,
   searchHmadvFinanceProcessCandidates,
@@ -31,6 +32,12 @@ export default async function handler(req, res) {
 
     if (req.method === "POST") {
       const action = String(req.body?.action || "");
+      if (action === "backfill_textual_accounts") {
+        const data = await backfillHmadvFinanceAccounts(process.env, {
+          limit: Number(req.body?.limit || 50),
+        });
+        return res.status(200).json({ ok: true, data });
+      }
       if (action === "resolve_account_rows") {
         const data = await resolveHmadvFinancePendingAccounts(process.env, req.body || {});
         return res.status(200).json({ ok: true, data });

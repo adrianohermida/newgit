@@ -1,5 +1,6 @@
 import { requireAdminAccess } from "../lib/admin-auth.js";
 import {
+  backfillHmadvFinanceAccounts,
   getHmadvFinanceAdminOverview,
   resolveHmadvFinancePendingAccounts,
   searchHmadvFinanceProcessCandidates,
@@ -58,6 +59,12 @@ export async function onRequestPost(context) {
   try {
     const body = await context.request.json();
     const action = String(body.action || "");
+    if (action === "backfill_textual_accounts") {
+      const data = await backfillHmadvFinanceAccounts(context.env, {
+        limit: Number(body.limit || 50),
+      });
+      return jsonOk({ data });
+    }
     if (action === "resolve_account_rows") {
       const data = await resolveHmadvFinancePendingAccounts(context.env, body || {});
       return jsonOk({ data });

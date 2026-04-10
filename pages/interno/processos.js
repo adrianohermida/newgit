@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
-import { adminFetch } from "../../lib/admin/api";
+import { adminFetch as adminFetchRaw } from "../../lib/admin/api";
 
 const EMPTY_FORM = { numero_cnj_pai: "", numero_cnj_filho: "", tipo_relacao: "dependencia", status: "ativo", observacoes: "" };
 const PROCESS_VIEW_ITEMS = [
@@ -73,6 +73,38 @@ const MODULE_LIMITS = {
   maxPartesBatch: 10,
   maxAudienciasBatch: 3,
 };
+const ACTIVITY_LOG_LIMIT = 120;
+
+function stringifyLogPayload(payload, limit = 8000) {
+  if (payload === undefined) return "";
+  let text = "";
+  try {
+    text = JSON.stringify(payload, null, 2);
+  } catch {
+    text = String(payload);
+  }
+  if (text.length > limit) {
+    return `${text.slice(0, limit)}...`;
+  }
+  return text;
+}
+
+function extractActionFromRequest(path, init) {
+  let action = "";
+  if (typeof window !== "undefined" && typeof path === "string") {
+    try {
+      const url = new URL(path, window.location.origin);
+      action = url.searchParams.get("action") || "";
+    } catch {}
+  }
+  if (!action && init?.body) {
+    try {
+      const parsed = JSON.parse(init.body);
+      action = parsed?.action || "";
+    } catch {}
+  }
+  return action;
+}
 
 function getProcessActionLimitConfig(action) {
   if (action === "sync_supabase_crm") return { defaultLimit: 1, maxLimit: 1 };
@@ -985,6 +1017,8 @@ function InternoProcessosContent() {
   const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
   const [executionHistory, setExecutionHistory] = useState([]);
   const [queueRefreshLog, setQueueRefreshLog] = useState([]);
+  const [activityLogOpen, setActivityLogOpen] = useState(false);
+  const [activityLog, setActivityLog] = useState([]);
   const [operationalStatus, setOperationalStatus] = useState({ mode: "ok", message: "", updatedAt: null });
   const [backendHealth, setBackendHealth] = useState({ status: "ok", message: "", updatedAt: null });
   const [remoteHistory, setRemoteHistory] = useState([]);
@@ -1036,6 +1070,80 @@ function InternoProcessosContent() {
   const [lookupTerm, setLookupTerm] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingRelationId, setEditingRelationId] = useState(null);
+  const activityLogRef = useRef([]);
+
+  function appendActivityLog(entry) {
+    setActivityLog((current) => {
+      const next = [entry, ...current].slice(0, ACTIVITY_LOG_LIMIT);
+      activityLogRef.current = next;
+      return next;
+    });
+  }
+
+  function updateActivityLog(entryId, patch) {
+    setActivityLog((current) => {
+      const next = current.map((entry) => (entry.id === entryId ? { ...entry, ...patch } : entry));
+      activityLogRef.current = next;
+      return next;
+    });
+  }
+
+  function clearActivityLog() {
+    setActivityLog([]);
+    activityLogRef.current = [];
+  }
+
+  async function copyActivityText(text) {
+    if (!text || typeof window === "undefined" || !navigator?.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {}
+  }
+
+  async function adminFetch(path, init = {}, meta = {}) {
+    const startedAt = Date.now();
+    const method = String(init?.method || "GET").toUpperCase();
+    const action = meta.action || extractActionFromRequest(path, init);
+    let requestPayload = "";
+    if (init?.body) {
+      try {
+        requestPayload = stringifyLogPayload(JSON.parse(init.body));
+      } catch {
+        requestPayload = stringifyLogPayload(init.body);
+      }
+    }
+    const entryId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    appendActivityLog({
+      id: entryId,
+      label: meta.label || action || "Chamada administrativa",
+      action,
+      method,
+      path,
+      expectation: meta.expectation || (action ? `Executar ${action}` : "Consultar backend"),
+      request: requestPayload,
+      status: "running",
+      startedAt,
+      durationMs: null,
+      response: "",
+      error: "",
+    });
+    try {
+      const payload = await adminFetchRaw(path, init, meta);
+      updateActivityLog(entryId, {
+        status: "success",
+        durationMs: Date.now() - startedAt,
+        response: stringifyLogPayload(payload),
+      });
+      return payload;
+    } catch (error) {
+      updateActivityLog(entryId, {
+        status: "error",
+        durationMs: Date.now() - startedAt,
+        error: stringifyLogPayload(error?.payload || error?.message || error),
+      });
+      throw error;
+    }
+  }
 
   useEffect(() => {
     const syncViewFromLocation = () => {
