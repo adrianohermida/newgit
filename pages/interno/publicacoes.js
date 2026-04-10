@@ -23,6 +23,13 @@ const ASYNC_PUBLICACOES_ACTIONS = new Set([
 ]);
 const QUEUE_ERROR_TTL_MS = 1000 * 60 * 3;
 const GLOBAL_ERROR_TTL_MS = 1000 * 60 * 2;
+const MODULE_LIMITS = {
+  maxCreateProcess: 5,
+  maxBackfillPartes: 5,
+  maxSyncPartes: 3,
+  maxSyncWorker: 2,
+  maxDefault: 10,
+};
 const PUBLICACOES_QUEUE_VIEWS = new Set(["operacao", "filas"]);
 const QUEUE_LABELS = {
   candidatos_processos: "Processos criaveis",
@@ -31,11 +38,11 @@ const QUEUE_LABELS = {
 
 function getSafePublicacoesActionLimit(action, requestedLimit) {
   const normalized = Number(requestedLimit || 0) || 0;
-  if (action === "sincronizar_partes") return Math.max(1, Math.min(normalized || 3, 3));
-  if (action === "criar_processos_publicacoes") return Math.max(1, Math.min(normalized || 5, 5));
-  if (action === "backfill_partes") return Math.max(1, Math.min(normalized || 5, 5));
-  if (action === "run_sync_worker") return Math.max(1, Math.min(normalized || 2, 2));
-  return Math.max(1, Math.min(normalized || 10, 20));
+  if (action === "sincronizar_partes") return Math.max(1, Math.min(normalized || 3, MODULE_LIMITS.maxSyncPartes));
+  if (action === "criar_processos_publicacoes") return Math.max(1, Math.min(normalized || 5, MODULE_LIMITS.maxCreateProcess));
+  if (action === "backfill_partes") return Math.max(1, Math.min(normalized || 5, MODULE_LIMITS.maxBackfillPartes));
+  if (action === "run_sync_worker") return Math.max(1, Math.min(normalized || 2, MODULE_LIMITS.maxSyncWorker));
+  return Math.max(1, Math.min(normalized || MODULE_LIMITS.maxDefault, MODULE_LIMITS.maxDefault));
 }
 
 function buildHistoryPreview(result) {
