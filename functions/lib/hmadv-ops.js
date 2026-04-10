@@ -929,8 +929,8 @@ async function collectCreateProcessCandidatePage(env, { page = 1, pageSize = 20 
   const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
   const targetStart = (safePage - 1) * safePageSize;
   const targetEnd = targetStart + safePageSize;
-  const rawBatchSize = Math.max(200, safePageSize * 12);
-  const maxScans = 40;
+  const rawBatchSize = Math.max(120, safePageSize * 8);
+  const maxScans = 24;
   const grouped = new Map();
   let offset = 0;
   let scans = 0;
@@ -964,7 +964,7 @@ async function collectCreateProcessCandidatePage(env, { page = 1, pageSize = 20 
     if (rows.length < rawBatchSize) hasMore = false;
   }
 
-  const items = [...grouped.values()].sort((left, right) => {
+  const ordered = [...grouped.values()].sort((left, right) => {
     const a = left.ultima_publicacao || "";
     const b = right.ultima_publicacao || "";
     return a < b ? 1 : a > b ? -1 : 0;
@@ -973,10 +973,10 @@ async function collectCreateProcessCandidatePage(env, { page = 1, pageSize = 20 
   return {
     page: safePage,
     pageSize: safePageSize,
-    totalRows: hasMore ? Math.max(targetEnd + 1, items.length) : items.length,
+    totalRows: hasMore ? Math.max(targetEnd + 1, ordered.length) : ordered.length,
     totalEstimated: hasMore,
     hasMore,
-    items: items.slice(targetStart, targetEnd),
+    items: ordered.slice(targetStart, targetEnd),
   };
 }
 
@@ -985,8 +985,8 @@ async function collectPartesExtractionCandidatePage(env, { page = 1, pageSize = 
   const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
   const targetStart = (safePage - 1) * safePageSize;
   const targetEnd = targetStart + safePageSize;
-  const processBatchSize = Math.max(100, safePageSize * 8);
-  const maxScans = 40;
+  const processBatchSize = Math.max(80, safePageSize * 6);
+  const maxScans = 20;
   const collected = [];
   const seen = new Set();
   let offset = 0;
@@ -1006,14 +1006,14 @@ async function collectPartesExtractionCandidatePage(env, { page = 1, pageSize = 
     }
     const processIds = processRows.map((item) => item.id);
     const [publicacoes, partes] = await Promise.all([
-      processIds.length ? loadPublicacoesByProcessIds(env, processIds, 10) : Promise.resolve([]),
+      processIds.length ? loadPublicacoesByProcessIds(env, processIds, 6) : Promise.resolve([]),
       processIds.length ? loadPartesByProcessIds(env, processIds) : Promise.resolve([]),
     ]);
 
     for (const proc of processRows) {
       const dedupeKey = proc.numero_cnj || proc.id;
       if (!dedupeKey || seen.has(dedupeKey)) continue;
-      const pubs = publicacoes.filter((item) => item.processo_id === proc.id).slice(0, 25);
+      const pubs = publicacoes.filter((item) => item.processo_id === proc.id).slice(0, 18);
       if (!pubs.length) continue;
       const existing = partes.filter((item) => item.processo_id === proc.id);
       const parsed = pubs.flatMap((pub) => parsePartesFromText(pub.conteudo));
