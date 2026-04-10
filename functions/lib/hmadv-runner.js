@@ -1,6 +1,7 @@
 import {
   getPersistedCoverageOverview,
   getPersistedCoveragePriorityReport,
+  getCoverageSchemaStatus,
   recoverTaggedDatajudMissingCnj,
   getTaggedDatajudActionPlan,
   getTaggedDatajudCoverageReport,
@@ -885,6 +886,7 @@ export async function getHmadvQueueSnapshot(env) {
     listAdminJobs(env, { modulo: "publicacoes", limit: 20 }),
     listAdminOperations(env, { modulo: "runner", limit: 5 }),
   ]);
+  const coverageSchema = await getCoverageSchemaStatus(env).catch(() => null);
 
   const runnerTokenKey = getConfiguredRunnerTokenKey(env);
   const runnerConfigured = Boolean(runnerTokenKey);
@@ -1055,6 +1057,13 @@ export async function getHmadvQueueSnapshot(env) {
     datajudTagActionPlan,
     datajudActionMetrics,
   });
+  if (coverageSchema && coverageSchema.exists === false) {
+    alerts.push({
+      level: "critico",
+      title: "Cobertura persistida indisponivel",
+      message: "A tabela judiciario.processo_cobertura_sync nao esta aplicada no HMADV.",
+    });
+  }
   const moduleCards = {
     processos: {
       label: "Processos",
@@ -1127,6 +1136,7 @@ export async function getHmadvQueueSnapshot(env) {
     contactsOverview,
     coverageOverview,
     coveragePriority,
+    coverageSchema,
     datajudTagDiagnostics,
     datajudTagCoverage,
     datajudTagActionPlan,

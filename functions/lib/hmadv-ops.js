@@ -333,6 +333,25 @@ export async function listAdminOperations(env, { modulo, limit = 20 } = {}) {
   return { items };
 }
 
+export async function getCoverageSchemaStatus(env) {
+  try {
+    const totalRows = await countTableSafe(env, "processo_cobertura_sync", "", "judiciario");
+    return {
+      ok: true,
+      exists: true,
+      totalRows,
+    };
+  } catch (error) {
+    const message = String(error?.message || "");
+    const missing = message.includes("does not exist") || message.includes("schema cache") || message.includes("PGRST");
+    return {
+      ok: false,
+      exists: !missing,
+      error: message,
+    };
+  }
+}
+
 async function fetchOperationJobById(env, id) {
   const rows = await listTableSafe(
     env,

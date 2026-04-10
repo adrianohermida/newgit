@@ -13,6 +13,7 @@ import {
   getTaggedDatajudCoverageReport,
   getTaggedDatajudDiagnostics,
   getTaggedDatajudMissingCnjReport,
+  getCoverageSchemaStatus,
   recoverTaggedDatajudMissingCnj,
   runFullIntegrationCron,
   inspectAudiencias,
@@ -317,6 +318,10 @@ export async function onRequestGet(context) {
           datajudAction: extractGroup("datajud_action_"),
         },
       });
+    }
+    if (action === "schema_status") {
+      const data = await getCoverageSchemaStatus(context.env);
+      return jsonOk({ data });
     }
     if (action === "plano_datajud_tag") {
       const data = await getTaggedDatajudActionPlan(context.env, {
