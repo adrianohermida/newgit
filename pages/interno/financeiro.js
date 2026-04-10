@@ -186,6 +186,7 @@ function FinanceiroInternoContent() {
   const data = state.data || {};
   const counts = data.counts || {};
   const diagnostics = data.diagnostics || {};
+  const freshsalesAuth = data.freshsales_auth || {};
 
   return (
     <div className="space-y-8">
@@ -313,6 +314,40 @@ function FinanceiroInternoContent() {
           </div>
         </Panel>
       </div>
+
+      <Panel title="Freshsales auth" eyebrow="OAuth">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="Access token" value={freshsalesAuth.has_access_token ? "OK" : "Ausente"} helper="Token atual para leitura/escrita." />
+          <MetricCard label="Refresh token" value={freshsalesAuth.has_refresh_token ? "OK" : "Ausente"} helper="Necessário para renovar o acesso." />
+          <MetricCard label="OAuth client" value={freshsalesAuth.has_client_id && freshsalesAuth.has_client_secret ? "OK" : "Faltando"} helper="Client ID e secret do app Freshsales." />
+          <MetricCard label="Redirect URI" value={freshsalesAuth.has_redirect_uri ? "OK" : "Faltando"} helper="Callback usado na autorização." />
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <StatusBadge tone={freshsalesAuth.has_access_token ? "success" : "warn"}>
+            {freshsalesAuth.has_access_token ? "Token presente" : "Token ausente ou inválido"}
+          </StatusBadge>
+          <StatusBadge tone={freshsalesAuth.has_refresh_token ? "success" : "warn"}>
+            {freshsalesAuth.has_refresh_token ? "Refresh configurado" : "Sem refresh"}
+          </StatusBadge>
+        </div>
+        {freshsalesAuth.api_base ? <p className="mt-4 text-sm opacity-65">Base: {freshsalesAuth.api_base}</p> : null}
+        {freshsalesAuth.org_domain ? <p className="mt-2 text-sm opacity-65">Org domain: {freshsalesAuth.org_domain}</p> : null}
+        {freshsalesAuth.token_expiry ? <p className="mt-2 text-sm opacity-65">Expira em: {formatDate(freshsalesAuth.token_expiry)}</p> : null}
+        {freshsalesAuth.authorization_url ? (
+          <p className="mt-4">
+            <a
+              href={freshsalesAuth.authorization_url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-block border border-[#C5A059] px-3 py-2 text-sm text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#050706]"
+            >
+              Reautorizar Freshsales
+            </a>
+          </p>
+        ) : (
+          <p className="mt-4 text-sm opacity-65">Preencha as variáveis OAuth para gerar a URL de autorização.</p>
+        )}
+      </Panel>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Panel title="Recebíveis recentes" eyebrow="Base canônica">

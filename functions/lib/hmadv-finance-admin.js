@@ -50,6 +50,75 @@ function basename(value) {
   return String(value || "").split(/[\\/]/).filter(Boolean).pop() || String(value || "");
 }
 
+function resolveFreshsalesOrgDomain(env) {
+  const explicit = getCleanEnvValue(env.FRESHSALES_ORG_DOMAIN);
+  if (explicit) return explicit;
+  const rawBase = getCleanEnvValue(env.FRESHSALES_API_BASE || env.FRESHSALES_BASE_URL || env.FRESHSALES_DOMAIN);
+  if (!rawBase) return null;
+  const host = rawBase
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/(crm\/sales\/api|api)\/?$/i, "")
+    .trim();
+  if (!host) return null;
+  if (host.includes("myfreshworks.com")) return host;
+  if (host.endsWith(".freshsales.io")) return host.replace(/\.freshsales\.io$/i, ".myfreshworks.com");
+  return host;
+}
+
+function buildFreshsalesAuthorizationUrl(env) {
+  const clientId = getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_ID);
+  const orgDomain = resolveFreshsalesOrgDomain(env);
+  const supabaseUrl = getCleanEnvValue(env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL);
+  const redirectUri = getCleanEnvValue(env.FRESHSALES_REDIRECT_URI) || (supabaseUrl ? `${supabaseUrl}/functions/v1/oauth` : null);
+  const state = getCleanEnvValue(env.FRESHSALES_OAUTH_STATE) || "hmadv-billing";
+  const scopes = getCleanEnvValue(env.FRESHSALES_OAUTH_SCOPES) || [
+    "freshsales.contacts.create",
+    "freshsales.contacts.edit",
+    "freshsales.contacts.view",
+    "freshsales.sales_accounts.create",
+    "freshsales.sales_accounts.edit",
+    "freshsales.sales_accounts.view",
+    "freshsales.deals.create",
+    "freshsales.deals.edit",
+    "freshsales.deals.view",
+    "freshsales.settings.fields.view",
+  ].join(" ");
+
+  if (!clientId || !orgDomain || !redirectUri) return null;
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    response_type: "code",
+    redirect_uri: redirectUri,
+    state,
+    scope: scopes,
+  });
+
+  return `https://${orgDomain}/crm/sales/oauth/authorize?${params.toString()}`;
+}
+
+function buildFreshsalesAuthSnapshot(env) {
+  const apiBase = getCleanEnvValue(env.FRESHSALES_API_BASE || env.FRESHSALES_BASE_URL || env.FRESHSALES_DOMAIN);
+  const accessToken = getCleanEnvValue(env.FRESHSALES_ACCESS_TOKEN);
+  const refreshToken = getCleanEnvValue(env.FRESHSALES_REFRESH_TOKEN);
+  const tokenExpiry = getCleanEnvValue(env.FRESHSALES_TOKEN_EXPIRY);
+  const expiryDate = tokenExpiry && !Number.isNaN(Number(tokenExpiry)) ? new Date(Number(tokenExpiry)).toISOString() : null;
+
+  return {
+    has_api_base: Boolean(apiBase),
+    has_access_token: Boolean(accessToken),
+    has_refresh_token: Boolean(refreshToken),
+    has_client_id: Boolean(getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_ID)),
+    has_client_secret: Boolean(getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_SECRET)),
+    has_org_domain: Boolean(resolveFreshsalesOrgDomain(env)),
+    has_redirect_uri: Boolean(getCleanEnvValue(env.FRESHSALES_REDIRECT_URI) || getCleanEnvValue(env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL)),
+    api_base: apiBase,
+    org_domain: resolveFreshsalesOrgDomain(env),
+    token_expiry: expiryDate,
+    authorization_url: buildFreshsalesAuthorizationUrl(env),
+  };
+}
+
 async function fetchSupabaseAdminAll(env, path, { schema = "public", pageSize = 1000 } = {}) {
   const rows = [];
   let from = 0;
@@ -240,6 +309,7 @@ export async function getHmadvFinanceAdminOverview(env) {
       canonical_amount: canonicalAmount,
       open_amount: openAmount,
     },
+    freshsales_auth: buildFreshsalesAuthSnapshot(env),
     resolution,
     counts: {
       import_status: importStatusCounts,

@@ -18,6 +18,8 @@
     "diagnose:freshsales-auth": "node scripts/diagnose-freshsales-auth.js",
     "authorize:freshsales": "node scripts/freshsales-authorize-url.js",
     "exchange:freshsales-code": "node scripts/exchange-freshsales-auth-code.js",
+    "export:freshsales-accounts-import": "node scripts/export-freshsales-sales-accounts-import.js",
+    "export:freshsales-deals-import": "node scripts/export-freshsales-deals-import.js",
     "bootstrap:hmadv-contacts": "node scripts/bootstrap-hmadv-contacts.js",
     "backfill:hmadv-accounts": "node scripts/backfill-hmadv-accounts.js",
     "orchestrate:hmadv-billing": "node scripts/orchestrate-hmadv-billing.js",
