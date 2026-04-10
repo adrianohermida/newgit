@@ -1235,11 +1235,13 @@ function PublicacoesContent() {
         </div>
         <div className="mt-6 space-y-4">
           <ViewToggle value={view} onChange={updateView} />
-          {globalError ? (
-            <div className="border border-[#4B2222] bg-[rgba(127,29,29,0.15)] p-4 text-xs text-red-200">
-              {globalError}
+          <div className={`border p-4 text-xs ${operationalStatus.mode === "error" ? "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200" : operationalStatus.mode === "limited" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="uppercase tracking-[0.18em] text-[10px]">Status operacional</span>
+              <span className="text-[10px] uppercase tracking-[0.16em] opacity-70">{operationalStatus.updatedAt ? new Date(operationalStatus.updatedAt).toLocaleTimeString("pt-BR") : ""}</span>
             </div>
-          ) : null}
+            <p className="mt-2">{operationalStatus.message || "Operacao normal"}</p>
+          </div>
           {queueRefreshLog.length ? (
             <div className="border border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] p-4 text-xs">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-60">Ultimas filas atualizadas</p>
