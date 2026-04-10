@@ -2428,8 +2428,203 @@ export async function listClientDocumentos(env, email) {
   };
 }
 
+function firstRelation(value) {
+  return Array.isArray(value) ? value[0] || null : value || null;
+}
+
+function mapCanonicalFinanceKind(receivable) {
+  const type = normalizeText(receivable?.receivable_type || "");
+  const billingType = normalizeText(receivable?.products?.billing_type || "");
+  if (type.includes("reembolso")) return "refund";
+  if (type.includes("mensalidade") || billingType.includes("recorrente")) return "subscription";
+  if (type.includes("parcela") || type.includes("fatura")) return "invoice";
+  return "other";
+}
+
+function buildCanonicalFinanceItem(receivable, processRow = null) {
+  const contract = firstRelation(receivable?.contracts);
+  const product = firstRelation(receivable?.products);
+  const kind = mapCanonicalFinanceKind({
+    receivable_type: receivable?.receivable_type,
+    products: product,
+  });
+  const status = mapFinanceStatus(receivable?.status || "", kind);
+  const processReference =
+    processRow?.number ||
+    processRow?.metadata?.process_reference ||
+    contract?.process_reference ||
+    receivable?.freshsales_account_id ||
+    null;
+
+  return {
+    id: receivable.id,
+    title: contract?.title || receivable.description || product?.name || "Lancamento financeiro",
+    kind,
+    kind_label: kind === "subscription" ? "Assinatura" : kind === "invoice" ? "Fatura" : kind === "refund" ? "Reembolso" : "Financeiro",
+    status,
+    status_label: mapFinanceStatusLabel(status),
+    amount: toNumber(receivable.balance_due_corrected ?? receivable.balance_due ?? receivable.amount_original),
+    amount_label: formatCurrencyBRL(receivable.balance_due_corrected ?? receivable.balance_due ?? receivable.amount_original),
+    due_date: receivable.due_date || null,
+    created_at: receivable.created_at || null,
+    updated_at: receivable.updated_at || null,
+    stage: receivable.status || null,
+    process_account: processRow
+      ? {
+          id: processRow.account_id_freshsales || processRow.id || null,
+          name: processRow.title || processReference || "Processo vinculado",
+          process_reference: processReference,
+          status: processRow.status || null,
+        }
+      : contract?.freshsales_account_id || receivable?.freshsales_account_id
+        ? {
+            id: contract?.freshsales_account_id || receivable?.freshsales_account_id,
+            name: processReference || "Processo vinculado",
+            process_reference: processReference,
+            status: null,
+          }
+        : null,
+    source_filter_name: "hmadv_billing_canonical",
+    relationship_ids: {
+      sales_account_id: contract?.freshsales_account_id || receivable?.freshsales_account_id || null,
+      targetable_type: "Contact",
+      targetable_id: contract?.freshsales_contact_id || null,
+    },
+  };
+}
+
+async function listCanonicalClientFinanceiro(env, email) {
+  const normalizedEmail = normalizeEmail(email);
+  const contacts = await safeResolve(
+    () => fetchSupabaseAdmin(env, `freshsales_contacts?select=id,freshsales_contact_id,name,email,email_normalized&email_normalized=eq.${encodeURIComponent(normalizedEmail)}&limit=50`),
+    []
+  );
+  const processPortfolio = await safeResolve(() => listClientProcessos(env, email), { items: [], warning: null });
+  const contactIds = uniqueBy((contacts || []).map((item) => item.id).filter(Boolean), (item) => item);
+  const accountIds = uniqueBy(
+    (processPortfolio.items || []).map((item) => String(item?.account_id_freshsales || "").trim()).filter(Boolean),
+    (item) => item
+  );
+
+  if (!contactIds.length && !accountIds.length) {
+    return null;
+  }
+
+  const orFilters = [];
+  if (contactIds.length) {
+    orFilters.push(`contact_id.in.(${contactIds.map((item) => `"${item}"`).join(",")})`);
+  }
+  if (accountIds.length) {
+    orFilters.push(`freshsales_account_id.in.(${accountIds.map((item) => `"${item}"`).join(",")})`);
+  }
+  if (!orFilters.length) return null;
+
+  const receivables = await safeResolve(
+    () => fetchSupabaseAdmin(
+      env,
+      `billing_receivables?select=id,contract_id,contact_id,process_id,freshsales_account_id,receivable_type,invoice_number,description,due_date,status,amount_original,balance_due,balance_due_corrected,created_at,updated_at,contracts:billing_contracts(id,title,process_reference,freshsales_contact_id,freshsales_account_id),products:freshsales_products(id,name,billing_type)&or=(${orFilters.join(",")})&order=due_date.desc&limit=500`
+    ),
+    []
+  );
+
+  if (!receivables.length) {
+    return null;
+  }
+
+  const processesByAccountId = new Map(
+    (processPortfolio.items || [])
+      .filter((item) => item?.account_id_freshsales)
+      .map((item) => [String(item.account_id_freshsales).trim(), item])
+  );
+
+  const items = receivables
+    .map((receivable) => {
+      const contract = firstRelation(receivable.contracts);
+      const accountId = String(receivable.freshsales_account_id || contract?.freshsales_account_id || "").trim();
+      const processRow = accountId ? processesByAccountId.get(accountId) || null : null;
+      return buildCanonicalFinanceItem(receivable, processRow);
+    })
+    .sort((left, right) => {
+      const leftTime = left.due_date ? new Date(left.due_date).getTime() : 0;
+      const rightTime = right.due_date ? new Date(right.due_date).getTime() : 0;
+      return rightTime - leftTime;
+    });
+
+  const invoices = items.filter((item) => item.kind === "invoice");
+  const subscriptions = items.filter((item) => item.kind === "subscription");
+  const others = items.filter((item) => item.kind === "other");
+  const refunds = items.filter((item) => item.kind === "refund");
+  const openAmount = invoices
+    .filter((item) => !["pago", "encerrado"].includes(item.status))
+    .reduce((sum, item) => sum + (item.amount || 0), 0);
+  const recurringAmount = subscriptions
+    .filter((item) => item.status !== "encerrado")
+    .reduce((sum, item) => sum + (item.amount || 0), 0);
+  const statusCounts = items.reduce((acc, item) => {
+    acc[item.status] = (acc[item.status] || 0) + 1;
+    return acc;
+  }, {});
+
+  return {
+    items,
+    invoices,
+    subscriptions,
+    others,
+    linked_accounts: uniqueBy(
+      (processPortfolio.items || [])
+        .filter((item) => item?.account_id_freshsales)
+        .map((item) => ({
+          id: item.account_id_freshsales,
+          name: item.title || item.number || "Sales Account",
+          process_reference: item.number || item.metadata?.process_reference || null,
+          status: item.status || null,
+        })),
+      (item) => String(item?.id || "").trim()
+    ),
+    summary: {
+      total_items: items.length,
+      invoices: invoices.length,
+      subscriptions: subscriptions.length,
+      refunds: refunds.length,
+      open_amount: openAmount,
+      recurring_amount: recurringAmount,
+      status_counts: {
+        aberto: statusCounts.aberto || 0,
+        pago: statusCounts.pago || 0,
+        atrasado: statusCounts.atrasado || 0,
+        nao_pago: statusCounts.nao_pago || 0,
+      },
+    },
+    mapping: {
+      deal_type_field: { key: "canonical_billing", label: "billing_receivables.receivable_type", source: "supabase" },
+      process_reference_field: { key: "canonical_process_reference", label: "billing_contracts.process_reference", source: "supabase" },
+      account_status_field: { key: "processos.status", label: "processos.status", source: "supabase" },
+      deal_stage_field: { key: "billing_receivables.status", label: "billing_receivables.status", source: "supabase" },
+      deal_stage_values: [],
+      stage_semantics: { pago: [], em_aberto: [], cancelado: [] },
+    },
+    field_catalog: {
+      deal_type_candidates: [],
+      amount_candidates: [],
+      account_candidates: [],
+    },
+    diagnostics: {
+      contacts_found: contacts.length,
+      linked_accounts: accountIds.length,
+      related_deals: items.length,
+      source: "supabase_billing_canonical",
+    },
+    warning: processPortfolio.warning || null,
+  };
+}
+
 export async function listClientFinanceiro(env, email) {
   try {
+    const canonicalFinanceiro = await safeResolve(() => listCanonicalClientFinanceiro(env, email), null);
+    if (canonicalFinanceiro?.items?.length) {
+      return canonicalFinanceiro;
+    }
+
     const freshsalesContext = await listFreshsalesRelatedAccounts(env, email);
     const liveContext = await getFreshsalesPortalContextLive(env, email);
     const processPortfolio = await safeResolve(() => listClientProcessos(env, email), { items: [], warning: null });

@@ -192,7 +192,7 @@ function buildDealPayload(row, contract, product) {
       expected_close: row.due_date || currentDateIso(),
       owner_id: billingConfig.ownerId,
       deal_stage_id: billingConfig.defaultDealStageId,
-      sales_account_id: Number(row.freshsales_account_id || contract.freshsales_account_id),
+      sales_account_id: toFreshsalesNumericId(row.freshsales_account_id || contract.freshsales_account_id),
       ...coreFields,
       contact_ids: contract.freshsales_contact_id ? [Number(contract.freshsales_contact_id)] : undefined,
       custom_field: cleanObject(customFields),
@@ -279,6 +279,12 @@ function cleanObject(value) {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item != null && item !== ''));
 }
 
+function toFreshsalesNumericId(value) {
+  const text = String(value || '').trim();
+  if (!/^\d+$/.test(text)) return undefined;
+  return Number(text);
+}
+
 function firstRelation(value) {
   return Array.isArray(value) ? value[0] || null : value || null;
 }
@@ -341,7 +347,7 @@ function resolveMappedFieldValue(fieldName, value, billingConfig) {
 }
 
 function isCoreDealField(fieldName) {
-  return ['deal_type_id', 'deal_stage_id', 'owner_id', 'amount', 'expected_close'].includes(fieldName);
+  return ['deal_type_id', 'deal_stage_id', 'owner_id', 'amount', 'expected_close', 'sales_account_id'].includes(fieldName);
 }
 
 function parseJsonEnv(value, fallback = {}) {

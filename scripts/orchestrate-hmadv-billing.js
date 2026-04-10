@@ -39,6 +39,11 @@ async function main() {
     importRunIds.push(importRunId);
 
     runStep(
+      `Reconcile processes (${path.basename(file)})`,
+      ['node', 'scripts/reconcile-hmadv-processes.js', '--import-run-id', importRunId, '--apply', '--min-score', '0.9', '--limit', '2000']
+    );
+
+    runStep(
       `Materialize billing (${path.basename(file)})`,
       workspaceId
         ? ['node', 'scripts/materialize-hmadv-billing.js', importRunId, workspaceId]
