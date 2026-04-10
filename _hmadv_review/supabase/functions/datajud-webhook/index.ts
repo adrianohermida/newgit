@@ -867,6 +867,7 @@ async function handleRecoverTaggedMissingCnj(limit = 100, tag = 'datajud'): Prom
     recovered: 0,
     skipped: 0,
     failed: 0,
+    queued: 0,
   };
   const sample: unknown[] = [];
 
@@ -901,6 +902,24 @@ async function handleRecoverTaggedMissingCnj(limit = 100, tag = 'datajud'): Prom
     const patch = await patchSalesAccountProcessNumber(accountId, inferredCnj);
     if (patch.ok) summary.recovered += 1;
     else summary.failed += 1;
+
+    let queued = null;
+    if (patch.ok) {
+      const patchedSalesAccount = {
+        ...salesAccount,
+        custom_fields: {
+          ...customFields,
+          cf_processo: patch.processNumber,
+        },
+      };
+      const enqueueResult = await handleTagAdded({
+        account_id: accountId,
+        sales_account: patchedSalesAccount,
+        cf_processo: patch.processNumber,
+      });
+      queued = (enqueueResult as Record<string, unknown>).queue ?? null;
+      if (queued) summary.queued += 1;
+    }
     if (sample.length < 20) {
       sample.push({
         account_id: accountId,
@@ -909,6 +928,7 @@ async function handleRecoverTaggedMissingCnj(limit = 100, tag = 'datajud'): Prom
         process_number: patch.processNumber,
         ok: patch.ok,
         status: patch.status,
+        queue: queued,
       });
     }
   }
