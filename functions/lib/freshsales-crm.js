@@ -45,18 +45,95 @@ function expandEnvTemplate(env, value) {
   return text.replace(/\{\{\s*([A-Z0-9_]+)\s*\}\}/g, (_match, key) => getCleanEnvValue(env[key]) || "");
 }
 
-function getAuthHeaders(env) {
+function resolveSupabaseOAuthUrl(env, action = "token") {
+  const supabaseUrl =
+    getCleanEnvValue(env.SUPABASE_URL) ||
+    getCleanEnvValue(env.NEXT_PUBLIC_SUPABASE_URL) ||
+    null;
+  if (!supabaseUrl) return null;
+  return `${supabaseUrl.replace(/\/+$/, "")}/functions/v1/oauth?action=${encodeURIComponent(action)}`;
+}
+
+function getSupabaseFunctionHeaders(env) {
+  const serviceRoleKey = getCleanEnvValue(env.SUPABASE_SERVICE_ROLE_KEY);
+  const headers = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+  if (!serviceRoleKey) return headers;
+  return {
+    ...headers,
+    apikey: serviceRoleKey,
+    Authorization: `Bearer ${serviceRoleKey}`,
+  };
+}
+
+async function ensureSupabaseOauthSeed(env) {
+  const seedUrl = resolveSupabaseOAuthUrl(env, "seed");
+  const accessToken = getCleanEnvValue(env.FRESHSALES_ACCESS_TOKEN);
+  const refreshToken = getCleanEnvValue(env.FRESHSALES_REFRESH_TOKEN);
+  if (!seedUrl || !accessToken || !refreshToken) return false;
+
+  const response = await fetch(seedUrl, {
+    method: "POST",
+    headers: getSupabaseFunctionHeaders(env),
+  }).catch(() => null);
+
+  return Boolean(response?.ok);
+}
+
+async function getSupabaseOauthAccessToken(env) {
+  const tokenUrl = resolveSupabaseOAuthUrl(env, "token");
+  if (!tokenUrl) return null;
+
+  const requestToken = async () => {
+    const response = await fetch(tokenUrl, {
+      method: "GET",
+      headers: getSupabaseFunctionHeaders(env),
+    }).catch(() => null);
+
+    if (!response) return null;
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 404 || response.status === 400) return { missing: true };
+      return null;
+    }
+
+    if (!payload?.access_token) return null;
+    return payload.access_token;
+  };
+
+  const initial = await requestToken();
+  if (typeof initial === "string") return initial;
+  if (!initial?.missing) return null;
+
+  const seeded = await ensureSupabaseOauthSeed(env);
+  if (!seeded) return null;
+
+  const retried = await requestToken();
+  return typeof retried === "string" ? retried : null;
+}
+
+async function getAuthHeaders(env) {
   const apiKey = getCleanEnvValue(env.FRESHSALES_API_KEY);
   const accessToken = getCleanEnvValue(env.FRESHSALES_ACCESS_TOKEN);
   const basicAuth = getCleanEnvValue(env.FRESHSALES_BASIC_AUTH);
   const explicitMode = getCleanEnvValue(env.FRESHSALES_AUTH_MODE);
+  const supabaseOauthToken = await getSupabaseOauthAccessToken(env);
   const headers = [
     apiKey ? { name: "api_key", header: { Authorization: `Token token=${apiKey}` } } : null,
     basicAuth ? { name: "basic_auth", header: /^Basic\s+/i.test(basicAuth) ? { Authorization: basicAuth } : { Authorization: `Basic ${basicAuth}` } } : null,
+    supabaseOauthToken ? { name: "supabase_oauth", header: { Authorization: `Bearer ${supabaseOauthToken}` } } : null,
     accessToken ? { name: "access_token", header: { Authorization: `Bearer ${accessToken}` } } : null,
   ].filter(Boolean);
 
-  if (explicitMode && explicitMode !== "oauth") {
+  if (explicitMode === "oauth") {
+    headers.sort((left, right) => {
+      const leftRank = left.name === "supabase_oauth" ? 0 : left.name === "access_token" ? 1 : 2;
+      const rightRank = right.name === "supabase_oauth" ? 0 : right.name === "access_token" ? 1 : 2;
+      return leftRank - rightRank;
+    });
+  } else if (explicitMode) {
     headers.sort((left, right) => (left.name === explicitMode ? -1 : right.name === explicitMode ? 1 : 0));
   }
 
@@ -65,7 +142,7 @@ function getAuthHeaders(env) {
 
 export async function freshsalesRequest(env, path, init = {}) {
   const candidates = buildCandidates(env);
-  const authHeaders = getAuthHeaders(env);
+  const authHeaders = await getAuthHeaders(env);
   if (!candidates.length || !authHeaders.length) {
     throw new Error("Credenciais do Freshsales ausentes no ambiente.");
   }

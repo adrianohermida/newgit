@@ -9,20 +9,23 @@ loadLocalEnv();
 
 async function main() {
   const bases = resolveFreshsalesBases();
-  const authModes = resolveAuthModes();
+  const authModes = await resolveAuthModes();
   const report = {
     generated_at: new Date().toISOString(),
     bases,
     auth_modes: authModes.map((item) => item.name),
     oauth_env: {
       has_api_key: Boolean(cleanValue(process.env.FRESHSALES_API_KEY)),
+      has_basic_auth: Boolean(cleanValue(process.env.FRESHSALES_BASIC_AUTH)),
       has_client_id: Boolean(cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID)),
       has_client_secret: Boolean(cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET)),
       has_refresh_token: Boolean(cleanValue(process.env.FRESHSALES_REFRESH_TOKEN)),
       has_org_domain: Boolean(resolveOrgDomain()),
       has_redirect_uri: Boolean(cleanValue(process.env.FRESHSALES_REDIRECT_URI) || cleanValue(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)),
+      has_supabase_oauth_endpoint: Boolean(resolveSupabaseOauthUrl('status')),
     },
     probes: [],
+    supabase_oauth: await inspectSupabaseOauth(),
     refresh: null,
   };
 
@@ -104,7 +107,7 @@ function expandEnvTemplate(value) {
   return text.replace(/\{\{\s*([A-Z0-9_]+)\s*\}\}/g, (_match, key) => cleanValue(process.env[key]) || '');
 }
 
-function resolveAuthModes() {
+async function resolveAuthModes() {
   const modes = [];
   const apiKey = cleanValue(process.env.FRESHSALES_API_KEY);
   const basicAuth = cleanValue(process.env.FRESHSALES_BASIC_AUTH);
@@ -122,19 +125,135 @@ function resolveAuthModes() {
       headers: { Authorization: /^Basic\s+/i.test(basicAuth) ? basicAuth : `Basic ${basicAuth}` },
     });
   }
+  const supabaseOauthToken = await getSupabaseOauthAccessToken();
+  if (supabaseOauthToken) {
+    modes.push({
+      name: 'supabase_oauth',
+      headers: { Authorization: `Bearer ${supabaseOauthToken}` },
+    });
+  }
   if (accessToken) {
     modes.push({
       name: 'access_token',
       headers: { Authorization: `Bearer ${accessToken}` },
     });
   }
-  if (explicitMode && explicitMode !== 'oauth') {
+  if (explicitMode === 'oauth') {
+    return modes.sort((left, right) => {
+      const leftRank = left.name === 'supabase_oauth' ? 0 : left.name === 'access_token' ? 1 : 2;
+      const rightRank = right.name === 'supabase_oauth' ? 0 : right.name === 'access_token' ? 1 : 2;
+      return leftRank - rightRank;
+    });
+  }
+  if (explicitMode) {
     return modes.sort((left, right) => (left.name === explicitMode ? -1 : right.name === explicitMode ? 1 : 0));
   }
   if (apiKey) {
     return modes.sort((left, right) => (left.name === 'api_key' ? -1 : right.name === 'api_key' ? 1 : 0));
   }
   return modes;
+}
+
+function resolveSupabaseOauthUrl(action = 'token') {
+  const supabaseUrl = cleanValue(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
+  if (!supabaseUrl) return null;
+  return `${supabaseUrl.replace(/\/+$/, '')}/functions/v1/oauth?action=${encodeURIComponent(action)}`;
+}
+
+function supabaseOauthHeaders() {
+  const serviceRoleKey = cleanValue(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const headers = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  };
+  if (!serviceRoleKey) return headers;
+  return {
+    ...headers,
+    apikey: serviceRoleKey,
+    Authorization: `Bearer ${serviceRoleKey}`,
+  };
+}
+
+async function ensureSupabaseOauthSeed() {
+  const seedUrl = resolveSupabaseOauthUrl('seed');
+  if (!seedUrl) return false;
+  if (!cleanValue(process.env.FRESHSALES_ACCESS_TOKEN) || !cleanValue(process.env.FRESHSALES_REFRESH_TOKEN)) {
+    return false;
+  }
+
+  const response = await fetch(seedUrl, {
+    method: 'POST',
+    headers: supabaseOauthHeaders(),
+  }).catch(() => null);
+
+  return Boolean(response?.ok);
+}
+
+async function getSupabaseOauthAccessToken() {
+  const tokenUrl = resolveSupabaseOauthUrl('token');
+  if (!tokenUrl) return null;
+
+  const requestToken = async () => {
+    const response = await fetch(tokenUrl, {
+      method: 'GET',
+      headers: supabaseOauthHeaders(),
+    }).catch(() => null);
+
+    if (!response) return null;
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 404 || response.status === 400) return { missing: true };
+      return null;
+    }
+
+    return payload?.access_token || null;
+  };
+
+  const initial = await requestToken();
+  if (typeof initial === 'string') return initial;
+  if (!initial?.missing) return null;
+
+  const seeded = await ensureSupabaseOauthSeed();
+  if (!seeded) return null;
+
+  const retried = await requestToken();
+  return typeof retried === 'string' ? retried : null;
+}
+
+async function inspectSupabaseOauth() {
+  const statusUrl = resolveSupabaseOauthUrl('status');
+  if (!statusUrl) {
+    return {
+      attempted: false,
+      reason: 'missing_supabase_url',
+    };
+  }
+
+  const response = await fetch(statusUrl, {
+    method: 'GET',
+    headers: supabaseOauthHeaders(),
+  }).catch((error) => ({ ok: false, status: 0, __error: error }));
+
+  if (!response || response.__error) {
+    return {
+      attempted: true,
+      ok: false,
+      status: 0,
+      message: String(response?.__error?.message || response?.__error || 'unknown_error'),
+    };
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  return {
+    attempted: true,
+    ok: response.ok && Boolean(payload?.authorized),
+    status: response.status,
+    authorized: Boolean(payload?.authorized),
+    valid: Boolean(payload?.valid),
+    expires_at: payload?.expires_at || null,
+    has_refresh_token: Boolean(payload?.has_refresh_token),
+    message: summarizePayload(payload),
+  };
 }
 
 async function runProbe(base, auth) {
@@ -215,9 +334,17 @@ function hasRefreshEnv() {
 function resolveOrgDomain() {
   return (
     cleanValue(process.env.FRESHSALES_ORG_DOMAIN) ||
+    cleanValue(process.env.FRESHSALES_DOMAIN) ||
+    hostOnly(cleanValue(process.env.FRESHSALES_ALIAS_DOMAIN)) ||
     readOrgDomainFromApiBase(resolveFreshsalesBase()) ||
     null
   );
+}
+
+function hostOnly(value) {
+  const text = cleanValue(value);
+  if (!text) return null;
+  return text.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
 }
 
 function readOrgDomainFromApiBase(raw) {

@@ -52,7 +52,7 @@ function loadLocalEnv() {
 }
 
 function resolveFreshsalesBases() {
-  const raw = process.env.FRESHSALES_API_BASE || process.env.FRESHSALES_BASE_URL || process.env.FRESHSALES_DOMAIN;
+  const raw = process.env.FRESHSALES_API_BASE || expandEnvTemplate(process.env.FRESHSALES_BASE_URL) || process.env.FRESHSALES_ALIAS_DOMAIN || process.env.FRESHSALES_DOMAIN;
   if (!raw) throw new Error('FRESHSALES_API_BASE/FRESHSALES_BASE_URL/FRESHSALES_DOMAIN nao configurado');
   const base = raw.startsWith('http') ? raw.replace(/\/+$/, '') : `https://${raw.replace(/\/+$/, '')}`;
   if (base.includes('/crm/sales/api') || base.includes('/api')) {
@@ -76,11 +76,84 @@ function resolveFreshsalesBases() {
   ]));
 }
 
-function freshsalesHeaderCandidates() {
+function expandEnvTemplate(value) {
+  const text = cleanValue(value);
+  if (!text) return null;
+  return text.replace(/\{\{\s*([A-Z0-9_]+)\s*\}\}/g, (_match, key) => cleanValue(process.env[key]) || '');
+}
+
+function resolveSupabaseOauthUrl(action = 'token') {
+  const supabaseUrl = cleanValue(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
+  if (!supabaseUrl) return null;
+  return `${supabaseUrl.replace(/\/+$/, '')}/functions/v1/oauth?action=${encodeURIComponent(action)}`;
+}
+
+function supabaseOauthHeaders() {
+  const serviceRoleKey = cleanValue(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const headers = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  };
+  if (!serviceRoleKey) return headers;
+  return {
+    ...headers,
+    apikey: serviceRoleKey,
+    Authorization: `Bearer ${serviceRoleKey}`,
+  };
+}
+
+async function ensureSupabaseOauthSeed() {
+  const seedUrl = resolveSupabaseOauthUrl('seed');
+  if (!seedUrl) return false;
+  if (!cleanValue(process.env.FRESHSALES_ACCESS_TOKEN) || !cleanValue(process.env.FRESHSALES_REFRESH_TOKEN)) {
+    return false;
+  }
+
+  const response = await fetch(seedUrl, {
+    method: 'POST',
+    headers: supabaseOauthHeaders(),
+  }).catch(() => null);
+
+  return Boolean(response?.ok);
+}
+
+async function getSupabaseOauthAccessToken() {
+  const tokenUrl = resolveSupabaseOauthUrl('token');
+  if (!tokenUrl) return null;
+
+  const requestToken = async () => {
+    const response = await fetch(tokenUrl, {
+      method: 'GET',
+      headers: supabaseOauthHeaders(),
+    }).catch(() => null);
+
+    if (!response) return null;
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 404 || response.status === 400) return { missing: true };
+      return null;
+    }
+
+    return payload?.access_token || null;
+  };
+
+  const initial = await requestToken();
+  if (typeof initial === 'string') return initial;
+  if (!initial?.missing) return null;
+
+  const seeded = await ensureSupabaseOauthSeed();
+  if (!seeded) return null;
+
+  const retried = await requestToken();
+  return typeof retried === 'string' ? retried : null;
+}
+
+async function freshsalesHeaderCandidates() {
   const apiKey = process.env.FRESHSALES_API_KEY;
   const basicAuth = process.env.FRESHSALES_BASIC_AUTH;
   const accessToken = process.env.FRESHSALES_ACCESS_TOKEN;
   const explicitMode = process.env.FRESHSALES_AUTH_MODE;
+  const supabaseOauthToken = await getSupabaseOauthAccessToken();
   const candidates = [];
   if (apiKey) {
     candidates.push({
@@ -98,6 +171,14 @@ function freshsalesHeaderCandidates() {
       Authorization: /^Basic\s+/i.test(basicAuth) ? basicAuth : `Basic ${basicAuth}`,
     });
   }
+  if (supabaseOauthToken) {
+    candidates.push({
+      __mode: 'supabase_oauth',
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${supabaseOauthToken}`,
+    });
+  }
   if (accessToken) {
     candidates.push({
       __mode: 'access_token',
@@ -107,7 +188,13 @@ function freshsalesHeaderCandidates() {
     });
   }
   if (!candidates.length) throw new Error('Credenciais do Freshsales ausentes');
-  if (explicitMode) {
+  if (explicitMode === 'oauth') {
+    candidates.sort((left, right) => {
+      const leftRank = left.__mode === 'supabase_oauth' ? 0 : left.__mode === 'access_token' ? 1 : 2;
+      const rightRank = right.__mode === 'supabase_oauth' ? 0 : right.__mode === 'access_token' ? 1 : 2;
+      return leftRank - rightRank;
+    });
+  } else if (explicitMode) {
     candidates.sort((left, right) => (left.__mode === explicitMode ? -1 : right.__mode === explicitMode ? 1 : 0));
   }
   return candidates;
@@ -340,7 +427,7 @@ async function upsertDealRegistry(row, dealId, extra) {
 async function freshsalesRequest(pathname, init = {}) {
   const attemptErrors = [];
   for (const base of resolveFreshsalesBases()) {
-    for (const headers of freshsalesHeaderCandidates()) {
+    for (const headers of await freshsalesHeaderCandidates()) {
       const response = await fetch(`${base}${pathname}`, {
         ...init,
         headers: {
