@@ -449,6 +449,130 @@ function pickCoverageProcessNumbers(report, labels = [], limit = 10) {
   return picked;
 }
 
+function pickTaggedReportProcessNumbers(report, statuses = [], pendingLabels = [], limit = 10) {
+  const sample = Array.isArray(report?.sample) ? report.sample : [];
+  const wantedStatuses = new Set((statuses || []).map((item) => String(item || "").trim()).filter(Boolean));
+  const wantedLabels = new Set((pendingLabels || []).map((item) => String(item || "").trim()).filter(Boolean));
+  const picked = [];
+  for (const row of sample) {
+    const processNumber = String(row?.numero_cnj || "").trim();
+    if (!processNumber || picked.includes(processNumber)) continue;
+    const rowStatus = String(row?.status || "").trim();
+    const labels = Array.isArray(row?.coverage_pending_labels) ? row.coverage_pending_labels : [];
+    const matchesStatus = wantedStatuses.size ? wantedStatuses.has(rowStatus) : false;
+    const matchesLabel = wantedLabels.size
+      ? labels.some((label) => wantedLabels.has(String(label || "").trim()))
+      : false;
+    if (!matchesStatus && !matchesLabel) continue;
+    picked.push(processNumber);
+    if (picked.length >= limit) break;
+  }
+  return picked;
+}
+
+async function runTaggedDatajudRepairPipeline(env) {
+  try {
+    const report = await getTaggedDatajudCoverageReport(env, { limit: 100, tag: "datajud" });
+    const syncNumbers = pickTaggedReportProcessNumbers(
+      report,
+      ["without_account_link", "without_movements"],
+      ["sem_account", "detalhes_incompletos", "sem_movimentacoes", "gap_crm"],
+      5
+    );
+    const publicationNumbers = pickTaggedReportProcessNumbers(
+      report,
+      ["publication_activity_gap"],
+      ["publicacoes_pendentes"],
+      10
+    );
+    const movementNumbers = pickTaggedReportProcessNumbers(
+      report,
+      ["movement_activity_gap"],
+      ["movimentacoes_pendentes"],
+      10
+    );
+    const partsNumbers = pickTaggedReportProcessNumbers(
+      report,
+      ["parts_contact_gap"],
+      ["partes_sem_contato"],
+      10
+    );
+    const audienciaNumbers = pickTaggedReportProcessNumbers(
+      report,
+      [],
+      ["audiencias_pendentes"],
+      10
+    );
+    const missingCnj = (Array.isArray(report?.sample) ? report.sample : [])
+      .filter((row) => String(row?.status || "").trim() === "missing_cnj")
+      .slice(0, 10)
+      .map((row) => ({
+        account_id: row?.account_id || null,
+        numero_cnj: row?.numero_cnj || null,
+      }));
+
+    const result = {
+      ok: true,
+      taggedTotal: Number(report?.taggedTotal || 0),
+      fullyCovered: Number(report?.fullyCovered || 0),
+      fullyCoveredRate: Number(report?.fullyCoveredRate || 0),
+      missingCnj,
+      targets: {
+        sync: syncNumbers.length,
+        publicacoes: publicationNumbers.length,
+        movimentacoes: movementNumbers.length,
+        partes: partsNumbers.length,
+        audiencias: audienciaNumbers.length,
+      },
+      sync: null,
+      publicacoes: null,
+      movimentacoes: null,
+      partes: null,
+      audiencias: null,
+    };
+
+    if (syncNumbers.length) {
+      result.sync = await syncProcessesSupabaseCrm(env, {
+        processNumbers: syncNumbers,
+        limit: 1,
+        intent: "datajud_plus_crm",
+      });
+    }
+    if (publicationNumbers.length) {
+      result.publicacoes = await syncPublicationActivities(env, {
+        processNumbers: publicationNumbers,
+        limit: Math.min(publicationNumbers.length, 10),
+      });
+    }
+    if (movementNumbers.length) {
+      result.movimentacoes = await syncMovementActivities(env, {
+        processNumbers: movementNumbers,
+        limit: Math.min(movementNumbers.length, 10),
+      });
+    }
+    if (partsNumbers.length) {
+      result.partes = await reconcilePartesContacts(env, {
+        processNumbers: partsNumbers,
+        limit: 50,
+        apply: true,
+      });
+    }
+    if (audienciaNumbers.length) {
+      result.audiencias = await syncAudienciaActivities(env, {
+        processNumbers: audienciaNumbers,
+        limit: Math.min(audienciaNumbers.length, 10),
+      });
+    }
+
+    return result;
+  } catch (error) {
+    return {
+      ok: false,
+      error: error?.message || "Falha ao reparar carteira tagueada com datajud.",
+    };
+  }
+}
+
 async function runCoverageGapRepairPipeline(env) {
   try {
     const report = await getPersistedCoveragePriorityReport(env, { limit: 100 });
@@ -866,6 +990,7 @@ export async function getHmadvQueueSnapshot(env) {
 export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
   const advise = await runAdviseSyncPipeline(env);
   const datajud = await runDatajudTaggedPipeline(env);
+  const taggedRepair = await runTaggedDatajudRepairPipeline(env);
   const coverage = await runFreshsalesCoveragePipeline(env);
   const contacts = await runContactsCoveragePipeline(env);
   const gapRepair = await runCoverageGapRepairPipeline(env);
@@ -879,6 +1004,7 @@ export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
   return {
     advise,
     datajud,
+    taggedRepair,
     coverage,
     contacts,
     gapRepair,
