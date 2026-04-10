@@ -25,6 +25,7 @@ const ACTION_LABELS = {
   auditoria_sync: "Rodar auditoria",
   enriquecer_datajud: "Reenriquecer via DataJud",
   monitoramento_status: "Atualizar monitoramento",
+  executar_integracao_total_hmadv: "Rodar integracao completa (HMADV)",
   salvar_relacao: "Salvar relacao",
   remover_relacao: "Remover relacao",
   run_pending_jobs: "Drenar fila HMADV",
@@ -952,6 +953,8 @@ function InternoProcessosContent() {
   const [jobs, setJobs] = useState([]);
   const [activeJobId, setActiveJobId] = useState(null);
   const [drainInFlight, setDrainInFlight] = useState(false);
+  const [schemaStatus, setSchemaStatus] = useState({ loading: true, data: null });
+  const [runnerMetrics, setRunnerMetrics] = useState({ loading: true, data: null });
   const [snapshotAt, setSnapshotAt] = useState(null);
   const [uiHydrated, setUiHydrated] = useState(false);
   const [pageVisible, setPageVisible] = useState(true);
@@ -1070,6 +1073,8 @@ function InternoProcessosContent() {
     if (snapshot.orphans) setOrphans(snapshot.orphans);
     if (Array.isArray(snapshot.remoteHistory)) setRemoteHistory(snapshot.remoteHistory);
     if (Array.isArray(snapshot.jobs)) setJobs(snapshot.jobs);
+    if (snapshot.schemaStatus) setSchemaStatus(snapshot.schemaStatus);
+    if (snapshot.runnerMetrics) setRunnerMetrics(snapshot.runnerMetrics);
     if (snapshot.actionState && typeof snapshot.actionState === "object") {
       setActionState({
         loading: false,
@@ -1119,6 +1124,8 @@ function InternoProcessosContent() {
       monitoringInactive,
       fieldGaps,
       orphans,
+      schemaStatus,
+      runnerMetrics,
       remoteHistory,
       jobs,
       actionState: {
@@ -1153,6 +1160,8 @@ function InternoProcessosContent() {
         loadQueue("monitoramento_inativo", setMonitoringInactive, miPage),
         loadQueue("campos_orfaos", setFieldGaps, fgPage),
         loadOrphans(orphanPage),
+        loadSchemaStatus(),
+        loadRunnerMetrics(),
         loadRemoteHistory(),
         loadJobs(),
         loadRelations(1, search),
@@ -1284,6 +1293,8 @@ function InternoProcessosContent() {
   }, [activeJobId, pageVisible, wmPage, movPage, pubPage, partesPage, audPage, maPage, miPage, fgPage, orphanPage]);
 
   async function loadOverview() { try { const payload = await adminFetch("/api/admin-hmadv-processos?action=overview"); setOverview({ loading: false, data: payload.data }); } catch { setOverview({ loading: false, data: null }); } }
+  async function loadSchemaStatus() { try { const payload = await adminFetch("/api/admin-hmadv-processos?action=schema_status"); setSchemaStatus({ loading: false, data: payload.data }); } catch { setSchemaStatus({ loading: false, data: null }); } }
+  async function loadRunnerMetrics() { try { const payload = await adminFetch("/api/admin-hmadv-processos?action=runner_metrics"); setRunnerMetrics({ loading: false, data: payload.data }); } catch { setRunnerMetrics({ loading: false, data: null }); } }
   async function loadCoverage(page = 1) {
     setProcessCoverage((state) => ({ ...state, loading: true }));
     try {
@@ -1538,6 +1549,30 @@ function InternoProcessosContent() {
       },
     });
     try {
+      if (action === "executar_integracao_total_hmadv") {
+        const response = await adminFetch("/api/admin-hmadv-processos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action,
+            scanLimit: 100,
+            monitorLimit: 100,
+            movementLimit: 120,
+            advisePages: 2,
+            advisePerPage: 50,
+            publicacoesBatch: 20,
+            maxChunks: 2,
+          }),
+        });
+        setActionState({ loading: false, error: null, result: response.data });
+        replaceHistoryEntry(historyId, {
+          status: "success",
+          preview: buildHistoryPreview(response.data),
+          result: response.data,
+        });
+        await Promise.all([loadRunnerMetrics(), loadSchemaStatus(), loadRemoteHistory(), loadJobs()]);
+        return;
+      }
       if (ASYNC_PROCESS_ACTIONS.has(action)) {
         const job = await queueAsyncAction(action, normalizedPayload);
         replaceHistoryEntry(historyId, {
@@ -1669,6 +1704,17 @@ function InternoProcessosContent() {
     if (!selectionSuggestedAction) return false;
     return selectionSuggestedAction.key === action && String(selectionSuggestedAction.intent || "") === String(intent || "");
   };
+  const coverageSchemaExists = schemaStatus?.data?.exists;
+  const coverageSchemaLabel = schemaStatus.loading
+    ? "verificando schema"
+    : coverageSchemaExists
+      ? "schema de cobertura ok"
+      : "schema de cobertura ausente";
+  const runnerData = runnerMetrics?.data || {};
+  const runnerCoverage = runnerData.coverage || {};
+  const runnerDatajud = runnerData.datajud || {};
+  const runnerTagged = runnerData.tagged || {};
+  const runnerAction = runnerData.datajudAction || {};
 
   return <div className="space-y-8">
     <section className="rounded-[34px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-6 py-6 md:px-7">
@@ -1699,6 +1745,36 @@ function InternoProcessosContent() {
           {latestJob ? <JobCard job={latestJob} active={latestJob.id === activeJobId} /> : null}
           <label className="block"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">CNJs para foco manual</span><textarea value={processNumbers} onChange={(e) => setProcessNumbers(e.target.value)} rows={4} placeholder="Opcional: cole CNJs manualmente, um por linha." className="w-full rounded-[22px] border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" /></label>
           <label className="block max-w-[220px]"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Lote</span><input type="number" min="1" max="20" value={limit} onChange={(e) => setLimit(Number(e.target.value || 2))} className="w-full rounded-2xl border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" /><span className="mt-2 block text-xs leading-5 opacity-55">Acoes pesadas como sincronismo, reparo CRM, criacao de accounts e retroativo de audiencias sao reduzidas automaticamente para lote curto seguro.</span></label>
+          <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Ciclo completo HMADV</p>
+            <p className="mt-2 text-sm opacity-70">Este disparo executa DataJud + Advise + Freshsales e depois drena o backlog local. Ideal para garantir cobertura total sem depender do painel.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <StatusBadge tone={coverageSchemaExists ? "success" : "warning"}>{coverageSchemaLabel}</StatusBadge>
+              <StatusBadge tone={runnerData?.latest?.status === "success" ? "success" : "default"}>
+                ultimo runner: {runnerData?.latest?.status || "sem leitura"}
+              </StatusBadge>
+              <StatusBadge tone="default">limite API Freshsales 1000/h</StatusBadge>
+            </div>
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              <ActionButton tone="primary" onClick={() => handleAction("executar_integracao_total_hmadv")} disabled={actionState.loading}>
+                Rodar integracao completa
+              </ActionButton>
+              <ActionButton onClick={() => Promise.all([loadSchemaStatus(), loadRunnerMetrics()])} disabled={actionState.loading}>
+                Atualizar leitura
+              </ActionButton>
+            </div>
+            <div className="mt-4 grid gap-2 text-xs opacity-75 md:grid-cols-2">
+              <div>
+                <p><strong>Datajud:</strong> {Number(runnerDatajud?.datajud_recoveredMissingCnj || 0)} CNJs recuperados</p>
+                <p><strong>Fila:</strong> {Number(runnerDatajud?.datajud_queuedFromRecovery || 0)} enfileirados apos recuperacao</p>
+              </div>
+              <div>
+                <p><strong>Cobertura:</strong> {Number(runnerCoverage?.coverage_coveredRows || 0)} cobertos / {Number(runnerCoverage?.coverage_totalRows || 0)} total</p>
+                <p><strong>Tag datajud:</strong> {Number(runnerTagged?.tagged_fullyCovered || 0)} completos</p>
+              </div>
+            </div>
+            {runnerAction?.datajud_action_manualActionRequired ? <p className="mt-3 text-xs text-[#FECACA]">A prioridade atual ainda depende de acao manual no Freshsales.</p> : null}
+          </div>
           <div className="grid gap-3 md:grid-cols-2">
             {selectionSuggestedAction ? <ActionButton tone={selectionSuggestedAction.tone || "primary"} onClick={() => handleAction(selectionSuggestedAction.key, selectionSuggestedAction.payload || {})} disabled={actionState.loading || selectionSuggestedAction.disabled} className="md:col-span-2">{selectionSuggestedAction.label}</ActionButton> : null}
             <ActionButton onClick={() => handleAction("run_sync_worker")} disabled={actionState.loading} tone={isSuggestedAction("run_sync_worker") ? "primary" : "subtle"}>Rodar sync-worker</ActionButton>
