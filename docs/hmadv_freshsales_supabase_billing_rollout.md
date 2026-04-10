@@ -196,6 +196,23 @@ Dois saldos são gravados:
 
 ## Plano incremental atualizado
 
+### Auditoria de 2026-04-10
+
+Achados principais desta rodada:
+
+1. placeholders como `SEU_UUID_REAL` e `ID_DO_IMPORT_RUN` estavam derrubando a execucao antes da carga real;
+2. o relatorio operacional estava subcontando a base por ler apenas a primeira pagina do PostgREST;
+3. a reconciliacao de processo/account estava conservadora demais, priorizando pouco a referencia do processo;
+4. a materializacao ja exigia `contact + account`, mas a reconciliacao ainda nao alimentava isso em volume suficiente.
+
+Correcoes aplicadas:
+
+- [import-hmadv-billing-csv.js](D:/Github/newgit/scripts/import-hmadv-billing-csv.js) agora ignora placeholders invalidos de workspace;
+- [materialize-hmadv-billing.js](D:/Github/newgit/scripts/materialize-hmadv-billing.js) aceita modo implicito do ultimo `import_run` valido;
+- [reprocess-hmadv-billing.js](D:/Github/newgit/scripts/reprocess-hmadv-billing.js) ignora placeholders invalidos de workspace;
+- [report-hmadv-ops.js](D:/Github/newgit/scripts/report-hmadv-ops.js) agora pagina toda a base;
+- [reconcile-hmadv-processes.js](D:/Github/newgit/scripts/reconcile-hmadv-processes.js) agora combina match por e-mail com busca por referencia do processo e pagina os resultados.
+
 ### Fase 1. Ambiente e credenciais
 
 1. estabilizar `.dev.vars` com `SUPABASE_*`, `FRESHSALES_*`, `FRESHSALES_DEFAULT_DEAL_STAGE_ID`;

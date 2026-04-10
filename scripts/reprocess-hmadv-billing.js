@@ -7,7 +7,7 @@ loadLocalEnv();
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const workspaceId = args.workspaceId || process.env.HMADV_WORKSPACE_ID || null;
+  const workspaceId = sanitizeUuidArg(args.workspaceId || process.env.HMADV_WORKSPACE_ID || null);
 
   const rows = await loadReprocessableRows(args.limit);
   if (!rows.length) {
@@ -77,6 +77,13 @@ function parseArgs(argv) {
     }
   }
   return result;
+}
+
+function sanitizeUuidArg(value) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  if (/[<>]/.test(text) || /^SEU_/i.test(text) || /^ID_/i.test(text)) return null;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text) ? text : null;
 }
 
 async function loadReprocessableRows(limit) {

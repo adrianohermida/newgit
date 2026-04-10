@@ -20,13 +20,13 @@ async function main() {
     products,
   ] = await Promise.all([
     supabaseRequest('billing_import_runs?select=id,status,total_rows,valid_rows,error_rows,duplicate_rows,started_at,completed_at&order=started_at.desc&limit=20'),
-    supabaseRequest('billing_import_rows?select=id,matching_status,is_duplicate,validation_errors&limit=5000'),
-    supabaseRequest('billing_contracts?select=id,status&limit=5000'),
-    supabaseRequest('billing_receivables?select=id,status,freshsales_deal_id,balance_due,balance_due_corrected&limit=5000'),
-    supabaseRequest('freshsales_deals_registry?select=id,last_sync_status,last_sync_error,last_synced_at&limit=5000'),
-    supabaseRequest('crm_event_queue?select=id,status,event_type,attempts&limit=5000'),
-    supabaseRequest('freshsales_contacts?select=id&limit=5000'),
-    supabaseRequest('freshsales_products?select=id&limit=5000'),
+    supabaseRequestAll('billing_import_rows?select=id,matching_status,is_duplicate,validation_errors'),
+    supabaseRequestAll('billing_contracts?select=id,status'),
+    supabaseRequestAll('billing_receivables?select=id,status,freshsales_deal_id,balance_due,balance_due_corrected'),
+    supabaseRequestAll('freshsales_deals_registry?select=id,last_sync_status,last_sync_error,last_synced_at'),
+    supabaseRequestAll('crm_event_queue?select=id,status,event_type,attempts'),
+    supabaseRequestAll('freshsales_contacts?select=id'),
+    supabaseRequestAll('freshsales_products?select=id'),
   ]);
 
   const report = {
@@ -43,6 +43,7 @@ async function main() {
     },
     staging: {
       pareados: countBy(importRows, (item) => item.matching_status === 'pareado'),
+      pendente_account: countBy(importRows, (item) => item.matching_status === 'pendente_account'),
       pendente_contato: countBy(importRows, (item) => item.matching_status === 'pendente_contato'),
       pendente_revisao: countBy(importRows, (item) => item.matching_status === 'pendente_revisao'),
       duplicados: countBy(importRows, (item) => item.is_duplicate === true),
@@ -126,6 +127,19 @@ async function supabaseRequest(pathname, init = {}) {
 
   const text = await response.text();
   return text ? JSON.parse(text) : [];
+}
+
+async function supabaseRequestAll(pathname, pageSize = 1000) {
+  const rows = [];
+  let offset = 0;
+  while (true) {
+    const separator = pathname.includes('?') ? '&' : '?';
+    const batch = await supabaseRequest(`${pathname}${separator}limit=${pageSize}&offset=${offset}`);
+    rows.push(...batch);
+    if (batch.length < pageSize) break;
+    offset += pageSize;
+  }
+  return rows;
 }
 
 main().catch((error) => {

@@ -2219,6 +2219,30 @@ export async function recoverTaggedDatajudMissingCnj(env, { limit = 100, tag = "
   );
 }
 
+export async function runFullIntegrationCron(env, {
+  scanLimit = 50,
+  monitorLimit = 100,
+  movementLimit = 120,
+  advisePages = 2,
+  advisePerPage = 50,
+  publicacoesBatch = 20,
+} = {}) {
+  return hmadvFunction(
+    env,
+    "datajud-webhook",
+    {
+      action: "cron_integracao_total",
+      scan_limit: Number(scanLimit || 50),
+      monitor_limit: Number(monitorLimit || 100),
+      movement_limit: Number(movementLimit || 120),
+      advise_pages: Number(advisePages || 2),
+      advise_per_page: Number(advisePerPage || 50),
+      publicacoes_batch: Number(publicacoesBatch || 20),
+    },
+    { method: "POST", body: {} }
+  );
+}
+
 export async function getTaggedDatajudCoverageReport(env, { limit = 100, tag = "datajud" } = {}) {
   const safeLimit = Math.max(10, Math.min(Number(limit || 100), 250));
   const [diagnostics, coverageOverview] = await Promise.all([

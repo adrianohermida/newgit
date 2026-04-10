@@ -6,8 +6,8 @@ const path = require('path');
 loadLocalEnv();
 
 async function main() {
-  const importRunId = process.argv[2] || null;
-  const workspaceId = process.argv[3] || process.env.HMADV_WORKSPACE_ID || null;
+  const importRunId = sanitizeRunIdArg(process.argv[2] || null);
+  const workspaceId = sanitizeUuidArg(process.argv[3] || process.env.HMADV_WORKSPACE_ID || null);
 
   const runsQuery = importRunId
     ? `billing_import_runs?id=eq.${encodeURIComponent(importRunId)}&select=id,workspace_id,source_file,status`
@@ -118,6 +118,20 @@ function loadLocalEnv() {
     const value = line.slice(idx + 1);
     if (key && process.env[key] === undefined) process.env[key] = value;
   }
+}
+
+function sanitizeRunIdArg(value) {
+  const text = String(value || '').trim();
+  if (!text || text.toLowerCase() === 'latest') return null;
+  if (/[<>]/.test(text) || /^ID_/i.test(text) || /^SEU_/i.test(text)) return null;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text) ? text : null;
+}
+
+function sanitizeUuidArg(value) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  if (/[<>]/.test(text) || /^SEU_/i.test(text) || /^ID_/i.test(text)) return null;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text) ? text : null;
 }
 
 async function loadIndicesByName() {

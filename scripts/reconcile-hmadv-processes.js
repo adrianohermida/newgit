@@ -122,13 +122,12 @@ async function loadCandidateRows(args) {
     'resolved_contact_id=not.is.null',
     'resolved_account_id_freshsales=is.null',
     'order=created_at.desc',
-    `limit=${args.limit}`,
   ];
   if (args.importRunId) {
     filters.push(`import_run_id=eq.${encodeURIComponent(args.importRunId)}`);
   }
 
-  const rows = await supabaseRequest(`billing_import_rows?${filters.join('&')}`);
+  const rows = await supabaseRequestAll(`billing_import_rows?${filters.join('&')}`, Math.min(args.limit, 1000), args.limit);
   return rows.filter((row) => Array.isArray(row.validation_errors) ? row.validation_errors.length === 0 : true);
 }
 
@@ -138,8 +137,8 @@ async function loadProcessesByEmail(rows) {
 
   for (const email of emails) {
     const items = [];
-    items.push(...await queryProcesses(`processos?select=id,numero_cnj,numero,titulo,status,updated_at,account_id_freshsales,cliente_email,email_cliente&cliente_email=eq.${encodeURIComponent(email)}&limit=200`));
-    items.push(...await queryProcesses(`processos?select=id,numero_cnj,numero,titulo,status,updated_at,account_id_freshsales,cliente_email,email_cliente&email_cliente=eq.${encodeURIComponent(email)}&limit=200`));
+    items.push(...await queryProcessesAll(`processos?select=id,numero_cnj,numero,titulo,status,updated_at,account_id_freshsales,cliente_email,email_cliente&cliente_email=eq.${encodeURIComponent(email)}`));
+    items.push(...await queryProcessesAll(`processos?select=id,numero_cnj,numero,titulo,status,updated_at,account_id_freshsales,cliente_email,email_cliente&email_cliente=eq.${encodeURIComponent(email)}`));
     bucket.set(email, uniqueBy(items, (item) => `${item.id}:${item.account_id_freshsales || ''}`));
   }
 
@@ -148,14 +147,12 @@ async function loadProcessesByEmail(rows) {
 
 async function resolveCandidatesForRow(row, processesByEmail) {
   const email = normalizeEmail(row.email_normalized || row.email);
-  let processes = processesByEmail.get(email) || [];
-
-  if (!processes.length && row.deal_reference_raw) {
-    processes = await searchProcessesByReference(row.deal_reference_raw);
-  }
+  const emailProcesses = processesByEmail.get(email) || [];
+  const referenceProcesses = row.deal_reference_raw ? await searchProcessesByReference(row.deal_reference_raw) : [];
+  const processes = uniqueBy([...emailProcesses, ...referenceProcesses], (item) => `${item.id}:${item.account_id_freshsales || ''}`);
 
   return processes
-    .map((process) => scoreProcessCandidate(row, process))
+    .map((process) => scoreProcessCandidate(row, process, processes.length))
     .filter((item) => item.score > 0)
     .sort((left, right) => right.score - left.score);
 }
@@ -166,25 +163,26 @@ async function searchProcessesByReference(reference) {
   const candidates = [];
 
   if (digits) {
-    candidates.push(...await queryProcesses(`processos?select=id,numero_cnj,numero,titulo,status,updated_at,account_id_freshsales&numero_cnj=eq.${encodeURIComponent(digits)}&limit=50`));
-    candidates.push(...await queryProcesses(`processos?select=id,numero_cnj,numero,titulo,status,updated_at,account_id_freshsales&numero=eq.${encodeURIComponent(digits)}&limit=50`));
+    candidates.push(...await queryProcessesAll(`processos?select=id,numero_cnj,numero,titulo,status,updated_at,account_id_freshsales&numero_cnj=eq.${encodeURIComponent(digits)}`, 100, 100));
+    candidates.push(...await queryProcessesAll(`processos?select=id,numero_cnj,numero,titulo,status,updated_at,account_id_freshsales&numero=eq.${encodeURIComponent(digits)}`, 100, 100));
   }
 
   if (cleanedText) {
     const likeTerm = encodeURIComponent(`*${cleanedText.slice(0, 40)}*`);
-    candidates.push(...await queryProcesses(`processos?select=id,numero_cnj,numero,titulo,status,updated_at,account_id_freshsales&titulo=ilike.${likeTerm}&limit=50`));
+    candidates.push(...await queryProcessesAll(`processos?select=id,numero_cnj,numero,titulo,status,updated_at,account_id_freshsales&titulo=ilike.${likeTerm}`, 100, 100));
   }
 
   return uniqueBy(candidates, (item) => `${item.id}:${item.account_id_freshsales || ''}`);
 }
 
-function scoreProcessCandidate(row, process) {
+function scoreProcessCandidate(row, process, totalCandidates = 0) {
   const rowText = normalizeText(row.deal_reference_raw);
   const rowDigits = normalizeDigits(row.deal_reference_raw);
   const processReference = process.numero_cnj || process.numero || process.titulo || null;
   const processText = normalizeText(processReference);
   const processDigits = normalizeDigits(process.numero_cnj || process.numero || process.titulo);
   const titleText = normalizeText(process.titulo);
+  const rowNameText = normalizeText(row.person_name);
 
   let score = 0;
   if (rowDigits && processDigits) {
@@ -197,8 +195,13 @@ function scoreProcessCandidate(row, process) {
     else if (titleText.includes(rowText) || processText.includes(rowText)) score = Math.max(score, 0.86);
   }
 
+  if (rowNameText && titleText && (titleText.includes(rowNameText) || rowNameText.includes(titleText))) {
+    score = Math.max(score, 0.8);
+  }
+
   if (!rowText && !rowDigits) {
-    score = process.account_id_freshsales ? 0.55 : 0.35;
+    if (totalCandidates === 1 && process.account_id_freshsales) score = 0.9;
+    else score = process.account_id_freshsales ? 0.55 : 0.35;
   }
 
   if (process.account_id_freshsales) score += 0.03;
@@ -218,6 +221,14 @@ function scoreProcessCandidate(row, process) {
 async function queryProcesses(pathname) {
   try {
     return await supabaseRequest(pathname);
+  } catch {
+    return [];
+  }
+}
+
+async function queryProcessesAll(pathname, pageSize = 200, maxRows = 1000) {
+  try {
+    return await supabaseRequestAll(pathname, pageSize, maxRows);
   } catch {
     return [];
   }
@@ -318,6 +329,19 @@ async function supabaseRequest(pathname, init = {}) {
 
   const text = await response.text();
   return text ? JSON.parse(text) : [];
+}
+
+async function supabaseRequestAll(pathname, pageSize = 200, maxRows = 1000) {
+  const rows = [];
+  let offset = 0;
+  while (rows.length < maxRows) {
+    const separator = pathname.includes('?') ? '&' : '?';
+    const batch = await supabaseRequest(`${pathname}${separator}limit=${pageSize}&offset=${offset}`);
+    rows.push(...batch);
+    if (batch.length < pageSize) break;
+    offset += pageSize;
+  }
+  return rows.slice(0, maxRows);
 }
 
 main().catch((error) => {
