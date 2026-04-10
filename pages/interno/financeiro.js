@@ -317,12 +317,15 @@ function FinanceiroInternoContent() {
 
       <Panel title="Freshsales auth" eyebrow="OAuth">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="API key" value={freshsalesAuth.has_api_key ? "OK" : "Ausente"} helper="Melhor rota para operar a migração sem depender de OAuth." />
           <MetricCard label="Access token" value={freshsalesAuth.has_access_token ? "OK" : "Ausente"} helper="Token atual para leitura/escrita." />
           <MetricCard label="Refresh token" value={freshsalesAuth.has_refresh_token ? "OK" : "Ausente"} helper="Necessário para renovar o acesso." />
           <MetricCard label="OAuth client" value={freshsalesAuth.has_client_id && freshsalesAuth.has_client_secret ? "OK" : "Faltando"} helper="Client ID e secret do app Freshsales." />
-          <MetricCard label="Redirect URI" value={freshsalesAuth.has_redirect_uri ? "OK" : "Faltando"} helper="Callback usado na autorização." />
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
+          <StatusBadge tone={freshsalesAuth.has_api_key ? "success" : "warn"}>
+            {freshsalesAuth.has_api_key ? "API key pronta" : "Sem API key local"}
+          </StatusBadge>
           <StatusBadge tone={freshsalesAuth.has_access_token ? "success" : "warn"}>
             {freshsalesAuth.has_access_token ? "Token presente" : "Token ausente ou inválido"}
           </StatusBadge>
@@ -330,6 +333,7 @@ function FinanceiroInternoContent() {
             {freshsalesAuth.has_refresh_token ? "Refresh configurado" : "Sem refresh"}
           </StatusBadge>
         </div>
+        {freshsalesAuth.preferred_auth_mode ? <p className="mt-4 text-sm opacity-65">Modo preferido: {freshsalesAuth.preferred_auth_mode}</p> : null}
         {freshsalesAuth.api_base ? <p className="mt-4 text-sm opacity-65">Base: {freshsalesAuth.api_base}</p> : null}
         {freshsalesAuth.org_domain ? <p className="mt-2 text-sm opacity-65">Org domain: {freshsalesAuth.org_domain}</p> : null}
         {freshsalesAuth.token_expiry ? <p className="mt-2 text-sm opacity-65">Expira em: {formatDate(freshsalesAuth.token_expiry)}</p> : null}

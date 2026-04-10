@@ -99,6 +99,7 @@ function buildFreshsalesAuthorizationUrl(env) {
 
 function buildFreshsalesAuthSnapshot(env) {
   const apiBase = getCleanEnvValue(env.FRESHSALES_API_BASE || env.FRESHSALES_BASE_URL || env.FRESHSALES_DOMAIN);
+  const apiKey = getCleanEnvValue(env.FRESHSALES_API_KEY);
   const accessToken = getCleanEnvValue(env.FRESHSALES_ACCESS_TOKEN);
   const refreshToken = getCleanEnvValue(env.FRESHSALES_REFRESH_TOKEN);
   const tokenExpiry = getCleanEnvValue(env.FRESHSALES_TOKEN_EXPIRY);
@@ -106,12 +107,14 @@ function buildFreshsalesAuthSnapshot(env) {
 
   return {
     has_api_base: Boolean(apiBase),
+    has_api_key: Boolean(apiKey),
     has_access_token: Boolean(accessToken),
     has_refresh_token: Boolean(refreshToken),
     has_client_id: Boolean(getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_ID)),
     has_client_secret: Boolean(getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_SECRET)),
     has_org_domain: Boolean(resolveFreshsalesOrgDomain(env)),
     has_redirect_uri: Boolean(getCleanEnvValue(env.FRESHSALES_REDIRECT_URI) || getCleanEnvValue(env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL)),
+    preferred_auth_mode: apiKey ? "api_key" : accessToken ? "access_token" : "missing",
     api_base: apiBase,
     org_domain: resolveFreshsalesOrgDomain(env),
     token_expiry: expiryDate,

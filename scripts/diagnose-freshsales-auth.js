@@ -15,6 +15,7 @@ async function main() {
     bases,
     auth_modes: authModes.map((item) => item.name),
     oauth_env: {
+      has_api_key: Boolean(cleanValue(process.env.FRESHSALES_API_KEY)),
       has_client_id: Boolean(cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID)),
       has_client_secret: Boolean(cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET)),
       has_refresh_token: Boolean(cleanValue(process.env.FRESHSALES_REFRESH_TOKEN)),
@@ -91,6 +92,7 @@ function resolveAuthModes() {
   const modes = [];
   const apiKey = cleanValue(process.env.FRESHSALES_API_KEY);
   const accessToken = cleanValue(process.env.FRESHSALES_ACCESS_TOKEN);
+  const explicitMode = cleanValue(process.env.FRESHSALES_AUTH_MODE);
   if (apiKey) {
     modes.push({
       name: 'api_key',
@@ -102,6 +104,9 @@ function resolveAuthModes() {
       name: 'access_token',
       headers: { Authorization: `Bearer ${accessToken}` },
     });
+  }
+  if (explicitMode === 'api_key') {
+    return modes.sort((left, right) => (left.name === 'api_key' ? -1 : right.name === 'api_key' ? 1 : 0));
   }
   return modes;
 }
