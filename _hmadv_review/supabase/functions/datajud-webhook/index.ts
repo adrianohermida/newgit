@@ -511,11 +511,22 @@ async function handleSyncAccount(body: Record<string,unknown>): Promise<Record<s
 // =============================================================================
 async function handleTagAdded(payload: Record<string,unknown>) {
   const accountId   = String(payload.account_id ?? payload.id ?? (payload.sales_account as Record<string,unknown>)?.id ?? '');
+  const salesAccount = (payload.sales_account ?? {}) as Record<string, unknown>;
+  const customFields = (salesAccount.custom_fields ?? salesAccount.custom_field ?? {}) as Record<string, unknown>;
   const cnj20       = extractCnjFromSalesAccountPayload(payload) ?? '';
   if (!cnj20) {
     const result = buildMissingCnjResult(payload, 'tag_added');
     log('warn', 'tag_added_sem_cnj', result as Record<string, unknown>);
     return result;
+  }
+
+  if (accountId && !String(customFields.cf_processo ?? '').trim()) {
+    const patched = await patchSalesAccountProcessNumber(accountId, cnj20);
+    log(patched.ok ? 'info' : 'warn', 'tag_added_cf_processo_recovered', {
+      account_id: accountId,
+      cnj: cnj20,
+      status: patched.status,
+    });
   }
 
   await db.from('datajud_sync_status').upsert(
