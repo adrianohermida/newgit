@@ -21,6 +21,20 @@ const ASYNC_PUBLICACOES_ACTIONS = new Set([
   "backfill_partes",
   "sincronizar_partes",
 ]);
+const PUBLICACOES_QUEUE_VIEWS = new Set(["operacao", "filas"]);
+const QUEUE_LABELS = {
+  candidatos_processos: "Processos criaveis",
+  candidatos_partes: "Partes extraiveis",
+};
+
+function getSafePublicacoesActionLimit(action, requestedLimit) {
+  const normalized = Number(requestedLimit || 0) || 0;
+  if (action === "sincronizar_partes") return Math.max(1, Math.min(normalized || 3, 3));
+  if (action === "criar_processos_publicacoes") return Math.max(1, Math.min(normalized || 5, 5));
+  if (action === "backfill_partes") return Math.max(1, Math.min(normalized || 5, 5));
+  if (action === "run_sync_worker") return Math.max(1, Math.min(normalized || 2, 2));
+  return Math.max(1, Math.min(normalized || 10, 20));
+}
 
 function buildHistoryPreview(result) {
   if (!result) return "";
@@ -225,7 +239,7 @@ function deriveRecurringPublicacoesFocus(summary, bands) {
   if (summary.manual > 0) return { title: "Revisao manual prioritaria", body: "Ha publicacoes que continuam pedindo leitura humana ou ajuste de regra." };
   if (summary.advise > 0) return { title: "Extracao Advise primeiro", body: "O principal gargalo recorrente esta na leitura, criacao de processo ou extracao de partes das publicacoes." };
   if (summary.freshsales > 0) return { title: "Drenar CRM e activities", body: "A fila recorrente esta mais concentrada no reflexo para Freshsales e nas activities." };
-  if (summary.stagnant > 0) return { title: "Auditar lote sem progresso", body: "Ha recorrencias sem ganho util. Revise selecao, regra de extração e limite do lote." };
+  if (summary.stagnant > 0) return { title: "Auditar lote sem progresso", body: "Ha recorrencias sem ganho util. Revise selecao, regra de extracao e limite do lote." };
   return { title: "Ciclo sob controle", body: "As recorrencias atuais parecem operacionais e podem ser drenadas com lotes menores e correcoes pontuais." };
 }
 function deriveSuggestedPublicacoesBatch(summary, bands) {
@@ -355,6 +369,7 @@ function QueueList({
   totalRows = 0,
   pageSize = 20,
   totalEstimated = false,
+  lastUpdated = null,
 }) {
   const allSelected = rows.length > 0 && rows.every((row) => selected.includes(row.key));
   const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / Math.max(1, pageSize)));
@@ -368,7 +383,8 @@ function QueueList({
         <div>
           <p className="text-sm font-semibold">{title}</p>
           {helper ? <p className="text-xs opacity-60">{helper}</p> : null}
-          {totalRows ? <p className="text-xs opacity-50 mt-1">Pagina {page} de {totalPages} · {totalRows} no total</p> : null}
+          {totalRows ? <p className="text-xs opacity-50 mt-1">Pagina {page} de {totalPages} - {totalRows} no total</p> : null}
+          {lastUpdated !== undefined ? <p className="text-xs opacity-50 mt-1">Atualizado em {lastUpdated ? new Date(lastUpdated).toLocaleString("pt-BR") : "nao atualizado"}</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -662,8 +678,8 @@ export default function InternoPublicacoesPage() {
 function PublicacoesContent() {
   const [view, setView] = useState("operacao");
   const [overview, setOverview] = useState({ loading: true, error: null, data: null });
-  const [processCandidates, setProcessCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20 });
-  const [partesCandidates, setPartesCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20 });
+  const [processCandidates, setProcessCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20, updatedAt: null });
+  const [partesCandidates, setPartesCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20, updatedAt: null });
   const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
   const [executionHistory, setExecutionHistory] = useState([]);
   const [remoteHistory, setRemoteHistory] = useState([]);
@@ -671,6 +687,7 @@ function PublicacoesContent() {
   const [activeJobId, setActiveJobId] = useState(null);
   const [drainInFlight, setDrainInFlight] = useState(false);
   const [processNumbers, setProcessNumbers] = useState("");
+  const [queueRefreshLog, setQueueRefreshLog] = useState([]);
   const [limit, setLimit] = useState(10);
   const [processPage, setProcessPage] = useState(1);
   const [partesPage, setPartesPage] = useState(1);
