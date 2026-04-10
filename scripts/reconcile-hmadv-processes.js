@@ -165,8 +165,9 @@ async function resolveCandidatesForRow(row, contact, processesByEmail) {
   const email = normalizeEmail(row.email_normalized || row.email);
   const emailProcesses = processesByEmail.get(email) || [];
   const referenceProcesses = row.deal_reference_raw ? await searchProcessesByReference(row.deal_reference_raw) : [];
+  const pairProcesses = row.deal_reference_raw ? await searchProcessesByPartesPair(row.deal_reference_raw) : [];
   const nameProcesses = await searchProcessesByNames(extractNameHints(row, contact));
-  const processes = uniqueBy([...emailProcesses, ...referenceProcesses, ...nameProcesses], (item) => `${item.id}:${item.account_id_freshsales || ''}`);
+  const processes = uniqueBy([...emailProcesses, ...referenceProcesses, ...pairProcesses, ...nameProcesses], (item) => `${item.id}:${item.account_id_freshsales || ''}`);
 
   return processes
     .map((process) => scoreProcessCandidate(row, process, processes.length))
@@ -190,6 +191,68 @@ async function searchProcessesByReference(reference) {
   }
 
   return uniqueBy(candidates, (item) => `${item.id}:${item.account_id_freshsales || ''}`);
+}
+
+function splitProcessSides(reference) {
+  const text = String(reference || '').trim();
+  if (!text) return [];
+  return text
+    .split(/\s+[xX]\s+|\s+vs\.?\s+|\s+contra\s+/i)
+    .map((item) => item.trim())
+    .filter((item) => item && item.length >= 5)
+    .slice(0, 2);
+}
+
+async function findParteProcessIdsByName(name) {
+  const encoded = encodeURIComponent(`*${String(name || '').slice(0, 80)}*`);
+  const partes = await queryProcessesAll(
+    `partes?select=id,processo_id,nome&nome=ilike.${encoded}`,
+    200,
+    400
+  );
+
+  return uniqueBy(
+    partes
+      .filter((item) => {
+        const parteName = normalizeText(item?.nome);
+        const target = normalizeText(name);
+        return parteName === target || parteName.includes(target) || target.includes(parteName);
+      })
+      .map((item) => item.processo_id)
+      .filter(Boolean),
+    (item) => item
+  );
+}
+
+async function searchProcessesByPartesPair(reference) {
+  const sides = splitProcessSides(reference);
+  if (sides.length < 2) return [];
+
+  const [leftIds, rightIds] = await Promise.all([
+    findParteProcessIdsByName(sides[0]),
+    findParteProcessIdsByName(sides[1]),
+  ]);
+
+  if (!leftIds.length || !rightIds.length) return [];
+  const rightSet = new Set(rightIds.map((item) => String(item)));
+  const intersection = leftIds.filter((item) => rightSet.has(String(item)));
+  if (!intersection.length) return [];
+
+  const processMap = new Map();
+  for (let index = 0; index < intersection.length; index += 40) {
+    const chunk = intersection.slice(index, index + 40).map((item) => `"${item}"`).join(',');
+    const processes = await queryProcessesAll(
+      `processos?select=id,numero_cnj,numero,titulo,status,updated_at,account_id_freshsales&account_id_freshsales=not.is.null&id=in.(${chunk})`,
+      100,
+      200
+    );
+    for (const process of processes) {
+      const key = `${process.id}:${process.account_id_freshsales || ''}`;
+      if (!processMap.has(key)) processMap.set(key, { ...process, _pair_match: true });
+    }
+  }
+
+  return Array.from(processMap.values());
 }
 
 function extractNameHints(row, contact) {
@@ -267,6 +330,10 @@ function scoreProcessCandidate(row, process, totalCandidates = 0) {
 
   if (rowNameText && titleText && (titleText.includes(rowNameText) || rowNameText.includes(titleText))) {
     score = Math.max(score, 0.8);
+  }
+
+  if (process._pair_match) {
+    score = Math.max(score, 0.98);
   }
 
   if (!rowText && !rowDigits) {

@@ -498,7 +498,7 @@ export async function backfillHmadvFinanceAccounts(env, { limit = 50 } = {}) {
   const safeLimit = Math.max(1, Math.min(Number(limit || 50), 200));
   const contracts = await fetchSupabaseAdminAll(
     env,
-    `billing_contracts?select=id,process_reference,freshsales_account_id&freshsales_account_id=is.null&process_reference=not.is.null&order=created_at.asc&limit=${safeLimit}`
+    `billing_contracts?select=id,process_reference,freshsales_account_id,metadata&freshsales_account_id=is.null&process_reference=not.is.null&order=created_at.asc&limit=${safeLimit}`
   );
 
   if (!contracts.length) {
@@ -552,6 +552,7 @@ export async function backfillHmadvFinanceAccounts(env, { limit = 50 } = {}) {
           body: JSON.stringify({
             freshsales_account_id: String(account.id),
             metadata: {
+              ...safeJsonParse(contract.metadata, {}),
               account_resolution_status: mode === "created" ? "created_textual_account" : "linked_textual_account",
             },
           }),
