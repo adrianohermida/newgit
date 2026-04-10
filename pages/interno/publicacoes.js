@@ -855,16 +855,18 @@ function PublicacoesContent() {
     });
     try {
       const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=candidatos_processos&page=${page}&pageSize=20`);
+      const payloadError = payload.data?.error || null;
+      const nextErrorUntil = payloadError ? Date.now() + QUEUE_ERROR_TTL_MS : null;
       setProcessCandidates({
         loading: false,
-        error: null,
+        error: payloadError,
         items: (payload.data.items || []).map((item) => ({ ...item, key: item.numero_cnj || item.id })),
         totalRows: Number(payload.data.totalRows || 0),
         totalEstimated: Boolean(payload.data.totalEstimated),
         pageSize: payload.data.pageSize || 20,
         updatedAt: new Date().toISOString(),
         limited: Boolean(payload.data.limited),
-        errorUntil: null,
+        errorUntil: nextErrorUntil,
       });
       pushQueueRefresh("candidatos_processos");
     } catch (error) {
@@ -894,16 +896,18 @@ function PublicacoesContent() {
     });
     try {
       const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=candidatos_partes&page=${page}&pageSize=20`);
+      const payloadError = payload.data?.error || null;
+      const nextErrorUntil = payloadError ? Date.now() + QUEUE_ERROR_TTL_MS : null;
       setPartesCandidates({
         loading: false,
-        error: null,
+        error: payloadError,
         items: (payload.data.items || []).map((item) => ({ ...item, key: item.numero_cnj || item.id })),
         totalRows: Number(payload.data.totalRows || 0),
         totalEstimated: Boolean(payload.data.totalEstimated),
         pageSize: payload.data.pageSize || 20,
         updatedAt: new Date().toISOString(),
         limited: Boolean(payload.data.limited),
-        errorUntil: null,
+        errorUntil: nextErrorUntil,
       });
       pushQueueRefresh("candidatos_partes");
     } catch (error) {

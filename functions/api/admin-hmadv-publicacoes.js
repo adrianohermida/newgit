@@ -38,6 +38,22 @@ function isJobInfraError(error) {
   );
 }
 
+function isQueueOverloadError(error) {
+  const message = String(error?.message || "");
+  return message.includes("Too many subrequests") || message.includes("subrequests");
+}
+
+function buildQueueFallback({ page, pageSize, error }) {
+  return {
+    page,
+    pageSize,
+    totalRows: 0,
+    items: [],
+    limited: true,
+    error: error?.message || "Fila em modo reduzido por sobrecarga.",
+  };
+}
+
 async function runInlinePublicacoesAction(env, action, body) {
   const processNumbers = parseProcessNumbers(body.processNumbers);
   const requestedLimit = Number(body.limit || 0);
@@ -128,18 +144,30 @@ export async function onRequestGet(context) {
       return jsonOk({ data });
     }
     if (action === "candidatos_processos") {
-      const data = await listCreateProcessCandidates(context.env, {
-        page: Number(url.searchParams.get("page") || 1),
-        pageSize: Number(url.searchParams.get("pageSize") || 20),
-      });
-      return jsonOk({ data });
+      const page = Number(url.searchParams.get("page") || 1);
+      const pageSize = Number(url.searchParams.get("pageSize") || 20);
+      try {
+        const data = await listCreateProcessCandidates(context.env, { page, pageSize });
+        return jsonOk({ data });
+      } catch (error) {
+        if (isQueueOverloadError(error)) {
+          return jsonOk({ data: buildQueueFallback({ page, pageSize, error }) });
+        }
+        throw error;
+      }
     }
     if (action === "candidatos_partes") {
-      const data = await listPartesExtractionCandidates(context.env, {
-        page: Number(url.searchParams.get("page") || 1),
-        pageSize: Number(url.searchParams.get("pageSize") || 20),
-      });
-      return jsonOk({ data });
+      const page = Number(url.searchParams.get("page") || 1);
+      const pageSize = Number(url.searchParams.get("pageSize") || 20);
+      try {
+        const data = await listPartesExtractionCandidates(context.env, { page, pageSize });
+        return jsonOk({ data });
+      } catch (error) {
+        if (isQueueOverloadError(error)) {
+          return jsonOk({ data: buildQueueFallback({ page, pageSize, error }) });
+        }
+        throw error;
+      }
     }
     if (action === "publicacoes_pendentes") {
       const data = await listPublicationActivityBacklog(context.env, {
