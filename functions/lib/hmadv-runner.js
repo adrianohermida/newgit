@@ -1,6 +1,7 @@
 import {
   getPersistedCoverageOverview,
   getPersistedCoveragePriorityReport,
+  recoverTaggedDatajudMissingCnj,
   getTaggedDatajudActionPlan,
   getTaggedDatajudCoverageReport,
   getTaggedDatajudDiagnostics,
@@ -693,7 +694,12 @@ async function runTaggedDatajudActionPlanPipeline(env) {
       : [];
 
     let result = null;
-    if (step.action === "sync_supabase_crm") {
+    if (step.action === "recover_tagged_missing_cnj") {
+      result = await recoverTaggedDatajudMissingCnj(env, {
+        limit: Math.max(Number(step.count || 0), 1),
+        tag: "datajud",
+      });
+    } else if (step.action === "sync_supabase_crm") {
       result = await syncProcessesSupabaseCrm(env, {
         processNumbers,
         limit: 1,

@@ -2179,6 +2179,19 @@ export async function getTaggedDatajudMissingCnjReport(env, { limit = 100, tag =
   };
 }
 
+export async function recoverTaggedDatajudMissingCnj(env, { limit = 100, tag = "datajud" } = {}) {
+  return hmadvFunction(
+    env,
+    "datajud-webhook",
+    {
+      action: "recover_tagged_missing_cnj",
+      limite: Number(limit || 100),
+      tag: String(tag || "datajud"),
+    },
+    { method: "POST", body: {} }
+  );
+}
+
 export async function getTaggedDatajudCoverageReport(env, { limit = 100, tag = "datajud" } = {}) {
   const safeLimit = Math.max(10, Math.min(Number(limit || 100), 250));
   const [diagnostics, coverageOverview] = await Promise.all([
@@ -2241,9 +2254,15 @@ export async function getTaggedDatajudCoverageReport(env, { limit = 100, tag = "
 }
 
 export async function getTaggedDatajudActionPlan(env, { limit = 100, tag = "datajud" } = {}) {
-  const report = await getTaggedDatajudCoverageReport(env, { limit, tag });
+  const [report, missingCnjReport] = await Promise.all([
+    getTaggedDatajudCoverageReport(env, { limit, tag }),
+    getTaggedDatajudMissingCnjReport(env, { limit, tag }),
+  ]);
   const blockers = Array.isArray(report?.blockers) ? report.blockers : [];
   const sample = Array.isArray(report?.sample) ? report.sample : [];
+  const recoverableMissingCnj = Number(missingCnjReport?.recoverable || 0);
+  const totalMissingCnj = Number(missingCnjReport?.missingCnj || 0);
+  const manualMissingCnj = Math.max(0, totalMissingCnj - recoverableMissingCnj);
 
   const collectNumbers = (predicate, max = 10) => {
     const picked = [];
@@ -2259,10 +2278,18 @@ export async function getTaggedDatajudActionPlan(env, { limit = 100, tag = "data
 
   const steps = [
     {
+      key: "recover_missing_cnj",
+      label: "Recuperar CNJ inferido no Freshsales",
+      action: "recover_tagged_missing_cnj",
+      count: recoverableMissingCnj,
+      processNumbers: [],
+      helper: "Copia automaticamente o CNJ inferido para cf_processo nos accounts tagueados que ainda permitem recuperacao automatica.",
+    },
+    {
       key: "missing_cnj",
       label: "Preencher CNJ no Freshsales",
       action: "manual_cf_processo",
-      count: Number(blockers.find((item) => item.key === "missing_cnj")?.count || 0),
+      count: manualMissingCnj,
       processNumbers: [],
       helper: "Os accounts tagueados com datajud precisam ter um CNJ utilizavel para iniciar o sincronismo automatico.",
     },
