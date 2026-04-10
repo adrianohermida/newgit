@@ -44,6 +44,7 @@ import {
   logAdminOperation,
 } from "../lib/hmadv-ops.js";
 import { reconcilePartesContacts } from "../lib/hmadv-contacts.js";
+import { drainHmadvQueues } from "../lib/hmadv-runner.js";
 
 function parseProcessNumbers(value) {
   if (!value) return [];
@@ -592,6 +593,11 @@ export async function onRequestPost(context) {
       return runLogged(async () => executeDatajudActionPlan(context.env, {
         limit: Number(body.limit || 100),
         tag: String(body.tag || "datajud"),
+      }));
+    }
+    if (action === "executar_integracao_completa") {
+      return runLogged(async () => drainHmadvQueues(context.env, {
+        maxChunks: Number(body.maxChunks || 2),
       }));
     }
     if (action === "auditoria_sync") {
