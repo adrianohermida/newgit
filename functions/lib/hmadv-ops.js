@@ -1914,6 +1914,127 @@ export async function listProcessCoverage(env, { page = 1, pageSize = 20, query 
   };
 }
 
+export async function persistProcessCoverageSnapshot(env, { pageSize = 100, maxPages = 100 } = {}) {
+  const safePageSize = Math.max(20, Math.min(Number(pageSize || 100), 200));
+  const safeMaxPages = Math.max(1, Math.min(Number(maxPages || 100), 500));
+  let page = 1;
+  let processed = 0;
+  let upserted = 0;
+  const sample = [];
+
+  while (page <= safeMaxPages) {
+    const coverage = await listProcessCoverage(env, {
+      page,
+      pageSize: safePageSize,
+      onlyPending: false,
+    });
+    const items = Array.isArray(coverage?.items) ? coverage.items : [];
+    if (!items.length) break;
+
+    const rows = items
+      .filter((item) => item?.processo_id)
+      .map((item) => ({
+        processo_id: item.processo_id,
+        numero_cnj: item.numero_cnj || null,
+        account_id_freshsales: item.account_id_freshsales || null,
+        coverage_pct: Number(item.coveragePct || 0),
+        has_account: Boolean(item.hasAccount),
+        details_ok: Boolean(item.detailsOk),
+        has_movements: Boolean(item.hasMovements),
+        parts_ok: Boolean(item.partsOk),
+        publications_ok: Boolean(item.publicationsOk),
+        movements_ok: Boolean(item.movementsOk),
+        hearings_ok: Boolean(item.hearingsOk),
+        crm_gap: Boolean(item.crmGap),
+        pending_labels: item.pending || [],
+        summary: {
+          partes_total: Number(item.partesTotal || 0),
+          partes_sem_contato: Number(item.partesSemContato || 0),
+          publicacoes_total: Number(item.publicacoesTotal || 0),
+          publicacoes_pendentes: Number(item.publicacoesPendentes || 0),
+          movimentacoes_total: Number(item.movimentacoesTotal || 0),
+          movimentacoes_pendentes: Number(item.movimentacoesPendentes || 0),
+          audiencias_total: Number(item.audienciasTotal || 0),
+          audiencias_pendentes: Number(item.audienciasPendentes || 0),
+        },
+        last_sync_at: new Date().toISOString(),
+        last_error: null,
+      }));
+
+    if (rows.length) {
+      await hmadvRest(
+        env,
+        "processo_cobertura_sync?on_conflict=processo_id",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Profile": "judiciario",
+            Prefer: "resolution=merge-duplicates,return=minimal",
+          },
+          body: JSON.stringify(rows),
+        },
+        "judiciario"
+      );
+      upserted += rows.length;
+      if (sample.length < 8) {
+        sample.push(...rows.slice(0, Math.max(0, 8 - sample.length)).map((row) => ({
+          numero_cnj: row.numero_cnj,
+          coverage_pct: row.coverage_pct,
+          pending_labels: row.pending_labels,
+        })));
+      }
+    }
+
+    processed += items.length;
+    if (items.length < safePageSize) break;
+    page += 1;
+  }
+
+  return {
+    ok: true,
+    processed,
+    upserted,
+    pages: page,
+    sample,
+  };
+}
+
+export async function getPersistedCoverageOverview(env) {
+  try {
+    const [totalRows, coveredRows, pendingRows, lastRows] = await Promise.all([
+      countTableSafe(env, "processo_cobertura_sync", "", "judiciario", 0),
+      countTableSafe(env, "processo_cobertura_sync", "coverage_pct=gte.100", "judiciario", 0),
+      countTableSafe(env, "processo_cobertura_sync", "coverage_pct=lt.100", "judiciario", 0),
+      listTableSafe(
+        env,
+        "processo_cobertura_sync?select=last_sync_at,coverage_pct,numero_cnj,pending_labels&order=last_sync_at.desc&limit=5",
+        "judiciario",
+        []
+      ),
+    ]);
+    return {
+      totalRows,
+      coveredRows,
+      pendingRows,
+      lastSyncAt: lastRows?.[0]?.last_sync_at || null,
+      sample: lastRows || [],
+    };
+  } catch (error) {
+    if (schemaMessageMatches(error?.message, "processo_cobertura_sync")) {
+      return {
+        unsupported: true,
+        totalRows: 0,
+        coveredRows: 0,
+        pendingRows: 0,
+        lastSyncAt: null,
+        sample: [],
+      };
+    }
+    throw error;
+  }
+}
+
 async function listSyncDatajudProcesses(env, { page = 1, pageSize = 20 } = {}) {
   const safePage = Math.max(1, Number(page || 1));
   const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));

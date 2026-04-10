@@ -1,8 +1,10 @@
 import {
+  getPersistedCoverageOverview,
   getProcessosOverview,
   getPublicacoesOverview,
   listAdminJobs,
   listAdminOperations,
+  persistProcessCoverageSnapshot,
   processProcessAdminJob,
   processPublicacoesAdminJob,
 } from "./hmadv-ops.js";
@@ -412,11 +414,27 @@ async function runContactsCoveragePipeline(env) {
   return result;
 }
 
+async function runCoverageSnapshotPipeline(env) {
+  try {
+    const data = await persistProcessCoverageSnapshot(env, {
+      pageSize: 100,
+      maxPages: 100,
+    });
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error?.message || "Falha ao persistir snapshot de cobertura por processo.",
+    };
+  }
+}
+
 export async function getHmadvQueueSnapshot(env) {
-  const [processosOverview, publicacoesOverview, contactsOverview, processJobs, publicacaoJobs, runnerOps] = await Promise.all([
+  const [processosOverview, publicacoesOverview, contactsOverview, coverageOverview, processJobs, publicacaoJobs, runnerOps] = await Promise.all([
     getProcessosOverview(env),
     getPublicacoesOverview(env),
     getContactsOverview(env).catch(() => null),
+    getPersistedCoverageOverview(env).catch(() => null),
     listAdminJobs(env, { modulo: "processos", limit: 20 }),
     listAdminJobs(env, { modulo: "publicacoes", limit: 20 }),
     listAdminOperations(env, { modulo: "runner", limit: 5 }),
@@ -656,6 +674,7 @@ export async function getHmadvQueueSnapshot(env) {
     processosOverview,
     publicacoesOverview,
     contactsOverview,
+    coverageOverview,
     processosJobs,
     publicacoesJobs,
     recentJobs: {
@@ -713,6 +732,7 @@ export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
   const datajud = await runDatajudTaggedPipeline(env);
   const coverage = await runFreshsalesCoveragePipeline(env);
   const contacts = await runContactsCoveragePipeline(env);
+  const coverageSnapshot = await runCoverageSnapshotPipeline(env);
   const [processos, publicacoes] = await Promise.all([
     drainModuleJobs(env, "processos", processProcessAdminJob, maxChunks),
     drainModuleJobs(env, "publicacoes", processPublicacoesAdminJob, maxChunks),
@@ -723,6 +743,7 @@ export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
     datajud,
     coverage,
     contacts,
+    coverageSnapshot,
     processos,
     publicacoes,
     completedAll: Boolean(processos.completedAll && publicacoes.completedAll),

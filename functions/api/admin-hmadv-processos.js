@@ -7,6 +7,7 @@ import {
   getProcessAdminJob,
   getProcessosOverview,
   getLocalProcessAudit,
+  getPersistedCoverageOverview,
   inspectAudiencias,
   jsonError,
   jsonOk,
@@ -158,6 +159,10 @@ export async function onRequestGet(context) {
       const data = await getLocalProcessAudit(context.env, {
         sampleSize: Number(url.searchParams.get("sampleSize") || 8),
       });
+      return jsonOk({ data });
+    }
+    if (action === "cobertura_persistida") {
+      const data = await getPersistedCoverageOverview(context.env);
       return jsonOk({ data });
     }
     if (action === "cobertura_processos") {
