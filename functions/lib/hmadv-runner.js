@@ -1,6 +1,7 @@
 import {
   getPersistedCoverageOverview,
   getPersistedCoveragePriorityReport,
+  getTaggedDatajudCoverageReport,
   getTaggedDatajudDiagnostics,
   getProcessosOverview,
   getPublicacoesOverview,
@@ -444,13 +445,14 @@ function buildCoverageMetrics(snapshotResult, coverageOverview) {
 }
 
 export async function getHmadvQueueSnapshot(env) {
-  const [processosOverview, publicacoesOverview, contactsOverview, coverageOverview, coveragePriority, datajudTagDiagnostics, processJobs, publicacaoJobs, runnerOps] = await Promise.all([
+  const [processosOverview, publicacoesOverview, contactsOverview, coverageOverview, coveragePriority, datajudTagDiagnostics, datajudTagCoverage, processJobs, publicacaoJobs, runnerOps] = await Promise.all([
     getProcessosOverview(env),
     getPublicacoesOverview(env),
     getContactsOverview(env).catch(() => null),
     getPersistedCoverageOverview(env).catch(() => null),
     getPersistedCoveragePriorityReport(env, { limit: 100 }).catch(() => null),
     getTaggedDatajudDiagnostics(env, { limit: 100, tag: "datajud" }).catch(() => null),
+    getTaggedDatajudCoverageReport(env, { limit: 100, tag: "datajud" }).catch(() => null),
     listAdminJobs(env, { modulo: "processos", limit: 20 }),
     listAdminJobs(env, { modulo: "publicacoes", limit: 20 }),
     listAdminOperations(env, { modulo: "runner", limit: 5 }),
@@ -693,6 +695,7 @@ export async function getHmadvQueueSnapshot(env) {
     coverageOverview,
     coveragePriority,
     datajudTagDiagnostics,
+    datajudTagCoverage,
     processosJobs,
     publicacoesJobs,
     recentJobs: {

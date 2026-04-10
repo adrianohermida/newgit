@@ -2109,6 +2109,61 @@ export async function getTaggedDatajudDiagnostics(env, { limit = 100, tag = "dat
   );
 }
 
+export async function getTaggedDatajudCoverageReport(env, { limit = 100, tag = "datajud" } = {}) {
+  const safeLimit = Math.max(10, Math.min(Number(limit || 100), 250));
+  const [diagnostics, coverageOverview] = await Promise.all([
+    getTaggedDatajudDiagnostics(env, { limit: safeLimit, tag }),
+    getPersistedCoverageOverview(env),
+  ]);
+
+  const sample = Array.isArray(diagnostics?.sample) ? diagnostics.sample : [];
+  const cnjs = uniqueNonEmpty(sample.map((item) => item?.numero_cnj));
+  let coverageRows = [];
+  if (cnjs.length) {
+    coverageRows = await listTableSafe(
+      env,
+      `processo_cobertura_sync?select=numero_cnj,coverage_pct,pending_labels,last_sync_at&${buildInFilter("numero_cnj", cnjs)}&limit=${Math.max(cnjs.length, 1)}`,
+      "judiciario",
+      []
+    );
+  }
+  const coverageMap = new Map((coverageRows || []).map((item) => [String(item.numero_cnj || "").trim(), item]));
+
+  const taggedTotal = Number(diagnostics?.scanned || 0);
+  const fullyCovered = Number(diagnostics?.fully_covered || 0);
+  const fullyCoveredRate = taggedTotal ? Math.round((fullyCovered / taggedTotal) * 100) : 0;
+  const blockerCounts = [
+    { key: "missing_cnj", label: "Sem CNJ", count: Number(diagnostics?.missing_cnj || 0) },
+    { key: "without_process", label: "Sem processo no HMADV", count: Number(diagnostics?.without_process || 0) },
+    { key: "without_account_link", label: "Sem vinculo account->processo", count: Number(diagnostics?.without_account_link || 0) },
+    { key: "without_movements", label: "Sem movimentacoes locais", count: Number(diagnostics?.without_movements || 0) },
+    { key: "movement_activity_gap", label: "Movimentacoes sem activity", count: Number(diagnostics?.movement_activity_gap || 0) },
+    { key: "publication_activity_gap", label: "Publicacoes sem activity", count: Number(diagnostics?.publication_activity_gap || 0) },
+    { key: "parts_contact_gap", label: "Partes sem contato", count: Number(diagnostics?.parts_contact_gap || 0) },
+  ]
+    .filter((item) => item.count > 0)
+    .sort((left, right) => Number(right.count || 0) - Number(left.count || 0));
+
+  return {
+    tag,
+    taggedTotal,
+    fullyCovered,
+    fullyCoveredRate,
+    coverageOverview,
+    blockers: blockerCounts,
+    sample: sample.map((item) => {
+      const numeroCnj = String(item?.numero_cnj || "").trim();
+      const coverage = coverageMap.get(numeroCnj) || null;
+      return {
+        ...item,
+        coverage_pct: Number(coverage?.coverage_pct || 0),
+        coverage_pending_labels: Array.isArray(coverage?.pending_labels) ? coverage.pending_labels : [],
+        coverage_last_sync_at: coverage?.last_sync_at || null,
+      };
+    }),
+  };
+}
+
 async function listSyncDatajudProcesses(env, { page = 1, pageSize = 20 } = {}) {
   const safePage = Math.max(1, Number(page || 1));
   const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
