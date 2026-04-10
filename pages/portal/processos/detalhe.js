@@ -177,6 +177,38 @@ function ProcessDetailContent({ processId, state, setState }) {
             {coverage.coverageRate}% coberto
           </span>
         </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <CoverageCard
+            label="Sales Account"
+            active={coverage.hasAccount}
+            helper={coverage.hasAccount ? "O processo ja esta vinculado a um Sales Account." : "Ainda falta refletir este processo como account no CRM."}
+          />
+          <CoverageCard
+            label="Partes"
+            active={coverage.hasParts}
+            helper={coverage.hasParts ? `${summary.parts} parte(s) visiveis neste processo.` : "Ainda faltam partes visiveis nesta sincronizacao."}
+          />
+          <CoverageCard
+            label="Andamentos"
+            active={coverage.hasMovements}
+            helper={coverage.hasMovements ? `${summary.movements} andamento(s) disponiveis.` : "Ainda faltam movimentacoes sincronizadas."}
+          />
+          <CoverageCard
+            label="Publicacoes"
+            active={coverage.hasPublications}
+            helper={coverage.hasPublications ? `${summary.publications} publicacao(oes) disponiveis.` : "Ainda faltam publicacoes refletidas."}
+          />
+          <CoverageCard
+            label="Audiencias"
+            active={coverage.hasAudiencias}
+            helper={coverage.hasAudiencias ? `${summary.audiencias} audiencia(s) vinculada(s).` : "Ainda nao ha audiencias refletidas neste processo."}
+          />
+          <CoverageCard
+            label="Documentos"
+            active={coverage.hasDocuments}
+            helper={coverage.hasDocuments ? `${summary.documents} documento(s) visiveis no portal.` : "Ainda nao ha documentos visiveis neste processo."}
+          />
+        </div>
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <Meta label="Sales Account" value={coverage.hasAccount ? "Refletido" : "Pendente"} />
           <Meta label="Partes" value={coverage.hasParts ? "Disponiveis" : "Pendentes"} />
@@ -328,13 +360,52 @@ function RailPanel({ title, helper, children, defaultOpen = true }) {
   );
 }
 
+function CoverageCard({ label, active, helper }) {
+  return (
+    <div className={`rounded-[22px] border p-4 ${active ? "border-[#24533D] bg-[rgba(19,72,49,0.18)]" : "border-[#5B3535] bg-[rgba(91,53,53,0.12)]"}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-[10px] uppercase tracking-[0.18em] opacity-55">{label}</p>
+        <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.15em] ${active ? "border-[#24533D] text-[#B8F0D5]" : "border-[#5B3535] text-[#E7B3B3]"}`}>
+          {active ? "ok" : "pendente"}
+        </span>
+      </div>
+      <p className="mt-3 text-sm leading-6 opacity-70">{helper}</p>
+    </div>
+  );
+}
+
 function ProcessDetailRightRail({ state }) {
   const processNumber = state.process?.number || state.process?.id || "processo";
   const supportHref = `/portal/tickets?subject=${encodeURIComponent(`Solicitacao sobre o processo ${processNumber}`)}&description=${encodeURIComponent(`Preciso de apoio do escritorio em relacao ao processo ${processNumber}.`)}`;
   const copyRequestHref = `/portal/tickets?subject=${encodeURIComponent(`Solicitacao de copia do processo ${processNumber}`)}&description=${encodeURIComponent(`Solicito copia integral do processo ${processNumber} para consulta no portal.`)}`;
+  const coverage = state.coverage || null;
 
   return (
     <div className="space-y-4">
+      <RailPanel title="Cobertura operacional" helper="Resumo do que ja esta refletido entre base judicial, portal e Freshsales.">
+        {coverage ? (
+          <div className="space-y-3 text-sm">
+            <div className="rounded-2xl border border-[#20332D] bg-black/10 p-4">
+              <p className="text-[11px] uppercase tracking-[0.16em] opacity-45">Cobertura atual</p>
+              <p className="mt-2 font-serif text-3xl">{coverage.coverageRate || 0}%</p>
+            </div>
+            {coverage.pendingLabels?.length ? (
+              <div className="flex flex-wrap gap-2">
+                {coverage.pendingLabels.map((item) => (
+                  <span key={item} className="rounded-full border border-[#6E5630] bg-[rgba(76,57,26,0.18)] px-3 py-1 text-[10px] uppercase tracking-[0.15em] text-[#F2DEB5]">
+                    {item}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="opacity-65">Este processo ja aparece com cobertura operacional completa no portal.</p>
+            )}
+          </div>
+        ) : (
+          <EmptyText>A cobertura deste processo ainda nao foi calculada nesta leitura.</EmptyText>
+        )}
+      </RailPanel>
+
       <RailPanel title="Acoes deste processo" helper="Atalhos rapidos para servicos e atendimento relacionados a este caso.">
         <div className="space-y-3">
           <a href="/agendamento" className="block rounded-2xl bg-[#C49C56] px-4 py-3 text-sm font-semibold text-[#07110E] transition hover:brightness-110">
