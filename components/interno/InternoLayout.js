@@ -135,7 +135,24 @@ export default function InternoLayout({
         {/* CONTEÚDO PRINCIPAL */}
         <div className="flex flex-1 min-w-0 flex-col">
           <div className="flex items-center justify-between border-b border-[#1E2E29] px-6 py-4">
-            <div className="flex items-center gap-3">
+            <div className="text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">Workspace</div>
+            <div className="flex-1 px-6">
+              <div className="mx-auto flex max-w-xl items-center gap-3 rounded-full border border-[#22342F] bg-[rgba(8,10,9,0.7)] px-4 py-2 text-sm">
+                <input
+                  type="text"
+                  placeholder="Buscar por processos, publicacoes, contas..."
+                  className="w-full bg-transparent text-sm outline-none placeholder:text-[#60706A]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setCopilotOpen((current) => !current)}
+                  className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[#C5A059] transition hover:border-[#C5A059] hover:text-[#F5E6C5]"
+                >
+                  Chat
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setLeftCollapsed((current) => !current)}
@@ -158,31 +175,6 @@ export default function InternoLayout({
                 Console
               </button>
             </div>
-            <div className="flex-1 px-6">
-              <div className="mx-auto flex max-w-xl items-center gap-3 rounded-full border border-[#22342F] bg-[rgba(8,10,9,0.7)] px-4 py-2 text-sm">
-                <input
-                  type="text"
-                  placeholder="Buscar por processos, publicacoes, contas..."
-                  className="w-full bg-transparent text-sm outline-none placeholder:text-[#60706A]"
-                />
-                <button
-                  type="button"
-                  onClick={() => setCopilotOpen((current) => !current)}
-                  className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[#C5A059] transition hover:border-[#C5A059] hover:text-[#F5E6C5]"
-                >
-                  Chat
-                </button>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setCopilotOpen((current) => !current)}
-                className="rounded-full border border-[#C5A059] px-3 py-2 text-xs text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]"
-              >
-                Copilot
-              </button>
-            </div>
           </div>
           <div className="flex-1 overflow-auto">
           <header className="mb-6 border-b border-[#1E2E29] pb-5 px-6 pt-6">
@@ -199,17 +191,52 @@ export default function InternoLayout({
             <DotobotExtensionManager />
           </div>
           </div>
-        </div>
-        {shouldRenderDotobotRail ? (
-          <div className="h-full">
-            <DotobotCopilot
-              profile={profile}
-              routePath={router.pathname}
-              initialWorkspaceOpen={rightRailFullscreen ? true : initialWorkspaceOpen}
-              defaultCollapsed={rightRailFullscreen ? false : true}
-              compactRail={false}
-            />
+          <div className={`border-t border-[#1E2E29] bg-[rgba(6,8,7,0.92)] transition-all ${consoleOpen ? "h-[240px]" : "h-[44px]"}`}>
+            <div className="flex items-center justify-between px-5 py-2 text-xs uppercase tracking-[0.18em] text-[#C5A059]">
+              <span>Console operacional</span>
+              <button
+                type="button"
+                onClick={() => setConsoleOpen((current) => !current)}
+                className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+              >
+                {consoleOpen ? "Minimizar" : "Abrir"}
+              </button>
+            </div>
+            {consoleOpen ? (
+              <div className="h-[180px] overflow-y-auto px-5 pb-4 text-xs text-[#9BAEA8]">
+                Console operacional (placeholder). Aqui entram logs estilo VS Code.
+              </div>
+            ) : null}
           </div>
+        </div>
+        {shouldRenderDotobotRail && !rightCollapsed ? (
+          <div className="relative h-full w-[380px] border-l border-[#22342F] bg-[rgba(8,10,9,0.9)]">
+            {copilotOpen ? (
+              <DotobotCopilot
+                profile={profile}
+                routePath={router.pathname}
+                initialWorkspaceOpen={rightRailFullscreen ? true : initialWorkspaceOpen}
+                defaultCollapsed={false}
+                compactRail={false}
+                showCollapsedTrigger={false}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-[#9BAEA8]">
+                Painel direito fechado.
+              </div>
+            )}
+          </div>
+        ) : null}
+        {copilotOpen ? (
+          <button
+            type="button"
+            onClick={() => setCopilotOpen(false)}
+            className="group fixed right-0 top-1/2 z-[80] -translate-y-1/2 rounded-l-2xl border border-[#C5A059] bg-[#C5A059] px-2 py-5 text-[10px] uppercase tracking-[0.32em] text-[#07110E] shadow-[0_10px_30px_rgba(197,160,89,0.3)]"
+            style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
+          >
+            <span className="group-hover:hidden">Copilot</span>
+            <span className="hidden group-hover:block text-[12px]">X</span>
+          </button>
         ) : null}
       </div>
     </div>

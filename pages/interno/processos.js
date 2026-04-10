@@ -2123,7 +2123,7 @@ function InternoProcessosContent() {
 
   return <div className="space-y-8">
     {activityLogOpen ? (
-      <section className="fixed right-5 top-28 bottom-6 z-[70] w-[min(440px,92vw)] overflow-hidden rounded-[28px] border border-[#2D2E2E] bg-[rgba(6,8,8,0.96)] shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
+      <section className="fixed right-0 top-0 bottom-0 z-[70] w-[min(420px,92vw)] overflow-hidden border-l border-[#2D2E2E] bg-[rgba(6,8,8,0.96)] shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
         <header className="flex items-center justify-between gap-3 border-b border-[#2D2E2E] px-4 py-4">
           <div>
             <p className="text-[10px] uppercase tracking-[0.2em] text-[#C5A059]">Modo dev</p>
@@ -2220,6 +2220,17 @@ function InternoProcessosContent() {
           )}
         </div>
       </section>
+    ) : null}
+    {activityLogOpen ? (
+      <button
+        type="button"
+        onClick={() => setActivityLogOpen(false)}
+        className="group fixed right-0 top-1/2 z-[75] -translate-y-1/2 rounded-l-2xl border border-[#2D2E2E] bg-[#0d0f0e] px-2 py-5 text-[10px] uppercase tracking-[0.28em] text-[#C5A059] shadow-[0_10px_30px_rgba(0,0,0,0.35)]"
+        style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
+      >
+        <span className="group-hover:hidden">Log</span>
+        <span className="hidden group-hover:block text-[12px]">X</span>
+      </button>
     ) : null}
     <section className="rounded-[34px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-6 py-6 md:px-7">
       <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
