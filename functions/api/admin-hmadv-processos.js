@@ -14,6 +14,7 @@ import {
   getTaggedDatajudDiagnostics,
   getTaggedDatajudMissingCnjReport,
   recoverTaggedDatajudMissingCnj,
+  runFullIntegrationCron,
   inspectAudiencias,
   jsonError,
   jsonOk,
@@ -598,6 +599,16 @@ export async function onRequestPost(context) {
     if (action === "executar_integracao_completa") {
       return runLogged(async () => drainHmadvQueues(context.env, {
         maxChunks: Number(body.maxChunks || 2),
+      }));
+    }
+    if (action === "executar_integracao_total_hmadv") {
+      return runLogged(async () => runFullIntegrationCron(context.env, {
+        scanLimit: Number(body.scanLimit || 50),
+        monitorLimit: Number(body.monitorLimit || 100),
+        movementLimit: Number(body.movementLimit || 120),
+        advisePages: Number(body.advisePages || 2),
+        advisePerPage: Number(body.advisePerPage || 50),
+        publicacoesBatch: Number(body.publicacoesBatch || 20),
       }));
     }
     if (action === "auditoria_sync") {
