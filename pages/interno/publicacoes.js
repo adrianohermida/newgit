@@ -21,6 +21,7 @@ const ASYNC_PUBLICACOES_ACTIONS = new Set([
   "backfill_partes",
   "sincronizar_partes",
 ]);
+const QUEUE_ERROR_TTL_MS = 1000 * 60 * 3;
 const PUBLICACOES_QUEUE_VIEWS = new Set(["operacao", "filas"]);
 const QUEUE_LABELS = {
   candidatos_processos: "Processos criaveis",
@@ -371,6 +372,7 @@ function QueueList({
   totalEstimated = false,
   lastUpdated = null,
   limited = false,
+  errorMessage = "",
 }) {
   const allSelected = rows.length > 0 && rows.every((row) => selected.includes(row.key));
   const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / Math.max(1, pageSize)));
@@ -387,6 +389,7 @@ function QueueList({
           {totalRows ? <p className="text-xs opacity-50 mt-1">Pagina {page} de {totalPages} - {totalRows} no total</p> : null}
           {lastUpdated !== undefined ? <p className="text-xs opacity-50 mt-1">Atualizado em {lastUpdated ? new Date(lastUpdated).toLocaleString("pt-BR") : "nao atualizado"}</p> : null}
           {limited ? <p className="text-xs text-[#FDE68A] mt-1">Fila em modo reduzido para evitar sobrecarga.</p> : null}
+          {errorMessage ? <p className="text-xs text-[#FECACA] mt-1">{errorMessage}</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -680,8 +683,8 @@ export default function InternoPublicacoesPage() {
 function PublicacoesContent() {
   const [view, setView] = useState("operacao");
   const [overview, setOverview] = useState({ loading: true, error: null, data: null });
-  const [processCandidates, setProcessCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20, updatedAt: null, limited: false });
-  const [partesCandidates, setPartesCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20, updatedAt: null, limited: false });
+  const [processCandidates, setProcessCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20, updatedAt: null, limited: false, errorUntil: null });
+  const [partesCandidates, setPartesCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20, updatedAt: null, limited: false, errorUntil: null });
   const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
   const [executionHistory, setExecutionHistory] = useState([]);
   const [remoteHistory, setRemoteHistory] = useState([]);
@@ -831,7 +834,13 @@ function PublicacoesContent() {
   }
 
   async function loadProcessCandidates(page) {
-    setProcessCandidates((state) => ({ ...state, loading: true, error: null }));
+    const now = Date.now();
+    setProcessCandidates((state) => {
+      if (state?.errorUntil && now < state.errorUntil) {
+        return { ...state, loading: false };
+      }
+      return { ...state, loading: true, error: null };
+    });
     try {
       const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=candidatos_processos&page=${page}&pageSize=20`);
       setProcessCandidates({
@@ -843,16 +852,34 @@ function PublicacoesContent() {
         pageSize: payload.data.pageSize || 20,
         updatedAt: new Date().toISOString(),
         limited: Boolean(payload.data.limited),
+        errorUntil: null,
       });
       pushQueueRefresh("candidatos_processos");
     } catch (error) {
-      setProcessCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos.", items: [], totalRows: 0, totalEstimated: false, pageSize: 20, updatedAt: new Date().toISOString(), limited: false });
+      const message = error.message || "Falha ao carregar candidatos.";
+      setProcessCandidates((state) => ({
+        loading: false,
+        error: message,
+        items: state?.items || [],
+        totalRows: state?.totalRows || 0,
+        totalEstimated: false,
+        pageSize: 20,
+        updatedAt: state?.updatedAt || new Date().toISOString(),
+        limited: Boolean(state?.limited),
+        errorUntil: Date.now() + QUEUE_ERROR_TTL_MS,
+      }));
       pushQueueRefresh("candidatos_processos");
     }
   }
 
   async function loadPartesCandidates(page) {
-    setPartesCandidates((state) => ({ ...state, loading: true, error: null }));
+    const now = Date.now();
+    setPartesCandidates((state) => {
+      if (state?.errorUntil && now < state.errorUntil) {
+        return { ...state, loading: false };
+      }
+      return { ...state, loading: true, error: null };
+    });
     try {
       const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=candidatos_partes&page=${page}&pageSize=20`);
       setPartesCandidates({
@@ -864,10 +891,22 @@ function PublicacoesContent() {
         pageSize: payload.data.pageSize || 20,
         updatedAt: new Date().toISOString(),
         limited: Boolean(payload.data.limited),
+        errorUntil: null,
       });
       pushQueueRefresh("candidatos_partes");
     } catch (error) {
-      setPartesCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos de partes.", items: [], totalRows: 0, totalEstimated: false, pageSize: 20, updatedAt: new Date().toISOString(), limited: false });
+      const message = error.message || "Falha ao carregar candidatos de partes.";
+      setPartesCandidates((state) => ({
+        loading: false,
+        error: message,
+        items: state?.items || [],
+        totalRows: state?.totalRows || 0,
+        totalEstimated: false,
+        pageSize: 20,
+        updatedAt: state?.updatedAt || new Date().toISOString(),
+        limited: Boolean(state?.limited),
+        errorUntil: Date.now() + QUEUE_ERROR_TTL_MS,
+      }));
       pushQueueRefresh("candidatos_partes");
     }
   }
@@ -1402,6 +1441,7 @@ function PublicacoesContent() {
             totalEstimated={processCandidates.totalEstimated}
             lastUpdated={processCandidates.updatedAt}
             limited={processCandidates.limited}
+            errorMessage={processCandidates.error}
           />
         </Panel>
         <Panel title="Fila de partes extraiveis" eyebrow="Backfill pelo conteudo das publicacoes">
@@ -1420,6 +1460,7 @@ function PublicacoesContent() {
             totalEstimated={partesCandidates.totalEstimated}
             lastUpdated={partesCandidates.updatedAt}
             limited={partesCandidates.limited}
+            errorMessage={partesCandidates.error}
           />
         </Panel>
         </div>
