@@ -832,6 +832,84 @@ async function handleDiagnoseTaggedAccounts(limit = 100, tag = 'datajud'): Promi
   };
 }
 
+async function patchSalesAccountProcessNumber(accountId: string, cnj20: string): Promise<{ ok: boolean; status: number; processNumber: string }> {
+  const processNumber = cnj20toFmt(cnj20);
+  const { status } = await fsPut(`sales_accounts/${accountId}`, {
+    sales_account: {
+      custom_field: {
+        cf_processo: processNumber,
+      },
+    },
+  });
+  return {
+    ok: status === 200 || status === 201,
+    status,
+    processNumber,
+  };
+}
+
+async function handleRecoverTaggedMissingCnj(limit = 100, tag = 'datajud'): Promise<Record<string, unknown>> {
+  const salesAccounts = await listTaggedSalesAccounts(limit, tag);
+  const summary = {
+    scanned: 0,
+    recoverable: 0,
+    recovered: 0,
+    skipped: 0,
+    failed: 0,
+  };
+  const sample: unknown[] = [];
+
+  for (const salesAccount of salesAccounts) {
+    if (!salesAccountHasTag(salesAccount, tag)) continue;
+    summary.scanned += 1;
+    const customFields = (salesAccount.custom_fields ?? salesAccount.custom_field ?? {}) as Record<string, unknown>;
+    const currentProcess = String(customFields.cf_processo ?? '').trim();
+    const inferredCnj = extractCnjFromSalesAccountPayload({ sales_account: salesAccount }) ?? '';
+
+    if (currentProcess || !inferredCnj) {
+      summary.skipped += 1;
+      continue;
+    }
+
+    summary.recoverable += 1;
+    const accountId = String(salesAccount.id ?? '').trim();
+    if (!accountId) {
+      summary.failed += 1;
+      if (sample.length < 20) {
+        sample.push({
+          account_id: null,
+          account_name: String(salesAccount.name ?? salesAccount.display_name ?? '').trim() || null,
+          inferred_cnj: inferredCnj,
+          ok: false,
+          error: 'account_id ausente',
+        });
+      }
+      continue;
+    }
+
+    const patch = await patchSalesAccountProcessNumber(accountId, inferredCnj);
+    if (patch.ok) summary.recovered += 1;
+    else summary.failed += 1;
+    if (sample.length < 20) {
+      sample.push({
+        account_id: accountId,
+        account_name: String(salesAccount.name ?? salesAccount.display_name ?? '').trim() || null,
+        inferred_cnj: inferredCnj,
+        process_number: patch.processNumber,
+        ok: patch.ok,
+        status: patch.status,
+      });
+    }
+  }
+
+  return {
+    ok: true,
+    tag,
+    ...summary,
+    sample,
+  };
+}
+
 async function handleEnqueueActiveDatajud(limit = 100): Promise<Record<string, unknown>> {
   const safeLimit = Math.max(1, Math.min(Number(limit || 100), 250));
   const { data: rows } = await db.from('datajud_sync_status')
@@ -882,12 +960,14 @@ async function handleCronTaggedDatajud({
   monitorLimit = 100,
   movementLimit = 120,
 } = {}): Promise<Record<string, unknown>> {
+  const recoverMissing = await handleRecoverTaggedMissingCnj(scanLimit, 'datajud');
   const reconcile = await handleReconcileTaggedAccounts(scanLimit, 'datajud');
   const enqueue = await handleEnqueueActiveDatajud(monitorLimit);
   const daily = await handleDailySync();
   const movimentos = await handleSyncAndamentos(movementLimit);
   return {
     ok: true,
+    recoverMissing,
     reconcile,
     enqueue,
     daily,
@@ -925,6 +1005,7 @@ Deno.serve(async (req: Request) => {
       case 'sync_andamentos': result = await handleSyncAndamentos(Number(url.searchParams.get('limite')??200)); break;
       case 'daily_sync':      result = await handleDailySync();                    break;
       case 'reconcile_tagged_accounts': result = await handleReconcileTaggedAccounts(Number(url.searchParams.get('limite') ?? 100), String(url.searchParams.get('tag') ?? 'datajud')); break;
+      case 'recover_tagged_missing_cnj': result = await handleRecoverTaggedMissingCnj(Number(url.searchParams.get('limite') ?? 100), String(url.searchParams.get('tag') ?? 'datajud')); break;
       case 'diagnose_tagged_accounts': result = await handleDiagnoseTaggedAccounts(Number(url.searchParams.get('limite') ?? 100), String(url.searchParams.get('tag') ?? 'datajud')); break;
       case 'enqueue_active_datajud': result = await handleEnqueueActiveDatajud(Number(url.searchParams.get('limite') ?? 100)); break;
       case 'cron_tagged_datajud': result = await handleCronTaggedDatajud({
