@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { href: "/interno", label: "Visao geral" },
   { href: "/interno/ai-task", label: "AI Task" },
   { href: "/interno/aprovacoes", label: "Aprovacoes" },
+  { href: "/interno/financeiro", label: "Financeiro" },
   { href: "/interno/processos", label: "Processos" },
   { href: "/interno/publicacoes", label: "Publicacoes" },
   { href: "/interno/contacts", label: "Contatos" },

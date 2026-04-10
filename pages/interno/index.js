@@ -426,6 +426,11 @@ export default function InternoHomePage() {
                     </div>
                     <div className="grid gap-3">
                       <FocusLink
+                        href="/interno/financeiro"
+                        title="Abrir Financeiro"
+                        helper="Base canônica de faturas e assinaturas, pendências de account e prontidão para Deals."
+                      />
+                      <FocusLink
                         href="/interno/processos"
                         title="Abrir Processos"
                         helper="Sincronismo DataJud, monitoramento, gaps de CRM e accounts orfas."
@@ -533,6 +538,9 @@ export default function InternoHomePage() {
                 </Link>
                 <Link href="/interno/aprovacoes" prefetch={false} className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
                   Abrir aprovacoes
+                </Link>
+                <Link href="/interno/financeiro" prefetch={false} className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
+                  Abrir financeiro
                 </Link>
                 <Link href="/interno/processos" prefetch={false} className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
                   Abrir gestao de processos
