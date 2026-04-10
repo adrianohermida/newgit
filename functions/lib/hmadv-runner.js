@@ -6,6 +6,11 @@ import {
   processProcessAdminJob,
   processPublicacoesAdminJob,
 } from "./hmadv-ops.js";
+import {
+  getContactsOverview,
+  reconcilePartesContacts,
+  syncFreshsalesContactsMirror,
+} from "./hmadv-contacts.js";
 
 function getSupabaseBaseUrl(env) {
   return String(env?.SUPABASE_URL || env?.NEXT_PUBLIC_SUPABASE_URL || "").trim().replace(/\/$/, "");
@@ -292,9 +297,9 @@ async function runDatajudTaggedPipeline(env) {
       "datajud-webhook",
       {
         action: "cron_tagged_datajud",
-        scan_limit: 20,
-        monitor_limit: 40,
-        movement_limit: 80,
+        scan_limit: 500,
+        monitor_limit: 500,
+        movement_limit: 200,
       },
       { method: "POST", body: {} }
     );
@@ -307,10 +312,111 @@ async function runDatajudTaggedPipeline(env) {
   }
 }
 
+async function runAdviseSyncPipeline(env) {
+  try {
+    const data = await callHmadvFunction(
+      env,
+      "advise-sync",
+      {
+        action: "sync",
+        por_pagina: 50,
+        max_paginas: 2,
+      },
+      { method: "POST", body: {} }
+    );
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error?.message || "Falha ao rodar pipeline Advise.",
+    };
+  }
+}
+
+async function runFreshsalesCoveragePipeline(env) {
+  const result = {
+    publicacoes: null,
+    worker: null,
+    ok: true,
+  };
+  try {
+    result.publicacoes = await callHmadvFunction(
+      env,
+      "publicacoes-freshsales",
+      {
+        action: "sync",
+        batch: 20,
+      },
+      { method: "POST", body: {} }
+    );
+  } catch (error) {
+    result.ok = false;
+    result.publicacoes = {
+      ok: false,
+      error: error?.message || "Falha ao sincronizar publicacoes no Freshsales.",
+    };
+  }
+
+  try {
+    result.worker = await callHmadvFunction(
+      env,
+      "sync-worker",
+      {
+        action: "run",
+      },
+      { method: "POST", body: {} }
+    );
+  } catch (error) {
+    result.ok = false;
+    result.worker = {
+      ok: false,
+      error: error?.message || "Falha ao rodar sync-worker.",
+    };
+  }
+
+  return result;
+}
+
+async function runContactsCoveragePipeline(env) {
+  const result = {
+    mirror: null,
+    reconcile: null,
+    ok: true,
+  };
+  try {
+    result.mirror = await syncFreshsalesContactsMirror(env, {
+      limit: 5000,
+      dryRun: false,
+    });
+  } catch (error) {
+    result.ok = false;
+    result.mirror = {
+      ok: false,
+      error: error?.message || "Falha ao atualizar espelho de contatos do Freshsales.",
+    };
+  }
+
+  try {
+    result.reconcile = await reconcilePartesContacts(env, {
+      limit: 50,
+      apply: true,
+    });
+  } catch (error) {
+    result.ok = false;
+    result.reconcile = {
+      ok: false,
+      error: error?.message || "Falha ao reconciliar partes com contatos do Freshsales.",
+    };
+  }
+
+  return result;
+}
+
 export async function getHmadvQueueSnapshot(env) {
-  const [processosOverview, publicacoesOverview, processJobs, publicacaoJobs, runnerOps] = await Promise.all([
+  const [processosOverview, publicacoesOverview, contactsOverview, processJobs, publicacaoJobs, runnerOps] = await Promise.all([
     getProcessosOverview(env),
     getPublicacoesOverview(env),
+    getContactsOverview(env).catch(() => null),
     listAdminJobs(env, { modulo: "processos", limit: 20 }),
     listAdminJobs(env, { modulo: "publicacoes", limit: 20 }),
     listAdminOperations(env, { modulo: "runner", limit: 5 }),
@@ -327,7 +433,8 @@ export async function getHmadvQueueSnapshot(env) {
     (publicacoesJobs.running || 0);
   const totalBacklogItems =
     Number(processosOverview?.processosSemAccount || 0) +
-    Number(publicacoesOverview?.publicacoesSemProcesso || 0);
+    Number(publicacoesOverview?.publicacoesSemProcesso || 0) +
+    Number(contactsOverview?.partesSemContato || 0);
   const processosPressure =
     Number(processosJobs.pending || 0) +
     Number(processosJobs.running || 0) +
@@ -336,6 +443,7 @@ export async function getHmadvQueueSnapshot(env) {
     Number(publicacoesJobs.pending || 0) +
     Number(publicacoesJobs.running || 0) +
     Number(publicacoesOverview?.publicacoesSemProcesso || 0);
+  const contactsPressure = Number(contactsOverview?.partesSemContato || 0) + Number(contactsOverview?.duplicados || 0);
 
   let nextStep = "Operacao pronta para drenagem manual pelo /interno.";
   if (runnerConfigured) {
@@ -547,6 +655,7 @@ export async function getHmadvQueueSnapshot(env) {
     runnerConfigured,
     processosOverview,
     publicacoesOverview,
+    contactsOverview,
     processosJobs,
     publicacoesJobs,
     recentJobs: {
@@ -581,6 +690,7 @@ export async function getHmadvQueueSnapshot(env) {
       target: focusModule,
       processosPressure,
       publicacoesPressure,
+      contactsPressure,
       reason: focusReason,
       primaryHref,
       primaryLabel,
@@ -599,14 +709,20 @@ export async function getHmadvQueueSnapshot(env) {
 }
 
 export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
-  const [datajud, processos, publicacoes] = await Promise.all([
-    runDatajudTaggedPipeline(env),
+  const advise = await runAdviseSyncPipeline(env);
+  const datajud = await runDatajudTaggedPipeline(env);
+  const coverage = await runFreshsalesCoveragePipeline(env);
+  const contacts = await runContactsCoveragePipeline(env);
+  const [processos, publicacoes] = await Promise.all([
     drainModuleJobs(env, "processos", processProcessAdminJob, maxChunks),
     drainModuleJobs(env, "publicacoes", processPublicacoesAdminJob, maxChunks),
   ]);
 
   return {
+    advise,
     datajud,
+    coverage,
+    contacts,
     processos,
     publicacoes,
     completedAll: Boolean(processos.completedAll && publicacoes.completedAll),
