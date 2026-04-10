@@ -78,23 +78,38 @@ function resolveFreshsalesBases() {
 
 function freshsalesHeaderCandidates() {
   const apiKey = process.env.FRESHSALES_API_KEY;
+  const basicAuth = process.env.FRESHSALES_BASIC_AUTH;
   const accessToken = process.env.FRESHSALES_ACCESS_TOKEN;
+  const explicitMode = process.env.FRESHSALES_AUTH_MODE;
   const candidates = [];
   if (apiKey) {
     candidates.push({
+      __mode: 'api_key',
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Token token=${apiKey}`,
     });
   }
+  if (basicAuth) {
+    candidates.push({
+      __mode: 'basic_auth',
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: /^Basic\s+/i.test(basicAuth) ? basicAuth : `Basic ${basicAuth}`,
+    });
+  }
   if (accessToken) {
     candidates.push({
+      __mode: 'access_token',
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
     });
   }
   if (!candidates.length) throw new Error('Credenciais do Freshsales ausentes');
+  if (explicitMode) {
+    candidates.sort((left, right) => (left.__mode === explicitMode ? -1 : right.__mode === explicitMode ? 1 : 0));
+  }
   return candidates;
 }
 

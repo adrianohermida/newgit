@@ -281,6 +281,7 @@ export default function DotobotCopilot({
   initialWorkspaceOpen = true,
   defaultCollapsed = false,
   compactRail = false,
+  showCollapsedTrigger = true,
 }) {
   // Estado de autenticaÃ§Ã£o/admin
   const { supabase, loading: supaLoading, configError } = useSupabaseBrowser();
@@ -1139,7 +1140,7 @@ export default function DotobotCopilot({
           setRenameModal({ open: false, conversationId: null, value: "" });
         }}
       />
-      <CollapsedTrigger />
+      {showCollapsedTrigger ? <CollapsedTrigger /> : null}
       {!isCollapsed ? (
       <section className="border border-[#22342F] bg-[rgba(10,12,11,0.98)] backdrop-blur-sm">
         <header className="border-b border-[#22342F] px-4 py-4">

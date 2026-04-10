@@ -16,10 +16,7 @@ function splitName(fullName) {
 }
 
 function buildCandidates(env) {
-  const raw =
-    getCleanEnvValue(env.FRESHSALES_API_BASE) ||
-    getCleanEnvValue(env.FRESHSALES_BASE_URL) ||
-    getCleanEnvValue(env.FRESHSALES_DOMAIN);
+  const raw = resolveFreshsalesBase(env);
 
   if (!raw) return [];
   const base = raw.startsWith("http") ? raw.replace(/\/+$/, "") : `https://${raw.replace(/\/+$/, "")}`;
@@ -29,13 +26,41 @@ function buildCandidates(env) {
   return [`${base}/crm/sales/api`, `${base}/api`];
 }
 
+function resolveFreshsalesBase(env) {
+  const direct =
+    getCleanEnvValue(env.FRESHSALES_API_BASE) ||
+    expandEnvTemplate(env, getCleanEnvValue(env.FRESHSALES_BASE_URL)) ||
+    getCleanEnvValue(env.FRESHSALES_ALIAS_DOMAIN) ||
+    getCleanEnvValue(env.FRESHSALES_DOMAIN);
+
+  if (!direct) return null;
+
+  const normalized = direct.startsWith("http") ? direct : `https://${direct}`;
+  return normalized.replace(/\/+$/, "");
+}
+
+function expandEnvTemplate(env, value) {
+  const text = getCleanEnvValue(value);
+  if (!text) return null;
+  return text.replace(/\{\{\s*([A-Z0-9_]+)\s*\}\}/g, (_match, key) => getCleanEnvValue(env[key]) || "");
+}
+
 function getAuthHeaders(env) {
   const apiKey = getCleanEnvValue(env.FRESHSALES_API_KEY);
   const accessToken = getCleanEnvValue(env.FRESHSALES_ACCESS_TOKEN);
-  return [
-    apiKey ? { Authorization: `Token token=${apiKey}` } : null,
-    accessToken ? { Authorization: `Bearer ${accessToken}` } : null,
+  const basicAuth = getCleanEnvValue(env.FRESHSALES_BASIC_AUTH);
+  const explicitMode = getCleanEnvValue(env.FRESHSALES_AUTH_MODE);
+  const headers = [
+    apiKey ? { name: "api_key", header: { Authorization: `Token token=${apiKey}` } } : null,
+    basicAuth ? { name: "basic_auth", header: /^Basic\s+/i.test(basicAuth) ? { Authorization: basicAuth } : { Authorization: `Basic ${basicAuth}` } } : null,
+    accessToken ? { name: "access_token", header: { Authorization: `Bearer ${accessToken}` } } : null,
   ].filter(Boolean);
+
+  if (explicitMode && explicitMode !== "oauth") {
+    headers.sort((left, right) => (left.name === explicitMode ? -1 : right.name === explicitMode ? 1 : 0));
+  }
+
+  return headers.map((item) => item.header);
 }
 
 export async function freshsalesRequest(env, path, init = {}) {

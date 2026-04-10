@@ -88,8 +88,11 @@ function inspectEnv() {
   return {
     supabase_url: Boolean(cleanValue(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)),
     supabase_service_role_key: Boolean(cleanValue(process.env.SUPABASE_SERVICE_ROLE_KEY)),
-    freshsales_base: Boolean(cleanValue(process.env.FRESHSALES_API_BASE || process.env.FRESHSALES_BASE_URL || process.env.FRESHSALES_DOMAIN)),
-    freshsales_auth: Boolean(cleanValue(process.env.FRESHSALES_API_KEY || process.env.FRESHSALES_ACCESS_TOKEN)),
+    freshsales_base: Boolean(resolveFreshsalesBase()),
+    freshsales_auth: Boolean(cleanValue(process.env.FRESHSALES_API_KEY || process.env.FRESHSALES_ACCESS_TOKEN || process.env.FRESHSALES_BASIC_AUTH)),
+    freshsales_api_key: Boolean(cleanValue(process.env.FRESHSALES_API_KEY)),
+    freshsales_basic_auth: Boolean(cleanValue(process.env.FRESHSALES_BASIC_AUTH)),
+    freshsales_auth_mode: cleanValue(process.env.FRESHSALES_AUTH_MODE),
     default_deal_stage_id: cleanValue(process.env.FRESHSALES_DEFAULT_DEAL_STAGE_ID),
     billing_deal_field_map: Boolean(cleanValue(process.env.FRESHSALES_BILLING_DEAL_FIELD_MAP)),
     billing_deal_type_id_map: Boolean(cleanValue(process.env.FRESHSALES_BILLING_DEAL_TYPE_ID_MAP)),
@@ -97,6 +100,22 @@ function inspectEnv() {
     allow_missing_billing_indices: cleanValue(process.env.HMADV_ALLOW_MISSING_BILLING_INDICES) === 'true',
     workspace_id: cleanValue(process.env.HMADV_WORKSPACE_ID),
   };
+}
+
+function resolveFreshsalesBase() {
+  const direct =
+    cleanValue(process.env.FRESHSALES_API_BASE) ||
+    expandEnvTemplate(cleanValue(process.env.FRESHSALES_BASE_URL)) ||
+    cleanValue(process.env.FRESHSALES_ALIAS_DOMAIN) ||
+    cleanValue(process.env.FRESHSALES_DOMAIN);
+  if (!direct) return null;
+  return direct.startsWith('http') ? direct : `https://${direct}`;
+}
+
+function expandEnvTemplate(value) {
+  const text = cleanValue(value);
+  if (!text) return null;
+  return text.replace(/\{\{\s*([A-Z0-9_]+)\s*\}\}/g, (_match, key) => cleanValue(process.env[key]) || '');
 }
 
 async function inspectSupabase() {
@@ -175,7 +194,7 @@ function readTotal(payload, paths) {
 }
 
 function resolveFreshsalesBases() {
-  const raw = cleanValue(process.env.FRESHSALES_API_BASE || process.env.FRESHSALES_BASE_URL || process.env.FRESHSALES_DOMAIN);
+  const raw = resolveFreshsalesBase();
   if (!raw) throw new Error('Freshsales base ausente');
   const base = raw.startsWith('http') ? raw.replace(/\/+$/, '') : `https://${raw.replace(/\/+$/, '')}`;
   if (base.includes('/crm/sales/api') || base.includes('/api')) {
@@ -201,23 +220,40 @@ function resolveFreshsalesBases() {
 
 function freshsalesHeaderCandidates() {
   const apiKey = cleanValue(process.env.FRESHSALES_API_KEY);
+  const basicAuth = cleanValue(process.env.FRESHSALES_BASIC_AUTH);
   const accessToken = cleanValue(process.env.FRESHSALES_ACCESS_TOKEN);
+  const explicitMode = cleanValue(process.env.FRESHSALES_AUTH_MODE);
   const headers = [];
   if (apiKey) {
     headers.push({
+      __mode: 'api_key',
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Token token=${apiKey}`,
     });
   }
+  if (basicAuth) {
+    headers.push({
+      __mode: 'basic_auth',
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: /^Basic\s+/i.test(basicAuth) ? basicAuth : `Basic ${basicAuth}`,
+    });
+  }
   if (accessToken) {
     headers.push({
+      __mode: 'access_token',
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
     });
   }
   if (!headers.length) throw new Error('Credenciais Freshsales ausentes');
+  if (explicitMode && explicitMode !== 'oauth') {
+    headers.sort((left, right) => (left.__mode === explicitMode ? -1 : right.__mode === explicitMode ? 1 : 0));
+  } else if (apiKey) {
+    headers.sort((left, right) => (left.__mode === 'api_key' ? -1 : right.__mode === 'api_key' ? 1 : 0));
+  }
   return headers;
 }
 

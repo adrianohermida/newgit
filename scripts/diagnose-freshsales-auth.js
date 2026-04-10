@@ -64,7 +64,7 @@ function cleanValue(value) {
 }
 
 function resolveFreshsalesBases() {
-  const raw = cleanValue(process.env.FRESHSALES_API_BASE || process.env.FRESHSALES_BASE_URL || process.env.FRESHSALES_DOMAIN);
+  const raw = resolveFreshsalesBase();
   if (!raw) return [];
   const base = raw.startsWith('http') ? raw.replace(/\/+$/, '') : `https://${raw.replace(/\/+$/, '')}`;
   if (base.includes('/crm/sales/api') || base.includes('/api')) {
@@ -88,9 +88,26 @@ function resolveFreshsalesBases() {
   ]));
 }
 
+function resolveFreshsalesBase() {
+  const direct =
+    cleanValue(process.env.FRESHSALES_API_BASE) ||
+    expandEnvTemplate(cleanValue(process.env.FRESHSALES_BASE_URL)) ||
+    cleanValue(process.env.FRESHSALES_ALIAS_DOMAIN) ||
+    cleanValue(process.env.FRESHSALES_DOMAIN);
+  if (!direct) return null;
+  return direct.startsWith('http') ? direct : `https://${direct}`;
+}
+
+function expandEnvTemplate(value) {
+  const text = cleanValue(value);
+  if (!text) return null;
+  return text.replace(/\{\{\s*([A-Z0-9_]+)\s*\}\}/g, (_match, key) => cleanValue(process.env[key]) || '');
+}
+
 function resolveAuthModes() {
   const modes = [];
   const apiKey = cleanValue(process.env.FRESHSALES_API_KEY);
+  const basicAuth = cleanValue(process.env.FRESHSALES_BASIC_AUTH);
   const accessToken = cleanValue(process.env.FRESHSALES_ACCESS_TOKEN);
   const explicitMode = cleanValue(process.env.FRESHSALES_AUTH_MODE);
   if (apiKey) {
@@ -99,13 +116,22 @@ function resolveAuthModes() {
       headers: { Authorization: `Token token=${apiKey}` },
     });
   }
+  if (basicAuth) {
+    modes.push({
+      name: 'basic_auth',
+      headers: { Authorization: /^Basic\s+/i.test(basicAuth) ? basicAuth : `Basic ${basicAuth}` },
+    });
+  }
   if (accessToken) {
     modes.push({
       name: 'access_token',
       headers: { Authorization: `Bearer ${accessToken}` },
     });
   }
-  if (explicitMode === 'api_key') {
+  if (explicitMode && explicitMode !== 'oauth') {
+    return modes.sort((left, right) => (left.name === explicitMode ? -1 : right.name === explicitMode ? 1 : 0));
+  }
+  if (apiKey) {
     return modes.sort((left, right) => (left.name === 'api_key' ? -1 : right.name === 'api_key' ? 1 : 0));
   }
   return modes;
@@ -189,7 +215,7 @@ function hasRefreshEnv() {
 function resolveOrgDomain() {
   return (
     cleanValue(process.env.FRESHSALES_ORG_DOMAIN) ||
-    readOrgDomainFromApiBase(process.env.FRESHSALES_API_BASE || process.env.FRESHSALES_BASE_URL || process.env.FRESHSALES_DOMAIN) ||
+    readOrgDomainFromApiBase(resolveFreshsalesBase()) ||
     null
   );
 }
@@ -213,13 +239,14 @@ async function tryRefresh() {
   const clientSecret = cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET);
   const refreshToken = cleanValue(process.env.FRESHSALES_REFRESH_TOKEN);
   const supabaseUrl = cleanValue(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const redirectUri = cleanValue(process.env.FRESHSALES_REDIRECT_URI || process.env.REDIRECT_URI || process.env.FRESHSALES_OAUTH_CALLBACK_URL || process.env.OAUTH_CALLBACK_URL) || (supabaseUrl ? `${supabaseUrl}/functions/v1/oauth` : null);
 
   const body = new URLSearchParams({
     grant_type: 'refresh_token',
     refresh_token: refreshToken,
     client_id: clientId,
     client_secret: clientSecret,
-    redirect_uri: `${supabaseUrl}/functions/v1/oauth`,
+    redirect_uri: redirectUri,
   });
 
   try {
