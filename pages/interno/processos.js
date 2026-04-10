@@ -202,6 +202,10 @@ function parseProcessNumbers(rawValue) {
   )];
 }
 
+function uniqueProcessNumbers(values = []) {
+  return [...new Set((values || []).map((item) => String(item || "").trim()).filter(Boolean))];
+}
+
 function MetricCard({ label, value, helper }) {
   return <div className="rounded-[28px] border border-[#2D2E2E] bg-[linear-gradient(180deg,rgba(13,15,14,0.98),rgba(7,9,8,0.98))] p-5 shadow-[0_12px_36px_rgba(0,0,0,0.22)]"><p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">{label}</p><p className="mb-2 font-serif text-3xl">{value}</p>{helper ? <p className="text-sm leading-relaxed opacity-65">{helper}</p> : null}</div>;
 }
@@ -232,6 +236,10 @@ function QueueList({ title, rows, selected, onToggle, onTogglePage, page, setPag
   const allSelected = rows.length > 0 && rows.every((row) => selected.includes(getProcessSelectionValue(row)));
   const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / Math.max(1, pageSize)));
   return <div className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">{title}</p><span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{rows.length} nesta pagina</span><span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{totalRows} no total</span>{selected.length ? <span className="rounded-full border border-[#6E5630] bg-[rgba(76,57,26,0.22)] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-[#FDE68A]">{selected.length} selecionado(s)</span> : null}</div>{helper ? <p className="mt-1 text-xs leading-6 opacity-60">{helper}</p> : null}{totalRows ? <p className="mt-1 text-xs opacity-50">Pagina {page} de {totalPages}</p> : null}</div><div className="flex flex-wrap gap-2"><ActionButton onClick={() => onTogglePage(!allSelected)} className="px-3 py-2 text-xs">{allSelected ? "Desmarcar pagina" : "Selecionar pagina"}</ActionButton><ActionButton onClick={() => setPage(Math.max(1, page - 1))} disabled={loading || page <= 1} className="px-3 py-2 text-xs">Anterior</ActionButton><ActionButton onClick={() => setPage(page + 1)} disabled={loading || page >= totalPages} className="px-3 py-2 text-xs">Proxima</ActionButton></div></div>{loading ? <p className="text-sm opacity-60">Carregando fila...</p> : null}{!loading && !rows.length ? <p className="rounded-2xl border border-dashed border-[#2D2E2E] px-4 py-6 text-sm opacity-60">Nenhum item encontrado nesta pagina.</p> : null}<div className="space-y-3">{rows.map((row) => { const selectionValue = getProcessSelectionValue(row); const statuses = renderStatuses ? renderStatuses(row) : []; return <label key={row.key} className="block cursor-pointer rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 transition hover:border-[#3A3E3D]"><div className="flex gap-3"><input type="checkbox" checked={selected.includes(selectionValue)} onChange={() => onToggle(selectionValue)} className="mt-1" /><div className="min-w-0 flex-1 space-y-2 text-sm"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold break-all">{row.numero_cnj || row.key}</p>{row.monitoramento_fallback ? <span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">fallback</span> : null}</div>{row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}{statuses.length ? <div className="flex flex-wrap gap-2">{statuses.map((status) => <StatusBadge key={status.label} tone={status.tone}>{status.label}</StatusBadge>)}</div> : null}<div className="flex flex-wrap gap-x-4 gap-y-1 opacity-60 text-xs">{row.status_atual_processo ? <span>Status: {row.status_atual_processo}</span> : null}{row.quantidade_movimentacoes !== undefined ? <span>Movimentacoes: {row.quantidade_movimentacoes ?? 0}</span> : null}{row.monitoramento_ativo !== undefined ? <span>Monitorado: {row.monitoramento_ativo ? "sim" : "nao"}</span> : null}{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]" onClick={(e) => e.stopPropagation()}>Account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}</div></div></div></label>; })}</div></div>;
+}
+function CoverageList({ rows, page, setPage, loading, totalRows = 0, pageSize = 20, onSelectProcess = null }) {
+  const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / Math.max(1, pageSize)));
+  return <div className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-semibold">Cobertura por processo</p><p className="mt-1 text-xs leading-6 opacity-60">Leitura consolidada do que ja esta coberto entre HMADV e Freshsales, por processo.</p><p className="mt-1 text-xs opacity-50">Pagina {page} de {totalPages} • {totalRows} processo(s) com pendencia</p></div><div className="flex flex-wrap gap-2"><ActionButton onClick={() => setPage(Math.max(1, page - 1))} disabled={loading || page <= 1} className="px-3 py-2 text-xs">Anterior</ActionButton><ActionButton onClick={() => setPage(page + 1)} disabled={loading || page >= totalPages} className="px-3 py-2 text-xs">Proxima</ActionButton></div></div>{loading ? <p className="text-sm opacity-60">Carregando cobertura...</p> : null}{!loading && !rows.length ? <p className="rounded-2xl border border-dashed border-[#2D2E2E] px-4 py-6 text-sm opacity-60">Nenhum processo com pendencia de cobertura nesta pagina.</p> : null}<div className="space-y-3">{rows.map((row) => <div key={row.key} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div className="space-y-2"><p className="font-semibold break-all">{row.numero_cnj || row.key}</p>{row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}<div className="flex flex-wrap gap-2"><StatusBadge tone={row.coveragePct >= 85 ? "success" : row.coveragePct >= 55 ? "warning" : "danger"}>{row.coveragePct || 0}% coberto</StatusBadge>{(row.pending || []).slice(0, 6).map((label) => <StatusBadge key={`${row.key}-${label}`} tone="warning">{label.replace(/_/g, " ")}</StatusBadge>)}</div><div className="flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60"><span>Publicacoes pendentes: {row.publicacoesPendentes || 0}</span><span>Movimentacoes pendentes: {row.movimentacoesPendentes || 0}</span><span>Partes sem contato: {row.partesSemContato || 0}</span><span>Audiencias pendentes: {row.audienciasPendentes || 0}</span>{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}</div></div>{onSelectProcess ? <ActionButton onClick={() => onSelectProcess(row.numero_cnj)} className="px-3 py-2 text-xs">Usar no lote</ActionButton> : null}</div></div>)}</div></div>;
 }
 function RelationProcessCard({ title, process, fallbackNumber }) {
   return <div className="rounded-[24px] border border-[#2D2E2E] bg-[#050706] p-4"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">{title}</p><p className="mt-3 break-all font-semibold">{process?.numero_cnj || fallbackNumber || "Sem CNJ"}</p><p className="mt-1 text-sm opacity-70">{process?.titulo || "Processo ainda nao encontrado na base judiciaria."}</p><div className="mt-2 flex flex-wrap gap-3 text-xs opacity-60">{process?.status_atual_processo ? <span>Status: {process.status_atual_processo}</span> : null}{process?.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${process.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Account {process.account_id_freshsales}</a> : null}</div></div>;
@@ -937,6 +945,7 @@ export default function InternoProcessosPage() {
 function InternoProcessosContent() {
   const [view, setView] = useState("operacao");
   const [overview, setOverview] = useState({ loading: true, data: null });
+  const [processCoverage, setProcessCoverage] = useState({ loading: true, items: [], totalRows: 0, page: 1, pageSize: 20 });
   const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
   const [executionHistory, setExecutionHistory] = useState([]);
   const [remoteHistory, setRemoteHistory] = useState([]);
@@ -968,6 +977,7 @@ function InternoProcessosContent() {
   const [miPage, setMiPage] = useState(1);
   const [fgPage, setFgPage] = useState(1);
   const [orphanPage, setOrphanPage] = useState(1);
+  const [covPage, setCovPage] = useState(1);
   const [selectedWithoutMovements, setSelectedWithoutMovements] = useState([]);
   const [selectedMovementBacklog, setSelectedMovementBacklog] = useState([]);
   const [selectedPublicationBacklog, setSelectedPublicationBacklog] = useState([]);
@@ -1030,6 +1040,7 @@ function InternoProcessosContent() {
       if (saved.miPage) setMiPage(Math.max(1, Number(saved.miPage) || 1));
       if (saved.fgPage) setFgPage(Math.max(1, Number(saved.fgPage) || 1));
       if (saved.orphanPage) setOrphanPage(Math.max(1, Number(saved.orphanPage) || 1));
+      if (saved.covPage) setCovPage(Math.max(1, Number(saved.covPage) || 1));
       if (saved.search) setSearch(String(saved.search));
       if (Array.isArray(saved.selectedWithoutMovements)) setSelectedWithoutMovements(saved.selectedWithoutMovements);
       if (Array.isArray(saved.selectedMovementBacklog)) setSelectedMovementBacklog(saved.selectedMovementBacklog);
@@ -1047,6 +1058,7 @@ function InternoProcessosContent() {
     const snapshot = loadOperationalSnapshot();
     if (!snapshot) return;
     if (snapshot.overview) setOverview(snapshot.overview);
+    if (snapshot.processCoverage) setProcessCoverage(snapshot.processCoverage);
     if (snapshot.withoutMovements) setWithoutMovements(snapshot.withoutMovements);
     if (snapshot.movementBacklog) setMovementBacklog(snapshot.movementBacklog);
     if (snapshot.publicationBacklog) setPublicationBacklog(snapshot.publicationBacklog);
@@ -1081,6 +1093,7 @@ function InternoProcessosContent() {
       miPage,
       fgPage,
       orphanPage,
+      covPage,
       search,
       selectedWithoutMovements,
       selectedMovementBacklog,
@@ -1092,10 +1105,11 @@ function InternoProcessosContent() {
       selectedFieldGaps,
       selectedOrphans,
     });
-  }, [view, processNumbers, limit, wmPage, movPage, pubPage, partesPage, audPage, maPage, miPage, fgPage, orphanPage, search, selectedWithoutMovements, selectedMovementBacklog, selectedPublicationBacklog, selectedPartesBacklog, selectedAudienciaCandidates, selectedMonitoringActive, selectedMonitoringInactive, selectedFieldGaps, selectedOrphans]);
+  }, [view, processNumbers, limit, wmPage, movPage, pubPage, partesPage, audPage, maPage, miPage, fgPage, orphanPage, covPage, search, selectedWithoutMovements, selectedMovementBacklog, selectedPublicationBacklog, selectedPartesBacklog, selectedAudienciaCandidates, selectedMonitoringActive, selectedMonitoringInactive, selectedFieldGaps, selectedOrphans]);
   useEffect(() => {
     const snapshotPayload = {
       overview,
+      processCoverage,
       withoutMovements,
       movementBacklog,
       publicationBacklog,
@@ -1121,7 +1135,7 @@ function InternoProcessosContent() {
       cachedAt,
       ...snapshotPayload,
     });
-  }, [overview, withoutMovements, movementBacklog, publicationBacklog, partesBacklog, audienciaCandidates, monitoringActive, monitoringInactive, fieldGaps, orphans, remoteHistory, jobs, actionState.error, actionState.result]);
+  }, [overview, processCoverage, withoutMovements, movementBacklog, publicationBacklog, partesBacklog, audienciaCandidates, monitoringActive, monitoringInactive, fieldGaps, orphans, remoteHistory, jobs, actionState.error, actionState.result]);
   useEffect(() => {
     if (!uiHydrated) return undefined;
     let cancelled = false;
@@ -1129,6 +1143,7 @@ function InternoProcessosContent() {
     async function bootstrap() {
       await Promise.all([
         loadOverview(),
+        loadCoverage(covPage),
         loadQueue("sem_movimentacoes", setWithoutMovements, wmPage),
         loadQueue("movimentacoes_pendentes", setMovementBacklog, movPage),
         loadQueue("publicacoes_pendentes", setPublicationBacklog, pubPage),
@@ -1269,6 +1284,15 @@ function InternoProcessosContent() {
   }, [activeJobId, pageVisible, wmPage, movPage, pubPage, partesPage, audPage, maPage, miPage, fgPage, orphanPage]);
 
   async function loadOverview() { try { const payload = await adminFetch("/api/admin-hmadv-processos?action=overview"); setOverview({ loading: false, data: payload.data }); } catch { setOverview({ loading: false, data: null }); } }
+  async function loadCoverage(page = 1) {
+    setProcessCoverage((state) => ({ ...state, loading: true }));
+    try {
+      const payload = await adminFetch(`/api/admin-hmadv-processos?action=cobertura_processos&page=${page}&pageSize=20`);
+      setProcessCoverage({ loading: false, items: payload.data.items || [], totalRows: payload.data.totalRows || 0, page: payload.data.page || page, pageSize: payload.data.pageSize || 20 });
+    } catch {
+      setProcessCoverage({ loading: false, items: [], totalRows: 0, page, pageSize: 20 });
+    }
+  }
   async function loadQueue(action, setter, page) {
     setter((state) => ({ ...state, loading: true }));
       try { const payload = await adminFetch(`/api/admin-hmadv-processos?action=${action}&page=${page}&pageSize=20`); setter({ loading: false, items: (payload.data.items || []).map((item) => ({ ...item, key: item.numero_cnj || item.id })), totalRows: payload.data.totalRows || 0, page: payload.data.page || page, pageSize: payload.data.pageSize || 20, unsupported: Boolean(payload.data.unsupported) }); } catch { setter({ loading: false, items: [], totalRows: 0, page, pageSize: 20, unsupported: false }); }
@@ -1310,6 +1334,7 @@ function InternoProcessosContent() {
   async function refreshOperationalQueues() {
     await Promise.all([
       loadOverview(),
+      loadCoverage(covPage),
       loadQueue("sem_movimentacoes", setWithoutMovements, wmPage),
       loadQueue("movimentacoes_pendentes", setMovementBacklog, movPage),
       loadQueue("publicacoes_pendentes", setPublicationBacklog, pubPage),
@@ -1393,6 +1418,12 @@ function InternoProcessosContent() {
     setSelectedMonitoringInactive([]);
     setSelectedFieldGaps([]);
     setSelectedOrphans([]);
+  }
+  function useCoverageProcess(number) {
+    if (!number) return;
+    const next = uniqueProcessNumbers([...getCombinedSelectedNumbers(), String(number || "").trim()]);
+    setProcessNumbers(next.join("\n"));
+    updateView("operacao");
   }
   function updateView(nextView) {
     setView(nextView);
@@ -1549,6 +1580,10 @@ function InternoProcessosContent() {
       setActionState({ loading: false, error: null, result: payload.data }); await loadRelations(relations.page, search);
     } catch (error) { setActionState({ loading: false, error: error.message || "Falha ao remover relacao.", result: null }); }
   }
+  useEffect(() => {
+    if (!uiHydrated) return;
+    loadCoverage(covPage);
+  }, [covPage]);
   function startEditing(item) { setEditingRelationId(item.id); setForm({ numero_cnj_pai: item.numero_cnj_pai || "", numero_cnj_filho: item.numero_cnj_filho || "", tipo_relacao: item.tipo_relacao || "dependencia", status: item.status || "ativo", observacoes: item.observacoes || "" }); }
   function reuseHistoryEntry(entry) {
     if (entry?.payload?.processNumbers) setProcessNumbers(entry.payload.processNumbers);
@@ -1564,7 +1599,7 @@ function InternoProcessosContent() {
   }
 
   const data = overview.data || {};
-  const quickStats = useMemo(() => [{ label: "Processos totais", value: data.processosTotal || 0, helper: "Carteira persistida no HMADV." }, { label: "Com account", value: data.processosComAccount || 0, helper: "Sales Accounts ja vinculadas." }, { label: "Sem account", value: data.processosSemAccount || 0, helper: "Processos orfaos." }, { label: "Sem movimentacoes", value: data.processosSemMovimentacao || 0, helper: "Fila de reconsulta DataJud." }, { label: "Movimentacoes pendentes", value: movementBacklog.totalRows || data.movimentacoesPendentes || 0, helper: "Andamentos ainda sem activity no Freshsales." }, { label: "Publicacoes pendentes", value: publicationBacklog.totalRows || data.publicacoesPendentes || 0, helper: "Publicacoes ainda sem activity no Freshsales." }, { label: "Partes sem contato", value: partesBacklog.totalRows || data.partesSemContato || 0, helper: "Processos com partes ainda sem contato vinculado." }, { label: "Audiencias detectaveis", value: audienciaCandidates.totalRows || 0, helper: "Processos com audiencia pendente nas publicacoes." }, { label: "Audiencias no banco", value: data.audienciasTotal || 0, helper: "Persistidas em judiciario.audiencias." }], [data, movementBacklog.totalRows, publicationBacklog.totalRows, partesBacklog.totalRows, audienciaCandidates.totalRows]);
+  const quickStats = useMemo(() => [{ label: "Processos totais", value: data.processosTotal || 0, helper: "Carteira persistida no HMADV." }, { label: "Com account", value: data.processosComAccount || 0, helper: "Sales Accounts ja vinculadas." }, { label: "Sem account", value: data.processosSemAccount || 0, helper: "Processos orfaos." }, { label: "Sem movimentacoes", value: data.processosSemMovimentacao || 0, helper: "Fila de reconsulta DataJud." }, { label: "Movimentacoes pendentes", value: movementBacklog.totalRows || data.movimentacoesPendentes || 0, helper: "Andamentos ainda sem activity no Freshsales." }, { label: "Publicacoes pendentes", value: publicationBacklog.totalRows || data.publicacoesPendentes || 0, helper: "Publicacoes ainda sem activity no Freshsales." }, { label: "Partes sem contato", value: partesBacklog.totalRows || data.partesSemContato || 0, helper: "Processos com partes ainda sem contato vinculado." }, { label: "Cobertura auditada", value: processCoverage.totalRows || 0, helper: "Processos com leitura consolidada de cobertura nesta consulta." }, { label: "Audiencias detectaveis", value: audienciaCandidates.totalRows || 0, helper: "Processos com audiencia pendente nas publicacoes." }, { label: "Audiencias no banco", value: data.audienciasTotal || 0, helper: "Persistidas em judiciario.audiencias." }], [data, movementBacklog.totalRows, publicationBacklog.totalRows, partesBacklog.totalRows, processCoverage.totalRows, audienciaCandidates.totalRows]);
   const relationTypeSummary = useMemo(() => relations.items.reduce((acc, item) => { acc[item.tipo_relacao] = (acc[item.tipo_relacao] || 0) + 1; return acc; }, {}), [relations.items]);
   const latestHistory = executionHistory[0] || null;
   const latestRemoteRun = remoteHistory[0] || null;
@@ -1776,11 +1811,13 @@ function InternoProcessosContent() {
         <QueueSummaryCard title="Movimentacoes pendentes" count={movementBacklog.totalRows || 0} helper="Andamentos ainda sem activity no Freshsales." />
         <QueueSummaryCard title="Publicacoes pendentes" count={publicationBacklog.totalRows || 0} helper="Publicacoes ainda sem activity no Freshsales." />
         <QueueSummaryCard title="Partes sem contato" count={partesBacklog.totalRows || 0} helper="Partes ainda sem contato vinculado." />
+        <QueueSummaryCard title="Cobertura auditada" count={processCoverage.totalRows || 0} helper="Processos visiveis na leitura consolidada de cobertura." />
         <QueueSummaryCard title="Monitorados" count={monitoringActive.totalRows || 0} helper="Carteira ativa em acompanhamento." />
         <QueueSummaryCard title="Campos orfaos" count={fieldGaps.totalRows || 0} helper="Gaps entre Supabase e Freshsales." />
         <QueueSummaryCard title="Sem Sales Account" count={orphans.totalRows || 0} helper="Processos ainda sem account vinculada." />
       </div>
       <div className="grid gap-6 xl:grid-cols-2">
+      <Panel title="Cobertura por processo" eyebrow="Auditoria local"><CoverageList rows={processCoverage.items} page={covPage} setPage={setCovPage} loading={processCoverage.loading} totalRows={processCoverage.totalRows} pageSize={processCoverage.pageSize} onSelectProcess={useCoverageProcess} /></Panel>
       <Panel title="Processos sem movimentacoes" eyebrow="Fila paginada"><QueueList title="Sem movimentacoes" helper="Itens sem andamento local para reconsulta no DataJud." rows={withoutMovements.items} selected={selectedWithoutMovements} onToggle={(key) => toggleSelection(setSelectedWithoutMovements, selectedWithoutMovements, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedWithoutMovements, selectedWithoutMovements, withoutMovements.items, nextState)} page={wmPage} setPage={setWmPage} loading={withoutMovements.loading} totalRows={withoutMovements.totalRows} pageSize={withoutMovements.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "sem_movimentacoes")} /></Panel>
       <Panel title="Movimentacoes pendentes" eyebrow="Fila paginada"><QueueList title="Andamentos sem activity" helper="Processos com movimentacoes no HMADV ainda sem reflexo em sales_activities do Freshsales." rows={movementBacklog.items} selected={selectedMovementBacklog} onToggle={(key) => toggleSelection(setSelectedMovementBacklog, selectedMovementBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMovementBacklog, selectedMovementBacklog, movementBacklog.items, nextState)} page={movPage} setPage={setMovPage} loading={movementBacklog.loading} totalRows={movementBacklog.totalRows} pageSize={movementBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "movimentacoes_pendentes")} /></Panel>
       <Panel title="Publicacoes pendentes" eyebrow="Fila paginada"><QueueList title="Publicacoes sem activity" helper="Processos com publicacoes no HMADV ainda sem reflexo em sales_activities do Freshsales." rows={publicationBacklog.items} selected={selectedPublicationBacklog} onToggle={(key) => toggleSelection(setSelectedPublicationBacklog, selectedPublicationBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedPublicationBacklog, selectedPublicationBacklog, publicationBacklog.items, nextState)} page={pubPage} setPage={setPubPage} loading={publicationBacklog.loading} totalRows={publicationBacklog.totalRows} pageSize={publicationBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "publicacoes_pendentes")} /></Panel>

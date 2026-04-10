@@ -1062,6 +1062,12 @@ function summarizeClientProcessCoverage(items = []) {
   };
 }
 
+function summarizeCoveragePercentage(parts = []) {
+  const total = Array.isArray(parts) ? parts.length : 0;
+  const done = Array.isArray(parts) ? parts.filter(Boolean).length : 0;
+  return total ? Math.round((done / total) * 100) : 0;
+}
+
 function summarizeSingleProcessCoverage(process, parts = [], movements = [], publications = [], audiencias = [], documents = []) {
   const hasAccount = Boolean(process?.account_id_freshsales);
   const hasMovements = movements.length > 0 || Number(process?.movement_count || 0) > 0 || Boolean(process?.latest_movement);
@@ -1257,6 +1263,22 @@ function summarizeProcessInsights(process, movements = [], publications = []) {
     latest_activity_at: latestActivityDate,
     stale_days: staleDays,
     alerts,
+    coverage: {
+      hasAccount: Boolean(process?.account_id_freshsales),
+      detailsOk: Boolean(
+        process?.classe &&
+        process?.polo_ativo &&
+        process?.polo_passivo
+      ),
+      hasMovements: Boolean(latestMovement || Number(process?.movement_count || 0) > 0),
+      hasPublications: Boolean(latestPublication),
+      rate: summarizeCoveragePercentage([
+        Boolean(process?.account_id_freshsales),
+        Boolean(process?.classe && process?.polo_ativo && process?.polo_passivo),
+        Boolean(latestMovement || Number(process?.movement_count || 0) > 0),
+        Boolean(latestPublication),
+      ]),
+    },
   };
 }
 

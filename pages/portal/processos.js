@@ -264,6 +264,11 @@ function ProcessosContent({ state, setState, router }) {
                       {item.movement_count} atos
                     </span>
                   ) : null}
+                  {item.coverage ? (
+                    <span className="rounded-full border border-[#24533D] bg-[rgba(19,72,49,0.22)] px-3 py-1 text-[10px] uppercase tracking-[0.15em] text-[#B8F0D5]">
+                      Cobertura {item.coverage.rate || 0}%
+                    </span>
+                  ) : null}
                 </div>
 
                 <h3 className="font-serif text-2xl">{item.title || item.number || "Processo"}</h3>
@@ -275,6 +280,15 @@ function ProcessosContent({ state, setState, router }) {
                   <Meta label="Classe" value={item.classe || item.area || "Nao informada"} />
                   <Meta label="Atualizado em" value={formatDate(item.updated_at)} />
                 </div>
+
+                {item.coverage ? (
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <CoveragePill active={item.coverage.hasAccount} label="Account CRM" />
+                    <CoveragePill active={item.coverage.detailsOk} label="Detalhes base" />
+                    <CoveragePill active={item.coverage.hasMovements} label="Andamentos" />
+                    <CoveragePill active={item.coverage.hasPublications} label="Publicacoes" />
+                  </div>
+                ) : null}
 
                 {item.total_related ? (
                   <div className="mt-5 rounded-[22px] border border-[#20332D] bg-[rgba(6,10,9,0.45)] p-4">
@@ -385,6 +399,20 @@ function AlertPill({ alert }) {
   return (
     <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.15em] ${toneClass}`}>
       {alert.label}
+    </span>
+  );
+}
+
+function CoveragePill({ active, label }) {
+  return (
+    <span
+      className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.15em] ${
+        active
+          ? "border-[#24533D] bg-[rgba(19,72,49,0.22)] text-[#B8F0D5]"
+          : "border-[#5B3535] bg-[rgba(91,53,53,0.12)] text-[#E7B3B3]"
+      }`}
+    >
+      {label}
     </span>
   );
 }
