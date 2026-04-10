@@ -629,6 +629,142 @@ async function handleReconcileTaggedAccounts(limit = 100, tag = 'datajud'): Prom
   };
 }
 
+async function listTaggedSalesAccounts(limit = 100, tag = 'datajud'): Promise<Record<string, unknown>[]> {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 100), 250));
+  const perPage = Math.min(50, safeLimit);
+  const pages = Math.max(1, Math.ceil(safeLimit / perPage));
+  const salesAccounts: Record<string, unknown>[] = [];
+
+  for (let page = 1; page <= pages; page += 1) {
+    const { status, data } = await fsPost('filtered_search/sales_account', {
+      filter_rule: [{ attribute: 'tags', operator: 'is_in', value: [tag] }],
+      page,
+      per_page: perPage,
+    });
+    if (status !== 200) {
+      throw new Error(`filtered_search tags ${status}`);
+    }
+    const batch = Array.isArray(data.sales_accounts) ? data.sales_accounts as Record<string, unknown>[] : [];
+    salesAccounts.push(...batch);
+    if (batch.length < perPage || salesAccounts.length >= safeLimit) break;
+  }
+
+  return salesAccounts.slice(0, safeLimit);
+}
+
+async function handleDiagnoseTaggedAccounts(limit = 100, tag = 'datajud'): Promise<Record<string, unknown>> {
+  const salesAccounts = await listTaggedSalesAccounts(limit, tag);
+  const summary = {
+    scanned: 0,
+    missing_cnj: 0,
+    without_process: 0,
+    without_account_link: 0,
+    without_movements: 0,
+    movement_activity_gap: 0,
+    publication_activity_gap: 0,
+    parts_contact_gap: 0,
+    fully_covered: 0,
+  };
+  const sample: unknown[] = [];
+
+  for (const salesAccount of salesAccounts) {
+    if (!salesAccountHasTag(salesAccount, tag)) continue;
+    summary.scanned += 1;
+    const accountId = String(salesAccount.id ?? '');
+    const customFields = (salesAccount.custom_field ?? salesAccount.custom_fields ?? {}) as Record<string, unknown>;
+    const cnj20 = normCNJ(String(customFields.cf_processo ?? '').replace(/[^0-9]/g, '')) ?? '';
+    if (!cnj20) {
+      summary.missing_cnj += 1;
+      if (sample.length < 20) {
+        sample.push({
+          account_id: accountId,
+          status: 'missing_cnj',
+          numero_cnj: null,
+        });
+      }
+      continue;
+    }
+
+    const { data: proc } = await db.from('processos')
+      .select('id,numero_cnj,account_id_freshsales,quantidade_movimentacoes')
+      .or(`numero_cnj.eq.${cnj20},numero_processo.eq.${cnj20}`)
+      .maybeSingle();
+
+    if (!proc?.id) {
+      summary.without_process += 1;
+      if (sample.length < 20) {
+        sample.push({
+          account_id: accountId,
+          status: 'without_process',
+          numero_cnj: cnj20,
+        });
+      }
+      continue;
+    }
+
+    const [movGap, pubGap, partGap] = await Promise.all([
+      db.from('movimentacoes')
+        .select('id', { count: 'exact', head: true })
+        .eq('processo_id', proc.id)
+        .is('freshsales_activity_id', null),
+      db.from('publicacoes')
+        .select('id', { count: 'exact', head: true })
+        .eq('processo_id', proc.id)
+        .is('freshsales_activity_id', null),
+      db.from('partes')
+        .select('id', { count: 'exact', head: true })
+        .eq('processo_id', proc.id)
+        .is('contato_freshsales_id', null),
+    ]);
+
+    const diagnostics = [];
+    if (!proc.account_id_freshsales) {
+      summary.without_account_link += 1;
+      diagnostics.push('without_account_link');
+    }
+    if (Number(proc.quantidade_movimentacoes ?? 0) <= 0) {
+      summary.without_movements += 1;
+      diagnostics.push('without_movements');
+    }
+    if (Number(movGap.count || 0) > 0) {
+      summary.movement_activity_gap += 1;
+      diagnostics.push('movement_activity_gap');
+    }
+    if (Number(pubGap.count || 0) > 0) {
+      summary.publication_activity_gap += 1;
+      diagnostics.push('publication_activity_gap');
+    }
+    if (Number(partGap.count || 0) > 0) {
+      summary.parts_contact_gap += 1;
+      diagnostics.push('parts_contact_gap');
+    }
+    if (!diagnostics.length) {
+      summary.fully_covered += 1;
+      diagnostics.push('fully_covered');
+    }
+
+    if (sample.length < 20) {
+      sample.push({
+        account_id: accountId,
+        processo_id: proc.id,
+        numero_cnj: proc.numero_cnj ?? cnj20,
+        status: diagnostics[0],
+        diagnostics,
+        movement_activity_gap: Number(movGap.count || 0),
+        publication_activity_gap: Number(pubGap.count || 0),
+        parts_contact_gap: Number(partGap.count || 0),
+      });
+    }
+  }
+
+  return {
+    ok: true,
+    tag,
+    ...summary,
+    sample,
+  };
+}
+
 async function handleEnqueueActiveDatajud(limit = 100): Promise<Record<string, unknown>> {
   const safeLimit = Math.max(1, Math.min(Number(limit || 100), 250));
   const { data: rows } = await db.from('datajud_sync_status')
@@ -722,6 +858,7 @@ Deno.serve(async (req: Request) => {
       case 'sync_andamentos': result = await handleSyncAndamentos(Number(url.searchParams.get('limite')??200)); break;
       case 'daily_sync':      result = await handleDailySync();                    break;
       case 'reconcile_tagged_accounts': result = await handleReconcileTaggedAccounts(Number(url.searchParams.get('limite') ?? 100), String(url.searchParams.get('tag') ?? 'datajud')); break;
+      case 'diagnose_tagged_accounts': result = await handleDiagnoseTaggedAccounts(Number(url.searchParams.get('limite') ?? 100), String(url.searchParams.get('tag') ?? 'datajud')); break;
       case 'enqueue_active_datajud': result = await handleEnqueueActiveDatajud(Number(url.searchParams.get('limite') ?? 100)); break;
       case 'cron_tagged_datajud': result = await handleCronTaggedDatajud({
         scanLimit: Number(url.searchParams.get('scan_limit') ?? 50),

@@ -9,6 +9,7 @@ import {
   getLocalProcessAudit,
   getPersistedCoverageOverview,
   getPersistedCoveragePriorityReport,
+  getTaggedDatajudDiagnostics,
   inspectAudiencias,
   jsonError,
   jsonOk,
@@ -169,6 +170,13 @@ export async function onRequestGet(context) {
     if (action === "cobertura_prioridades") {
       const data = await getPersistedCoveragePriorityReport(context.env, {
         limit: Number(url.searchParams.get("limit") || 100),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "diagnostico_datajud_tag") {
+      const data = await getTaggedDatajudDiagnostics(context.env, {
+        limit: Number(url.searchParams.get("limit") || 100),
+        tag: String(url.searchParams.get("tag") || "datajud"),
       });
       return jsonOk({ data });
     }

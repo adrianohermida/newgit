@@ -2096,6 +2096,19 @@ export async function getPersistedCoveragePriorityReport(env, { limit = 100 } = 
   }
 }
 
+export async function getTaggedDatajudDiagnostics(env, { limit = 100, tag = "datajud" } = {}) {
+  return hmadvFunction(
+    env,
+    "datajud-webhook",
+    {
+      action: "diagnose_tagged_accounts",
+      limite: Number(limit || 100),
+      tag: String(tag || "datajud"),
+    },
+    { method: "POST", body: {} }
+  );
+}
+
 async function listSyncDatajudProcesses(env, { page = 1, pageSize = 20 } = {}) {
   const safePage = Math.max(1, Number(page || 1));
   const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
