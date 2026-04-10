@@ -26,8 +26,10 @@ jobs:
         shell: bash
         run: |
           ACTION="${{ github.event.inputs.action }}"
-          if [ -z "$ACTION" ]; then
+          if [ "${{ github.event_name }}" = "schedule" ]; then
             ACTION="cron_integracao_total"
+          elif [ -z "$ACTION" ]; then
+            ACTION="drain_all"
           fi
           MAX_CHUNKS="${{ github.event.inputs.max_chunks }}"
           if [ -z "$MAX_CHUNKS" ]; then
