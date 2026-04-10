@@ -513,6 +513,16 @@ export async function onRequestPost(context) {
           });
         return jsonOk({ data });
       } catch (error) {
+        if (isQueueOverloadError(error)) {
+          return jsonOk({
+            data: {
+              legacy_inline: true,
+              action: String(body.jobAction || ""),
+              reason: "queue_overload",
+              result: { ok: false, skipped: true, error: error.message || "Fila em sobrecarga." },
+            },
+          });
+        }
         if (isJobInfraError(error)) {
           try {
             const result = await runInlineProcessAction(context.env, String(body.jobAction || ""), body);
@@ -561,6 +571,17 @@ export async function onRequestPost(context) {
         });
         return jsonOk({ data });
       } catch (error) {
+        if (isQueueOverloadError(error)) {
+          return jsonOk({
+            data: {
+              completedAll: false,
+              chunksProcessed: 0,
+              job: null,
+              limited: true,
+              error: error.message || "Fila em sobrecarga.",
+            },
+          });
+        }
         return jsonError(error, 500);
       }
     }

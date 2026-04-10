@@ -254,3 +254,17 @@ Modo alternativo para avanço operacional:
 1. processar `crm_event_queue`;
 2. revisar transições de jornada e ciclo de vida;
 3. ativar retry seletivo e relatório operacional como rotina.
+
+## Portal e módulo interno financeiro
+
+- O portal do cliente agora deve refletir prioritariamente `billing_receivables + billing_contracts`, e não apenas os views do Freshsales.
+- O usuário `adrianohermida@gmail.com` pode atuar como observador técnico no portal, com um bloco de diagnóstico discreto sobre a origem da leitura financeira.
+- O dashboard interno passa a ter uma torre dedicada em `/interno/financeiro`, alimentada por `/api/admin-hmadv-financeiro`.
+- Esse módulo interno precisa mostrar:
+  - volume de staging;
+  - contratos e recebíveis canônicos;
+  - pendências de `contact` e `account/processo`;
+  - contratos `textual_only`;
+  - falhas de publicação em Deals;
+  - backlog da fila CRM.
+- A publicação em `Deals` segue restrita aos recebíveis com `freshsales_contact_id + freshsales_account_id`, enquanto o portal pode avançar com a base canônica mesmo antes da reconciliação completa de `accounts`.

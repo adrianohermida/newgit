@@ -74,6 +74,10 @@ export default function InternoFinanceiroPage() {
 
 function FinanceiroInternoContent() {
   const [state, setState] = useState({ loading: true, error: null, data: null });
+  const [selectedPendingRows, setSelectedPendingRows] = useState([]);
+  const [processQuery, setProcessQuery] = useState("");
+  const [processSearch, setProcessSearch] = useState({ loading: false, error: null, items: [] });
+  const [resolutionState, setResolutionState] = useState({ loading: false, error: null, result: null });
 
   async function load() {
     setState((current) => ({ ...current, loading: true, error: null }));
@@ -83,6 +87,53 @@ function FinanceiroInternoContent() {
     } catch (error) {
       setState({ loading: false, error: error.message || "Falha ao carregar o modulo financeiro.", data: null });
     }
+  }
+
+  async function searchProcesses(nextQuery = processQuery) {
+    const effectiveQuery = String(nextQuery || "").trim();
+    if (!effectiveQuery) {
+      setProcessSearch({ loading: false, error: null, items: [] });
+      return;
+    }
+    setProcessSearch({ loading: true, error: null, items: [] });
+    try {
+      const payload = await adminFetch(`/api/admin-hmadv-financeiro?action=search_processes&query=${encodeURIComponent(effectiveQuery)}&limit=20`);
+      setProcessSearch({ loading: false, error: null, items: payload.data?.items || [] });
+    } catch (error) {
+      setProcessSearch({ loading: false, error: error.message || "Falha ao buscar processos.", items: [] });
+    }
+  }
+
+  async function applyProcessResolution(candidate) {
+    if (!selectedPendingRows.length) {
+      setResolutionState({ loading: false, error: "Selecione ao menos uma linha pendente.", result: null });
+      return;
+    }
+    setResolutionState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-hmadv-financeiro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "resolve_account_rows",
+          rowIds: selectedPendingRows,
+          processId: candidate?.id || null,
+          freshsalesAccountId: candidate?.account_id_freshsales || null,
+          processReference: candidate?.numero_cnj || candidate?.numero_processo || candidate?.titulo || null,
+        }),
+      });
+      setResolutionState({ loading: false, error: null, result: payload.data || null });
+      setSelectedPendingRows([]);
+      await load();
+    } catch (error) {
+      setResolutionState({ loading: false, error: error.message || "Falha ao aplicar reconciliacao manual.", result: null });
+    }
+  }
+
+  function togglePendingRow(id) {
+    setSelectedPendingRows((current) => (
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+    ));
   }
 
   useEffect(() => {
@@ -148,6 +199,11 @@ function FinanceiroInternoContent() {
             </StatusBadge>
             <StatusBadge tone="accent">{diagnostics.contracts_textual_only_share || 0}% contratos textual_only</StatusBadge>
             <StatusBadge tone="accent">{diagnostics.receivables_without_account_share || 0}% recebíveis sem account</StatusBadge>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {Object.entries(counts.import_status || {}).map(([key, value]) => (
+              <StatusBadge key={key} tone={toneForStatus(key)}>{key}: {value}</StatusBadge>
+            ))}
           </div>
         </Panel>
 
@@ -231,27 +287,135 @@ function FinanceiroInternoContent() {
         </Panel>
 
         <Panel title="Pendências de account" eyebrow="Reconciliação">
+          <div className="mb-4 grid gap-3 md:grid-cols-[1fr_auto]">
+            <input
+              value={processQuery}
+              onChange={(event) => setProcessQuery(event.target.value)}
+              placeholder="Buscar processo por CNJ, número, account ou título"
+              className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]"
+            />
+            <button
+              type="button"
+              onClick={() => searchProcesses()}
+              className="border border-[#2D2E2E] px-4 py-3 text-sm transition hover:border-[#C5A059] hover:text-[#C5A059]"
+            >
+              Buscar processo
+            </button>
+          </div>
+          <div className="mb-4 flex flex-wrap gap-2">
+            <StatusBadge tone="accent">{selectedPendingRows.length} linha(s) selecionada(s)</StatusBadge>
+            {resolutionState.loading ? <StatusBadge tone="warn">Aplicando reconciliacao...</StatusBadge> : null}
+          </div>
+          {resolutionState.error ? <p className="mb-4 text-sm text-red-200">{resolutionState.error}</p> : null}
+          {resolutionState.result ? (
+            <div className="mb-4 rounded-[18px] border border-[#35554B] bg-[rgba(11,24,21,0.72)] p-4 text-sm">
+              <p className="font-semibold">Reconciliacao aplicada em {resolutionState.result.updated || 0} linha(s).</p>
+              <p className="mt-2 opacity-70">
+                Processo: {resolutionState.result.process_reference || resolutionState.result.process?.label || "n/d"}
+              </p>
+            </div>
+          ) : null}
           <div className="space-y-3">
             {(data.pending_account_rows || []).map((row) => (
-              <article key={row.id} className="border border-[#2D2E2E] p-4 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold">{row.person_name || row.email || "Linha sem identificação"}</p>
-                  <StatusBadge tone="warn">{row.matching_status}</StatusBadge>
+              <label key={row.id} className="block cursor-pointer border border-[#2D2E2E] p-4 text-sm">
+                <div className="flex gap-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedPendingRows.includes(row.id)}
+                    onChange={() => togglePendingRow(row.id)}
+                    className="mt-1"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold">{row.person_name || row.email || "Linha sem identificação"}</p>
+                      <StatusBadge tone="warn">{row.matching_status}</StatusBadge>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 opacity-70">
+                      {row.resolved_contact_name ? <span>Contato: {row.resolved_contact_name}</span> : null}
+                      {row.invoice_number ? <span>Fatura: {row.invoice_number}</span> : null}
+                      {row.billing_type_inferred ? <span>Cobrança: {row.billing_type_inferred}</span> : null}
+                    </div>
+                    <p className="mt-2 opacity-55">
+                      Processo: {row.resolved_process_reference || row.deal_reference_raw || "sem referência forte"}
+                    </p>
+                    {(row.resolved_process_reference || row.deal_reference_raw) ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const seed = row.resolved_process_reference || row.deal_reference_raw || "";
+                          setProcessQuery(seed);
+                          searchProcesses(seed);
+                        }}
+                        className="mt-3 border border-[#2D2E2E] px-3 py-2 text-xs transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                      >
+                        Buscar candidatos para esta linha
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 opacity-70">
-                  {row.resolved_contact_name ? <span>Contato: {row.resolved_contact_name}</span> : null}
-                  {row.invoice_number ? <span>Fatura: {row.invoice_number}</span> : null}
-                  {row.billing_type_inferred ? <span>Cobrança: {row.billing_type_inferred}</span> : null}
-                </div>
-                <p className="mt-2 opacity-55">
-                  Processo: {row.resolved_process_reference || row.deal_reference_raw || "sem referência forte"}
-                </p>
-              </article>
+              </label>
             ))}
             {!data.pending_account_rows?.length ? <p className="opacity-65">Nenhuma pendência de account encontrada neste recorte.</p> : null}
           </div>
         </Panel>
       </div>
+
+      <Panel title="Candidatos de processo/account" eyebrow="Resolução manual">
+        {processSearch.loading ? <p className="text-sm opacity-65">Buscando processos...</p> : null}
+        {processSearch.error ? <p className="text-sm text-red-200">{processSearch.error}</p> : null}
+        <div className="grid gap-3 xl:grid-cols-2">
+          {(processSearch.items || []).map((item) => (
+            <article key={item.id} className="border border-[#2D2E2E] p-4 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-semibold">{item.label}</p>
+                {item.account_id_freshsales ? <StatusBadge tone="success">account {item.account_id_freshsales}</StatusBadge> : <StatusBadge tone="warn">sem account</StatusBadge>}
+                <StatusBadge tone="accent">{item.matched_by}</StatusBadge>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 opacity-70">
+                {item.numero_cnj ? <span>CNJ: {item.numero_cnj}</span> : null}
+                {item.numero_processo ? <span>Número: {item.numero_processo}</span> : null}
+                {item.status ? <span>Status: {item.status}</span> : null}
+              </div>
+              {item.titulo ? <p className="mt-2 opacity-55">{item.titulo}</p> : null}
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => applyProcessResolution(item)}
+                  disabled={!selectedPendingRows.length || resolutionState.loading}
+                  className="border border-[#C5A059] bg-[#C5A059] px-4 py-2 text-sm font-semibold text-[#050706] disabled:opacity-50"
+                >
+                  Aplicar nas linhas selecionadas
+                </button>
+              </div>
+            </article>
+          ))}
+          {!processSearch.loading && !processSearch.error && !processSearch.items.length ? (
+            <p className="opacity-65">Busque um processo para aplicar reconciliação manual nas linhas pendentes.</p>
+          ) : null}
+        </div>
+      </Panel>
+
+      <Panel title="Pendências de contato" eyebrow="Staging">
+        <div className="grid gap-3 xl:grid-cols-2">
+          {(data.pending_contact_rows || []).map((row) => (
+            <article key={row.id} className="border border-[#2D2E2E] p-4 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-semibold">{row.person_name || row.email || "Linha sem identificação"}</p>
+                <StatusBadge tone="warn">{row.matching_status}</StatusBadge>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 opacity-70">
+                {row.email ? <span>E-mail: {row.email}</span> : null}
+                {row.invoice_number ? <span>Fatura: {row.invoice_number}</span> : null}
+                {row.product_family_inferred ? <span>Produto: {row.product_family_inferred}</span> : null}
+              </div>
+              {row.validation_errors?.length ? (
+                <p className="mt-2 opacity-55">Erros: {row.validation_errors.join(" | ")}</p>
+              ) : null}
+            </article>
+          ))}
+          {!data.pending_contact_rows?.length ? <p className="opacity-65">Sem pendências de contato neste recorte.</p> : null}
+        </div>
+      </Panel>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Panel title="Falhas de publicação" eyebrow="Deals">

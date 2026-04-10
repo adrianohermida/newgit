@@ -70,14 +70,14 @@ export default function PortalFinanceiroPage() {
           rightRailLabel="painel de apoio"
           rightRailDefaultOpen={false}
         >
-          <FinanceiroContent state={state} setState={setState} />
+          <FinanceiroContent profile={profile} state={state} setState={setState} />
         </PortalLayout>
       )}
     </RequireClient>
   );
 }
 
-function FinanceiroContent({ state, setState }) {
+function FinanceiroContent({ profile, state, setState }) {
   const [activeFilter, setActiveFilter] = useState("all");
   const [visibleCounts, setVisibleCounts] = useState({
     invoices: SECTION_PAGE_SIZE,
@@ -138,6 +138,8 @@ function FinanceiroContent({ state, setState }) {
     return state.items;
   }, [activeFilter, state.items]);
 
+  const isDevObserver = String(profile?.email || "").trim().toLowerCase() === "adrianohermida@gmail.com";
+
   if (state.loading) {
     return <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">Carregando financeiro...</div>;
   }
@@ -167,6 +169,36 @@ function FinanceiroContent({ state, setState }) {
 
       {state.warning ? (
         <div className="rounded-[28px] border border-[#6E5630] bg-[rgba(76,57,26,0.22)] p-6 text-sm leading-7">{sanitizePortalCopy(state.warning)}</div>
+      ) : null}
+
+      {isDevObserver ? (
+        <section className="rounded-[28px] border border-[#35554B] bg-[rgba(11,24,21,0.72)] p-6">
+          <div className="max-w-3xl">
+            <p className="text-[11px] uppercase tracking-[0.18em] opacity-45">Modo dev do portal</p>
+            <h3 className="mt-3 font-serif text-3xl">Leitura técnica da base financeira</h3>
+            <p className="mt-3 text-sm leading-7 opacity-62">
+              Este bloco aparece só para o usuário de observação técnica do portal e ajuda a validar se a leitura já está vindo da base canônica.
+            </p>
+          </div>
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <Metric label="Origem" value={state.diagnostics?.source || "n/d"} />
+            <Metric label="Contacts encontrados" value={state.diagnostics?.contacts_found ?? 0} />
+            <Metric label="Accounts ligados" value={state.diagnostics?.linked_accounts ?? 0} />
+            <Metric label="Itens relacionados" value={state.diagnostics?.related_deals ?? 0} />
+          </div>
+          <div className="mt-5 flex flex-wrap gap-3 text-sm">
+            <Link
+              href="/interno/financeiro"
+              prefetch={false}
+              className="inline-flex rounded-2xl border border-[#35554B] px-4 py-2 transition hover:border-[#C49C56] hover:text-[#C49C56]"
+            >
+              Abrir módulo interno financeiro
+            </Link>
+            <span className="inline-flex rounded-2xl border border-[#35554B] px-4 py-2 opacity-70">
+              Base canônica: {state.summary?.total_items || 0} item(ns)
+            </span>
+          </div>
+        </section>
       ) : null}
 
       <section className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-5">

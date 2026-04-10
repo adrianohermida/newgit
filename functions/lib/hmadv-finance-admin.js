@@ -40,18 +40,6 @@ function basename(value) {
   return String(value || "").split(/[\\/]/).filter(Boolean).pop() || String(value || "");
 }
 
-async function fetchSupabaseAdminPaged(env, path, { schema = "public", from = 0, to = 999 } = {}) {
-  const basePath = path.includes("?") ? `${path}&select=*` : `${path}?select=*`;
-  return fetchSupabaseAdmin(env, basePath, {
-    headers: {
-      Range: `${from}-${to}`,
-      Prefer: "count=exact",
-      "Accept-Profile": schema,
-      "Content-Profile": schema,
-    },
-  });
-}
-
 async function fetchSupabaseAdminAll(env, path, { schema = "public", pageSize = 1000 } = {}) {
   const rows = [];
   let from = 0;
@@ -75,6 +63,17 @@ async function fetchSupabaseAdminAll(env, path, { schema = "public", pageSize = 
   return rows;
 }
 
+async function fetchSupabaseSchema(env, path, { schema = "public", init = {} } = {}) {
+  return fetchSupabaseAdmin(env, path, {
+    ...init,
+    headers: {
+      "Accept-Profile": schema,
+      "Content-Profile": schema,
+      ...(init.headers || {}),
+    },
+  });
+}
+
 function buildStatusCounts(items, field = "status") {
   return items.reduce((acc, item) => {
     const key = String(item?.[field] || "sem_status").trim() || "sem_status";
@@ -83,9 +82,10 @@ function buildStatusCounts(items, field = "status") {
   }, {});
 }
 
-function buildImportSourceCounts(rows) {
+function buildImportSourceCounts(rows, runsById) {
   return rows.reduce((acc, row) => {
-    const key = basename(row?.source_file || row?.source_name || "desconhecido");
+    const run = runsById.get(String(row.import_run_id || "").trim()) || null;
+    const key = basename(run?.source_file || run?.source_name || "desconhecido");
     acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {});
@@ -113,15 +113,16 @@ function formatRecentReceivable(row, contractsById, contactsById) {
   };
 }
 
-function formatPendingRow(row, contactsById) {
+function formatPendingRow(row, contactsById, runsById) {
   const contact = contactsById.get(String(row.resolved_contact_id || "").trim()) || null;
+  const run = runsById.get(String(row.import_run_id || "").trim()) || null;
   const validationErrors = Array.isArray(row.validation_errors)
     ? row.validation_errors
     : Object.values(safeJsonParse(row.validation_errors, {})).filter(Boolean);
 
   return {
     id: row.id,
-    source_file: basename(row.source_file || ""),
+    source_file: basename(run?.source_file || run?.source_name || ""),
     person_name: row.person_name || null,
     email: row.email || null,
     invoice_number: row.invoice_number || null,
@@ -135,7 +136,7 @@ function formatPendingRow(row, contactsById) {
     product_family_inferred: row.product_family_inferred || null,
     billing_type_inferred: row.billing_type_inferred || null,
     validation_errors: validationErrors,
-    updated_at: row.updated_at || row.created_at || null,
+    updated_at: row.created_at || null,
   };
 }
 
@@ -173,7 +174,7 @@ export async function getHmadvFinanceAdminOverview(env) {
     ),
     fetchSupabaseAdminAll(
       env,
-      "billing_import_rows?select=id,import_run_id,source_file,person_name,email,invoice_number,due_date,matching_status,resolved_contact_id,resolved_account_id_freshsales,resolved_process_reference,deal_reference_raw,product_family_inferred,billing_type_inferred,validation_errors,created_at,updated_at&order=created_at.desc"
+      "billing_import_rows?select=id,import_run_id,person_name,email,invoice_number,due_date,matching_status,resolved_contact_id,resolved_account_id_freshsales,resolved_process_reference,deal_reference_raw,product_family_inferred,billing_type_inferred,validation_errors,created_at&order=created_at.desc"
     ),
     fetchSupabaseAdminAll(
       env,
@@ -199,11 +200,12 @@ export async function getHmadvFinanceAdminOverview(env) {
 
   const contractsById = new Map(contracts.map((item) => [String(item.id), item]));
   const contactsById = new Map(contacts.map((item) => [String(item.id), item]));
+  const runsById = new Map(importRuns.map((item) => [String(item.id), item]));
   const importStatusCounts = buildStatusCounts(importRows, "matching_status");
   const receivableStatusCounts = buildStatusCounts(receivables, "status");
   const dealSyncCounts = buildStatusCounts(dealsRegistry, "last_sync_status");
   const crmQueueCounts = buildStatusCounts(crmQueue, "status");
-  const sourceCounts = buildImportSourceCounts(importRows);
+  const sourceCounts = buildImportSourceCounts(importRows, runsById);
   const resolution = deriveResolutionStats(importRows, receivables, contracts);
 
   const publishReady = receivables.filter((item) => item.contact_id && item.freshsales_account_id && !item.freshsales_deal_id).length;
@@ -251,11 +253,11 @@ export async function getHmadvFinanceAdminOverview(env) {
     pending_account_rows: importRows
       .filter((item) => item.matching_status === "pendente_account")
       .slice(0, 30)
-      .map((row) => formatPendingRow(row, contactsById)),
+      .map((row) => formatPendingRow(row, contactsById, runsById)),
     pending_contact_rows: importRows
       .filter((item) => item.matching_status === "pendente_contato")
       .slice(0, 20)
-      .map((row) => formatPendingRow(row, contactsById)),
+      .map((row) => formatPendingRow(row, contactsById, runsById)),
     deal_failures: dealsRegistry
       .filter((item) => normalizeText(item.last_sync_status) === "error")
       .slice(0, 15)
@@ -288,5 +290,136 @@ export async function getHmadvFinanceAdminOverview(env) {
       import_sources_detected: Object.keys(sourceCounts).length,
       ready_for_freshsales_publish: publishReady > 0,
     },
+  };
+}
+
+function formatProcessCandidate(item, source = "processos", matchedBy = "query") {
+  return {
+    id: item.id,
+    numero_cnj: item.numero_cnj || null,
+    numero_processo: item.numero_processo || null,
+    titulo: item.titulo || null,
+    account_id_freshsales: item.account_id_freshsales || null,
+    status: item.status_atual_processo || item.status || null,
+    source,
+    matched_by: matchedBy,
+    label: item.numero_cnj || item.numero_processo || item.titulo || item.id,
+  };
+}
+
+export async function searchHmadvFinanceProcessCandidates(env, rawQuery, limit = 20) {
+  const query = String(rawQuery || "").trim();
+  if (!query) {
+    return { items: [], query };
+  }
+
+  const normalizedLimit = Math.max(1, Math.min(50, Number(limit) || 20));
+  const encodedLike = `*${query.replace(/\*/g, "")}*`;
+  const processPath = `processos?select=id,numero_cnj,numero_processo,titulo,account_id_freshsales,status_atual_processo,updated_at&or=(numero_cnj.ilike.${encodeURIComponent(encodedLike)},numero_processo.ilike.${encodeURIComponent(encodedLike)},titulo.ilike.${encodeURIComponent(encodedLike)},account_id_freshsales.ilike.${encodeURIComponent(encodedLike)})&order=updated_at.desc&limit=${normalizedLimit}`;
+
+  const [directProcesses, relatedPartes] = await Promise.all([
+    fetchSupabaseSchema(env, processPath, { schema: "judiciario" }).catch(() => []),
+    fetchSupabaseSchema(
+      env,
+      `partes?select=processo_id,nome,polo,tipo_contato&nome=ilike.${encodeURIComponent(encodedLike)}&limit=${normalizedLimit * 3}`,
+      { schema: "judiciario" }
+    ).catch(() => []),
+  ]);
+
+  const processIdsFromPartes = uniqueBy(
+    (Array.isArray(relatedPartes) ? relatedPartes : []).map((item) => item?.processo_id).filter(Boolean),
+    (item) => item
+  );
+
+  let parteProcesses = [];
+  if (processIdsFromPartes.length) {
+    parteProcesses = await fetchSupabaseSchema(
+      env,
+      `processos?select=id,numero_cnj,numero_processo,titulo,account_id_freshsales,status_atual_processo,updated_at&id=in.(${processIdsFromPartes.map((item) => `"${item}"`).join(",")})&limit=${normalizedLimit * 2}`,
+      { schema: "judiciario" }
+    ).catch(() => []);
+  }
+
+  const merged = uniqueBy(
+    [
+      ...(Array.isArray(directProcesses) ? directProcesses.map((item) => formatProcessCandidate(item, "processos", "query")) : []),
+      ...(Array.isArray(parteProcesses) ? parteProcesses.map((item) => formatProcessCandidate(item, "partes", "nome_da_parte")) : []),
+    ],
+    (item) => item.id
+  ).slice(0, normalizedLimit);
+
+  return {
+    query,
+    items: merged,
+  };
+}
+
+export async function resolveHmadvFinancePendingAccounts(env, payload = {}) {
+  const rowIds = uniqueBy(Array.isArray(payload.rowIds) ? payload.rowIds.filter(Boolean) : [], (item) => item);
+  if (!rowIds.length) {
+    throw new Error("Nenhuma linha pendente foi informada para reconciliacao.");
+  }
+
+  let processRow = null;
+  if (payload.processId) {
+    const rows = await fetchSupabaseSchema(
+      env,
+      `processos?select=id,numero_cnj,numero_processo,titulo,account_id_freshsales,status_atual_processo&id=eq.${encodeURIComponent(payload.processId)}&limit=1`,
+      { schema: "judiciario" }
+    );
+    processRow = Array.isArray(rows) ? rows[0] || null : null;
+  }
+
+  const explicitAccountId = String(payload.freshsalesAccountId || processRow?.account_id_freshsales || "").trim() || null;
+  const explicitProcessReference =
+    String(payload.processReference || processRow?.numero_cnj || processRow?.numero_processo || processRow?.titulo || "").trim() || null;
+  const explicitProcessId = processRow?.id || payload.processId || null;
+
+  if (!explicitAccountId && !explicitProcessReference) {
+    throw new Error("Informe um processo ou account do Freshsales para concluir a reconciliacao.");
+  }
+
+  const rows = await fetchSupabaseSchema(
+    env,
+    `billing_import_rows?select=id,resolved_contact_id,matching_status&id=in.(${rowIds.map((item) => `"${item}"`).join(",")})`,
+    { schema: "public" }
+  );
+
+  const updates = await Promise.all(
+    (Array.isArray(rows) ? rows : []).map(async (row) => {
+      const nextStatus = row?.resolved_contact_id ? "pareado" : "pendente_contato";
+      await fetchSupabaseSchema(
+        env,
+        `billing_import_rows?id=eq.${encodeURIComponent(row.id)}`,
+        {
+          schema: "public",
+          init: {
+            method: "PATCH",
+            headers: {
+              Prefer: "return=minimal",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              resolved_process_id: explicitProcessId,
+              resolved_account_id_freshsales: explicitAccountId,
+              resolved_process_reference: explicitProcessReference,
+              matching_status: nextStatus,
+            }),
+          },
+        }
+      );
+      return {
+        id: row.id,
+        matching_status: nextStatus,
+      };
+    })
+  );
+
+  return {
+    updated: updates.length,
+    process: processRow ? formatProcessCandidate(processRow, "processos", "manual") : null,
+    freshsales_account_id: explicitAccountId,
+    process_reference: explicitProcessReference,
+    rows: updates,
   };
 }
