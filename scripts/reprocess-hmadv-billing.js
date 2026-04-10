@@ -18,9 +18,11 @@ async function main() {
   const indices = await loadIndicesByName();
   const products = await loadProducts();
   const contacts = await loadContacts();
+  const processes = await loadProcesses();
   const productById = new Map(products.map((item) => [item.id, item]));
   const productByName = new Map(products.map((item) => [String(item.name || '').toLowerCase(), item]));
   const contactById = new Map(contacts.map((item) => [item.id, item]));
+  const processById = new Map(processes.map((item) => [String(item.id), item]));
 
   let materialized = 0;
   let queuedForPublish = 0;
@@ -28,15 +30,16 @@ async function main() {
   for (const row of rows) {
     const existingReceivable = await findReceivableByImportRow(row.id);
     if (existingReceivable) {
-      if (!existingReceivable.freshsales_deal_id && row.resolved_account_id_freshsales) queuedForPublish += 1;
+      const derivedAccountId = deriveFreshsalesAccountId(row, existingReceivable, null, processById);
+      if (!existingReceivable.freshsales_deal_id && derivedAccountId) queuedForPublish += 1;
       continue;
     }
 
     const product = resolveProduct(row, productById, productByName);
-    const contract = await resolveOrCreateContract(row, workspaceId, product, contactById);
+    const contract = await resolveOrCreateContract(row, workspaceId, product, contactById, processById);
     await createReceivable(row, contract, product, indices);
     materialized += 1;
-    if (row.resolved_account_id_freshsales) queuedForPublish += 1;
+    if (deriveFreshsalesAccountId(row, null, contract, processById)) queuedForPublish += 1;
   }
 
   console.log(JSON.stringify({
@@ -122,18 +125,28 @@ async function loadContacts() {
   return supabaseRequest('freshsales_contacts?select=id,freshsales_contact_id');
 }
 
+async function loadProcesses() {
+  return supabaseRequest('processos?select=id,account_id_freshsales', {
+    headers: {
+      'Accept-Profile': 'judiciario',
+      'Content-Profile': 'judiciario',
+    },
+  });
+}
+
 function resolveProduct(row, productById, productByName) {
   return productById.get(row.resolved_product_id) || productByName.get(String(row.product_family_inferred || '').toLowerCase()) || null;
 }
 
-async function resolveOrCreateContract(row, workspaceId, product, contactById) {
+async function resolveOrCreateContract(row, workspaceId, product, contactById, processById) {
   const externalReference = buildContractKey(row);
   const existing = await supabaseRequest(`billing_contracts?external_reference=eq.${encodeURIComponent(externalReference)}&select=id,workspace_id,contact_id,product_id,freshsales_contact_id,process_id,freshsales_account_id,process_reference,title&limit=1`);
+  const derivedAccountId = deriveFreshsalesAccountId(row, null, existing[0] || null, processById);
   if (existing[0]) {
     const patchedPayload = {
       freshsales_contact_id: contactById.get(row.resolved_contact_id)?.freshsales_contact_id || existing[0].freshsales_contact_id || null,
       process_id: row.resolved_process_id || existing[0].process_id || null,
-      freshsales_account_id: row.resolved_account_id_freshsales || existing[0].freshsales_account_id || null,
+      freshsales_account_id: derivedAccountId || existing[0].freshsales_account_id || null,
       process_reference: row.resolved_process_reference || row.deal_reference_raw || existing[0].process_reference || null,
     };
     await supabaseRequest(`billing_contracts?id=eq.${encodeURIComponent(existing[0].id)}`, {
@@ -153,7 +166,7 @@ async function resolveOrCreateContract(row, workspaceId, product, contactById) {
     contract_kind: row.billing_type_inferred || 'unitario',
     title: buildContractTitle(row),
     process_id: row.resolved_process_id || null,
-    freshsales_account_id: row.resolved_account_id_freshsales || null,
+    freshsales_account_id: derivedAccountId || null,
     process_reference: row.resolved_process_reference || row.deal_reference_raw || null,
     external_reference: externalReference,
     start_date: row.invoice_date || row.due_date || null,
@@ -250,6 +263,16 @@ async function createReceivable(row, contract, product, indices) {
   });
 
   return receivable;
+}
+
+function deriveFreshsalesAccountId(row, receivable, contract, processById) {
+  return (
+    row?.resolved_account_id_freshsales ||
+    receivable?.freshsales_account_id ||
+    contract?.freshsales_account_id ||
+    processById.get(String(row?.resolved_process_id || receivable?.process_id || contract?.process_id || ''))?.account_id_freshsales ||
+    null
+  );
 }
 
 async function findReceivableByImportRow(importRowId) {

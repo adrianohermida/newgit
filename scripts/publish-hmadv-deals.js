@@ -106,10 +106,82 @@ async function loadReceivables(limit, specificReceivableId = null) {
   ].join('&');
 
   const rows = await supabaseRequest(query);
-  return rows.filter((row) => {
+  const enrichedRows = await enrichReceivableLinks(rows);
+  return enrichedRows.filter((row) => {
     const contract = firstRelation(row.contracts);
     return Boolean(contract && contract.freshsales_contact_id && (row.freshsales_account_id || contract.freshsales_account_id));
   });
+}
+
+async function enrichReceivableLinks(rows) {
+  if (!Array.isArray(rows) || !rows.length) return [];
+
+  const contractIds = new Set();
+  const contactIds = new Set();
+  const processIds = new Set();
+
+  for (const row of rows) {
+    const contract = firstRelation(row.contracts);
+    if (contract?.id) contractIds.add(String(contract.id));
+    if (contract?.contact_id) contactIds.add(String(contract.contact_id));
+    if (row?.contact_id) contactIds.add(String(row.contact_id));
+    if (row?.process_id) processIds.add(String(row.process_id));
+    if (contract?.process_id) processIds.add(String(contract.process_id));
+  }
+
+  const [contacts, processes] = await Promise.all([
+    contactIds.size
+      ? supabaseRequest(`freshsales_contacts?select=id,freshsales_contact_id&id=in.(${Array.from(contactIds).map((item) => `"${item}"`).join(',')})`)
+      : [],
+    processIds.size
+      ? supabaseRequest(
+          `processos?select=id,account_id_freshsales&id=in.(${Array.from(processIds).map((item) => `"${item}"`).join(',')})`,
+          { headers: { 'Accept-Profile': 'judiciario', 'Content-Profile': 'judiciario' } }
+        )
+      : [],
+  ]);
+
+  const contactById = new Map((contacts || []).map((item) => [String(item.id), item]));
+  const processById = new Map((processes || []).map((item) => [String(item.id), item]));
+
+  for (const row of rows) {
+    const contract = firstRelation(row.contracts);
+    const derivedFreshsalesContactId =
+      contract?.freshsales_contact_id ||
+      contactById.get(String(contract?.contact_id || row.contact_id || ''))?.freshsales_contact_id ||
+      null;
+    const derivedFreshsalesAccountId =
+      row.freshsales_account_id ||
+      contract?.freshsales_account_id ||
+      processById.get(String(row.process_id || contract?.process_id || ''))?.account_id_freshsales ||
+      null;
+
+    if (contract && ((!contract.freshsales_contact_id && derivedFreshsalesContactId) || (!contract.freshsales_account_id && derivedFreshsalesAccountId))) {
+      await supabaseRequest(`billing_contracts?id=eq.${encodeURIComponent(contract.id)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          freshsales_contact_id: contract.freshsales_contact_id || derivedFreshsalesContactId || null,
+          freshsales_account_id: contract.freshsales_account_id || derivedFreshsalesAccountId || null,
+        }),
+      });
+      contract.freshsales_contact_id = contract.freshsales_contact_id || derivedFreshsalesContactId || null;
+      contract.freshsales_account_id = contract.freshsales_account_id || derivedFreshsalesAccountId || null;
+    }
+
+    if (!row.freshsales_account_id && derivedFreshsalesAccountId) {
+      await supabaseRequest(`billing_receivables?id=eq.${encodeURIComponent(row.id)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          freshsales_account_id: derivedFreshsalesAccountId,
+        }),
+      });
+      row.freshsales_account_id = derivedFreshsalesAccountId;
+    }
+  }
+
+  return rows;
 }
 
 async function publishDeal(row) {
