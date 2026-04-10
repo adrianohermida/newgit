@@ -52,6 +52,18 @@ const QUEUE_REFRESHERS = {
   monitoramento_inativo: "monitoramento_inativo",
   campos_orfaos: "campos_orfaos",
 };
+const QUEUE_LABELS = {
+  sem_movimentacoes: "Sem movimentacoes",
+  movimentacoes_pendentes: "Movimentacoes pendentes",
+  publicacoes_pendentes: "Publicacoes pendentes",
+  partes_sem_contato: "Partes sem contato",
+  audiencias_pendentes: "Audiencias detectaveis",
+  monitoramento_ativo: "Monitoramento ativo",
+  monitoramento_inativo: "Monitoramento inativo",
+  campos_orfaos: "Campos orfaos",
+  orfaos: "Sem Sales Account",
+  cobertura: "Cobertura por processo",
+};
 
 function getProcessActionLimitConfig(action) {
   if (action === "sync_supabase_crm") return { defaultLimit: 1, maxLimit: 1 };
@@ -963,6 +975,7 @@ function InternoProcessosContent() {
   const [processCoverage, setProcessCoverage] = useState({ loading: true, items: [], totalRows: 0, page: 1, pageSize: 20 });
   const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
   const [executionHistory, setExecutionHistory] = useState([]);
+  const [queueRefreshLog, setQueueRefreshLog] = useState([]);
   const [remoteHistory, setRemoteHistory] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [activeJobId, setActiveJobId] = useState(null);
