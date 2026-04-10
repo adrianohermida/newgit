@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useState } from "react";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import DotobotCopilot from "./DotobotPanel";
 import DotobotExtensionManager from "./DotobotExtensionManager";
@@ -22,7 +23,7 @@ function normalizeDisplayName(profile) {
   return profile?.full_name || profile?.email || "Hermida Maia";
 }
 
-function SidebarItem({ item, active }) {
+function SidebarItem({ item, active, collapsed }) {
   return (
     <Link
       href={item.href}
@@ -36,7 +37,7 @@ function SidebarItem({ item, active }) {
       <span className={`flex h-9 w-9 items-center justify-center rounded-xl border ${active ? "border-[rgba(7,17,14,0.1)] bg-[rgba(7,17,14,0.08)]" : "border-[#233630] bg-[rgba(255,255,255,0.02)] group-hover:border-[#35554B]"}`}>
         <span className={`h-2.5 w-2.5 rounded-full ${active ? "bg-[#07110E]" : "bg-[#C5A059]"}`} />
       </span>
-      <span className="font-medium">{item.label}</span>
+      {!collapsed ? <span className="font-medium">{item.label}</span> : null}
     </Link>
   );
 }
@@ -65,6 +66,10 @@ export default function InternoLayout({
   const { supabase } = useSupabaseBrowser();
   const initialWorkspaceOpen = router.pathname === "/interno/agentlab/conversations";
   const shouldRenderDotobotRail = !hideDotobotRail || forceDotobotRail;
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [consoleOpen, setConsoleOpen] = useState(false);
+  const [copilotOpen, setCopilotOpen] = useState(true);
 
   async function handleSignOut() {
     if (supabase) {
@@ -76,40 +81,52 @@ export default function InternoLayout({
   return (
     <div className="flex w-full h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.24),transparent_30%),linear-gradient(180deg,#050706_0%,#070A09_100%)] text-[#F4F1EA]">
       {/* SIDEBAR */}
-      <aside className="flex flex-col w-[272px] min-w-[220px] max-w-[320px] h-full border-r border-[#22342F] bg-[linear-gradient(180deg,rgba(10,18,16,0.98),rgba(8,15,13,0.94))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.22)]">
+      <aside className={`flex flex-col h-full border-r border-[#22342F] bg-[linear-gradient(180deg,rgba(10,18,16,0.98),rgba(8,15,13,0.94))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.22)] transition-all ${leftCollapsed ? "w-[88px]" : "w-[272px] min-w-[220px] max-w-[320px]"}`}>
         <Link href="/interno" prefetch={false} className="mb-8 block">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C5A059]">Hermida Maia</p>
-          <h1 className="text-[32px] font-semibold tracking-[-0.03em] text-[#F5F1E8]">Centro operacional</h1>
-          <p className="mt-3 max-w-[18rem] text-sm leading-6 text-[#8FA39C]">
-            Centro operacional para processos, CRM, governanca de agentes e engenharia de inteligencia do escritorio.
-          </p>
+          {!leftCollapsed ? (
+            <>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C5A059]">Hermida Maia</p>
+              <h1 className="text-[32px] font-semibold tracking-[-0.03em] text-[#F5F1E8]">Centro operacional</h1>
+              <p className="mt-3 max-w-[18rem] text-sm leading-6 text-[#8FA39C]">
+                Centro operacional para processos, CRM, governanca de agentes e engenharia de inteligencia do escritorio.
+              </p>
+            </>
+          ) : (
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#233630] text-xs font-semibold uppercase tracking-[0.2em] text-[#C5A059]">
+              HM
+            </div>
+          )}
         </Link>
-        <div className="mb-6 rounded-[24px] border border-[#1D2E29] bg-[rgba(255,255,255,0.03)] p-4">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-[#7F928C]">Perfil conectado</p>
-          <p className="mt-3 text-lg font-semibold text-[#F8F4EB]">{normalizeDisplayName(profile)}</p>
-          <p className="mt-1 text-sm text-[#91A49E]">{profile?.email}</p>
-          <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-[#C5A059]">{profile?.role}</p>
-        </div>
+        {!leftCollapsed ? (
+          <div className="mb-6 rounded-[24px] border border-[#1D2E29] bg-[rgba(255,255,255,0.03)] p-4">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-[#7F928C]">Perfil conectado</p>
+            <p className="mt-3 text-lg font-semibold text-[#F8F4EB]">{normalizeDisplayName(profile)}</p>
+            <p className="mt-1 text-sm text-[#91A49E]">{profile?.email}</p>
+            <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-[#C5A059]">{profile?.role}</p>
+          </div>
+        ) : null}
         <nav aria-label="Navegacao interna" className="space-y-1.5">
           {NAV_ITEMS.map((item) => {
             const active = router.pathname === item.href;
-            return <SidebarItem key={item.href} item={item} active={active} />;
+            return <SidebarItem key={item.href} item={item} active={active} collapsed={leftCollapsed} />;
           })}
         </nav>
         <div className="mt-auto space-y-3 pt-6">
-          <div className="rounded-[22px] border border-[#1D2E29] bg-[rgba(255,255,255,0.02)] p-4">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">Workspace</p>
-            <p className="mt-2 text-sm font-medium text-[#F5F1E8]">Sidebar, modulo e Dotobot</p>
-            <p className="mt-2 text-sm leading-6 text-[#92A59F]">
-              O painel lateral serve como atalho rapido. A experiencia completa de conversa, tarefas e execucao vive no AI Task central.
-            </p>
-          </div>
+          {!leftCollapsed ? (
+            <div className="rounded-[22px] border border-[#1D2E29] bg-[rgba(255,255,255,0.02)] p-4">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">Workspace</p>
+              <p className="mt-2 text-sm font-medium text-[#F5F1E8]">Sidebar, modulo e Dotobot</p>
+              <p className="mt-2 text-sm leading-6 text-[#92A59F]">
+                O painel lateral serve como atalho rapido. A experiencia completa de conversa, tarefas e execucao vive no AI Task central.
+              </p>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={handleSignOut}
             className="w-full rounded-2xl border border-[#22342F] px-4 py-3 text-sm text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
           >
-            Sair
+            {!leftCollapsed ? "Sair" : "X"}
           </button>
         </div>
       </aside>
