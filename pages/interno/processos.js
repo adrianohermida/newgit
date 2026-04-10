@@ -42,6 +42,16 @@ const ASYNC_PROCESS_ACTIONS = new Set([
 const OPERATIONAL_VIEWS = new Set(["operacao", "filas"]);
 const COVERAGE_VIEWS = new Set(["filas", "resultado"]);
 const RELATION_VIEWS = new Set(["relacoes"]);
+const QUEUE_REFRESHERS = {
+  sem_movimentacoes: "sem_movimentacoes",
+  movimentacoes_pendentes: "movimentacoes_pendentes",
+  publicacoes_pendentes: "publicacoes_pendentes",
+  partes_sem_contato: "partes_sem_contato",
+  audiencias_pendentes: "audiencias_pendentes",
+  monitoramento_ativo: "monitoramento_ativo",
+  monitoramento_inativo: "monitoramento_inativo",
+  campos_orfaos: "campos_orfaos",
+};
 
 function getProcessActionLimitConfig(action) {
   if (action === "sync_supabase_crm") return { defaultLimit: 1, maxLimit: 1 };
@@ -1388,9 +1398,71 @@ function InternoProcessosContent() {
     }
     await Promise.all(calls);
   }
-  async function refreshOperationalContext() {
+  function buildRefreshPlan(action, payload = {}) {
+    const intent = String(payload.intent || "").trim();
+    const queues = new Set();
+    let coverage = false;
+    let orphans = false;
+    if (action === "push_orfaos") {
+      orphans = true;
+    } else if (action === "repair_freshsales_accounts") {
+      queues.add(QUEUE_REFRESHERS.campos_orfaos);
+    } else if (action === "sync_supabase_crm") {
+      coverage = true;
+      queues.add(QUEUE_REFRESHERS.movimentacoes_pendentes);
+      queues.add(QUEUE_REFRESHERS.publicacoes_pendentes);
+      queues.add(QUEUE_REFRESHERS.partes_sem_contato);
+      queues.add(QUEUE_REFRESHERS.campos_orfaos);
+    } else if (action === "sincronizar_movimentacoes_activity") {
+      queues.add(QUEUE_REFRESHERS.movimentacoes_pendentes);
+    } else if (action === "sincronizar_publicacoes_activity") {
+      queues.add(QUEUE_REFRESHERS.publicacoes_pendentes);
+    } else if (action === "reconciliar_partes_contatos") {
+      queues.add(QUEUE_REFRESHERS.partes_sem_contato);
+    } else if (action === "backfill_audiencias") {
+      queues.add(QUEUE_REFRESHERS.audiencias_pendentes);
+    } else if (action === "monitoramento_status") {
+      queues.add(QUEUE_REFRESHERS.monitoramento_ativo);
+      queues.add(QUEUE_REFRESHERS.monitoramento_inativo);
+    } else if (action === "enriquecer_datajud") {
+      if (intent === "sincronizar_monitorados") {
+        queues.add(QUEUE_REFRESHERS.monitoramento_ativo);
+        queues.add(QUEUE_REFRESHERS.monitoramento_inativo);
+      } else if (intent === "reenriquecer_gaps") {
+        queues.add(QUEUE_REFRESHERS.campos_orfaos);
+      } else {
+        queues.add(QUEUE_REFRESHERS.sem_movimentacoes);
+        queues.add(QUEUE_REFRESHERS.movimentacoes_pendentes);
+      }
+    }
+    return {
+      queues: [...queues],
+      coverage,
+      orphans,
+    };
+  }
+  async function refreshAfterAction(action, payload = {}) {
+    const plan = buildRefreshPlan(action, payload);
+    const calls = [loadOverview()];
+    if (plan.coverage) calls.push(loadCoverage(covPage));
+    if (plan.orphans) calls.push(loadOrphans(orphanPage));
+    if (plan.queues.length) {
+      plan.queues.forEach((queue) => {
+        if (queue === QUEUE_REFRESHERS.sem_movimentacoes) calls.push(loadQueue("sem_movimentacoes", setWithoutMovements, wmPage));
+        if (queue === QUEUE_REFRESHERS.movimentacoes_pendentes) calls.push(loadQueue("movimentacoes_pendentes", setMovementBacklog, movPage));
+        if (queue === QUEUE_REFRESHERS.publicacoes_pendentes) calls.push(loadQueue("publicacoes_pendentes", setPublicationBacklog, pubPage));
+        if (queue === QUEUE_REFRESHERS.partes_sem_contato) calls.push(loadQueue("partes_sem_contato", setPartesBacklog, partesPage));
+        if (queue === QUEUE_REFRESHERS.audiencias_pendentes) calls.push(loadQueue("audiencias_pendentes", setAudienciaCandidates, audPage));
+        if (queue === QUEUE_REFRESHERS.monitoramento_ativo) calls.push(loadQueue("monitoramento_ativo", setMonitoringActive, maPage));
+        if (queue === QUEUE_REFRESHERS.monitoramento_inativo) calls.push(loadQueue("monitoramento_inativo", setMonitoringInactive, miPage));
+        if (queue === QUEUE_REFRESHERS.campos_orfaos) calls.push(loadQueue("campos_orfaos", setFieldGaps, fgPage));
+      });
+    }
+    await Promise.all([...calls, loadRemoteHistory(), loadJobs()]);
+  }
+  async function refreshOperationalContext(options = {}) {
     await Promise.all([
-      refreshOperationalQueues(),
+      refreshOperationalQueues(options),
       loadRemoteHistory(),
       loadJobs(),
     ]);
@@ -1622,7 +1694,11 @@ function InternoProcessosContent() {
         preview: buildHistoryPreview(response.data),
         result: response.data,
       });
-      await refreshOperationalContext();
+      if (action === "executar_integracao_completa") {
+        await refreshOperationalContext({ forceAll: true });
+      } else {
+        await refreshAfterAction(action, normalizedPayload);
+      }
     } catch (error) {
       setActionState({ loading: false, error: error.message || "Falha ao executar acao.", result: null });
       replaceHistoryEntry(historyId, {
