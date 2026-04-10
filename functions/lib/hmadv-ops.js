@@ -2240,6 +2240,100 @@ export async function getTaggedDatajudCoverageReport(env, { limit = 100, tag = "
   };
 }
 
+export async function getTaggedDatajudActionPlan(env, { limit = 100, tag = "datajud" } = {}) {
+  const report = await getTaggedDatajudCoverageReport(env, { limit, tag });
+  const blockers = Array.isArray(report?.blockers) ? report.blockers : [];
+  const sample = Array.isArray(report?.sample) ? report.sample : [];
+
+  const collectNumbers = (predicate, max = 10) => {
+    const picked = [];
+    for (const row of sample) {
+      const number = String(row?.numero_cnj || "").trim();
+      if (!number || picked.includes(number)) continue;
+      if (!predicate(row)) continue;
+      picked.push(number);
+      if (picked.length >= max) break;
+    }
+    return picked;
+  };
+
+  const steps = [
+    {
+      key: "missing_cnj",
+      label: "Preencher CNJ no Freshsales",
+      action: "manual_cf_processo",
+      count: Number(blockers.find((item) => item.key === "missing_cnj")?.count || 0),
+      processNumbers: [],
+      helper: "Os accounts tagueados com datajud precisam ter um CNJ utilizavel para iniciar o sincronismo automatico.",
+    },
+    {
+      key: "sync_core",
+      label: "Sincronizar processo + DataJud + CRM",
+      action: "sync_supabase_crm",
+      intent: "datajud_plus_crm",
+      count: Number(
+        blockers
+          .filter((item) => ["without_process", "without_account_link", "without_movements"].includes(String(item.key || "")))
+          .reduce((acc, item) => acc + Number(item.count || 0), 0)
+      ),
+      processNumbers: collectNumbers((row) => {
+        const status = String(row?.status || "").trim();
+        return ["without_process", "without_account_link", "without_movements"].includes(status);
+      }, 10),
+      helper: "Recria a trilha estrutural entre account, processo no HMADV, DataJud e reflexo base no CRM.",
+    },
+    {
+      key: "publication_activity_gap",
+      label: "Sincronizar publicacoes no Freshsales",
+      action: "sincronizar_publicacoes_activity",
+      count: Number(blockers.find((item) => item.key === "publication_activity_gap")?.count || 0),
+      processNumbers: collectNumbers((row) => String(row?.status || "").trim() === "publication_activity_gap", 10),
+      helper: "Cria as sales activities de publicacoes ainda pendentes para os processos tagueados.",
+    },
+    {
+      key: "movement_activity_gap",
+      label: "Sincronizar movimentacoes no Freshsales",
+      action: "sincronizar_movimentacoes_activity",
+      count: Number(blockers.find((item) => item.key === "movement_activity_gap")?.count || 0),
+      processNumbers: collectNumbers((row) => String(row?.status || "").trim() === "movement_activity_gap", 10),
+      helper: "Cria as sales activities de andamentos ainda pendentes para os processos tagueados.",
+    },
+    {
+      key: "hearing_activity_gap",
+      label: "Sincronizar audiencias no Freshsales",
+      action: "sincronizar_audiencias_activity",
+      count: Number(blockers.find((item) => item.key === "hearing_activity_gap")?.count || 0),
+      processNumbers: collectNumbers((row) => {
+        const labels = Array.isArray(row?.coverage_pending_labels) ? row.coverage_pending_labels : [];
+        return labels.includes("audiencias_pendentes");
+      }, 10),
+      helper: "Extrai audiencias das publicacoes, grava no HMADV e cria activities/appointments no Freshsales.",
+    },
+    {
+      key: "parts_contact_gap",
+      label: "Reconciliar partes com contatos",
+      action: "reconciliar_partes_contatos",
+      count: Number(blockers.find((item) => item.key === "parts_contact_gap")?.count || 0),
+      processNumbers: collectNumbers((row) => String(row?.status || "").trim() === "parts_contact_gap", 10),
+      helper: "Vincula ou cria os contatos Freshsales das partes ainda pendentes.",
+    },
+  ]
+    .filter((item) => item.count > 0)
+    .map((item, index) => ({
+      ...item,
+      priority: index + 1,
+    }));
+
+  return {
+    tag: String(tag || "datajud"),
+    taggedTotal: Number(report?.taggedTotal || 0),
+    fullyCovered: Number(report?.fullyCovered || 0),
+    fullyCoveredRate: Number(report?.fullyCoveredRate || 0),
+    topAction: steps[0] || null,
+    steps,
+  };
+}
+
 async function listSyncDatajudProcesses(env, { page = 1, pageSize = 20 } = {}) {
   const safePage = Math.max(1, Number(page || 1));
   const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));

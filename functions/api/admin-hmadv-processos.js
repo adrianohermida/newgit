@@ -9,6 +9,7 @@ import {
   getLocalProcessAudit,
   getPersistedCoverageOverview,
   getPersistedCoveragePriorityReport,
+  getTaggedDatajudActionPlan,
   getTaggedDatajudCoverageReport,
   getTaggedDatajudDiagnostics,
   getTaggedDatajudMissingCnjReport,
@@ -195,6 +196,13 @@ export async function onRequestGet(context) {
     }
     if (action === "relatorio_datajud_tag") {
       const data = await getTaggedDatajudCoverageReport(context.env, {
+        limit: Number(url.searchParams.get("limit") || 100),
+        tag: String(url.searchParams.get("tag") || "datajud"),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "plano_datajud_tag") {
+      const data = await getTaggedDatajudActionPlan(context.env, {
         limit: Number(url.searchParams.get("limit") || 100),
         tag: String(url.searchParams.get("tag") || "datajud"),
       });
