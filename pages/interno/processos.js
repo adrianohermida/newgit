@@ -31,6 +31,7 @@ const ACTION_LABELS = {
   run_pending_jobs: "Drenar fila HMADV",
 };
 const QUEUE_ERROR_TTL_MS = 1000 * 60 * 3;
+const GLOBAL_ERROR_TTL_MS = 1000 * 60 * 2;
 const ASYNC_PROCESS_ACTIONS = new Set([
   "push_orfaos",
   "enriquecer_datajud",
@@ -984,6 +985,8 @@ function InternoProcessosContent() {
   const [schemaStatus, setSchemaStatus] = useState({ loading: true, data: null });
   const [runnerMetrics, setRunnerMetrics] = useState({ loading: true, data: null });
   const [snapshotAt, setSnapshotAt] = useState(null);
+  const [globalError, setGlobalError] = useState(null);
+  const [globalErrorUntil, setGlobalErrorUntil] = useState(null);
   const [uiHydrated, setUiHydrated] = useState(false);
   const [pageVisible, setPageVisible] = useState(true);
   const bootstrappedRef = useRef(false);
@@ -1342,9 +1345,54 @@ function InternoProcessosContent() {
     };
   }, [activeJobId, pageVisible, wmPage, movPage, pubPage, partesPage, audPage, maPage, miPage, fgPage, orphanPage]);
 
-  async function loadOverview() { try { const payload = await adminFetch("/api/admin-hmadv-processos?action=overview"); setOverview({ loading: false, data: payload.data }); } catch { setOverview({ loading: false, data: null }); } }
-  async function loadSchemaStatus() { try { const payload = await adminFetch("/api/admin-hmadv-processos?action=schema_status"); setSchemaStatus({ loading: false, data: payload.data }); } catch { setSchemaStatus({ loading: false, data: null }); } }
-  async function loadRunnerMetrics() { try { const payload = await adminFetch("/api/admin-hmadv-processos?action=runner_metrics"); setRunnerMetrics({ loading: false, data: payload.data }); } catch { setRunnerMetrics({ loading: false, data: null }); } }
+  async function loadOverview() {
+    if (globalErrorUntil && Date.now() < globalErrorUntil) {
+      setOverview((state) => ({ ...state, loading: false }));
+      return;
+    }
+    try {
+      const payload = await adminFetch("/api/admin-hmadv-processos?action=overview");
+      setOverview({ loading: false, data: payload.data });
+      setGlobalError(null);
+      setGlobalErrorUntil(null);
+    } catch (error) {
+      setOverview({ loading: false, data: null });
+      setGlobalError(error.message || "Falha ao carregar visao geral.");
+      setGlobalErrorUntil(Date.now() + GLOBAL_ERROR_TTL_MS);
+    }
+  }
+  async function loadSchemaStatus() {
+    if (globalErrorUntil && Date.now() < globalErrorUntil) {
+      setSchemaStatus((state) => ({ ...state, loading: false }));
+      return;
+    }
+    try {
+      const payload = await adminFetch("/api/admin-hmadv-processos?action=schema_status");
+      setSchemaStatus({ loading: false, data: payload.data });
+      setGlobalError(null);
+      setGlobalErrorUntil(null);
+    } catch (error) {
+      setSchemaStatus({ loading: false, data: null });
+      setGlobalError(error.message || "Falha ao ler schema.");
+      setGlobalErrorUntil(Date.now() + GLOBAL_ERROR_TTL_MS);
+    }
+  }
+  async function loadRunnerMetrics() {
+    if (globalErrorUntil && Date.now() < globalErrorUntil) {
+      setRunnerMetrics((state) => ({ ...state, loading: false }));
+      return;
+    }
+    try {
+      const payload = await adminFetch("/api/admin-hmadv-processos?action=runner_metrics");
+      setRunnerMetrics({ loading: false, data: payload.data });
+      setGlobalError(null);
+      setGlobalErrorUntil(null);
+    } catch (error) {
+      setRunnerMetrics({ loading: false, data: null });
+      setGlobalError(error.message || "Falha ao carregar runner.");
+      setGlobalErrorUntil(Date.now() + GLOBAL_ERROR_TTL_MS);
+    }
+  }
   function pushQueueRefresh(key) {
     const label = QUEUE_LABELS[key] || key;
     const entry = { key, label, ts: new Date().toISOString() };
@@ -1423,17 +1471,27 @@ function InternoProcessosContent() {
     try { const payload = await adminFetch(`/api/admin-hmadv-processos?action=relacoes&page=${page}&pageSize=20&query=${encodeURIComponent(query || "")}`); setRelations({ loading: false, error: null, items: payload.data.items || [], totalRows: payload.data.totalRows || 0, page: payload.data.page || page }); } catch (error) { setRelations({ loading: false, error: error.message || "Falha ao carregar relacoes.", items: [], totalRows: 0, page }); }
   }
   async function loadRemoteHistory() {
+    if (globalErrorUntil && Date.now() < globalErrorUntil) {
+      return;
+    }
     try {
       const payload = await adminFetch("/api/admin-hmadv-processos?action=historico&limit=20");
       setRemoteHistory(payload.data.items || []);
+      setGlobalError(null);
+      setGlobalErrorUntil(null);
     } catch {
       setRemoteHistory([]);
     }
   }
   async function loadJobs() {
+    if (globalErrorUntil && Date.now() < globalErrorUntil) {
+      return;
+    }
     try {
       const payload = await adminFetch("/api/admin-hmadv-processos?action=jobs&limit=12");
       setJobs(payload.data.items || []);
+      setGlobalError(null);
+      setGlobalErrorUntil(null);
     } catch {
       setJobs([]);
     }
@@ -1913,9 +1971,14 @@ function InternoProcessosContent() {
           {latestHistory ? <p className="text-xs opacity-60">{latestHistory.label}: {latestHistory.preview}</p> : null}
         </div>
       </div>
-      <div className="mt-6 space-y-4">
-        <ViewToggle value={view} onChange={updateView} />
-        <div className="rounded-[26px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.55)] p-4 text-sm">
+        <div className="mt-6 space-y-4">
+          <ViewToggle value={view} onChange={updateView} />
+          {globalError ? (
+            <div className="rounded-[20px] border border-[#4B2222] bg-[rgba(127,29,29,0.15)] p-4 text-xs text-red-200">
+              {globalError}
+            </div>
+          ) : null}
+          <div className="rounded-[26px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.55)] p-4 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-60">Ciclo completo</p>
