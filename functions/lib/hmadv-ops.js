@@ -2176,6 +2176,11 @@ export async function getTaggedDatajudCoverageReport(env, { limit = 100, tag = "
   const taggedTotal = Number(diagnostics?.scanned || 0);
   const fullyCovered = Number(diagnostics?.fully_covered || 0);
   const fullyCoveredRate = taggedTotal ? Math.round((fullyCovered / taggedTotal) * 100) : 0;
+  const hearingGapCount = sample.reduce((acc, item) => {
+    const coverage = coverageMap.get(String(item?.numero_cnj || "").trim()) || null;
+    const labels = Array.isArray(coverage?.pending_labels) ? coverage.pending_labels : [];
+    return acc + (labels.includes("audiencias_pendentes") ? 1 : 0);
+  }, 0);
   const blockerCounts = [
     { key: "missing_cnj", label: "Sem CNJ", count: Number(diagnostics?.missing_cnj || 0) },
     { key: "without_process", label: "Sem processo no HMADV", count: Number(diagnostics?.without_process || 0) },
@@ -2184,6 +2189,7 @@ export async function getTaggedDatajudCoverageReport(env, { limit = 100, tag = "
     { key: "movement_activity_gap", label: "Movimentacoes sem activity", count: Number(diagnostics?.movement_activity_gap || 0) },
     { key: "publication_activity_gap", label: "Publicacoes sem activity", count: Number(diagnostics?.publication_activity_gap || 0) },
     { key: "parts_contact_gap", label: "Partes sem contato", count: Number(diagnostics?.parts_contact_gap || 0) },
+    { key: "hearing_activity_gap", label: "Audiencias sem activity", count: hearingGapCount },
   ]
     .filter((item) => item.count > 0)
     .sort((left, right) => Number(right.count || 0) - Number(left.count || 0));

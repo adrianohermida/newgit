@@ -663,6 +663,7 @@ async function handleDiagnoseTaggedAccounts(limit = 100, tag = 'datajud'): Promi
     movement_activity_gap: 0,
     publication_activity_gap: 0,
     parts_contact_gap: 0,
+    hearing_activity_gap: 0,
     fully_covered: 0,
   };
   const sample: unknown[] = [];
@@ -702,7 +703,7 @@ async function handleDiagnoseTaggedAccounts(limit = 100, tag = 'datajud'): Promi
       continue;
     }
 
-    const [movGap, pubGap, partGap] = await Promise.all([
+    const [movGap, pubGap, partGap, hearingGap] = await Promise.all([
       db.from('movimentacoes')
         .select('id', { count: 'exact', head: true })
         .eq('processo_id', proc.id)
@@ -715,6 +716,10 @@ async function handleDiagnoseTaggedAccounts(limit = 100, tag = 'datajud'): Promi
         .select('id', { count: 'exact', head: true })
         .eq('processo_id', proc.id)
         .is('contato_freshsales_id', null),
+      db.from('audiencias')
+        .select('id', { count: 'exact', head: true })
+        .eq('processo_id', proc.id)
+        .is('freshsales_activity_id', null),
     ]);
 
     const diagnostics = [];
@@ -738,6 +743,10 @@ async function handleDiagnoseTaggedAccounts(limit = 100, tag = 'datajud'): Promi
       summary.parts_contact_gap += 1;
       diagnostics.push('parts_contact_gap');
     }
+    if (Number(hearingGap?.count || 0) > 0) {
+      summary.hearing_activity_gap += 1;
+      diagnostics.push('hearing_activity_gap');
+    }
     if (!diagnostics.length) {
       summary.fully_covered += 1;
       diagnostics.push('fully_covered');
@@ -753,6 +762,7 @@ async function handleDiagnoseTaggedAccounts(limit = 100, tag = 'datajud'): Promi
         movement_activity_gap: Number(movGap.count || 0),
         publication_activity_gap: Number(pubGap.count || 0),
         parts_contact_gap: Number(partGap.count || 0),
+        hearing_activity_gap: Number(hearingGap?.count || 0),
       });
     }
   }
