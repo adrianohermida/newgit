@@ -832,6 +832,29 @@ function buildDatajudActionMetrics(actionRepair) {
   };
 }
 
+function buildDatajudPipelineMetrics(datajudResult) {
+  const payload = datajudResult?.data || {};
+  const recoverMissing = payload?.recoverMissing || {};
+  const reconcile = payload?.reconcile || {};
+  const enqueue = payload?.enqueue || {};
+  const daily = payload?.daily || {};
+  const movimentos = payload?.movimentos || {};
+
+  return {
+    ok: Boolean(datajudResult?.ok),
+    recoveredMissingCnj: Number(recoverMissing?.recovered || 0),
+    recoverableMissingCnj: Number(recoverMissing?.recoverable || 0),
+    failedMissingCnjRecovery: Number(recoverMissing?.failed || 0),
+    activatedTaggedAccounts: Number(reconcile?.activated || 0),
+    missingCnjAfterReconcile: Number(reconcile?.missing_cnj || 0),
+    queuedMonitoramento: Number(enqueue?.queued || 0),
+    skippedMonitoramento: Number(enqueue?.skipped || 0),
+    dailyProcessed: Number(Array.isArray(daily?.resultados) ? daily.resultados.length : daily?.total || 0),
+    movementActivitiesSent: Number(movimentos?.enviados || 0),
+    movementActivitiesErrors: Number(movimentos?.erros || 0),
+  };
+}
+
 export async function getHmadvQueueSnapshot(env) {
   const [processosOverview, publicacoesOverview, contactsOverview, coverageOverview, coveragePriority, datajudTagDiagnostics, datajudTagCoverage, datajudTagActionPlan, processJobs, publicacaoJobs, runnerOps] = await Promise.all([
     getProcessosOverview(env),
@@ -1154,6 +1177,7 @@ export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
   const coverageOverview = await getPersistedCoverageOverview(env).catch(() => null);
   const taggedCoverageAfter = await getTaggedDatajudCoverageReport(env, { limit: 100, tag: "datajud" }).catch(() => null);
   const datajudActionMetrics = buildDatajudActionMetrics(datajudActionRepair);
+  const datajudMetrics = buildDatajudPipelineMetrics(datajud);
   const [processos, publicacoes] = await Promise.all([
     drainModuleJobs(env, "processos", processProcessAdminJob, maxChunks),
     drainModuleJobs(env, "publicacoes", processPublicacoesAdminJob, maxChunks),
@@ -1164,6 +1188,7 @@ export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
     datajud,
     taggedRepair,
     datajudActionRepair,
+    datajudMetrics,
     coverage,
     contacts,
     gapRepair,
