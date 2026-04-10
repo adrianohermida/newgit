@@ -2153,6 +2153,32 @@ export async function getTaggedDatajudDiagnostics(env, { limit = 100, tag = "dat
   );
 }
 
+export async function getTaggedDatajudMissingCnjReport(env, { limit = 100, tag = "datajud" } = {}) {
+  const diagnostics = await getTaggedDatajudDiagnostics(env, { limit, tag });
+  const sample = Array.isArray(diagnostics?.sample) ? diagnostics.sample : [];
+  const items = sample
+    .filter((item) => String(item?.status || "").trim() === "missing_cnj")
+    .map((item) => {
+      const inferred = String(item?.inferred_cnj || "").trim() || null;
+      return {
+        account_id: item?.account_id || null,
+        account_name: item?.account_name || null,
+        website: item?.website || null,
+        inferred_cnj: inferred,
+        recoverable: Boolean(inferred),
+        suggested_action: inferred
+          ? "copiar_cnj_detectado_para_cf_processo"
+          : "preencher_cf_processo_no_freshsales",
+      };
+    });
+  return {
+    tag: String(tag || "datajud"),
+    missingCnj: Number(diagnostics?.missing_cnj || 0),
+    recoverable: items.filter((item) => item.recoverable).length,
+    items,
+  };
+}
+
 export async function getTaggedDatajudCoverageReport(env, { limit = 100, tag = "datajud" } = {}) {
   const safeLimit = Math.max(10, Math.min(Number(limit || 100), 250));
   const [diagnostics, coverageOverview] = await Promise.all([

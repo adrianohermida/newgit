@@ -213,6 +213,7 @@ function buildAlerts({
   blockerReason,
   latestErroredProcessJob,
   latestErroredPublicacaoJob,
+  datajudTagSummary,
 }) {
   const alerts = [];
 
@@ -261,6 +262,14 @@ function buildAlerts({
       level: "info",
       title: "Historico de erro em publicacoes",
       message: latestErroredPublicacaoJob.last_error || "Existe falha recente registrada em publicacoes.",
+    });
+  }
+
+  if (Number(datajudTagSummary?.missingCnjCount || 0) > 0) {
+    alerts.push({
+      level: "atencao",
+      title: "Accounts datajud sem CNJ",
+      message: `${datajudTagSummary.missingCnjCount} account(s) tagueados ainda nao trazem um CNJ utilizavel para iniciar o sincronismo automatico.`,
     });
   }
 
@@ -885,6 +894,7 @@ export async function getHmadvQueueSnapshot(env) {
     blockerReason,
     latestErroredProcessJob,
     latestErroredPublicacaoJob,
+    datajudTagSummary,
   });
   const moduleCards = {
     processos: {

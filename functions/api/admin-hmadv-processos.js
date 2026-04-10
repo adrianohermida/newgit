@@ -11,6 +11,7 @@ import {
   getPersistedCoveragePriorityReport,
   getTaggedDatajudCoverageReport,
   getTaggedDatajudDiagnostics,
+  getTaggedDatajudMissingCnjReport,
   inspectAudiencias,
   jsonError,
   jsonOk,
@@ -180,6 +181,13 @@ export async function onRequestGet(context) {
     }
     if (action === "diagnostico_datajud_tag") {
       const data = await getTaggedDatajudDiagnostics(context.env, {
+        limit: Number(url.searchParams.get("limit") || 100),
+        tag: String(url.searchParams.get("tag") || "datajud"),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "datajud_tag_missing_cnj") {
+      const data = await getTaggedDatajudMissingCnjReport(context.env, {
         limit: Number(url.searchParams.get("limit") || 100),
         tag: String(url.searchParams.get("tag") || "datajud"),
       });
