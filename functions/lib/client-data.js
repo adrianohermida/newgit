@@ -2476,9 +2476,9 @@ function buildCanonicalFinanceItem(receivable, processRow = null) {
           process_reference: processReference,
           status: processRow.status || null,
         }
-      : contract?.freshsales_account_id || receivable?.freshsales_account_id
+      : contract?.freshsales_account_id || receivable?.freshsales_account_id || processReference
         ? {
-            id: contract?.freshsales_account_id || receivable?.freshsales_account_id,
+            id: contract?.freshsales_account_id || receivable?.freshsales_account_id || contract?.process_id || receivable?.process_id || processReference,
             name: processReference || "Processo vinculado",
             process_reference: processReference,
             status: null,

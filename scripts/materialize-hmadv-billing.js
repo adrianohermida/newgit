@@ -38,8 +38,9 @@ async function main() {
   const contractsByKey = new Map();
 
   const materializableRows = rows.filter((row) =>
-    row.matching_status === 'pareado' &&
-    row.resolved_account_id_freshsales &&
+    row.resolved_contact_id &&
+    ['pareado', 'pendente_account'].includes(String(row.matching_status || '')) &&
+    (row.resolved_account_id_freshsales || row.resolved_process_reference || row.deal_reference_raw || row.person_name) &&
     (!Array.isArray(row.validation_errors) || row.validation_errors.length === 0)
   );
 
@@ -70,6 +71,7 @@ async function main() {
           source_import_run_id: row.import_run_id,
           source_row_id: row.id,
           source_file_category: row.category_raw,
+          account_resolution_status: row.resolved_account_id_freshsales ? 'resolved' : 'textual_only',
         },
       };
 

@@ -28,7 +28,7 @@ async function main() {
   for (const row of rows) {
     const existingReceivable = await findReceivableByImportRow(row.id);
     if (existingReceivable) {
-      if (!existingReceivable.freshsales_deal_id) queuedForPublish += 1;
+      if (!existingReceivable.freshsales_deal_id && row.resolved_account_id_freshsales) queuedForPublish += 1;
       continue;
     }
 
@@ -36,7 +36,7 @@ async function main() {
     const contract = await resolveOrCreateContract(row, workspaceId, product, contactById);
     await createReceivable(row, contract, product, indices);
     materialized += 1;
-    queuedForPublish += 1;
+    if (row.resolved_account_id_freshsales) queuedForPublish += 1;
   }
 
   console.log(JSON.stringify({
@@ -89,14 +89,16 @@ function sanitizeUuidArg(value) {
 async function loadReprocessableRows(limit) {
   const query = [
     'billing_import_rows?select=id,import_run_id,person_name,invoice_number,invoice_date,due_date,category_raw,comment_raw,deal_reference_raw,amount_original_raw,payment_raw,canonical_status,billing_type_inferred,product_family_inferred,matching_status,resolved_contact_id,resolved_product_id,resolved_process_id,resolved_account_id_freshsales,resolved_process_reference,validation_errors,matching_notes',
-    'matching_status=eq.pareado',
     'order=created_at.desc',
     `limit=${limit}`,
   ].join('&');
   const rows = await supabaseRequest(query);
   return rows.filter((row) => {
     const valid = Array.isArray(row.validation_errors) ? row.validation_errors.length === 0 : true;
-    return valid && Boolean(row.resolved_account_id_freshsales);
+    return valid
+      && Boolean(row.resolved_contact_id)
+      && ['pareado', 'pendente_account'].includes(String(row.matching_status || ''))
+      && Boolean(row.resolved_account_id_freshsales || row.resolved_process_reference || row.deal_reference_raw || row.person_name);
   });
 }
 
@@ -161,6 +163,7 @@ async function resolveOrCreateContract(row, workspaceId, product, contactById) {
       source_import_run_id: row.import_run_id,
       source_row_id: row.id,
       reprocessed: true,
+      account_resolution_status: row.resolved_account_id_freshsales ? 'resolved' : 'textual_only',
     },
   };
 

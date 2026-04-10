@@ -1682,6 +1682,7 @@ async function collectGroupedBacklogByProcess(env, {
   pageSize = 20,
   rawBatchSize = 150,
   maxScans = 30,
+  maxProcessLoad = 40,
   mapRow,
 }) {
   const safePage = Math.max(1, Number(page || 1));
@@ -1712,7 +1713,7 @@ async function collectGroupedBacklogByProcess(env, {
     return String(right.ultima_data || "").localeCompare(String(left.ultima_data || ""));
   });
   const pageSlice = ordered.slice(targetStart, targetEnd);
-  const processIds = [...new Set(pageSlice.map((item) => item.processo_id).filter(Boolean))];
+  const processIds = [...new Set(pageSlice.map((item) => item.processo_id).filter(Boolean))].slice(0, maxProcessLoad);
   const processRows = processIds.length
     ? await loadProcessesByIds(
         env,
@@ -1751,6 +1752,7 @@ export async function listPublicationActivityBacklog(env, { page = 1, pageSize =
     pageSize,
     rawBatchSize: 150,
     maxScans: 30,
+    maxProcessLoad: 30,
     path: `publicacoes?select=id,processo_id,data_publicacao,conteudo,freshsales_activity_id&processo_id=not.is.null&freshsales_activity_id=is.null&order=data_publicacao.desc.nullslast`,
     mapRow(grouped, row) {
       if (!row?.processo_id) return;
@@ -1779,6 +1781,7 @@ export async function listPartesSemContatoBacklog(env, { page = 1, pageSize = 20
     pageSize,
     rawBatchSize: 150,
     maxScans: 30,
+    maxProcessLoad: 30,
     path: `partes?select=id,processo_id,nome,polo,tipo_pessoa,contato_freshsales_id&contato_freshsales_id=is.null`,
     mapRow(grouped, row) {
       if (!row?.processo_id) return;
@@ -1808,6 +1811,7 @@ export async function listMovementActivityBacklog(env, { page = 1, pageSize = 20
     pageSize,
     rawBatchSize: 150,
     maxScans: 30,
+    maxProcessLoad: 30,
     path: `movimentacoes?select=id,processo_id,conteudo,data_movimentacao,fonte,freshsales_activity_id&processo_id=not.is.null&freshsales_activity_id=is.null&order=data_movimentacao.desc.nullslast`,
     mapRow(grouped, row) {
       if (!row?.processo_id) return;
