@@ -229,6 +229,33 @@ function summarizeOperationResult(result) {
       }
     }
   }
+  if (result?.datajudMetrics && typeof result.datajudMetrics === "object") {
+    for (const [key, value] of Object.entries(result.datajudMetrics)) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        summary[`datajud_${key}`] = value;
+      } else if (value != null && summary[`datajud_${key}`] === undefined) {
+        summary[`datajud_${key}`] = value;
+      }
+    }
+  }
+  if (result?.taggedCoverageMetrics && typeof result.taggedCoverageMetrics === "object") {
+    for (const [key, value] of Object.entries(result.taggedCoverageMetrics)) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        summary[`tagged_${key}`] = value;
+      } else if (value != null && summary[`tagged_${key}`] === undefined) {
+        summary[`tagged_${key}`] = value;
+      }
+    }
+  }
+  if (result?.datajudActionMetrics && typeof result.datajudActionMetrics === "object") {
+    for (const [key, value] of Object.entries(result.datajudActionMetrics)) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        summary[`datajud_action_${key}`] = value;
+      } else if (value != null && summary[`datajud_action_${key}`] === undefined) {
+        summary[`datajud_action_${key}`] = value;
+      }
+    }
+  }
   return {
     summary,
     rows: rows.slice(0, 10),
