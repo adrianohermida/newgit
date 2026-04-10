@@ -33,14 +33,23 @@ export async function onRequestPost(context) {
     }
 
     const data = action === "cron_integracao_total"
-      ? await runFullIntegrationCron(context.env, {
-          scanLimit: Number(body.scanLimit || 50),
-          monitorLimit: Number(body.monitorLimit || 100),
-          movementLimit: Number(body.movementLimit || 120),
-          advisePages: Number(body.advisePages || 2),
-          advisePerPage: Number(body.advisePerPage || 50),
-          publicacoesBatch: Number(body.publicacoesBatch || 20),
-        })
+      ? (() => {
+          const integrationPayload = {
+            scanLimit: Number(body.scanLimit || 50),
+            monitorLimit: Number(body.monitorLimit || 100),
+            movementLimit: Number(body.movementLimit || 120),
+            advisePages: Number(body.advisePages || 2),
+            advisePerPage: Number(body.advisePerPage || 50),
+            publicacoesBatch: Number(body.publicacoesBatch || 20),
+          };
+          return runFullIntegrationCron(context.env, integrationPayload)
+            .then(async (integration) => {
+              const drain = await drainHmadvQueues(context.env, {
+                maxChunks: Number(body.maxChunks || 2),
+              });
+              return { ...drain, integration };
+            });
+        })()
       : await drainHmadvQueues(context.env, {
           maxChunks: Number(body.maxChunks || 2),
         });
@@ -56,6 +65,7 @@ export async function onRequestPost(context) {
             advisePages: Number(body.advisePages || 2),
             advisePerPage: Number(body.advisePerPage || 50),
             publicacoesBatch: Number(body.publicacoesBatch || 20),
+            maxChunks: Number(body.maxChunks || 2),
           }
         : { maxChunks: Number(body.maxChunks || 2) },
       result: data,
