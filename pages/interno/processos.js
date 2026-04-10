@@ -66,6 +66,13 @@ const QUEUE_LABELS = {
   orfaos: "Sem Sales Account",
   cobertura: "Cobertura por processo",
 };
+const MODULE_LIMITS = {
+  maxProcessBatch: 10,
+  maxMovementBatch: 5,
+  maxPublicationBatch: 5,
+  maxPartesBatch: 10,
+  maxAudienciasBatch: 3,
+};
 
 function getProcessActionLimitConfig(action) {
   if (action === "sync_supabase_crm") return { defaultLimit: 1, maxLimit: 1 };
@@ -1764,13 +1771,25 @@ function InternoProcessosContent() {
     setActionState({ loading: true, error: null, result: null });
     updateView("resultado");
     const historyId = `${action}:${Date.now()}`;
-    const safeLimit = getSafeProcessActionLimit(action, payload.limit ?? limit);
-    const normalizedPayload = {
-      ...payload,
-      action,
-      limit: safeLimit,
-      processNumbers: payload.processNumbers || processNumbers,
-    };
+  const safeLimit = getSafeProcessActionLimit(action, payload.limit ?? limit);
+  const normalizedLimit = Math.min(
+    safeLimit,
+    action === "sincronizar_movimentacoes_activity"
+      ? MODULE_LIMITS.maxMovementBatch
+      : action === "sincronizar_publicacoes_activity"
+        ? MODULE_LIMITS.maxPublicationBatch
+        : action === "reconciliar_partes_contatos"
+          ? MODULE_LIMITS.maxPartesBatch
+          : action === "backfill_audiencias"
+            ? MODULE_LIMITS.maxAudienciasBatch
+            : MODULE_LIMITS.maxProcessBatch
+  );
+  const normalizedPayload = {
+    ...payload,
+    action,
+    limit: normalizedLimit,
+    processNumbers: payload.processNumbers || processNumbers,
+  };
     pushHistoryEntry({
       id: historyId,
       action,
