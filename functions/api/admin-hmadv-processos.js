@@ -410,10 +410,7 @@ export async function onRequestGet(context) {
         const data = await listPublicationActivityBacklog(context.env, { page, pageSize });
         return jsonOk({ data });
       } catch (error) {
-        if (isQueueOverloadError(error)) {
-          return jsonOk({ data: buildQueueFallback({ page, pageSize, error }) });
-        }
-        throw error;
+        return jsonOk({ data: buildQueueFallback({ page, pageSize, error }) });
       }
     }
     if (action === "movimentacoes_pendentes") {
@@ -423,10 +420,7 @@ export async function onRequestGet(context) {
         const data = await listMovementActivityBacklog(context.env, { page, pageSize });
         return jsonOk({ data });
       } catch (error) {
-        if (isQueueOverloadError(error)) {
-          return jsonOk({ data: buildQueueFallback({ page, pageSize, error }) });
-        }
-        throw error;
+        return jsonOk({ data: buildQueueFallback({ page, pageSize, error }) });
       }
     }
     if (action === "partes_sem_contato") {
@@ -436,10 +430,7 @@ export async function onRequestGet(context) {
         const data = await listPartesSemContatoBacklog(context.env, { page, pageSize });
         return jsonOk({ data });
       } catch (error) {
-        if (isQueueOverloadError(error)) {
-          return jsonOk({ data: buildQueueFallback({ page, pageSize, error }) });
-        }
-        throw error;
+        return jsonOk({ data: buildQueueFallback({ page, pageSize, error }) });
       }
     }
     if (action === "relacoes") {

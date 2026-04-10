@@ -619,11 +619,15 @@ async function loadProcessesByNumbers(
 async function loadProcessesByIds(env, processIds, select = "id,numero_cnj,titulo,account_id_freshsales,quantidade_movimentacoes,classe,assunto_principal,area,data_ajuizamento,sistema,polo_ativo,polo_passivo,status_atual_processo") {
   const output = [];
   for (const chunk of splitIntoChunks(uniqueNonEmpty(processIds), 25)) {
-    const rows = await hmadvRest(
-      env,
-      `processos?${buildInFilter("id", chunk)}&select=${select}`
-    );
-    output.push(...rows);
+    try {
+      const rows = await listTableSafe(
+        env,
+        `processos?${buildInFilter("id", chunk)}&select=${select}`
+      );
+      output.push(...rows);
+    } catch {
+      return output;
+    }
   }
   return output;
 }
