@@ -32,6 +32,28 @@ function log(n: 'info'|'warn'|'error', m: string, e: Record<string,unknown> = {}
   console[n](JSON.stringify({ ts: new Date().toISOString(), msg: m, ...e }));
 }
 
+async function callHmadvFunction(name: string, query: Record<string, unknown> = {}, body: Record<string, unknown> = {}) {
+  const url = new URL(`${SUPABASE_URL}/functions/v1/${name}`);
+  Object.entries(query || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    url.searchParams.set(key, String(value));
+  });
+  const response = await fetch(url.toString(), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${SVC_KEY}`,
+      apikey: SVC_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body || {}),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error || payload?.message || `Falha na function ${name} (${response.status}).`);
+  }
+  return payload;
+}
+
 // --- Freshsales (Suite) ------------------------------------------------------
 const DOMAIN_MAP: Record<string,string> = {
   'hmadv-7b725ea101eff55.freshsales.io': 'hmadv-org.myfreshworks.com',
@@ -1006,6 +1028,42 @@ async function handleCronTaggedDatajud({
   };
 }
 
+async function handleCronIntegracaoTotal({
+  scanLimit = 50,
+  monitorLimit = 100,
+  movementLimit = 120,
+  advisePages = 2,
+  advisePerPage = 50,
+  publicacoesBatch = 20,
+} = {}): Promise<Record<string, unknown>> {
+  const datajud = await handleCronTaggedDatajud({ scanLimit, monitorLimit, movementLimit });
+  let advise: Record<string, unknown> | null = null;
+  let publicacoes: Record<string, unknown> | null = null;
+  let worker: Record<string, unknown> | null = null;
+  try {
+    advise = await callHmadvFunction("advise-sync", { action: "sync", por_pagina: advisePerPage, max_paginas: advisePages });
+  } catch (error) {
+    advise = { ok: false, error: String(error?.message || error) };
+  }
+  try {
+    publicacoes = await callHmadvFunction("publicacoes-freshsales", { action: "sync", batch: publicacoesBatch });
+  } catch (error) {
+    publicacoes = { ok: false, error: String(error?.message || error) };
+  }
+  try {
+    worker = await callHmadvFunction("sync-worker", { action: "run" });
+  } catch (error) {
+    worker = { ok: false, error: String(error?.message || error) };
+  }
+  return {
+    ok: true,
+    datajud,
+    advise,
+    publicacoes,
+    worker,
+  };
+}
+
 // =============================================================================
 // Main
 // =============================================================================
@@ -1043,6 +1101,14 @@ Deno.serve(async (req: Request) => {
         scanLimit: Number(url.searchParams.get('scan_limit') ?? 50),
         monitorLimit: Number(url.searchParams.get('monitor_limit') ?? 100),
         movementLimit: Number(url.searchParams.get('movement_limit') ?? 120),
+      }); break;
+      case 'cron_integracao_total': result = await handleCronIntegracaoTotal({
+        scanLimit: Number(url.searchParams.get('scan_limit') ?? 50),
+        monitorLimit: Number(url.searchParams.get('monitor_limit') ?? 100),
+        movementLimit: Number(url.searchParams.get('movement_limit') ?? 120),
+        advisePages: Number(url.searchParams.get('advise_pages') ?? 2),
+        advisePerPage: Number(url.searchParams.get('advise_per_page') ?? 50),
+        publicacoesBatch: Number(url.searchParams.get('publicacoes_batch') ?? 20),
       }); break;
       default: {
         // Payload generico do FS (sem action na URL)
