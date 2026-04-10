@@ -985,6 +985,7 @@ function InternoProcessosContent() {
   const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
   const [executionHistory, setExecutionHistory] = useState([]);
   const [queueRefreshLog, setQueueRefreshLog] = useState([]);
+  const [operationalStatus, setOperationalStatus] = useState({ mode: "ok", message: "", updatedAt: null });
   const [remoteHistory, setRemoteHistory] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [activeJobId, setActiveJobId] = useState(null);
@@ -1219,6 +1220,23 @@ function InternoProcessosContent() {
       cancelled = true;
     };
   }, [uiHydrated, view]);
+  useEffect(() => {
+    if (globalError) {
+      setOperationalStatus({ mode: "error", message: globalError, updatedAt: new Date().toISOString() });
+      return;
+    }
+    const queues = [withoutMovements, movementBacklog, publicationBacklog, partesBacklog, audienciaCandidates, monitoringActive, monitoringInactive, fieldGaps, orphans];
+    const limitedCount = queues.filter((queue) => queue?.limited).length;
+    if (limitedCount > 0) {
+      setOperationalStatus({
+        mode: "limited",
+        message: `${limitedCount} fila(s) em modo reduzido para evitar sobrecarga.`,
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
+    setOperationalStatus({ mode: "ok", message: "Operacao normal", updatedAt: new Date().toISOString() });
+  }, [globalError, withoutMovements, movementBacklog, publicationBacklog, partesBacklog, audienciaCandidates, monitoringActive, monitoringInactive, fieldGaps, orphans]);
   useEffect(() => {
     if (!bootstrappedRef.current) return;
     if (!OPERATIONAL_VIEWS.has(view)) return;
