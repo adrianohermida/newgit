@@ -73,6 +73,78 @@ function buildProcessActionLogName(action, payload = {}, suffix = "") {
   return suffix ? `${variant}_${suffix}` : variant;
 }
 
+async function executeDatajudActionPlan(env, { limit = 100, tag = "datajud" } = {}) {
+  const plan = await getTaggedDatajudActionPlan(env, { limit, tag });
+  const step = plan?.topAction || null;
+  if (!step?.action) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: "no_action",
+      plan,
+    };
+  }
+
+  const processNumbers = parseProcessNumbers(step.processNumbers);
+
+  let result = null;
+  if (step.action === "recover_tagged_missing_cnj") {
+    result = await recoverTaggedDatajudMissingCnj(env, {
+      limit: Number(step.count || 0) || Number(limit || 100),
+      tag: String(tag || "datajud"),
+    });
+  } else if (step.action === "sync_supabase_crm") {
+    result = await syncProcessesSupabaseCrm(env, {
+      processNumbers,
+      limit: 1,
+      intent: String(step.intent || "datajud_plus_crm"),
+    });
+  } else if (step.action === "sincronizar_publicacoes_activity") {
+    result = await syncPublicationActivities(env, {
+      processNumbers,
+      limit: Math.min(Math.max(processNumbers.length || 5, 1), 10),
+    });
+  } else if (step.action === "sincronizar_movimentacoes_activity") {
+    result = await syncMovementActivities(env, {
+      processNumbers,
+      limit: Math.min(Math.max(processNumbers.length || 5, 1), 10),
+    });
+  } else if (step.action === "sincronizar_audiencias_activity") {
+    result = await syncAudienciaActivities(env, {
+      processNumbers,
+      limit: Math.min(Math.max(processNumbers.length || 5, 1), 10),
+    });
+  } else if (step.action === "reconciliar_partes_contatos") {
+    result = await reconcilePartesContacts(env, {
+      processNumbers,
+      limit: 50,
+      apply: true,
+    });
+  } else {
+    return {
+      ok: true,
+      skipped: true,
+      reason: "manual_action",
+      action: step.action,
+      plan,
+    };
+  }
+
+  return {
+    ok: true,
+    plan,
+    executedStep: {
+      key: step.key,
+      label: step.label,
+      action: step.action,
+      intent: step.intent || null,
+      count: Number(step.count || 0),
+      processNumbers,
+    },
+    result,
+  };
+}
+
 async function runInlineProcessAction(env, action, body) {
   const processNumbers = parseProcessNumbers(body.processNumbers);
   const requestedLimit = Number(body.limit || 0);
@@ -470,6 +542,12 @@ export async function onRequestPost(context) {
     }
     if (action === "recover_tagged_missing_cnj") {
       return runLogged(async () => recoverTaggedDatajudMissingCnj(context.env, {
+        limit: Number(body.limit || 100),
+        tag: String(body.tag || "datajud"),
+      }));
+    }
+    if (action === "executar_plano_datajud_tag") {
+      return runLogged(async () => executeDatajudActionPlan(context.env, {
         limit: Number(body.limit || 100),
         tag: String(body.tag || "datajud"),
       }));
