@@ -1725,6 +1725,195 @@ export async function listMovementActivityBacklog(env, { page = 1, pageSize = 20
   });
 }
 
+function buildCoverageQueryFilter(query = "") {
+  const clean = String(query || "").trim();
+  if (!clean) return "";
+  const digits = clean.replace(/\D+/g, "");
+  const filters = [encodeURIComponent(`titulo.ilike.*${clean}*`)];
+  if (digits) {
+    filters.push(encodeURIComponent(`numero_cnj.ilike.*${digits}*`));
+    filters.push(encodeURIComponent(`numero_processo.ilike.*${digits}*`));
+  } else {
+    filters.push(encodeURIComponent(`numero_cnj.ilike.*${clean}*`));
+  }
+  return `or=(${filters.join(",")})`;
+}
+
+function summarizeCoveragePercentage(parts = []) {
+  const total = parts.length;
+  const done = parts.filter(Boolean).length;
+  return total ? Math.round((done / total) * 100) : 0;
+}
+
+export async function listProcessCoverage(env, { page = 1, pageSize = 20, query = "", onlyPending = false } = {}) {
+  const safePage = Math.max(1, Number(page || 1));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  const coverageFilter = buildCoverageQueryFilter(query);
+  const baseFilters = [coverageFilter].filter(Boolean);
+  const baseQuery = baseFilters.join("&");
+  const processSelect = [
+    "id",
+    "numero_cnj",
+    "numero_processo",
+    "titulo",
+    "account_id_freshsales",
+    "quantidade_movimentacoes",
+    "classe",
+    "assunto_principal",
+    "area",
+    "data_ajuizamento",
+    "sistema",
+    "polo_ativo",
+    "polo_passivo",
+    "status_atual_processo",
+  ].join(",");
+  const countFilters = baseQuery;
+  const totalRows = await countTableSafe(env, "processos", countFilters);
+  const processes = await listTableSafe(
+    env,
+    `processos?select=${processSelect}${baseQuery ? `&${baseQuery}` : ""}&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
+  );
+  const processIds = uniqueNonEmpty((processes || []).map((item) => item.id));
+  if (!processIds.length) {
+    return {
+      page: safePage,
+      pageSize: safePageSize,
+      totalRows,
+      items: [],
+    };
+  }
+
+  const [partesRows, publicacoesRows, movimentacoesRows, audienciasRows] = await Promise.all([
+    listTableSafe(env, `partes?select=processo_id,contato_freshsales_id&${buildInFilter("processo_id", processIds)}&limit=5000`),
+    listTableSafe(env, `publicacoes?select=processo_id,freshsales_activity_id&${buildInFilter("processo_id", processIds)}&limit=5000`),
+    listTableSafe(env, `movimentacoes?select=processo_id,freshsales_activity_id&${buildInFilter("processo_id", processIds)}&limit=5000`),
+    listTableSafe(env, `audiencias?select=processo_id,freshsales_activity_id&${buildInFilter("processo_id", processIds)}&limit=5000`),
+  ]);
+
+  const grouped = new Map();
+  for (const processId of processIds) {
+    grouped.set(processId, {
+      partesTotal: 0,
+      partesComContato: 0,
+      publicacoesTotal: 0,
+      publicacoesComActivity: 0,
+      movimentacoesTotal: 0,
+      movimentacoesComActivity: 0,
+      audienciasTotal: 0,
+      audienciasComActivity: 0,
+    });
+  }
+
+  for (const row of partesRows || []) {
+    const current = grouped.get(row?.processo_id);
+    if (!current) continue;
+    current.partesTotal += 1;
+    if (row?.contato_freshsales_id) current.partesComContato += 1;
+  }
+  for (const row of publicacoesRows || []) {
+    const current = grouped.get(row?.processo_id);
+    if (!current) continue;
+    current.publicacoesTotal += 1;
+    if (row?.freshsales_activity_id) current.publicacoesComActivity += 1;
+  }
+  for (const row of movimentacoesRows || []) {
+    const current = grouped.get(row?.processo_id);
+    if (!current) continue;
+    current.movimentacoesTotal += 1;
+    if (row?.freshsales_activity_id) current.movimentacoesComActivity += 1;
+  }
+  for (const row of audienciasRows || []) {
+    const current = grouped.get(row?.processo_id);
+    if (!current) continue;
+    current.audienciasTotal += 1;
+    if (row?.freshsales_activity_id) current.audienciasComActivity += 1;
+  }
+
+  const items = (processes || [])
+    .map((row) => {
+      const totals = grouped.get(row.id) || {};
+      const hasAccount = Boolean(row.account_id_freshsales);
+      const detailsOk = Boolean(
+        row.classe &&
+        row.assunto_principal &&
+        row.area &&
+        row.data_ajuizamento &&
+        row.sistema &&
+        row.polo_ativo &&
+        row.polo_passivo &&
+        row.status_atual_processo
+      );
+      const hasMovements = Number(row.quantidade_movimentacoes || 0) > 0 || Number(totals.movimentacoesTotal || 0) > 0;
+      const partsOk = Number(totals.partesTotal || 0) === 0
+        ? true
+        : Number(totals.partesComContato || 0) >= Number(totals.partesTotal || 0);
+      const publicationsOk = Number(totals.publicacoesTotal || 0) === 0
+        ? true
+        : Number(totals.publicacoesComActivity || 0) >= Number(totals.publicacoesTotal || 0);
+      const movementsOk = Number(totals.movimentacoesTotal || 0) === 0
+        ? hasMovements
+        : Number(totals.movimentacoesComActivity || 0) >= Number(totals.movimentacoesTotal || 0);
+      const hearingsOk = Number(totals.audienciasTotal || 0) === 0
+        ? true
+        : Number(totals.audienciasComActivity || 0) >= Number(totals.audienciasTotal || 0);
+      const crmGap = hasAccount && !detailsOk;
+      const pending = [];
+      if (!hasAccount) pending.push("sem_account");
+      if (!detailsOk) pending.push("detalhes_incompletos");
+      if (!hasMovements) pending.push("sem_movimentacoes");
+      if (!partsOk) pending.push("partes_sem_contato");
+      if (!publicationsOk) pending.push("publicacoes_pendentes");
+      if (!movementsOk) pending.push("movimentacoes_pendentes");
+      if (!hearingsOk) pending.push("audiencias_pendentes");
+      if (crmGap) pending.push("gap_crm");
+
+      const coveragePct = summarizeCoveragePercentage([
+        hasAccount,
+        detailsOk,
+        hasMovements,
+        partsOk,
+        publicationsOk,
+        movementsOk,
+        hearingsOk,
+      ]);
+
+      return {
+        key: row.numero_cnj || row.id,
+        processo_id: row.id,
+        numero_cnj: row.numero_cnj || row.numero_processo || null,
+        titulo: row.titulo || null,
+        account_id_freshsales: row.account_id_freshsales || null,
+        status_atual_processo: row.status_atual_processo || null,
+        coveragePct,
+        hasAccount,
+        detailsOk,
+        hasMovements,
+        partsOk,
+        publicationsOk,
+        movementsOk,
+        hearingsOk,
+        crmGap,
+        partesTotal: Number(totals.partesTotal || 0),
+        partesSemContato: Math.max(0, Number(totals.partesTotal || 0) - Number(totals.partesComContato || 0)),
+        publicacoesTotal: Number(totals.publicacoesTotal || 0),
+        publicacoesPendentes: Math.max(0, Number(totals.publicacoesTotal || 0) - Number(totals.publicacoesComActivity || 0)),
+        movimentacoesTotal: Number(totals.movimentacoesTotal || 0),
+        movimentacoesPendentes: Math.max(0, Number(totals.movimentacoesTotal || 0) - Number(totals.movimentacoesComActivity || 0)),
+        audienciasTotal: Number(totals.audienciasTotal || 0),
+        audienciasPendentes: Math.max(0, Number(totals.audienciasTotal || 0) - Number(totals.audienciasComActivity || 0)),
+        pending,
+      };
+    })
+    .filter((item) => !onlyPending || item.pending.length > 0);
+
+  return {
+    page: safePage,
+    pageSize: safePageSize,
+    totalRows: onlyPending ? items.length : totalRows,
+    items,
+  };
+}
+
 async function listSyncDatajudProcesses(env, { page = 1, pageSize = 20 } = {}) {
   const safePage = Math.max(1, Number(page || 1));
   const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));

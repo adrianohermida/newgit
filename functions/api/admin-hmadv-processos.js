@@ -16,6 +16,7 @@ import {
   listFieldGapProcesses,
   listMovementActivityBacklog,
   listMonitoringProcesses,
+  listProcessCoverage,
   listPartesSemContatoBacklog,
   listPublicationActivityBacklog,
   listProcessRelations,
@@ -156,6 +157,15 @@ export async function onRequestGet(context) {
     if (action === "auditoria_completude") {
       const data = await getLocalProcessAudit(context.env, {
         sampleSize: Number(url.searchParams.get("sampleSize") || 8),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "cobertura_processos") {
+      const data = await listProcessCoverage(context.env, {
+        page: Number(url.searchParams.get("page") || 1),
+        pageSize: Number(url.searchParams.get("pageSize") || 20),
+        query: String(url.searchParams.get("query") || ""),
+        onlyPending: ["1", "true", "yes"].includes(String(url.searchParams.get("onlyPending") || "").toLowerCase()),
       });
       return jsonOk({ data });
     }

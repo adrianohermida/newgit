@@ -185,6 +185,20 @@ function extrairDoPayloadFS(body: Record<string,unknown>): {
   };
 }
 
+function buildMissingCnjResult(payload: Record<string, unknown>, source = 'freshsales_tag'): Record<string, unknown> {
+  const salesAccount = (payload.sales_account ?? {}) as Record<string, unknown>;
+  const customFields = (salesAccount.custom_fields ?? salesAccount.custom_field ?? {}) as Record<string, unknown>;
+  return {
+    ok: false,
+    error: 'cf_processo/CNJ ausente no account com tag datajud',
+    source,
+    account_id: String(payload.account_id ?? payload.id ?? salesAccount.id ?? '') || null,
+    payload_keys: Object.keys(payload),
+    custom_field_keys: Object.keys(customFields),
+    missing_cnj: true,
+  };
+}
+
 // --- Busca DataJud e persiste ------------------------------------------------
 async function buscarDatajud(cnj20: string): Promise<{
   ok:boolean; processoId:string|null; hits:number; dados:Record<string,unknown>;
@@ -442,7 +456,11 @@ async function handleTagAdded(payload: Record<string,unknown>) {
   const cf          = (sa.custom_fields ?? sa.custom_field ?? {}) as Record<string,unknown>;
   const numProcesso = String(cf.cf_processo ?? payload.numero_processo ?? payload.cf_numero_processo ?? '').trim();
   const cnj20       = normCNJ(numProcesso) ?? '';
-  if (!cnj20) return {error:'numero_processo ausente'};
+  if (!cnj20) {
+    const result = buildMissingCnjResult(payload, 'tag_added');
+    log('warn', 'tag_added_sem_cnj', result as Record<string, unknown>);
+    return result;
+  }
 
   await db.from('datajud_sync_status').upsert(
     {numero_processo:cnj20, status:'ativo', updated_at:new Date().toISOString()},
@@ -576,6 +594,7 @@ async function handleReconcileTaggedAccounts(limit = 100, tag = 'datajud'): Prom
   let scanned = 0;
   let activated = 0;
   let ignored = 0;
+  let missingCnj = 0;
   const sample: unknown[] = [];
 
   for (const salesAccount of salesAccounts.slice(0, safeLimit)) {
@@ -589,10 +608,13 @@ async function handleReconcileTaggedAccounts(limit = 100, tag = 'datajud'): Prom
       sales_account: salesAccount,
     });
     if ((result as Record<string, unknown>).ok) activated += 1;
+    else if ((result as Record<string, unknown>).missing_cnj) missingCnj += 1;
     if (sample.length < 10) sample.push({
       account_id: String(salesAccount.id ?? ''),
       processo: ((salesAccount.custom_field ?? salesAccount.custom_fields ?? {}) as Record<string, unknown>).cf_processo ?? null,
       ok: Boolean((result as Record<string, unknown>).ok),
+      error: (result as Record<string, unknown>).error ?? null,
+      missing_cnj: Boolean((result as Record<string, unknown>).missing_cnj),
       queue: (result as Record<string, unknown>).queue ?? null,
     });
   }
@@ -602,6 +624,7 @@ async function handleReconcileTaggedAccounts(limit = 100, tag = 'datajud'): Prom
     scanned,
     activated,
     ignored,
+    missing_cnj: missingCnj,
     sample,
   };
 }
