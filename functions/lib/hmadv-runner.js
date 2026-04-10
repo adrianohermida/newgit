@@ -11,6 +11,9 @@ import {
   processProcessAdminJob,
   processPublicacoesAdminJob,
   syncAudienciaActivities,
+  syncMovementActivities,
+  syncProcessesSupabaseCrm,
+  syncPublicationActivities,
 } from "./hmadv-ops.js";
 import {
   getContactsOverview,
@@ -431,6 +434,104 @@ async function runContactsCoveragePipeline(env) {
   return result;
 }
 
+function pickCoverageProcessNumbers(report, labels = [], limit = 10) {
+  const sample = Array.isArray(report?.sample) ? report.sample : [];
+  const wanted = new Set((labels || []).map((label) => String(label || "").trim()).filter(Boolean));
+  const picked = [];
+  for (const row of sample) {
+    const processNumber = String(row?.numero_cnj || "").trim();
+    if (!processNumber || picked.includes(processNumber)) continue;
+    const pendingLabels = Array.isArray(row?.pending_labels) ? row.pending_labels : [];
+    if (!pendingLabels.some((label) => wanted.has(String(label || "").trim()))) continue;
+    picked.push(processNumber);
+    if (picked.length >= limit) break;
+  }
+  return picked;
+}
+
+async function runCoverageGapRepairPipeline(env) {
+  try {
+    const report = await getPersistedCoveragePriorityReport(env, { limit: 100 });
+    if (report?.unsupported) {
+      return {
+        ok: true,
+        unsupported: true,
+        targets: {},
+      };
+    }
+
+    const publicationNumbers = pickCoverageProcessNumbers(report, ["publicacoes_pendentes"], 10);
+    const movementNumbers = pickCoverageProcessNumbers(report, ["movimentacoes_pendentes"], 10);
+    const audienciaNumbers = pickCoverageProcessNumbers(report, ["audiencias_pendentes"], 10);
+    const partsNumbers = pickCoverageProcessNumbers(report, ["partes_sem_contato"], 10);
+    const crmNumbers = pickCoverageProcessNumbers(
+      report,
+      ["sem_account", "detalhes_incompletos", "sem_movimentacoes", "gap_crm"],
+      2
+    );
+
+    const result = {
+      ok: true,
+      targets: {
+        publicacoes: publicationNumbers.length,
+        movimentacoes: movementNumbers.length,
+        audiencias: audienciaNumbers.length,
+        partes: partsNumbers.length,
+        crm: crmNumbers.length,
+      },
+      publicacoes: null,
+      movimentacoes: null,
+      audiencias: null,
+      partes: null,
+      crm: null,
+    };
+
+    if (publicationNumbers.length) {
+      result.publicacoes = await syncPublicationActivities(env, {
+        processNumbers: publicationNumbers,
+        limit: Math.min(publicationNumbers.length, 10),
+      });
+    }
+
+    if (movementNumbers.length) {
+      result.movimentacoes = await syncMovementActivities(env, {
+        processNumbers: movementNumbers,
+        limit: Math.min(movementNumbers.length, 10),
+      });
+    }
+
+    if (audienciaNumbers.length) {
+      result.audiencias = await syncAudienciaActivities(env, {
+        processNumbers: audienciaNumbers,
+        limit: Math.min(audienciaNumbers.length, 10),
+      });
+    }
+
+    if (partsNumbers.length) {
+      result.partes = await reconcilePartesContacts(env, {
+        processNumbers: partsNumbers,
+        limit: 50,
+        apply: true,
+      });
+    }
+
+    if (crmNumbers.length) {
+      result.crm = await syncProcessesSupabaseCrm(env, {
+        processNumbers: crmNumbers,
+        limit: 1,
+        intent: "datajud_plus_crm",
+      });
+    }
+
+    return result;
+  } catch (error) {
+    return {
+      ok: false,
+      error: error?.message || "Falha ao reparar backlog de cobertura persistida.",
+    };
+  }
+}
+
 async function runCoverageSnapshotPipeline(env) {
   try {
     const data = await persistProcessCoverageSnapshot(env, {
@@ -767,6 +868,7 @@ export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
   const datajud = await runDatajudTaggedPipeline(env);
   const coverage = await runFreshsalesCoveragePipeline(env);
   const contacts = await runContactsCoveragePipeline(env);
+  const gapRepair = await runCoverageGapRepairPipeline(env);
   const coverageSnapshot = await runCoverageSnapshotPipeline(env);
   const coverageOverview = await getPersistedCoverageOverview(env).catch(() => null);
   const [processos, publicacoes] = await Promise.all([
@@ -779,6 +881,7 @@ export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
     datajud,
     coverage,
     contacts,
+    gapRepair,
     coverageSnapshot,
     coverageMetrics: buildCoverageMetrics(coverageSnapshot, coverageOverview),
     processos,
