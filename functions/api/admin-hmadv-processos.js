@@ -13,6 +13,7 @@ import {
   getTaggedDatajudCoverageReport,
   getTaggedDatajudDiagnostics,
   getTaggedDatajudMissingCnjReport,
+  recoverTaggedDatajudMissingCnj,
   inspectAudiencias,
   jsonError,
   jsonOk,
@@ -465,6 +466,12 @@ export async function onRequestPost(context) {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 20),
         apply: true,
+      }));
+    }
+    if (action === "recover_tagged_missing_cnj") {
+      return runLogged(async () => recoverTaggedDatajudMissingCnj(context.env, {
+        limit: Number(body.limit || 100),
+        tag: String(body.tag || "datajud"),
       }));
     }
     if (action === "auditoria_sync") {
