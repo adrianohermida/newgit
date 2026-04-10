@@ -683,6 +683,30 @@ function buildCoverageMetrics(snapshotResult, coverageOverview) {
   };
 }
 
+function buildTaggedCoverageMetrics(report) {
+  const blockers = Array.isArray(report?.blockers) ? report.blockers : [];
+  const topBlocker = blockers[0] || null;
+  const sample = Array.isArray(report?.sample) ? report.sample : [];
+  const missingCnjItems = sample
+    .filter((item) => String(item?.status || "").trim() === "missing_cnj")
+    .slice(0, 10)
+    .map((item) => ({
+      account_id: item?.account_id || null,
+      numero_cnj: item?.numero_cnj || null,
+    }));
+  return {
+    taggedTotal: Number(report?.taggedTotal || 0),
+    fullyCovered: Number(report?.fullyCovered || 0),
+    fullyCoveredRate: Number(report?.fullyCoveredRate || 0),
+    blockerCount: blockers.length,
+    topBlocker,
+    missingCnjCount: Number(
+      report?.blockers?.find?.((item) => String(item?.key || "").trim() === "missing_cnj")?.count || 0
+    ),
+    missingCnjItems,
+  };
+}
+
 export async function getHmadvQueueSnapshot(env) {
   const [processosOverview, publicacoesOverview, contactsOverview, coverageOverview, coveragePriority, datajudTagDiagnostics, datajudTagCoverage, processJobs, publicacaoJobs, runnerOps] = await Promise.all([
     getProcessosOverview(env),
@@ -850,6 +874,7 @@ export async function getHmadvQueueSnapshot(env) {
         : null;
   const tendenciaLabel = tendenciaBase?.label || "Estavel";
   const executiveSummary = `${healthLabel}: foco em ${focoLabel}; tendencia ${tendenciaLabel.toLowerCase()}.`;
+  const datajudTagSummary = buildTaggedCoverageMetrics(datajudTagCoverage);
   const alerts = buildAlerts({
     runnerConfigured,
     totalPendingJobs,
@@ -935,6 +960,7 @@ export async function getHmadvQueueSnapshot(env) {
     coveragePriority,
     datajudTagDiagnostics,
     datajudTagCoverage,
+    datajudTagSummary,
     processosJobs,
     publicacoesJobs,
     recentJobs: {
@@ -996,6 +1022,7 @@ export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
   const gapRepair = await runCoverageGapRepairPipeline(env);
   const coverageSnapshot = await runCoverageSnapshotPipeline(env);
   const coverageOverview = await getPersistedCoverageOverview(env).catch(() => null);
+  const taggedCoverageAfter = await getTaggedDatajudCoverageReport(env, { limit: 100, tag: "datajud" }).catch(() => null);
   const [processos, publicacoes] = await Promise.all([
     drainModuleJobs(env, "processos", processProcessAdminJob, maxChunks),
     drainModuleJobs(env, "publicacoes", processPublicacoesAdminJob, maxChunks),
@@ -1010,6 +1037,7 @@ export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
     gapRepair,
     coverageSnapshot,
     coverageMetrics: buildCoverageMetrics(coverageSnapshot, coverageOverview),
+    taggedCoverageMetrics: buildTaggedCoverageMetrics(taggedCoverageAfter),
     processos,
     publicacoes,
     completedAll: Boolean(processos.completedAll && publicacoes.completedAll),
