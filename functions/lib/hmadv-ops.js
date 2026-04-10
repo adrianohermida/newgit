@@ -2049,6 +2049,53 @@ export async function getPersistedCoverageOverview(env) {
   }
 }
 
+export async function getPersistedCoveragePriorityReport(env, { limit = 100 } = {}) {
+  const safeLimit = Math.max(10, Math.min(Number(limit || 100), 500));
+  try {
+    const rows = await listTableSafe(
+      env,
+      `processo_cobertura_sync?select=processo_id,numero_cnj,coverage_pct,pending_labels,last_sync_at,account_id_freshsales,summary&coverage_pct=lt.100&order=coverage_pct.asc,last_sync_at.asc&limit=${safeLimit}`,
+      "judiciario",
+      []
+    );
+    const reasonCounts = new Map();
+    for (const row of rows || []) {
+      const labels = Array.isArray(row?.pending_labels) ? row.pending_labels : [];
+      for (const label of labels) {
+        const key = String(label || "").trim();
+        if (!key) continue;
+        reasonCounts.set(key, Number(reasonCounts.get(key) || 0) + 1);
+      }
+    }
+    const priorities = [...reasonCounts.entries()]
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((left, right) => Number(right.count || 0) - Number(left.count || 0));
+    return {
+      totalRows: rows.length,
+      priorities,
+      sample: rows.slice(0, 20).map((row) => ({
+        processo_id: row.processo_id,
+        numero_cnj: row.numero_cnj || null,
+        coverage_pct: Number(row.coverage_pct || 0),
+        pending_labels: Array.isArray(row.pending_labels) ? row.pending_labels : [],
+        account_id_freshsales: row.account_id_freshsales || null,
+        last_sync_at: row.last_sync_at || null,
+        summary: row.summary || {},
+      })),
+    };
+  } catch (error) {
+    if (schemaMessageMatches(error?.message, "processo_cobertura_sync")) {
+      return {
+        unsupported: true,
+        totalRows: 0,
+        priorities: [],
+        sample: [],
+      };
+    }
+    throw error;
+  }
+}
+
 async function listSyncDatajudProcesses(env, { page = 1, pageSize = 20 } = {}) {
   const safePage = Math.max(1, Number(page || 1));
   const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
