@@ -151,6 +151,73 @@ function cnj20toFmt(c: string): string {
   return `${c.slice(0,7)}-${c.slice(7,9)}.${c.slice(9,13)}.${c.slice(13,14)}.${c.slice(14,16)}.${c.slice(16)}`;
 }
 
+function extractCnjFromText(value: unknown): string | null {
+  const text = String(value ?? '').trim();
+  if (!text) return null;
+  const direct = normCNJ(text);
+  if (direct) return direct;
+  const digits = text.replace(/[^0-9]/g, '');
+  if (digits.length === 20) return normCNJ(digits);
+  if (digits.length > 20) {
+    for (let index = 0; index <= digits.length - 20; index += 1) {
+      const candidate = normCNJ(digits.slice(index, index + 20));
+      if (candidate) return candidate;
+    }
+  }
+  return null;
+}
+
+function extractCnjFromCustomFields(customFields: Record<string, unknown>): string | null {
+  const priorityKeys = [
+    'cf_processo',
+    'cf_numero_processo',
+    'cf_numero_do_processo',
+    'numero_processo',
+    'numero_cnj',
+    'cnj',
+    'website',
+  ];
+  for (const key of priorityKeys) {
+    const candidate = extractCnjFromText(customFields?.[key]);
+    if (candidate) return candidate;
+  }
+  for (const value of Object.values(customFields || {})) {
+    const candidate = extractCnjFromText(value);
+    if (candidate) return candidate;
+  }
+  return null;
+}
+
+function extractCnjFromSalesAccountPayload(payload: Record<string, unknown>): string | null {
+  const salesAccount = (payload.sales_account ?? payload) as Record<string, unknown>;
+  const customFields = (salesAccount.custom_fields ?? salesAccount.custom_field ?? {}) as Record<string, unknown>;
+
+  const priorityCandidates = [
+    customFields.cf_processo,
+    customFields.cf_numero_processo,
+    customFields.cf_numero_do_processo,
+    payload.cf_processo,
+    payload.numeroProcesso,
+    payload.numero_processo,
+    payload.numero_cnj,
+    salesAccount.website,
+    salesAccount.name,
+    salesAccount.display_name,
+    salesAccount.title,
+    payload.website,
+    payload.name,
+    payload.display_name,
+    payload.title,
+  ];
+
+  for (const value of priorityCandidates) {
+    const candidate = extractCnjFromText(value);
+    if (candidate) return candidate;
+  }
+
+  return extractCnjFromCustomFields(customFields);
+}
+
 // --- Extrair CNJ e account_id do payload do Freshsales ----------------------
 function extrairDoPayloadFS(body: Record<string,unknown>): {
   cnj: string|null; accountId: string|null;
@@ -163,15 +230,6 @@ function extrairDoPayloadFS(body: Record<string,unknown>): {
   const sa  = (body.sales_account ?? {}) as Record<string,unknown>;
   const cf  = (sa.custom_fields ?? sa.custom_field ?? {}) as Record<string,unknown>;
 
-  const rawCNJ = String(
-    cf.cf_processo ??
-    body.cf_processo ??
-    body.numeroProcesso ??
-    body.numero_processo ??
-    body.numero_cnj ??
-    ''
-  ).trim();
-
   const rawAcc = String(
     sa.id ??
     body.account_id ??
@@ -180,7 +238,7 @@ function extrairDoPayloadFS(body: Record<string,unknown>): {
   ).trim();
 
   return {
-    cnj:       normCNJ(rawCNJ.replace(/[^0-9]/g,'')) ? normCNJ(rawCNJ.replace(/[^0-9]/g,'')) : null,
+    cnj:       extractCnjFromSalesAccountPayload(body),
     accountId: rawAcc || null,
   };
 }
@@ -193,6 +251,7 @@ function buildMissingCnjResult(payload: Record<string, unknown>, source = 'fresh
     error: 'cf_processo/CNJ ausente no account com tag datajud',
     source,
     account_id: String(payload.account_id ?? payload.id ?? salesAccount.id ?? '') || null,
+    inferred_cnj: extractCnjFromSalesAccountPayload(payload),
     payload_keys: Object.keys(payload),
     custom_field_keys: Object.keys(customFields),
     missing_cnj: true,
@@ -452,10 +511,7 @@ async function handleSyncAccount(body: Record<string,unknown>): Promise<Record<s
 // =============================================================================
 async function handleTagAdded(payload: Record<string,unknown>) {
   const accountId   = String(payload.account_id ?? payload.id ?? (payload.sales_account as Record<string,unknown>)?.id ?? '');
-  const sa          = (payload.sales_account ?? {}) as Record<string,unknown>;
-  const cf          = (sa.custom_fields ?? sa.custom_field ?? {}) as Record<string,unknown>;
-  const numProcesso = String(cf.cf_processo ?? payload.numero_processo ?? payload.cf_numero_processo ?? '').trim();
-  const cnj20       = normCNJ(numProcesso) ?? '';
+  const cnj20       = extractCnjFromSalesAccountPayload(payload) ?? '';
   if (!cnj20) {
     const result = buildMissingCnjResult(payload, 'tag_added');
     log('warn', 'tag_added_sem_cnj', result as Record<string, unknown>);
@@ -672,8 +728,7 @@ async function handleDiagnoseTaggedAccounts(limit = 100, tag = 'datajud'): Promi
     if (!salesAccountHasTag(salesAccount, tag)) continue;
     summary.scanned += 1;
     const accountId = String(salesAccount.id ?? '');
-    const customFields = (salesAccount.custom_field ?? salesAccount.custom_fields ?? {}) as Record<string, unknown>;
-    const cnj20 = normCNJ(String(customFields.cf_processo ?? '').replace(/[^0-9]/g, '')) ?? '';
+    const cnj20 = extractCnjFromSalesAccountPayload({ sales_account: salesAccount }) ?? '';
     if (!cnj20) {
       summary.missing_cnj += 1;
       if (sample.length < 20) {
@@ -681,6 +736,8 @@ async function handleDiagnoseTaggedAccounts(limit = 100, tag = 'datajud'): Promi
           account_id: accountId,
           status: 'missing_cnj',
           numero_cnj: null,
+          account_name: String(salesAccount.name ?? salesAccount.display_name ?? '').trim() || null,
+          website: String(salesAccount.website ?? '').trim() || null,
         });
       }
       continue;
