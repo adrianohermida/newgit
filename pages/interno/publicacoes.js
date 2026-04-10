@@ -22,6 +22,7 @@ const ASYNC_PUBLICACOES_ACTIONS = new Set([
   "sincronizar_partes",
 ]);
 const QUEUE_ERROR_TTL_MS = 1000 * 60 * 3;
+const GLOBAL_ERROR_TTL_MS = 1000 * 60 * 2;
 const PUBLICACOES_QUEUE_VIEWS = new Set(["operacao", "filas"]);
 const QUEUE_LABELS = {
   candidatos_processos: "Processos criaveis",
@@ -694,6 +695,8 @@ function PublicacoesContent() {
   const [processNumbers, setProcessNumbers] = useState("");
   const [queueRefreshLog, setQueueRefreshLog] = useState([]);
   const [pageVisible, setPageVisible] = useState(true);
+  const [globalError, setGlobalError] = useState(null);
+  const [globalErrorUntil, setGlobalErrorUntil] = useState(null);
   const [limit, setLimit] = useState(10);
   const [processPage, setProcessPage] = useState(1);
   const [partesPage, setPartesPage] = useState(1);
@@ -824,12 +827,21 @@ function PublicacoesContent() {
   }
 
   async function loadOverview() {
+    if (globalErrorUntil && Date.now() < globalErrorUntil) {
+      setOverview((state) => ({ ...state, loading: false }));
+      return;
+    }
     setOverview({ loading: true, error: null, data: null });
     try {
       const payload = await adminFetch("/api/admin-hmadv-publicacoes?action=overview");
       setOverview({ loading: false, error: null, data: payload.data });
+      setGlobalError(null);
+      setGlobalErrorUntil(null);
     } catch (error) {
-      setOverview({ loading: false, error: error.message || "Falha ao carregar modulo de publicacoes.", data: null });
+      const message = error.message || "Falha ao carregar modulo de publicacoes.";
+      setOverview({ loading: false, error: message, data: null });
+      setGlobalError(message);
+      setGlobalErrorUntil(Date.now() + GLOBAL_ERROR_TTL_MS);
     }
   }
 
@@ -911,17 +923,27 @@ function PublicacoesContent() {
     }
   }
   async function loadRemoteHistory() {
+    if (globalErrorUntil && Date.now() < globalErrorUntil) {
+      return;
+    }
     try {
       const payload = await adminFetch("/api/admin-hmadv-publicacoes?action=historico&limit=20");
       setRemoteHistory(payload.data.items || []);
+      setGlobalError(null);
+      setGlobalErrorUntil(null);
     } catch {
       setRemoteHistory([]);
     }
   }
   async function loadJobs() {
+    if (globalErrorUntil && Date.now() < globalErrorUntil) {
+      return;
+    }
     try {
       const payload = await adminFetch("/api/admin-hmadv-publicacoes?action=jobs&limit=12");
       setJobs(payload.data.items || []);
+      setGlobalError(null);
+      setGlobalErrorUntil(null);
     } catch {
       setJobs([]);
     }
@@ -1184,6 +1206,11 @@ function PublicacoesContent() {
         </div>
         <div className="mt-6 space-y-4">
           <ViewToggle value={view} onChange={updateView} />
+          {globalError ? (
+            <div className="border border-[#4B2222] bg-[rgba(127,29,29,0.15)] p-4 text-xs text-red-200">
+              {globalError}
+            </div>
+          ) : null}
           {queueRefreshLog.length ? (
             <div className="border border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] p-4 text-xs">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-60">Ultimas filas atualizadas</p>
