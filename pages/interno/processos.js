@@ -986,6 +986,7 @@ function InternoProcessosContent() {
   const [executionHistory, setExecutionHistory] = useState([]);
   const [queueRefreshLog, setQueueRefreshLog] = useState([]);
   const [operationalStatus, setOperationalStatus] = useState({ mode: "ok", message: "", updatedAt: null });
+  const [backendHealth, setBackendHealth] = useState({ status: "ok", message: "", updatedAt: null });
   const [remoteHistory, setRemoteHistory] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [activeJobId, setActiveJobId] = useState(null);
@@ -1237,6 +1238,22 @@ function InternoProcessosContent() {
     }
     setOperationalStatus({ mode: "ok", message: "Operacao normal", updatedAt: new Date().toISOString() });
   }, [globalError, withoutMovements, movementBacklog, publicationBacklog, partesBacklog, audienciaCandidates, monitoringActive, monitoringInactive, fieldGaps, orphans]);
+  useEffect(() => {
+    const latest = remoteHistory[0];
+    if (!latest) {
+      setBackendHealth({ status: "unknown", message: "Sem historico recente.", updatedAt: null });
+      return;
+    }
+    if (latest.status === "error") {
+      setBackendHealth({ status: "error", message: "Ultimo ciclo HMADV falhou.", updatedAt: latest.created_at });
+      return;
+    }
+    if (Number(latest.affected_count || 0) === 0) {
+      setBackendHealth({ status: "warning", message: "Ultimo ciclo nao teve progresso.", updatedAt: latest.created_at });
+      return;
+    }
+    setBackendHealth({ status: "ok", message: "Ciclo HMADV saudavel.", updatedAt: latest.created_at });
+  }, [remoteHistory]);
   useEffect(() => {
     if (!bootstrappedRef.current) return;
     if (!OPERATIONAL_VIEWS.has(view)) return;
@@ -2018,6 +2035,13 @@ function InternoProcessosContent() {
               <span className="text-[10px] uppercase tracking-[0.16em] opacity-70">{operationalStatus.updatedAt ? new Date(operationalStatus.updatedAt).toLocaleTimeString("pt-BR") : ""}</span>
             </div>
             <p className="mt-2">{operationalStatus.message || "Operacao normal"}</p>
+          </div>
+          <div className={`rounded-[20px] border p-4 text-xs ${backendHealth.status === "error" ? "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200" : backendHealth.status === "warning" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="uppercase tracking-[0.18em] text-[10px]">Saude do backend</span>
+              <span className="text-[10px] uppercase tracking-[0.16em] opacity-70">{backendHealth.updatedAt ? new Date(backendHealth.updatedAt).toLocaleTimeString("pt-BR") : ""}</span>
+            </div>
+            <p className="mt-2">{backendHealth.message || "Sem historico recente."}</p>
           </div>
           <div className="rounded-[26px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.55)] p-4 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
