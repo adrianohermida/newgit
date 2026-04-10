@@ -1,4 +1,4 @@
-import { jsonError, jsonOk, logAdminOperation } from "../lib/hmadv-ops.js";
+import { jsonError, jsonOk, logAdminOperation, runFullIntegrationCron } from "../lib/hmadv-ops.js";
 import {
   drainHmadvQueues,
   getHmadvQueueSnapshot,
@@ -28,18 +28,36 @@ export async function onRequestPost(context) {
   try {
     const body = await context.request.json().catch(() => ({}));
     const action = String(body.action || "drain_all");
-    if (action !== "drain_all") {
+    if (!["drain_all", "cron_integracao_total"].includes(action)) {
       return jsonError(new Error("Acao POST invalida."), 400);
     }
 
-    const data = await drainHmadvQueues(context.env, {
-      maxChunks: Number(body.maxChunks || 2),
-    });
+    const data = action === "cron_integracao_total"
+      ? await runFullIntegrationCron(context.env, {
+          scanLimit: Number(body.scanLimit || 50),
+          monitorLimit: Number(body.monitorLimit || 100),
+          movementLimit: Number(body.movementLimit || 120),
+          advisePages: Number(body.advisePages || 2),
+          advisePerPage: Number(body.advisePerPage || 50),
+          publicacoesBatch: Number(body.publicacoesBatch || 20),
+        })
+      : await drainHmadvQueues(context.env, {
+          maxChunks: Number(body.maxChunks || 2),
+        });
     await logAdminOperation(context.env, {
       modulo: "runner",
-      acao: "drain_all",
+      acao: action,
       status: "success",
-      payload: { maxChunks: Number(body.maxChunks || 2) },
+      payload: action === "cron_integracao_total"
+        ? {
+            scanLimit: Number(body.scanLimit || 50),
+            monitorLimit: Number(body.monitorLimit || 100),
+            movementLimit: Number(body.movementLimit || 120),
+            advisePages: Number(body.advisePages || 2),
+            advisePerPage: Number(body.advisePerPage || 50),
+            publicacoesBatch: Number(body.publicacoesBatch || 20),
+          }
+        : { maxChunks: Number(body.maxChunks || 2) },
       result: data,
     });
     return jsonOk({ data });

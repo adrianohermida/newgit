@@ -219,19 +219,20 @@ function scoreProcessCandidate(row, process, totalCandidates = 0) {
 }
 
 async function queryProcesses(pathname) {
-  try {
-    return await supabaseRequest(pathname);
-  } catch {
-    return [];
-  }
+  return queryProcessesAll(pathname, 200, 200);
 }
 
 async function queryProcessesAll(pathname, pageSize = 200, maxRows = 1000) {
-  try {
-    return await supabaseRequestAll(pathname, pageSize, maxRows);
-  } catch {
-    return [];
+  const merged = [];
+  for (const schema of ['public', 'judiciario']) {
+    try {
+      const rows = await supabaseRequestAll(pathname, pageSize, maxRows, schema);
+      merged.push(...rows);
+    } catch {
+      // segue para o proximo schema
+    }
   }
+  return uniqueBy(merged, (item) => `${item.id}:${item.account_id_freshsales || ''}`);
 }
 
 function writeSuggestionsCsv(rows) {
@@ -305,7 +306,7 @@ function uniqueBy(items, getKey) {
   return result;
 }
 
-async function supabaseRequest(pathname, init = {}) {
+async function supabaseRequest(pathname, init = {}, schema = 'public') {
   const baseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const apiKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!baseUrl || !apiKey) {
@@ -319,6 +320,8 @@ async function supabaseRequest(pathname, init = {}) {
       Authorization: `Bearer ${apiKey}`,
       Accept: 'application/json',
       'Content-Type': 'application/json',
+      'Accept-Profile': schema,
+      'Content-Profile': schema,
       ...(init.headers || {}),
     },
   });
@@ -331,12 +334,12 @@ async function supabaseRequest(pathname, init = {}) {
   return text ? JSON.parse(text) : [];
 }
 
-async function supabaseRequestAll(pathname, pageSize = 200, maxRows = 1000) {
+async function supabaseRequestAll(pathname, pageSize = 200, maxRows = 1000, schema = 'public') {
   const rows = [];
   let offset = 0;
   while (rows.length < maxRows) {
     const separator = pathname.includes('?') ? '&' : '?';
-    const batch = await supabaseRequest(`${pathname}${separator}limit=${pageSize}&offset=${offset}`);
+    const batch = await supabaseRequest(`${pathname}${separator}limit=${pageSize}&offset=${offset}`, {}, schema);
     rows.push(...batch);
     if (batch.length < pageSize) break;
     offset += pageSize;
