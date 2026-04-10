@@ -14,12 +14,14 @@ async function main() {
     return;
   }
 
+  const contactsById = await loadContactsById(rows);
   const processesByEmail = await loadProcessesByEmail(rows);
   const suggestions = [];
   let applied = 0;
 
   for (const row of rows) {
-    const candidates = await resolveCandidatesForRow(row, processesByEmail);
+    const contact = contactsById.get(row.resolved_contact_id) || null;
+    const candidates = await resolveCandidatesForRow(row, contact, processesByEmail);
     const topCandidates = candidates.slice(0, args.topn);
 
     suggestions.push({
@@ -131,6 +133,20 @@ async function loadCandidateRows(args) {
   return rows.filter((row) => Array.isArray(row.validation_errors) ? row.validation_errors.length === 0 : true);
 }
 
+async function loadContactsById(rows) {
+  const ids = uniqueBy(rows.map((row) => row.resolved_contact_id).filter(Boolean), (item) => item);
+  if (!ids.length) return new Map();
+
+  const contacts = [];
+  for (let index = 0; index < ids.length; index += 50) {
+    const chunk = ids.slice(index, index + 50).map((item) => `"${item}"`).join(',');
+    const batch = await supabaseRequest(`freshsales_contacts?select=id,name,email,raw_payload&id=in.(${chunk})`);
+    contacts.push(...batch);
+  }
+
+  return new Map(contacts.map((item) => [item.id, item]));
+}
+
 async function loadProcessesByEmail(rows) {
   const emails = Array.from(new Set(rows.map((row) => normalizeEmail(row.email_normalized || row.email)).filter(Boolean)));
   const bucket = new Map();
@@ -145,11 +161,12 @@ async function loadProcessesByEmail(rows) {
   return bucket;
 }
 
-async function resolveCandidatesForRow(row, processesByEmail) {
+async function resolveCandidatesForRow(row, contact, processesByEmail) {
   const email = normalizeEmail(row.email_normalized || row.email);
   const emailProcesses = processesByEmail.get(email) || [];
   const referenceProcesses = row.deal_reference_raw ? await searchProcessesByReference(row.deal_reference_raw) : [];
-  const processes = uniqueBy([...emailProcesses, ...referenceProcesses], (item) => `${item.id}:${item.account_id_freshsales || ''}`);
+  const nameProcesses = await searchProcessesByNames(extractNameHints(row, contact));
+  const processes = uniqueBy([...emailProcesses, ...referenceProcesses, ...nameProcesses], (item) => `${item.id}:${item.account_id_freshsales || ''}`);
 
   return processes
     .map((process) => scoreProcessCandidate(row, process, processes.length))
@@ -173,6 +190,59 @@ async function searchProcessesByReference(reference) {
   }
 
   return uniqueBy(candidates, (item) => `${item.id}:${item.account_id_freshsales || ''}`);
+}
+
+function extractNameHints(row, contact) {
+  const hints = new Set();
+  const add = (value) => {
+    const text = String(value || '').trim();
+    if (!text) return;
+    if (text.length < 5) return;
+    hints.add(text);
+  };
+
+  add(row.person_name);
+  add(contact?.name);
+
+  const reference = String(row.deal_reference_raw || '').trim();
+  if (reference) {
+    reference
+      .split(/\s+[xX]\s+|\s+vs\.?\s+|\s+contra\s+/i)
+      .map((item) => item.trim())
+      .forEach(add);
+  }
+
+  return Array.from(hints);
+}
+
+async function searchProcessesByNames(nameHints) {
+  const processMap = new Map();
+
+  for (const name of nameHints.slice(0, 4)) {
+    const encoded = encodeURIComponent(`*${name.slice(0, 60)}*`);
+    const partes = await queryProcessesAll(
+      `partes?select=id,processo_id,nome,polo,cliente_hmadv,representada_pelo_escritorio,principal_no_account&nome=ilike.${encoded}`,
+      100,
+      200
+    );
+    const processIds = uniqueBy(partes.map((item) => item.processo_id).filter(Boolean), (item) => item);
+    if (!processIds.length) continue;
+
+    for (let index = 0; index < processIds.length; index += 40) {
+      const chunk = processIds.slice(index, index + 40).map((item) => `"${item}"`).join(',');
+      const processes = await queryProcessesAll(
+        `processos?select=id,numero_cnj,titulo,account_id_freshsales,status&account_id_freshsales=not.is.null&id=in.(${chunk})`,
+        100,
+        200
+      );
+      for (const process of processes) {
+        const key = `${process.id}:${process.account_id_freshsales || ''}`;
+        if (!processMap.has(key)) processMap.set(key, process);
+      }
+    }
+  }
+
+  return Array.from(processMap.values());
 }
 
 function scoreProcessCandidate(row, process, totalCandidates = 0) {
