@@ -21,8 +21,8 @@ async function main() {
   const run = runs[0];
   const effectiveWorkspaceId = workspaceId || run.workspace_id || null;
 
-  const rows = await supabaseRequest(
-    `billing_import_rows?import_run_id=eq.${encodeURIComponent(run.id)}&select=*`
+  const rows = await supabaseRequestAll(
+    `billing_import_rows?import_run_id=eq.${encodeURIComponent(run.id)}&select=*&order=source_row_number.asc`
   );
 
   if (!rows.length) {
@@ -39,6 +39,7 @@ async function main() {
 
   const materializableRows = rows.filter((row) =>
     row.matching_status === 'pareado' &&
+    row.resolved_account_id_freshsales &&
     (!Array.isArray(row.validation_errors) || row.validation_errors.length === 0)
   );
 
@@ -58,7 +59,9 @@ async function main() {
         product_id: product ? product.id : row.resolved_product_id,
         contract_kind: row.billing_type_inferred || 'unitario',
         title: buildContractTitle(row),
-        process_reference: row.deal_reference_raw || null,
+        process_id: row.resolved_process_id || null,
+        freshsales_account_id: row.resolved_account_id_freshsales || null,
+        process_reference: row.resolved_process_reference || row.deal_reference_raw || null,
         external_reference: contractKey,
         start_date: row.invoice_date || row.due_date || null,
         status: inferContractStatus(row.canonical_status),
@@ -70,11 +73,7 @@ async function main() {
         },
       };
 
-      const [insertedContract] = await supabaseRequest('billing_contracts?on_conflict=external_reference', {
-        method: 'POST',
-        headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-        body: JSON.stringify(contractPayload),
-      });
+      const insertedContract = await upsertByConflictFallback('billing_contracts', 'external_reference', contractKey, contractPayload);
 
       contract = insertedContract;
       contractsByKey.set(contractKey, contract);
@@ -83,11 +82,7 @@ async function main() {
 
     const receivablePayload = buildReceivablePayload(row, contract, product, indices);
 
-    const [insertedReceivable] = await supabaseRequest('billing_receivables?on_conflict=source_import_row_id', {
-      method: 'POST',
-      headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-      body: JSON.stringify(receivablePayload),
-    });
+    const insertedReceivable = await upsertByConflictFallback('billing_receivables', 'source_import_row_id', row.id, receivablePayload);
 
     await supabaseRequest(`billing_import_rows?id=eq.${encodeURIComponent(row.id)}`, {
       method: 'PATCH',
@@ -143,8 +138,9 @@ async function loadIndicesByName() {
 function buildContractKey(row) {
   return [
     row.resolved_contact_id || '',
+    row.resolved_account_id_freshsales || '',
     row.product_family_inferred || '',
-    row.deal_reference_raw || '',
+    row.resolved_process_reference || row.deal_reference_raw || '',
     row.person_name || '',
   ].join('|');
 }
@@ -181,6 +177,8 @@ function buildReceivablePayload(row, contract, product, indicesByName) {
     workspace_id: contract.workspace_id,
     contract_id: contract.id,
     contact_id: contract.contact_id,
+    process_id: contract.process_id || row.resolved_process_id || null,
+    freshsales_account_id: contract.freshsales_account_id || row.resolved_account_id_freshsales || null,
     product_id: product ? product.id : contract.product_id,
     source_import_row_id: row.id,
     receivable_type: mapReceivableType(row),
@@ -337,6 +335,51 @@ async function supabaseRequest(pathname, init = {}) {
 
   const text = await response.text();
   return text ? JSON.parse(text) : [];
+}
+
+async function supabaseRequestAll(pathname, pageSize = 1000) {
+  const rows = [];
+  let offset = 0;
+  while (true) {
+    const separator = pathname.includes('?') ? '&' : '?';
+    const batch = await supabaseRequest(`${pathname}${separator}limit=${pageSize}&offset=${offset}`);
+    rows.push(...batch);
+    if (batch.length < pageSize) break;
+    offset += pageSize;
+  }
+  return rows;
+}
+
+async function upsertByConflictFallback(table, conflictColumn, conflictValue, payload) {
+  try {
+    const rows = await supabaseRequest(`${table}?on_conflict=${encodeURIComponent(conflictColumn)}`, {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+      body: JSON.stringify(payload),
+    });
+    return rows[0];
+  } catch (error) {
+    const message = String(error.message || error);
+    if (!message.includes('42P10')) throw error;
+  }
+
+  const existing = await supabaseRequest(`${table}?${conflictColumn}=eq.${encodeURIComponent(String(conflictValue))}&select=*&limit=1`);
+  if (existing[0]) {
+    await supabaseRequest(`${table}?${conflictColumn}=eq.${encodeURIComponent(String(conflictValue))}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify(payload),
+    });
+    const patched = await supabaseRequest(`${table}?${conflictColumn}=eq.${encodeURIComponent(String(conflictValue))}&select=*&limit=1`);
+    return patched[0];
+  }
+
+  const inserted = await supabaseRequest(table, {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify(payload),
+  });
+  return inserted[0];
 }
 
 main().catch((error) => {

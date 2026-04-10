@@ -100,7 +100,7 @@ function freshsalesHeaderCandidates() {
 
 async function loadReceivables(limit, specificReceivableId = null) {
   const query = [
-    'billing_receivables?select=id,contract_id,contact_id,product_id,freshsales_deal_id,invoice_number,description,issue_date,due_date,status,currency,amount_original,payment_amount,amount_principal,correction_index_name,correction_amount,amount_corrected,late_fee_amount,interest_mora_amount,interest_compensatory_amount,balance_due,balance_due_corrected,raw_payload,contracts:billing_contracts(id,workspace_id,title,external_reference,freshsales_contact_id,contact_id,process_reference,product_id),products:freshsales_products(id,name,billing_type,freshsales_product_id),registry:freshsales_deals_registry(id,freshsales_deal_id,last_sync_status)',
+    'billing_receivables?select=id,contract_id,contact_id,product_id,process_id,freshsales_account_id,freshsales_deal_id,invoice_number,description,issue_date,due_date,status,currency,amount_original,payment_amount,amount_principal,correction_index_name,correction_amount,amount_corrected,late_fee_amount,interest_mora_amount,interest_compensatory_amount,balance_due,balance_due_corrected,raw_payload,contracts:billing_contracts(id,workspace_id,title,external_reference,freshsales_contact_id,contact_id,process_id,freshsales_account_id,process_reference,product_id),products:freshsales_products(id,name,billing_type,freshsales_product_id),registry:freshsales_deals_registry(id,freshsales_deal_id,last_sync_status)',
     specificReceivableId ? `id=eq.${encodeURIComponent(String(specificReceivableId))}` : 'order=created_at.asc',
     specificReceivableId ? null : `limit=${limit}`,
   ].join('&');
@@ -108,7 +108,7 @@ async function loadReceivables(limit, specificReceivableId = null) {
   const rows = await supabaseRequest(query);
   return rows.filter((row) => {
     const contract = firstRelation(row.contracts);
-    return Boolean(contract && contract.freshsales_contact_id);
+    return Boolean(contract && contract.freshsales_contact_id && (row.freshsales_account_id || contract.freshsales_account_id));
   });
 }
 
@@ -149,6 +149,7 @@ async function publishDeal(row) {
 
   await upsertDealRegistry(row, dealId, {
     freshsales_contact_id: contract.freshsales_contact_id || null,
+    freshsales_account_id: row.freshsales_account_id || contract.freshsales_account_id || null,
     freshsales_product_id: product?.freshsales_product_id || null,
     deal_name: dealPayload.deal.name,
     deal_stage: String(dealPayload.deal.deal_stage_id || ''),
@@ -191,6 +192,7 @@ function buildDealPayload(row, contract, product) {
       expected_close: row.due_date || currentDateIso(),
       owner_id: billingConfig.ownerId,
       deal_stage_id: billingConfig.defaultDealStageId,
+      sales_account_id: Number(row.freshsales_account_id || contract.freshsales_account_id),
       ...coreFields,
       contact_ids: contract.freshsales_contact_id ? [Number(contract.freshsales_contact_id)] : undefined,
       custom_field: cleanObject(customFields),

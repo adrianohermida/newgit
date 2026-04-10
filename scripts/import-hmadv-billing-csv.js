@@ -192,10 +192,13 @@ function normalizeImportRow(row, sourceRowNumber, contactByEmail, productByName)
     product_family_inferred: productFamily,
     dedupe_key: buildDedupeKey(row),
     is_duplicate: false,
-    matching_status: matchedContact ? 'pareado' : email ? 'pendente_contato' : 'pendente_revisao',
+    matching_status: matchedContact ? 'pendente_account' : email ? 'pendente_contato' : 'pendente_revisao',
     matching_notes: matchedContact ? `Contato resolvido por e-mail (${email})` : email ? `E-mail sem match no Freshsales (${email})` : 'Linha sem e-mail válido',
     resolved_contact_id: matchedContact ? matchedContact.id : null,
     resolved_product_id: matchedProduct ? matchedProduct.id : null,
+    resolved_process_id: null,
+    resolved_account_id_freshsales: null,
+    resolved_process_reference: null,
     validation_errors: validationErrors,
   };
 }

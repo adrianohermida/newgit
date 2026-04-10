@@ -81,13 +81,16 @@ function parseArgs(argv) {
 
 async function loadReprocessableRows(limit) {
   const query = [
-    'billing_import_rows?select=id,import_run_id,person_name,invoice_number,invoice_date,due_date,category_raw,comment_raw,deal_reference_raw,amount_original_raw,payment_raw,canonical_status,billing_type_inferred,product_family_inferred,matching_status,resolved_contact_id,resolved_product_id,validation_errors,matching_notes',
+    'billing_import_rows?select=id,import_run_id,person_name,invoice_number,invoice_date,due_date,category_raw,comment_raw,deal_reference_raw,amount_original_raw,payment_raw,canonical_status,billing_type_inferred,product_family_inferred,matching_status,resolved_contact_id,resolved_product_id,resolved_process_id,resolved_account_id_freshsales,resolved_process_reference,validation_errors,matching_notes',
     'matching_status=eq.pareado',
     'order=created_at.desc',
     `limit=${limit}`,
   ].join('&');
   const rows = await supabaseRequest(query);
-  return rows.filter((row) => Array.isArray(row.validation_errors) ? row.validation_errors.length === 0 : true);
+  return rows.filter((row) => {
+    const valid = Array.isArray(row.validation_errors) ? row.validation_errors.length === 0 : true;
+    return valid && Boolean(row.resolved_account_id_freshsales);
+  });
 }
 
 async function loadIndicesByName() {
@@ -116,8 +119,22 @@ function resolveProduct(row, productById, productByName) {
 
 async function resolveOrCreateContract(row, workspaceId, product, contactById) {
   const externalReference = buildContractKey(row);
-  const existing = await supabaseRequest(`billing_contracts?external_reference=eq.${encodeURIComponent(externalReference)}&select=id,workspace_id,contact_id,product_id,freshsales_contact_id,process_reference,title&limit=1`);
-  if (existing[0]) return existing[0];
+  const existing = await supabaseRequest(`billing_contracts?external_reference=eq.${encodeURIComponent(externalReference)}&select=id,workspace_id,contact_id,product_id,freshsales_contact_id,process_id,freshsales_account_id,process_reference,title&limit=1`);
+  if (existing[0]) {
+    const patchedPayload = {
+      freshsales_contact_id: contactById.get(row.resolved_contact_id)?.freshsales_contact_id || existing[0].freshsales_contact_id || null,
+      process_id: row.resolved_process_id || existing[0].process_id || null,
+      freshsales_account_id: row.resolved_account_id_freshsales || existing[0].freshsales_account_id || null,
+      process_reference: row.resolved_process_reference || row.deal_reference_raw || existing[0].process_reference || null,
+    };
+    await supabaseRequest(`billing_contracts?id=eq.${encodeURIComponent(existing[0].id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify(patchedPayload),
+    });
+    const refreshed = await supabaseRequest(`billing_contracts?id=eq.${encodeURIComponent(existing[0].id)}&select=id,workspace_id,contact_id,product_id,freshsales_contact_id,process_id,freshsales_account_id,process_reference,title&limit=1`);
+    return refreshed[0] || existing[0];
+  }
 
   const payload = {
     workspace_id: workspaceId,
@@ -126,7 +143,9 @@ async function resolveOrCreateContract(row, workspaceId, product, contactById) {
     product_id: product?.id || row.resolved_product_id || null,
     contract_kind: row.billing_type_inferred || 'unitario',
     title: buildContractTitle(row),
-    process_reference: row.deal_reference_raw || null,
+    process_id: row.resolved_process_id || null,
+    freshsales_account_id: row.resolved_account_id_freshsales || null,
+    process_reference: row.resolved_process_reference || row.deal_reference_raw || null,
     external_reference: externalReference,
     start_date: row.invoice_date || row.due_date || null,
     status: inferContractStatus(row.canonical_status),
@@ -144,8 +163,6 @@ async function resolveOrCreateContract(row, workspaceId, product, contactById) {
 
 async function createReceivable(row, contract, product, indices) {
   const existing = await findReceivableByImportRow(row.id);
-  if (existing) return existing;
-
   const amountOriginal = parseMoneyBRL(row.amount_original_raw) || 0;
   const paymentAmount = parseMoneyBRL(row.payment_raw) || 0;
   const correctionIndexName = product?.monetary_index_default || 'IGP-M';
@@ -166,6 +183,8 @@ async function createReceivable(row, contract, product, indices) {
     workspace_id: contract.workspace_id,
     contract_id: contract.id,
     contact_id: contract.contact_id,
+    process_id: contract.process_id || row.resolved_process_id || null,
+    freshsales_account_id: contract.freshsales_account_id || row.resolved_account_id_freshsales || null,
     product_id: product?.id || contract.product_id || null,
     source_import_row_id: row.id,
     receivable_type: mapReceivableType(row),
@@ -198,6 +217,16 @@ async function createReceivable(row, contract, product, indices) {
     calculated_at: new Date().toISOString(),
     raw_payload: { reprocessed: true },
   };
+
+  if (existing) {
+    await supabaseRequest(`billing_receivables?id=eq.${encodeURIComponent(existing.id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify(payload),
+    });
+    const refreshed = await supabaseRequest(`billing_receivables?id=eq.${encodeURIComponent(existing.id)}&select=*&limit=1`);
+    return refreshed[0] || existing;
+  }
 
   const receivable = await tryInsertWithUpsertFallback('billing_receivables', 'source_import_row_id', row.id, payload);
 
@@ -253,8 +282,9 @@ async function tryInsertWithUpsertFallback(table, conflictColumn, conflictValue,
 function buildContractKey(row) {
   return [
     row.resolved_contact_id || '',
+    row.resolved_account_id_freshsales || '',
     row.product_family_inferred || '',
-    row.deal_reference_raw || '',
+    row.resolved_process_reference || row.deal_reference_raw || '',
     row.person_name || '',
   ].join('|');
 }
