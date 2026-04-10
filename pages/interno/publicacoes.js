@@ -688,6 +688,7 @@ function PublicacoesContent() {
   const [drainInFlight, setDrainInFlight] = useState(false);
   const [processNumbers, setProcessNumbers] = useState("");
   const [queueRefreshLog, setQueueRefreshLog] = useState([]);
+  const [pageVisible, setPageVisible] = useState(true);
   const [limit, setLimit] = useState(10);
   const [processPage, setProcessPage] = useState(1);
   const [partesPage, setPartesPage] = useState(1);
@@ -711,6 +712,17 @@ function PublicacoesContent() {
     if (typeof window !== "undefined") window.addEventListener("hashchange", syncViewFromLocation);
     return () => {
       if (typeof window !== "undefined") window.removeEventListener("hashchange", syncViewFromLocation);
+    };
+  }, []);
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    const handleVisibilityChange = () => {
+      setPageVisible(document.visibilityState !== "hidden");
+    };
+    handleVisibilityChange();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
   useEffect(() => { setExecutionHistory(loadHistoryEntries()); }, []);
@@ -743,6 +755,12 @@ function PublicacoesContent() {
     async function runLoop() {
       while (!cancelled) {
         try {
+          const idleDelayMs = pageVisible ? 1800 : 6000;
+          if (!pageVisible) {
+            setDrainInFlight(false);
+            await new Promise((resolve) => setTimeout(resolve, idleDelayMs));
+            continue;
+          }
           setDrainInFlight(true);
           const payload = await adminFetch("/api/admin-hmadv-publicacoes", {
             method: "POST",
@@ -776,7 +794,7 @@ function PublicacoesContent() {
             return;
           }
           setDrainInFlight(false);
-          await new Promise((resolve) => setTimeout(resolve, 1800));
+          await new Promise((resolve) => setTimeout(resolve, idleDelayMs));
         } catch (error) {
           if (!cancelled) {
             setActionState({ loading: false, error: error.message || "Falha ao processar job.", result: null });
@@ -792,7 +810,7 @@ function PublicacoesContent() {
     return () => {
       cancelled = true;
     };
-  }, [activeJobId, processPage, partesPage]);
+  }, [activeJobId, processPage, partesPage, pageVisible]);
 
   function pushQueueRefresh(key) {
     const label = QUEUE_LABELS[key] || key;
