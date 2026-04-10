@@ -267,4 +267,5 @@ Modo alternativo para avanço operacional:
   - contratos `textual_only`;
   - falhas de publicação em Deals;
   - backlog da fila CRM.
+- Quando a heurística de reconciliação não encontrar `account/processo`, a resolução passa a ser feita manualmente no módulo interno financeiro, aplicando `resolved_process_id`, `resolved_account_id_freshsales` e `resolved_process_reference` diretamente nas linhas `pendente_account`.
 - A publicação em `Deals` segue restrita aos recebíveis com `freshsales_contact_id + freshsales_account_id`, enquanto o portal pode avançar com a base canônica mesmo antes da reconciliação completa de `accounts`.
