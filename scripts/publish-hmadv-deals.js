@@ -102,50 +102,203 @@ function supabaseOauthHeaders() {
   };
 }
 
-async function ensureSupabaseOauthSeed() {
-  const seedUrl = resolveSupabaseOauthUrl('seed');
-  if (!seedUrl) return false;
-  if (!cleanValue(process.env.FRESHSALES_ACCESS_TOKEN) || !cleanValue(process.env.FRESHSALES_REFRESH_TOKEN)) {
-    return false;
-  }
+function resolveSupabaseRestBase() {
+  const supabaseUrl = cleanValue(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
+  if (!supabaseUrl) return null;
+  return `${supabaseUrl.replace(/\/+$/, '')}/rest/v1`;
+}
 
-  const response = await fetch(seedUrl, {
-    method: 'POST',
-    headers: supabaseOauthHeaders(),
+async function supabaseRestRequest(pathname, init = {}) {
+  const base = resolveSupabaseRestBase();
+  const serviceRoleKey = cleanValue(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  if (!base || !serviceRoleKey) return null;
+
+  const response = await fetch(`${base}/${pathname}`, {
+    ...init,
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(init.headers || {}),
+    },
   }).catch(() => null);
 
-  return Boolean(response?.ok);
+  if (!response) return null;
+  const payload = await response.json().catch(() => ({}));
+  return { response, payload };
+}
+
+async function getStoredOauthRow() {
+  const result = await supabaseRestRequest('freshsales_oauth_tokens?provider=eq.freshsales&select=provider,access_token,refresh_token,expires_at,token_type,scope,updated_at&limit=1');
+  if (!result?.response?.ok) return null;
+  return Array.isArray(result.payload) ? result.payload[0] || null : result.payload || null;
+}
+
+async function upsertStoredOauthRow(row) {
+  const result = await supabaseRestRequest('freshsales_oauth_tokens?on_conflict=provider', {
+    method: 'POST',
+    headers: {
+      Prefer: 'resolution=merge-duplicates,return=minimal',
+    },
+    body: JSON.stringify(row),
+  });
+  return Boolean(result?.response?.ok);
+}
+
+async function seedOauthRowFromEnv() {
+  const accessToken = cleanValue(process.env.FRESHSALES_ACCESS_TOKEN);
+  const refreshToken = cleanValue(process.env.FRESHSALES_REFRESH_TOKEN);
+  if (!accessToken || !refreshToken) return false;
+
+  const expiryTs = Number(cleanValue(process.env.FRESHSALES_TOKEN_EXPIRY) || '0');
+  const fallbackExpiresIn = Number(cleanValue(process.env.FRESHSALES_EXPIRES_IN) || '1799');
+  const expiresInSeconds = expiryTs > Date.now()
+    ? Math.max(30, Math.round((expiryTs - Date.now()) / 1000))
+    : fallbackExpiresIn;
+
+  return upsertStoredOauthRow({
+    provider: 'freshsales',
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expires_at: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),
+    token_type: cleanValue(process.env.FRESHSALES_TOKEN_TYPE) || 'Bearer',
+    scope: cleanValue(process.env.FRESHSALES_SCOPES) || null,
+    updated_at: new Date().toISOString(),
+  });
+}
+
+function resolveOrgDomain() {
+  const direct =
+    cleanValue(process.env.FRESHSALES_ORG_DOMAIN) ||
+    cleanValue(process.env.FRESHSALES_DOMAIN) ||
+    cleanValue(process.env.FRESHSALES_ALIAS_DOMAIN) ||
+    resolveFreshsalesBases()[0] ||
+    null;
+  if (!direct) return null;
+
+  const host = String(direct)
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/(crm\/sales\/api|api|crm\/sales)\/?$/i, '')
+    .replace(/\/+$/, '');
+
+  if (host.includes('myfreshworks.com')) return host;
+  if (host.endsWith('.freshsales.io')) return host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
+  return host || null;
+}
+
+function resolveRedirectUri() {
+  return (
+    cleanValue(process.env.FRESHSALES_REDIRECT_URI) ||
+    cleanValue(process.env.REDIRECT_URI) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_CALLBACK_URL) ||
+    cleanValue(process.env.OAUTH_CALLBACK_URL) ||
+    null
+  );
+}
+
+async function refreshOauthRow(refreshToken) {
+  const clientId = cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID);
+  const clientSecret = cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET);
+  const orgDomain = resolveOrgDomain();
+  const redirectUri = resolveRedirectUri();
+  if (!clientId || !clientSecret || !orgDomain || !redirectUri || !refreshToken) return null;
+
+  const body = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+    client_id: clientId,
+    client_secret: clientSecret,
+    redirect_uri: redirectUri,
+  });
+
+  const response = await fetch(`https://${orgDomain}/crm/sales/oauth/token`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+  }).catch(() => null);
+
+  if (!response?.ok) return null;
+  const payload = await response.json().catch(() => ({}));
+  if (!payload?.access_token) return null;
+
+  await upsertStoredOauthRow({
+    provider: 'freshsales',
+    access_token: payload.access_token,
+    refresh_token: payload.refresh_token || refreshToken,
+    expires_at: new Date(Date.now() + Number(payload.expires_in || 1799) * 1000).toISOString(),
+    token_type: payload.token_type || 'Bearer',
+    scope: payload.scope || cleanValue(process.env.FRESHSALES_SCOPES) || null,
+    updated_at: new Date().toISOString(),
+  });
+
+  return payload.access_token;
+}
+
+async function ensureSupabaseOauthSeed() {
+  const seedUrl = resolveSupabaseOauthUrl('seed');
+  if (seedUrl && cleanValue(process.env.FRESHSALES_ACCESS_TOKEN) && cleanValue(process.env.FRESHSALES_REFRESH_TOKEN)) {
+    const response = await fetch(seedUrl, {
+      method: 'POST',
+      headers: supabaseOauthHeaders(),
+    }).catch(() => null);
+
+    if (response?.ok) return true;
+  }
+
+  return seedOauthRowFromEnv();
 }
 
 async function getSupabaseOauthAccessToken() {
   const tokenUrl = resolveSupabaseOauthUrl('token');
-  if (!tokenUrl) return null;
+  if (tokenUrl) {
+    const requestToken = async () => {
+      const response = await fetch(tokenUrl, {
+        method: 'GET',
+        headers: supabaseOauthHeaders(),
+      }).catch(() => null);
 
-  const requestToken = async () => {
-    const response = await fetch(tokenUrl, {
-      method: 'GET',
-      headers: supabaseOauthHeaders(),
-    }).catch(() => null);
+      if (!response) return null;
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 404 || response.status === 400) return { missing: true };
+        return null;
+      }
 
-    if (!response) return null;
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      if (response.status === 404 || response.status === 400) return { missing: true };
-      return null;
+      return payload?.access_token || null;
+    };
+
+    const initial = await requestToken();
+    if (typeof initial === 'string') return initial;
+    if (initial?.missing) {
+      const seeded = await ensureSupabaseOauthSeed();
+      if (seeded) {
+        const retried = await requestToken();
+        if (typeof retried === 'string') return retried;
+      }
     }
+  }
 
-    return payload?.access_token || null;
-  };
+  let row = await getStoredOauthRow();
+  if (!row) {
+    const seeded = await seedOauthRowFromEnv();
+    if (seeded) {
+      row = await getStoredOauthRow();
+    }
+  }
+  if (!row?.access_token) return null;
 
-  const initial = await requestToken();
-  if (typeof initial === 'string') return initial;
-  if (!initial?.missing) return null;
+  const expiresAt = new Date(row.expires_at || 0).getTime();
+  const shouldRefresh = row.refresh_token && (!expiresAt || Date.now() >= expiresAt - 60_000);
+  if (shouldRefresh) {
+    const refreshed = await refreshOauthRow(row.refresh_token);
+    if (refreshed) return refreshed;
+  }
 
-  const seeded = await ensureSupabaseOauthSeed();
-  if (!seeded) return null;
-
-  const retried = await requestToken();
-  return typeof retried === 'string' ? retried : null;
+  return row.access_token;
 }
 
 async function freshsalesHeaderCandidates() {

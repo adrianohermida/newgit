@@ -174,85 +174,186 @@ function supabaseOauthHeaders() {
   };
 }
 
-async function ensureSupabaseOauthSeed() {
-  const seedUrl = resolveSupabaseOauthUrl('seed');
-  if (!seedUrl) return false;
-  if (!cleanValue(process.env.FRESHSALES_ACCESS_TOKEN) || !cleanValue(process.env.FRESHSALES_REFRESH_TOKEN)) {
-    return false;
-  }
+function resolveSupabaseRestBase() {
+  const supabaseUrl = cleanValue(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
+  if (!supabaseUrl) return null;
+  return `${supabaseUrl.replace(/\/+$/, '')}/rest/v1`;
+}
 
-  const response = await fetch(seedUrl, {
-    method: 'POST',
-    headers: supabaseOauthHeaders(),
+async function supabaseRestRequest(pathname, init = {}) {
+  const base = resolveSupabaseRestBase();
+  const serviceRoleKey = cleanValue(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  if (!base || !serviceRoleKey) return null;
+
+  const response = await fetch(`${base}/${pathname}`, {
+    ...init,
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      ...(init.headers || {}),
+    },
   }).catch(() => null);
 
-  return Boolean(response?.ok);
+  if (!response) return null;
+  const payload = await response.json().catch(() => ({}));
+  return { response, payload };
+}
+
+async function getStoredOauthRow() {
+  const result = await supabaseRestRequest('freshsales_oauth_tokens?provider=eq.freshsales&select=provider,access_token,refresh_token,expires_at,token_type,scope,updated_at&limit=1');
+  if (!result?.response?.ok) return null;
+  return Array.isArray(result.payload) ? result.payload[0] || null : result.payload || null;
+}
+
+async function upsertStoredOauthRow(row) {
+  const result = await supabaseRestRequest('freshsales_oauth_tokens?on_conflict=provider', {
+    method: 'POST',
+    headers: {
+      Prefer: 'resolution=merge-duplicates,return=minimal',
+    },
+    body: JSON.stringify(row),
+  });
+  return Boolean(result?.response?.ok);
+}
+
+async function seedOauthRowFromEnv() {
+  const accessToken = cleanValue(process.env.FRESHSALES_ACCESS_TOKEN);
+  const refreshToken = cleanValue(process.env.FRESHSALES_REFRESH_TOKEN);
+  if (!accessToken || !refreshToken) return false;
+
+  const expiryTs = Number(cleanValue(process.env.FRESHSALES_TOKEN_EXPIRY) || '0');
+  const fallbackExpiresIn = Number(cleanValue(process.env.FRESHSALES_EXPIRES_IN) || '1799');
+  const expiresInSeconds = expiryTs > Date.now()
+    ? Math.max(30, Math.round((expiryTs - Date.now()) / 1000))
+    : fallbackExpiresIn;
+
+  return upsertStoredOauthRow({
+    provider: 'freshsales',
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expires_at: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),
+    token_type: cleanValue(process.env.FRESHSALES_TOKEN_TYPE) || 'Bearer',
+    scope: cleanValue(process.env.FRESHSALES_SCOPES) || null,
+    updated_at: new Date().toISOString(),
+  });
+}
+
+async function ensureSupabaseOauthSeed() {
+  const seedUrl = resolveSupabaseOauthUrl('seed');
+  if (seedUrl && cleanValue(process.env.FRESHSALES_ACCESS_TOKEN) && cleanValue(process.env.FRESHSALES_REFRESH_TOKEN)) {
+    const response = await fetch(seedUrl, {
+      method: 'POST',
+      headers: supabaseOauthHeaders(),
+    }).catch(() => null);
+
+    if (response?.ok) return true;
+  }
+
+  return seedOauthRowFromEnv();
 }
 
 async function getSupabaseOauthAccessToken() {
   const tokenUrl = resolveSupabaseOauthUrl('token');
-  if (!tokenUrl) return null;
+  if (tokenUrl) {
+    const requestToken = async () => {
+      const response = await fetch(tokenUrl, {
+        method: 'GET',
+        headers: supabaseOauthHeaders(),
+      }).catch(() => null);
 
-  const requestToken = async () => {
-    const response = await fetch(tokenUrl, {
-      method: 'GET',
-      headers: supabaseOauthHeaders(),
-    }).catch(() => null);
+      if (!response) return null;
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 404 || response.status === 400) return { missing: true };
+        return null;
+      }
 
-    if (!response) return null;
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      if (response.status === 404 || response.status === 400) return { missing: true };
-      return null;
+      return payload?.access_token || null;
+    };
+
+    const initial = await requestToken();
+    if (typeof initial === 'string') return initial;
+    if (initial?.missing) {
+      const seeded = await ensureSupabaseOauthSeed();
+      if (seeded) {
+        const retried = await requestToken();
+        if (typeof retried === 'string') return retried;
+      }
     }
+  }
 
-    return payload?.access_token || null;
-  };
+  let row = await getStoredOauthRow();
+  if (!row) {
+    const seeded = await seedOauthRowFromEnv();
+    if (seeded) {
+      row = await getStoredOauthRow();
+    }
+  }
+  if (!row?.access_token) return null;
 
-  const initial = await requestToken();
-  if (typeof initial === 'string') return initial;
-  if (!initial?.missing) return null;
+  const expiresAt = new Date(row.expires_at || 0).getTime();
+  const shouldRefresh = row.refresh_token && (!expiresAt || Date.now() >= expiresAt - 60_000);
+  if (shouldRefresh) {
+    const refreshed = await tryRefresh(true);
+    if (refreshed?.ok && refreshed.access_token) return refreshed.access_token;
+    row = await getStoredOauthRow();
+  }
 
-  const seeded = await ensureSupabaseOauthSeed();
-  if (!seeded) return null;
-
-  const retried = await requestToken();
-  return typeof retried === 'string' ? retried : null;
+  return row?.access_token || null;
 }
 
 async function inspectSupabaseOauth() {
   const statusUrl = resolveSupabaseOauthUrl('status');
-  if (!statusUrl) {
-    return {
-      attempted: false,
-      reason: 'missing_supabase_url',
-    };
+  if (statusUrl) {
+    const response = await fetch(statusUrl, {
+      method: 'GET',
+      headers: supabaseOauthHeaders(),
+    }).catch((error) => ({ ok: false, status: 0, __error: error }));
+
+    if (response && !response.__error) {
+      const payload = await response.json().catch(() => ({}));
+      return {
+        attempted: true,
+        ok: response.ok && Boolean(payload?.authorized),
+        status: response.status,
+        authorized: Boolean(payload?.authorized),
+        valid: Boolean(payload?.valid),
+        expires_at: payload?.expires_at || null,
+        has_refresh_token: Boolean(payload?.has_refresh_token),
+        message: summarizePayload(payload),
+        source: 'edge_function',
+      };
+    }
   }
 
-  const response = await fetch(statusUrl, {
-    method: 'GET',
-    headers: supabaseOauthHeaders(),
-  }).catch((error) => ({ ok: false, status: 0, __error: error }));
-
-  if (!response || response.__error) {
+  const row = await getStoredOauthRow();
+  if (!row) {
     return {
       attempted: true,
       ok: false,
-      status: 0,
-      message: String(response?.__error?.message || response?.__error || 'unknown_error'),
+      status: 404,
+      authorized: false,
+      valid: false,
+      expires_at: null,
+      has_refresh_token: false,
+      message: statusUrl ? 'Requested function was not found' : 'missing_supabase_url',
+      source: 'rest_table',
     };
   }
 
-  const payload = await response.json().catch(() => ({}));
+  const expiresAt = new Date(row.expires_at || 0).getTime();
   return {
     attempted: true,
-    ok: response.ok && Boolean(payload?.authorized),
-    status: response.status,
-    authorized: Boolean(payload?.authorized),
-    valid: Boolean(payload?.valid),
-    expires_at: payload?.expires_at || null,
-    has_refresh_token: Boolean(payload?.has_refresh_token),
-    message: summarizePayload(payload),
+    ok: Boolean(row.access_token),
+    status: 200,
+    authorized: Boolean(row.access_token),
+    valid: Boolean(expiresAt && Date.now() < expiresAt - 60_000),
+    expires_at: row.expires_at || null,
+    has_refresh_token: Boolean(row.refresh_token),
+    message: null,
+    source: 'rest_table',
   };
 }
 
@@ -360,7 +461,7 @@ function readOrgDomainFromApiBase(raw) {
   return null;
 }
 
-async function tryRefresh() {
+async function tryRefresh(returnToken = false) {
   const orgDomain = resolveOrgDomain();
   const clientId = cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID);
   const clientSecret = cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET);
@@ -386,6 +487,17 @@ async function tryRefresh() {
       body,
     });
     const payload = await response.json().catch(() => ({}));
+    if (response.ok && payload?.access_token) {
+      await upsertStoredOauthRow({
+        provider: 'freshsales',
+        access_token: payload.access_token,
+        refresh_token: payload.refresh_token || refreshToken,
+        expires_at: new Date(Date.now() + Number(payload.expires_in || 1799) * 1000).toISOString(),
+        token_type: payload.token_type || 'Bearer',
+        scope: payload.scope || cleanValue(process.env.FRESHSALES_SCOPES) || null,
+        updated_at: new Date().toISOString(),
+      });
+    }
     return {
       attempted: true,
       ok: response.ok && Boolean(payload.access_token),
@@ -394,6 +506,7 @@ async function tryRefresh() {
       raw_payload_keys: payload && typeof payload === 'object' ? Object.keys(payload) : [],
       has_access_token: Boolean(payload.access_token),
       has_refresh_token: Boolean(payload.refresh_token),
+      access_token: returnToken ? payload.access_token || null : undefined,
     };
   } catch (error) {
     return {
