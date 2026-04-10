@@ -1425,19 +1425,21 @@ function InternoProcessosContent() {
     });
     try {
       const payload = await adminFetch(`/api/admin-hmadv-processos?action=${action}&page=${page}&pageSize=20`);
-      setter({
-        loading: false,
-        items: (payload.data.items || []).map((item) => ({ ...item, key: item.numero_cnj || item.id })),
-        totalRows: payload.data.totalRows || 0,
-        page: payload.data.page || page,
-        pageSize: payload.data.pageSize || 20,
-        unsupported: Boolean(payload.data.unsupported),
-        updatedAt: new Date().toISOString(),
-        limited: Boolean(payload.data.limited),
-        error: null,
-        errorUntil: null,
-      });
-      pushQueueRefresh(action);
+        const payloadError = payload.data?.error || null;
+        const nextErrorUntil = payloadError ? Date.now() + QUEUE_ERROR_TTL_MS : null;
+        setter({
+          loading: false,
+          items: (payload.data.items || []).map((item) => ({ ...item, key: item.numero_cnj || item.id })),
+          totalRows: payload.data.totalRows || 0,
+          page: payload.data.page || page,
+          pageSize: payload.data.pageSize || 20,
+          unsupported: Boolean(payload.data.unsupported),
+          updatedAt: new Date().toISOString(),
+          limited: Boolean(payload.data.limited),
+          error: payloadError,
+          errorUntil: nextErrorUntil,
+        });
+        pushQueueRefresh(action);
     } catch (error) {
       const message = error.message || "Falha ao carregar fila.";
       setter((state) => ({

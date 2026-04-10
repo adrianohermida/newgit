@@ -66,6 +66,22 @@ function isJobInfraError(error) {
   );
 }
 
+function isQueueOverloadError(error) {
+  const message = String(error?.message || "");
+  return message.includes("Too many subrequests") || message.includes("subrequests");
+}
+
+function buildQueueFallback({ page, pageSize, error }) {
+  return {
+    page,
+    pageSize,
+    totalRows: 0,
+    items: [],
+    limited: true,
+    error: error?.message || "Fila em modo reduzido por sobrecarga.",
+  };
+}
+
 function buildProcessActionLogName(action, payload = {}, suffix = "") {
   const baseAction = String(action || "").trim();
   const intent = String(payload?.intent || "").trim();
@@ -388,25 +404,43 @@ export async function onRequestGet(context) {
       return jsonOk({ data });
     }
     if (action === "publicacoes_pendentes") {
-      const data = await listPublicationActivityBacklog(context.env, {
-        page: Number(url.searchParams.get("page") || 1),
-        pageSize: Number(url.searchParams.get("pageSize") || 20),
-      });
-      return jsonOk({ data });
+      const page = Number(url.searchParams.get("page") || 1);
+      const pageSize = Number(url.searchParams.get("pageSize") || 20);
+      try {
+        const data = await listPublicationActivityBacklog(context.env, { page, pageSize });
+        return jsonOk({ data });
+      } catch (error) {
+        if (isQueueOverloadError(error)) {
+          return jsonOk({ data: buildQueueFallback({ page, pageSize, error }) });
+        }
+        throw error;
+      }
     }
     if (action === "movimentacoes_pendentes") {
-      const data = await listMovementActivityBacklog(context.env, {
-        page: Number(url.searchParams.get("page") || 1),
-        pageSize: Number(url.searchParams.get("pageSize") || 20),
-      });
-      return jsonOk({ data });
+      const page = Number(url.searchParams.get("page") || 1);
+      const pageSize = Number(url.searchParams.get("pageSize") || 20);
+      try {
+        const data = await listMovementActivityBacklog(context.env, { page, pageSize });
+        return jsonOk({ data });
+      } catch (error) {
+        if (isQueueOverloadError(error)) {
+          return jsonOk({ data: buildQueueFallback({ page, pageSize, error }) });
+        }
+        throw error;
+      }
     }
     if (action === "partes_sem_contato") {
-      const data = await listPartesSemContatoBacklog(context.env, {
-        page: Number(url.searchParams.get("page") || 1),
-        pageSize: Number(url.searchParams.get("pageSize") || 20),
-      });
-      return jsonOk({ data });
+      const page = Number(url.searchParams.get("page") || 1);
+      const pageSize = Number(url.searchParams.get("pageSize") || 20);
+      try {
+        const data = await listPartesSemContatoBacklog(context.env, { page, pageSize });
+        return jsonOk({ data });
+      } catch (error) {
+        if (isQueueOverloadError(error)) {
+          return jsonOk({ data: buildQueueFallback({ page, pageSize, error }) });
+        }
+        throw error;
+      }
     }
     if (action === "relacoes") {
       const data = await listProcessRelations(context.env, {
