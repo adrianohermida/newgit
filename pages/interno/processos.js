@@ -30,6 +30,7 @@ const ACTION_LABELS = {
   remover_relacao: "Remover relacao",
   run_pending_jobs: "Drenar fila HMADV",
 };
+const QUEUE_ERROR_TTL_MS = 1000 * 60 * 3;
 const ASYNC_PROCESS_ACTIONS = new Set([
   "push_orfaos",
   "enriquecer_datajud",
@@ -258,11 +259,11 @@ function ViewToggle({ value, onChange }) {
     return <button key={item.key} type="button" onClick={() => onChange(item.key)} className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.16em] transition ${active ? "border-[#C5A059] bg-[rgba(197,160,89,0.12)] text-[#F8E7B5]" : "border-[#2D2E2E] text-[#C5A059] hover:border-[#C5A059]"}`}>{item.label}</button>;
   })}</div>;
 }
-function QueueList({ title, rows, selected, onToggle, onTogglePage, page, setPage, loading, helper, totalRows = 0, pageSize = 20, renderStatuses = null, lastUpdated = null, limited = false }) {
+function QueueList({ title, rows, selected, onToggle, onTogglePage, page, setPage, loading, helper, totalRows = 0, pageSize = 20, renderStatuses = null, lastUpdated = null, limited = false, errorMessage = "" }) {
   const allSelected = rows.length > 0 && rows.every((row) => selected.includes(getProcessSelectionValue(row)));
   const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / Math.max(1, pageSize)));
   const updatedLabel = lastUpdated ? new Date(lastUpdated).toLocaleString("pt-BR") : "nao atualizado";
-  return <div className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">{title}</p><span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{rows.length} nesta pagina</span><span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{totalRows} no total</span>{selected.length ? <span className="rounded-full border border-[#6E5630] bg-[rgba(76,57,26,0.22)] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-[#FDE68A]">{selected.length} selecionado(s)</span> : null}</div>{helper ? <p className="mt-1 text-xs leading-6 opacity-60">{helper}</p> : null}{totalRows ? <p className="mt-1 text-xs opacity-50">Pagina {page} de {totalPages}</p> : null}{lastUpdated !== undefined ? <p className="mt-1 text-xs opacity-50">Atualizado em {updatedLabel}</p> : null}{limited ? <p className="mt-1 text-xs text-[#FDE68A]">Fila em modo reduzido para evitar sobrecarga.</p> : null}</div><div className="flex flex-wrap gap-2"><ActionButton onClick={() => onTogglePage(!allSelected)} className="px-3 py-2 text-xs">{allSelected ? "Desmarcar pagina" : "Selecionar pagina"}</ActionButton><ActionButton onClick={() => setPage(Math.max(1, page - 1))} disabled={loading || page <= 1} className="px-3 py-2 text-xs">Anterior</ActionButton><ActionButton onClick={() => setPage(page + 1)} disabled={loading || page >= totalPages} className="px-3 py-2 text-xs">Proxima</ActionButton></div></div>{loading ? <p className="text-sm opacity-60">Carregando fila...</p> : null}{!loading && !rows.length ? <p className="rounded-2xl border border-dashed border-[#2D2E2E] px-4 py-6 text-sm opacity-60">Nenhum item encontrado nesta pagina.</p> : null}<div className="space-y-3">{rows.map((row) => { const selectionValue = getProcessSelectionValue(row); const statuses = renderStatuses ? renderStatuses(row) : []; return <label key={row.key} className="block cursor-pointer rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 transition hover:border-[#3A3E3D]"><div className="flex gap-3"><input type="checkbox" checked={selected.includes(selectionValue)} onChange={() => onToggle(selectionValue)} className="mt-1" /><div className="min-w-0 flex-1 space-y-2 text-sm"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold break-all">{row.numero_cnj || row.key}</p>{row.monitoramento_fallback ? <span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">fallback</span> : null}</div>{row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}{statuses.length ? <div className="flex flex-wrap gap-2">{statuses.map((status) => <StatusBadge key={status.label} tone={status.tone}>{status.label}</StatusBadge>)}</div> : null}<div className="flex flex-wrap gap-x-4 gap-y-1 opacity-60 text-xs">{row.status_atual_processo ? <span>Status: {row.status_atual_processo}</span> : null}{row.quantidade_movimentacoes !== undefined ? <span>Movimentacoes: {row.quantidade_movimentacoes ?? 0}</span> : null}{row.monitoramento_ativo !== undefined ? <span>Monitorado: {row.monitoramento_ativo ? "sim" : "nao"}</span> : null}{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]" onClick={(e) => e.stopPropagation()}>Account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}</div></div></div></label>; })}</div></div>;
+  return <div className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">{title}</p><span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{rows.length} nesta pagina</span><span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{totalRows} no total</span>{selected.length ? <span className="rounded-full border border-[#6E5630] bg-[rgba(76,57,26,0.22)] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-[#FDE68A]">{selected.length} selecionado(s)</span> : null}</div>{helper ? <p className="mt-1 text-xs leading-6 opacity-60">{helper}</p> : null}{totalRows ? <p className="mt-1 text-xs opacity-50">Pagina {page} de {totalPages}</p> : null}{lastUpdated !== undefined ? <p className="mt-1 text-xs opacity-50">Atualizado em {updatedLabel}</p> : null}{limited ? <p className="mt-1 text-xs text-[#FDE68A]">Fila em modo reduzido para evitar sobrecarga.</p> : null}{errorMessage ? <p className="mt-1 text-xs text-[#FECACA]">{errorMessage}</p> : null}</div><div className="flex flex-wrap gap-2"><ActionButton onClick={() => onTogglePage(!allSelected)} className="px-3 py-2 text-xs">{allSelected ? "Desmarcar pagina" : "Selecionar pagina"}</ActionButton><ActionButton onClick={() => setPage(Math.max(1, page - 1))} disabled={loading || page <= 1} className="px-3 py-2 text-xs">Anterior</ActionButton><ActionButton onClick={() => setPage(page + 1)} disabled={loading || page >= totalPages} className="px-3 py-2 text-xs">Proxima</ActionButton></div></div>{loading ? <p className="text-sm opacity-60">Carregando fila...</p> : null}{!loading && !rows.length ? <p className="rounded-2xl border border-dashed border-[#2D2E2E] px-4 py-6 text-sm opacity-60">Nenhum item encontrado nesta pagina.</p> : null}<div className="space-y-3">{rows.map((row) => { const selectionValue = getProcessSelectionValue(row); const statuses = renderStatuses ? renderStatuses(row) : []; return <label key={row.key} className="block cursor-pointer rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 transition hover:border-[#3A3E3D]"><div className="flex gap-3"><input type="checkbox" checked={selected.includes(selectionValue)} onChange={() => onToggle(selectionValue)} className="mt-1" /><div className="min-w-0 flex-1 space-y-2 text-sm"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold break-all">{row.numero_cnj || row.key}</p>{row.monitoramento_fallback ? <span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">fallback</span> : null}</div>{row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}{statuses.length ? <div className="flex flex-wrap gap-2">{statuses.map((status) => <StatusBadge key={status.label} tone={status.tone}>{status.label}</StatusBadge>)}</div> : null}<div className="flex flex-wrap gap-x-4 gap-y-1 opacity-60 text-xs">{row.status_atual_processo ? <span>Status: {row.status_atual_processo}</span> : null}{row.quantidade_movimentacoes !== undefined ? <span>Movimentacoes: {row.quantidade_movimentacoes ?? 0}</span> : null}{row.monitoramento_ativo !== undefined ? <span>Monitorado: {row.monitoramento_ativo ? "sim" : "nao"}</span> : null}{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]" onClick={(e) => e.stopPropagation()}>Account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}</div></div></div></label>; })}</div></div>;
 }
 function CoverageList({ rows, page, setPage, loading, totalRows = 0, pageSize = 20, onSelectProcess = null }) {
   const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / Math.max(1, pageSize)));
@@ -989,15 +990,15 @@ function InternoProcessosContent() {
   const snapshotPayloadRef = useRef("");
   const [limit, setLimit] = useState(2);
   const [processNumbers, setProcessNumbers] = useState("");
-  const [withoutMovements, setWithoutMovements] = useState({ loading: true, items: [], updatedAt: null });
-  const [movementBacklog, setMovementBacklog] = useState({ loading: true, items: [], updatedAt: null });
-  const [publicationBacklog, setPublicationBacklog] = useState({ loading: true, items: [], updatedAt: null });
-  const [partesBacklog, setPartesBacklog] = useState({ loading: true, items: [], updatedAt: null });
-  const [audienciaCandidates, setAudienciaCandidates] = useState({ loading: true, items: [], updatedAt: null });
-  const [monitoringActive, setMonitoringActive] = useState({ loading: true, items: [], updatedAt: null });
-  const [monitoringInactive, setMonitoringInactive] = useState({ loading: true, items: [], updatedAt: null });
-  const [fieldGaps, setFieldGaps] = useState({ loading: true, items: [], updatedAt: null });
-  const [orphans, setOrphans] = useState({ loading: true, items: [], updatedAt: null });
+  const [withoutMovements, setWithoutMovements] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
+  const [movementBacklog, setMovementBacklog] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
+  const [publicationBacklog, setPublicationBacklog] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
+  const [partesBacklog, setPartesBacklog] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
+  const [audienciaCandidates, setAudienciaCandidates] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
+  const [monitoringActive, setMonitoringActive] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
+  const [monitoringInactive, setMonitoringInactive] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
+  const [fieldGaps, setFieldGaps] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
+  const [orphans, setOrphans] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
   const [wmPage, setWmPage] = useState(1);
   const [movPage, setMovPage] = useState(1);
   const [pubPage, setPubPage] = useState(1);
@@ -1366,24 +1367,45 @@ function InternoProcessosContent() {
     }
   }
   async function loadQueue(action, setter, page) {
-    setter((state) => ({ ...state, loading: true }));
-      try {
-        const payload = await adminFetch(`/api/admin-hmadv-processos?action=${action}&page=${page}&pageSize=20`);
-        setter({
-          loading: false,
-          items: (payload.data.items || []).map((item) => ({ ...item, key: item.numero_cnj || item.id })),
-          totalRows: payload.data.totalRows || 0,
-          page: payload.data.page || page,
-          pageSize: payload.data.pageSize || 20,
-          unsupported: Boolean(payload.data.unsupported),
-          updatedAt: new Date().toISOString(),
-          limited: Boolean(payload.data.limited),
-        });
-        pushQueueRefresh(action);
-      } catch {
-        setter({ loading: false, items: [], totalRows: 0, page, pageSize: 20, unsupported: false, updatedAt: new Date().toISOString(), limited: false });
-        pushQueueRefresh(action);
+    setter((state) => ({ ...state, loading: true, error: null }));
+    const now = Date.now();
+    setter((state) => {
+      if (state?.errorUntil && now < state.errorUntil) {
+        return { ...state, loading: false };
       }
+      return state;
+    });
+    try {
+      const payload = await adminFetch(`/api/admin-hmadv-processos?action=${action}&page=${page}&pageSize=20`);
+      setter({
+        loading: false,
+        items: (payload.data.items || []).map((item) => ({ ...item, key: item.numero_cnj || item.id })),
+        totalRows: payload.data.totalRows || 0,
+        page: payload.data.page || page,
+        pageSize: payload.data.pageSize || 20,
+        unsupported: Boolean(payload.data.unsupported),
+        updatedAt: new Date().toISOString(),
+        limited: Boolean(payload.data.limited),
+        error: null,
+        errorUntil: null,
+      });
+      pushQueueRefresh(action);
+    } catch (error) {
+      const message = error.message || "Falha ao carregar fila.";
+      setter((state) => ({
+        loading: false,
+        items: state?.items || [],
+        totalRows: state?.totalRows || 0,
+        page,
+        pageSize: 20,
+        unsupported: Boolean(state?.unsupported),
+        updatedAt: state?.updatedAt || new Date().toISOString(),
+        limited: Boolean(state?.limited),
+        error: message,
+        errorUntil: Date.now() + QUEUE_ERROR_TTL_MS,
+      }));
+      pushQueueRefresh(action);
+    }
   }
   async function loadOrphans(page = 1) {
     setOrphans((state) => ({ ...state, loading: true }));
