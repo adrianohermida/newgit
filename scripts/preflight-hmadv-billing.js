@@ -50,6 +50,12 @@ async function main() {
     if (Array.isArray(report.freshsales.missing_billing_map_fields) && report.freshsales.missing_billing_map_fields.length) {
       report.readiness.warnings.push(`Campos do mapa financeiro nao encontrados no tenant: ${report.freshsales.missing_billing_map_fields.join(', ')}`);
     }
+    if (report.freshsales.uses_placeholder_billing_fields) {
+      report.readiness.warnings.push('FRESHSALES_BILLING_DEAL_FIELD_MAP ainda usa placeholders cf_hmadv_*');
+    }
+    if (report.freshsales.requires_deal_type_id_map && !report.freshsales.has_deal_type_id_map) {
+      report.readiness.warnings.push('Mapa financeiro usa deal_type_id sem FRESHSALES_BILLING_DEAL_TYPE_ID_MAP configurado');
+    }
   }
 
   report.readiness.ok = report.readiness.blockers.length === 0;
@@ -83,6 +89,7 @@ function inspectEnv() {
     freshsales_auth: Boolean(cleanValue(process.env.FRESHSALES_API_KEY || process.env.FRESHSALES_ACCESS_TOKEN)),
     default_deal_stage_id: cleanValue(process.env.FRESHSALES_DEFAULT_DEAL_STAGE_ID),
     billing_deal_field_map: Boolean(cleanValue(process.env.FRESHSALES_BILLING_DEAL_FIELD_MAP)),
+    billing_deal_type_id_map: Boolean(cleanValue(process.env.FRESHSALES_BILLING_DEAL_TYPE_ID_MAP)),
     financial_event_stage_map: Boolean(cleanValue(process.env.FRESHSALES_FINANCIAL_EVENT_STAGE_MAP)),
     workspace_id: cleanValue(process.env.HMADV_WORKSPACE_ID),
   };
@@ -132,15 +139,15 @@ async function supabaseCount(table) {
 }
 
 async function inspectFreshsales() {
-  const base = resolveFreshsalesBase();
-  const headers = freshsalesHeaders();
-
-  const contacts = await freshsalesRequest(`${base}/contacts/view/1?page=1&per_page=1`, headers).catch(() => null);
-  const dealsFields = await freshsalesRequest(`${base}/settings/deals/fields`, headers).catch(() => null);
-  const products = await freshsalesRequest(`${base}/products?page=1&per_page=1`, headers).catch(() => null);
+  const contacts = await freshsalesRequestByPath('/contacts/view/1?page=1&per_page=1').catch(() => null);
+  const dealsFields = await freshsalesRequestByPath('/settings/deals/fields').catch(() => null);
+  const products = await freshsalesRequestByPath('/products?page=1&per_page=1').catch(() => null);
   const configuredFieldMap = parseJsonEnv(process.env.FRESHSALES_BILLING_DEAL_FIELD_MAP, {});
+  const configuredDealTypeIdMap = parseJsonEnv(process.env.FRESHSALES_BILLING_DEAL_TYPE_ID_MAP, {});
   const tenantFieldNames = new Set(Array.isArray(dealsFields?.fields) ? dealsFields.fields.map((item) => item.name).filter(Boolean) : []);
   const missingBillingMapFields = Object.values(configuredFieldMap).filter((fieldName) => fieldName && !tenantFieldNames.has(fieldName));
+  const usesPlaceholderBillingFields = Object.values(configuredFieldMap).some((fieldName) => String(fieldName || '').startsWith('cf_hmadv_'));
+  const requiresDealTypeIdMap = Object.values(configuredFieldMap).includes('deal_type_id');
 
   return {
     ok: Boolean(contacts || dealsFields || products),
@@ -148,6 +155,9 @@ async function inspectFreshsales() {
     products_total: readTotal(products, ['meta.total', 'meta.total_count', 'total']),
     deal_fields_total: Array.isArray(dealsFields?.fields) ? dealsFields.fields.length : 0,
     missing_billing_map_fields: missingBillingMapFields,
+    uses_placeholder_billing_fields: usesPlaceholderBillingFields,
+    requires_deal_type_id_map: requiresDealTypeIdMap,
+    has_deal_type_id_map: Object.keys(configuredDealTypeIdMap).length > 0,
   };
 }
 
@@ -160,33 +170,51 @@ function readTotal(payload, paths) {
   return 0;
 }
 
-function resolveFreshsalesBase() {
+function resolveFreshsalesBases() {
   const raw = cleanValue(process.env.FRESHSALES_API_BASE || process.env.FRESHSALES_BASE_URL || process.env.FRESHSALES_DOMAIN);
   if (!raw) throw new Error('Freshsales base ausente');
   const base = raw.startsWith('http') ? raw.replace(/\/+$/, '') : `https://${raw.replace(/\/+$/, '')}`;
-  if (base.includes('/crm/sales/api')) return base;
-  if (base.includes('/api')) return base;
-  return `${base}/crm/sales/api`;
+  if (base.includes('/crm/sales/api') || base.includes('/api')) {
+    const host = base.replace(/^https?:\/\//i, '').replace(/\/(crm\/sales\/api|api)\/?$/i, '');
+    const myfreshworksHost = host.includes('myfreshworks.com') ? host : host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
+    return Array.from(new Set([
+      base,
+      `https://${host}/api`,
+      `https://${host}/crm/sales/api`,
+      `https://${myfreshworksHost}/api`,
+      `https://${myfreshworksHost}/crm/sales/api`,
+    ]));
+  }
+  const host = base.replace(/^https?:\/\//i, '');
+  const myfreshworksHost = host.includes('myfreshworks.com') ? host : host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
+  return Array.from(new Set([
+    `${base}/api`,
+    `${base}/crm/sales/api`,
+    `https://${myfreshworksHost}/api`,
+    `https://${myfreshworksHost}/crm/sales/api`,
+  ]));
 }
 
-function freshsalesHeaders() {
+function freshsalesHeaderCandidates() {
   const apiKey = cleanValue(process.env.FRESHSALES_API_KEY);
   const accessToken = cleanValue(process.env.FRESHSALES_ACCESS_TOKEN);
+  const headers = [];
   if (apiKey) {
-    return {
+    headers.push({
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Token token=${apiKey}`,
-    };
+    });
   }
   if (accessToken) {
-    return {
+    headers.push({
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
-    };
+    });
   }
-  throw new Error('Credenciais Freshsales ausentes');
+  if (!headers.length) throw new Error('Credenciais Freshsales ausentes');
+  return headers;
 }
 
 function parseJsonEnv(value, fallback = {}) {
@@ -199,13 +227,21 @@ function parseJsonEnv(value, fallback = {}) {
   }
 }
 
-async function freshsalesRequest(url, headers) {
-  const response = await fetch(url, { headers });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload.message || payload.error || `Freshsales request failed: ${response.status}`);
+async function freshsalesRequestByPath(pathname) {
+  const errors = [];
+  for (const base of resolveFreshsalesBases()) {
+    for (const headers of freshsalesHeaderCandidates()) {
+      const response = await fetch(`${base}${pathname}`, { headers }).catch((error) => {
+        errors.push(`${base}${pathname}: ${String(error.message || error)}`);
+        return null;
+      });
+      if (!response) continue;
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok) return payload;
+      errors.push(`${base}${pathname} -> ${response.status}: ${payload.message || payload.error || JSON.stringify(payload).slice(0, 200)}`);
+    }
   }
-  return payload;
+  throw new Error(errors.join(' | '));
 }
 
 async function supabaseRequest(pathname, init = {}) {

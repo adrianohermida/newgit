@@ -1,0 +1,32 @@
+# Copie este arquivo para .dev.vars e preencha com os valores reais
+# NUNCA commite .dev.vars com segredos reais
+
+SUPABASE_URL=https://seu-projeto.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOi...
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...
+SUPABASE_DB_URL=postgresql://postgres:senha@db.seu-projeto.supabase.co:5432/postgres
+
+FRESHSALES_API_BASE=https://sua-conta.freshsales.io/api
+FRESHSALES_API_KEY=seu_api_key_ou_use_access_token
+FRESHSALES_ACCESS_TOKEN=
+FRESHSALES_REFRESH_TOKEN=
+FRESHSALES_OWNER_ID=31000147944
+FRESHSALES_DEFAULT_DEAL_STAGE_ID=31000000000
+FRESHSALES_BILLING_DEAL_FIELD_MAP={"invoice_number":"cf_referencia_fatura","billing_type":"cf_tipo_fatura","balance_due":"cf_saldo_a_pagar","correction_amount":"cf_acrscimo_de_correcao","late_fee_amount":"cf_acrscimo_de_multa","interest_mora_amount":"cf_juros_de_mora","interest_compensatory_amount":"cf_juros_compensatrios_valor"}
+FRESHSALES_BILLING_DEAL_TYPE_ID_MAP={}
+FRESHSALES_FINANCIAL_EVENT_STAGE_MAP={"deal_published":"proposal_pending","deal_publish_failed":null,"pago":"client_active","parcial":"proposal_pending","em_aberto":"proposal_pending","vencido":"contract_sent"}
+
+HMADV_WORKSPACE_ID=
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_OAUTH_REFRESH_TOKEN=
+GOOGLE_ACCESS_TOKEN=
+RESEND_API_KEY=
+SITE_URL=http://localhost:8788
+PROCESS_AI_BASE=
+ZOOM_ACCOUNT_ID=
+ZOOM_CLIENT_ID=
+ZOOM_CLIENT_SECRET=
+ZOOM_USER_ID=me
+ZOOM_DEFAULT_TIMEZONE=America/Sao_Paulo

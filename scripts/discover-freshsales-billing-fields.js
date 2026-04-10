@@ -6,13 +6,10 @@ const path = require('path');
 loadLocalEnv();
 
 async function main() {
-  const base = resolveFreshsalesBase();
-  const headers = freshsalesHeaders();
-
   const [dealsFields, accountsFields, productsFields] = await Promise.all([
-    fetchFreshsalesJson(`${base}/settings/deals/fields`, headers).catch(() => ({ fields: [] })),
-    fetchFreshsalesJson(`${base}/settings/sales_accounts/fields`, headers).catch(() => ({ fields: [] })),
-    fetchFreshsalesJson(`${base}/settings/products/fields`, headers).catch(() => ({ fields: [] })),
+    fetchFreshsalesPath('/settings/deals/fields').catch(() => ({ fields: [] })),
+    fetchFreshsalesPath('/settings/sales_accounts/fields').catch(() => ({ fields: [] })),
+    fetchFreshsalesPath('/settings/products/fields').catch(() => ({ fields: [] })),
   ]);
 
   const dealFields = Array.isArray(dealsFields.fields) ? dealsFields.fields : [];
@@ -34,7 +31,7 @@ async function main() {
   };
 
   const report = {
-    base,
+    base: resolveFreshsalesBases()[0],
     counts: {
       deal_fields: dealFields.length,
       account_fields: accountFields.length,
@@ -79,42 +76,68 @@ function normalizeText(value) {
     .trim();
 }
 
-function resolveFreshsalesBase() {
+function resolveFreshsalesBases() {
   const raw = cleanValue(process.env.FRESHSALES_API_BASE || process.env.FRESHSALES_BASE_URL || process.env.FRESHSALES_DOMAIN);
   if (!raw) throw new Error('FRESHSALES_API_BASE/FRESHSALES_BASE_URL/FRESHSALES_DOMAIN nao configurado');
   const base = raw.startsWith('http') ? raw.replace(/\/+$/, '') : `https://${raw.replace(/\/+$/, '')}`;
-  if (base.includes('/crm/sales/api')) return base;
-  if (base.includes('/api')) return base;
-  return `${base}/crm/sales/api`;
+  if (base.includes('/crm/sales/api') || base.includes('/api')) {
+    const host = base.replace(/^https?:\/\//i, '').replace(/\/(crm\/sales\/api|api)\/?$/i, '');
+    const myfreshworksHost = host.includes('myfreshworks.com') ? host : host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
+    return Array.from(new Set([
+      base,
+      `https://${host}/api`,
+      `https://${host}/crm/sales/api`,
+      `https://${myfreshworksHost}/api`,
+      `https://${myfreshworksHost}/crm/sales/api`,
+    ]));
+  }
+  const host = base.replace(/^https?:\/\//i, '');
+  const myfreshworksHost = host.includes('myfreshworks.com') ? host : host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
+  return Array.from(new Set([
+    `${base}/api`,
+    `${base}/crm/sales/api`,
+    `https://${myfreshworksHost}/api`,
+    `https://${myfreshworksHost}/crm/sales/api`,
+  ]));
 }
 
-function freshsalesHeaders() {
+function freshsalesHeaderCandidates() {
   const apiKey = cleanValue(process.env.FRESHSALES_API_KEY);
   const accessToken = cleanValue(process.env.FRESHSALES_ACCESS_TOKEN);
+  const headers = [];
   if (apiKey) {
-    return {
+    headers.push({
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Token token=${apiKey}`,
-    };
+    });
   }
   if (accessToken) {
-    return {
+    headers.push({
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
-    };
+    });
   }
-  throw new Error('Credenciais Freshsales ausentes');
+  if (!headers.length) throw new Error('Credenciais Freshsales ausentes');
+  return headers;
 }
 
-async function fetchFreshsalesJson(url, headers) {
-  const response = await fetch(url, { headers });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload.message || payload.error || `Freshsales request failed: ${response.status}`);
+async function fetchFreshsalesPath(pathname) {
+  const errors = [];
+  for (const base of resolveFreshsalesBases()) {
+    for (const headers of freshsalesHeaderCandidates()) {
+      const response = await fetch(`${base}${pathname}`, { headers }).catch((error) => {
+        errors.push(`${base}${pathname}: ${String(error.message || error)}`);
+        return null;
+      });
+      if (!response) continue;
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok) return payload;
+      errors.push(`${base}${pathname} -> ${response.status}: ${payload.message || payload.error || JSON.stringify(payload).slice(0, 200)}`);
+    }
   }
-  return payload;
+  throw new Error(errors.join(' | '));
 }
 
 function suggestField(fields, aliases) {
