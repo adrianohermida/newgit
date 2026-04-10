@@ -32,6 +32,7 @@ import {
   scanOrphanProcesses,
   searchProcessesForRelations,
   syncMovementActivities,
+  syncAudienciaActivities,
   syncPublicationActivities,
   syncProcessesSupabaseCrm,
   processProcessAdminJob,
@@ -96,6 +97,9 @@ async function runInlineProcessAction(env, action, body) {
   }
   if (action === "sincronizar_publicacoes_activity") {
     return syncPublicationActivities(env, { processNumbers, limit: requestedLimit || 5 });
+  }
+  if (action === "sincronizar_audiencias_activity") {
+    return syncAudienciaActivities(env, { processNumbers, limit: requestedLimit || 5 });
   }
   throw new Error(`Acao inline nao suportada: ${action}`);
 }
@@ -430,6 +434,12 @@ export async function onRequestPost(context) {
     }
     if (action === "sincronizar_publicacoes_activity") {
       return runLogged(async () => syncPublicationActivities(context.env, {
+        processNumbers: parseProcessNumbers(body.processNumbers),
+        limit: Number(body.limit || 5),
+      }));
+    }
+    if (action === "sincronizar_audiencias_activity") {
+      return runLogged(async () => syncAudienciaActivities(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 5),
       }));

@@ -10,6 +10,7 @@ import {
   persistProcessCoverageSnapshot,
   processProcessAdminJob,
   processPublicacoesAdminJob,
+  syncAudienciaActivities,
 } from "./hmadv-ops.js";
 import {
   getContactsOverview,
@@ -341,6 +342,7 @@ async function runAdviseSyncPipeline(env) {
 async function runFreshsalesCoveragePipeline(env) {
   const result = {
     publicacoes: null,
+    audiencias: null,
     worker: null,
     ok: true,
   };
@@ -359,6 +361,18 @@ async function runFreshsalesCoveragePipeline(env) {
     result.publicacoes = {
       ok: false,
       error: error?.message || "Falha ao sincronizar publicacoes no Freshsales.",
+    };
+  }
+
+  try {
+    result.audiencias = await syncAudienciaActivities(env, {
+      limit: 10,
+    });
+  } catch (error) {
+    result.ok = false;
+    result.audiencias = {
+      ok: false,
+      error: error?.message || "Falha ao sincronizar audiencias no Freshsales.",
     };
   }
 

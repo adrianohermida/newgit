@@ -414,6 +414,115 @@ export async function createFreshsalesPublicationActivity(env, {
   };
 }
 
+export async function createFreshsalesAudienciaActivity(env, {
+  accountId,
+  audiencia,
+  process = {},
+} = {}) {
+  const normalizedAccountId = String(accountId || process?.account_id_freshsales || "").trim();
+  if (!normalizedAccountId) {
+    throw new Error("Sales Account ausente para criar activity de audiencia.");
+  }
+
+  const activityTypeId = resolveFreshsalesActivityTypeId(env, [
+    "FRESHSALES_ACTIVITY_TYPE_AUDIENCIA",
+    "FRESHSALES_AUDIENCIA_ACTIVITY_TYPE_ID",
+    "FRESHSALES_AUDIENCIAS_ACTIVITY_TYPE_ID",
+    "FRESHSALES_DEFAULT_ACTIVITY_TYPE_ID",
+  ]);
+  if (!activityTypeId) {
+    throw new Error("Tipo de activity de audiencia nao configurado no ambiente do Freshsales.");
+  }
+
+  const processNumber = String(process?.numero_cnj || "").trim();
+  const title = processNumber
+    ? `Audiencia judicial - ${processNumber}`
+    : `Audiencia judicial - conta ${normalizedAccountId}`;
+  const dateIso = audiencia?.data_audiencia
+    ? new Date(audiencia.data_audiencia).toISOString()
+    : new Date().toISOString();
+  const noteLines = [
+    processNumber ? `Processo: ${processNumber}` : null,
+    process?.titulo ? `Titulo: ${process.titulo}` : null,
+    audiencia?.tipo ? `Tipo: ${audiencia.tipo}` : null,
+    audiencia?.situacao ? `Situacao: ${audiencia.situacao}` : null,
+    audiencia?.local ? `Local: ${audiencia.local}` : null,
+    audiencia?.descricao ? `Descricao:\n${String(audiencia.descricao).slice(0, 4000)}` : null,
+    audiencia?.origem ? `Origem: ${audiencia.origem}` : null,
+    audiencia?.id ? `Audiencia HMADV: ${audiencia.id}` : null,
+  ].filter(Boolean);
+
+  const activityPayload = {
+    sales_activity: {
+      subject: title,
+      note: noteLines.join("\n\n"),
+      activity_date: dateIso,
+      owner_id: getCleanEnvValue(env.FRESHSALES_OWNER_ID) || null,
+      targetable_type: "SalesAccount",
+      targetable_id: normalizedAccountId,
+      sales_activity_type_id: activityTypeId,
+    },
+  };
+
+  const { payload, base } = await freshsalesRequest(env, "/sales_activities", {
+    method: "POST",
+    body: JSON.stringify(activityPayload),
+  });
+
+  return {
+    base,
+    activity: payload.sales_activity || payload,
+    requestPayload: activityPayload,
+  };
+}
+
+export async function createFreshsalesAppointmentForAudiencia(env, {
+  accountId,
+  audiencia,
+  process = {},
+} = {}) {
+  const normalizedAccountId = String(accountId || process?.account_id_freshsales || "").trim();
+  if (!normalizedAccountId) {
+    throw new Error("Sales Account ausente para criar appointment de audiencia.");
+  }
+  const startAt = audiencia?.data_audiencia
+    ? new Date(audiencia.data_audiencia)
+    : new Date();
+  const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+  const processNumber = String(process?.numero_cnj || "").trim();
+  const appointmentPayload = {
+    appointment: {
+      title: processNumber ? `Audiencia - ${processNumber}` : "Audiencia judicial",
+      from_date: startAt.toISOString(),
+      end_date: endAt.toISOString(),
+      description: [
+        processNumber ? `Processo: ${processNumber}` : null,
+        process?.titulo ? `Titulo: ${process.titulo}` : null,
+        audiencia?.tipo ? `Tipo: ${audiencia.tipo}` : null,
+        audiencia?.situacao ? `Situacao: ${audiencia.situacao}` : null,
+        audiencia?.local ? `Local: ${audiencia.local}` : null,
+        audiencia?.descricao ? `Descricao:\n${String(audiencia.descricao).slice(0, 3000)}` : null,
+      ].filter(Boolean).join("\n\n"),
+      location: audiencia?.local || "Audiencia judicial",
+      owner_id: getCleanEnvValue(env.FRESHSALES_OWNER_ID) || null,
+      targetable_type: "SalesAccount",
+      targetable_id: normalizedAccountId,
+      external_id: audiencia?.id ? `audiencia-${audiencia.id}` : null,
+    },
+  };
+
+  const { payload, base } = await freshsalesRequest(env, "/appointments", {
+    method: "POST",
+    body: JSON.stringify(appointmentPayload),
+  });
+
+  return {
+    base,
+    appointment: payload.appointment || payload,
+    requestPayload: appointmentPayload,
+  };
+}
+
 export async function syncAgendamentoToFreshsales(env, agendamento, eventType, zoomSnapshot = null, options = {}) {
   const contactResult = await upsertFreshsalesContactForAgendamento(env, agendamento, eventType, options);
   const contactId = contactResult?.contact?.id || agendamento.freshsales_contact_id || null;

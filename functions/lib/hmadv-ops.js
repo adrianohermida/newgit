@@ -1,6 +1,11 @@
 import { fetchSupabaseAdmin } from "./supabase-rest.js";
 import { getCleanEnvValue, getSupabaseBaseUrl, getSupabaseServerKey } from "./env.js";
-import { createFreshsalesPublicationActivity, freshsalesRequest } from "./freshsales-crm.js";
+import {
+  createFreshsalesAppointmentForAudiencia,
+  createFreshsalesAudienciaActivity,
+  createFreshsalesPublicationActivity,
+  freshsalesRequest,
+} from "./freshsales-crm.js";
 
 function jsonOk(payload, status = 200) {
   return new Response(JSON.stringify({ ok: true, ...payload }), {
@@ -829,6 +834,18 @@ async function loadAudienciasByProcessIds(env, processIds) {
   return output;
 }
 
+async function loadPendingAudienciasByProcessIds(env, processIds, limitPerProcess = 20) {
+  const output = [];
+  for (const chunk of splitIntoChunks(processIds, 25)) {
+    const rows = await hmadvRest(
+      env,
+      `audiencias?${buildInFilter("processo_id", chunk)}&freshsales_activity_id=is.null&select=id,processo_id,origem,origem_id,tipo,data_audiencia,descricao,local,situacao,metadata,freshsales_activity_id&order=data_audiencia.asc.nullslast&limit=${Math.max(chunk.length * limitPerProcess, chunk.length)}`
+    );
+    output.push(...rows);
+  }
+  return output;
+}
+
 async function loadPartesByProcessIds(env, processIds) {
   const output = [];
   for (const chunk of splitIntoChunks(processIds, 50)) {
@@ -1262,6 +1279,33 @@ async function patchPublicacaoFreshsalesActivityId(env, publicationId, activityI
       }),
     },
     "judiciario"
+  );
+  return rows?.[0] || null;
+}
+
+async function patchAudienciaFreshsalesSync(env, audienciaId, { activityId = null, appointmentId = null } = {}) {
+  const normalizedId = String(audienciaId || "").trim();
+  if (!normalizedId) return null;
+  const payload = {
+    freshsales_activity_id: activityId ? String(activityId) : null,
+    metadata: {
+      freshsales_activity_id: activityId ? String(activityId) : null,
+      appointment_id: appointmentId ? String(appointmentId) : null,
+      synced_at: new Date().toISOString(),
+    },
+  };
+  const rows = await hmadvRest(
+    env,
+    `audiencias?id=eq.${encodeURIComponent(normalizedId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Profile": "judiciario",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify(payload),
+    }
   );
   return rows?.[0] || null;
 }
@@ -2444,6 +2488,167 @@ export async function backfillAudiencias(env, { processNumbers = [], limit = 100
   };
 }
 
+export async function syncAudienciaActivities(env, { processNumbers = [], limit = 10 } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 10), 20));
+  const backfill = await backfillAudiencias(env, {
+    processNumbers,
+    limit: safeLimit,
+    apply: true,
+  });
+
+  let processes = [];
+  if (processNumbers.length) {
+    processes = await loadProcessesByNumbers(
+      env,
+      processNumbers,
+      "id,numero_cnj,titulo,account_id_freshsales,status_atual_processo"
+    );
+  } else {
+    const candidates = await listAudienciaBackfillCandidates(env, {
+      page: 1,
+      pageSize: safeLimit,
+    });
+    const numbers = uniqueNonEmpty((candidates.items || []).map((item) => item.numero_cnj));
+    processes = numbers.length
+      ? await loadProcessesByNumbers(
+          env,
+          numbers,
+          "id,numero_cnj,titulo,account_id_freshsales,status_atual_processo"
+        )
+      : [];
+  }
+
+  const scopedProcesses = processes.slice(0, safeLimit);
+  const processIds = scopedProcesses.map((item) => item.id);
+  const pendingAudiencias = processIds.length
+    ? await loadPendingAudienciasByProcessIds(env, processIds, 20)
+    : [];
+
+  let processesRead = 0;
+  let activitiesCreated = 0;
+  let appointmentsCreated = 0;
+  let audienciasUpdated = 0;
+  const sample = [];
+
+  for (const process of scopedProcesses) {
+    const processAudiencias = pendingAudiencias
+      .filter((item) => item.processo_id === process.id)
+      .slice(0, 20);
+
+    const row = {
+      processo_id: process.id,
+      numero_cnj: process.numero_cnj,
+      titulo: process.titulo || null,
+      account_id_freshsales: process.account_id_freshsales || null,
+      audiencias_pendentes: processAudiencias.length,
+      activities_criadas: 0,
+      appointments_criados: 0,
+      audiencias_atualizadas: 0,
+      details: [],
+      status: "skipped",
+      reason: null,
+    };
+
+    if (!processAudiencias.length) {
+      row.reason = "sem_audiencias_pendentes";
+      sample.push(row);
+      continue;
+    }
+
+    processesRead += 1;
+
+    if (!process.account_id_freshsales) {
+      row.reason = "sem_account";
+      sample.push(row);
+      continue;
+    }
+
+    row.status = "sincronizado";
+    for (const audiencia of processAudiencias) {
+      try {
+        const activityResult = await createFreshsalesAudienciaActivity(env, {
+          accountId: process.account_id_freshsales,
+          audiencia,
+          process,
+        });
+        const activityId = activityResult?.activity?.id ? String(activityResult.activity.id) : null;
+        if (!activityId) {
+          throw new Error("Freshsales nao retornou o id da activity de audiencia.");
+        }
+
+        let appointmentId = null;
+        const hearingDate = audiencia?.data_audiencia ? new Date(audiencia.data_audiencia) : null;
+        if (hearingDate && !Number.isNaN(hearingDate.getTime()) && hearingDate.getTime() > Date.now()) {
+          const appointmentResult = await createFreshsalesAppointmentForAudiencia(env, {
+            accountId: process.account_id_freshsales,
+            audiencia,
+            process,
+          });
+          appointmentId = appointmentResult?.appointment?.id
+            ? String(appointmentResult.appointment.id)
+            : null;
+          if (appointmentId) {
+            appointmentsCreated += 1;
+            row.appointments_criados += 1;
+          }
+        }
+
+        await patchAudienciaFreshsalesSync(env, audiencia.id, {
+          activityId,
+          appointmentId,
+        });
+
+        activitiesCreated += 1;
+        audienciasUpdated += 1;
+        row.activities_criadas += 1;
+        row.audiencias_atualizadas += 1;
+
+        if (row.details.length < 5) {
+          row.details.push({
+            audiencia_id: audiencia.id,
+            freshsales_activity_id: activityId,
+            appointment_id: appointmentId,
+            data_audiencia: audiencia.data_audiencia || null,
+            tipo: audiencia.tipo || null,
+          });
+        }
+      } catch (error) {
+        row.status = "error";
+        if (row.details.length < 5) {
+          row.details.push({
+            audiencia_id: audiencia.id,
+            error: error?.message || "Falha ao sincronizar audiencia no Freshsales.",
+          });
+        }
+      }
+    }
+
+    if (
+      row.status !== "error" &&
+      row.activities_criadas === 0 &&
+      row.appointments_criados === 0 &&
+      row.audiencias_atualizadas === 0
+    ) {
+      row.reason = "sem_novas_audiencias";
+    }
+
+    sample.push(row);
+  }
+
+  return {
+    checkedAt: new Date().toISOString(),
+    source: "hmadv_local_audiencias",
+    processosLidos: processesRead,
+    audiencias: pendingAudiencias.length,
+    activitiesCriadas: activitiesCreated,
+    appointmentsCriados: appointmentsCreated,
+    audienciasAtualizadas: audienciasUpdated,
+    backfill,
+    sample: sample.slice(0, 20),
+    limitAplicado: safeLimit,
+  };
+}
+
 export async function backfillPartesFromPublicacoes(env, { processNumbers = [], limit = 50, apply = false } = {}) {
   const safeLimit = Math.max(1, Math.min(Number(limit || 20), 50));
   const processes = processNumbers.length
@@ -3128,6 +3333,9 @@ async function runProcessJobAction(env, action, processNumbers, limit, intent = 
   }
   if (action === "backfill_audiencias") {
     return backfillAudiencias(env, { processNumbers, limit, apply: true });
+  }
+  if (action === "sincronizar_audiencias_activity") {
+    return syncAudienciaActivities(env, { processNumbers, limit });
   }
   throw new Error(`Acao de job nao suportada: ${action}`);
 }
