@@ -4,6 +4,7 @@ import {
   handleFreddySaveMemory,
 } from "./freddy-memory-gateway.js";
 import { getCleanEnvValue } from "./env.js";
+import { executeWorkspaceOp, parseWorkspacePatch } from "./workspace-ops.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 const SLACK_API_BASE = "https://slack.com/api";
@@ -117,6 +118,20 @@ function normalizeSlackText(text) {
     .replace(/<@[A-Z0-9]+>/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function splitArgs(text) {
+  return String(text || "")
+    .split(/\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parsePipeFields(text) {
+  return String(text || "")
+    .split("|")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function extractCnj(text) {
@@ -304,7 +319,180 @@ function shouldIgnoreSlackEvent(event = {}) {
   return false;
 }
 
+function buildWorkspaceHelpText() {
+  return [
+    "Comandos operacionais do Slack",
+    "- ajuda",
+    "- resumo diario",
+    "- contato <email>",
+    "- contato atualizar <id> campo=valor, campo2=valor",
+    "- deal <id>",
+    "- deal atualizar <id> campo=valor",
+    "- conta <id>",
+    "- tasks [limite]",
+    "- task <id>",
+    "- task criar Titulo | 2026-04-12T14:00:00Z | descricao opcional | owner_id opcional",
+    "- task atualizar <id> campo=valor",
+    "- task deletar <id>",
+    "- appointments [limite]",
+    "- documentos <email>",
+    "- tickets <email>",
+    "- ticket abrir <email> | Assunto | Descricao | prioridade opcional | status opcional",
+    "- freshdesk [limite]",
+    "- conversas <email>",
+    "",
+    "Qualquer outra mensagem segue para o agente conversacional com memoria compartilhada.",
+  ].join("\n");
+}
+
+async function maybeRunWorkspaceCommand(env, text) {
+  const normalized = normalizeSlackText(text);
+  if (!normalized) return null;
+
+  const lower = normalized.toLowerCase();
+  const args = splitArgs(normalized);
+
+  if (["ajuda", "help", "comandos"].includes(lower)) {
+    return { ok: true, text: buildWorkspaceHelpText(), mode: "workspace_op" };
+  }
+
+  if (lower === "resumo diario" || lower === "resumo diário") {
+    return { ...(await executeWorkspaceOp(env, "daily_summary")), mode: "workspace_op" };
+  }
+
+  if (args[0] === "contato" && args[1] === "atualizar" && args[2]) {
+    const patch = parseWorkspacePatch(normalized.split(args.slice(0, 3).join(" "))[1]);
+    return {
+      ...(await executeWorkspaceOp(env, "contact_update", { id: args[2], patch })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "contato" && args[1]) {
+    return {
+      ...(await executeWorkspaceOp(env, "contact_lookup", { email: args[1] })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "deal" && args[1] === "atualizar" && args[2]) {
+    const patch = parseWorkspacePatch(normalized.split(args.slice(0, 3).join(" "))[1]);
+    return {
+      ...(await executeWorkspaceOp(env, "deal_update", { id: args[2], patch })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "deal" && args[1]) {
+    return { ...(await executeWorkspaceOp(env, "deal_view", { id: args[1] })), mode: "workspace_op" };
+  }
+
+  if (args[0] === "conta" && args[1]) {
+    return { ...(await executeWorkspaceOp(env, "account_view", { id: args[1] })), mode: "workspace_op" };
+  }
+
+  if (args[0] === "tasks") {
+    return {
+      ...(await executeWorkspaceOp(env, "tasks_list", { limit: args[1] })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "task" && args[1] === "criar") {
+    const [title, due_date, description, owner_id] = parsePipeFields(normalized.replace(/^task\s+criar/i, ""));
+    return {
+      ...(await executeWorkspaceOp(env, "task_create", { title, due_date, description, owner_id })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "task" && args[1] === "atualizar" && args[2]) {
+    const patch = parseWorkspacePatch(normalized.split(args.slice(0, 3).join(" "))[1]);
+    return {
+      ...(await executeWorkspaceOp(env, "task_update", { id: args[2], patch })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "task" && args[1] === "deletar" && args[2]) {
+    return {
+      ...(await executeWorkspaceOp(env, "task_delete", { id: args[2] })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "task" && args[1]) {
+    return { ...(await executeWorkspaceOp(env, "task_view", { id: args[1] })), mode: "workspace_op" };
+  }
+
+  if (args[0] === "appointments") {
+    return {
+      ...(await executeWorkspaceOp(env, "appointments_list", { limit: args[1] })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "documentos" && args[1]) {
+    return {
+      ...(await executeWorkspaceOp(env, "documents_by_email", { email: args[1] })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "tickets" && args[1]) {
+    return {
+      ...(await executeWorkspaceOp(env, "tickets_by_email", { email: args[1] })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "ticket" && args[1] === "abrir") {
+    const [email, subject, description, priority, status] = parsePipeFields(
+      normalized.replace(/^ticket\s+abrir/i, "")
+    );
+    return {
+      ...(await executeWorkspaceOp(env, "ticket_create", {
+        email,
+        subject,
+        description,
+        priority,
+        status,
+      })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "freshdesk") {
+    return {
+      ...(await executeWorkspaceOp(env, "freshdesk_queue", { limit: args[1] })),
+      mode: "workspace_op",
+    };
+  }
+
+  if (args[0] === "conversas" && args[1]) {
+    return {
+      ...(await executeWorkspaceOp(env, "conversations_by_email", { email: args[1] })),
+      mode: "workspace_op",
+    };
+  }
+
+  return null;
+}
+
 async function runSlackAssistant(env, { text, channelId, threadTs, userProfile, slackUserId }) {
+  const workspaceCommand = await maybeRunWorkspaceCommand(env, text).catch((error) => ({
+    ok: false,
+    text: `Falha ao executar comando operacional: ${error.message || error}`,
+    mode: "workspace_op_error",
+  }));
+  if (workspaceCommand) {
+    return {
+      text: workspaceCommand.text,
+      mode: workspaceCommand.mode,
+      operationResult: workspaceCommand,
+    };
+  }
+
   const cnj = extractCnj(text);
   const contact360 = await callFreddyGetContact360(env, {
     email: userProfile?.email || undefined,
@@ -359,6 +547,7 @@ async function runSlackAssistant(env, { text, channelId, threadTs, userProfile, 
     text: resultText,
     contact360,
     chatResult,
+    mode: "assistant_chat",
   };
 }
 

@@ -704,6 +704,7 @@ function PublicacoesContent() {
   const [pageVisible, setPageVisible] = useState(true);
   const [globalError, setGlobalError] = useState(null);
   const [globalErrorUntil, setGlobalErrorUntil] = useState(null);
+  const [operationalStatus, setOperationalStatus] = useState({ mode: "ok", message: "", updatedAt: null });
   const [limit, setLimit] = useState(10);
   const [processPage, setProcessPage] = useState(1);
   const [partesPage, setPartesPage] = useState(1);
@@ -826,6 +827,23 @@ function PublicacoesContent() {
       cancelled = true;
     };
   }, [activeJobId, processPage, partesPage, pageVisible]);
+
+  useEffect(() => {
+    if (globalError) {
+      setOperationalStatus({ mode: "error", message: globalError, updatedAt: new Date().toISOString() });
+      return;
+    }
+    const limitedCount = [processCandidates, partesCandidates].filter((queue) => queue?.limited).length;
+    if (limitedCount > 0) {
+      setOperationalStatus({
+        mode: "limited",
+        message: `${limitedCount} fila(s) em modo reduzido para evitar sobrecarga.`,
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
+    setOperationalStatus({ mode: "ok", message: "Operacao normal", updatedAt: new Date().toISOString() });
+  }, [globalError, processCandidates, partesCandidates]);
 
   function pushQueueRefresh(key) {
     const label = QUEUE_LABELS[key] || key;
