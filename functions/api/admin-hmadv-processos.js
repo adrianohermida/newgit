@@ -281,9 +281,21 @@ export async function onRequestGet(context) {
       });
       const latest = (data.items || [])[0] || null;
       const summary = latest?.result_summary || {};
+      const items = Array.isArray(data.items) ? data.items : [];
       const extractGroup = (prefix) => Object.fromEntries(
         Object.entries(summary || {}).filter(([key]) => String(key).startsWith(prefix))
       );
+      const isManualBlocked = (item) => {
+        const s = item?.result_summary || {};
+        return s?.datajud_action_manualActionRequired === true || s?.datajud_action_manualActionRequired === "true";
+      };
+      let manualBlockerStreak = 0;
+      let lastManualBlockerAt = null;
+      for (const item of items) {
+        if (!isManualBlocked(item)) break;
+        manualBlockerStreak += 1;
+        lastManualBlockerAt = item?.finished_at || item?.created_at || lastManualBlockerAt;
+      }
       return jsonOk({
         data: {
           latest: latest
@@ -295,6 +307,8 @@ export async function onRequestGet(context) {
                 summary,
               }
             : null,
+          manualBlockerStreak,
+          lastManualBlockerAt,
           coverage: extractGroup("coverage_"),
           datajud: extractGroup("datajud_"),
           tagged: extractGroup("tagged_"),
