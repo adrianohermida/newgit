@@ -274,6 +274,34 @@ export async function onRequestGet(context) {
       });
       return jsonOk({ data });
     }
+    if (action === "runner_metrics") {
+      const data = await listAdminOperations(context.env, {
+        modulo: "runner",
+        limit: Number(url.searchParams.get("limit") || 10),
+      });
+      const latest = (data.items || [])[0] || null;
+      const summary = latest?.result_summary || {};
+      const extractGroup = (prefix) => Object.fromEntries(
+        Object.entries(summary || {}).filter(([key]) => String(key).startsWith(prefix))
+      );
+      return jsonOk({
+        data: {
+          latest: latest
+            ? {
+                id: latest.id || null,
+                status: latest.status || null,
+                created_at: latest.created_at || null,
+                finished_at: latest.finished_at || null,
+                summary,
+              }
+            : null,
+          coverage: extractGroup("coverage_"),
+          datajud: extractGroup("datajud_"),
+          tagged: extractGroup("tagged_"),
+          datajudAction: extractGroup("datajud_action_"),
+        },
+      });
+    }
     if (action === "plano_datajud_tag") {
       const data = await getTaggedDatajudActionPlan(context.env, {
         limit: Number(url.searchParams.get("limit") || 100),
