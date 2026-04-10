@@ -370,6 +370,7 @@ function QueueList({
   pageSize = 20,
   totalEstimated = false,
   lastUpdated = null,
+  limited = false,
 }) {
   const allSelected = rows.length > 0 && rows.every((row) => selected.includes(row.key));
   const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / Math.max(1, pageSize)));
@@ -385,6 +386,7 @@ function QueueList({
           {helper ? <p className="text-xs opacity-60">{helper}</p> : null}
           {totalRows ? <p className="text-xs opacity-50 mt-1">Pagina {page} de {totalPages} - {totalRows} no total</p> : null}
           {lastUpdated !== undefined ? <p className="text-xs opacity-50 mt-1">Atualizado em {lastUpdated ? new Date(lastUpdated).toLocaleString("pt-BR") : "nao atualizado"}</p> : null}
+          {limited ? <p className="text-xs text-[#FDE68A] mt-1">Fila em modo reduzido para evitar sobrecarga.</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -678,8 +680,8 @@ export default function InternoPublicacoesPage() {
 function PublicacoesContent() {
   const [view, setView] = useState("operacao");
   const [overview, setOverview] = useState({ loading: true, error: null, data: null });
-  const [processCandidates, setProcessCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20, updatedAt: null });
-  const [partesCandidates, setPartesCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20, updatedAt: null });
+  const [processCandidates, setProcessCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20, updatedAt: null, limited: false });
+  const [partesCandidates, setPartesCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20, updatedAt: null, limited: false });
   const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
   const [executionHistory, setExecutionHistory] = useState([]);
   const [remoteHistory, setRemoteHistory] = useState([]);
@@ -840,10 +842,11 @@ function PublicacoesContent() {
         totalEstimated: Boolean(payload.data.totalEstimated),
         pageSize: payload.data.pageSize || 20,
         updatedAt: new Date().toISOString(),
+        limited: Boolean(payload.data.limited),
       });
       pushQueueRefresh("candidatos_processos");
     } catch (error) {
-      setProcessCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos.", items: [], totalRows: 0, totalEstimated: false, pageSize: 20, updatedAt: new Date().toISOString() });
+      setProcessCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos.", items: [], totalRows: 0, totalEstimated: false, pageSize: 20, updatedAt: new Date().toISOString(), limited: false });
       pushQueueRefresh("candidatos_processos");
     }
   }
@@ -860,10 +863,11 @@ function PublicacoesContent() {
         totalEstimated: Boolean(payload.data.totalEstimated),
         pageSize: payload.data.pageSize || 20,
         updatedAt: new Date().toISOString(),
+        limited: Boolean(payload.data.limited),
       });
       pushQueueRefresh("candidatos_partes");
     } catch (error) {
-      setPartesCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos de partes.", items: [], totalRows: 0, totalEstimated: false, pageSize: 20, updatedAt: new Date().toISOString() });
+      setPartesCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos de partes.", items: [], totalRows: 0, totalEstimated: false, pageSize: 20, updatedAt: new Date().toISOString(), limited: false });
       pushQueueRefresh("candidatos_partes");
     }
   }
@@ -1397,6 +1401,7 @@ function PublicacoesContent() {
             pageSize={processCandidates.pageSize}
             totalEstimated={processCandidates.totalEstimated}
             lastUpdated={processCandidates.updatedAt}
+            limited={processCandidates.limited}
           />
         </Panel>
         <Panel title="Fila de partes extraiveis" eyebrow="Backfill pelo conteudo das publicacoes">
@@ -1414,6 +1419,7 @@ function PublicacoesContent() {
             pageSize={partesCandidates.pageSize}
             totalEstimated={partesCandidates.totalEstimated}
             lastUpdated={partesCandidates.updatedAt}
+            limited={partesCandidates.limited}
           />
         </Panel>
         </div>

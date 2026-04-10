@@ -976,6 +976,7 @@ async function collectCreateProcessCandidatePage(env, { page = 1, pageSize = 20 
     totalRows: hasMore ? Math.max(targetEnd + 1, ordered.length) : ordered.length,
     totalEstimated: hasMore,
     hasMore,
+    limited: hasMore,
     items: ordered.slice(targetStart, targetEnd),
   };
 }
@@ -1052,6 +1053,7 @@ async function collectPartesExtractionCandidatePage(env, { page = 1, pageSize = 
     totalRows: hasMore ? Math.max(targetEnd + 1, collected.length) : collected.length,
     totalEstimated: hasMore,
     hasMore,
+    limited: hasMore,
     items: collected.slice(targetStart, targetEnd),
   };
 }
