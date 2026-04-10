@@ -705,6 +705,7 @@ function PublicacoesContent() {
   const [globalError, setGlobalError] = useState(null);
   const [globalErrorUntil, setGlobalErrorUntil] = useState(null);
   const [operationalStatus, setOperationalStatus] = useState({ mode: "ok", message: "", updatedAt: null });
+  const [backendHealth, setBackendHealth] = useState({ status: "ok", message: "", updatedAt: null });
   const [limit, setLimit] = useState(10);
   const [processPage, setProcessPage] = useState(1);
   const [partesPage, setPartesPage] = useState(1);
@@ -844,6 +845,23 @@ function PublicacoesContent() {
     }
     setOperationalStatus({ mode: "ok", message: "Operacao normal", updatedAt: new Date().toISOString() });
   }, [globalError, processCandidates, partesCandidates]);
+
+  useEffect(() => {
+    const latest = remoteHistory[0];
+    if (!latest) {
+      setBackendHealth({ status: "unknown", message: "Sem historico recente.", updatedAt: null });
+      return;
+    }
+    if (latest.status === "error") {
+      setBackendHealth({ status: "error", message: "Ultimo ciclo HMADV falhou.", updatedAt: latest.created_at });
+      return;
+    }
+    if (Number(latest.affected_count || 0) === 0) {
+      setBackendHealth({ status: "warning", message: "Ultimo ciclo nao teve progresso.", updatedAt: latest.created_at });
+      return;
+    }
+    setBackendHealth({ status: "ok", message: "Ciclo HMADV saudavel.", updatedAt: latest.created_at });
+  }, [remoteHistory]);
 
   function pushQueueRefresh(key) {
     const label = QUEUE_LABELS[key] || key;
