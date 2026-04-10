@@ -722,12 +722,14 @@ function PublicacoesContent() {
   }, []);
 
   useEffect(() => {
+    if (!PUBLICACOES_QUEUE_VIEWS.has(view)) return;
     loadProcessCandidates(processPage);
-  }, [processPage]);
+  }, [processPage, view]);
 
   useEffect(() => {
+    if (!PUBLICACOES_QUEUE_VIEWS.has(view)) return;
     loadPartesCandidates(partesPage);
-  }, [partesPage]);
+  }, [partesPage, view]);
   useEffect(() => {
     if (!jobs.length) return;
     const runningJob = jobs.find((item) => item.status === "running" || item.status === "pending");
@@ -754,7 +756,11 @@ function PublicacoesContent() {
           setActionState({ loading: false, error: null, result: result.job ? { job: result.job, drain: result } : { drain: result } });
           if (result.completedAll || !job?.id || job?.status === "completed" || job?.status === "error" || job?.status === "cancelled") {
             setActiveJobId(null);
-            await Promise.all([loadOverview(), loadProcessCandidates(processPage), loadPartesCandidates(partesPage)]);
+            if (job?.acao) {
+              await refreshAfterAction(job.acao);
+            } else {
+              await refreshOperationalContext();
+            }
             if (typeof window !== "undefined" && "Notification" in window) {
               if (Notification.permission === "default") {
                 Notification.requestPermission().catch(() => {});
@@ -788,6 +794,12 @@ function PublicacoesContent() {
     };
   }, [activeJobId, processPage, partesPage]);
 
+  function pushQueueRefresh(key) {
+    const label = QUEUE_LABELS[key] || key;
+    const entry = { key, label, ts: new Date().toISOString() };
+    setQueueRefreshLog((current) => [entry, ...(current || []).filter((item) => item.key !== key)].slice(0, 6));
+  }
+
   async function loadOverview() {
     setOverview({ loading: true, error: null, data: null });
     try {
@@ -805,13 +817,16 @@ function PublicacoesContent() {
       setProcessCandidates({
         loading: false,
         error: null,
-        items: payload.data.items || [],
+        items: (payload.data.items || []).map((item) => ({ ...item, key: item.numero_cnj || item.id })),
         totalRows: Number(payload.data.totalRows || 0),
         totalEstimated: Boolean(payload.data.totalEstimated),
         pageSize: payload.data.pageSize || 20,
+        updatedAt: new Date().toISOString(),
       });
+      pushQueueRefresh("candidatos_processos");
     } catch (error) {
-      setProcessCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos.", items: [], totalRows: 0, totalEstimated: false, pageSize: 20 });
+      setProcessCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos.", items: [], totalRows: 0, totalEstimated: false, pageSize: 20, updatedAt: new Date().toISOString() });
+      pushQueueRefresh("candidatos_processos");
     }
   }
 
@@ -822,13 +837,16 @@ function PublicacoesContent() {
       setPartesCandidates({
         loading: false,
         error: null,
-        items: payload.data.items || [],
+        items: (payload.data.items || []).map((item) => ({ ...item, key: item.numero_cnj || item.id })),
         totalRows: Number(payload.data.totalRows || 0),
         totalEstimated: Boolean(payload.data.totalEstimated),
         pageSize: payload.data.pageSize || 20,
+        updatedAt: new Date().toISOString(),
       });
+      pushQueueRefresh("candidatos_partes");
     } catch (error) {
-      setPartesCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos de partes.", items: [], totalRows: 0, totalEstimated: false, pageSize: 20 });
+      setPartesCandidates({ loading: false, error: error.message || "Falha ao carregar candidatos de partes.", items: [], totalRows: 0, totalEstimated: false, pageSize: 20, updatedAt: new Date().toISOString() });
+      pushQueueRefresh("candidatos_partes");
     }
   }
   async function loadRemoteHistory() {
@@ -846,6 +864,29 @@ function PublicacoesContent() {
     } catch {
       setJobs([]);
     }
+  }
+
+  async function refreshOperationalContext(options = {}) {
+    const { forceAll = false } = options;
+    const shouldLoadQueues = forceAll || PUBLICACOES_QUEUE_VIEWS.has(view);
+    const calls = [loadOverview(), loadRemoteHistory(), loadJobs()];
+    if (shouldLoadQueues) {
+      calls.push(loadProcessCandidates(processPage), loadPartesCandidates(partesPage));
+    }
+    await Promise.all(calls);
+  }
+
+  async function refreshAfterAction(action) {
+    const calls = [loadOverview(), loadRemoteHistory(), loadJobs()];
+    if (PUBLICACOES_QUEUE_VIEWS.has(view)) {
+      if (action === "criar_processos_publicacoes") {
+        calls.push(loadProcessCandidates(processPage));
+      }
+      if (action === "backfill_partes" || action === "sincronizar_partes") {
+        calls.push(loadPartesCandidates(partesPage));
+      }
+    }
+    await Promise.all(calls);
   }
 
   function toggleSelection(setter, current, key) {
@@ -936,6 +977,7 @@ function PublicacoesContent() {
   }
 
   async function queueAsyncAction(action, apply = false, numbers = []) {
+    const safeLimit = getSafePublicacoesActionLimit(action, limit);
     const response = await adminFetch("/api/admin-hmadv-publicacoes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -943,14 +985,14 @@ function PublicacoesContent() {
         action: "create_job",
         jobAction: action,
         apply,
-        limit,
+        limit: safeLimit,
         processNumbers: numbers.length ? numbers.join("\n") : processNumbers,
       }),
     });
     if (response.data?.legacy_inline) {
       setActionState({ loading: false, error: null, result: response.data.result });
       setActiveJobId(null);
-      await Promise.all([loadOverview(), loadProcessCandidates(processPage), loadPartesCandidates(partesPage), loadRemoteHistory(), loadJobs()]);
+      await refreshAfterAction(action);
       return response.data;
     }
     const job = response.data;
@@ -972,7 +1014,11 @@ function PublicacoesContent() {
       const result = payload.data || {};
       setActionState({ loading: false, error: null, result: result.job ? { job: result.job, drain: result } : { drain: result } });
       setActiveJobId(result.completedAll ? null : (result.job?.id || null));
-      await Promise.all([loadOverview(), loadProcessCandidates(processPage), loadPartesCandidates(partesPage), loadRemoteHistory(), loadJobs()]);
+      if (result.job?.acao) {
+        await refreshAfterAction(result.job.acao);
+      } else {
+        await refreshOperationalContext();
+      }
     } catch (error) {
       setActionState({ loading: false, error: error.message || "Falha ao drenar fila.", result: null });
     }
@@ -982,6 +1028,7 @@ function PublicacoesContent() {
     setActionState({ loading: true, error: null, result: null });
     updateView("resultado");
     const historyId = `${action}:${Date.now()}`;
+    const safeLimit = getSafePublicacoesActionLimit(action, limit);
     pushHistoryEntry({
       id: historyId,
       action,
@@ -990,7 +1037,7 @@ function PublicacoesContent() {
       createdAt: new Date().toISOString(),
       preview: "Execucao iniciada",
       meta: buildActionMeta(numbers),
-      payload: { action, apply, limit, processNumbers: numbers.length ? numbers.join("\n") : processNumbers },
+      payload: { action, apply, limit: safeLimit, processNumbers: numbers.length ? numbers.join("\n") : processNumbers },
     });
     try {
       if (ASYNC_PUBLICACOES_ACTIONS.has(action)) {
@@ -1010,7 +1057,7 @@ function PublicacoesContent() {
         body: JSON.stringify({
           action,
           apply,
-          limit,
+          limit: safeLimit,
           processNumbers: numbers.length ? numbers.join("\n") : processNumbers,
         }),
       });
@@ -1020,7 +1067,7 @@ function PublicacoesContent() {
         preview: buildHistoryPreview(payload.data),
         result: payload.data,
       });
-      await Promise.all([loadOverview(), loadProcessCandidates(processPage), loadPartesCandidates(partesPage), loadRemoteHistory(), loadJobs()]);
+      await refreshAfterAction(action);
     } catch (error) {
       setActionState({ loading: false, error: error.message || "Falha ao executar acao.", result: null });
       replaceHistoryEntry(historyId, {
@@ -1074,7 +1121,23 @@ function PublicacoesContent() {
             {latestJob ? <JobCard job={latestJob} active={latestJob.id === activeJobId} /> : null}
           </div>
         </div>
-        <div className="mt-6 space-y-4"><ViewToggle value={view} onChange={updateView} />{latestRemoteRun ? <RemoteRunSummary entry={latestRemoteRun} actionLabels={ACTION_LABELS} /> : null}{remoteHealth.length ? <div className="flex flex-wrap gap-2">{remoteHealth.map((item) => <HealthBadge key={item.label} label={item.label} tone={item.tone} />)}</div> : null}</div>
+        <div className="mt-6 space-y-4">
+          <ViewToggle value={view} onChange={updateView} />
+          {queueRefreshLog.length ? (
+            <div className="border border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] p-4 text-xs">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-60">Ultimas filas atualizadas</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {queueRefreshLog.map((item) => (
+                  <span key={item.key} className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.14em] opacity-70">
+                    {item.label} • {new Date(item.ts).toLocaleTimeString("pt-BR")}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {latestRemoteRun ? <RemoteRunSummary entry={latestRemoteRun} actionLabels={ACTION_LABELS} /> : null}
+          {remoteHealth.length ? <div className="flex flex-wrap gap-2">{remoteHealth.map((item) => <HealthBadge key={item.label} label={item.label} tone={item.tone} />)}</div> : null}
+        </div>
       </section>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -1175,7 +1238,7 @@ function PublicacoesContent() {
               />
             </div>
             <p className="text-sm opacity-70">
-              A extração sempre precisa enriquecer o Supabase primeiro. Selecione os processos na visao <strong>Filas</strong> e volte aqui para simular ou aplicar.
+              A extracao sempre precisa enriquecer o Supabase primeiro. Selecione os processos na visao <strong>Filas</strong> e volte aqui para simular ou aplicar.
             </p>
             <div className="flex flex-wrap gap-3">
               <button
@@ -1315,6 +1378,7 @@ function PublicacoesContent() {
             totalRows={processCandidates.totalRows}
             pageSize={processCandidates.pageSize}
             totalEstimated={processCandidates.totalEstimated}
+            lastUpdated={processCandidates.updatedAt}
           />
         </Panel>
         <Panel title="Fila de partes extraiveis" eyebrow="Backfill pelo conteudo das publicacoes">
@@ -1331,6 +1395,7 @@ function PublicacoesContent() {
             totalRows={partesCandidates.totalRows}
             pageSize={partesCandidates.pageSize}
             totalEstimated={partesCandidates.totalEstimated}
+            lastUpdated={partesCandidates.updatedAt}
           />
         </Panel>
         </div>
