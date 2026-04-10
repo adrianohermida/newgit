@@ -13,9 +13,15 @@ async function main() {
   const clientSecret = cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET);
   const refreshToken = cleanValue(process.env.FRESHSALES_REFRESH_TOKEN);
   const supabaseUrl = cleanValue(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const redirectUri =
+    cleanValue(process.env.FRESHSALES_REDIRECT_URI) ||
+    cleanValue(process.env.REDIRECT_URI) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_CALLBACK_URL) ||
+    cleanValue(process.env.OAUTH_CALLBACK_URL) ||
+    (supabaseUrl ? `${supabaseUrl}/functions/v1/oauth` : null);
 
-  if (!orgDomain || !clientId || !clientSecret || !refreshToken || !supabaseUrl) {
-    throw new Error('FRESHSALES_OAUTH_CLIENT_ID, FRESHSALES_OAUTH_CLIENT_SECRET, FRESHSALES_REFRESH_TOKEN, SUPABASE_URL e org domain sao obrigatorios');
+  if (!orgDomain || !clientId || !clientSecret || !refreshToken || !redirectUri) {
+    throw new Error('FRESHSALES_OAUTH_CLIENT_ID, FRESHSALES_OAUTH_CLIENT_SECRET, FRESHSALES_REFRESH_TOKEN, redirect_uri e org domain sao obrigatorios');
   }
 
   const body = new URLSearchParams({
@@ -23,7 +29,7 @@ async function main() {
     refresh_token: refreshToken,
     client_id: clientId,
     client_secret: clientSecret,
-    redirect_uri: `${supabaseUrl}/functions/v1/oauth`,
+    redirect_uri: redirectUri,
   });
 
   const response = await fetch(`https://${orgDomain}/crm/sales/oauth/token`, {
@@ -82,8 +88,9 @@ function cleanValue(value) {
 function resolveOrgDomain() {
   return (
     cleanValue(process.env.FRESHSALES_ORG_DOMAIN) ||
+    cleanValue(process.env.FRESHSALES_DOMAIN) ||
     readOrgDomainFromAccessToken(process.env.FRESHSALES_ACCESS_TOKEN) ||
-    readOrgDomainFromApiBase(process.env.FRESHSALES_API_BASE || process.env.FRESHSALES_BASE_URL || process.env.FRESHSALES_DOMAIN) ||
+    readOrgDomainFromApiBase(process.env.FRESHSALES_API_BASE || process.env.FRESHSALES_BASE_URL || process.env.FRESHSALES_ALIAS_DOMAIN || process.env.FRESHSALES_DOMAIN) ||
     null
   );
 }

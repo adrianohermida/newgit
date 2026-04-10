@@ -13,7 +13,12 @@ async function main() {
   const clientId = cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID);
   const clientSecret = cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET);
   const supabaseUrl = cleanValue(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
-  const redirectUri = cleanValue(process.env.FRESHSALES_REDIRECT_URI) || (supabaseUrl ? `${supabaseUrl}/functions/v1/oauth` : null);
+  const redirectUri =
+    cleanValue(process.env.FRESHSALES_REDIRECT_URI) ||
+    cleanValue(process.env.REDIRECT_URI) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_CALLBACK_URL) ||
+    cleanValue(process.env.OAUTH_CALLBACK_URL) ||
+    (supabaseUrl ? `${supabaseUrl}/functions/v1/oauth` : null);
 
   if (!code || !orgDomain || !clientId || !clientSecret || !redirectUri) {
     throw new Error('code, FRESHSALES_OAUTH_CLIENT_ID, FRESHSALES_OAUTH_CLIENT_SECRET, org domain e redirect_uri sao obrigatorios');
@@ -81,9 +86,9 @@ function cleanValue(value) {
 }
 
 function resolveOrgDomain() {
-  const explicit = cleanValue(process.env.FRESHSALES_ORG_DOMAIN);
+  const explicit = cleanValue(process.env.FRESHSALES_ORG_DOMAIN) || cleanValue(process.env.FRESHSALES_DOMAIN);
   if (explicit) return explicit;
-  const rawBase = cleanValue(process.env.FRESHSALES_API_BASE || process.env.FRESHSALES_BASE_URL || process.env.FRESHSALES_DOMAIN);
+  const rawBase = cleanValue(process.env.FRESHSALES_API_BASE || process.env.FRESHSALES_BASE_URL || process.env.FRESHSALES_ALIAS_DOMAIN || process.env.FRESHSALES_DOMAIN);
   if (!rawBase) return null;
   const host = rawBase
     .replace(/^https?:\/\//i, '')

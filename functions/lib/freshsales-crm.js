@@ -17,13 +17,24 @@ function splitName(fullName) {
 
 function buildCandidates(env) {
   const raw = resolveFreshsalesBase(env);
+  const orgDomain = resolveOauthOrgDomain(env);
+  const candidates = [];
 
-  if (!raw) return [];
-  const base = raw.startsWith("http") ? raw.replace(/\/+$/, "") : `https://${raw.replace(/\/+$/, "")}`;
+  if (raw) {
+    const base = raw.startsWith("http") ? raw.replace(/\/+$/, "") : `https://${raw.replace(/\/+$/, "")}`;
 
-  if (base.includes("/crm/sales/api")) return [base];
-  if (base.includes("/api")) return [base];
-  return [`${base}/crm/sales/api`, `${base}/api`];
+    if (base.includes("/crm/sales/api") || base.includes("/api")) {
+      candidates.push(base);
+    } else {
+      candidates.push(`${base}/crm/sales/api`, `${base}/api`);
+    }
+  }
+
+  if (orgDomain) {
+    candidates.push(`https://${orgDomain}/crm/sales/api`, `https://${orgDomain}/api`);
+  }
+
+  return Array.from(new Set(candidates));
 }
 
 function resolveFreshsalesBase(env) {
