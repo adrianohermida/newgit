@@ -138,7 +138,7 @@ export default function InternoLayout({
               routePath={router.pathname}
               initialWorkspaceOpen={rightRailFullscreen ? true : initialWorkspaceOpen}
               defaultCollapsed={rightRailFullscreen ? false : true}
-              compactRail={rightRailFullscreen ? false : true}
+              compactRail={false}
             />
           </div>
         ) : null}

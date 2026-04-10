@@ -340,7 +340,11 @@ export default function DotobotCopilot({
   const [error, setError] = useState(null);
 
   // Estado colapsado
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
+
+  useEffect(() => {
+    setIsCollapsed(defaultCollapsed);
+  }, [defaultCollapsed]);
 
   // Trigger global (Ctrl+.)
   useEffect(() => {
@@ -636,14 +640,16 @@ export default function DotobotCopilot({
     // BotÃ£o flutuante de reabertura
   }
 
-    const FloatingTrigger = () => (
+    const CollapsedTrigger = () => (
       isCollapsed && (
         <button
-          className="fixed right-2 top-1/2 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-[#C5A059] shadow-lg hover:bg-[#D9B46A] transition-all"
+          type="button"
+          className="fixed right-0 top-1/2 z-[75] -translate-y-1/2 rounded-l-2xl border border-[#2D2E2E] bg-[rgba(14,16,15,0.95)] px-3 py-5 text-[11px] uppercase tracking-[0.28em] text-[#C5A059] shadow-[0_10px_30px_rgba(0,0,0,0.35)] transition hover:border-[#C5A059] hover:text-[#F5E6C5]"
           onClick={() => setIsCollapsed(false)}
+          style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
           title="Abrir Copilot (Ctrl + .)"
         >
-          <span className="text-2xl font-bold text-[#1A1A1A]">ðŸ’¬</span>
+          Copilot
         </button>
       )
     );
@@ -1062,7 +1068,7 @@ export default function DotobotCopilot({
   const activeMode = MODE_OPTIONS.find((item) => item.value === mode) || MODE_OPTIONS[0];
   const activeProviderLabel = PROVIDER_OPTIONS.find((item) => item.value === provider)?.label || "GPT";
   const isWorkspaceShell = workspaceOpen;
-  const railCollapsed = compactRail ? true : collapsed;
+  const railCollapsed = compactRail ? true : isCollapsed;
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
   let filteredConversations = filterVisibleConversations(conversations, conversationSearch);
   if (!showArchived) {
@@ -1133,6 +1139,8 @@ export default function DotobotCopilot({
           setRenameModal({ open: false, conversationId: null, value: "" });
         }}
       />
+      <CollapsedTrigger />
+      {!isCollapsed ? (
       <section className="border border-[#22342F] bg-[rgba(10,12,11,0.98)] backdrop-blur-sm">
         <header className="border-b border-[#22342F] px-4 py-4">
           <div className="flex items-start justify-between gap-3">
@@ -1176,9 +1184,9 @@ export default function DotobotCopilot({
                   <button
                     type="button"
                     className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-                    onClick={() => setCollapsed((value) => !value)}
+                    onClick={() => setIsCollapsed((value) => !value)}
                   >
-                    {collapsed ? "Expandir" : "Compactar"}
+                    {isCollapsed ? "Expandir" : "Compactar"}
                   </button>
                 </>
               )}
@@ -1364,6 +1372,7 @@ export default function DotobotCopilot({
           </>
         ) : null}
       </section>
+      ) : null}
 
         {isWorkspaceShell ? (
           <div className="fixed inset-0 z-[70] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.16),transparent_28%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.96))] text-[#F4F1EA] backdrop-blur-xl">
