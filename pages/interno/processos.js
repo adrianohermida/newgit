@@ -1344,17 +1344,25 @@ function InternoProcessosContent() {
   async function loadOverview() { try { const payload = await adminFetch("/api/admin-hmadv-processos?action=overview"); setOverview({ loading: false, data: payload.data }); } catch { setOverview({ loading: false, data: null }); } }
   async function loadSchemaStatus() { try { const payload = await adminFetch("/api/admin-hmadv-processos?action=schema_status"); setSchemaStatus({ loading: false, data: payload.data }); } catch { setSchemaStatus({ loading: false, data: null }); } }
   async function loadRunnerMetrics() { try { const payload = await adminFetch("/api/admin-hmadv-processos?action=runner_metrics"); setRunnerMetrics({ loading: false, data: payload.data }); } catch { setRunnerMetrics({ loading: false, data: null }); } }
+  function pushQueueRefresh(key) {
+    const label = QUEUE_LABELS[key] || key;
+    const entry = { key, label, ts: new Date().toISOString() };
+    setQueueRefreshLog((current) => [entry, ...(current || []).filter((item) => item.key !== key)].slice(0, 6));
+  }
   async function loadCoverage(page = 1) {
     if (schemaStatus?.data?.exists === false) {
       setProcessCoverage({ loading: false, items: [], totalRows: 0, page, pageSize: 20, unsupported: true });
+      pushQueueRefresh("cobertura");
       return;
     }
     setProcessCoverage((state) => ({ ...state, loading: true }));
     try {
       const payload = await adminFetch(`/api/admin-hmadv-processos?action=cobertura_processos&page=${page}&pageSize=20`);
       setProcessCoverage({ loading: false, items: payload.data.items || [], totalRows: payload.data.totalRows || 0, page: payload.data.page || page, pageSize: payload.data.pageSize || 20, unsupported: false });
+      pushQueueRefresh("cobertura");
     } catch {
       setProcessCoverage({ loading: false, items: [], totalRows: 0, page, pageSize: 20, unsupported: false });
+      pushQueueRefresh("cobertura");
     }
   }
   async function loadQueue(action, setter, page) {
@@ -1362,8 +1370,10 @@ function InternoProcessosContent() {
       try {
         const payload = await adminFetch(`/api/admin-hmadv-processos?action=${action}&page=${page}&pageSize=20`);
         setter({ loading: false, items: (payload.data.items || []).map((item) => ({ ...item, key: item.numero_cnj || item.id })), totalRows: payload.data.totalRows || 0, page: payload.data.page || page, pageSize: payload.data.pageSize || 20, unsupported: Boolean(payload.data.unsupported), updatedAt: new Date().toISOString() });
+        pushQueueRefresh(action);
       } catch {
         setter({ loading: false, items: [], totalRows: 0, page, pageSize: 20, unsupported: false, updatedAt: new Date().toISOString() });
+        pushQueueRefresh(action);
       }
   }
   async function loadOrphans(page = 1) {
@@ -1371,8 +1381,10 @@ function InternoProcessosContent() {
     try {
       const payload = await adminFetch(`/api/admin-hmadv-processos?action=orfaos&page=${page}&pageSize=20`);
       setOrphans({ loading: false, items: (payload.data.items || []).map((item) => ({ ...item, key: item.numero_cnj || item.id })), totalRows: payload.data.totalRows || 0, page: payload.data.page || page, pageSize: payload.data.pageSize || 20, updatedAt: new Date().toISOString() });
+      pushQueueRefresh("orfaos");
     } catch {
       setOrphans({ loading: false, items: [], totalRows: 0, page, pageSize: 20, updatedAt: new Date().toISOString() });
+      pushQueueRefresh("orfaos");
     }
   }
   async function loadRelations(page = 1, query = "") {
@@ -1900,6 +1912,18 @@ function InternoProcessosContent() {
           </div>
           {runnerAction?.datajud_action_manualActionRequired ? <p className="mt-2 text-xs text-[#FECACA]">A prioridade atual ainda depende de acao manual no Freshsales.</p> : null}
         </div>
+        {queueRefreshLog.length ? (
+          <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] p-4 text-xs">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-60">Ultimas filas atualizadas</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {queueRefreshLog.map((item) => (
+                <span key={item.key} className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.14em] opacity-70">
+                  {item.label} • {new Date(item.ts).toLocaleTimeString("pt-BR")}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
         {latestRemoteRun ? <RemoteRunSummary entry={latestRemoteRun} /> : null}
         {remoteHealth.length ? <div className="flex flex-wrap gap-2">{remoteHealth.map((item) => <StatusBadge key={item.label} tone={item.tone}>{item.label}</StatusBadge>)}</div> : null}
       </div>
