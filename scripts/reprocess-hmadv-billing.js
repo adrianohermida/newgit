@@ -18,7 +18,7 @@ async function main() {
   const indices = await loadIndicesByName();
   const products = await loadProducts();
   const contacts = await loadContacts();
-  const processes = await loadProcesses();
+  const processes = await loadProcessesByIds(rows.map((row) => row.resolved_process_id).filter(Boolean));
   const productById = new Map(products.map((item) => [item.id, item]));
   const productByName = new Map(products.map((item) => [String(item.name || '').toLowerCase(), item]));
   const contactById = new Map(contacts.map((item) => [item.id, item]));
@@ -125,8 +125,10 @@ async function loadContacts() {
   return supabaseRequest('freshsales_contacts?select=id,freshsales_contact_id');
 }
 
-async function loadProcesses() {
-  return supabaseRequest('processos?select=id,account_id_freshsales', {
+async function loadProcessesByIds(processIds) {
+  const ids = Array.from(new Set((processIds || []).map((item) => String(item || '').trim()).filter(Boolean)));
+  if (!ids.length) return [];
+  return supabaseRequest(`processos?select=id,account_id_freshsales&id=in.(${ids.map((item) => `"${item}"`).join(',')})`, {
     headers: {
       'Accept-Profile': 'judiciario',
       'Content-Profile': 'judiciario',
