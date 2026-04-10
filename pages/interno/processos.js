@@ -39,6 +39,9 @@ const ASYNC_PROCESS_ACTIONS = new Set([
   "sincronizar_publicacoes_activity",
   "backfill_audiencias",
 ]);
+const OPERATIONAL_VIEWS = new Set(["operacao", "filas"]);
+const COVERAGE_VIEWS = new Set(["filas", "resultado"]);
+const RELATION_VIEWS = new Set(["relacoes"]);
 
 function getProcessActionLimitConfig(action) {
   if (action === "sync_supabase_crm") return { defaultLimit: 1, maxLimit: 1 };
@@ -1147,72 +1150,90 @@ function InternoProcessosContent() {
     if (!uiHydrated) return undefined;
     let cancelled = false;
     bootstrappedRef.current = false;
+    const shouldLoadQueues = OPERATIONAL_VIEWS.has(view);
+    const shouldLoadCoverage = COVERAGE_VIEWS.has(view);
+    const shouldLoadRelations = RELATION_VIEWS.has(view);
     async function bootstrap() {
-      await Promise.all([
+      const baseCalls = [
         loadOverview(),
-        loadCoverage(covPage),
-        loadQueue("sem_movimentacoes", setWithoutMovements, wmPage),
-        loadQueue("movimentacoes_pendentes", setMovementBacklog, movPage),
-        loadQueue("publicacoes_pendentes", setPublicationBacklog, pubPage),
-        loadQueue("partes_sem_contato", setPartesBacklog, partesPage),
-        loadQueue("audiencias_pendentes", setAudienciaCandidates, audPage),
-        loadQueue("monitoramento_ativo", setMonitoringActive, maPage),
-        loadQueue("monitoramento_inativo", setMonitoringInactive, miPage),
-        loadQueue("campos_orfaos", setFieldGaps, fgPage),
-        loadOrphans(orphanPage),
         loadSchemaStatus(),
         loadRunnerMetrics(),
         loadRemoteHistory(),
         loadJobs(),
-        loadRelations(1, search),
-      ]);
+      ];
+      const queueCalls = shouldLoadQueues
+        ? [
+          loadQueue("sem_movimentacoes", setWithoutMovements, wmPage),
+          loadQueue("movimentacoes_pendentes", setMovementBacklog, movPage),
+          loadQueue("publicacoes_pendentes", setPublicationBacklog, pubPage),
+          loadQueue("partes_sem_contato", setPartesBacklog, partesPage),
+          loadQueue("audiencias_pendentes", setAudienciaCandidates, audPage),
+          loadQueue("monitoramento_ativo", setMonitoringActive, maPage),
+          loadQueue("monitoramento_inativo", setMonitoringInactive, miPage),
+          loadQueue("campos_orfaos", setFieldGaps, fgPage),
+          loadOrphans(orphanPage),
+        ]
+        : [];
+      const coverageCalls = shouldLoadCoverage ? [loadCoverage(covPage)] : [];
+      const relationCalls = shouldLoadRelations ? [loadRelations(1, search)] : [];
+      await Promise.all([...baseCalls, ...queueCalls, ...coverageCalls, ...relationCalls]);
       if (!cancelled) bootstrappedRef.current = true;
     }
     bootstrap();
     return () => {
       cancelled = true;
     };
-  }, [uiHydrated]);
+  }, [uiHydrated, view]);
   useEffect(() => {
     if (!bootstrappedRef.current) return;
+    if (!OPERATIONAL_VIEWS.has(view)) return;
     loadQueue("sem_movimentacoes", setWithoutMovements, wmPage);
-  }, [wmPage]);
+  }, [wmPage, view]);
   useEffect(() => {
     if (!bootstrappedRef.current) return;
+    if (!OPERATIONAL_VIEWS.has(view)) return;
     loadQueue("movimentacoes_pendentes", setMovementBacklog, movPage);
-  }, [movPage]);
+  }, [movPage, view]);
   useEffect(() => {
     if (!bootstrappedRef.current) return;
+    if (!OPERATIONAL_VIEWS.has(view)) return;
     loadQueue("publicacoes_pendentes", setPublicationBacklog, pubPage);
-  }, [pubPage]);
+  }, [pubPage, view]);
   useEffect(() => {
     if (!bootstrappedRef.current) return;
+    if (!OPERATIONAL_VIEWS.has(view)) return;
     loadQueue("partes_sem_contato", setPartesBacklog, partesPage);
-  }, [partesPage]);
+  }, [partesPage, view]);
   useEffect(() => {
     if (!bootstrappedRef.current) return;
+    if (!OPERATIONAL_VIEWS.has(view)) return;
     loadQueue("audiencias_pendentes", setAudienciaCandidates, audPage);
-  }, [audPage]);
+  }, [audPage, view]);
   useEffect(() => {
     if (!bootstrappedRef.current) return;
+    if (!OPERATIONAL_VIEWS.has(view)) return;
     loadQueue("monitoramento_ativo", setMonitoringActive, maPage);
-  }, [maPage]);
+  }, [maPage, view]);
   useEffect(() => {
     if (!bootstrappedRef.current) return;
+    if (!OPERATIONAL_VIEWS.has(view)) return;
     loadQueue("monitoramento_inativo", setMonitoringInactive, miPage);
-  }, [miPage]);
+  }, [miPage, view]);
   useEffect(() => {
     if (!bootstrappedRef.current) return;
+    if (!OPERATIONAL_VIEWS.has(view)) return;
     loadQueue("campos_orfaos", setFieldGaps, fgPage);
-  }, [fgPage]);
+  }, [fgPage, view]);
   useEffect(() => {
     if (!bootstrappedRef.current) return;
+    if (!OPERATIONAL_VIEWS.has(view)) return;
     loadOrphans(orphanPage);
-  }, [orphanPage]);
+  }, [orphanPage, view]);
   useEffect(() => {
     if (!bootstrappedRef.current) return;
+    if (!RELATION_VIEWS.has(view)) return;
     loadRelations(1, search);
-  }, [search]);
+  }, [search, view]);
   useEffect(() => {
     const term = lookupTerm.trim();
     if (!term) { setLookup({ loading: false, items: [] }); return undefined; }
@@ -1296,12 +1317,16 @@ function InternoProcessosContent() {
   async function loadSchemaStatus() { try { const payload = await adminFetch("/api/admin-hmadv-processos?action=schema_status"); setSchemaStatus({ loading: false, data: payload.data }); } catch { setSchemaStatus({ loading: false, data: null }); } }
   async function loadRunnerMetrics() { try { const payload = await adminFetch("/api/admin-hmadv-processos?action=runner_metrics"); setRunnerMetrics({ loading: false, data: payload.data }); } catch { setRunnerMetrics({ loading: false, data: null }); } }
   async function loadCoverage(page = 1) {
+    if (schemaStatus?.data?.exists === false) {
+      setProcessCoverage({ loading: false, items: [], totalRows: 0, page, pageSize: 20, unsupported: true });
+      return;
+    }
     setProcessCoverage((state) => ({ ...state, loading: true }));
     try {
       const payload = await adminFetch(`/api/admin-hmadv-processos?action=cobertura_processos&page=${page}&pageSize=20`);
-      setProcessCoverage({ loading: false, items: payload.data.items || [], totalRows: payload.data.totalRows || 0, page: payload.data.page || page, pageSize: payload.data.pageSize || 20 });
+      setProcessCoverage({ loading: false, items: payload.data.items || [], totalRows: payload.data.totalRows || 0, page: payload.data.page || page, pageSize: payload.data.pageSize || 20, unsupported: false });
     } catch {
-      setProcessCoverage({ loading: false, items: [], totalRows: 0, page, pageSize: 20 });
+      setProcessCoverage({ loading: false, items: [], totalRows: 0, page, pageSize: 20, unsupported: false });
     }
   }
   async function loadQueue(action, setter, page) {
@@ -1342,20 +1367,26 @@ function InternoProcessosContent() {
       return next.slice(0, 12);
     });
   }
-  async function refreshOperationalQueues() {
-    await Promise.all([
-      loadOverview(),
-      loadCoverage(covPage),
-      loadQueue("sem_movimentacoes", setWithoutMovements, wmPage),
-      loadQueue("movimentacoes_pendentes", setMovementBacklog, movPage),
-      loadQueue("publicacoes_pendentes", setPublicationBacklog, pubPage),
-      loadQueue("partes_sem_contato", setPartesBacklog, partesPage),
-      loadQueue("audiencias_pendentes", setAudienciaCandidates, audPage),
-      loadQueue("monitoramento_ativo", setMonitoringActive, maPage),
-      loadQueue("monitoramento_inativo", setMonitoringInactive, miPage),
-      loadQueue("campos_orfaos", setFieldGaps, fgPage),
-      loadOrphans(orphanPage),
-    ]);
+  async function refreshOperationalQueues(options = {}) {
+    const { forceAll = false } = options;
+    const shouldLoadQueues = forceAll || OPERATIONAL_VIEWS.has(view);
+    const shouldLoadCoverage = forceAll || COVERAGE_VIEWS.has(view);
+    const calls = [loadOverview()];
+    if (shouldLoadCoverage) calls.push(loadCoverage(covPage));
+    if (shouldLoadQueues) {
+      calls.push(
+        loadQueue("sem_movimentacoes", setWithoutMovements, wmPage),
+        loadQueue("movimentacoes_pendentes", setMovementBacklog, movPage),
+        loadQueue("publicacoes_pendentes", setPublicationBacklog, pubPage),
+        loadQueue("partes_sem_contato", setPartesBacklog, partesPage),
+        loadQueue("audiencias_pendentes", setAudienciaCandidates, audPage),
+        loadQueue("monitoramento_ativo", setMonitoringActive, maPage),
+        loadQueue("monitoramento_inativo", setMonitoringInactive, miPage),
+        loadQueue("campos_orfaos", setFieldGaps, fgPage),
+        loadOrphans(orphanPage),
+      );
+    }
+    await Promise.all(calls);
   }
   async function refreshOperationalContext() {
     await Promise.all([
@@ -1617,8 +1648,9 @@ function InternoProcessosContent() {
   }
   useEffect(() => {
     if (!uiHydrated) return;
+    if (!COVERAGE_VIEWS.has(view)) return;
     loadCoverage(covPage);
-  }, [covPage]);
+  }, [covPage, view, uiHydrated]);
   function startEditing(item) { setEditingRelationId(item.id); setForm({ numero_cnj_pai: item.numero_cnj_pai || "", numero_cnj_filho: item.numero_cnj_filho || "", tipo_relacao: item.tipo_relacao || "dependencia", status: item.status || "ativo", observacoes: item.observacoes || "" }); }
   function reuseHistoryEntry(entry) {
     if (entry?.payload?.processNumbers) setProcessNumbers(entry.payload.processNumbers);
@@ -1891,7 +1923,15 @@ function InternoProcessosContent() {
         <QueueSummaryCard title="Sem Sales Account" count={orphans.totalRows || 0} helper="Processos ainda sem account vinculada." />
       </div>
       <div className="grid gap-6 xl:grid-cols-2">
-      <Panel title="Cobertura por processo" eyebrow="Auditoria local"><CoverageList rows={processCoverage.items} page={covPage} setPage={setCovPage} loading={processCoverage.loading} totalRows={processCoverage.totalRows} pageSize={processCoverage.pageSize} onSelectProcess={useCoverageProcess} /></Panel>
+      <Panel title="Cobertura por processo" eyebrow="Auditoria local">
+        {processCoverage.unsupported ? (
+          <div className="rounded-[22px] border border-dashed border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">
+            O schema de cobertura ainda nao foi aplicado no HMADV. Assim que a migracao estiver ativa, esta leitura vai mostrar o percentual real de cobertura por processo.
+          </div>
+        ) : (
+          <CoverageList rows={processCoverage.items} page={covPage} setPage={setCovPage} loading={processCoverage.loading} totalRows={processCoverage.totalRows} pageSize={processCoverage.pageSize} onSelectProcess={useCoverageProcess} />
+        )}
+      </Panel>
       <Panel title="Processos sem movimentacoes" eyebrow="Fila paginada"><QueueList title="Sem movimentacoes" helper="Itens sem andamento local para reconsulta no DataJud." rows={withoutMovements.items} selected={selectedWithoutMovements} onToggle={(key) => toggleSelection(setSelectedWithoutMovements, selectedWithoutMovements, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedWithoutMovements, selectedWithoutMovements, withoutMovements.items, nextState)} page={wmPage} setPage={setWmPage} loading={withoutMovements.loading} totalRows={withoutMovements.totalRows} pageSize={withoutMovements.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "sem_movimentacoes")} /></Panel>
       <Panel title="Movimentacoes pendentes" eyebrow="Fila paginada"><QueueList title="Andamentos sem activity" helper="Processos com movimentacoes no HMADV ainda sem reflexo em sales_activities do Freshsales." rows={movementBacklog.items} selected={selectedMovementBacklog} onToggle={(key) => toggleSelection(setSelectedMovementBacklog, selectedMovementBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMovementBacklog, selectedMovementBacklog, movementBacklog.items, nextState)} page={movPage} setPage={setMovPage} loading={movementBacklog.loading} totalRows={movementBacklog.totalRows} pageSize={movementBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "movimentacoes_pendentes")} /></Panel>
       <Panel title="Publicacoes pendentes" eyebrow="Fila paginada"><QueueList title="Publicacoes sem activity" helper="Processos com publicacoes no HMADV ainda sem reflexo em sales_activities do Freshsales." rows={publicationBacklog.items} selected={selectedPublicationBacklog} onToggle={(key) => toggleSelection(setSelectedPublicationBacklog, selectedPublicationBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedPublicationBacklog, selectedPublicationBacklog, publicationBacklog.items, nextState)} page={pubPage} setPage={setPubPage} loading={publicationBacklog.loading} totalRows={publicationBacklog.totalRows} pageSize={publicationBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "publicacoes_pendentes")} /></Panel>
