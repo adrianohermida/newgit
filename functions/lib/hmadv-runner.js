@@ -851,6 +851,7 @@ function buildDatajudPipelineMetrics(datajudResult) {
     recoveredMissingCnj: Number(recoverMissing?.recovered || 0),
     recoverableMissingCnj: Number(recoverMissing?.recoverable || 0),
     failedMissingCnjRecovery: Number(recoverMissing?.failed || 0),
+    queuedFromRecovery: Number(recoverMissing?.queued || 0),
     activatedTaggedAccounts: Number(reconcile?.activated || 0),
     missingCnjAfterReconcile: Number(reconcile?.missing_cnj || 0),
     queuedMonitoramento: Number(enqueue?.queued || 0),
