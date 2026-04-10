@@ -215,6 +215,7 @@ function buildAlerts({
   latestErroredProcessJob,
   latestErroredPublicacaoJob,
   datajudTagSummary,
+  datajudTagActionPlan,
 }) {
   const alerts = [];
 
@@ -271,6 +272,14 @@ function buildAlerts({
       level: "atencao",
       title: "Accounts datajud sem CNJ",
       message: `${datajudTagSummary.missingCnjCount} account(s) tagueados ainda nao trazem um CNJ utilizavel para iniciar o sincronismo automatico.`,
+    });
+  }
+
+  if (String(datajudTagActionPlan?.topAction?.action || "") === "manual_cf_processo") {
+    alerts.push({
+      level: "atencao",
+      title: "Carteira datajud ainda pede acao manual",
+      message: "A prioridade atual ainda e preencher CNJ/cf_processo em accounts do Freshsales para liberar o sincronismo completo.",
     });
   }
 
@@ -792,6 +801,37 @@ function buildTaggedCoverageMetrics(report) {
   };
 }
 
+function buildDatajudActionMetrics(actionRepair) {
+  const executed = actionRepair?.executedStep || null;
+  const plan = actionRepair?.plan || null;
+  const topAction = plan?.topAction || executed || null;
+  return {
+    ok: Boolean(actionRepair?.ok),
+    skipped: Boolean(actionRepair?.skipped),
+    topAction: topAction
+      ? {
+          key: topAction.key || null,
+          label: topAction.label || null,
+          action: topAction.action || null,
+          intent: topAction.intent || null,
+          count: Number(topAction.count || 0),
+        }
+      : null,
+    executedStep: executed
+      ? {
+          key: executed.key || null,
+          label: executed.label || null,
+          action: executed.action || null,
+          intent: executed.intent || null,
+          count: Number(executed.count || 0),
+          processNumbers: Array.isArray(executed.processNumbers) ? executed.processNumbers.slice(0, 10) : [],
+        }
+      : null,
+    manualActionRequired: Boolean(topAction?.action === "manual_cf_processo"),
+    error: actionRepair?.error || null,
+  };
+}
+
 export async function getHmadvQueueSnapshot(env) {
   const [processosOverview, publicacoesOverview, contactsOverview, coverageOverview, coveragePriority, datajudTagDiagnostics, datajudTagCoverage, datajudTagActionPlan, processJobs, publicacaoJobs, runnerOps] = await Promise.all([
     getProcessosOverview(env),
@@ -972,6 +1012,7 @@ export async function getHmadvQueueSnapshot(env) {
     latestErroredProcessJob,
     latestErroredPublicacaoJob,
     datajudTagSummary,
+    datajudTagActionPlan,
   });
   const moduleCards = {
     processos: {
@@ -1112,6 +1153,7 @@ export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
   const coverageSnapshot = await runCoverageSnapshotPipeline(env);
   const coverageOverview = await getPersistedCoverageOverview(env).catch(() => null);
   const taggedCoverageAfter = await getTaggedDatajudCoverageReport(env, { limit: 100, tag: "datajud" }).catch(() => null);
+  const datajudActionMetrics = buildDatajudActionMetrics(datajudActionRepair);
   const [processos, publicacoes] = await Promise.all([
     drainModuleJobs(env, "processos", processProcessAdminJob, maxChunks),
     drainModuleJobs(env, "publicacoes", processPublicacoesAdminJob, maxChunks),
@@ -1128,6 +1170,7 @@ export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
     coverageSnapshot,
     coverageMetrics: buildCoverageMetrics(coverageSnapshot, coverageOverview),
     taggedCoverageMetrics: buildTaggedCoverageMetrics(taggedCoverageAfter),
+    datajudActionMetrics,
     processos,
     publicacoes,
     completedAll: Boolean(processos.completedAll && publicacoes.completedAll),
