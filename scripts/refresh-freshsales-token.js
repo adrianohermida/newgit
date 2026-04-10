@@ -27,16 +27,16 @@ async function main() {
   const body = new URLSearchParams({
     grant_type: 'refresh_token',
     refresh_token: refreshToken,
-    client_id: clientId,
-    client_secret: clientSecret,
     redirect_uri: redirectUri,
   });
+  const basicAuth = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`;
 
-  const response = await fetch(`https://${orgDomain}/crm/sales/oauth/token`, {
+  const response = await fetch(`https://${orgDomain}/org/oauth/v2/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       Accept: 'application/json',
+      Authorization: basicAuth,
     },
     body,
   });

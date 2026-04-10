@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch as adminFetchRaw } from "../../lib/admin/api";
+import { appendActivityLog, updateActivityLog } from "../../lib/admin/activity-log";
 
 const PUBLICACOES_VIEW_ITEMS = [
   { key: "operacao", label: "Operacao" },
@@ -30,7 +31,6 @@ const MODULE_LIMITS = {
   maxSyncWorker: 2,
   maxDefault: 10,
 };
-const ACTIVITY_LOG_LIMIT = 120;
 const PUBLICACOES_QUEUE_VIEWS = new Set(["operacao", "filas"]);
 const QUEUE_LABELS = {
   candidatos_processos: "Processos criaveis",
@@ -733,8 +733,6 @@ function PublicacoesContent() {
   const [drainInFlight, setDrainInFlight] = useState(false);
   const [processNumbers, setProcessNumbers] = useState("");
   const [queueRefreshLog, setQueueRefreshLog] = useState([]);
-  const [activityLogOpen, setActivityLogOpen] = useState(false);
-  const [activityLog, setActivityLog] = useState([]);
   const [pageVisible, setPageVisible] = useState(true);
   const [globalError, setGlobalError] = useState(null);
   const [globalErrorUntil, setGlobalErrorUntil] = useState(null);
@@ -745,58 +743,6 @@ function PublicacoesContent() {
   const [partesPage, setPartesPage] = useState(1);
   const [selectedProcessKeys, setSelectedProcessKeys] = useState([]);
   const [selectedPartesKeys, setSelectedPartesKeys] = useState([]);
-  const activityLogRef = useRef([]);
-
-  function appendActivityLog(entry) {
-    setActivityLog((current) => {
-      const next = [entry, ...current].slice(0, ACTIVITY_LOG_LIMIT);
-      activityLogRef.current = next;
-      return next;
-    });
-  }
-
-  function updateActivityLog(entryId, patch) {
-    setActivityLog((current) => {
-      const next = current.map((entry) => (entry.id === entryId ? { ...entry, ...patch } : entry));
-      activityLogRef.current = next;
-      return next;
-    });
-  }
-
-  function clearActivityLog() {
-    setActivityLog([]);
-    activityLogRef.current = [];
-  }
-
-  async function copyActivityText(text) {
-    if (!text || typeof window === "undefined" || !navigator?.clipboard) return;
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {}
-  }
-
-  async function copyFullActivityLog() {
-    if (!activityLogRef.current.length) return;
-    const fullLog = activityLogRef.current
-      .map((entry) => {
-        return [
-          `# ${entry.label || entry.action || "Chamada"}`,
-          `status: ${entry.status}`,
-          `metodo: ${entry.method}`,
-          `acao: ${entry.action || ""}`,
-          `rota: ${entry.path || ""}`,
-          `duracao_ms: ${entry.durationMs ?? ""}`,
-          entry.request ? `request:\n${entry.request}` : "",
-          entry.response ? `response:\n${entry.response}` : "",
-          entry.error ? `error:\n${entry.error}` : "",
-          "---",
-        ]
-          .filter(Boolean)
-          .join("\n");
-      })
-      .join("\n");
-    await copyActivityText(fullLog);
-  }
 
   async function adminFetch(path, init = {}, meta = {}) {
     const startedAt = Date.now();
@@ -1368,129 +1314,6 @@ function PublicacoesContent() {
 
   return (
     <div className="space-y-8">
-      {activityLogOpen ? (
-        <section className="fixed right-0 top-0 bottom-0 z-[70] w-[min(420px,92vw)] overflow-hidden border-l border-[#2D2E2E] bg-[rgba(6,8,8,0.96)] shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
-          <header className="flex items-center justify-between gap-3 border-b border-[#2D2E2E] px-4 py-4">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-[#C5A059]">Modo dev</p>
-              <h4 className="text-lg font-semibold">Log de atividades</h4>
-              <p className="text-xs opacity-60">API, respostas, erros e traces em tempo real.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActivityLogOpen(false)}
-              className="rounded-full border border-[#2D2E2E] px-3 py-1.5 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-            >
-              Fechar
-            </button>
-          </header>
-          <div className="flex flex-wrap items-center gap-2 border-b border-[#2D2E2E] px-4 py-3 text-xs">
-            <button
-              type="button"
-              onClick={clearActivityLog}
-              disabled={!activityLog.length}
-              className="border border-[#2D2E2E] px-3 py-2 text-xs uppercase tracking-[0.14em] transition disabled:opacity-40 hover:border-[#C5A059] hover:text-[#C5A059]"
-            >
-              Limpar log
-            </button>
-            <button
-              type="button"
-              onClick={copyFullActivityLog}
-              disabled={!activityLog.length}
-              className="border border-[#2D2E2E] px-3 py-2 text-xs uppercase tracking-[0.14em] transition disabled:opacity-40 hover:border-[#C5A059] hover:text-[#C5A059]"
-            >
-              Copiar log completo
-            </button>
-            <span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.14em] opacity-70">
-              {activityLog.length} entradas
-            </span>
-          </div>
-          <div className="h-full overflow-y-auto px-4 pb-5 pt-4">
-            {activityLog.length ? (
-              <div className="space-y-3">
-                {activityLog.map((entry) => (
-                  <article key={entry.id} className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.7)] p-4 text-xs">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="space-y-1">
-                        <p className="text-[10px] uppercase tracking-[0.16em] opacity-60">{entry.method}</p>
-                        <p className="text-sm font-semibold">{entry.label}</p>
-                        <p className="text-[11px] opacity-60">{entry.action || entry.path}</p>
-                      </div>
-                      <div className="text-right">
-                        <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${entry.status === "error" ? "border-[#4B2222] text-red-200" : entry.status === "success" ? "border-[#2D2E2E] text-[#C5A059]" : "border-[#2D2E2E] text-[#9CA3AF]"}`}>
-                          {entry.status}
-                        </span>
-                        <p className="mt-2 text-[10px] opacity-50">{entry.startedAt ? new Date(entry.startedAt).toLocaleTimeString("pt-BR") : ""}</p>
-                      </div>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em] opacity-60">
-                      <span className="rounded-full border border-[#2D2E2E] px-2 py-1">duracao {entry.durationMs ?? "--"}ms</span>
-                      {entry.expectation ? <span className="rounded-full border border-[#2D2E2E] px-2 py-1">{entry.expectation}</span> : null}
-                    </div>
-                    <details className="mt-3">
-                      <summary className="cursor-pointer text-[11px] uppercase tracking-[0.16em] text-[#C5A059]">Detalhes</summary>
-                      {entry.request ? (
-                        <div className="mt-3">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-[10px] uppercase tracking-[0.16em] opacity-60">Request</p>
-                            <button type="button" onClick={() => copyActivityText(entry.request)} className="text-[10px] uppercase tracking-[0.16em] text-[#C5A059]">
-                              Copiar
-                            </button>
-                          </div>
-                          <pre className="mt-2 whitespace-pre-wrap rounded-[18px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.8)] p-3 text-[11px] leading-5">
-                            {entry.request}
-                          </pre>
-                        </div>
-                      ) : null}
-                      {entry.response ? (
-                        <div className="mt-3">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-[10px] uppercase tracking-[0.16em] opacity-60">Response</p>
-                            <button type="button" onClick={() => copyActivityText(entry.response)} className="text-[10px] uppercase tracking-[0.16em] text-[#C5A059]">
-                              Copiar
-                            </button>
-                          </div>
-                          <pre className="mt-2 whitespace-pre-wrap rounded-[18px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.8)] p-3 text-[11px] leading-5">
-                            {entry.response}
-                          </pre>
-                        </div>
-                      ) : null}
-                      {entry.error ? (
-                        <div className="mt-3">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-[10px] uppercase tracking-[0.16em] text-red-200">Erro</p>
-                            <button type="button" onClick={() => copyActivityText(entry.error)} className="text-[10px] uppercase tracking-[0.16em] text-[#FCA5A5]">
-                              Copiar
-                            </button>
-                          </div>
-                          <pre className="mt-2 whitespace-pre-wrap rounded-[18px] border border-[#4B2222] bg-[rgba(60,23,23,0.6)] p-3 text-[11px] leading-5 text-red-200">
-                            {entry.error}
-                          </pre>
-                        </div>
-                      ) : null}
-                    </details>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-[22px] border border-dashed border-[#2D2E2E] px-4 py-6 text-sm opacity-60">
-                Nenhuma chamada registrada ainda.
-              </div>
-            )}
-          </div>
-        </section>
-      ) : null}
-      {activityLogOpen ? (
-        <button
-          type="button"
-          onClick={() => setActivityLogOpen(false)}
-          className="group fixed right-0 top-1/2 z-[75] -translate-y-1/2 rounded-l-2xl border border-[#2D2E2E] bg-[#0d0f0e] px-2 py-5 text-[10px] uppercase tracking-[0.28em] text-[#C5A059] shadow-[0_10px_30px_rgba(0,0,0,0.35)]"
-          style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
-        >
-          <span className="group-hover:hidden">Log</span>
-          <span className="hidden group-hover:block text-[12px]">X</span>
-        </button>
-      ) : null}
       <section className="rounded-[34px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-6 py-6 md:px-7">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
@@ -1507,26 +1330,6 @@ function PublicacoesContent() {
         </div>
         <div className="mt-6 space-y-4">
           <ViewToggle value={view} onChange={updateView} />
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setActivityLogOpen((current) => !current)}
-              className="border border-[#2D2E2E] px-4 py-2 text-xs uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-            >
-              {activityLogOpen ? "Fechar log de atividades" : "Log de atividades"}
-            </button>
-            <button
-              type="button"
-              onClick={clearActivityLog}
-              disabled={!activityLog.length}
-              className="border border-[#2D2E2E] px-4 py-2 text-xs uppercase tracking-[0.14em] transition disabled:opacity-40 hover:border-[#C5A059] hover:text-[#C5A059]"
-            >
-              Limpar log
-            </button>
-            <span className="text-[10px] uppercase tracking-[0.16em] opacity-60">
-              {activityLog.length} entradas
-            </span>
-          </div>
           <div className={`border p-4 text-xs ${operationalStatus.mode === "error" ? "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200" : operationalStatus.mode === "limited" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="uppercase tracking-[0.18em] text-[10px]">Status operacional</span>

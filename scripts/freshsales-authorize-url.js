@@ -43,7 +43,7 @@ function main() {
     scope: scopes,
   });
 
-  const authorizationUrl = `https://${orgDomain}/crm/sales/oauth/authorize?${params.toString()}`;
+  const authorizationUrl = `https://${orgDomain}/org/oauth/v2/authorize?${params.toString()}`;
 
   console.log(JSON.stringify({
     ok: true,

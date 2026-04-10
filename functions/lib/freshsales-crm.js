@@ -195,16 +195,16 @@ async function refreshOauthRow(env, refreshToken) {
   const body = new URLSearchParams({
     grant_type: "refresh_token",
     refresh_token: refreshToken,
-    client_id: clientId,
-    client_secret: clientSecret,
     redirect_uri: redirectUri,
   });
+  const basicAuth = `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
 
-  const response = await fetch(`https://${orgDomain}/crm/sales/oauth/token`, {
+  const response = await fetch(`https://${orgDomain}/org/oauth/v2/token`, {
     method: "POST",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: basicAuth,
     },
     body,
   }).catch(() => null);
@@ -299,8 +299,8 @@ async function getAuthHeaders(env) {
   const headers = [
     apiKey ? { name: "api_key", header: { Authorization: `Token token=${apiKey}` } } : null,
     basicAuth ? { name: "basic_auth", header: /^Basic\s+/i.test(basicAuth) ? { Authorization: basicAuth } : { Authorization: `Basic ${basicAuth}` } } : null,
-    supabaseOauthToken ? { name: "supabase_oauth", header: { Authorization: `Bearer ${supabaseOauthToken}` } } : null,
-    accessToken ? { name: "access_token", header: { Authorization: `Bearer ${accessToken}` } } : null,
+    supabaseOauthToken ? { name: "supabase_oauth", header: { Authorization: `Token token=${supabaseOauthToken}` } } : null,
+    accessToken ? { name: "access_token", header: { Authorization: `Token token=${accessToken}` } } : null,
   ].filter(Boolean);
 
   if (explicitMode === "oauth") {

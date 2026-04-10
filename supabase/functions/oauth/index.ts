@@ -19,11 +19,11 @@ const SERVICE_ROLE_KEY    = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const CLIENT_ID           = Deno.env.get('FRESHSALES_OAUTH_CLIENT_ID')!;
 const CLIENT_SECRET       = Deno.env.get('FRESHSALES_OAUTH_CLIENT_SECRET')!;
 const SCOPES              = Deno.env.get('FRESHSALES_SCOPES') ?? '';
-const ORG_DOMAIN          = 'hmadv-org.myfreshworks.com';
+const ORG_DOMAIN          = Deno.env.get('FRESHSALES_ORG_DOMAIN') ?? Deno.env.get('FRESHSALES_DOMAIN') ?? 'hmadv-org.myfreshworks.com';
 const PROVIDER            = 'freshsales';
-const REDIRECT_URI        = `${SUPABASE_URL}/functions/v1/oauth`;
-const AUTHORIZE_URL       = `https://${ORG_DOMAIN}/crm/sales/oauth/authorize`;
-const TOKEN_URL           = `https://${ORG_DOMAIN}/crm/sales/oauth/token`;
+const REDIRECT_URI        = Deno.env.get('FRESHSALES_REDIRECT_URI') ?? Deno.env.get('REDIRECT_URI') ?? `${SUPABASE_URL}/functions/v1/oauth`;
+const AUTHORIZE_URL       = `https://${ORG_DOMAIN}/org/oauth/v2/authorize`;
+const TOKEN_URL           = `https://${ORG_DOMAIN}/org/oauth/v2/token`;
 
 const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
@@ -100,14 +100,15 @@ async function getStoredTokens(): Promise<TokenRow | null> {
 async function exchangeCode(code: string): Promise<Record<string, unknown>> {
   const body = new URLSearchParams({
     grant_type:    'authorization_code',
-    client_id:     CLIENT_ID,
-    client_secret: CLIENT_SECRET,
     redirect_uri:  REDIRECT_URI,
     code,
   });
   const res = await fetch(TOKEN_URL, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Basic ${btoa(`${CLIENT_ID}:${CLIENT_SECRET}`)}`,
+    },
     body,
   });
   const payload = await res.json().catch(() => ({}));
@@ -119,13 +120,14 @@ async function doRefresh(refresh_token: string): Promise<Record<string, unknown>
   const body = new URLSearchParams({
     grant_type:    'refresh_token',
     refresh_token,
-    client_id:     CLIENT_ID,
-    client_secret: CLIENT_SECRET,
     redirect_uri:  REDIRECT_URI,
   });
   const res = await fetch(TOKEN_URL, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Basic ${btoa(`${CLIENT_ID}:${CLIENT_SECRET}`)}`,
+    },
     body,
   });
   const payload = await res.json().catch(() => ({}));

@@ -137,13 +137,13 @@ async function resolveAuthModes() {
   if (supabaseOauthToken) {
     modes.push({
       name: 'supabase_oauth',
-      headers: { Authorization: `Bearer ${supabaseOauthToken}` },
+      headers: { Authorization: `Token token=${supabaseOauthToken}` },
     });
   }
   if (accessToken) {
     modes.push({
       name: 'access_token',
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Token token=${accessToken}` },
     });
   }
   if (explicitMode === 'oauth') {
@@ -480,17 +480,17 @@ async function tryRefresh(returnToken = false) {
   const body = new URLSearchParams({
     grant_type: 'refresh_token',
     refresh_token: refreshToken,
-    client_id: clientId,
-    client_secret: clientSecret,
     redirect_uri: redirectUri,
   });
+  const basicAuth = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`;
 
   try {
-    const response = await fetch(`https://${orgDomain}/crm/sales/oauth/token`, {
+    const response = await fetch(`https://${orgDomain}/org/oauth/v2/token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         Accept: 'application/json',
+        Authorization: basicAuth,
       },
       body,
     });

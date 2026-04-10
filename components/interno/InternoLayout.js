@@ -1,9 +1,14 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import DotobotCopilot from "./DotobotPanel";
 import DotobotExtensionManager from "./DotobotExtensionManager";
+import {
+  clearActivityLog,
+  formatActivityLogText,
+  subscribeActivityLog,
+} from "../../lib/admin/activity-log";
 
 const NAV_ITEMS = [
   { href: "/interno", label: "Visao geral" },
@@ -70,6 +75,12 @@ export default function InternoLayout({
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(true);
+  const [consoleTab, setConsoleTab] = useState("console");
+  const [activityLog, setActivityLog] = useState([]);
+
+  useEffect(() => {
+    return subscribeActivityLog((entries) => setActivityLog(entries));
+  }, []);
 
   async function handleSignOut() {
     if (supabase) {
@@ -156,23 +167,29 @@ export default function InternoLayout({
               <button
                 type="button"
                 onClick={() => setLeftCollapsed((current) => !current)}
-                className="rounded-full border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                className="h-9 w-9 rounded-lg border border-[#22342F] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                title="Alternar sidebar"
               >
-                Sidebar
+                <span className="sr-only">Sidebar</span>
+                <span className="text-lg">≡</span>
               </button>
               <button
                 type="button"
                 onClick={() => setRightCollapsed((current) => !current)}
-                className="rounded-full border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                className="h-9 w-9 rounded-lg border border-[#22342F] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                title="Alternar painel direito"
               >
-                Painel
+                <span className="sr-only">Painel</span>
+                <span className="text-lg">▣</span>
               </button>
               <button
                 type="button"
                 onClick={() => setConsoleOpen((current) => !current)}
-                className="rounded-full border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                className="h-9 w-9 rounded-lg border border-[#22342F] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                title="Alternar console"
               >
-                Console
+                <span className="sr-only">Console</span>
+                <span className="text-lg">▤</span>
               </button>
             </div>
           </div>
@@ -191,9 +208,37 @@ export default function InternoLayout({
             <DotobotExtensionManager />
           </div>
           </div>
-          <div className={`border-t border-[#1E2E29] bg-[rgba(6,8,7,0.92)] transition-all ${consoleOpen ? "h-[240px]" : "h-[44px]"}`}>
+          <div className={`border-t border-[#1E2E29] bg-[rgba(6,8,7,0.92)] transition-all ${consoleOpen ? "h-[260px]" : "h-[44px]"}`}>
             <div className="flex items-center justify-between px-5 py-2 text-xs uppercase tracking-[0.18em] text-[#C5A059]">
-              <span>Console operacional</span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setConsoleTab("console")}
+                  className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] transition ${
+                    consoleTab === "console"
+                      ? "border-[#C5A059] text-[#C5A059]"
+                      : "border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059]"
+                  }`}
+                >
+                  Console
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConsoleTab("log")}
+                  className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] transition ${
+                    consoleTab === "log"
+                      ? "border-[#C5A059] text-[#C5A059]"
+                      : "border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059]"
+                  }`}
+                >
+                  Log
+                </button>
+                {consoleTab === "log" ? (
+                  <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8]">
+                    {activityLog.length} entradas
+                  </span>
+                ) : null}
+              </div>
               <button
                 type="button"
                 onClick={() => setConsoleOpen((current) => !current)}
@@ -203,8 +248,49 @@ export default function InternoLayout({
               </button>
             </div>
             {consoleOpen ? (
-              <div className="h-[180px] overflow-y-auto px-5 pb-4 text-xs text-[#9BAEA8]">
-                Console operacional (placeholder). Aqui entram logs estilo VS Code.
+              <div className="h-[200px] overflow-y-auto px-5 pb-4 text-xs text-[#9BAEA8]">
+                {consoleTab === "console" ? (
+                  <div className="opacity-70">Console operacional (placeholder). Aqui entram logs estilo VS Code.</div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => clearActivityLog()}
+                        className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                      >
+                        Limpar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const text = formatActivityLogText(activityLog);
+                          if (text && navigator?.clipboard) {
+                            await navigator.clipboard.writeText(text);
+                          }
+                        }}
+                        className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                      >
+                        Copiar log
+                      </button>
+                    </div>
+                    {activityLog.length ? (
+                      <div className="space-y-2">
+                        {activityLog.slice(0, 25).map((entry) => (
+                          <div key={entry.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(8,10,9,0.6)] px-3 py-2 text-[11px]">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold">{entry.label || entry.action}</span>
+                              <span className={entry.status === "error" ? "text-red-200" : "text-[#C5A059]"}>{entry.status}</span>
+                            </div>
+                            <div className="opacity-60">{entry.action || entry.path}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-[11px] opacity-60">Nenhuma atividade registrada.</div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : null}
           </div>
