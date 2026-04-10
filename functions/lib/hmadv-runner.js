@@ -666,6 +666,81 @@ async function runCoverageGapRepairPipeline(env) {
   }
 }
 
+async function runTaggedDatajudActionPlanPipeline(env) {
+  try {
+    const plan = await getTaggedDatajudActionPlan(env, { limit: 100, tag: "datajud" });
+    const step = plan?.topAction || null;
+    if (!step?.action) {
+      return {
+        ok: true,
+        skipped: true,
+        reason: "no_action",
+        plan,
+      };
+    }
+
+    const processNumbers = Array.isArray(step.processNumbers)
+      ? step.processNumbers.map((item) => String(item || "").trim()).filter(Boolean)
+      : [];
+
+    let result = null;
+    if (step.action === "sync_supabase_crm") {
+      result = await syncProcessesSupabaseCrm(env, {
+        processNumbers,
+        limit: 1,
+        intent: String(step.intent || "datajud_plus_crm"),
+      });
+    } else if (step.action === "sincronizar_publicacoes_activity") {
+      result = await syncPublicationActivities(env, {
+        processNumbers,
+        limit: Math.min(Math.max(processNumbers.length || 5, 1), 10),
+      });
+    } else if (step.action === "sincronizar_movimentacoes_activity") {
+      result = await syncMovementActivities(env, {
+        processNumbers,
+        limit: Math.min(Math.max(processNumbers.length || 5, 1), 10),
+      });
+    } else if (step.action === "sincronizar_audiencias_activity") {
+      result = await syncAudienciaActivities(env, {
+        processNumbers,
+        limit: Math.min(Math.max(processNumbers.length || 5, 1), 10),
+      });
+    } else if (step.action === "reconciliar_partes_contatos") {
+      result = await reconcilePartesContacts(env, {
+        processNumbers,
+        limit: 50,
+        apply: true,
+      });
+    } else {
+      result = {
+        ok: true,
+        skipped: true,
+        reason: "manual_action",
+        action: step.action,
+      };
+    }
+
+    return {
+      ok: true,
+      plan,
+      executedStep: {
+        key: step.key,
+        label: step.label,
+        action: step.action,
+        intent: step.intent || null,
+        count: Number(step.count || 0),
+        processNumbers,
+      },
+      result,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error?.message || "Falha ao executar plano priorizado da carteira datajud.",
+    };
+  }
+}
+
 async function runCoverageSnapshotPipeline(env) {
   try {
     const data = await persistProcessCoverageSnapshot(env, {
@@ -1030,6 +1105,7 @@ export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
   const advise = await runAdviseSyncPipeline(env);
   const datajud = await runDatajudTaggedPipeline(env);
   const taggedRepair = await runTaggedDatajudRepairPipeline(env);
+  const datajudActionRepair = await runTaggedDatajudActionPlanPipeline(env);
   const coverage = await runFreshsalesCoveragePipeline(env);
   const contacts = await runContactsCoveragePipeline(env);
   const gapRepair = await runCoverageGapRepairPipeline(env);
@@ -1045,6 +1121,7 @@ export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
     advise,
     datajud,
     taggedRepair,
+    datajudActionRepair,
     coverage,
     contacts,
     gapRepair,
