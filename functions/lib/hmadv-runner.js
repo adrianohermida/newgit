@@ -429,6 +429,18 @@ async function runCoverageSnapshotPipeline(env) {
   }
 }
 
+function buildCoverageMetrics(snapshotResult, coverageOverview) {
+  return {
+    processed: Number(snapshotResult?.data?.processed || 0),
+    upserted: Number(snapshotResult?.data?.upserted || 0),
+    totalRows: Number(coverageOverview?.totalRows || 0),
+    coveredRows: Number(coverageOverview?.coveredRows || 0),
+    pendingRows: Number(coverageOverview?.pendingRows || 0),
+    lastSyncAt: coverageOverview?.lastSyncAt || null,
+    unsupported: Boolean(coverageOverview?.unsupported),
+  };
+}
+
 export async function getHmadvQueueSnapshot(env) {
   const [processosOverview, publicacoesOverview, contactsOverview, coverageOverview, processJobs, publicacaoJobs, runnerOps] = await Promise.all([
     getProcessosOverview(env),
@@ -733,6 +745,7 @@ export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
   const coverage = await runFreshsalesCoveragePipeline(env);
   const contacts = await runContactsCoveragePipeline(env);
   const coverageSnapshot = await runCoverageSnapshotPipeline(env);
+  const coverageOverview = await getPersistedCoverageOverview(env).catch(() => null);
   const [processos, publicacoes] = await Promise.all([
     drainModuleJobs(env, "processos", processProcessAdminJob, maxChunks),
     drainModuleJobs(env, "publicacoes", processPublicacoesAdminJob, maxChunks),
@@ -744,6 +757,7 @@ export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
     coverage,
     contacts,
     coverageSnapshot,
+    coverageMetrics: buildCoverageMetrics(coverageSnapshot, coverageOverview),
     processos,
     publicacoes,
     completedAll: Boolean(processos.completedAll && publicacoes.completedAll),

@@ -203,12 +203,26 @@ function summarizeOperationResult(result) {
     "publicacoes",
     "movimentacoes",
     "activitiesCriadas",
+    "processed",
+    "upserted",
+    "coveredRows",
+    "pendingRows",
+    "totalRows",
     "movimentacoesAtualizadas",
     "audienciasInseridas",
     "disparados",
     "monitoramento_ativo",
   ]) {
     if (result?.[key] !== undefined) summary[key] = result[key];
+  }
+  if (result?.coverageMetrics && typeof result.coverageMetrics === "object") {
+    for (const [key, value] of Object.entries(result.coverageMetrics)) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        summary[`coverage_${key}`] = value;
+      } else if (value != null && summary[`coverage_${key}`] === undefined) {
+        summary[`coverage_${key}`] = value;
+      }
+    }
   }
   return {
     summary,
