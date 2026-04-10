@@ -1290,7 +1290,11 @@ function InternoProcessosContent() {
           setActionState({ loading: false, error: null, result: result.job ? { job: result.job, drain: result } : { drain: result } });
           if (result.completedAll || !job?.id || job?.status === "completed" || job?.status === "error" || job?.status === "cancelled") {
             setActiveJobId(null);
-            await Promise.all([refreshOperationalQueues(), loadRemoteHistory(), loadJobs()]);
+            if (job?.acao) {
+              await refreshAfterAction(job.acao, job.payload || {});
+            } else {
+              await refreshOperationalContext();
+            }
             if (typeof window !== "undefined" && "Notification" in window) {
               if (Notification.permission === "default") {
                 Notification.requestPermission().catch(() => {});
@@ -1628,7 +1632,11 @@ function InternoProcessosContent() {
         setActionState({ loading: false, error: null, result: result.job ? { job: result.job, drain: result } : { drain: result } });
         setActiveJobId(result.completedAll ? null : (result.job?.id || null));
         if (result.completedAll || !result.job?.id || ["completed", "error", "cancelled"].includes(String(result.job?.status || ""))) {
-          await refreshOperationalContext();
+          if (result.job?.acao) {
+            await refreshAfterAction(result.job.acao, result.job.payload || {});
+          } else {
+            await refreshOperationalContext();
+          }
         } else {
           await loadRemoteHistory();
         }
