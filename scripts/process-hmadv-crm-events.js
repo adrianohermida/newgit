@@ -203,49 +203,74 @@ async function markSkipped(item, reason) {
   });
 }
 
-function resolveFreshsalesBase() {
+function resolveFreshsalesBases() {
   const raw = process.env.FRESHSALES_API_BASE || process.env.FRESHSALES_BASE_URL || process.env.FRESHSALES_DOMAIN;
   if (!raw) throw new Error('FRESHSALES_API_BASE/FRESHSALES_BASE_URL/FRESHSALES_DOMAIN nao configurado');
   const base = raw.startsWith('http') ? raw.replace(/\/+$/, '') : `https://${raw.replace(/\/+$/, '')}`;
-  if (base.includes('/crm/sales/api')) return base;
-  if (base.includes('/api')) return base;
-  return `${base}/crm/sales/api`;
+  if (base.includes('/crm/sales/api') || base.includes('/api')) {
+    const host = base.replace(/^https?:\/\//i, '').replace(/\/(crm\/sales\/api|api)\/?$/i, '');
+    const myfreshworksHost = host.includes('myfreshworks.com') ? host : host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
+    return Array.from(new Set([
+      base,
+      `https://${host}/api`,
+      `https://${host}/crm/sales/api`,
+      `https://${myfreshworksHost}/api`,
+      `https://${myfreshworksHost}/crm/sales/api`,
+    ]));
+  }
+  const host = base.replace(/^https?:\/\//i, '');
+  const myfreshworksHost = host.includes('myfreshworks.com') ? host : host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
+  return Array.from(new Set([
+    `${base}/api`,
+    `${base}/crm/sales/api`,
+    `https://${myfreshworksHost}/api`,
+    `https://${myfreshworksHost}/crm/sales/api`,
+  ]));
 }
 
-function freshsalesHeaders() {
+function freshsalesHeaderCandidates() {
   const apiKey = cleanValue(process.env.FRESHSALES_API_KEY);
   const accessToken = cleanValue(process.env.FRESHSALES_ACCESS_TOKEN);
+  const candidates = [];
   if (apiKey) {
-    return {
+    candidates.push({
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Token token=${apiKey}`,
-    };
+    });
   }
   if (accessToken) {
-    return {
+    candidates.push({
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
-    };
+    });
   }
-  throw new Error('Credenciais do Freshsales ausentes');
+  if (!candidates.length) throw new Error('Credenciais do Freshsales ausentes');
+  return candidates;
 }
 
 async function freshsalesRequest(pathname, init = {}) {
-  const base = resolveFreshsalesBase();
-  const response = await fetch(`${base}${pathname}`, {
-    ...init,
-    headers: {
-      ...freshsalesHeaders(),
-      ...(init.headers || {}),
-    },
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload.message || payload.error || `Freshsales request failed: ${response.status}`);
+  const attemptErrors = [];
+  for (const base of resolveFreshsalesBases()) {
+    for (const headers of freshsalesHeaderCandidates()) {
+      const response = await fetch(`${base}${pathname}`, {
+        ...init,
+        headers: {
+          ...headers,
+          ...(init.headers || {}),
+        },
+      }).catch((error) => {
+        attemptErrors.push(`${base}${pathname}: ${String(error.message || error)}`);
+        return null;
+      });
+      if (!response) continue;
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok) return payload;
+      attemptErrors.push(`${base}${pathname} -> ${response.status}: ${payload.message || payload.error || JSON.stringify(payload).slice(0, 300)}`);
+    }
   }
-  return payload;
+  throw new Error(attemptErrors.join(' | ') || `Freshsales request failed: ${pathname}`);
 }
 
 function parseJsonEnv(value, fallback = {}) {

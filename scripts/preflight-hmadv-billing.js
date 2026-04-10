@@ -39,7 +39,10 @@ async function main() {
   if (report.supabase) {
     if ((report.supabase.counts.freshsales_contacts || 0) === 0) report.readiness.blockers.push('freshsales_contacts vazio');
     if ((report.supabase.counts.freshsales_products || 0) === 0) report.readiness.blockers.push('freshsales_products vazio');
-    if ((report.supabase.counts.billing_indices || 0) === 0) report.readiness.blockers.push('billing_indices vazio');
+    if ((report.supabase.counts.billing_indices || 0) === 0) {
+      if (report.env.allow_missing_billing_indices) report.readiness.warnings.push('billing_indices vazio; modo nominal habilitado');
+      else report.readiness.blockers.push('billing_indices vazio');
+    }
     if ((report.supabase.counts.billing_import_rows || 0) === 0) report.readiness.warnings.push('billing_import_rows vazio');
   }
 
@@ -91,6 +94,7 @@ function inspectEnv() {
     billing_deal_field_map: Boolean(cleanValue(process.env.FRESHSALES_BILLING_DEAL_FIELD_MAP)),
     billing_deal_type_id_map: Boolean(cleanValue(process.env.FRESHSALES_BILLING_DEAL_TYPE_ID_MAP)),
     financial_event_stage_map: Boolean(cleanValue(process.env.FRESHSALES_FINANCIAL_EVENT_STAGE_MAP)),
+    allow_missing_billing_indices: cleanValue(process.env.HMADV_ALLOW_MISSING_BILLING_INDICES) === 'true',
     workspace_id: cleanValue(process.env.HMADV_WORKSPACE_ID),
   };
 }

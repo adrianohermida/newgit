@@ -130,6 +130,16 @@ Antes de rodar publicação real, valide o ambiente:
 node scripts/preflight-hmadv-billing.js
 ```
 
+## Refresh do token Freshsales
+
+Se os endpoints de escrita do Freshsales voltarem `401 login failed`, renove o OAuth local:
+
+```bash
+node scripts/refresh-freshsales-token.js
+```
+
+O script usa `FRESHSALES_OAUTH_CLIENT_ID`, `FRESHSALES_OAUTH_CLIENT_SECRET` e `FRESHSALES_REFRESH_TOKEN`, renova o `access_token` e atualiza o `.dev.vars`.
+
 ## Descoberta de campos financeiros no Freshsales
 
 Para sugerir o `FRESHSALES_BILLING_DEAL_FIELD_MAP` a partir do tenant real:
@@ -197,6 +207,12 @@ Dois saldos são gravados:
 1. importar CSV real de índices em `billing_indices`;
 2. validar cobertura de meses para as faturas históricas;
 3. só então liberar materialização financeira completa com correção monetária.
+
+Modo alternativo para avanço operacional:
+
+- se precisar avançar antes da carga de índices, configure `HMADV_ALLOW_MISSING_BILLING_INDICES=true`;
+- nesse modo, a materialização segue com saldo nominal e sem correção monetária efetiva;
+- use esse caminho apenas para teste operacional ou carga inicial controlada.
 
 ### Fase 3. Reconciliação de contatos
 

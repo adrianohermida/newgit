@@ -17,8 +17,10 @@ async function main() {
 
   const indices = await loadIndicesByName();
   const products = await loadProducts();
+  const contacts = await loadContacts();
   const productById = new Map(products.map((item) => [item.id, item]));
   const productByName = new Map(products.map((item) => [String(item.name || '').toLowerCase(), item]));
+  const contactById = new Map(contacts.map((item) => [item.id, item]));
 
   let materialized = 0;
   let queuedForPublish = 0;
@@ -31,7 +33,7 @@ async function main() {
     }
 
     const product = resolveProduct(row, productById, productByName);
-    const contract = await resolveOrCreateContract(row, workspaceId, product);
+    const contract = await resolveOrCreateContract(row, workspaceId, product, contactById);
     await createReceivable(row, contract, product, indices);
     materialized += 1;
     queuedForPublish += 1;
@@ -104,37 +106,40 @@ async function loadProducts() {
   return supabaseRequest('freshsales_products?select=id,name,billing_type,late_fee_percent_default,interest_percent_month_default,monetary_index_default');
 }
 
+async function loadContacts() {
+  return supabaseRequest('freshsales_contacts?select=id,freshsales_contact_id');
+}
+
 function resolveProduct(row, productById, productByName) {
   return productById.get(row.resolved_product_id) || productByName.get(String(row.product_family_inferred || '').toLowerCase()) || null;
 }
 
-async function resolveOrCreateContract(row, workspaceId, product) {
+async function resolveOrCreateContract(row, workspaceId, product, contactById) {
   const externalReference = buildContractKey(row);
   const existing = await supabaseRequest(`billing_contracts?external_reference=eq.${encodeURIComponent(externalReference)}&select=id,workspace_id,contact_id,product_id,freshsales_contact_id,process_reference,title&limit=1`);
   if (existing[0]) return existing[0];
 
-  const [contract] = await supabaseRequest('billing_contracts?on_conflict=external_reference', {
-    method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-    body: JSON.stringify({
-      workspace_id: workspaceId,
-      contact_id: row.resolved_contact_id,
-      product_id: product?.id || row.resolved_product_id || null,
-      contract_kind: row.billing_type_inferred || 'unitario',
-      title: buildContractTitle(row),
-      process_reference: row.deal_reference_raw || null,
-      external_reference: externalReference,
-      start_date: row.invoice_date || row.due_date || null,
-      status: inferContractStatus(row.canonical_status),
-      currency: 'BRL',
-      metadata: {
-        source_import_run_id: row.import_run_id,
-        source_row_id: row.id,
-        reprocessed: true,
-      },
-    }),
-  });
-  return contract;
+  const payload = {
+    workspace_id: workspaceId,
+    contact_id: row.resolved_contact_id,
+    freshsales_contact_id: contactById.get(row.resolved_contact_id)?.freshsales_contact_id || null,
+    product_id: product?.id || row.resolved_product_id || null,
+    contract_kind: row.billing_type_inferred || 'unitario',
+    title: buildContractTitle(row),
+    process_reference: row.deal_reference_raw || null,
+    external_reference: externalReference,
+    start_date: row.invoice_date || row.due_date || null,
+    status: inferContractStatus(row.canonical_status),
+    currency: 'BRL',
+    metadata: {
+      source_import_run_id: row.import_run_id,
+      source_row_id: row.id,
+      reprocessed: true,
+    },
+  };
+
+  const created = await tryInsertWithUpsertFallback('billing_contracts', 'external_reference', externalReference, payload);
+  return created;
 }
 
 async function createReceivable(row, contract, product, indices) {
@@ -157,46 +162,44 @@ async function createReceivable(row, contract, product, indices) {
     interest_compensatory_percent_month: product?.interest_percent_month_default ?? 1,
   });
 
-  const [receivable] = await supabaseRequest('billing_receivables?on_conflict=source_import_row_id', {
-    method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-    body: JSON.stringify({
-      workspace_id: contract.workspace_id,
-      contract_id: contract.id,
-      contact_id: contract.contact_id,
-      product_id: product?.id || contract.product_id || null,
-      source_import_row_id: row.id,
-      receivable_type: mapReceivableType(row),
-      invoice_number: row.invoice_number,
-      description: row.comment_raw || row.category_raw || row.product_family_inferred,
-      issue_date: row.invoice_date,
-      due_date: row.due_date,
-      status: mapReceivableStatus(row.canonical_status),
-      currency: 'BRL',
-      amount_original: amountOriginal,
-      payment_amount: paymentAmount,
-      amount_principal: snapshot.amount_principal,
-      correction_index_name: correctionIndexName,
-      correction_index_due: dueIndex,
-      correction_index_current: currentIndex,
-      correction_factor: snapshot.correction_factor,
-      correction_percent: snapshot.correction_percent,
-      correction_amount: snapshot.correction_amount,
-      amount_corrected: snapshot.amount_corrected,
-      late_fee_percent: product?.late_fee_percent_default ?? 10,
-      late_fee_amount: snapshot.late_fee_amount,
-      interest_mora_percent_month: product?.interest_percent_month_default ?? 1,
-      interest_mora_amount: snapshot.interest_mora_amount,
-      interest_compensatory_percent_month: product?.interest_percent_month_default ?? 1,
-      interest_compensatory_amount: snapshot.interest_compensatory_amount,
-      interest_start_date: snapshot.interest_start_date,
-      days_overdue: snapshot.days_overdue,
-      balance_due: snapshot.balance_due,
-      balance_due_corrected: snapshot.balance_due_corrected,
-      calculated_at: new Date().toISOString(),
-      raw_payload: { reprocessed: true },
-    }),
-  });
+  const payload = {
+    workspace_id: contract.workspace_id,
+    contract_id: contract.id,
+    contact_id: contract.contact_id,
+    product_id: product?.id || contract.product_id || null,
+    source_import_row_id: row.id,
+    receivable_type: mapReceivableType(row),
+    invoice_number: row.invoice_number,
+    description: row.comment_raw || row.category_raw || row.product_family_inferred,
+    issue_date: row.invoice_date,
+    due_date: row.due_date,
+    status: mapReceivableStatus(row.canonical_status),
+    currency: 'BRL',
+    amount_original: amountOriginal,
+    payment_amount: paymentAmount,
+    amount_principal: snapshot.amount_principal,
+    correction_index_name: correctionIndexName,
+    correction_index_due: dueIndex,
+    correction_index_current: currentIndex,
+    correction_factor: snapshot.correction_factor,
+    correction_percent: snapshot.correction_percent,
+    correction_amount: snapshot.correction_amount,
+    amount_corrected: snapshot.amount_corrected,
+    late_fee_percent: product?.late_fee_percent_default ?? 10,
+    late_fee_amount: snapshot.late_fee_amount,
+    interest_mora_percent_month: product?.interest_percent_month_default ?? 1,
+    interest_mora_amount: snapshot.interest_mora_amount,
+    interest_compensatory_percent_month: product?.interest_percent_month_default ?? 1,
+    interest_compensatory_amount: snapshot.interest_compensatory_amount,
+    interest_start_date: snapshot.interest_start_date,
+    days_overdue: snapshot.days_overdue,
+    balance_due: snapshot.balance_due,
+    balance_due_corrected: snapshot.balance_due_corrected,
+    calculated_at: new Date().toISOString(),
+    raw_payload: { reprocessed: true },
+  };
+
+  const receivable = await tryInsertWithUpsertFallback('billing_receivables', 'source_import_row_id', row.id, payload);
 
   await supabaseRequest(`billing_import_rows?id=eq.${encodeURIComponent(row.id)}`, {
     method: 'PATCH',
@@ -213,6 +216,38 @@ async function createReceivable(row, contract, product, indices) {
 async function findReceivableByImportRow(importRowId) {
   const rows = await supabaseRequest(`billing_receivables?source_import_row_id=eq.${encodeURIComponent(importRowId)}&select=id,freshsales_deal_id&limit=1`);
   return rows[0] || null;
+}
+
+async function tryInsertWithUpsertFallback(table, conflictColumn, conflictValue, payload) {
+  try {
+    const rows = await supabaseRequest(`${table}?on_conflict=${encodeURIComponent(conflictColumn)}`, {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+      body: JSON.stringify(payload),
+    });
+    return rows[0];
+  } catch (error) {
+    const message = String(error.message || error);
+    if (!message.includes('42P10')) throw error;
+  }
+
+  const existing = await supabaseRequest(`${table}?${conflictColumn}=eq.${encodeURIComponent(String(conflictValue))}&select=*&limit=1`);
+  if (existing[0]) return existing[0];
+
+  try {
+    const inserted = await supabaseRequest(table, {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify(payload),
+    });
+    return inserted[0];
+  } catch (error) {
+    const message = String(error.message || error);
+    if (!message.includes('23505')) throw error;
+    const duplicate = await supabaseRequest(`${table}?${conflictColumn}=eq.${encodeURIComponent(String(conflictValue))}&select=*&limit=1`);
+    if (duplicate[0]) return duplicate[0];
+    throw error;
+  }
 }
 
 function buildContractKey(row) {

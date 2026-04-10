@@ -20,6 +20,7 @@
     "process:hmadv-crm-events": "node scripts/process-hmadv-crm-events.js",
     "publish:hmadv-deals": "node scripts/publish-hmadv-deals.js",
     "preflight:hmadv-billing": "node scripts/preflight-hmadv-billing.js",
+    "refresh:freshsales-token": "node scripts/refresh-freshsales-token.js",
     "reconcile:hmadv-contacts": "node scripts/reconcile-hmadv-contacts.js",
     "reprocess:hmadv-billing": "node scripts/reprocess-hmadv-billing.js",
     "retry:hmadv-deals": "node scripts/retry-hmadv-deals.js",

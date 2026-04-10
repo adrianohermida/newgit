@@ -8,7 +8,6 @@ loadLocalEnv();
 async function main() {
   const limit = Number(process.argv[2] || '50');
   const specificReceivableId = process.argv[3] || null;
-  const base = resolveFreshsalesBase();
   const receivables = await loadReceivables(limit, specificReceivableId);
 
   if (!receivables.length) {
@@ -22,7 +21,7 @@ async function main() {
 
   for (const row of receivables) {
     try {
-      const result = await publishDeal(row, base);
+      const result = await publishDeal(row);
       if (result.mode === 'created') created += 1;
       if (result.mode === 'updated') updated += 1;
     } catch (error) {
@@ -52,33 +51,51 @@ function loadLocalEnv() {
   }
 }
 
-function resolveFreshsalesBase() {
+function resolveFreshsalesBases() {
   const raw = process.env.FRESHSALES_API_BASE || process.env.FRESHSALES_BASE_URL || process.env.FRESHSALES_DOMAIN;
   if (!raw) throw new Error('FRESHSALES_API_BASE/FRESHSALES_BASE_URL/FRESHSALES_DOMAIN nao configurado');
   const base = raw.startsWith('http') ? raw.replace(/\/+$/, '') : `https://${raw.replace(/\/+$/, '')}`;
-  if (base.includes('/crm/sales/api')) return base;
-  if (base.includes('/api')) return base;
-  return `${base}/crm/sales/api`;
+  if (base.includes('/crm/sales/api') || base.includes('/api')) {
+    const host = base.replace(/^https?:\/\//i, '').replace(/\/(crm\/sales\/api|api)\/?$/i, '');
+    const myfreshworksHost = host.includes('myfreshworks.com') ? host : host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
+    return Array.from(new Set([
+      base,
+      `https://${host}/api`,
+      `https://${host}/crm/sales/api`,
+      `https://${myfreshworksHost}/api`,
+      `https://${myfreshworksHost}/crm/sales/api`,
+    ]));
+  }
+  const host = base.replace(/^https?:\/\//i, '');
+  const myfreshworksHost = host.includes('myfreshworks.com') ? host : host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
+  return Array.from(new Set([
+    `${base}/api`,
+    `${base}/crm/sales/api`,
+    `https://${myfreshworksHost}/api`,
+    `https://${myfreshworksHost}/crm/sales/api`,
+  ]));
 }
 
-function freshsalesHeaders() {
+function freshsalesHeaderCandidates() {
   const apiKey = process.env.FRESHSALES_API_KEY;
   const accessToken = process.env.FRESHSALES_ACCESS_TOKEN;
+  const candidates = [];
   if (apiKey) {
-    return {
+    candidates.push({
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Token token=${apiKey}`,
-    };
+    });
   }
   if (accessToken) {
-    return {
+    candidates.push({
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
-    };
+    });
   }
-  throw new Error('Credenciais do Freshsales ausentes');
+  if (!candidates.length) throw new Error('Credenciais do Freshsales ausentes');
+  return candidates;
 }
 
 async function loadReceivables(limit, specificReceivableId = null) {
@@ -95,7 +112,7 @@ async function loadReceivables(limit, specificReceivableId = null) {
   });
 }
 
-async function publishDeal(row, base) {
+async function publishDeal(row) {
   const contract = firstRelation(row.contracts);
   const product = firstRelation(row.products);
   const registry = firstRelation(row.registry);
@@ -107,13 +124,13 @@ async function publishDeal(row, base) {
   let mode = 'created';
 
   if (dealId) {
-    responsePayload = await freshsalesRequest(`${base}/deals/${encodeURIComponent(String(dealId))}`, {
+    responsePayload = await freshsalesRequest(`/deals/${encodeURIComponent(String(dealId))}`, {
       method: 'PUT',
       body: JSON.stringify(dealPayload),
     });
     mode = 'updated';
   } else {
-    responsePayload = await freshsalesRequest(`${base}/deals`, {
+    responsePayload = await freshsalesRequest('/deals', {
       method: 'POST',
       body: JSON.stringify(dealPayload),
     });
@@ -210,13 +227,7 @@ async function upsertDealRegistry(row, dealId, extra) {
     ...extra,
   };
 
-  await supabaseRequest('freshsales_deals_registry?on_conflict=billing_receivable_id', {
-    method: 'POST',
-    headers: {
-      Prefer: 'resolution=merge-duplicates,return=minimal',
-    },
-    body: JSON.stringify(payload),
-  });
+  await upsertByConflictFallback('freshsales_deals_registry', 'billing_receivable_id', row.id, payload);
 
   await enqueueCrmEvent({
     workspace_id: contract?.workspace_id || null,
@@ -237,20 +248,29 @@ async function upsertDealRegistry(row, dealId, extra) {
   });
 }
 
-async function freshsalesRequest(url, init = {}) {
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      ...freshsalesHeaders(),
-      ...(init.headers || {}),
-    },
-  });
+async function freshsalesRequest(pathname, init = {}) {
+  const attemptErrors = [];
+  for (const base of resolveFreshsalesBases()) {
+    for (const headers of freshsalesHeaderCandidates()) {
+      const response = await fetch(`${base}${pathname}`, {
+        ...init,
+        headers: {
+          ...headers,
+          ...(init.headers || {}),
+        },
+      }).catch((error) => {
+        attemptErrors.push(`${base}${pathname}: ${String(error.message || error)}`);
+        return null;
+      });
 
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload.message || payload.error || `Freshsales request failed: ${response.status}`);
+      if (!response) continue;
+
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok) return payload;
+      attemptErrors.push(`${base}${pathname} -> ${response.status}: ${payload.message || payload.error || JSON.stringify(payload).slice(0, 300)}`);
+    }
   }
-  return payload;
+  throw new Error(attemptErrors.join(' | ') || `Freshsales request failed: ${pathname}`);
 }
 
 function cleanObject(value) {
@@ -356,6 +376,48 @@ async function enqueueCrmEvent(payload) {
     },
     body: JSON.stringify(payload),
   });
+}
+
+async function upsertByConflictFallback(table, conflictColumn, conflictValue, payload) {
+  try {
+    await supabaseRequest(`${table}?on_conflict=${encodeURIComponent(conflictColumn)}`, {
+      method: 'POST',
+      headers: {
+        Prefer: 'resolution=merge-duplicates,return=minimal',
+      },
+      body: JSON.stringify(payload),
+    });
+    return;
+  } catch (error) {
+    const message = String(error.message || error);
+    if (!message.includes('42P10')) throw error;
+  }
+
+  const existing = await supabaseRequest(`${table}?${conflictColumn}=eq.${encodeURIComponent(String(conflictValue))}&select=id&limit=1`);
+  if (existing[0]) {
+    await supabaseRequest(`${table}?${conflictColumn}=eq.${encodeURIComponent(String(conflictValue))}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify(payload),
+    });
+    return;
+  }
+
+  try {
+    await supabaseRequest(table, {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    const message = String(error.message || error);
+    if (!message.includes('23505')) throw error;
+    await supabaseRequest(`${table}?${conflictColumn}=eq.${encodeURIComponent(String(conflictValue))}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify(payload),
+    });
+  }
 }
 
 async function supabaseRequest(pathname, init = {}) {

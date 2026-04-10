@@ -17,6 +17,7 @@ FRESHSALES_BILLING_DEAL_TYPE_ID_MAP={}
 FRESHSALES_FINANCIAL_EVENT_STAGE_MAP={"deal_published":"proposal_pending","deal_publish_failed":null,"pago":"client_active","parcial":"proposal_pending","em_aberto":"proposal_pending","vencido":"contract_sent"}
 
 HMADV_WORKSPACE_ID=
+HMADV_ALLOW_MISSING_BILLING_INDICES=false
 
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
