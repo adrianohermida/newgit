@@ -133,7 +133,58 @@ export default function InternoLayout({
       {/* MAIN + COPILOT */}
       <div className="flex flex-1 h-full">
         {/* CONTEÚDO PRINCIPAL */}
-        <div className="flex-1 overflow-auto min-w-0">
+        <div className="flex flex-1 min-w-0 flex-col">
+          <div className="flex items-center justify-between border-b border-[#1E2E29] px-6 py-4">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setLeftCollapsed((current) => !current)}
+                className="rounded-full border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+              >
+                Sidebar
+              </button>
+              <button
+                type="button"
+                onClick={() => setRightCollapsed((current) => !current)}
+                className="rounded-full border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+              >
+                Painel
+              </button>
+              <button
+                type="button"
+                onClick={() => setConsoleOpen((current) => !current)}
+                className="rounded-full border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+              >
+                Console
+              </button>
+            </div>
+            <div className="flex-1 px-6">
+              <div className="mx-auto flex max-w-xl items-center gap-3 rounded-full border border-[#22342F] bg-[rgba(8,10,9,0.7)] px-4 py-2 text-sm">
+                <input
+                  type="text"
+                  placeholder="Buscar por processos, publicacoes, contas..."
+                  className="w-full bg-transparent text-sm outline-none placeholder:text-[#60706A]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setCopilotOpen((current) => !current)}
+                  className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[#C5A059] transition hover:border-[#C5A059] hover:text-[#F5E6C5]"
+                >
+                  Chat
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCopilotOpen((current) => !current)}
+                className="rounded-full border border-[#C5A059] px-3 py-2 text-xs text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]"
+              >
+                Copilot
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-auto">
           <header className="mb-6 border-b border-[#1E2E29] pb-5 px-6 pt-6">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
               <div className="min-w-0">
@@ -146,6 +197,7 @@ export default function InternoLayout({
           <div className="space-y-6 px-6 pb-6">
             {children}
             <DotobotExtensionManager />
+          </div>
           </div>
         </div>
         {shouldRenderDotobotRail ? (
