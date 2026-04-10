@@ -1733,6 +1733,7 @@ async function collectGroupedBacklogByProcess(env, {
         status_atual_processo: process.status_atual_processo || null,
         quantidade_movimentacoes: process.quantidade_movimentacoes ?? null,
         key: process.numero_cnj || item.processo_id,
+        fallback: !process.numero_cnj,
       };
     })
     .filter((item) => item.numero_cnj);
@@ -1743,6 +1744,7 @@ async function collectGroupedBacklogByProcess(env, {
     totalRows: hasMore ? Math.max(targetEnd + 1, ordered.length) : ordered.length,
     items,
     hasMore,
+    limited: hasMore,
   };
 }
 
