@@ -217,6 +217,7 @@ function buildAlerts({
   latestErroredPublicacaoJob,
   datajudTagSummary,
   datajudTagActionPlan,
+  datajudActionMetrics,
 }) {
   const alerts = [];
 
@@ -281,6 +282,14 @@ function buildAlerts({
       level: "atencao",
       title: "Carteira datajud ainda pede acao manual",
       message: "A prioridade atual ainda e preencher CNJ/cf_processo em accounts do Freshsales para liberar o sincronismo completo.",
+    });
+  }
+
+  if (datajudActionMetrics?.manualActionRequired) {
+    alerts.push({
+      level: "atencao",
+      title: "Plano datajud bloqueado por acao manual",
+      message: "O runner conseguiu executar o plano automatico, mas a prioridade atual ainda depende de preenchimento manual no Freshsales.",
     });
   }
 
@@ -1031,6 +1040,7 @@ export async function getHmadvQueueSnapshot(env) {
   const tendenciaLabel = tendenciaBase?.label || "Estavel";
   const executiveSummary = `${healthLabel}: foco em ${focoLabel}; tendencia ${tendenciaLabel.toLowerCase()}.`;
   const datajudTagSummary = buildTaggedCoverageMetrics(datajudTagCoverage);
+  const datajudActionMetrics = buildDatajudActionMetrics(datajudActionRepair);
   const alerts = buildAlerts({
     runnerConfigured,
     totalPendingJobs,
@@ -1043,6 +1053,7 @@ export async function getHmadvQueueSnapshot(env) {
     latestErroredPublicacaoJob,
     datajudTagSummary,
     datajudTagActionPlan,
+    datajudActionMetrics,
   });
   const moduleCards = {
     processos: {
