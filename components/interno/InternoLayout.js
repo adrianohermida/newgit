@@ -6,6 +6,7 @@ import DotobotCopilot from "./DotobotPanel";
 import DotobotExtensionManager from "./DotobotExtensionManager";
 import {
   appendFrontendIssue,
+  appendActivityLog,
   appendOperationalNote,
   appendSchemaIssue,
   archiveActivityLog,
@@ -248,6 +249,19 @@ export default function InternoLayout({
     setActivityLogFilters(next);
   }
 
+  function handlePageDebug() {
+    appendActivityLog({
+      label: "Debug UI (pagina)",
+      status: "success",
+      method: "UI",
+      action: "debug_ui",
+      path: router.pathname,
+      page: router.pathname,
+      component: title || "Pagina interna",
+      response: `Debug manual iniciado em ${router.pathname}`,
+    });
+  }
+
   const processosHistory = moduleHistory?.processos || null;
   const processosLocalHistory = processosHistory?.executionHistory || [];
   const processosRemoteHistory = processosHistory?.remoteHistory || [];
@@ -375,10 +389,18 @@ export default function InternoLayout({
                 </button>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setLeftCollapsed((current) => !current)}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handlePageDebug}
+              className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+              title="Registrar debug desta pagina"
+            >
+              Debug
+            </button>
+            <button
+              type="button"
+              onClick={() => setLeftCollapsed((current) => !current)}
                 className="h-9 w-9 rounded-lg border border-[#22342F] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                 title="Alternar sidebar"
               >

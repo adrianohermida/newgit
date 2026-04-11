@@ -10,6 +10,7 @@ import { useRouter } from "next/router";
 import { adminFetch } from "../../lib/admin/api";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import { pollTaskRun, startTaskRun } from "./dotobotTaskRun";
+import { appendActivityLog } from "../../lib/admin/activity-log";
 import {
   CHAT_STORAGE_PREFIX,
   CONVERSATIONS_STORAGE_PREFIX,
@@ -339,6 +340,20 @@ export default function DotobotCopilot({
   const [loading, setLoading] = useState(false);
   const [uiState, setUiState] = useState("idle");
   const [error, setError] = useState(null);
+
+  function handleCopilotDebug() {
+    appendActivityLog({
+      label: "Debug UI (Copilot)",
+      status: "success",
+      method: "UI",
+      action: "debug_copilot",
+      path: routePath || "",
+      page: routePath || "",
+      module: "dotobot",
+      component: "DotobotPanel",
+      response: `Debug manual do copilot em ${routePath || "rota interna"}`,
+    });
+  }
 
   // Estado colapsado
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
@@ -1156,6 +1171,13 @@ export default function DotobotCopilot({
               </div>
             </div>
             <div className="flex flex-col items-end gap-2">
+              <button
+                type="button"
+                onClick={handleCopilotDebug}
+                className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+              >
+                Debug
+              </button>
               {compactRail ? (
                 <div className="flex flex-col gap-2">
                   <button
