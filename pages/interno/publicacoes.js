@@ -1326,6 +1326,11 @@ function PublicacoesContent() {
   const latestHistory = executionHistory[0] || null;
   const latestRemoteRun = remoteHistory[0] || null;
   const latestJob = jobs[0] || null;
+  const pendingOrRunningJobs = jobs.filter((item) => ["pending", "running"].includes(String(item.status || "")));
+  const blockingJob = pendingOrRunningJobs[0] || null;
+  const hasBlockingJob = pendingOrRunningJobs.length > 0;
+  const hasMultipleBlockingJobs = pendingOrRunningJobs.length > 1;
+  const canManuallyDrainActiveJob = Boolean(activeJobId) && pendingOrRunningJobs.length === 1 && pendingOrRunningJobs[0]?.id === activeJobId;
   const remoteHealth = deriveRemoteHealth(remoteHistory);
   const recurringPublicacoes = deriveRecurringPublicacoes(remoteHistory);
   const recurringPublicacoesSummary = summarizeRecurringPublicacoes(recurringPublicacoes);
@@ -1424,6 +1429,11 @@ function PublicacoesContent() {
   }
 
   async function queueAsyncAction(action, apply = false, numbers = []) {
+    if (hasBlockingJob) {
+      const message = `Ja existe um job de publicacoes em andamento (${getPublicacoesActionLabel(blockingJob?.acao)}). Aguarde a conclusao antes de criar outro lote.`;
+      setActionState({ loading: false, error: message, result: blockingJob ? { job: blockingJob } : null });
+      throw new Error(message);
+    }
     const safeLimit = getSafePublicacoesActionLimit(action, limit);
     const response = await adminFetch("/api/admin-hmadv-publicacoes", {
       method: "POST",
@@ -1455,6 +1465,13 @@ function PublicacoesContent() {
   }
 
   async function runPendingJobsNow() {
+    if (!canManuallyDrainActiveJob) {
+      const message = hasMultipleBlockingJobs
+        ? "Ha mais de um job pesado de publicacoes em andamento. Aguarde estabilizar para drenar manualmente."
+        : "Nao ha um job ativo unico disponivel para drenagem manual.";
+      setActionState({ loading: false, error: message, result: blockingJob ? { job: blockingJob } : null });
+      return;
+    }
     setActionState({ loading: true, error: null, result: null });
     updateView("resultado");
     try {
@@ -1592,6 +1609,7 @@ function PublicacoesContent() {
             <div className="flex items-center justify-between gap-4"><span className="opacity-60">Ultima acao</span><span className="text-right text-xs uppercase tracking-[0.16em] text-[#C5A059]">{actionState.loading ? "executando" : actionState.error ? "erro" : actionState.result ? "concluida" : "aguardando"}</span></div>
             {latestHistory ? <p className="text-xs opacity-60">{latestHistory.label}: {latestHistory.preview}</p> : null}
             {latestJob ? <JobCard job={latestJob} active={latestJob.id === activeJobId} /> : null}
+            {hasMultipleBlockingJobs ? <p className="text-xs text-[#FDE68A]">Ha {pendingOrRunningJobs.length} jobs pesados concorrendo. Evite criar novos lotes ate a fila estabilizar.</p> : null}
           </div>
         </div>
         <div className="mt-6 space-y-4">
@@ -1692,7 +1710,7 @@ function PublicacoesContent() {
               <button
                 type="button"
                 onClick={() => handleAction("criar_processos_publicacoes", false, selectedProcessNumbers)}
-                disabled={actionState.loading}
+                disabled={actionState.loading || hasBlockingJob}
                 className="bg-[#C5A059] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#050706] disabled:opacity-50"
               >
                 Criar processos das publicacoes
@@ -1708,7 +1726,7 @@ function PublicacoesContent() {
               <button
                 type="button"
                 onClick={runPendingJobsNow}
-                disabled={actionState.loading || drainInFlight || !jobs.some((item) => ["pending", "running"].includes(String(item.status || "")))}
+                disabled={actionState.loading || drainInFlight || !canManuallyDrainActiveJob}
                 className="border border-[#6E5630] bg-[rgba(197,160,89,0.08)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#F8E7B5] hover:border-[#C5A059] disabled:opacity-50"
               >
                 {drainInFlight ? "Drenando fila..." : "Drenar fila HMADV"}
@@ -1753,7 +1771,7 @@ function PublicacoesContent() {
               <button
                 type="button"
                 onClick={() => handleAction("backfill_partes", false, selectedPartesNumbers)}
-                disabled={actionState.loading}
+                disabled={actionState.loading || hasBlockingJob}
                 className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
               >
                 Simular extracao
@@ -1761,7 +1779,7 @@ function PublicacoesContent() {
               <button
                 type="button"
                 onClick={() => handleAction("backfill_partes", true, selectedPartesNumbers)}
-                disabled={actionState.loading}
+                disabled={actionState.loading || hasBlockingJob}
                 className="bg-[#C5A059] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#050706] disabled:opacity-50"
               >
                 Aplicar extracao
@@ -1769,7 +1787,7 @@ function PublicacoesContent() {
               <button
                 type="button"
                 onClick={() => handleAction("sincronizar_partes", true, selectedPartesNumbers)}
-                disabled={actionState.loading}
+                disabled={actionState.loading || hasBlockingJob}
                 className="border border-[#6E5630] bg-[rgba(197,160,89,0.08)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#F8E7B5] hover:border-[#C5A059] disabled:opacity-50"
               >
                 Salvar + corrigir CRM
@@ -1834,7 +1852,7 @@ function PublicacoesContent() {
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <HealthBadge label={`proximo disparo: ${primaryPublicacoesAction}`} tone="success" />
                 <button type="button" onClick={() => updateView("operacao")} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">Ir para operacao</button>
-                <button type="button" onClick={runPendingJobsNow} disabled={actionState.loading || drainInFlight} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">{drainInFlight ? "Drenando..." : "Rodar drenagem agora"}</button>
+                <button type="button" onClick={runPendingJobsNow} disabled={actionState.loading || drainInFlight || !canManuallyDrainActiveJob} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">{drainInFlight ? "Drenando..." : "Rodar drenagem agora"}</button>
               </div>
               <div className="mt-4 space-y-2">
                 {recurringPublicacoesChecklist.map((step, index) => <div key={step} className="flex items-start gap-3 text-sm opacity-80">

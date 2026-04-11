@@ -70,6 +70,141 @@ function RailPanel({ title, subtitle, children }) {
   );
 }
 
+function getModuleIntegrationGuide(pathname = "") {
+  const guides = {
+    "/interno/contacts": {
+      title: "Contatos: webhooks e edge functions",
+      subtitle: "Freshsales, Supabase, portal e interno alinhados no mesmo fluxo.",
+      items: [
+        {
+          label: "Painel interno",
+          helper: "Operacoes do frontend passam por /api/admin-hmadv-contacts para sync, enriquecimento, reconciliacao e bulk actions.",
+          endpoint: "/api/admin-hmadv-contacts",
+          trigger: "Use para sync_contacts, enrich_cep, enrich_directdata, merge_contacts e vinculacao em lote.",
+        },
+        {
+          label: "Webhook Freshsales",
+          helper: "O webhook central do CRM deve cair em fs-webhook para responder rapido e enfileirar o processamento.",
+          endpoint: "_hmadv_review/supabase/functions/fs-webhook",
+          trigger: "Configure o workflow do Freshsales para POST com account_id e cf_processo sempre que o account/contato precisar disparar sincronizacao operacional.",
+        },
+        {
+          label: "Processo e espelho",
+          helper: "Quando a reconciliacao do contato depende do processo, a trilha de processo-sync, datajud-worker e sync-worker fecha o ciclo HMADV -> Freshsales.",
+          endpoint: "_hmadv_review/supabase/functions/processo-sync + datajud-worker + sync-worker",
+          trigger: "Acione quando o contato depende de processo, activity ou account repair antes de consolidar os dados do CRM.",
+        },
+        {
+          label: "Persistencia portal",
+          helper: "Dados exibidos ao cliente ficam persistidos no portal via perfil, sem perder o espelho operacional do interno.",
+          endpoint: "/api/client-profile",
+          trigger: "Use para manter contacts/addresses consistentes em /portal/perfil depois da higienizacao da base.",
+        },
+      ],
+    },
+    "/interno/processos": {
+      title: "Processos: acionamento operacional",
+      subtitle: "DataJud, Freshsales e HMADV sincronizados a partir do interno.",
+      items: [
+        {
+          label: "Painel interno",
+          helper: "As acoes do modulo usam /api/admin-hmadv-processos como ponte segura do frontend.",
+          endpoint: "/api/admin-hmadv-processos",
+          trigger: "Use para lotes, correcao operacional, auditoria e reparo orientado por fila.",
+        },
+        {
+          label: "Webhook / Edge",
+          helper: "fs-webhook recebe o evento rapido; processo-sync e datajud-worker consolidam o processo no Supabase.",
+          endpoint: "_hmadv_review/supabase/functions/fs-webhook + processo-sync + datajud-worker",
+          trigger: "Acione quando o Freshsales ou DataJud precisar iniciar/validar a sincronizacao do processo.",
+        },
+      ],
+    },
+    "/interno/publicacoes": {
+      title: "Publicacoes: fila e reflexo CRM",
+      subtitle: "Extracao, persistencia e envio de activity no Freshsales.",
+      items: [
+        {
+          label: "Painel interno",
+          helper: "O frontend centraliza as rotinas do modulo em /api/admin-hmadv-publicacoes.",
+          endpoint: "/api/admin-hmadv-publicacoes",
+          trigger: "Use para criar processos, extrair partes, sincronizar partes e drenar filas.",
+        },
+        {
+          label: "Edge functions",
+          helper: "publicacoes-freshsales e sync-worker cuidam do reflexo no CRM; datajud-search e tpu-sync complementam o enriquecimento.",
+          endpoint: "_hmadv_review/supabase/functions/publicacoes-freshsales + sync-worker + datajud-search + tpu-sync",
+          trigger: "Acione quando a publicacao precisar virar processo, activity ou enriquecimento posterior.",
+        },
+      ],
+    },
+    "/interno/financeiro": {
+      title: "Financeiro: reflexo CRM e rastreio",
+      subtitle: "Deals, eventos e conciliação financeira precisam manter o rastro operacional visível.",
+      items: [
+        {
+          label: "Painel interno",
+          helper: "As rotas administrativas do financeiro concentram os disparos seguros do frontend.",
+          endpoint: "/api/admin-hmadv-financeiro",
+          trigger: "Use para publicar, reparar e auditar o reflexo de faturamento e deals.",
+        },
+        {
+          label: "Freshsales",
+          helper: "O CRM recebe updates por rotinas internas e eventuais webhooks externos conforme a esteira de deals.",
+          endpoint: "functions/api/admin-hmadv-financeiro.js",
+          trigger: "Acione sempre com console ligado para capturar payload, erro e resumo da remessa.",
+        },
+      ],
+    },
+    "/interno/ai-task": {
+      title: "AI Task: orquestracao e observabilidade",
+      subtitle: "Erros precisam ficar rastreaveis entre run, console e backend.",
+      items: [
+        {
+          label: "Painel interno",
+          helper: "O modulo usa o backend administrativo do AI Task para execucao e captura de contexto.",
+          endpoint: "functions/api/admin-lawdesk-chat.js",
+          trigger: "Use para runs assistidas, automacao e investigacao de falhas da IA.",
+        },
+        {
+          label: "Edge / embeddings",
+          helper: "As rotas de embed e funcoes do Supabase complementam a trilha de IA quando houver dependencias vetoriais.",
+          endpoint: "supabase/functions/dotobot-embed",
+          trigger: "Acione quando a pipeline de contexto precisar regenerar embeddings ou depurar resposta do copiloto.",
+        },
+      ],
+    },
+  };
+  return guides[pathname] || null;
+}
+
+function IntegrationGuideCard({ guide }) {
+  if (!guide) return null;
+  return (
+    <section className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(10,12,11,0.58)] p-5">
+      <div className="flex flex-col gap-2 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C5A059]">Integracoes operacionais</p>
+          <h3 className="mt-2 text-lg font-semibold text-[#F8F4EB]">{guide.title}</h3>
+          {guide.subtitle ? <p className="mt-2 max-w-4xl text-sm leading-6 text-[#99ADA6]">{guide.subtitle}</p> : null}
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 xl:grid-cols-2">
+        {guide.items.map((item) => (
+          <div key={`${guide.title}-${item.label}`} className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F4E7C2]">{item.label}</p>
+            <p className="mt-2 text-sm leading-6 text-[#C7D0CA]">{item.helper}</p>
+            <p className="mt-3 text-[11px] uppercase tracking-[0.16em] text-[#7F928C]">Endpoint / funcao</p>
+            <p className="mt-1 break-all text-sm text-[#D9B46A]">{item.endpoint}</p>
+            <p className="mt-3 text-[11px] uppercase tracking-[0.16em] text-[#7F928C]">Quando acionar</p>
+            <p className="mt-1 text-sm leading-6 text-[#99ADA6]">{item.trigger}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function InternoLayout({
   title,
   description,
@@ -237,6 +372,14 @@ export default function InternoLayout({
     }
   }
 
+  async function handleCopyContactsHistory() {
+    const payload = moduleHistory?.contacts || {};
+    const text = JSON.stringify(payload, null, 2);
+    if (text && navigator?.clipboard) {
+      await navigator.clipboard.writeText(text);
+    }
+  }
+
   function handleArchive(reason) {
     archiveActivityLog(reason);
   }
@@ -298,6 +441,8 @@ export default function InternoLayout({
   const publicacoesRemoteHistory = publicacoesHistory?.remoteHistory || [];
   const dotobotHistory = moduleHistory?.dotobot || null;
   const aiTaskHistory = moduleHistory?.["ai-task"] || null;
+  const contactsHistory = moduleHistory?.contacts || null;
+  const integrationGuide = useMemo(() => getModuleIntegrationGuide(router.pathname), [router.pathname]);
 
   const filteredLog = useMemo(() => {
     const normalizedSearch = logSearch.trim().toLowerCase();
@@ -471,6 +616,7 @@ export default function InternoLayout({
             </div>
           </header>
           <div className="space-y-6 px-6 pb-6">
+            <IntegrationGuideCard guide={integrationGuide} />
             {children}
             <DotobotExtensionManager />
           </div>
@@ -727,6 +873,58 @@ export default function InternoLayout({
                         </div>
                       ) : (
                         <div className="mt-2 text-[11px] opacity-60">Sem historico local registrado.</div>
+                      )}
+                    </div>
+                    <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Contacts</p>
+                          <p className="mt-1 text-[11px] text-[#9BAEA8]">Snapshot de qualidade da base, bulk actions e persistencia do modulo.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleCopyContactsHistory}
+                          className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                        >
+                          Copiar snapshot
+                        </button>
+                      </div>
+                      {contactsHistory ? (
+                        <div className="mt-3 space-y-2 text-[11px]">
+                          <div className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold">Contato em foco</span>
+                              <span className={contactsHistory.actionState?.error ? "text-red-200" : "text-[#11D473]"}>
+                                {contactsHistory.selectedContact?.name || "nenhum"}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-[10px] text-[#7E918B]">
+                              total {contactsHistory.overview?.total || 0} · duplicados {contactsHistory.overview?.duplicados || 0} · partes sem contato {contactsHistory.overview?.partesSemContato || 0}
+                            </div>
+                            <div className="mt-1 text-[#C7D0CA]">
+                              sync {contactsHistory.settings?.syncLimit || 0} · reconcile {contactsHistory.settings?.reconcileLimit || 0} · pendentes selecionadas {contactsHistory.partesPendentes?.selected || 0} · vinculadas selecionadas {contactsHistory.partesVinculadas?.selected || 0}
+                            </div>
+                            {contactsHistory.actionState?.preview ? <div className="mt-1 text-[#C7D0CA]">Ultima acao: {contactsHistory.actionState.preview}</div> : null}
+                            {contactsHistory.actionState?.error ? <div className="mt-1 text-red-200">Erro: {contactsHistory.actionState.error}</div> : null}
+                          </div>
+                          {Array.isArray(contactsHistory.executionHistory) && contactsHistory.executionHistory.length ? (
+                            <div className="space-y-2">
+                              {contactsHistory.executionHistory.slice(0, 4).map((entry) => (
+                                <div key={entry.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-semibold">{entry.label || entry.action}</span>
+                                    <span className={entry.status === "error" ? "text-red-200" : entry.status === "success" ? "text-[#11D473]" : "text-[#D9B46A]"}>
+                                      {entry.status || "running"}
+                                    </span>
+                                  </div>
+                                  {entry.preview ? <div className="mt-1 text-[#C7D0CA]">{entry.preview}</div> : null}
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-[11px] opacity-60">Sem snapshot de Contacts.</div>
                       )}
                     </div>
                     <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">

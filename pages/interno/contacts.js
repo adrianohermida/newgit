@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
-import { adminFetch } from "../../lib/admin/api";
+import { adminFetch as adminFetchRaw } from "../../lib/admin/api";
+import { appendActivityLog, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
 
 const CONTACT_TYPE_OPTIONS = [
   "Cliente",
@@ -17,6 +18,65 @@ const CONTACT_TYPE_OPTIONS = [
   "Desembargador",
   "Testemunha",
 ];
+
+const CONTACT_ACTION_LABELS = {
+  sync_contacts: "Sincronizar contacts do Freshsales",
+  enrich_cep: "Enriquecer contato via CEP",
+  enrich_directdata: "Enriquecer contato via DirectData",
+  create_name_only: "Criar contato simplificado",
+  create_contact: "Criar contato completo",
+  update_contact: "Atualizar contato",
+  delete_contact: "Excluir contato",
+  merge_contacts: "Mesclar contatos duplicados",
+  reconcile_partes: "Reconciliar partes com contacts",
+  vincular_partes: "Vincular partes ao contato",
+  desvincular_partes: "Desvincular partes",
+  reclassificar_partes: "Reclassificar partes",
+};
+
+function stringifyLogPayload(payload, limit = 8000) {
+  if (payload === undefined) return "";
+  let text = "";
+  try {
+    text = JSON.stringify(payload, null, 2);
+  } catch {
+    text = String(payload);
+  }
+  if (text.length > limit) {
+    return `${text.slice(0, limit)}...`;
+  }
+  return text;
+}
+
+function extractActionFromRequest(path, init) {
+  let action = "";
+  if (typeof window !== "undefined" && typeof path === "string") {
+    try {
+      const url = new URL(path, window.location.origin);
+      action = url.searchParams.get("action") || "";
+    } catch {}
+  }
+  if (!action && init?.body) {
+    try {
+      const parsed = JSON.parse(init.body);
+      action = parsed?.action || "";
+    } catch {}
+  }
+  return action;
+}
+
+function buildActionPreview(result) {
+  if (!result) return "";
+  if (result.erro) return String(result.erro);
+  if (typeof result.message === "string" && result.message.trim()) return result.message;
+  if (typeof result.partesAtualizadas === "number") return `Partes atualizadas: ${result.partesAtualizadas}`;
+  if (typeof result.contatosVinculados === "number") return `Contatos vinculados: ${result.contatosVinculados}`;
+  if (typeof result.contatosCriados === "number") return `Contatos criados: ${result.contatosCriados}`;
+  if (typeof result.processosLidos === "number") return `Processos lidos: ${result.processosLidos}`;
+  if (typeof result.totalRows === "number") return `Total: ${result.totalRows}`;
+  if (Array.isArray(result.sample)) return `Amostra: ${result.sample.length}`;
+  return "Acao concluida";
+}
 
 function MetricCard({ label, value, helper }) {
   return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-5"><p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] opacity-50">{label}</p><p className="mb-2 font-serif text-3xl">{value}</p>{helper ? <p className="text-sm leading-relaxed opacity-65">{helper}</p> : null}</div>;
@@ -105,6 +165,7 @@ function ContactsContent() {
   const [partesPendentes, setPartesPendentes] = useState({ loading: true, error: null, items: [], totalRows: 0 });
   const [partesVinculadas, setPartesVinculadas] = useState({ loading: true, error: null, items: [], totalRows: 0 });
   const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
+  const [executionHistory, setExecutionHistory] = useState([]);
   const [page, setPage] = useState(1);
   const [duplicatesPage, setDuplicatesPage] = useState(1);
   const [partesPage, setPartesPage] = useState(1);
@@ -126,6 +187,53 @@ function ContactsContent() {
   const [personType, setPersonType] = useState("pf");
   const [linkType, setLinkType] = useState("Cliente");
 
+  async function adminFetch(path, init = {}, meta = {}) {
+    const startedAt = Date.now();
+    const method = String(init?.method || "GET").toUpperCase();
+    const action = meta.action || extractActionFromRequest(path, init);
+    let requestPayload = "";
+    if (init?.body) {
+      try {
+        requestPayload = stringifyLogPayload(JSON.parse(init.body));
+      } catch {
+        requestPayload = stringifyLogPayload(init.body);
+      }
+    }
+    const entryId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    appendActivityLog({
+      id: entryId,
+      module: "contacts",
+      component: meta.component || "contacts",
+      label: meta.label || CONTACT_ACTION_LABELS[action] || action || "Chamada administrativa",
+      action,
+      method,
+      path,
+      expectation: meta.expectation || (action ? `Executar ${action}` : "Consultar backend de contatos"),
+      request: requestPayload,
+      status: "running",
+      startedAt,
+      durationMs: null,
+      response: "",
+      error: "",
+    });
+    try {
+      const payload = await adminFetchRaw(path, init, meta);
+      updateActivityLog(entryId, {
+        status: "success",
+        durationMs: Date.now() - startedAt,
+        response: stringifyLogPayload(payload),
+      });
+      return payload;
+    } catch (error) {
+      updateActivityLog(entryId, {
+        status: "error",
+        durationMs: Date.now() - startedAt,
+        error: stringifyLogPayload(error?.payload || error?.message || error),
+      });
+      throw error;
+    }
+  }
+
   useEffect(() => { loadOverview(); }, []);
   useEffect(() => { loadList(page, query, type); }, [page, query, type]);
   useEffect(() => { loadDuplicates(duplicatesPage); }, [duplicatesPage]);
@@ -139,11 +247,109 @@ function ContactsContent() {
     }
     loadDetail(selectedContactId);
   }, [selectedContactId]);
+  useEffect(() => {
+    setModuleHistory("contacts", {
+      overview: overview.data || null,
+      list: {
+        loading: listState.loading,
+        error: listState.error,
+        totalRows: Number(listState.totalRows || 0),
+        query,
+        type,
+        page,
+        missingEmailOnPage: Number(listState.items.filter((item) => !item.email).length || 0),
+        missingPhoneOnPage: Number(listState.items.filter((item) => !item.phone).length || 0),
+        missingDocumentOnPage: Number(listState.items.filter((item) => !item.cpf && !item.cnpj).length || 0),
+      },
+      duplicates: {
+        loading: duplicatesState.loading,
+        error: duplicatesState.error,
+        totalRows: Number(duplicatesState.totalRows || 0),
+        page: duplicatesPage,
+      },
+      partesPendentes: {
+        loading: partesPendentes.loading,
+        error: partesPendentes.error,
+        totalRows: Number(partesPendentes.totalRows || 0),
+        page: partesPage,
+        query: partesQuery,
+        selected: selectedPartes.length,
+      },
+      partesVinculadas: {
+        loading: partesVinculadas.loading,
+        error: partesVinculadas.error,
+        totalRows: Number(partesVinculadas.totalRows || 0),
+        page: linkedPage,
+        query: linkedQuery,
+        type: linkedType,
+        selected: selectedLinkedPartes.length,
+      },
+      selectedContact: selected?.contact
+        ? {
+            id: selected.contact.freshsales_contact_id,
+            name: selected.contact.name,
+            type: selected.contact.type,
+            email: selected.contact.email || null,
+            phone: selected.contact.phone || null,
+          }
+        : null,
+      actionState: {
+        loading: actionState.loading,
+        error: actionState.error,
+        preview: buildActionPreview(actionState.result),
+      },
+      settings: {
+        syncLimit: Number(syncLimit || 0),
+        reconcileLimit: Number(reconcileLimit || 0),
+        personType,
+        linkType,
+      },
+      executionHistory,
+    });
+  }, [
+    actionState.error,
+    actionState.loading,
+    actionState.result,
+    detailState.data,
+    duplicatesPage,
+    duplicatesState.error,
+    duplicatesState.loading,
+    duplicatesState.totalRows,
+    executionHistory,
+    linkedPage,
+    linkedQuery,
+    linkedType,
+    listState.error,
+    listState.items,
+    listState.loading,
+    listState.totalRows,
+    overview.data,
+    page,
+    partesPage,
+    partesPendentes.error,
+    partesPendentes.loading,
+    partesPendentes.totalRows,
+    partesQuery,
+    partesVinculadas.error,
+    partesVinculadas.loading,
+    partesVinculadas.totalRows,
+    personType,
+    query,
+    reconcileLimit,
+    selected,
+    selectedLinkedPartes.length,
+    selectedPartes.length,
+    syncLimit,
+    type,
+  ]);
 
   async function loadOverview() {
     setOverview({ loading: true, error: null, data: null });
     try {
-      const payload = await adminFetch("/api/admin-hmadv-contacts?action=overview");
+      const payload = await adminFetch("/api/admin-hmadv-contacts?action=overview", {}, {
+        component: "contacts-overview",
+        label: "Carregar overview de contacts",
+      });
       setOverview({ loading: false, error: null, data: payload.data });
     } catch (error) {
       setOverview({ loading: false, error: error.message || "Falha ao carregar overview.", data: null });
@@ -153,7 +359,10 @@ function ContactsContent() {
   async function loadList(nextPage, nextQuery, nextType) {
     setListState((current) => ({ ...current, loading: true, error: null }));
     try {
-      const payload = await adminFetch(`/api/admin-hmadv-contacts?action=list&page=${nextPage}&pageSize=20&query=${encodeURIComponent(nextQuery || "")}&type=${encodeURIComponent(nextType || "")}`);
+      const payload = await adminFetch(`/api/admin-hmadv-contacts?action=list&page=${nextPage}&pageSize=20&query=${encodeURIComponent(nextQuery || "")}&type=${encodeURIComponent(nextType || "")}`, {}, {
+        component: "contacts-list",
+        label: "Listar contacts paginados",
+      });
       setListState({ loading: false, error: null, items: payload.data.items || [], totalRows: payload.data.totalRows || 0 });
       if (!selectedContactId && payload.data.items?.[0]?.freshsales_contact_id) setSelectedContactId(payload.data.items[0].freshsales_contact_id);
     } catch (error) {
@@ -164,7 +373,10 @@ function ContactsContent() {
   async function loadDuplicates(nextPage) {
     setDuplicatesState((current) => ({ ...current, loading: true, error: null }));
     try {
-      const payload = await adminFetch(`/api/admin-hmadv-contacts?action=duplicates&page=${nextPage}&pageSize=10`);
+      const payload = await adminFetch(`/api/admin-hmadv-contacts?action=duplicates&page=${nextPage}&pageSize=10`, {}, {
+        component: "contacts-duplicates",
+        label: "Listar duplicados de contacts",
+      });
       setDuplicatesState({ loading: false, error: null, items: payload.data.items || [], totalRows: payload.data.totalRows || 0 });
     } catch (error) {
       setDuplicatesState({ loading: false, error: error.message || "Falha ao carregar duplicados.", items: [], totalRows: 0 });
@@ -174,7 +386,10 @@ function ContactsContent() {
   async function loadPartesPendentes(nextPage, nextQuery) {
     setPartesPendentes((current) => ({ ...current, loading: true, error: null }));
     try {
-      const payload = await adminFetch(`/api/admin-hmadv-contacts?action=partes_pendentes&page=${nextPage}&pageSize=20&query=${encodeURIComponent(nextQuery || "")}`);
+      const payload = await adminFetch(`/api/admin-hmadv-contacts?action=partes_pendentes&page=${nextPage}&pageSize=20&query=${encodeURIComponent(nextQuery || "")}`, {}, {
+        component: "contacts-partes-pendentes",
+        label: "Listar partes pendentes de vinculacao",
+      });
       setPartesPendentes({ loading: false, error: null, items: payload.data.items || [], totalRows: payload.data.totalRows || 0 });
     } catch (error) {
       setPartesPendentes({ loading: false, error: error.message || "Falha ao carregar partes pendentes.", items: [], totalRows: 0 });
@@ -184,7 +399,10 @@ function ContactsContent() {
   async function loadPartesVinculadas(nextPage, nextQuery, nextType) {
     setPartesVinculadas((current) => ({ ...current, loading: true, error: null }));
     try {
-      const payload = await adminFetch(`/api/admin-hmadv-contacts?action=partes_vinculadas&page=${nextPage}&pageSize=20&query=${encodeURIComponent(nextQuery || "")}&type=${encodeURIComponent(nextType || "")}`);
+      const payload = await adminFetch(`/api/admin-hmadv-contacts?action=partes_vinculadas&page=${nextPage}&pageSize=20&query=${encodeURIComponent(nextQuery || "")}&type=${encodeURIComponent(nextType || "")}`, {}, {
+        component: "contacts-partes-vinculadas",
+        label: "Listar partes ja vinculadas",
+      });
       setPartesVinculadas({ loading: false, error: null, items: payload.data.items || [], totalRows: payload.data.totalRows || 0 });
     } catch (error) {
       setPartesVinculadas({ loading: false, error: error.message || "Falha ao carregar partes vinculadas.", items: [], totalRows: 0 });
@@ -194,7 +412,10 @@ function ContactsContent() {
   async function loadDetail(contactId) {
     setDetailState({ loading: true, error: null, data: null });
     try {
-      const payload = await adminFetch(`/api/admin-hmadv-contacts?action=detail&contactId=${encodeURIComponent(contactId)}`);
+      const payload = await adminFetch(`/api/admin-hmadv-contacts?action=detail&contactId=${encodeURIComponent(contactId)}`, {}, {
+        component: "contacts-detail",
+        label: "Carregar detalhe do contato",
+      });
       setDetailState({ loading: false, error: null, data: payload.data });
       setEditForm(buildEditableForm(payload.data?.contact));
       setCep(payload.data?.contact?.cep || "");
@@ -205,13 +426,35 @@ function ContactsContent() {
 
   async function runAction(action, payload = {}) {
     setActionState({ loading: true, error: null, result: null });
+    const historyEntry = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      startedAt: new Date().toISOString(),
+      action,
+      label: CONTACT_ACTION_LABELS[action] || action,
+      payload,
+      status: "running",
+      preview: "",
+    };
+    setExecutionHistory((current) => [historyEntry, ...current].slice(0, 20));
     try {
       const response = await adminFetch("/api/admin-hmadv-contacts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, ...payload }),
+      }, {
+        component: "contacts-actions",
+        action,
+        label: CONTACT_ACTION_LABELS[action] || action,
+        expectation: `Executar ${CONTACT_ACTION_LABELS[action] || action} e refletir o retorno no console`,
       });
       setActionState({ loading: false, error: null, result: response.data });
+      setExecutionHistory((current) => current.map((entry) => entry.id === historyEntry.id ? {
+        ...entry,
+        status: "success",
+        finishedAt: new Date().toISOString(),
+        preview: buildActionPreview(response.data),
+        result: response.data,
+      } : entry));
       await Promise.all([
         loadOverview(),
         loadList(page, query, type),
@@ -223,6 +466,13 @@ function ContactsContent() {
       return response.data;
     } catch (error) {
       setActionState({ loading: false, error: error.message || "Falha ao executar acao.", result: null });
+      setExecutionHistory((current) => current.map((entry) => entry.id === historyEntry.id ? {
+        ...entry,
+        status: "error",
+        finishedAt: new Date().toISOString(),
+        preview: error.message || "Falha ao executar acao.",
+        error: error?.payload || error?.message || error,
+      } : entry));
       throw error;
     }
   }
@@ -232,6 +482,20 @@ function ContactsContent() {
   }
   function toggleLinkedParteSelection(id) {
     setSelectedLinkedPartes((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+  function togglePendingPageSelection(nextChecked) {
+    const pageIds = partesPendentes.items.map((item) => item.id).filter(Boolean);
+    setSelectedPartes((current) => {
+      if (nextChecked) return Array.from(new Set([...current, ...pageIds]));
+      return current.filter((id) => !pageIds.includes(id));
+    });
+  }
+  function toggleLinkedPageSelection(nextChecked) {
+    const pageIds = partesVinculadas.items.map((item) => item.id).filter(Boolean);
+    setSelectedLinkedPartes((current) => {
+      if (nextChecked) return Array.from(new Set([...current, ...pageIds]));
+      return current.filter((id) => !pageIds.includes(id));
+    });
   }
 
   const overviewData = overview.data || {};
@@ -244,6 +508,13 @@ function ContactsContent() {
     }
     return Array.from(procMap.values());
   }, [partesPendentes.items, selectedPartes]);
+  const pendingPageSelectedCount = useMemo(() => partesPendentes.items.filter((item) => selectedPartes.includes(item.id)).length, [partesPendentes.items, selectedPartes]);
+  const linkedPageSelectedCount = useMemo(() => partesVinculadas.items.filter((item) => selectedLinkedPartes.includes(item.id)).length, [partesVinculadas.items, selectedLinkedPartes]);
+  const allPendingPageSelected = Boolean(partesPendentes.items.length) && pendingPageSelectedCount === partesPendentes.items.length;
+  const allLinkedPageSelected = Boolean(partesVinculadas.items.length) && linkedPageSelectedCount === partesVinculadas.items.length;
+  const missingEmailOnPage = useMemo(() => listState.items.filter((item) => !item.email).length, [listState.items]);
+  const missingPhoneOnPage = useMemo(() => listState.items.filter((item) => !item.phone).length, [listState.items]);
+  const missingDocumentOnPage = useMemo(() => listState.items.filter((item) => !item.cpf && !item.cnpj).length, [listState.items]);
 
   return <div className="space-y-8">
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -355,6 +626,28 @@ function ContactsContent() {
     </div>
 
     <div className="grid gap-6 xl:grid-cols-2">
+      <Panel title="Qualidade da base e persistencia" eyebrow="Freshsales + Supabase + portal">
+        <div className="grid gap-3 md:grid-cols-2">
+          <MetricCard label="Sem e-mail na pagina" value={missingEmailOnPage} helper="Ajuda a priorizar enriquecimento e match forte no CRM." />
+          <MetricCard label="Sem telefone na pagina" value={missingPhoneOnPage} helper="Contato com baixo potencial de acionamento operacional." />
+          <MetricCard label="Sem CPF/CNPJ na pagina" value={missingDocumentOnPage} helper="Base com baixa rastreabilidade para DirectData e deduplicacao." />
+          <MetricCard label="Lotes marcados" value={`${selectedPartes.length} / ${selectedLinkedPartes.length}`} helper="Pendentes e vinculadas prontas para bulk actions nesta sessao." />
+        </div>
+        <div className="mt-4 rounded-[20px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] p-4 text-sm">
+          <p className="font-semibold">Persistencia no portal</p>
+          <p className="mt-2 opacity-75">
+            O portal ja persiste contatos e enderecos pelo endpoint <code>/api/client-profile</code>. Use o modulo de contacts para higienizar e reconciliar a base operacional, e o perfil do cliente em <a href="/portal/perfil" className="underline hover:text-[#C5A059]">/portal/perfil</a> para refletir os dados que precisam permanecer disponiveis na experiencia do cliente.
+          </p>
+        </div>
+        <div className="mt-4 rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.16)] p-4 text-sm text-[#F8E7B5]">
+          <p className="font-semibold">Trilha recomendada para lote grande</p>
+          <p className="mt-2">1. Sincronizar contacts do Freshsales.</p>
+          <p className="mt-1">2. Corrigir gaps de CEP e documento.</p>
+          <p className="mt-1">3. Reconciliar partes pendentes em lote controlado.</p>
+          <p className="mt-1">4. Validar persistencia no portal para os contatos que precisam aparecer ao cliente.</p>
+        </div>
+      </Panel>
+
       <Panel title="Criar novo contato" eyebrow="CRUD">
         <div className="grid gap-3 md:grid-cols-2">
           <input value={createForm.name} onChange={(event) => setCreateForm((current) => ({ ...current, name: event.target.value }))} placeholder="Nome completo" className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
@@ -405,6 +698,13 @@ function ContactsContent() {
           <span>Contato em foco: {selected?.contact?.name || "nenhum selecionado"}</span>
           <span>Partes marcadas: {selectedPartes.length}</span>
           <span>Tipo ao vincular: {linkType}</span>
+          <span>Selecionadas nesta pagina: {pendingPageSelectedCount}/{partesPendentes.items.length || 0}</span>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <ActionButton onClick={() => togglePendingPageSelection(!allPendingPageSelected)} disabled={!partesPendentes.items.length}>
+            {allPendingPageSelected ? "Desmarcar pagina" : "Selecionar pagina"}
+          </ActionButton>
+          <ActionButton onClick={() => setSelectedPartes([])} disabled={!selectedPartes.length}>Limpar selecao</ActionButton>
         </div>
         {partesPendentes.loading ? <p className="text-sm opacity-60">Carregando partes pendentes...</p> : null}
         {partesPendentes.error ? <p className="text-sm text-red-300">{partesPendentes.error}</p> : null}
@@ -439,6 +739,13 @@ function ContactsContent() {
           <span>Selecionadas para revisao: {selectedLinkedPartes.length}</span>
           <span>Contato em foco: {selected?.contact?.name || "nenhum selecionado"}</span>
           <span>Tipo alvo: {linkType}</span>
+          <span>Selecionadas nesta pagina: {linkedPageSelectedCount}/{partesVinculadas.items.length || 0}</span>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <ActionButton onClick={() => toggleLinkedPageSelection(!allLinkedPageSelected)} disabled={!partesVinculadas.items.length}>
+            {allLinkedPageSelected ? "Desmarcar pagina" : "Selecionar pagina"}
+          </ActionButton>
+          <ActionButton onClick={() => setSelectedLinkedPartes([])} disabled={!selectedLinkedPartes.length}>Limpar selecao</ActionButton>
         </div>
         {partesVinculadas.loading ? <p className="text-sm opacity-60">Carregando partes vinculadas...</p> : null}
         {partesVinculadas.error ? <p className="text-sm text-red-300">{partesVinculadas.error}</p> : null}
@@ -470,6 +777,20 @@ function ContactsContent() {
         <pre className="overflow-x-auto whitespace-pre-wrap text-xs opacity-70">{JSON.stringify(actionState.result, null, 2)}</pre>
       </div> : null}
       {!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-60">Nenhuma acao executada nesta sessao.</p> : null}
+    </Panel>
+
+    <Panel title="Historico operacional local" eyebrow="Console integrado">
+      {!executionHistory.length ? <p className="text-sm opacity-60">As proximas acoes deste modulo passam a aparecer aqui e no console lateral.</p> : null}
+      {executionHistory.length ? <div className="space-y-3">
+        {executionHistory.slice(0, 8).map((entry) => <div key={entry.id} className="border border-[#2D2E2E] p-4 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="font-semibold">{entry.label}</p>
+            <StatusBadge tone={entry.status === "error" ? "danger" : entry.status === "success" ? "success" : "warn"}>{entry.status}</StatusBadge>
+          </div>
+          <p className="mt-1 text-xs opacity-60">{entry.startedAt ? new Date(entry.startedAt).toLocaleString("pt-BR") : "sem data"}</p>
+          {entry.preview ? <p className="mt-2 opacity-75">{entry.preview}</p> : null}
+        </div>)}
+      </div> : null}
     </Panel>
   </div>;
 }
