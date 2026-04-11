@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch as adminFetchRaw } from "../../lib/admin/api";
-import { appendActivityLog, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
+import { appendActivityLog, getActivityLogSnapshot, getFingerprintStates, setModuleHistory, subscribeActivityLog, updateActivityLog } from "../../lib/admin/activity-log";
 
 const CONTACT_TYPE_OPTIONS = [
   "Cliente",
@@ -86,6 +86,68 @@ function buildActionPreview(result) {
   if (typeof result.totalRows === "number") return `Total: ${result.totalRows}`;
   if (Array.isArray(result.sample)) return `Amostra: ${result.sample.length}`;
   return "Acao concluida";
+}
+
+function getEntryAgeHours(entry) {
+  const value = entry?.createdAt || entry?.startedAt || null;
+  if (!value) return 0;
+  const diff = Date.now() - new Date(value).getTime();
+  return Number.isFinite(diff) ? diff / (1000 * 60 * 60) : 0;
+}
+
+function deriveContactsOperationalGuardrail({
+  entries = [],
+  fingerprintStates = {},
+  syncLimit = 100,
+  reconcileLimit = 20,
+  selectedContacts = 0,
+  selectedPartes = 0,
+  bulkCreateCount = 0,
+  pendingJobs = 0,
+}) {
+  const fingerprints = new Map();
+  let errors = 0;
+  let warnings = 0;
+  let staleErrors = 0;
+
+  for (const entry of entries) {
+    const severity = entry?.severity || (entry?.status === "error" ? "error" : entry?.status === "running" ? "warn" : "info");
+    if (severity === "error") {
+      errors += 1;
+      if (getEntryAgeHours(entry) >= 72) staleErrors += 1;
+    } else if (severity === "warn") {
+      warnings += 1;
+    }
+    if (!entry?.fingerprint) continue;
+    const state = fingerprintStates?.[entry.fingerprint];
+    if (state?.status === "resolvido") continue;
+    fingerprints.set(entry.fingerprint, (fingerprints.get(entry.fingerprint) || 0) + 1);
+  }
+
+  const recurringOpen = Array.from(fingerprints.values()).filter((count) => count > 1).length;
+  const blocked = errors >= 4 || recurringOpen >= 2 || staleErrors >= 1;
+  const warned = blocked || warnings >= 2 || pendingJobs > 0;
+  const safeSyncLimit = blocked ? 25 : warned ? 50 : 100;
+  const safeReconcileLimit = blocked ? 10 : warned ? 15 : 20;
+  const safeBulkCreate = blocked ? 10 : warned ? 25 : 50;
+
+  return {
+    tone: blocked ? "danger" : warned ? "warn" : "success",
+    summary: blocked
+      ? "Console detectou reincidencia critica em contacts. Segure bulk actions amplas ate estabilizar CRM, persistencia e reconciliacao."
+      : warned
+        ? "O modulo de contacts pede lote reduzido nesta rodada para evitar retrabalho em massa."
+        : "A trilha de contacts esta estavel para um lote operacional curto.",
+    metrics: { errors, warnings, recurringOpen, staleErrors, pendingJobs },
+    safeLimits: { sync: safeSyncLimit, reconcile: safeReconcileLimit, bulkCreate: safeBulkCreate },
+    blocks: {
+      syncImport: blocked && Number(syncLimit || 0) > safeSyncLimit,
+      validateApply: warned && selectedContacts > safeSyncLimit,
+      deleteBulk: blocked && selectedContacts > 10,
+      bulkCreate: warned && bulkCreateCount > safeBulkCreate,
+      reconcileApply: warned && selectedPartes > safeReconcileLimit,
+    },
+  };
 }
 
 function MetricCard({ label, value, helper }) {
@@ -197,12 +259,21 @@ function ContactsContent() {
   const [bulkCreateText, setBulkCreateText] = useState("");
   const [bulkCreateIntervalMs, setBulkCreateIntervalMs] = useState(1200);
   const [scheduleAt, setScheduleAt] = useState("");
+  const [contactsLogEntries, setContactsLogEntries] = useState(() => getActivityLogSnapshot().filter((entry) => entry?.module === "contacts"));
+  const [fingerprintStates, setFingerprintStates] = useState(() => getFingerprintStates());
   const [editForm, setEditForm] = useState(buildEditableForm(null));
   const [mergeTargetId, setMergeTargetId] = useState("");
   const [cep, setCep] = useState("");
   const [personType, setPersonType] = useState("pf");
   const [linkType, setLinkType] = useState("Cliente");
   const selected = detailState.data;
+
+  useEffect(() => {
+    return subscribeActivityLog((entries, _archives, _notes, _filters, _frontend, _schema, _moduleHistory, fingerprintSnapshot) => {
+      setContactsLogEntries((entries || []).filter((entry) => entry?.module === "contacts"));
+      setFingerprintStates(fingerprintSnapshot && typeof fingerprintSnapshot === "object" ? fingerprintSnapshot : {});
+    });
+  }, []);
 
   async function adminFetch(path, init = {}, meta = {}) {
     const startedAt = Date.now();
@@ -322,6 +393,7 @@ function ContactsContent() {
         loading: jobsState.loading,
         error: jobsState.error,
         total: jobsState.items.length,
+        pendingOrRunning: pendingContactJobs,
       },
       settings: {
         syncLimit: Number(syncLimit || 0),
@@ -330,6 +402,13 @@ function ContactsContent() {
         personType,
         linkType,
         scheduleAt: scheduleAt || null,
+      },
+      guardrail: {
+        tone: contactsGuardrail.tone,
+        summary: contactsGuardrail.summary,
+        metrics: contactsGuardrail.metrics,
+        safeLimits: contactsGuardrail.safeLimits,
+        blocks: contactsGuardrail.blocks,
       },
       executionHistory,
     });
@@ -346,6 +425,7 @@ function ContactsContent() {
     jobsState.error,
     jobsState.items.length,
     jobsState.loading,
+    pendingContactJobs,
     linkedPage,
     linkedQuery,
     linkedType,
@@ -374,6 +454,7 @@ function ContactsContent() {
     syncLimit,
     bulkCreateIntervalMs,
     scheduleAt,
+    contactsGuardrail,
     type,
   ]);
 
@@ -589,6 +670,22 @@ function ContactsContent() {
   const contactPageSelectedCount = useMemo(() => listState.items.filter((item) => selectedContactIds.includes(item.freshsales_contact_id)).length, [listState.items, selectedContactIds]);
   const allContactPageSelected = Boolean(listState.items.length) && contactPageSelectedCount === listState.items.length;
   const bulkCreateNames = useMemo(() => parseBulkLines(bulkCreateText), [bulkCreateText]);
+  const pendingContactJobs = useMemo(() => jobsState.items.filter((item) => ["pending", "running"].includes(String(item?.status || ""))).length, [jobsState.items]);
+  const contactsGuardrail = useMemo(() => deriveContactsOperationalGuardrail({
+    entries: contactsLogEntries,
+    fingerprintStates,
+    syncLimit,
+    reconcileLimit,
+    selectedContacts: selectedContactIds.length,
+    selectedPartes: selectedPartes.length,
+    bulkCreateCount: bulkCreateNames.length,
+    pendingJobs: pendingContactJobs,
+  }), [bulkCreateNames.length, contactsLogEntries, fingerprintStates, pendingContactJobs, reconcileLimit, selectedContactIds.length, selectedPartes.length, syncLimit]);
+
+  function applySafeContactsLimits() {
+    setSyncLimit(contactsGuardrail.safeLimits.sync);
+    setReconcileLimit(contactsGuardrail.safeLimits.reconcile);
+  }
   const missingEmailOnPage = useMemo(() => listState.items.filter((item) => !item.email).length, [listState.items]);
   const missingPhoneOnPage = useMemo(() => listState.items.filter((item) => !item.phone).length, [listState.items]);
   const missingDocumentOnPage = useMemo(() => listState.items.filter((item) => !item.cpf && !item.cnpj).length, [listState.items]);
@@ -617,20 +714,23 @@ function ContactsContent() {
               <option value={100}>100 / pagina</option>
             </select>
             <ActionButton onClick={() => runAction("sync_contacts", { limit: syncLimit, dryRun: true, fetchAll: false })} disabled={actionState.loading}>Simular sync</ActionButton>
-            <ActionButton tone="primary" onClick={() => runAction("sync_contacts", { limit: syncLimit, dryRun: false, fetchAll: true })} disabled={actionState.loading}>Importar todos</ActionButton>
+            <ActionButton tone="primary" onClick={() => runAction("sync_contacts", { limit: syncLimit, dryRun: false, fetchAll: true })} disabled={actionState.loading || contactsGuardrail.blocks.syncImport} title={contactsGuardrail.blocks.syncImport ? contactsGuardrail.summary : undefined}>Importar todos</ActionButton>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs uppercase tracking-[0.15em] opacity-50">Lote sync</span>
             <input type="number" min="1" max="5000" value={syncLimit} onChange={(event) => setSyncLimit(Number(event.target.value || 100))} className="w-28 border border-[#2D2E2E] bg-[#050706] p-2 text-sm outline-none focus:border-[#C5A059]" />
+            <StatusBadge tone={contactsGuardrail.tone === "danger" ? "danger" : contactsGuardrail.tone === "warn" ? "warn" : "success"}>
+              sync seguro {contactsGuardrail.safeLimits.sync}
+            </StatusBadge>
             <ActionButton onClick={() => toggleContactsPageSelection(!allContactPageSelected)} disabled={!listState.items.length}>
               {allContactPageSelected ? "Desmarcar pagina" : "Selecionar pagina"}
             </ActionButton>
             <ActionButton onClick={() => selectAllFilteredContacts()} disabled={listState.loading}>Selecionar filtrados</ActionButton>
             <ActionButton onClick={() => setSelectedContactIds([])} disabled={!selectedContactIds.length}>Limpar selecao</ActionButton>
             <ActionButton onClick={() => runAction("validate_contacts", { contactIds: selectedContactIds, query, type, limit: selectedContactIds.length || contactPageSize, apply: false })} disabled={actionState.loading || (!selectedContactIds.length && !listState.items.length)}>Validar selecao</ActionButton>
-            <ActionButton tone="primary" onClick={() => runAction("validate_contacts", { contactIds: selectedContactIds, query, type, limit: selectedContactIds.length || contactPageSize, apply: true })} disabled={actionState.loading || (!selectedContactIds.length && !listState.items.length)}>Aplicar higienizacao</ActionButton>
+            <ActionButton tone="primary" onClick={() => runAction("validate_contacts", { contactIds: selectedContactIds, query, type, limit: selectedContactIds.length || contactPageSize, apply: true })} disabled={actionState.loading || (!selectedContactIds.length && !listState.items.length) || contactsGuardrail.blocks.validateApply} title={contactsGuardrail.blocks.validateApply ? contactsGuardrail.summary : undefined}>Aplicar higienizacao</ActionButton>
             <ActionButton onClick={() => runAction("schedule_contact_job", { jobAction: "validate_contacts", contactIds: selectedContactIds, query, type, limit: Math.max(selectedContactIds.length || contactPageSize, 1), apply: true, scheduledFor: buildScheduledIso() })} disabled={actionState.loading || (!selectedContactIds.length && !listState.items.length)}>Agendar higienizacao</ActionButton>
-            <ActionButton tone="danger" onClick={() => runAction("delete_contacts_bulk", { contactIds: selectedContactIds })} disabled={actionState.loading || !selectedContactIds.length}>Excluir selecionados</ActionButton>
+            <ActionButton tone="danger" onClick={() => runAction("delete_contacts_bulk", { contactIds: selectedContactIds })} disabled={actionState.loading || !selectedContactIds.length || contactsGuardrail.blocks.deleteBulk} title={contactsGuardrail.blocks.deleteBulk ? contactsGuardrail.summary : undefined}>Excluir selecionados</ActionButton>
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60">
             <span>Selecionados: {selectedContactIds.length}</span>
@@ -762,6 +862,24 @@ function ContactsContent() {
           <p className="mt-1">3. Reconciliar partes pendentes em lote controlado.</p>
           <p className="mt-1">4. Validar persistencia no portal para os contatos que precisam aparecer ao cliente.</p>
         </div>
+        <div className={`mt-4 rounded-[20px] border p-4 text-sm ${contactsGuardrail.tone === "danger" ? "border-[#5C2A2A] bg-[rgba(90,35,35,0.16)] text-[#F4C1C1]" : contactsGuardrail.tone === "warn" ? "border-[#6F5826] bg-[rgba(76,57,26,0.16)] text-[#F7E4A7]" : "border-[#2E5744] bg-[rgba(24,58,43,0.16)] text-[#C7F1D7]"}`}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold">Controle preventivo do lote</p>
+              <p className="mt-2">{contactsGuardrail.summary}</p>
+            </div>
+            <ActionButton onClick={applySafeContactsLimits}>Aplicar limites seguros</ActionButton>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <StatusBadge tone="neutral">erros {contactsGuardrail.metrics.errors}</StatusBadge>
+            <StatusBadge tone="neutral">warn {contactsGuardrail.metrics.warnings}</StatusBadge>
+            <StatusBadge tone="neutral">recorrentes {contactsGuardrail.metrics.recurringOpen}</StatusBadge>
+            <StatusBadge tone="neutral">jobs ativos {contactsGuardrail.metrics.pendingJobs}</StatusBadge>
+            <StatusBadge tone="accent">sync {contactsGuardrail.safeLimits.sync}</StatusBadge>
+            <StatusBadge tone="accent">reconcile {contactsGuardrail.safeLimits.reconcile}</StatusBadge>
+            <StatusBadge tone="accent">bulk create {contactsGuardrail.safeLimits.bulkCreate}</StatusBadge>
+          </div>
+        </div>
       </Panel>
 
       <Panel title="Criar novo contato" eyebrow="CRUD + lote">
@@ -787,10 +905,10 @@ function ContactsContent() {
             <input type="number" min="500" step="100" value={bulkCreateIntervalMs} onChange={(event) => setBulkCreateIntervalMs(Number(event.target.value || 1200))} className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
             <input type="datetime-local" value={scheduleAt} onChange={(event) => setScheduleAt(event.target.value)} className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
             <ActionButton onClick={() => runAction("bulk_create_contacts", { names: bulkCreateNames, type: createForm.type, intervalMs: bulkCreateIntervalMs, dryRun: true })} disabled={actionState.loading || !bulkCreateNames.length}>Simular lote</ActionButton>
-            <ActionButton tone="primary" onClick={() => runAction("bulk_create_contacts", { names: bulkCreateNames, type: createForm.type, intervalMs: bulkCreateIntervalMs, dryRun: false })} disabled={actionState.loading || !bulkCreateNames.length}>Criar em lote</ActionButton>
+            <ActionButton tone="primary" onClick={() => runAction("bulk_create_contacts", { names: bulkCreateNames, type: createForm.type, intervalMs: bulkCreateIntervalMs, dryRun: false })} disabled={actionState.loading || !bulkCreateNames.length || contactsGuardrail.blocks.bulkCreate} title={contactsGuardrail.blocks.bulkCreate ? contactsGuardrail.summary : undefined}>Criar em lote</ActionButton>
           </div>
           <div className="flex flex-wrap gap-3">
-            <ActionButton onClick={() => runAction("schedule_contact_job", { jobAction: "bulk_create_contacts", names: bulkCreateNames, type: createForm.type, intervalMs: bulkCreateIntervalMs, dryRun: false, scheduledFor: buildScheduledIso(), limit: 25 })} disabled={actionState.loading || !bulkCreateNames.length}>Agendar lote</ActionButton>
+            <ActionButton onClick={() => runAction("schedule_contact_job", { jobAction: "bulk_create_contacts", names: bulkCreateNames, type: createForm.type, intervalMs: bulkCreateIntervalMs, dryRun: false, scheduledFor: buildScheduledIso(), limit: 25 })} disabled={actionState.loading || !bulkCreateNames.length || contactsGuardrail.blocks.bulkCreate} title={contactsGuardrail.blocks.bulkCreate ? contactsGuardrail.summary : undefined}>Agendar lote</ActionButton>
             <ActionButton onClick={() => runAction("drain_contact_jobs", { maxChunks: 4 })} disabled={actionState.loading}>Processar fila agora</ActionButton>
           </div>
           <p className="text-xs opacity-60">{bulkCreateNames.length} nomes prontos para criacao. A higienizacao remove virgulas no inicio/fim, o backend respeita intervalo entre chamadas no Freshsales e o agendamento usa a fila operacional de contatos.</p>
@@ -822,13 +940,14 @@ function ContactsContent() {
             {CONTACT_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
           </select>
           <ActionButton onClick={() => runAction("reconcile_partes", { processNumbers: selectedParteNumbers.join("\n"), limit: reconcileLimit, apply: false })} disabled={actionState.loading}>Simular vinculacao</ActionButton>
-          <ActionButton tone="primary" onClick={() => runAction("reconcile_partes", { processNumbers: selectedParteNumbers.join("\n"), limit: reconcileLimit, apply: true })} disabled={actionState.loading}>Aplicar vinculacao</ActionButton>
+          <ActionButton tone="primary" onClick={() => runAction("reconcile_partes", { processNumbers: selectedParteNumbers.join("\n"), limit: reconcileLimit, apply: true })} disabled={actionState.loading || contactsGuardrail.blocks.reconcileApply} title={contactsGuardrail.blocks.reconcileApply ? contactsGuardrail.summary : undefined}>Aplicar vinculacao</ActionButton>
           <ActionButton tone="primary" onClick={() => runAction("vincular_partes", { parteIds: selectedPartes, contactId: selectedContactId, type: linkType })} disabled={actionState.loading || !selectedContactId || !selectedPartes.length}>Vincular ao contato selecionado</ActionButton>
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60">
           <span>Contato em foco: {selected?.contact?.name || "nenhum selecionado"}</span>
           <span>Partes marcadas: {selectedPartes.length}</span>
           <span>Tipo ao vincular: {linkType}</span>
+          <span>Reconcile seguro: {contactsGuardrail.safeLimits.reconcile}</span>
           <span>Selecionadas nesta pagina: {pendingPageSelectedCount}/{partesPendentes.items.length || 0}</span>
         </div>
         <div className="flex flex-wrap gap-3">

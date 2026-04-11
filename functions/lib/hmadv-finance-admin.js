@@ -65,8 +65,20 @@ function resolveFreshsalesOrgDomain(env) {
   return host;
 }
 
+function getFreshsalesDealsOauthClientId(env) {
+  return getCleanEnvValue(env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) || getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_ID) || null;
+}
+
+function getFreshsalesDealsOauthClientSecret(env) {
+  return getCleanEnvValue(env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) || getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_SECRET) || null;
+}
+
+function getFreshsalesDealsScopes(env) {
+  return getCleanEnvValue(env.FRESHSALES_DEALS_SCOPES) || getCleanEnvValue(env.FRESHSALES_SCOPES) || getCleanEnvValue(env.FRESHSALES_OAUTH_SCOPES) || null;
+}
+
 function buildFreshsalesAuthorizationUrl(env) {
-  const clientId = getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_ID);
+  const clientId = getFreshsalesDealsOauthClientId(env);
   const orgDomain = resolveFreshsalesOrgDomain(env);
   const supabaseUrl = getCleanEnvValue(env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL);
   const redirectUri =
@@ -76,7 +88,7 @@ function buildFreshsalesAuthorizationUrl(env) {
     getCleanEnvValue(env.OAUTH_CALLBACK_URL) ||
     (supabaseUrl ? `${supabaseUrl}/functions/v1/oauth` : null);
   const state = getCleanEnvValue(env.FRESHSALES_OAUTH_STATE) || "hmadv-billing";
-  const scopes = getCleanEnvValue(env.FRESHSALES_SCOPES) || getCleanEnvValue(env.FRESHSALES_OAUTH_SCOPES) || [
+  const scopes = getFreshsalesDealsScopes(env) || [
     "freshsales.contacts.create",
     "freshsales.contacts.edit",
     "freshsales.contacts.view",
@@ -109,10 +121,14 @@ function buildFreshsalesAuthSnapshot(env) {
   const refreshToken = getCleanEnvValue(env.FRESHSALES_REFRESH_TOKEN);
   const tokenExpiry = getCleanEnvValue(env.FRESHSALES_TOKEN_EXPIRY);
   const expiryDate = tokenExpiry && !Number.isNaN(Number(tokenExpiry)) ? new Date(Number(tokenExpiry)).toISOString() : null;
+  const dealsClientId = getFreshsalesDealsOauthClientId(env);
+  const dealsClientSecret = getFreshsalesDealsOauthClientSecret(env);
+  const contactsClientId = getCleanEnvValue(env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID) || null;
+  const contactsClientSecret = getCleanEnvValue(env.FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET) || null;
   const preferredAuthMode = apiKey ? "api_key" : accessToken ? "access_token" : "missing";
   const oauthConfigured = Boolean(
-    getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_ID) &&
-    getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_SECRET) &&
+    dealsClientId &&
+    dealsClientSecret &&
     (accessToken || refreshToken)
   );
   const operational = Boolean(apiKey || accessToken);
@@ -122,8 +138,12 @@ function buildFreshsalesAuthSnapshot(env) {
     has_api_key: Boolean(apiKey),
     has_access_token: Boolean(accessToken),
     has_refresh_token: Boolean(refreshToken),
-    has_client_id: Boolean(getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_ID)),
-    has_client_secret: Boolean(getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_SECRET)),
+    has_client_id: Boolean(dealsClientId),
+    has_client_secret: Boolean(dealsClientSecret),
+    has_deals_client_id: Boolean(dealsClientId),
+    has_deals_client_secret: Boolean(dealsClientSecret),
+    has_contacts_client_id: Boolean(contactsClientId),
+    has_contacts_client_secret: Boolean(contactsClientSecret),
     has_org_domain: Boolean(resolveFreshsalesOrgDomain(env)),
     has_redirect_uri: Boolean(getCleanEnvValue(env.FRESHSALES_REDIRECT_URI) || getCleanEnvValue(env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL)),
     preferred_auth_mode: preferredAuthMode,

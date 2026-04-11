@@ -8,10 +8,12 @@ const ENV_PATH = path.join(process.cwd(), '.dev.vars');
 loadLocalEnv();
 
 async function main() {
-  const code = cleanValue(process.argv[2]);
+  const args = process.argv.slice(2);
+  const kind = resolveKind(args);
+  const code = cleanValue(args.find((arg) => !String(arg).startsWith('--') && arg !== 'deals' && arg !== 'contacts'));
   const orgDomain = resolveOrgDomain();
-  const clientId = cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID);
-  const clientSecret = cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET);
+  const clientId = resolveOauthClientId(kind);
+  const clientSecret = resolveOauthClientSecret(kind);
   const supabaseUrl = cleanValue(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
   const redirectUri =
     cleanValue(process.env.FRESHSALES_REDIRECT_URI) ||
@@ -21,7 +23,7 @@ async function main() {
     (supabaseUrl ? `${supabaseUrl}/functions/v1/oauth` : null);
 
   if (!code || !orgDomain || !clientId || !clientSecret || !redirectUri) {
-    throw new Error('code, FRESHSALES_OAUTH_CLIENT_ID, FRESHSALES_OAUTH_CLIENT_SECRET, org domain e redirect_uri sao obrigatorios');
+    throw new Error('code, credenciais OAuth de Deals (ou genéricas), org domain e redirect_uri sao obrigatorios');
   }
 
   const body = new URLSearchParams({
@@ -59,6 +61,7 @@ async function main() {
 
   console.log(JSON.stringify({
     ok: true,
+    kind,
     org_domain: orgDomain,
     token_type: cleanValue(payload.token_type) || 'Bearer',
     expires_in: expiresIn,
@@ -83,6 +86,41 @@ function loadLocalEnv() {
 function cleanValue(value) {
   const text = String(value || '').trim();
   return text || null;
+}
+
+function resolveKind(args) {
+  const joined = args.join(' ').toLowerCase();
+  return joined.includes('contacts') ? 'contacts' : 'deals';
+}
+
+function resolveOauthClientId(kind) {
+  if (kind === 'contacts') {
+    return (
+      cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID) ||
+      cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
+      cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID)
+    );
+  }
+  return (
+    cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID)
+  );
+}
+
+function resolveOauthClientSecret(kind) {
+  if (kind === 'contacts') {
+    return (
+      cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET) ||
+      cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
+      cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET)
+    );
+  }
+  return (
+    cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET)
+  );
 }
 
 function resolveOrgDomain() {

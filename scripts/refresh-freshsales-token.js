@@ -9,8 +9,8 @@ loadLocalEnv();
 
 async function main() {
   const orgDomain = resolveOrgDomain();
-  const clientId = cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID);
-  const clientSecret = cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET);
+  const clientId = resolveFreshsalesOauthClientId();
+  const clientSecret = resolveFreshsalesOauthClientSecret();
   const refreshToken = cleanValue(process.env.FRESHSALES_REFRESH_TOKEN);
   const supabaseUrl = cleanValue(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
   const redirectUri =
@@ -21,7 +21,7 @@ async function main() {
     (supabaseUrl ? `${supabaseUrl}/functions/v1/oauth` : null);
 
   if (!orgDomain || !clientId || !clientSecret || !refreshToken || !redirectUri) {
-    throw new Error('FRESHSALES_OAUTH_CLIENT_ID, FRESHSALES_OAUTH_CLIENT_SECRET, FRESHSALES_REFRESH_TOKEN, redirect_uri e org domain sao obrigatorios');
+    throw new Error('Credenciais OAuth de Deals (ou genéricas), FRESHSALES_REFRESH_TOKEN, redirect_uri e org domain sao obrigatorios');
   }
 
   const body = new URLSearchParams({
@@ -83,6 +83,22 @@ function loadLocalEnv() {
 function cleanValue(value) {
   const text = String(value || '').trim();
   return text || null;
+}
+
+function resolveFreshsalesOauthClientId() {
+  return (
+    cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID)
+  );
+}
+
+function resolveFreshsalesOauthClientSecret() {
+  return (
+    cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET)
+  );
 }
 
 function resolveOrgDomain() {

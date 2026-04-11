@@ -226,6 +226,33 @@ function resolveOauthRedirectUri(env) {
   );
 }
 
+function resolveFreshsalesOauthClientId(env) {
+  return (
+    getCleanEnvValue(env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID) ||
+    getCleanEnvValue(env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
+    getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_ID) ||
+    null
+  );
+}
+
+function resolveFreshsalesOauthClientSecret(env) {
+  return (
+    getCleanEnvValue(env.FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET) ||
+    getCleanEnvValue(env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
+    getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_SECRET) ||
+    null
+  );
+}
+
+function resolveFreshsalesOauthScope(env) {
+  return (
+    getCleanEnvValue(env.FRESHSALES_CONTACTS_SCOPES) ||
+    getCleanEnvValue(env.FRESHSALES_DEALS_SCOPES) ||
+    getCleanEnvValue(env.FRESHSALES_SCOPES) ||
+    null
+  );
+}
+
 async function getStoredOauthRow(env) {
   const result = await supabaseRestRequest(
     env,
@@ -267,14 +294,14 @@ async function seedOauthRowFromEnv(env) {
     refresh_token: refreshToken,
     expires_at: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),
     token_type: getCleanEnvValue(env.FRESHSALES_TOKEN_TYPE) || "Bearer",
-    scope: getCleanEnvValue(env.FRESHSALES_SCOPES) || null,
+    scope: resolveFreshsalesOauthScope(env),
     updated_at: new Date().toISOString(),
   });
 }
 
 async function refreshOauthRow(env, refreshToken) {
-  const clientId = getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_ID);
-  const clientSecret = getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_SECRET);
+  const clientId = resolveFreshsalesOauthClientId(env);
+  const clientSecret = resolveFreshsalesOauthClientSecret(env);
   const orgDomain = resolveOauthOrgDomain(env);
   const redirectUri = resolveOauthRedirectUri(env);
   if (!clientId || !clientSecret || !orgDomain || !redirectUri || !refreshToken) return null;
@@ -306,7 +333,7 @@ async function refreshOauthRow(env, refreshToken) {
     refresh_token: payload.refresh_token || refreshToken,
     expires_at: new Date(Date.now() + Number(payload.expires_in || 1799) * 1000).toISOString(),
     token_type: payload.token_type || "Bearer",
-    scope: payload.scope || getCleanEnvValue(env.FRESHSALES_SCOPES) || null,
+    scope: payload.scope || resolveFreshsalesOauthScope(env) || null,
     updated_at: new Date().toISOString(),
   });
 

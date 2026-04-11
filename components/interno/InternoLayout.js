@@ -416,6 +416,214 @@ function buildCoverageCards(moduleHistory = {}) {
     });
 }
 
+const PRIORITY_MODULE_KEYS = new Set(["contacts", "publicacoes", "processos", "dotobot", "ai-task"]);
+
+function summarizeModuleAlert(moduleKey, entries = [], fingerprintStates = {}) {
+  const moduleEntries = entries.filter((entry) => entry?.module === moduleKey);
+  const recurring = summarizeFingerprints(moduleEntries, fingerprintStates);
+  const sla = summarizeSla(moduleEntries, recurring, fingerprintStates);
+  const errors = moduleEntries.filter((entry) => entry?.severity === "error").length;
+  const warnings = moduleEntries.filter((entry) => entry?.severity === "warn").length;
+  const recurringOpen = recurring.filter((item) => item.status === "aberto").length;
+  const tone = sla.tone === "error" || errors >= 3 ? "danger" : sla.tone === "warn" || warnings > 0 ? "warn" : "success";
+  return {
+    moduleKey,
+    entries: moduleEntries.length,
+    errors,
+    warnings,
+    recurringOpen,
+    recurringWatching: recurring.filter((item) => item.status === "acompanhando").length,
+    overdue: sla.overdue,
+    stale: sla.buckets.acima_72h,
+    buckets: sla.buckets,
+    tone,
+  };
+}
+
+function deriveModuleSafeWindow(moduleKey, snapshot, alert) {
+  const tone = alert?.tone || "success";
+  const isCritical = tone === "danger";
+  const isWarn = tone === "warn";
+
+  if (moduleKey === "contacts") {
+    const syncLimit = Number(snapshot?.settings?.syncLimit || 0) || 100;
+    const reconcileLimit = Number(snapshot?.settings?.reconcileLimit || 0) || 20;
+    return {
+      blocked: isCritical,
+      summary: isCritical
+        ? "Segure novas bulk actions amplas em contatos ate estabilizar CRM e persistencia."
+        : isWarn
+          ? "Reduza a operacao para um lote menor e acompanhe CRM/portal antes de ampliar."
+          : "Bulk actions podem seguir em lote curto com observacao normal.",
+      chips: [
+        `sync sugerido ${Math.max(10, Math.min(syncLimit, isCritical ? 25 : isWarn ? 50 : 100))}`,
+        `reconcile sugerido ${Math.max(5, Math.min(reconcileLimit, isCritical ? 10 : isWarn ? 15 : 20))}`,
+      ],
+    };
+  }
+
+  if (moduleKey === "publicacoes") {
+    const limit = Number(snapshot?.limit || 0) || 10;
+    const pendingJobs = Array.isArray(snapshot?.jobs) ? snapshot.jobs.filter((item) => ["pending", "running"].includes(String(item?.status || ""))).length : 0;
+    return {
+      blocked: isCritical || pendingJobs > 1,
+      summary: isCritical || pendingJobs > 1
+        ? "Nao amplie o lote de publicacoes enquanto houver recorrencia critica ou jobs concorrentes."
+        : isWarn
+          ? "Use lote curto e drene a fila antes de disparar nova rodada."
+          : "Fila sob controle para uma rodada operacional padrao.",
+      chips: [
+        `lote sugerido ${Math.max(5, Math.min(limit, isCritical ? 5 : isWarn ? 8 : 10))}`,
+        `jobs ativos ${pendingJobs}`,
+      ],
+    };
+  }
+
+  if (moduleKey === "processos") {
+    const limit = Number(snapshot?.limit || 0) || 2;
+    const queueHints = Object.values(snapshot?.queueBatchSizes || {}).map((value) => Number(value || 0)).filter(Boolean);
+    const baseline = queueHints.length ? Math.min(...queueHints) : limit;
+    return {
+      blocked: isCritical,
+      summary: isCritical
+        ? "Trave lote amplo em processos e priorize a amostra reincidente."
+        : isWarn
+          ? "Operar processos em lote minimo ate validar o ganho do ciclo."
+          : "Lote de processos pode seguir no ritmo padrao do painel.",
+      chips: [
+        `lote sugerido ${Math.max(2, Math.min(baseline, isCritical ? 5 : isWarn ? 8 : 15))}`,
+        `filas ${queueHints.length || 0}`,
+      ],
+    };
+  }
+
+  return null;
+}
+
+function getModulePlaybook(moduleKey) {
+  const playbooks = {
+    contacts: {
+      pane: "crm",
+      tag: "crm",
+      checklist: [
+        "Validar mapeamento Freshsales e IDs de contato/account antes de novo lote.",
+        "Checar persistencia no portal e reconciliacao no Supabase.",
+      ],
+    },
+    publicacoes: {
+      pane: "jobs",
+      tag: "jobs",
+      checklist: [
+        "Inspecionar fila, drain e reflexo no Freshsales antes de reenviar.",
+        "Conferir edge functions de extracao e sync posteriores.",
+      ],
+    },
+    processos: {
+      pane: "functions",
+      tag: "functions",
+      checklist: [
+        "Revisar processo-sync, datajud-worker e payload do lote.",
+        "Confirmar IDs de processo e consistencia do espelho operacional.",
+      ],
+    },
+    dotobot: {
+      pane: "dotobot",
+      tag: "dotobot",
+      checklist: [
+        "Checar contexto, tools acionadas e estado do copiloto.",
+        "Confirmar se a falha veio do prompt, do backend ou de permissao.",
+      ],
+    },
+    "ai-task": {
+      pane: "ai-task",
+      tag: "ai-task",
+      checklist: [
+        "Revisar run ativa, provider, embeddings e orchestration path.",
+        "Conferir erros recorrentes antes de reexecutar automacoes.",
+      ],
+    },
+  };
+  return playbooks[moduleKey] || null;
+}
+
+function getTagPlaybook(tagKey) {
+  const playbooks = {
+    webhook: {
+      title: "Playbook webhook",
+      checklist: [
+        "Validar origem, assinatura e deduplicacao antes de reenviar o evento.",
+        "Conferir payload recebido e resposta rapida do endpoint de entrada.",
+      ],
+    },
+    supabase: {
+      title: "Playbook supabase",
+      checklist: [
+        "Revisar RLS, schema, policy e funcoes chamadas pelo fluxo.",
+        "Confirmar erro PostgREST/PGRST e impacto no cache de schema.",
+      ],
+    },
+    functions: {
+      title: "Playbook functions",
+      checklist: [
+        "Inspecionar payload, secrets, timeout e logs da edge/API function.",
+        "Checar dependencia externa antes de reenfileirar ou repetir o lote.",
+      ],
+    },
+    crm: {
+      title: "Playbook CRM",
+      checklist: [
+        "Validar IDs Freshsales, rate limit e mapeamento de campos.",
+        "Confirmar se o espelho no interno e portal bate com o CRM antes do retry.",
+      ],
+    },
+    jobs: {
+      title: "Playbook jobs",
+      checklist: [
+        "Verificar fila, itens presos, drain parcial e volume do lote.",
+        "Checar se o job falhou por timeout, lock ou dado inconsistente.",
+      ],
+    },
+  };
+  return playbooks[tagKey] || null;
+}
+
+function getBulkGuardrail(logPane, paneRisk, paneSla, paneEntries = []) {
+  const eligible = new Set(["crm", "jobs", "functions"]);
+  const moduleLike = new Set(["contacts", "publicacoes", "processos"]);
+  if (!eligible.has(logPane) && !moduleLike.has(logPane)) return null;
+
+  const total = paneEntries.length;
+  const running = paneEntries.filter((entry) => entry?.status === "running").length;
+  const errors = paneEntries.filter((entry) => entry?.severity === "error").length;
+  const shouldThrottle = paneRisk.score >= 35 || paneSla.openRecurring > 0 || paneSla.buckets.acima_72h > 0;
+  const shouldBlockRetry = paneRisk.score >= 70 || errors >= 4 || paneSla.buckets.acima_72h >= 2;
+
+  return {
+    title: shouldBlockRetry ? "Bloqueio preventivo de retry" : "Retry seguro para lotes",
+    tone: shouldBlockRetry ? "error" : shouldThrottle ? "warn" : "info",
+    summary: shouldBlockRetry
+      ? "Existe reincidencia suficiente para evitar novo lote cheio ate revisar causa raiz."
+      : shouldThrottle
+        ? "O lote deve ser reduzido e reprocessado por fatias menores com observacao reforcada."
+        : "Trilha sob controle, mas ainda vale repetir em lotes pequenos quando houver dependencias externas.",
+    actions: shouldBlockRetry
+      ? [
+          "Nao repetir lote completo agora; priorizar fingerprints abertos e itens acima de 72h.",
+          "Executar validacao de payload, IDs e dependencia externa antes de novo retry.",
+        ]
+      : shouldThrottle
+        ? [
+            "Reduzir o lote para uma janela menor e acompanhar no console a cada tentativa.",
+            "Separar itens com erro recorrente antes de reenfileirar o restante.",
+          ]
+        : [
+            "Preferir retry incremental e registrar o resultado no console logo apos a execucao.",
+            "Manter filtros por modulo/tag para isolar regressao rapidamente.",
+          ],
+    metrics: { total, running, errors },
+  };
+}
+
 export default function InternoLayout({
   title,
   description,
@@ -511,6 +719,18 @@ export default function InternoLayout({
   const coverageErrorCount = useMemo(() => {
     return coverageCards.filter((item) => item.tone === "danger").length;
   }, [coverageCards]);
+  const moduleAlerts = useMemo(() => {
+    const map = new Map();
+    for (const card of coverageCards) {
+      if (!PRIORITY_MODULE_KEYS.has(card.key)) continue;
+      const alert = summarizeModuleAlert(card.key, activityLog, fingerprintStates);
+      map.set(card.key, {
+        ...alert,
+        safeWindow: deriveModuleSafeWindow(card.key, card.snapshot, alert),
+      });
+    }
+    return map;
+  }, [activityLog, coverageCards, fingerprintStates]);
 
   useEffect(() => {
     persistModuleHistory("interno-shell", {
@@ -794,6 +1014,25 @@ export default function InternoLayout({
     setActivityLogFilters(normalized);
   }
 
+  function handleOpenModuleAlert(moduleKey) {
+    const playbook = getModulePlaybook(moduleKey);
+    setConsoleOpen(true);
+    setConsoleTab("log");
+    if (playbook?.pane) {
+      setLogPane(playbook.pane);
+    }
+    updateFilters({
+      module: moduleKey,
+      tag: playbook?.tag || "",
+    });
+    setLogSearch("");
+    appendOperationalNote({
+      type: "alerta_modulo",
+      text: `Console direcionado para o modulo ${moduleKey}.`,
+      meta: { moduleKey, pane: playbook?.pane || "activity", tag: playbook?.tag || "" },
+    });
+  }
+
   function handlePageDebug() {
     appendActivityLog({
       label: "Debug UI (pagina)",
@@ -868,6 +1107,8 @@ export default function InternoLayout({
   const paneRisk = useMemo(() => calculateRiskScore(paneEntries, paneFingerprintSummary), [paneEntries, paneFingerprintSummary]);
   const paneTimeline = useMemo(() => summarizeTimeline(paneEntries), [paneEntries]);
   const paneSla = useMemo(() => summarizeSla(paneEntries, paneFingerprintSummary, fingerprintStates), [fingerprintStates, paneEntries, paneFingerprintSummary]);
+  const paneTagPlaybook = useMemo(() => getTagPlaybook(logPane), [logPane]);
+  const paneBulkGuardrail = useMemo(() => getBulkGuardrail(logPane, paneRisk, paneSla, paneEntries), [logPane, paneEntries, paneRisk, paneSla]);
   useEffect(() => {
     setLogExpanded(null);
   }, [logPane]);
@@ -1106,6 +1347,68 @@ export default function InternoLayout({
                     <div className="grid gap-3 xl:grid-cols-2">
                       {coverageCards.length ? coverageCards.map((item) => (
                         <div key={item.key} className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.55)] p-3 text-[11px]">
+                          {moduleAlerts.has(item.key) ? <div className="mb-3 rounded-lg border border-[#22342F] bg-[rgba(10,12,11,0.45)] px-3 py-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Alerta do modulo</span>
+                              <span className={
+                                moduleAlerts.get(item.key)?.tone === "danger"
+                                  ? "text-red-200"
+                                  : moduleAlerts.get(item.key)?.tone === "warn"
+                                    ? "text-[#D9B46A]"
+                                    : "text-[#11D473]"
+                              }>
+                                {moduleAlerts.get(item.key)?.tone === "danger" ? "critico" : moduleAlerts.get(item.key)?.tone === "warn" ? "monitorar" : "estavel"}
+                              </span>
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
+                              <span className="rounded-full border border-[#5B2D2D] px-2 py-0.5 text-[#FECACA]">erros {moduleAlerts.get(item.key)?.errors || 0}</span>
+                              <span className="rounded-full border border-[#6E5630] px-2 py-0.5 text-[#FDE68A]">warn {moduleAlerts.get(item.key)?.warnings || 0}</span>
+                              <span className="rounded-full border border-[#22342F] px-2 py-0.5 text-[#E6E0D3]">abertos {moduleAlerts.get(item.key)?.recurringOpen || 0}</span>
+                              <span className="rounded-full border border-[#22342F] px-2 py-0.5 text-[#E6E0D3]">acima 72h {moduleAlerts.get(item.key)?.stale || 0}</span>
+                            </div>
+                            {moduleAlerts.get(item.key)?.safeWindow ? <div className="mt-3 rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">
+                                  {moduleAlerts.get(item.key).safeWindow.blocked ? "trava preventiva" : "janela segura"}
+                                </span>
+                                <div className="flex flex-wrap gap-2 text-[10px]">
+                                  {moduleAlerts.get(item.key).safeWindow.chips.map((chip) => (
+                                    <span key={`${item.key}_${chip}`} className="rounded-full border border-[#22342F] px-2 py-0.5 text-[#E6E0D3]">{chip}</span>
+                                  ))}
+                                </div>
+                              </div>
+                              <p className="mt-2 text-[#C7D0CA]">{moduleAlerts.get(item.key).safeWindow.summary}</p>
+                            </div> : null}
+                            {getModulePlaybook(item.key)?.checklist?.length ? <div className="mt-3 space-y-1 text-[11px] text-[#C7D0CA]">
+                              {getModulePlaybook(item.key).checklist.map((step) => (
+                                <div key={`${item.key}_${step}`} className="rounded-lg border border-[#1E2E29] bg-[rgba(8,10,9,0.45)] px-2 py-1.5">
+                                  {step}
+                                </div>
+                              ))}
+                            </div> : null}
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenModuleAlert(item.key)}
+                                className="rounded-full border border-[#C5A059] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#F4E7C2]"
+                              >
+                                Abrir trilha guiada
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConsoleOpen(true);
+                                  setConsoleTab("log");
+                                  setLogPane("activity");
+                                  updateFilters({ module: item.key });
+                                  setLogSearch("");
+                                }}
+                                className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8]"
+                              >
+                                Ver atividade
+                              </button>
+                            </div>
+                          </div> : null}
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div>
                               <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">{item.key}</p>
@@ -1270,6 +1573,53 @@ export default function InternoLayout({
                           Nenhuma entrada classificada nesta trilha. Existem {unclassifiedTagEntriesCount} evento(s) ainda sem tag automatica compativel.
                         </span>
                       ) : null}
+                    </div> : null}
+                    {paneTagPlaybook ? <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">{paneTagPlaybook.title}</p>
+                          <p className="mt-1 text-[11px] text-[#9BAEA8]">Checklist sugerido para a trilha atual do console.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateFilters({ ...logFilters, tag: logPane });
+                            appendOperationalNote({
+                              type: "playbook_tag",
+                              text: `Playbook ${logPane} consultado no console.`,
+                              meta: { tag: logPane, pane: logPane },
+                            });
+                          }}
+                          className="rounded-full border border-[#C5A059] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#F4E7C2]"
+                        >
+                          Fixar filtro
+                        </button>
+                      </div>
+                      <div className="mt-3 space-y-2 text-[11px] text-[#C7D0CA]">
+                        {paneTagPlaybook.checklist.map((step) => (
+                          <div key={`${logPane}_${step}`} className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2">
+                            {step}
+                          </div>
+                        ))}
+                      </div>
+                    </div> : null}
+                    {paneBulkGuardrail ? <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">{paneBulkGuardrail.title}</p>
+                          <p className="mt-1 text-[11px] text-[#9BAEA8]">{paneBulkGuardrail.summary}</p>
+                        </div>
+                        <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(paneBulkGuardrail.tone)}`}>
+                          itens {paneBulkGuardrail.metrics.total} · erros {paneBulkGuardrail.metrics.errors} · running {paneBulkGuardrail.metrics.running}
+                        </span>
+                      </div>
+                      <div className="mt-3 space-y-2 text-[11px] text-[#C7D0CA]">
+                        {paneBulkGuardrail.actions.map((step) => (
+                          <div key={`${logPane}_${step}`} className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2">
+                            {step}
+                          </div>
+                        ))}
+                      </div>
                     </div> : null}
                     {!SPECIAL_LOG_PANES.has(logPane) && paneEntries.length ? <div className="grid gap-3 xl:grid-cols-2">
                       <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 xl:col-span-2">

@@ -17,8 +17,12 @@ async function main() {
     oauth_env: {
       has_api_key: Boolean(cleanValue(process.env.FRESHSALES_API_KEY)),
       has_basic_auth: Boolean(cleanValue(process.env.FRESHSALES_BASIC_AUTH)),
-      has_client_id: Boolean(cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID)),
-      has_client_secret: Boolean(cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET)),
+      has_client_id: Boolean(resolveFreshsalesOauthClientId()),
+      has_client_secret: Boolean(resolveFreshsalesOauthClientSecret()),
+      has_deals_client_id: Boolean(cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_ID)),
+      has_deals_client_secret: Boolean(cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET)),
+      has_contacts_client_id: Boolean(cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID)),
+      has_contacts_client_secret: Boolean(cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET)),
       has_refresh_token: Boolean(cleanValue(process.env.FRESHSALES_REFRESH_TOKEN)),
       has_org_domain: Boolean(resolveOrgDomain()),
       has_redirect_uri: Boolean(cleanValue(process.env.FRESHSALES_REDIRECT_URI) || cleanValue(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)),
@@ -94,6 +98,30 @@ function loadLocalEnv() {
 function cleanValue(value) {
   const text = String(value || '').trim();
   return text || null;
+}
+
+function resolveFreshsalesOauthClientId() {
+  return (
+    cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID)
+  );
+}
+
+function resolveFreshsalesOauthClientSecret() {
+  return (
+    cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET)
+  );
+}
+
+function resolveFreshsalesOauthScope() {
+  return (
+    cleanValue(process.env.FRESHSALES_CONTACTS_SCOPES) ||
+    cleanValue(process.env.FRESHSALES_DEALS_SCOPES) ||
+    cleanValue(process.env.FRESHSALES_SCOPES)
+  );
 }
 
 function resolveFreshsalesBases() {
@@ -276,7 +304,7 @@ async function seedOauthRowFromEnv() {
     refresh_token: refreshToken,
     expires_at: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),
     token_type: cleanValue(process.env.FRESHSALES_TOKEN_TYPE) || 'Bearer',
-    scope: cleanValue(process.env.FRESHSALES_SCOPES) || null,
+    scope: resolveFreshsalesOauthScope() || null,
     updated_at: new Date().toISOString(),
   });
 }
@@ -465,8 +493,8 @@ function summarizePayload(payload) {
 
 function hasRefreshEnv() {
   return Boolean(
-    cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID) &&
-    cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET) &&
+    resolveFreshsalesOauthClientId() &&
+    resolveFreshsalesOauthClientSecret() &&
     cleanValue(process.env.FRESHSALES_REFRESH_TOKEN) &&
     resolveOrgDomain() &&
     cleanValue(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)
@@ -504,8 +532,8 @@ function readOrgDomainFromApiBase(raw) {
 
 async function tryRefresh(returnToken = false) {
   const orgDomain = resolveOrgDomain();
-  const clientId = cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID);
-  const clientSecret = cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET);
+  const clientId = resolveFreshsalesOauthClientId();
+  const clientSecret = resolveFreshsalesOauthClientSecret();
   const refreshToken = cleanValue(process.env.FRESHSALES_REFRESH_TOKEN);
   const supabaseUrl = cleanValue(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
   const redirectUri = cleanValue(process.env.FRESHSALES_REDIRECT_URI || process.env.REDIRECT_URI || process.env.FRESHSALES_OAUTH_CALLBACK_URL || process.env.OAUTH_CALLBACK_URL) || (supabaseUrl ? `${supabaseUrl}/functions/v1/oauth` : null);
@@ -535,7 +563,7 @@ async function tryRefresh(returnToken = false) {
         refresh_token: payload.refresh_token || refreshToken,
         expires_at: new Date(Date.now() + Number(payload.expires_in || 1799) * 1000).toISOString(),
         token_type: payload.token_type || 'Bearer',
-        scope: payload.scope || cleanValue(process.env.FRESHSALES_SCOPES) || null,
+        scope: payload.scope || resolveFreshsalesOauthScope() || null,
         updated_at: new Date().toISOString(),
       });
     }

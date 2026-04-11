@@ -151,23 +151,23 @@ function renderRichText(text) {
   });
 }
 
-function MessageBubble({ message, isTyping }) {
+function MessageBubble({ message, isTyping, onCopy, onReuse, onOpenAiTask }) {
   const isAssistant = message.role === "assistant";
   const isSystem = message.role === "system";
   const alignClass = isAssistant ? "justify-start" : "justify-end";
   const bubbleClass = isAssistant
-    ? "border-[#22342F] bg-[rgba(255,255,255,0.03)] text-[#F4F1EA]"
+    ? "border-[#1C2623] bg-[rgba(17,22,20,0.96)] text-[#F4F1EA] shadow-[0_8px_24px_rgba(0,0,0,0.16)]"
     : isSystem
-      ? "border-[#2E3A36] bg-[rgba(255,255,255,0.02)] text-[#9FB1AA]"
-      : "border-[#3C3320] bg-[rgba(40,32,19,0.28)] text-[#F7F1E6]";
+      ? "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9FB1AA]"
+      : "border-[#2F3029] bg-[rgba(196,160,89,0.08)] text-[#F7F1E6]";
 
   // Suporte multimodal: imagens/Ã¡udios
   const media = Array.isArray(message.media) ? message.media : [];
 
   return (
     <div className={`flex ${alignClass}`}>
-      <article className={`max-w-[min(48rem,92%)] rounded-[24px] border px-4 py-3 text-sm ${bubbleClass}`}>
-        <div className="mb-2 flex items-center justify-between gap-4 text-[10px] uppercase tracking-[0.2em] opacity-60">
+      <article className={`max-w-[min(46rem,92%)] rounded-[20px] border px-4 py-3 text-sm ${bubbleClass}`}>
+        <div className="mb-2 flex items-center justify-between gap-4 text-[10px] uppercase tracking-[0.16em] opacity-60">
           <span>{isAssistant ? "Dotobot" : isSystem ? "Sistema" : "Administrador / equipe"}</span>
           {message.createdAt ? <span>{new Date(message.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span> : null}
         </div>
@@ -200,6 +200,31 @@ function MessageBubble({ message, isTyping }) {
                 })}
               </div>
             )}
+            {(isAssistant || isSystem) && message.text ? (
+              <div className="mt-4 flex flex-wrap gap-2 border-t border-[#22342F] pt-3 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => onCopy?.(message)}
+                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#C6D1CC] transition hover:border-[#C5A059] hover:text-[#F1D39A]"
+                >
+                  Copiar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onReuse?.(message)}
+                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#C6D1CC] transition hover:border-[#C5A059] hover:text-[#F1D39A]"
+                >
+                  Usar no composer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenAiTask?.(message)}
+                  className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                >
+                  Abrir no AI Task
+                </button>
+              </div>
+            ) : null}
           </>
         )}
       </article>
@@ -441,6 +466,7 @@ export default function DotobotCopilot({
   const [mode, setMode] = useState("task");
   const [provider, setProvider] = useState("gpt");
   const [contextEnabled, setContextEnabled] = useState(true);
+  const [rightPanelTab, setRightPanelTab] = useState("tasks");
   const [attachments, setAttachments] = useState([]);
   const [showSlashCommands, setShowSlashCommands] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -1302,6 +1328,69 @@ export default function DotobotCopilot({
     composerRef.current?.focus();
   }
 
+  async function handleCopyMessage(message) {
+    const text = String(message?.text || "").trim();
+    if (!text) return;
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      }
+      logDotobotUi("Dotobot: mensagem copiada", "dotobot_message_copy", {
+        role: message?.role || "assistant",
+        size: text.length,
+      }, { component: "DotobotMessageActions" });
+    } catch {}
+  }
+
+  function handleReuseMessage(message) {
+    const text = String(message?.text || "").trim();
+    if (!text) return;
+    setWorkspaceOpen(true);
+    setInput(text);
+    setShowSlashCommands(text.trimStart().startsWith("/"));
+    setTimeout(() => composerRef.current?.focus(), 50);
+  }
+
+  function handleOpenMessageInAiTask(message) {
+    const text = String(message?.text || "").trim();
+    if (!text) return;
+    const handoff = {
+      id: `${Date.now()}_dotobot_message_handoff`,
+      label: "Resposta do Dotobot",
+      mission: text,
+      moduleKey: "dotobot",
+      moduleLabel: "Dotobot",
+      routePath: routePath || "/interno",
+      mode,
+      provider,
+      tags: ["ai-task", "dotobot", "message"],
+      createdAt: nowIso(),
+      conversationId: activeConversationId || null,
+    };
+    setModuleHistory("ai-task", {
+      routePath: "/interno/ai-task",
+      handoffFromDotobot: handoff,
+      consoleTags: handoff.tags,
+    });
+    appendActivityLog({
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      module: "ai-task",
+      component: "DotobotMessageActions",
+      label: "Dotobot: resposta enviada ao AI Task",
+      action: "dotobot_message_to_ai_task",
+      method: "UI",
+      path: "/interno/ai-task",
+      status: "success",
+      tags: handoff.tags,
+      response: buildDiagnosticReport({
+        title: "Mensagem enviada ao AI Task",
+        summary: text.slice(0, 300),
+        sections: [{ label: "handoff", value: handoff }],
+      }),
+    });
+    router.push("/interno/ai-task");
+  }
+
   function handleSlashCommand(command) {
     setInput(`${command.value} `);
     setShowSlashCommands(false);
@@ -1407,6 +1496,8 @@ export default function DotobotCopilot({
   const isWorkspaceShell = workspaceOpen;
   const railCollapsed = compactRail ? true : isCollapsed;
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
+  const visibleLegalActions = LEGAL_ACTIONS.slice(0, 3);
+  const visibleQuickPrompts = QUICK_PROMPTS.slice(0, 2);
   let filteredConversations = filterVisibleConversations(conversations, conversationSearch);
   if (!showArchived) {
     filteredConversations = filteredConversations.filter(c => !c.archived);
@@ -1482,14 +1573,17 @@ export default function DotobotCopilot({
         <header className="border-b border-[#22342F] px-4 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Dotobot AI</p>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Copilot operacional</p>
               <div className="mt-2 flex items-center gap-3">
-                <h3 className="font-serif text-xl text-[#F5F1E8]">Copilot</h3>
+                <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#F5F1E8]">Dotobot</h3>
                 <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] ${activeStatus === "processing" ? "border-[#8b6f33] text-[#D9B46A]" : "border-[#234034] text-[#80C7A1]"}`}>
                   <span className={`h-2 w-2 rounded-full ${activeStatus === "processing" ? "bg-[#D9B46A]" : "bg-[#80C7A1]"}`} />
                   {activeStatus === "processing" ? uiStateLabel : "Idle"}
                 </span>
               </div>
+              <p className="mt-2 max-w-md text-xs leading-6 text-[#8FA19B]">
+                Chat focado em execucao, contexto e handoff com AI Task.
+              </p>
             </div>
             <div className="flex flex-col items-end gap-2">
               <button
@@ -1536,21 +1630,14 @@ export default function DotobotCopilot({
               )}
             </div>
           </div>
-
-          <div className="mt-4 flex flex-wrap gap-2 text-xs text-[#9BAEA8]">
-            <span className="rounded-full border border-[#22342F] px-3 py-2">Hist: {messages.length}</span>
-            <span className="rounded-full border border-[#22342F] px-3 py-2">Tasks: {runningCount}</span>
-            <span className="rounded-full border border-[#22342F] px-3 py-2">Modo: {activeMode.label}</span>
-            <span className="rounded-full border border-[#22342F] px-3 py-2">Modelo: {activeProviderLabel}</span>
-          </div>
         </header>
 
         {compactRail ? (
           <div className="px-4 py-4">
             <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Copilot compacto</p>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Workspace resumido</p>
               <p className="mt-2 text-sm leading-6 text-[#9BAEA8]">
-                Painel lateral de acesso rapido. A conversa completa, tasks e execucao em tela cheia ficam no modulo central.
+                Conversa recente, prompts rapidos e entrada imediata. Use a tela cheia para trilha completa de tasks e contexto.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
@@ -1578,7 +1665,7 @@ export default function DotobotCopilot({
           <>
             <div className="border-b border-[#22342F] px-4 py-3">
               <div className="flex flex-wrap gap-2">
-                {LEGAL_ACTIONS.slice(0, 2).map((action) => (
+                {visibleLegalActions.slice(0, 2).map((action) => (
                   <button
                     key={action.label}
                     type="button"
@@ -1625,7 +1712,7 @@ export default function DotobotCopilot({
 
             <div className="border-t border-[#22342F] px-4 py-4">
               <div className="mb-3 flex flex-wrap gap-2">
-                {QUICK_PROMPTS.map((prompt) => (
+                {visibleQuickPrompts.map((prompt) => (
                   <button
                     key={prompt}
                     type="button"
@@ -1725,14 +1812,14 @@ export default function DotobotCopilot({
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-2xl font-semibold tracking-[-0.03em] text-[#F5F1E8] md:text-[30px]">Dotobot Hermida Maia</h2>
+                    <h2 className="text-2xl font-semibold tracking-[-0.03em] text-[#F5F1E8] md:text-[28px]">Dotobot</h2>
                     <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] ${activeStatus === "processing" ? "border-[#8b6f33] text-[#D9B46A]" : "border-[#234034] text-[#80C7A1]"}`}>
                       <span className={`h-2 w-2 rounded-full ${activeStatus === "processing" ? "bg-[#D9B46A]" : "bg-[#80C7A1]"}`} />
                       {activeStatus === "processing" ? "Processando" : "Online"}
                     </span>
                   </div>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-[#9BAEA8]">
-                    {activeConversation?.title || "Nova conversa"} Â· conversa ativa no centro, contexto e documentos na lateral direita.
+                    {activeConversation?.title || "Nova conversa"} · conversa principal ao centro, historico e contexto como apoio.
                   </p>
                 </div>
 
@@ -1775,6 +1862,13 @@ export default function DotobotCopilot({
                   </button>
                   <button
                     type="button"
+                    onClick={() => router.push("/interno/ai-task")}
+                    className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                  >
+                    Abrir no AI Task
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setWorkspaceOpen(false)}
                     className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                   >
@@ -1785,8 +1879,8 @@ export default function DotobotCopilot({
             </header>
 
             <div className="flex-1 overflow-hidden p-4 md:p-5">
-              <div className="grid h-full gap-4 xl:grid-cols-[280px_minmax(0,1.2fr)_340px]">
-                <aside className="flex min-h-0 flex-col overflow-hidden rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
+              <div className="grid h-full gap-4 xl:grid-cols-[260px_minmax(0,1.35fr)_300px]">
+                <aside className="flex min-h-0 flex-col overflow-hidden rounded-[24px] border border-[#1C2623] bg-[rgba(255,255,255,0.015)] shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
                   <div className="border-b border-[#22342F] px-4 py-4 md:px-5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -1845,7 +1939,7 @@ export default function DotobotCopilot({
                         return (
                           <article
                             key={conversation.id}
-                            className={`rounded-[24px] border p-3 transition ${
+                            className={`rounded-[18px] border p-3 transition ${
                               active
                                 ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]"
                                 : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#35554B]"
@@ -1857,22 +1951,16 @@ export default function DotobotCopilot({
                                   <p className="truncate text-sm font-semibold text-[#F5F1E8]">{conversation.title}</p>
                                   <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#9BAEA8]">{conversation.preview}</p>
                                 </div>
-                                <span className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">
-                                  {conversation.messages?.length || 0}
-                                </span>
+                                <div className="text-right">
+                                  <span className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">
+                                    {conversation.messages?.length || 0}
+                                  </span>
+                                  <p className="mt-1 text-[10px] text-[#60706A]">
+                                    {conversation.updatedAt ? new Date(conversation.updatedAt).toLocaleDateString("pt-BR") : ""}
+                                  </p>
+                                </div>
                               </div>
                             </button>
-
-                            <details className="mt-3">
-                              <summary className="cursor-pointer text-[11px] uppercase tracking-[0.16em] text-[#9BAEA8]">
-                                Metadados
-                              </summary>
-                              <div className="mt-3 space-y-2 text-xs text-[#9BAEA8]">
-                                <p>Data: {conversation.updatedAt ? new Date(conversation.updatedAt).toLocaleString("pt-BR") : "n/a"}</p>
-                                <p>Tags: {(conversation.tags || []).join(", ") || "sem tags"}</p>
-                                <p>Anexos: {conversation.attachments?.length || 0}</p>
-                              </div>
-                            </details>
 
                             <div className="mt-3 flex flex-wrap gap-2">
                               <button
@@ -1956,14 +2044,14 @@ export default function DotobotCopilot({
                   </footer>
                 </aside>
 
-                <section className="flex min-h-0 flex-col rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
+                <section className="flex min-h-0 flex-col rounded-[24px] border border-[#1C2623] bg-[rgba(255,255,255,0.015)] shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
                   <div className="border-b border-[#22342F] px-4 py-4 md:px-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Conversa</p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {LEGAL_ACTIONS.map((action) => (
+                        {visibleLegalActions.map((action) => (
                           <button
                             key={action.label}
                             type="button"
@@ -1979,10 +2067,19 @@ export default function DotobotCopilot({
 
                   <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto space-y-3 px-4 py-4 md:px-5">
                     {messages.length ? (
-                      messages.map((message, idx) => <MessageBubble key={message.id || idx} message={message} />)
+                      messages.map((message, idx) => (
+                        <MessageBubble
+                          key={message.id || idx}
+                          message={message}
+                          onCopy={handleCopyMessage}
+                          onReuse={handleReuseMessage}
+                          onOpenAiTask={handleOpenMessageInAiTask}
+                        />
+                      ))
                     ) : (
-                      <div className="rounded-[28px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-5 text-sm text-[#9BAEA8]">
+                      <div className="rounded-[20px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-5 text-sm text-[#9BAEA8]">
                         <p className="text-base font-semibold text-[#F5F1E8]">Pronto para operar.</p>
+                        <p className="mt-2 leading-6">Use uma instrucao curta, um comando com contexto ou envie esta conversa para o AI Task.</p>
                       </div>
                     )}
                     {loading ? (
@@ -2002,7 +2099,7 @@ export default function DotobotCopilot({
 
                   <div className="border-t border-[#22342F] px-4 py-4 md:px-5">
                     <div className="mb-3 flex flex-wrap gap-2">
-                      {QUICK_PROMPTS.map((prompt) => (
+                      {visibleQuickPrompts.map((prompt) => (
                         <button
                           key={prompt}
                           type="button"
@@ -2014,7 +2111,22 @@ export default function DotobotCopilot({
                       ))}
                     </div>
                     <form onSubmit={handleSubmit} className="space-y-3">
-                      <div className="rounded-[28px] border border-[#22342F] bg-[rgba(7,9,8,0.98)] p-3" onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}>
+                      <div className="rounded-[20px] border border-[#1C2623] bg-[rgba(7,9,8,0.98)] p-3" onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}>
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#7F928C]">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full border border-[#22342F] px-2.5 py-1">/{showSlashCommands ? "comandos ativos" : "digite / para comandos"}</span>
+                            <span className="rounded-full border border-[#22342F] px-2.5 py-1">Enter envia</span>
+                            <span className="rounded-full border border-[#22342F] px-2.5 py-1">Shift+Enter quebra</span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button type="button" onClick={handleOpenFiles} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                              Anexar
+                            </button>
+                            <button type="button" onClick={toggleVoiceInput} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                              {isRecording ? "Parar voz" : "Voz"}
+                            </button>
+                          </div>
+                        </div>
                         <textarea
                           ref={composerRef}
                           value={input}
@@ -2024,8 +2136,8 @@ export default function DotobotCopilot({
                           }}
                           onKeyDown={handleComposerKeyDown}
                           onPaste={handlePaste}
-                          rows={5}
-                          placeholder="Digite uma instruÃ§Ã£o jurÃ­dica ou operacional..."
+                          rows={4}
+                          placeholder="Pergunte, delegue uma tarefa ou cole o contexto que precisa operar..."
                           className="w-full resize-none border-0 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-[#60706A]"
                         />
 
@@ -2050,7 +2162,7 @@ export default function DotobotCopilot({
                         ) : null}
 
                         {showSlashCommands && input.trim().startsWith("/") ? (
-                          <div className="mt-3 grid gap-2 rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-2 md:grid-cols-2">
+                          <div className="mt-3 grid gap-2 rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-2 md:grid-cols-2">
                             {SLASH_COMMANDS.map((command) => (
                               <button
                                 key={command.value}
@@ -2071,117 +2183,99 @@ export default function DotobotCopilot({
                           <button type="button" onClick={handleResetChat} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
                           Limpar
                         </button>
-                          <button type="button" onClick={handleOpenFiles} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
-                            Upload
-                          </button>
-                          <button type="button" onClick={toggleVoiceInput} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
-                            {isRecording ? "Stop" : "Voice"}
-                          </button>
-                          <button type="button" onClick={() => composerRef.current?.focus()} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
-                            Cmd+K
+                          <button type="button" onClick={() => router.push("/interno/ai-task")} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                            AI Task
                           </button>
                         </div>
-                        <button type="submit" disabled={loading || !input.trim()} className="rounded-2xl border border-[#C5A059] px-4 py-2 text-sm font-semibold text-[#C5A059] transition disabled:opacity-40">
-                          Send
+                        <button type="submit" disabled={loading || !input.trim()} className="rounded-2xl border border-[#C5A059] bg-[rgba(197,160,89,0.08)] px-4 py-2 text-sm font-semibold text-[#F1D39A] transition disabled:opacity-40 hover:bg-[rgba(197,160,89,0.14)]">
+                          Enviar
                         </button>
                       </div>
                     </form>
                   </div>
                 </section>
 
-                <aside className="min-h-0 space-y-4 overflow-y-auto pr-1 xl:pr-0">
-                  <section className="rounded-[28px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4">
+                <aside className="min-h-0 overflow-hidden rounded-[24px] border border-[#1C2623] bg-[rgba(255,255,255,0.015)]">
+                  <div className="border-b border-[#22342F] px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Tarefas</p>
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Painel</p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setRightPanelTab("tasks")}
+                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "tasks" ? "border-[#C5A059] text-[#F1D39A]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                        >
+                          Tarefas
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRightPanelTab("context")}
+                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "context" ? "border-[#C5A059] text-[#F1D39A]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                        >
+                          Contexto
+                        </button>
                       </div>
-                      <button type="button" onClick={handleResetTasks} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
-                        Limpar
-                      </button>
                     </div>
+                  </div>
 
-                    <div className="mt-4 space-y-3">
-                      {taskHistory.length ? (
-                        taskHistory.map((task) => (
-                          <article key={task.id} className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm">
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]"><TaskStatusChip status={task.status} /></p>
-                                <p className="mt-2 font-semibold text-[#F5F1E8]">{task.query}</p>
-                              </div>
-                              <span className="text-[10px] text-[#9BAEA8]">
-                                {task.startedAt ? new Date(task.startedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "--"}
-                              </span>
-                            </div>
-
-                            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[#9BAEA8]">
-                              <span className="rounded-full border border-[#22342F] px-2.5 py-1">Modo: {task.mode || "task"}</span>
-                              <span className="rounded-full border border-[#22342F] px-2.5 py-1">Modelo: {task.provider || "gpt"}</span>
-                              <span className="rounded-full border border-[#22342F] px-2.5 py-1">Etapas: {task.steps?.length || 0}</span>
-                            </div>
-
-                            {task.sessionId ? <p className="mt-3 text-xs text-[#9BAEA8]">Sessao: {task.sessionId}</p> : null}
-                            {task.contextEnabled === false ? <p className="mt-1 text-xs text-[#9BAEA8]">Contexto estateless.</p> : null}
-                            {task.rag?.retrieval?.enabled ? (
-                              <p className="mt-1 text-xs text-[#9BAEA8]">RAG: {task.rag.retrieval.matches?.length || 0} contextos recuperados</p>
-                            ) : null}
-
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              <button type="button" onClick={() => handlePause(task)} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
-                                {task.status === "paused" ? "Retomar" : "Pausar"}
-                              </button>
-                              <button type="button" onClick={() => handleRetry(task)} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
-                                Replay
-                              </button>
-                              <button type="button" onClick={() => handleCancel(task)} className="rounded-full border border-[#4f2525] px-3 py-1.5 text-[11px] text-[#f2b2b2] transition hover:border-[#f2b2b2]">
-                                Stop
-                              </button>
-                            </div>
-
-                            {task.logs?.length ? (
-                              <details className="mt-3">
-                                <summary className="cursor-pointer text-xs text-[#9BAEA8]">Logs</summary>
-                                <pre className="mt-2 whitespace-pre-wrap rounded-2xl border border-[#22342F] bg-[rgba(4,7,6,0.95)] p-3 text-[11px] leading-6 text-[#C6D1CC]">
-                                  {task.logs.slice(0, 10).join("\n")}
-                                </pre>
-                              </details>
-                            ) : null}
-                          </article>
-                        ))
-                      ) : (
-                        <div className="rounded-[24px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm text-[#9BAEA8]">
-                          Nenhuma tarefa ainda.
-                        </div>
-                      )}
-                    </div>
-                  </section>
-
-                  <section className="rounded-[28px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4">
-                    <details open>
-                      <summary className="cursor-pointer list-none">
+                  <div className="max-h-[calc(100vh-14rem)] overflow-y-auto p-4">
+                    {rightPanelTab === "tasks" ? (
+                      <div className="space-y-3">
                         <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Context</p>
-                          </div>
-                          <span className="text-xs text-[#C5A059]">{contextEnabled ? "ON" : "OFF"}</span>
+                          <p className="text-sm text-[#9BAEA8]">Execucoes recentes e estado operacional.</p>
+                          <button type="button" onClick={handleResetTasks} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                            Limpar
+                          </button>
                         </div>
-                      </summary>
-
-                      <div className="mt-4 space-y-4 text-sm text-[#C6D1CC]">
-                        <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-                          <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Module</p>
+                        {taskHistory.length ? (
+                          taskHistory.map((task) => (
+                            <article key={task.id} className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]"><TaskStatusChip status={task.status} /></p>
+                                  <p className="mt-2 font-semibold text-[#F5F1E8] line-clamp-3">{task.query}</p>
+                                </div>
+                                <span className="text-[10px] text-[#9BAEA8]">
+                                  {task.startedAt ? new Date(task.startedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "--"}
+                                </span>
+                              </div>
+                              <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[#9BAEA8]">
+                                <span className="rounded-full border border-[#22342F] px-2.5 py-1">{task.provider || "gpt"}</span>
+                                <span className="rounded-full border border-[#22342F] px-2.5 py-1">{task.steps?.length || 0} etapas</span>
+                                {task.rag?.retrieval?.enabled ? <span className="rounded-full border border-[#22342F] px-2.5 py-1">RAG {task.rag.retrieval.matches?.length || 0}</span> : null}
+                              </div>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <button type="button" onClick={() => handlePause(task)} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                                  {task.status === "paused" ? "Retomar" : "Pausar"}
+                                </button>
+                                <button type="button" onClick={() => handleRetry(task)} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                                  Replay
+                                </button>
+                              </div>
+                            </article>
+                          ))
+                        ) : (
+                          <div className="rounded-[20px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm text-[#9BAEA8]">
+                            Nenhuma tarefa ainda.
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-4 text-sm text-[#C6D1CC]">
+                        <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Modulo</p>
                           <p className="mt-2 font-medium text-[#F5F1E8]">{routePath || "/interno"}</p>
                         </div>
-
-                        <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-                          <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Memory</p>
-                          <p className="mt-2 font-medium text-[#F5F1E8]">{ragSummary.count ? `${ragSummary.count} items` : "No memory yet"}</p>
+                        <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Memoria</p>
+                            <span className="text-[10px] text-[#C5A059]">{contextEnabled ? "ON" : "OFF"}</span>
+                          </div>
+                          <p className="mt-2 font-medium text-[#F5F1E8]">{ragSummary.count ? `${ragSummary.count} itens relevantes` : "Sem memoria carregada"}</p>
                           {ragSummary.sources.length ? <p className="mt-2 text-xs text-[#9BAEA8]">Fontes: {ragSummary.sources.join(", ")}</p> : null}
-                          {!contextEnabled ? <p className="mt-2 text-xs text-[#9BAEA8]">Context off.</p> : null}
                         </div>
-
-                        <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-                          <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Documents</p>
+                        <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Documentos</p>
                           {attachments.length ? (
                             <div className="mt-3 space-y-2">
                               {attachments.map((attachment) => (
@@ -2192,12 +2286,12 @@ export default function DotobotCopilot({
                               ))}
                             </div>
                           ) : (
-                            <p className="mt-2 text-xs text-[#9BAEA8]">No attachments.</p>
+                            <p className="mt-2 text-xs text-[#9BAEA8]">Nenhum anexo nesta conversa.</p>
                           )}
                         </div>
                       </div>
-                    </details>
-                  </section>
+                    )}
+                  </div>
                 </aside>
               </div>
             </div>

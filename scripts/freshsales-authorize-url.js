@@ -8,8 +8,9 @@ const ENV_PATH = path.join(process.cwd(), '.dev.vars');
 loadLocalEnv();
 
 function main() {
+  const kind = resolveKind(process.argv.slice(2));
   const orgDomain = resolveOrgDomain();
-  const clientId = cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID);
+  const clientId = resolveOauthClientId(kind);
   const supabaseUrl = cleanValue(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
   const redirectUri =
     cleanValue(process.env.FRESHSALES_REDIRECT_URI) ||
@@ -17,22 +18,20 @@ function main() {
     cleanValue(process.env.FRESHSALES_OAUTH_CALLBACK_URL) ||
     cleanValue(process.env.OAUTH_CALLBACK_URL) ||
     (supabaseUrl ? `${supabaseUrl}/functions/v1/oauth` : null);
-  const state = cleanValue(process.env.FRESHSALES_OAUTH_STATE) || 'hmadv-billing';
-  const scopes = cleanValue(process.env.FRESHSALES_SCOPES) || cleanValue(process.env.FRESHSALES_OAUTH_SCOPES) || [
-    'freshsales.contacts.create',
-    'freshsales.contacts.edit',
-    'freshsales.contacts.view',
-    'freshsales.sales_accounts.create',
-    'freshsales.sales_accounts.edit',
-    'freshsales.sales_accounts.view',
+  const state = `${kind}:${cleanValue(process.env.FRESHSALES_OAUTH_STATE) || 'hmadv-billing'}`;
+  const scopes = resolveScopes(kind) || [
     'freshsales.deals.create',
     'freshsales.deals.edit',
     'freshsales.deals.view',
+    'freshsales.deals.upsert',
+    'freshsales.deals.delete',
+    'freshsales.deals.fields.view',
+    'freshsales.deals.filters.view',
     'freshsales.settings.fields.view',
   ].join(' ');
 
   if (!orgDomain || !clientId || !redirectUri) {
-    throw new Error('FRESHSALES_OAUTH_CLIENT_ID, org domain e redirect_uri sao obrigatorios');
+    throw new Error('Credenciais OAuth de Deals (ou genéricas), org domain e redirect_uri sao obrigatorios');
   }
 
   const params = new URLSearchParams({
@@ -47,6 +46,7 @@ function main() {
 
   console.log(JSON.stringify({
     ok: true,
+    kind,
     org_domain: orgDomain,
     redirect_uri: redirectUri,
     scopes: scopes.split(/\s+/).filter(Boolean),
@@ -70,6 +70,25 @@ function loadLocalEnv() {
 function cleanValue(value) {
   const text = String(value || '').trim();
   return text || null;
+}
+
+function resolveKind(args) {
+  const joined = args.join(' ').toLowerCase();
+  return joined.includes('contacts') ? 'contacts' : 'deals';
+}
+
+function resolveOauthClientId(kind) {
+  if (kind === 'contacts') {
+    return cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID) || cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID);
+  }
+  return cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) || cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID);
+}
+
+function resolveScopes(kind) {
+  if (kind === 'contacts') {
+    return cleanValue(process.env.FRESHSALES_CONTACTS_SCOPES) || cleanValue(process.env.FRESHSALES_SCOPES) || cleanValue(process.env.FRESHSALES_OAUTH_SCOPES);
+  }
+  return cleanValue(process.env.FRESHSALES_DEALS_SCOPES) || cleanValue(process.env.FRESHSALES_SCOPES) || cleanValue(process.env.FRESHSALES_OAUTH_SCOPES);
 }
 
 function resolveOrgDomain() {
