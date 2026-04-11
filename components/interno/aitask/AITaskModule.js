@@ -503,10 +503,13 @@ export default function AITaskModule({ profile, routePath }) {
 
   useEffect(() => {
     if (contact360Query) return;
+    const documentEmails = Array.isArray(contextSnapshot?.documents)
+      ? contextSnapshot.documents.map((item) => item?.email).filter(Boolean).join(" ")
+      : "";
     const seededEmail =
       extractFirstEmail(mission) ||
       extractFirstEmail(contextSnapshot?.selectedAction?.mission) ||
-      extractFirstEmail(contextSnapshot?.documents?.map((item) => item?.email).filter(Boolean).join(" "));
+      extractFirstEmail(documentEmails);
     if (seededEmail) {
       setContact360Query(seededEmail);
     }
@@ -621,17 +624,23 @@ export default function AITaskModule({ profile, routePath }) {
           handleApprove={handleApprove}
           handleOpenLlmTest={handleOpenLlmTest}
           handleOpenDiagnostics={handleOpenDiagnostics}
+          handleOpenDotobot={handleOpenDotobot}
           formatExecutionSourceLabel={formatExecutionSourceLabel}
         />
 
       <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_340px]">
         <RunsPane
           recentHistory={recentHistory}
+          visibleHistory={pagedHistory}
           activeRunId={activeRun?.id || null}
           formatHistoryStatus={formatHistoryStatus}
           formatExecutionSourceLabel={formatExecutionSourceLabel}
           nowIso={nowIso}
           onSelectRun={handleSelectRun}
+          historyPage={historyPage}
+          historyTotalPages={historyTotalPages}
+          onPrevPage={() => setHistoryPage((current) => Math.max(1, current - 1))}
+          onNextPage={() => setHistoryPage((current) => Math.min(historyTotalPages, current + 1))}
         />
 
         <section className="min-h-0 overflow-hidden rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] shadow-[0_16px_48px_rgba(0,0,0,0.2)]">
@@ -699,11 +708,19 @@ export default function AITaskModule({ profile, routePath }) {
         <div className="space-y-4">
           <TaskInspector
             tasks={tasks}
+            visibleTasks={visibleTasks}
             selectedTaskId={selectedTaskId}
             onSelectTask={setSelectedTaskId}
             selectedTask={selectedTask}
             showTasks={showTasks}
             setShowTasks={setShowTasks}
+            taskViewMode={taskViewMode}
+            onTaskViewModeChange={setTaskViewMode}
+            onTaskMove={handleTaskMove}
+            onDragTaskStart={setDraggedTaskId}
+            draggedTaskId={draggedTaskId}
+            hasMoreTasks={hasMoreTasks}
+            onLoadMoreTasks={() => setTaskVisibleCount((current) => Math.min(tasks.length, current + 8))}
           />
 
           <ContextRail
@@ -721,6 +738,11 @@ export default function AITaskModule({ profile, routePath }) {
             handleSendToDotobot={handleSendToDotobot}
             handleReplay={handleReplay}
             detectModules={detectModules}
+            contact360Query={contact360Query}
+            onContact360QueryChange={setContact360Query}
+            onLoadContact360={handleLoadContact360}
+            contact360Loading={contact360Loading}
+            contact360={contact360}
           />
         </div>
       </div>
