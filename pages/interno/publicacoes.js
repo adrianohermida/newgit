@@ -1777,7 +1777,11 @@ function PublicacoesContent() {
               <button
                 type="button"
                 onClick={async () => {
-                  await Promise.all([loadOverview(), loadProcessCandidates(processPage), loadPartesCandidates(partesPage)]);
+                  await Promise.all([
+                    loadOverview(),
+                    loadProcessCandidates(processPage, { force: true }),
+                    loadPartesCandidates(partesPage, { force: true }),
+                  ]);
                 }}
                 disabled={actionState.loading}
                 className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
