@@ -258,6 +258,28 @@ function CompactHistoryPanel({ localHistory, remoteHistory }) {
   );
 }
 
+function hasJsonTruncationMessage(value) {
+  return /unexpected end of json input/i.test(String(value || ""));
+}
+
+function coverageMismatchMessage(state) {
+  const totalRows = Number(state?.totalRows || 0);
+  const items = Array.isArray(state?.items) ? state.items : [];
+  if (totalRows > 0 && !items.length) {
+    return "A cobertura encontrou processos na contagem, mas esta pagina voltou sem linhas. A leitura pode ter entrado em modo degradado ou sofrido timeout parcial.";
+  }
+  return "";
+}
+
+function queueMismatchMessage(state) {
+  const totalRows = Number(state?.totalRows || 0);
+  const items = Array.isArray(state?.items) ? state.items : [];
+  if (totalRows > 0 && !items.length) {
+    return "A fila encontrou itens na contagem, mas esta pagina voltou sem linhas. Isso costuma indicar leitura parcial, timeout ou fallback operacional.";
+  }
+  return "";
+}
+
 function loadUiState() {
   if (typeof window === "undefined") return null;
   try {
@@ -350,8 +372,10 @@ function ViewToggle({ value, onChange }) {
 function QueueList({ title, rows, selected, onToggle, onTogglePage, page, setPage, loading, helper, totalRows = 0, pageSize = 20, renderStatuses = null, lastUpdated = null, limited = false, errorMessage = "" }) {
   const allSelected = rows.length > 0 && rows.every((row) => selected.includes(getProcessSelectionValue(row)));
   const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / Math.max(1, pageSize)));
+  const mismatchMessage = coverageMismatchMessage({ totalRows, items: rows });
   const updatedLabel = lastUpdated ? new Date(lastUpdated).toLocaleString("pt-BR") : "nao atualizado";
-  return <div className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">{title}</p><span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{rows.length} nesta pagina</span><span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{totalRows} no total</span>{selected.length ? <span className="rounded-full border border-[#6E5630] bg-[rgba(76,57,26,0.22)] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-[#FDE68A]">{selected.length} selecionado(s)</span> : null}</div>{helper ? <p className="mt-1 text-xs leading-6 opacity-60">{helper}</p> : null}{totalRows ? <p className="mt-1 text-xs opacity-50">Pagina {page} de {totalPages}</p> : null}{lastUpdated !== undefined ? <p className="mt-1 text-xs opacity-50">Atualizado em {updatedLabel}</p> : null}{limited ? <p className="mt-1 text-xs text-[#FDE68A]">Fila em modo reduzido para evitar sobrecarga.</p> : null}{errorMessage ? <p className="mt-1 text-xs text-[#FECACA]">{errorMessage}</p> : null}</div><div className="flex flex-wrap gap-2"><ActionButton onClick={() => onTogglePage(!allSelected)} className="px-3 py-2 text-xs">{allSelected ? "Desmarcar pagina" : "Selecionar pagina"}</ActionButton><ActionButton onClick={() => setPage(Math.max(1, page - 1))} disabled={loading || page <= 1} className="px-3 py-2 text-xs">Anterior</ActionButton><ActionButton onClick={() => setPage(page + 1)} disabled={loading || page >= totalPages} className="px-3 py-2 text-xs">Proxima</ActionButton></div></div>{loading ? <p className="text-sm opacity-60">Carregando fila...</p> : null}{!loading && !rows.length ? <p className="rounded-2xl border border-dashed border-[#2D2E2E] px-4 py-6 text-sm opacity-60">Nenhum item encontrado nesta pagina.</p> : null}<div className="space-y-3">{rows.map((row) => { const selectionValue = getProcessSelectionValue(row); const statuses = renderStatuses ? renderStatuses(row) : []; return <label key={row.key} className="block cursor-pointer rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 transition hover:border-[#3A3E3D]"><div className="flex gap-3"><input type="checkbox" checked={selected.includes(selectionValue)} onChange={() => onToggle(selectionValue)} className="mt-1" /><div className="min-w-0 flex-1 space-y-2 text-sm"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold break-all">{row.numero_cnj || row.key}</p>{row.monitoramento_fallback ? <span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">fallback</span> : null}</div>{row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}{statuses.length ? <div className="flex flex-wrap gap-2">{statuses.map((status) => <StatusBadge key={status.label} tone={status.tone}>{status.label}</StatusBadge>)}</div> : null}<div className="flex flex-wrap gap-x-4 gap-y-1 opacity-60 text-xs">{row.status_atual_processo ? <span>Status: {row.status_atual_processo}</span> : null}{row.quantidade_movimentacoes !== undefined ? <span>Movimentacoes: {row.quantidade_movimentacoes ?? 0}</span> : null}{row.monitoramento_ativo !== undefined ? <span>Monitorado: {row.monitoramento_ativo ? "sim" : "nao"}</span> : null}{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]" onClick={(e) => e.stopPropagation()}>Account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}</div></div></div></label>; })}</div></div>;
+  const mismatchMessage = queueMismatchMessage({ totalRows, items: rows });
+  return <div className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">{title}</p><span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{rows.length} nesta pagina</span><span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{totalRows} no total</span>{selected.length ? <span className="rounded-full border border-[#6E5630] bg-[rgba(76,57,26,0.22)] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-[#FDE68A]">{selected.length} selecionado(s)</span> : null}</div>{helper ? <p className="mt-1 text-xs leading-6 opacity-60">{helper}</p> : null}{totalRows ? <p className="mt-1 text-xs opacity-50">Pagina {page} de {totalPages}</p> : null}{lastUpdated !== undefined ? <p className="mt-1 text-xs opacity-50">Atualizado em {updatedLabel}</p> : null}{limited ? <p className="mt-1 text-xs text-[#FDE68A]">Fila em modo reduzido para evitar sobrecarga.</p> : null}{errorMessage ? <p className="mt-1 text-xs text-[#FECACA]">{errorMessage}</p> : null}{mismatchMessage ? <p className="mt-1 text-xs text-[#FDE68A]">{mismatchMessage}</p> : null}</div><div className="flex flex-wrap gap-2"><ActionButton onClick={() => onTogglePage(!allSelected)} className="px-3 py-2 text-xs">{allSelected ? "Desmarcar pagina" : "Selecionar pagina"}</ActionButton><ActionButton onClick={() => setPage(Math.max(1, page - 1))} disabled={loading || page <= 1} className="px-3 py-2 text-xs">Anterior</ActionButton><ActionButton onClick={() => setPage(page + 1)} disabled={loading || page >= totalPages} className="px-3 py-2 text-xs">Proxima</ActionButton></div></div>{loading ? <p className="text-sm opacity-60">Carregando fila...</p> : null}{!loading && !rows.length ? <p className="rounded-2xl border border-dashed border-[#2D2E2E] px-4 py-6 text-sm opacity-60">Nenhum item encontrado nesta pagina.</p> : null}<div className="space-y-3">{rows.map((row) => { const selectionValue = getProcessSelectionValue(row); const statuses = renderStatuses ? renderStatuses(row) : []; return <label key={row.key} className="block cursor-pointer rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 transition hover:border-[#3A3E3D]"><div className="flex gap-3"><input type="checkbox" checked={selected.includes(selectionValue)} onChange={() => onToggle(selectionValue)} className="mt-1" /><div className="min-w-0 flex-1 space-y-2 text-sm"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold break-all">{row.numero_cnj || row.key}</p>{row.monitoramento_fallback ? <span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">fallback</span> : null}</div>{row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}{statuses.length ? <div className="flex flex-wrap gap-2">{statuses.map((status) => <StatusBadge key={status.label} tone={status.tone}>{status.label}</StatusBadge>)}</div> : null}<div className="flex flex-wrap gap-x-4 gap-y-1 opacity-60 text-xs">{row.status_atual_processo ? <span>Status: {row.status_atual_processo}</span> : null}{row.quantidade_movimentacoes !== undefined ? <span>Movimentacoes: {row.quantidade_movimentacoes ?? 0}</span> : null}{row.monitoramento_ativo !== undefined ? <span>Monitorado: {row.monitoramento_ativo ? "sim" : "nao"}</span> : null}{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]" onClick={(e) => e.stopPropagation()}>Account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}</div></div></div></label>; })}</div></div>;
 }
 function QueueActionBlock({ selectionCount = 0, batchSize = 1, onBatchChange, helper = "", disabled = false, actions = [] }) {
   return <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4">
@@ -374,7 +398,7 @@ function QueueActionBlock({ selectionCount = 0, batchSize = 1, onBatchChange, he
     </div>
   </div>;
 }
-function CoverageList({ rows, page, setPage, loading, totalRows = 0, pageSize = 20, onSelectProcess = null }) {
+function CoverageList({ rows, page, setPage, loading, totalRows = 0, pageSize = 20, onSelectProcess = null, errorMessage = "", limited = false }) {
   const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / Math.max(1, pageSize)));
   return <div className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-semibold">Cobertura por processo</p><p className="mt-1 text-xs leading-6 opacity-60">Leitura consolidada do que ja esta coberto entre HMADV e Freshsales, por processo.</p><p className="mt-1 text-xs opacity-50">Pagina {page} de {totalPages} • {totalRows} processo(s) com pendencia</p></div><div className="flex flex-wrap gap-2"><ActionButton onClick={() => setPage(Math.max(1, page - 1))} disabled={loading || page <= 1} className="px-3 py-2 text-xs">Anterior</ActionButton><ActionButton onClick={() => setPage(page + 1)} disabled={loading || page >= totalPages} className="px-3 py-2 text-xs">Proxima</ActionButton></div></div>{loading ? <p className="text-sm opacity-60">Carregando cobertura...</p> : null}{!loading && !rows.length ? <p className="rounded-2xl border border-dashed border-[#2D2E2E] px-4 py-6 text-sm opacity-60">Nenhum processo com pendencia de cobertura nesta pagina.</p> : null}<div className="space-y-3">{rows.map((row) => <div key={row.key} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div className="space-y-2"><p className="font-semibold break-all">{row.numero_cnj || row.key}</p>{row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}<div className="flex flex-wrap gap-2"><StatusBadge tone={row.coveragePct >= 85 ? "success" : row.coveragePct >= 55 ? "warning" : "danger"}>{row.coveragePct || 0}% coberto</StatusBadge>{(row.pending || []).slice(0, 6).map((label) => <StatusBadge key={`${row.key}-${label}`} tone="warning">{label.replace(/_/g, " ")}</StatusBadge>)}</div><div className="flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60"><span>Publicacoes pendentes: {row.publicacoesPendentes || 0}</span><span>Movimentacoes pendentes: {row.movimentacoesPendentes || 0}</span><span>Partes sem contato: {row.partesSemContato || 0}</span><span>Audiencias pendentes: {row.audienciasPendentes || 0}</span>{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}</div></div>{onSelectProcess ? <ActionButton onClick={() => onSelectProcess(row.numero_cnj)} className="px-3 py-2 text-xs">Usar no lote</ActionButton> : null}</div></div>)}</div></div>;
 }
@@ -948,6 +972,8 @@ function RemoteRunSummary({ entry }) {
   if (!entry) return null;
   const summary = entry.result_summary || {};
   const items = Object.entries(summary).filter(([, value]) => value !== undefined && value !== null && value !== "");
+  const rows = Array.isArray(entry?.result_sample) ? entry.result_sample : [];
+  const truncationErrors = rows.filter((row) => hasJsonTruncationMessage(row?.detalhe)).length;
   return <div className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -961,8 +987,10 @@ function RemoteRunSummary({ entry }) {
       <StatusBadge>Solicitados {entry.requested_count || 0}</StatusBadge>
       <StatusBadge tone="success">Afetados {entry.affected_count || 0}</StatusBadge>
       {items.slice(0, 4).map(([key, value]) => <StatusBadge key={key} tone="warning">{key}: {String(value)}</StatusBadge>)}
+      {truncationErrors ? <StatusBadge tone="danger">json truncado {truncationErrors}</StatusBadge> : null}
     </div>
     {entry.resumo ? <p className="mt-3 text-sm opacity-70">{entry.resumo}</p> : null}
+    {truncationErrors ? <p className="mt-3 text-sm text-[#FECACA]">O retorno remoto trouxe respostas JSON incompletas nesta amostra. Vale rodar lotes menores ou cair para o fluxo local/fallback antes de confiar que a fila esta vazia.</p> : null}
   </div>;
 }
 function deriveRemoteHealth(history = []) {
@@ -970,9 +998,12 @@ function deriveRemoteHealth(history = []) {
   if (!latest) return [];
   const sameAction = history.filter((item) => item.acao === latest.acao).slice(0, 3);
   const badges = [];
+  const latestRows = Array.isArray(latest?.result_sample) ? latest.result_sample : [];
+  const truncationErrors = latestRows.filter((row) => hasJsonTruncationMessage(row?.detalhe)).length;
   if (latest.status === "error") badges.push({ label: "ultima execucao com erro", tone: "danger" });
   if (Number(latest.affected_count || 0) === 0) badges.push({ label: "sem progresso", tone: "warning" });
   if (sameAction.length >= 2 && sameAction.every((item) => Number(item.affected_count || 0) === 0)) badges.push({ label: "fila reincidente", tone: "danger" });
+  if (truncationErrors) badges.push({ label: "upstream json truncado", tone: "danger" });
   if (!badges.length && latest.status === "success") badges.push({ label: "ciclo saudavel", tone: "success" });
   return badges;
 }
