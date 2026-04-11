@@ -309,6 +309,42 @@ function buildAlerts({
   return alerts.slice(0, 4);
 }
 
+function buildFallbackProcessosOverview(error) {
+  return {
+    processosTotal: 0,
+    processosComAccount: 0,
+    processosSemAccount: 0,
+    datajudEnriquecido: 0,
+    processosSemStatus: 0,
+    processosSemPolos: 0,
+    audienciasTotal: 0,
+    processosSemMovimentacao: 0,
+    monitoramentoAtivo: 0,
+    monitoramentoInativo: 0,
+    monitoramentoFilaPendente: 0,
+    syncWorker: {
+      ok: false,
+      unavailable: true,
+      error: error?.message || "Falha ao montar o overview de processos.",
+    },
+    degraded: true,
+    degradedReason: error?.message || "Falha ao montar o overview de processos.",
+  };
+}
+
+function buildFallbackPublicacoesOverview(error) {
+  return {
+    publicacoesTotal: 0,
+    publicacoesComActivity: 0,
+    publicacoesPendentesComAccount: 0,
+    publicacoesLeilaoIgnorado: 0,
+    publicacoesSemProcesso: 0,
+    partesTotal: 0,
+    degraded: true,
+    degradedReason: error?.message || "Falha ao montar o overview de publicacoes.",
+  };
+}
+
 async function drainModuleJobs(env, modulo, processor, maxChunks = 6) {
   const safeChunks = Math.max(1, Math.min(Number(maxChunks || 6), 30));
   let chunks = 0;
@@ -886,8 +922,8 @@ function buildDatajudPipelineMetrics(datajudResult) {
 
 export async function getHmadvQueueSnapshot(env) {
   const [processosOverview, publicacoesOverview, contactsOverview, coverageOverview, coveragePriority, datajudTagDiagnostics, datajudTagCoverage, datajudTagActionPlan, processJobs, publicacaoJobs, runnerOps] = await Promise.all([
-    getProcessosOverview(env),
-    getPublicacoesOverview(env),
+    getProcessosOverview(env).catch((error) => buildFallbackProcessosOverview(error)),
+    getPublicacoesOverview(env).catch((error) => buildFallbackPublicacoesOverview(error)),
     getContactsOverview(env).catch(() => null),
     getPersistedCoverageOverview(env).catch(() => null),
     getPersistedCoveragePriorityReport(env, { limit: 100 }).catch(() => null),
@@ -1079,6 +1115,20 @@ export async function getHmadvQueueSnapshot(env) {
       level: "critico",
       title: "Cobertura persistida indisponivel",
       message: "A tabela judiciario.processo_cobertura_sync nao esta aplicada no HMADV.",
+    });
+  }
+  if (processosOverview?.degraded) {
+    alerts.push({
+      level: "atencao",
+      title: "Overview de processos em modo degradado",
+      message: processosOverview.degradedReason || "A leitura de processos falhou parcialmente e a torre abriu com fallback.",
+    });
+  }
+  if (publicacoesOverview?.degraded) {
+    alerts.push({
+      level: "atencao",
+      title: "Overview de publicacoes em modo degradado",
+      message: publicacoesOverview.degradedReason || "A leitura de publicacoes falhou parcialmente e a torre abriu com fallback.",
     });
   }
   const moduleCards = {

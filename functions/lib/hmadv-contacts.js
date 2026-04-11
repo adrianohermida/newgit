@@ -156,6 +156,16 @@ function shouldPatchParteLink(parte, { contactId, role }) {
   );
 }
 
+function dedupeBy(rows = [], getKey = () => "") {
+  const map = new Map();
+  for (const row of rows) {
+    const key = String(getKey(row) || "").trim();
+    if (!key) continue;
+    map.set(key, row);
+  }
+  return [...map.values()];
+}
+
 async function sleep(ms) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -717,6 +727,7 @@ export async function reconcilePartesContacts(env, { processNumbers = [], limit 
     if (partesOut.length) sample.push({ processo_id: proc.id, numero_cnj: proc.numero_cnj, account_id_freshsales: proc.account_id_freshsales || null, represented_pole: representedPole, partes: partesOut });
   }
   if (apply && pendingParteUpdates.length) {
+    const dedupedParteUpdates = dedupeBy(pendingParteUpdates, (row) => row.id);
     await hmadvRest(env, "partes?on_conflict=id", {
       method: "POST",
       headers: {
@@ -724,10 +735,14 @@ export async function reconcilePartesContacts(env, { processNumbers = [], limit 
         "Content-Profile": "judiciario",
         Prefer: "resolution=merge-duplicates,return=minimal",
       },
-      body: JSON.stringify(pendingParteUpdates),
+      body: JSON.stringify(dedupedParteUpdates),
     }, "judiciario");
   }
   if (apply && pendingSyncRows.length) {
+    const dedupedSyncRows = dedupeBy(
+      pendingSyncRows,
+      (row) => `${row.processo_id}|${row.contact_id_freshsales}`
+    );
     await hmadvRest(env, "processo_contato_sync?on_conflict=processo_id,contact_id_freshsales", {
       method: "POST",
       headers: {
@@ -735,7 +750,7 @@ export async function reconcilePartesContacts(env, { processNumbers = [], limit 
         "Content-Profile": "judiciario",
         Prefer: "resolution=merge-duplicates,return=minimal",
       },
-      body: JSON.stringify(pendingSyncRows),
+      body: JSON.stringify(dedupedSyncRows),
     }, "judiciario");
   }
   return {

@@ -219,22 +219,29 @@ function IntegrationGuideCard({ guide }) {
 }
 
 const LOG_PANES = [
-  { key: "activity", label: "Atividade" },
-  { key: "debug", label: "Debug UI" },
-  { key: "history", label: "Historico" },
-  { key: "frontend", label: "Frontend" },
-  { key: "schema", label: "Schema" },
-  { key: "security", label: "Seguranca" },
-  { key: "functions", label: "Functions" },
-  { key: "routes", label: "Rotas" },
-  { key: "jobs", label: "Jobs" },
-  { key: "webhook", label: "Webhook" },
-  { key: "crm", label: "CRM" },
-  { key: "supabase", label: "Supabase" },
-  { key: "dotobot", label: "Dotobot" },
-  { key: "ai-task", label: "AI Task" },
-  { key: "data-quality", label: "Dados" },
-  { key: "notes", label: "Notas" },
+  { key: "activity", label: "Atividade", group: "visao", alwaysVisible: true },
+  { key: "history", label: "Historico", group: "visao", alwaysVisible: true },
+  { key: "debug", label: "Debug UI", group: "visao", alwaysVisible: true },
+  { key: "frontend", label: "Frontend", group: "auditoria", alwaysVisible: true },
+  { key: "schema", label: "Schema", group: "auditoria", alwaysVisible: true },
+  { key: "notes", label: "Notas", group: "auditoria", alwaysVisible: true },
+  { key: "crm", label: "CRM", group: "integracoes" },
+  { key: "supabase", label: "Supabase", group: "integracoes" },
+  { key: "webhook", label: "Webhook", group: "integracoes" },
+  { key: "functions", label: "Functions", group: "integracoes" },
+  { key: "routes", label: "Rotas", group: "integracoes" },
+  { key: "jobs", label: "Jobs", group: "integracoes" },
+  { key: "dotobot", label: "Dotobot", group: "ia" },
+  { key: "ai-task", label: "AI Task", group: "ia" },
+  { key: "security", label: "Seguranca", group: "governanca" },
+  { key: "data-quality", label: "Qualidade de dados", group: "governanca" },
+];
+const LOG_PANE_GROUPS = [
+  { key: "visao", label: "Visao" },
+  { key: "auditoria", label: "Auditoria" },
+  { key: "integracoes", label: "Integracoes" },
+  { key: "ia", label: "IA" },
+  { key: "governanca", label: "Governanca" },
 ];
 
 function getSeverityTone(severity) {
@@ -296,6 +303,17 @@ function calculateRiskScore(entries = [], recurring = []) {
   const tone = score >= 70 ? "error" : score >= 35 ? "warn" : "info";
   const label = score >= 70 ? "alto" : score >= 35 ? "medio" : "baixo";
   return { score, tone, label };
+}
+
+function formatPaneCountLabel(count) {
+  return count > 0 ? `(${count})` : "";
+}
+
+function shouldShowLogPane(pane, paneCounts = {}, activePane = "") {
+  if (!pane) return false;
+  if (pane.alwaysVisible) return true;
+  if (pane.key === activePane) return true;
+  return Number(paneCounts?.[pane.key] || 0) > 0;
 }
 
 function summarizeTimeline(entries = []) {
@@ -1102,6 +1120,10 @@ export default function InternoLayout({
     "ai-task": tagScopedLogs["ai-task"].length,
     "data-quality": tagScopedLogs["data-quality"].length,
   }), [activityOnlyLog.length, debugLog.length, frontendIssues.length, historyPaneCount, operationalNotes.length, schemaIssues.length, tagScopedLogs]);
+  const visibleLogPaneGroups = useMemo(() => LOG_PANE_GROUPS.map((group) => ({
+    ...group,
+    panes: LOG_PANES.filter((pane) => pane.group === group.key && shouldShowLogPane(pane, paneCounts, logPane)),
+  })).filter((group) => group.panes.length > 0), [logPane, paneCounts]);
   const paneFingerprintSummary = useMemo(() => summarizeFingerprints(paneEntries, fingerprintStates), [fingerprintStates, paneEntries]);
   const paneRecommendationSummary = useMemo(() => summarizeRecommendations(paneEntries), [paneEntries]);
   const paneRisk = useMemo(() => calculateRiskScore(paneEntries, paneFingerprintSummary), [paneEntries, paneFingerprintSummary]);
@@ -1286,18 +1308,23 @@ export default function InternoLayout({
                   Log
                 </button>
                 {consoleTab === "log" ? (
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex max-w-[70vw] flex-wrap items-start gap-3">
                     <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8]">
                       {activityLog.length} entradas
                     </span>
-                    {LOG_PANES.map((pane) => <button
-                      key={pane.key}
-                      type="button"
-                      onClick={() => setLogPane(pane.key)}
-                      className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === pane.key ? "border-[#C5A059] text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8]"}`}
-                    >
-                      {pane.label} {paneCounts[pane.key] ? `(${paneCounts[pane.key]})` : ""}
-                    </button>)}
+                    {visibleLogPaneGroups.map((group) => (
+                      <div key={group.key} className="flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] uppercase tracking-[0.16em] text-[#60706A]">{group.label}</span>
+                        {group.panes.map((pane) => <button
+                          key={pane.key}
+                          type="button"
+                          onClick={() => setLogPane(pane.key)}
+                          className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === pane.key ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)] text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
+                        >
+                          {pane.label} {formatPaneCountLabel(paneCounts[pane.key] || 0)}
+                        </button>)}
+                      </div>
+                    ))}
                   </div>
                 ) : null}
               </div>
@@ -1467,6 +1494,9 @@ export default function InternoLayout({
                   </div>
                 ) : (
                   <div className="space-y-3">
+                    <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.45)] px-3 py-2 text-[11px] text-[#7F928C]">
+                      Itens organizados por grupos de visao, auditoria, integracoes, IA e governanca para reduzir mistura entre tipo de evento e origem tecnica.
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"

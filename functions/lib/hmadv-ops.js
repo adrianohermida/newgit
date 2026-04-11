@@ -586,6 +586,20 @@ async function countTableSafe(env, table, filters = "", schema = "judiciario", f
   }
 }
 
+async function getSyncWorkerStatusSafe(env) {
+  try {
+    return await hmadvFunction(env, "sync-worker", { action: "status" });
+  } catch (error) {
+    return {
+      ok: false,
+      unavailable: true,
+      error: error?.message || "Falha ao consultar o status do sync-worker.",
+      functionName: error?.functionName || "sync-worker",
+      status: error?.status ?? null,
+    };
+  }
+}
+
 async function listTableSafe(env, path, schema = "judiciario", fallback = []) {
   try {
     return await hmadvRest(env, path, {}, schema);
@@ -1005,10 +1019,21 @@ async function loadPublicacoesByProcessIds(env, processIds, limitPerProcess = 50
 async function loadPendingPublicacoesByProcessIds(env, processIds, limitPerProcess = 50) {
   const output = [];
   for (const chunk of splitIntoChunks(processIds, 25)) {
-    const rows = await hmadvRest(
-      env,
-      `publicacoes?${buildInFilter("processo_id", chunk)}&freshsales_activity_id=is.null&select=id,processo_id,conteudo,data_publicacao,fonte,numero_processo_api,freshsales_activity_id&order=data_publicacao.desc.nullslast&limit=${Math.max(chunk.length * limitPerProcess, chunk.length)}`
-    );
+    let rows = [];
+    try {
+      rows = await hmadvRest(
+        env,
+        `publicacoes?${buildInFilter("processo_id", chunk)}&freshsales_activity_id=is.null&select=id,processo_id,conteudo,data_publicacao,fonte,numero_processo_api,freshsales_activity_id&order=data_publicacao.desc.nullslast&limit=${Math.max(chunk.length * limitPerProcess, chunk.length)}`
+      );
+    } catch (error) {
+      if (!schemaMessageMatches(error?.message || "", "publicacoes.fonte")) {
+        throw error;
+      }
+      rows = await hmadvRest(
+        env,
+        `publicacoes?${buildInFilter("processo_id", chunk)}&freshsales_activity_id=is.null&select=id,processo_id,conteudo,data_publicacao,numero_processo_api,freshsales_activity_id&order=data_publicacao.desc.nullslast&limit=${Math.max(chunk.length * limitPerProcess, chunk.length)}`
+      );
+    }
     output.push(...rows);
   }
   return output;
@@ -1503,7 +1528,7 @@ export async function getProcessosOverview(env) {
     monitoramentoInativo,
     monitoramentoFilaPendente,
   ] = await Promise.all([
-    hmadvFunction(env, "sync-worker", { action: "status" }),
+    getSyncWorkerStatusSafe(env),
     countTable(env, "processos"),
     countTable(env, "processos", "account_id_freshsales=not.is.null"),
     countTable(env, "processos", "account_id_freshsales=is.null"),
@@ -2968,6 +2993,7 @@ export async function listProcessRelations(env, { query = "", page = 1, pageSize
     totalRows: await countTableSafe(env, "processo_relacoes", filter, "judiciario", 0),
     items: rows.map((row) => ({
       id: row.id,
+      selection_key: String(row.id || "").trim(),
       tipo_relacao: row.tipo_relacao,
       status: row.status,
       observacoes: row.observacoes || "",
@@ -2977,6 +3003,142 @@ export async function listProcessRelations(env, { query = "", page = 1, pageSize
       processo_filho: processMap.get(normalizeProcessNumber(row.numero_cnj_filho)) || null,
       updated_at: row.updated_at || row.created_at || null,
     })),
+  };
+}
+
+function extractProcessNumbersFromText(value) {
+  const text = String(value || "");
+  const matches = text.match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}|\d{20}/g) || [];
+  return uniqueNonEmpty(matches.map((item) => normalizeProcessNumber(item)).filter((item) => item.length === 20));
+}
+
+function inferRelationTypeFromText(value) {
+  const text = normalizeText(value);
+  if (!text) return "dependencia";
+  if (text.includes("apenso")) return "apenso";
+  if (text.includes("incidente")) return "incidente";
+  if (["recurso", "agravo", "apelacao", "apelação", "embargos"].some((item) => text.includes(normalizeText(item)))) {
+    return "recurso";
+  }
+  return "dependencia";
+}
+
+function buildRelationSuggestionScore({ source, target, publication, tipoRelacao }) {
+  let score = 0.45;
+  if (normalizeProcessNumber(source?.numero_cnj) === normalizeProcessNumber(publication?.numero_processo_api)) score += 0.2;
+  if (tipoRelacao !== "dependencia") score += 0.15;
+  if (source?.account_id_freshsales && target?.account_id_freshsales && source.account_id_freshsales === target.account_id_freshsales) score += 0.1;
+  if (source?.numero_cnj && target?.numero_cnj && source.numero_cnj.slice(0, 13) === target.numero_cnj.slice(0, 13)) score += 0.05;
+  return Math.max(0, Math.min(0.99, score));
+}
+
+export async function listProcessRelationSuggestions(env, { query = "", page = 1, pageSize = 20, minScore = 0.45 } = {}) {
+  const term = String(query || "").trim();
+  const safePage = Math.max(1, Number(page || 1));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 100));
+  const safeMinScore = Math.max(0, Math.min(Number(minScore || 0.45), 1));
+  if (!term) {
+    return { page: safePage, pageSize: safePageSize, totalRows: 0, items: [] };
+  }
+
+  const sourceProcesses = await searchProcessRows(env, term, 8);
+  if (!sourceProcesses.length) {
+    return { page: safePage, pageSize: safePageSize, totalRows: 0, items: [] };
+  }
+
+  const sourceIds = uniqueNonEmpty(sourceProcesses.map((item) => item.id));
+  const sourceNumbers = uniqueNonEmpty(sourceProcesses.map((item) => normalizeProcessNumber(item.numero_cnj)));
+  const publications = sourceIds.length
+    ? await listTableSafe(
+        env,
+        `publicacoes?processo_id=in.(${sourceIds.map((id) => `"${id}"`).join(",")})&select=id,processo_id,numero_processo_api,conteudo,data_publicacao&order=data_publicacao.desc.nullslast&limit=${Math.max(sourceIds.length * 12, 12)}`,
+        "judiciario",
+        []
+      )
+    : [];
+  const candidateNumbers = uniqueNonEmpty(
+    (publications || []).flatMap((publication) => extractProcessNumbersFromText(publication?.conteudo || ""))
+  ).filter((numero) => !sourceNumbers.includes(numero));
+
+  if (!candidateNumbers.length) {
+    return { page: safePage, pageSize: safePageSize, totalRows: 0, items: [] };
+  }
+
+  const [targetProcesses, existingRelations] = await Promise.all([
+    loadProcessesByNumbers(env, candidateNumbers),
+    listTableSafe(
+      env,
+      `processo_relacoes?or=(${sourceNumbers.map((numero) => `numero_cnj_pai.eq.${numero},numero_cnj_filho.eq.${numero}`).join(",")})&select=numero_cnj_pai,numero_cnj_filho,tipo_relacao`,
+      "judiciario",
+      []
+    ),
+  ]);
+
+  const sourceMap = new Map(sourceProcesses.map((item) => [String(item.id), item]));
+  const targetMap = new Map(targetProcesses.map((item) => [normalizeProcessNumber(item.numero_cnj), item]));
+  const existingKeys = new Set(
+    (existingRelations || []).map((row) => [
+      normalizeProcessNumber(row?.numero_cnj_pai),
+      normalizeProcessNumber(row?.numero_cnj_filho),
+      String(row?.tipo_relacao || "").trim().toLowerCase(),
+    ].join("|"))
+  );
+
+  const suggestions = [];
+  const seen = new Set();
+  for (const publication of publications || []) {
+    const source = sourceMap.get(String(publication?.processo_id || ""));
+    if (!source) continue;
+    const relatedNumbers = extractProcessNumbersFromText(publication?.conteudo || "");
+    const tipoRelacao = inferRelationTypeFromText(publication?.conteudo || "");
+    for (const relatedNumber of relatedNumbers) {
+      if (!relatedNumber || relatedNumber === normalizeProcessNumber(source.numero_cnj)) continue;
+      const target = targetMap.get(relatedNumber);
+      if (!target) continue;
+      const numeroPai = normalizeProcessNumber(source.numero_cnj);
+      const numeroFilho = normalizeProcessNumber(target.numero_cnj);
+      const relationKey = `${numeroPai}|${numeroFilho}|${tipoRelacao}`;
+      if (existingKeys.has(relationKey) || seen.has(relationKey)) continue;
+      const score = buildRelationSuggestionScore({ source, target, publication, tipoRelacao });
+      if (score < safeMinScore) continue;
+      seen.add(relationKey);
+      suggestions.push({
+        suggestion_key: relationKey,
+        numero_cnj_pai: numeroPai,
+        numero_cnj_filho: numeroFilho,
+        tipo_relacao: tipoRelacao,
+        status: "ativo",
+        score,
+        score_pct: Math.round(score * 100),
+        source_process: source,
+        target_process: target,
+        reasons: [
+          tipoRelacao !== "dependencia" ? `palavra-chave:${tipoRelacao}` : "citacao_em_publicacao",
+          source.account_id_freshsales && target.account_id_freshsales && source.account_id_freshsales === target.account_id_freshsales
+            ? "mesma_account"
+            : null,
+        ].filter(Boolean),
+        evidence: {
+          publicacao_id: publication.id || null,
+          data_publicacao: publication.data_publicacao || null,
+          cnj_mencionado: formatCnj(relatedNumber),
+          trecho: String(publication?.conteudo || "").trim().slice(0, 280),
+        },
+      });
+    }
+  }
+
+  suggestions.sort((left, right) => {
+    if (right.score !== left.score) return right.score - left.score;
+    return String(right.evidence?.data_publicacao || "").localeCompare(String(left.evidence?.data_publicacao || ""));
+  });
+
+  const start = (safePage - 1) * safePageSize;
+  return {
+    page: safePage,
+    pageSize: safePageSize,
+    totalRows: suggestions.length,
+    items: suggestions.slice(start, start + safePageSize),
   };
 }
 

@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMediaQuery } from "react-responsive";
 import { TransitionGroup, CSSTransition } from "react-transition-group";
-import { FixedSizeList as VirtualList } from "react-window";
 
 import { detectIntent } from "../../lib/ai/intent_router";
 import { getCurrentContext } from "../../lib/ai/context_engine";
@@ -180,7 +179,7 @@ function MessageBubble({ message, isTyping, onCopy, onReuse, onOpenAiTask }) {
 
   return (
     <div className={`flex ${alignClass}`}>
-      <article className={`max-w-[min(46rem,92%)] rounded-[20px] border px-4 py-3 text-sm ${bubbleClass}`}>
+      <article className={`w-full max-w-[min(46rem,100%)] rounded-[20px] border px-4 py-3 text-sm ${bubbleClass}`}>
         <div className="mb-2 flex items-center justify-between gap-4 text-[10px] uppercase tracking-[0.16em] opacity-60">
           <span>{isAssistant ? "Dotobot" : isSystem ? "Sistema" : "Administrador / equipe"}</span>
           {message.createdAt ? <span>{new Date(message.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span> : null}
@@ -215,7 +214,7 @@ function MessageBubble({ message, isTyping, onCopy, onReuse, onOpenAiTask }) {
               </div>
             )}
             {(isAssistant || isSystem) && message.text ? (
-              <div className="mt-4 flex flex-wrap gap-2 border-t border-[#22342F] pt-3 text-[11px]">
+              <div className="mt-4 flex flex-wrap gap-2 border-t border-[#22342F] pt-3 text-[10px] sm:text-[11px]">
                 <button
                   type="button"
                   onClick={() => onCopy?.(message)}
@@ -361,6 +360,7 @@ export default function DotobotCopilot({
   compactRail = false,
   showCollapsedTrigger = true,
 }) {
+  const isCompactViewport = useMediaQuery({ maxWidth: 640 });
   // Estado de autenticaÃ§Ã£o/admin
   const { supabase, loading: supaLoading, configError } = useSupabaseBrowser();
   const [isAdmin, setIsAdmin] = useState(false);

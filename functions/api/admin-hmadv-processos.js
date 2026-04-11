@@ -26,6 +26,7 @@ import {
   listMovementActivityBacklog,
   listMonitoringProcesses,
   listProcessCoverage,
+  listProcessRelationSuggestions,
   listPartesSemContatoBacklog,
   listPublicationActivityBacklog,
   listProcessRelations,
@@ -442,6 +443,15 @@ export async function onRequestGet(context) {
         query: String(url.searchParams.get("query") || ""),
         page: Number(url.searchParams.get("page") || 1),
         pageSize: Number(url.searchParams.get("pageSize") || 20),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "sugestoes_relacoes") {
+      const data = await listProcessRelationSuggestions(context.env, {
+        query: String(url.searchParams.get("query") || ""),
+        page: Number(url.searchParams.get("page") || 1),
+        pageSize: Number(url.searchParams.get("pageSize") || 20),
+        minScore: Number(url.searchParams.get("minScore") || 0.45),
       });
       return jsonOk({ data });
     }
