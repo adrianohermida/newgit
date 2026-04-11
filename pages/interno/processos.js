@@ -2080,6 +2080,14 @@ function InternoProcessosContent() {
   function runQueueAction(action, queueKey, payload = {}) {
     handleAction(action, { ...payload, limit: getQueueBatchSize(queueKey) });
   }
+  const recurringProcesses = deriveRecurringProcessEntries(remoteHistory);
+  const recurringProcessSummary = summarizeRecurringProcessEntries(recurringProcesses);
+  const recurringProcessBands = summarizeRecurrenceBands(recurringProcesses);
+  const recurringProcessGroups = groupRecurringProcessEntries(recurringProcesses);
+  const recurringProcessFocus = deriveRecurringProcessFocus(recurringProcessSummary, recurringProcessBands);
+  const recurringProcessBatch = deriveSuggestedProcessBatch(recurringProcessSummary, recurringProcessBands);
+  const recurringProcessActions = deriveSuggestedProcessActions(recurringProcessSummary, recurringProcessBands);
+  const recurringProcessChecklist = deriveSuggestedProcessChecklist(recurringProcessSummary, recurringProcessBands);
   function selectVisibleRecurringProcesses() {
     const recurringKeys = new Set(recurringProcesses.map((item) => item.key));
     setSelectedWithoutMovements(withoutMovements.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
@@ -2486,14 +2494,6 @@ function InternoProcessosContent() {
   const latestJob = jobs[0] || null;
   const remoteHealth = deriveRemoteHealth(remoteHistory);
   const monitoringUnsupported = Boolean(monitoringActive.unsupported || monitoringInactive.unsupported);
-  const recurringProcesses = deriveRecurringProcessEntries(remoteHistory);
-  const recurringProcessSummary = summarizeRecurringProcessEntries(recurringProcesses);
-  const recurringProcessBands = summarizeRecurrenceBands(recurringProcesses);
-  const recurringProcessGroups = groupRecurringProcessEntries(recurringProcesses);
-  const recurringProcessFocus = deriveRecurringProcessFocus(recurringProcessSummary, recurringProcessBands);
-  const recurringProcessBatch = deriveSuggestedProcessBatch(recurringProcessSummary, recurringProcessBands);
-  const recurringProcessActions = deriveSuggestedProcessActions(recurringProcessSummary, recurringProcessBands);
-  const recurringProcessChecklist = deriveSuggestedProcessChecklist(recurringProcessSummary, recurringProcessBands);
   const primaryProcessAction = derivePrimaryProcessAction(recurringProcessActions);
   const combinedSelectedNumbers = getCombinedSelectedNumbers();
   const selectedSummary = combinedSelectedNumbers.length;

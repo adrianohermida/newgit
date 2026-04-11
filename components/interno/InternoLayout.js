@@ -655,11 +655,12 @@ export default function InternoLayout({
   const router = useRouter();
   const { supabase } = useSupabaseBrowser();
   const initialWorkspaceOpen = router.pathname === "/interno/agentlab/conversations";
+  const shouldStartWithOpenRail = rightRailFullscreen || router.pathname === "/interno/agentlab/conversations";
   const shouldRenderDotobotRail = !hideDotobotRail || forceDotobotRail;
   const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(!shouldStartWithOpenRail);
   const [consoleOpen, setConsoleOpen] = useState(false);
-  const [copilotOpen, setCopilotOpen] = useState(true);
+  const [copilotOpen, setCopilotOpen] = useState(shouldStartWithOpenRail);
   const [consoleTab, setConsoleTab] = useState("console");
   const [logPane, setLogPane] = useState("activity");
   const [activityLog, setActivityLog] = useState([]);
@@ -1142,6 +1143,31 @@ export default function InternoLayout({
     router.replace("/interno/login");
   }
 
+  useEffect(() => {
+    setRightCollapsed(!shouldStartWithOpenRail);
+    setCopilotOpen(shouldStartWithOpenRail);
+  }, [shouldStartWithOpenRail]);
+
+  function handleToggleRightRail() {
+    if (!shouldRenderDotobotRail) return;
+    setRightCollapsed((current) => {
+      const nextCollapsed = !current;
+      if (!nextCollapsed) {
+        setCopilotOpen(true);
+      }
+      return nextCollapsed;
+    });
+  }
+
+  function handleToggleCopilot() {
+    if (!shouldRenderDotobotRail) return;
+    setCopilotOpen((current) => {
+      const next = !current;
+      setRightCollapsed(!next);
+      return next;
+    });
+  }
+
   return (
     <div className="flex w-full h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.24),transparent_30%),linear-gradient(180deg,#050706_0%,#070A09_100%)] text-[#F4F1EA]">
       {/* SIDEBAR */}
@@ -1209,7 +1235,7 @@ export default function InternoLayout({
                 />
                 <button
                   type="button"
-                  onClick={() => setCopilotOpen((current) => !current)}
+                  onClick={handleToggleCopilot}
                   className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[#C5A059] transition hover:border-[#C5A059] hover:text-[#F5E6C5]"
                 >
                   Chat
@@ -1236,7 +1262,7 @@ export default function InternoLayout({
               </button>
               <button
                 type="button"
-                onClick={() => setRightCollapsed((current) => !current)}
+                onClick={handleToggleRightRail}
                 className="h-9 w-9 rounded-lg border border-[#22342F] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                 title="Alternar painel direito"
               >
@@ -2319,7 +2345,7 @@ export default function InternoLayout({
           </div>
         </div>
         {shouldRenderDotobotRail && !rightCollapsed ? (
-          <div className="relative h-full w-[380px] border-l border-[#22342F] bg-[rgba(8,10,9,0.9)]">
+          <div className="relative h-full w-[360px] min-w-[320px] max-w-[420px] border-l border-[#22342F] bg-[rgba(8,10,9,0.94)]">
             {copilotOpen ? (
               <DotobotCopilot
                 profile={profile}
@@ -2336,15 +2362,15 @@ export default function InternoLayout({
             )}
           </div>
         ) : null}
-        {copilotOpen ? (
+        {shouldRenderDotobotRail ? (
           <button
             type="button"
-            onClick={() => setCopilotOpen(false)}
+            onClick={handleToggleCopilot}
             className="group fixed bottom-28 right-3 z-[80] rounded-full border border-[#C5A059] bg-[#C5A059] px-3 py-3 text-[10px] uppercase tracking-[0.2em] text-[#07110E] shadow-[0_10px_30px_rgba(197,160,89,0.3)] md:right-0 md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-l-2xl md:rounded-r-none md:px-2 md:py-5 md:tracking-[0.32em]"
             style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
           >
-            <span className="group-hover:hidden">Copilot</span>
-            <span className="hidden group-hover:block text-[12px]">X</span>
+            <span className="group-hover:hidden">{copilotOpen && !rightCollapsed ? "Fechar" : "Copilot"}</span>
+            <span className="hidden group-hover:block text-[12px]">{copilotOpen && !rightCollapsed ? "X" : "+"}</span>
           </button>
         ) : null}
       </div>

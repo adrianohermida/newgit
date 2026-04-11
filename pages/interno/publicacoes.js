@@ -1224,6 +1224,50 @@ function PublicacoesContent() {
   const processCandidatesRequestRef = useRef({ promise: null, page: null });
   const partesCandidatesRequestRef = useRef({ promise: null, page: null });
   const integratedQueueRequestRef = useRef({ promise: null, key: "" });
+  const integratedPageSize = 12;
+  const integratedRows = useMemo(
+    () => (integratedQueue.items || []).map((row) => ({
+      ...row,
+      validation: validationMap[row.numero_cnj] || { status: "", note: "", updatedAt: null },
+    })),
+    [integratedQueue.items, validationMap]
+  );
+  const filteredIntegratedRows = useMemo(() => {
+    const filtered = integratedRows.filter((row) => {
+      if (integratedFilters.validation !== "todos" && (row.validation?.status || "") !== integratedFilters.validation) return false;
+      return true;
+    });
+    const sorted = [...filtered];
+    if (integratedFilters.sort === "cnj") {
+      sorted.sort((a, b) => String(a.numero_cnj || "").localeCompare(String(b.numero_cnj || "")));
+      return sorted;
+    }
+    if (integratedFilters.sort === "validacao_recente") {
+      sorted.sort((a, b) => new Date(b.validation?.updatedAt || 0).getTime() - new Date(a.validation?.updatedAt || 0).getTime());
+      return sorted;
+    }
+    if (integratedFilters.sort === "validado_por") {
+      sorted.sort((a, b) => String(a.validation?.updatedBy || "").localeCompare(String(b.validation?.updatedBy || "")));
+      return sorted;
+    }
+    sorted.sort((a, b) => {
+      const aCount = Number(a?.partes_novas || a?.partes_detectadas || a?.publicacoes || 0);
+      const bCount = Number(b?.partes_novas || b?.partes_detectadas || b?.publicacoes || 0);
+      if (bCount !== aCount) return bCount - aCount;
+      return String(a.numero_cnj || "").localeCompare(String(b.numero_cnj || ""));
+    });
+    return sorted;
+  }, [integratedFilters.sort, integratedFilters.validation, integratedRows]);
+  const pagedIntegratedRows = useMemo(() => {
+    return filteredIntegratedRows.map((row) => ({
+      ...row,
+      selected: selectedIntegratedNumbers.includes(row.numero_cnj),
+    }));
+  }, [filteredIntegratedRows, selectedIntegratedNumbers]);
+  const selectedUnifiedNumbers = useMemo(
+    () => selectedIntegratedNumbers,
+    [selectedIntegratedNumbers]
+  );
 
   function logUiEvent(label, action, response, patch = {}) {
     appendActivityLog({
@@ -2156,53 +2200,9 @@ function PublicacoesContent() {
   const primaryPublicacoesAction = derivePrimaryPublicacoesAction(recurringPublicacoesActions);
   const partesBacklogCount = Number(partesCandidates.totalRows || partesCandidates.items.length || 0);
   const syncWorkerShouldFocusCrm = Number(data.publicacoesPendentesComAccount || 0) > 0;
-  const integratedRows = useMemo(
-    () => (integratedQueue.items || []).map((row) => ({
-      ...row,
-      validation: validationMap[row.numero_cnj] || { status: "", note: "", updatedAt: null },
-    })),
-    [integratedQueue.items, validationMap]
-  );
-  const filteredIntegratedRows = useMemo(() => {
-    const filtered = integratedRows.filter((row) => {
-      if (integratedFilters.validation !== "todos" && (row.validation?.status || "") !== integratedFilters.validation) return false;
-      return true;
-    });
-    const sorted = [...filtered];
-    if (integratedFilters.sort === "cnj") {
-      sorted.sort((a, b) => String(a.numero_cnj || "").localeCompare(String(b.numero_cnj || "")));
-      return sorted;
-    }
-    if (integratedFilters.sort === "validacao_recente") {
-      sorted.sort((a, b) => new Date(b.validation?.updatedAt || 0).getTime() - new Date(a.validation?.updatedAt || 0).getTime());
-      return sorted;
-    }
-    if (integratedFilters.sort === "validado_por") {
-      sorted.sort((a, b) => String(a.validation?.updatedBy || "").localeCompare(String(b.validation?.updatedBy || "")));
-      return sorted;
-    }
-    sorted.sort((a, b) => {
-      const aCount = Number(a?.partes_novas || a?.partes_detectadas || a?.publicacoes || 0);
-      const bCount = Number(b?.partes_novas || b?.partes_detectadas || b?.publicacoes || 0);
-      if (bCount !== aCount) return bCount - aCount;
-      return String(a.numero_cnj || "").localeCompare(String(b.numero_cnj || ""));
-    });
-    return sorted;
-  }, [integratedFilters.sort, integratedFilters.validation, integratedRows]);
-  const integratedPageSize = 12;
-  const pagedIntegratedRows = useMemo(() => {
-    return filteredIntegratedRows.map((row) => ({
-      ...row,
-      selected: selectedIntegratedNumbers.includes(row.numero_cnj),
-    }));
-  }, [filteredIntegratedRows, selectedIntegratedNumbers]);
   const selectedUnifiedCount = selectedIntegratedNumbers.length;
   const allIntegratedPageSelected = pagedIntegratedRows.length > 0 && pagedIntegratedRows.every((row) => row.selected);
   const allIntegratedFilteredSelected = filteredIntegratedRows.length > 0 && filteredIntegratedRows.every((row) => selectedIntegratedNumbers.includes(row.numero_cnj));
-  const selectedUnifiedNumbers = useMemo(
-    () => selectedIntegratedNumbers,
-    [selectedIntegratedNumbers]
-  );
 
   function selectVisibleRecurringPublicacoes() {
     const recurringKeys = new Set(recurringPublicacoes.map((item) => item.key));

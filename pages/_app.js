@@ -13,6 +13,7 @@ const FreshchatWebMessenger = dynamic(() => import('../components/FreshchatWebMe
 export default function App({ Component, pageProps }) {
   const router = useRouter();
   const isPortalRoute = String(router.pathname || '').startsWith('/portal');
+  const isInternalRoute = String(router.pathname || '').startsWith('/interno');
   useConsoleRouteInstrumentation(router);
 
   // Google Tag Manager noscript e Setmore
@@ -25,21 +26,28 @@ export default function App({ Component, pageProps }) {
         noscript.innerHTML = `<iframe src=\"https://www.googletagmanager.com/ns.html?id=GTM-TMBHHW6\" height=\"0\" width=\"0\" style=\"display:none;visibility:hidden\"></iframe>`;
         document.body.prepend(noscript);
       }
-      // Setmore
-      if (!document.getElementById('setmore_script')) {
-        const script = document.createElement('script');
-        script.id = 'setmore_script';
-        script.type = 'text/javascript';
-        script.src = 'https://storage.googleapis.com/fullintegration-live/webComponentAppListing/Container/setmoreIframeLive.js';
-        document.body.appendChild(script);
-      }
-      if (!document.getElementById('Setmore_button_iframe')) {
-        const a = document.createElement('a');
-        a.id = 'Setmore_button_iframe';
-        a.href = 'https://booking.setmore.com/scheduleappointment/93965fbc-3be5-4b72-aa5b-3b2e2b67d46b';
-        a.style.cssText = 'float:none; position: fixed; right: -2px; top: 25%; display: block; z-index: 20000';
-        a.innerHTML = '<img border="none" src="https://fm.sendpul.se/8672e56ee69550b039f6b32e73b058d56692731/Site/booking.svg" alt="Book an appointment with Hermida Maia Advocacia using Setmore"/>';
-        document.body.appendChild(a);
+      const setmoreScript = document.getElementById('setmore_script');
+      const setmoreButton = document.getElementById('Setmore_button_iframe');
+
+      if (!isInternalRoute) {
+        if (!setmoreScript) {
+          const script = document.createElement('script');
+          script.id = 'setmore_script';
+          script.type = 'text/javascript';
+          script.src = 'https://storage.googleapis.com/fullintegration-live/webComponentAppListing/Container/setmoreIframeLive.js';
+          document.body.appendChild(script);
+        }
+        if (!setmoreButton) {
+          const a = document.createElement('a');
+          a.id = 'Setmore_button_iframe';
+          a.href = 'https://booking.setmore.com/scheduleappointment/93965fbc-3be5-4b72-aa5b-3b2e2b67d46b';
+          a.style.cssText = 'float:none; position: fixed; right: -2px; top: 25%; display: block; z-index: 20000';
+          a.innerHTML = '<img border="none" src="https://fm.sendpul.se/8672e56ee69550b039f6b32e73b058d56692731/Site/booking.svg" alt="Book an appointment with Hermida Maia Advocacia using Setmore"/>';
+          document.body.appendChild(a);
+        }
+      } else {
+        setmoreScript?.remove();
+        setmoreButton?.remove();
       }
 
       const legacyTrackingScript = document.getElementById('freshsales_crm_script');
@@ -47,7 +55,7 @@ export default function App({ Component, pageProps }) {
         legacyTrackingScript.remove();
       }
     }
-  }, [isPortalRoute]);
+  }, [isInternalRoute, isPortalRoute]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
@@ -143,7 +151,7 @@ export default function App({ Component, pageProps }) {
         {/* Material Icons CDN */}
         <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
       </Head>
-      <FreshchatWebMessenger />
+      {!isInternalRoute ? <FreshchatWebMessenger /> : null}
       <ToastProvider>
         <Component {...pageProps} />
       </ToastProvider>
