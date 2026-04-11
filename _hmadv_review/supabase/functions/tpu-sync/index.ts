@@ -2,10 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-<<<<<<< HEAD
 const TPU_GATEWAY_BASE = 'https://gateway.cloud.pje.jus.br/tpu/api/v1/publico/consulta/detalhada';
-=======
->>>>>>> codex/hmadv-tpu-fase53
 
 const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   db: { schema: 'judiciario' },
@@ -29,7 +26,6 @@ function toNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-<<<<<<< HEAD
 function flagToBool(value: unknown): boolean | null {
   if (value === null || value === undefined || value === '') return null;
   const text = String(value).trim().toUpperCase();
@@ -62,8 +58,6 @@ function deriveBusinessSignals(nome: unknown, glossario: unknown, complementos: 
   };
 }
 
-=======
->>>>>>> codex/hmadv-tpu-fase53
 async function countRows(
   table: string,
   query: (builder: any) => any,
@@ -93,11 +87,7 @@ async function safeSelect<T = any>(
 async function findTpuMovimentoByCodigo(codigoCnj: number) {
   const { data, error } = await db
     .from('tpu_movimento')
-<<<<<<< HEAD
     .select('id,codigo_cnj,nome,descricao,tipo,gera_prazo,glossario,visibilidade_externa,flg_eletronico,monocratico,colegiado,presidente_vice,movimento_template,complementos_detalhados,gateway_synced_at')
-=======
-    .select('id,codigo_cnj,nome,descricao,tipo,gera_prazo')
->>>>>>> codex/hmadv-tpu-fase53
     .eq('codigo_cnj', codigoCnj)
     .maybeSingle();
 
@@ -108,7 +98,6 @@ async function findTpuMovimentoByCodigo(codigoCnj: number) {
   return data ?? null;
 }
 
-<<<<<<< HEAD
 async function fetchGatewayDetailed(kind: 'movimentos' | 'classes' | 'assuntos' | 'documentos', codigoCnj: number) {
   const url = `${TPU_GATEWAY_BASE}/${kind}?codigo=${codigoCnj}`;
   const res = await fetch(url, {
@@ -327,8 +316,6 @@ async function syncGatewayMovimentos(limite: number, codigoCnj?: number | null) 
   return { ok: true, total: codigos.length, results };
 }
 
-=======
->>>>>>> codex/hmadv-tpu-fase53
 async function findComplementosByCodigo(codigoCnj: number) {
   const complementosMov = await safeSelect('tpu_complemento_movimento', (q) =>
     q.eq('cod_movimento', codigoCnj)
@@ -434,7 +421,6 @@ async function marcarMovimento(
   }
 }
 
-<<<<<<< HEAD
 async function resolverMovimentosPendentesPorCodigo(codigoCnj: number, movimentoTpuId: string) {
   const { error } = await db
     .from('movimentos')
@@ -455,8 +441,6 @@ async function resolverMovimentosPendentesPorCodigo(codigoCnj: number, movimento
   }
 }
 
-=======
->>>>>>> codex/hmadv-tpu-fase53
 async function registrarLogSync(entry: {
   fonte: string;
   tipo_tpu: string;
@@ -521,15 +505,9 @@ async function status() {
       movimentos_resolvidos: movimentosResolvidos,
     },
     suporte_online: {
-<<<<<<< HEAD
       gateway: true,
       sgt: false,
       observacao: 'A function resolve pelo estoque local e ja pode complementar pelo Gateway TPU detalhado.',
-=======
-      gateway: false,
-      sgt: false,
-      observacao: 'Nesta fase a function resolve pelo estoque TPU local ja carregado no banco.',
->>>>>>> codex/hmadv-tpu-fase53
     },
   };
 }
@@ -546,14 +524,11 @@ async function resolverMovimento(codigoCnj: number) {
     codigo_cnj: codigoCnj,
     movimento_tpu: movimento,
     complementos,
-<<<<<<< HEAD
     signals: deriveBusinessSignals(
       movimento?.nome,
       (movimento as any)?.glossario,
       complementos,
     ),
-=======
->>>>>>> codex/hmadv-tpu-fase53
     fonte: movimento ? 'local_db' : 'nao_encontrado',
     duracao_ms: Date.now() - inicio,
   };
@@ -720,7 +695,6 @@ Deno.serve(async (req: Request) => {
         return response(await resolverMovimento(codigo));
       }
 
-<<<<<<< HEAD
       case 'resolver_movimento_detalhado': {
         const codigo = toNumber(url.searchParams.get('codigo_cnj'));
         if (!codigo) {
@@ -729,8 +703,6 @@ Deno.serve(async (req: Request) => {
         return response(await resolverMovimentoDetalhado(codigo));
       }
 
-=======
->>>>>>> codex/hmadv-tpu-fase53
       case 'resolver_lote_movimentos': {
         const limite = Math.max(1, Number(url.searchParams.get('limite') ?? '200'));
         return response(await resolverLoteMovimentos(limite));
@@ -747,7 +719,6 @@ Deno.serve(async (req: Request) => {
       case 'sync_movimentos':
         return response(await syncPlaceholder('movimento'));
 
-<<<<<<< HEAD
       case 'sync_movimentos_gateway': {
         const limite = Math.max(1, Number(url.searchParams.get('limite') ?? '50'));
         const codigo = toNumber(url.searchParams.get('codigo_cnj'));
@@ -778,14 +749,6 @@ Deno.serve(async (req: Request) => {
         return response(await syncGatewayEntity('documentos', codigo));
       }
 
-=======
-      case 'sync_classes':
-        return response(await syncPlaceholder('classe'));
-
-      case 'sync_assuntos':
-        return response(await syncPlaceholder('assunto'));
-
->>>>>>> codex/hmadv-tpu-fase53
       case 'sync_all':
         return response(await syncPlaceholder('all'));
 

@@ -540,6 +540,34 @@ function FinanceiroInternoContent({ routeFocus }) {
         </div>
       </Panel>
 
+      <Panel title="Bloqueios de produto" eyebrow="Catalogo">
+        <div className="mb-4 flex flex-wrap gap-2">
+          <StatusBadge tone={data.product_sync?.pending ? "warn" : "success"}>
+            {data.product_sync?.pending || 0} produto(s) sem mapeamento
+          </StatusBadge>
+          <StatusBadge tone={(data.publish_blockers_by_product || []).length ? "accent" : "success"}>
+            {(data.publish_blockers_by_product || []).reduce((sum, item) => sum + Number(item.count || 0), 0)} recebivel(is) bloqueado(s)
+          </StatusBadge>
+        </div>
+        {(data.publish_blockers_by_product || []).length ? (
+          <div className="grid gap-3 xl:grid-cols-3">
+            {data.publish_blockers_by_product.map((item) => (
+              <article key={item.key} className="border border-[#2D2E2E] p-4 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold">{item.key}</p>
+                  <StatusBadge tone="warn">{item.count} bloqueio(s)</StatusBadge>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm opacity-65">Nao ha bloqueios de publicacao por produto neste recorte.</p>
+        )}
+        {data.product_mapping_help?.env_key ? (
+          <p className="mt-4 text-sm opacity-60">Chave de mapeamento manual: {data.product_mapping_help.env_key}</p>
+        ) : null}
+      </Panel>
+
       <div className="grid gap-6 xl:grid-cols-2">
         <Panel title="Estado da migração" eyebrow="Pipeline">
           <div className="grid gap-3 md:grid-cols-2">
@@ -1045,7 +1073,10 @@ function FinanceiroInternoContent({ routeFocus }) {
                   {item.linked_partes ? <StatusBadge tone="accent">{item.linked_partes} parte(s)</StatusBadge> : null}
                 </div>
                 {item.created_contact?.name ? <p className="mt-2 opacity-70">Contato: {item.created_contact.name}</p> : null}
-                {item.inferred_process?.label ? <p className="mt-2 opacity-70">Processo inferido: {item.inferred_process.label}</p> : null}
+                {item.process?.label ? <p className="mt-2 opacity-70">Processo inferido: {item.process.label}</p> : null}
+                {item.process?.account_id_freshsales ? (
+                  <p className="mt-2 opacity-70">Account sugerido: {item.process.account_id_freshsales}</p>
+                ) : null}
                 {item.possible_processes?.length ? (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {item.possible_processes.slice(0, 5).map((candidate) => (

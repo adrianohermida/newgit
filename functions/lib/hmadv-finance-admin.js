@@ -623,6 +623,18 @@ export async function getHmadvFinanceAdminConfig(env = {}) {
         },
       },
       {
+        key: "import_existing_deals_to_staging",
+        label: "Trazer deals legados para staging",
+        helper: "Importa deals antigos do Freshsales para billing_import_rows e prepara a materializacao canônica no financeiro.",
+        endpoint: "/api/admin-hmadv-financeiro",
+        method: "POST",
+        action: "run_operation",
+        payload: {
+          limit: values.publish_limit,
+          workspace_id: values.materialize_workspace_id,
+        },
+      },
+      {
         key: "sync_bidirectional_deals",
         label: "Sincronismo bidirecional",
         helper: "Executa import dos deals existentes, publica os locais pendentes e processa a fila CRM em sequência.",
@@ -712,7 +724,7 @@ export async function getHmadvFinanceAdminOverview(env) {
     ),
     fetchSupabaseAdminAll(
       env,
-      "billing_receivables?select=id,contract_id,contact_id,source_import_row_id,freshsales_deal_id,freshsales_account_id,receivable_type,invoice_number,description,due_date,status,amount_original,balance_due,balance_due_corrected,created_at,updated_at&order=created_at.desc"
+      "billing_receivables?select=id,contract_id,contact_id,product_id,source_import_row_id,freshsales_deal_id,freshsales_account_id,receivable_type,invoice_number,description,due_date,status,amount_original,balance_due,balance_due_corrected,created_at,updated_at&order=created_at.desc"
     ),
     fetchSupabaseAdminAll(
       env,
@@ -745,6 +757,17 @@ export async function getHmadvFinanceAdminOverview(env) {
     (item) => item.last_sync_error || "sem_detalhe"
   );
   const unsyncedProducts = freshsalesProducts.filter((item) => !cleanValue(item.freshsales_product_id));
+  const productsById = new Map(freshsalesProducts.map((item) => [String(item.id || ""), item]));
+  const publishBlockersByProduct = summarizeBy(
+    receivables.filter((item) => !cleanValue(item.freshsales_deal_id)).filter((item) => {
+      const product = productsById.get(String(item.product_id || ""));
+      return product && !cleanValue(product.freshsales_product_id);
+    }),
+    (item) => {
+      const product = productsById.get(String(item.product_id || ""));
+      return product?.name || "sem_produto";
+    }
+  );
   const resolution = deriveResolutionStats(importRows, receivables, contracts);
   const migrationProgressBySource = deriveMigrationProgressBySource(importRows, receivables, runsById);
   const executiveSummary = deriveExecutiveMigrationSummary({
@@ -801,6 +824,7 @@ export async function getHmadvFinanceAdminOverview(env) {
         updated_at: item.updated_at || null,
       })),
     },
+    publish_blockers_by_product: publishBlockersByProduct.slice(0, 20),
     migration_progress_by_source: migrationProgressBySource,
     recent_import_runs: importRuns.slice(0, 8).map((row) => ({
       id: row.id,

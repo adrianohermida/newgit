@@ -18,10 +18,24 @@ async function main() {
   let created = 0;
   let updated = 0;
   let failed = 0;
+  let skipped = 0;
   let publishedWithoutProductLink = 0;
   const failureDetails = [];
+  const skippedDetails = [];
 
   for (const row of receivables) {
+    const product = firstRelation(row.products);
+    if (!toFreshsalesNumericId(product?.freshsales_product_id)) {
+      skipped += 1;
+      skippedDetails.push({
+        receivable_id: row.id,
+        invoice_number: row.invoice_number || null,
+        product_name: product?.name || null,
+        reason: `Produto sem freshsales_product_id (${product?.name || 'desconhecido'})`,
+      });
+      continue;
+    }
+
     try {
       const result = await publishDeal(row);
       if (result.mode === 'created') created += 1;
@@ -47,13 +61,17 @@ async function main() {
 
   const failureSummaryByReason = summarizeFailures(failureDetails, (item) => item.reason);
   const failureSummaryByProduct = summarizeFailures(failureDetails, (item) => item.product_name || 'sem_produto');
+  const skippedSummaryByProduct = summarizeFailures(skippedDetails, (item) => item.product_name || 'sem_produto');
 
   console.log(JSON.stringify({
     total: receivables.length,
     created,
     updated,
     failed,
+    skipped,
     published_without_product_link: publishedWithoutProductLink,
+    skipped_details: skippedDetails,
+    skipped_summary_by_product: skippedSummaryByProduct,
     failure_details: failureDetails,
     failure_summary_by_reason: failureSummaryByReason,
     failure_summary_by_product: failureSummaryByProduct,
@@ -700,27 +718,62 @@ async function upsertDealRegistry(row, dealId, extra) {
 
 async function freshsalesRequest(pathname, init = {}) {
   const attemptErrors = [];
-  for (const base of resolveFreshsalesBases()) {
-    for (const headers of await freshsalesHeaderCandidates()) {
-      const response = await fetch(`${base}${pathname}`, {
-        ...init,
-        headers: {
-          ...headers,
-          ...(init.headers || {}),
-        },
-      }).catch((error) => {
-        attemptErrors.push(`${base}${pathname}: ${String(error.message || error)}`);
-        return null;
-      });
+  let shouldRetryWithForcedRefresh = false;
 
-      if (!response) continue;
-
-      const payload = await response.json().catch(() => ({}));
-      if (response.ok) return payload;
-      attemptErrors.push(`${base}${pathname} -> ${response.status}: ${payload.message || payload.error || JSON.stringify(payload).slice(0, 300)}`);
+  for (let cycle = 0; cycle < 2; cycle += 1) {
+    if (cycle > 0) {
+      const refreshed = await forceRefreshOauthAccessToken();
+      if (!refreshed) break;
     }
+
+    shouldRetryWithForcedRefresh = false;
+    for (const base of resolveFreshsalesBases()) {
+      for (const headers of await freshsalesHeaderCandidates()) {
+        const response = await fetch(`${base}${pathname}`, {
+          ...init,
+          headers: {
+            ...headers,
+            ...(init.headers || {}),
+          },
+        }).catch((error) => {
+          attemptErrors.push(`${base}${pathname}: ${String(error.message || error)}`);
+          return null;
+        });
+
+        if (!response) continue;
+
+        const payload = await response.json().catch(() => ({}));
+        if (response.ok) return payload;
+        attemptErrors.push(`${base}${pathname} -> ${response.status}: ${payload.message || payload.error || JSON.stringify(payload).slice(0, 300)}`);
+
+        if (cycle === 0 && isOauthAuthFailure(response.status, payload, headers.__mode)) {
+          shouldRetryWithForcedRefresh = true;
+        }
+      }
+    }
+
+    if (!shouldRetryWithForcedRefresh) break;
   }
   throw new Error(attemptErrors.join(' | ') || `Freshsales request failed: ${pathname}`);
+}
+
+function isOauthAuthFailure(status, payload, authMode) {
+  if (status !== 401) return false;
+  if (!['supabase_oauth', 'access_token'].includes(String(authMode || ''))) return false;
+  const message = String(payload?.message || payload?.error || JSON.stringify(payload) || '').toLowerCase();
+  return message.includes('invalid signature') || message.includes('token has expired') || message.includes('access token provided is invalid');
+}
+
+async function forceRefreshOauthAccessToken() {
+  const storedRow = await getStoredOauthRow().catch(() => null);
+  const refreshToken = cleanValue(storedRow?.refresh_token) || cleanValue(process.env.FRESHSALES_REFRESH_TOKEN);
+  if (!refreshToken) return false;
+
+  const refreshedToken = await refreshOauthRow(refreshToken);
+  if (!refreshedToken) return false;
+
+  process.env.FRESHSALES_ACCESS_TOKEN = refreshedToken;
+  return true;
 }
 
 function cleanObject(value) {
