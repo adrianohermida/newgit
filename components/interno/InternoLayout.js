@@ -187,6 +187,9 @@ export default function InternoLayout({
       if (logFilters.status && String(entry.status || "").toLowerCase() !== logFilters.status.toLowerCase()) {
         return false;
       }
+      if (logFilters.tag && !(Array.isArray(entry.tags) ? entry.tags : []).some((tag) => String(tag).toLowerCase().includes(logFilters.tag.toLowerCase()))) {
+        return false;
+      }
       if (normalizedSearch) {
         const haystack = [
           entry.label,
@@ -199,6 +202,8 @@ export default function InternoLayout({
           entry.request,
           entry.response,
           entry.error,
+          (entry.tags || []).join(" "),
+          entry.schemaIssue ? JSON.stringify(entry.schemaIssue) : "",
         ]
           .filter(Boolean)
           .join(" ")
@@ -455,6 +460,12 @@ export default function InternoLayout({
                         className="h-7 w-[90px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
                       />
                       <input
+                        value={logFilters.tag || ""}
+                        onChange={(event) => updateFilters({ ...logFilters, tag: event.target.value })}
+                        placeholder="Tag"
+                        className="h-7 w-[90px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                      />
+                      <input
                         value={logSearch}
                         onChange={(event) => setLogSearch(event.target.value)}
                         placeholder="Buscar detalhes"
@@ -497,6 +508,7 @@ export default function InternoLayout({
                               {entry.page ? <span className="rounded-full border border-[#22342F] px-2 py-1">{entry.page}</span> : null}
                               {entry.component ? <span className="rounded-full border border-[#22342F] px-2 py-1">{entry.component}</span> : null}
                               {entry.durationMs !== undefined ? <span className="rounded-full border border-[#22342F] px-2 py-1">{entry.durationMs}ms</span> : null}
+                              {(entry.tags || []).length ? <span className="rounded-full border border-[#22342F] px-2 py-1">tags: {(entry.tags || []).join(", ")}</span> : null}
                             </div>
                             <div className="mt-2">
                               <button
@@ -525,6 +537,12 @@ export default function InternoLayout({
                                   <div>
                                     <p className="text-[10px] uppercase tracking-[0.14em] text-[#D18585]">Erro</p>
                                     <pre className="mt-1 max-h-[160px] overflow-auto rounded-lg border border-[#3A1F22] bg-[rgba(34,12,14,0.6)] p-2 text-[10px] text-[#F2C7C7]">{entry.error}</pre>
+                                  </div>
+                                ) : null}
+                                {entry.schemaIssue ? (
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-[0.14em] text-[#D9B46A]">Schema/SQL</p>
+                                    <pre className="mt-1 max-h-[160px] overflow-auto rounded-lg border border-[#2B2616] bg-[rgba(20,16,8,0.7)] p-2 text-[10px] text-[#EAD9B2]">{JSON.stringify(entry.schemaIssue, null, 2)}</pre>
                                   </div>
                                 ) : null}
                               </div>

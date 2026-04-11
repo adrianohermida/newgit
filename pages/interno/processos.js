@@ -1082,12 +1082,14 @@ function InternoProcessosContent() {
       }
     }
     const entryId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    appendActivityLog({
-      id: entryId,
-      label: meta.label || action || "Chamada administrativa",
-      action,
-      method,
-      path,
+      appendActivityLog({
+        id: entryId,
+        module: "processos",
+        component: meta.component || "processos",
+        label: meta.label || action || "Chamada administrativa",
+        action,
+        method,
+        path,
       expectation: meta.expectation || (action ? `Executar ${action}` : "Consultar backend"),
       request: requestPayload,
       status: "running",
