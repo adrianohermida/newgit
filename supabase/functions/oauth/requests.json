@@ -2,15 +2,15 @@
   "getSalesAccounts": {
     "schema": {
       "method": "GET",
-      "host": "FRESHSALES_API_BASE",
-      "path": "/api/contacts/<%= contact_id %>/sales_accounts",
+      "host": "FRESHSALES_ORG_DOMAIN",
+      "path": "/crm/sales/api/contacts/<%= contact_id %>/sales_accounts",
       "headers": {
-        "Authorization": "Bearer <%= access_token %>",
+        "Authorization": "Authtoken=<%= access_token %>",
         "Content-Type": "application/json"
       }
     },
     "options": {
-      "oauth": "sampleOAuth"
+      "oauth": "freshsales"
     }
   }
 }

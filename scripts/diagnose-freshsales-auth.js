@@ -27,6 +27,7 @@ async function main() {
     probes: [],
     supabase_oauth: await inspectSupabaseOauth(),
     refresh: null,
+    token_claims: inspectAccessTokenClaims(),
   };
 
   for (const base of bases) {
@@ -46,6 +47,35 @@ async function main() {
   }
 
   console.log(JSON.stringify(report, null, 2));
+}
+
+function inspectAccessTokenClaims() {
+  const token = cleanValue(process.env.FRESHSALES_ACCESS_TOKEN);
+  if (!token || !token.includes('.')) return null;
+  try {
+    const parts = token.split('.');
+    const payload = JSON.parse(Buffer.from(base64UrlDecode(parts[1]), 'base64').toString('utf8'));
+    return {
+      iss: cleanValue(payload.iss),
+      aud: cleanValue(payload.aud),
+      organisation_domain: cleanValue(payload.organisation_domain || payload.org_domain),
+      scope_count: Array.isArray(payload.scope) ? payload.scope.length : typeof payload.scope === 'string' ? payload.scope.split(/\s+/).filter(Boolean).length : 0,
+      scope_sample: Array.isArray(payload.scope) ? payload.scope.slice(0, 8) : typeof payload.scope === 'string' ? payload.scope.split(/\s+/).filter(Boolean).slice(0, 8) : [],
+      exp: payload.exp || null,
+      iat: payload.iat || null,
+    };
+  } catch (error) {
+    return { decode_error: String(error.message || error) };
+  }
+}
+
+function base64UrlDecode(value) {
+  const normalized = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
+  const pad = normalized.length % 4;
+  if (pad === 2) return `${normalized}==`;
+  if (pad === 3) return `${normalized}=`;
+  if (pad === 1) return `${normalized}===`;
+  return normalized;
 }
 
 function loadLocalEnv() {
@@ -140,13 +170,13 @@ async function resolveAuthModes() {
   if (supabaseOauthToken) {
     modes.push({
       name: 'supabase_oauth',
-      headers: { Authorization: `Bearer ${supabaseOauthToken}` },
+      headers: { Authorization: `Authtoken=${supabaseOauthToken}` },
     });
   }
   if (accessToken) {
     modes.push({
       name: 'access_token',
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Authtoken=${accessToken}` },
     });
   }
   if (explicitMode === 'oauth') {

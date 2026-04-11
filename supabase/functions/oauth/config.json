@@ -1,13 +1,16 @@
 {
   "integrations": {
-    "sampleOAuth": {
-      "display_name": "Sample OAuth",
+    "freshsales": {
+      "display_name": "Freshworks CRM OAuth",
       "client_id": "FRESHSALES_OAUTH_CLIENT_ID",
       "client_secret": "FRESHSALES_OAUTH_CLIENT_SECRET",
-      "authorize_url": "https://login.third-party-domain.com/authorize.srf",
-      "token_url": "https://login.third-party-domain.com/token.srf",
+      "authorize_url": "https://FRESHSALES_ORG_DOMAIN/org/oauth/v2/authorize",
+      "token_url": "https://FRESHSALES_ORG_DOMAIN/org/oauth/v2/token",
       "options": {
-        "scope": "read"
+        "scope": "FRESHSALES_SCOPES",
+        "customHeaders": {
+          "Authorization": "Basic base64(client_id:client_secret)"
+        }
       },
       "token_type": "account"
     }

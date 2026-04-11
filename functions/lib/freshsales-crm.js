@@ -15,6 +15,38 @@ function splitName(fullName) {
   };
 }
 
+function decodeJwtPayload(token) {
+  const raw = getCleanEnvValue(token);
+  if (!raw || !raw.includes(".")) return null;
+  try {
+    const parts = raw.split(".");
+    if (parts.length < 2) return null;
+    const normalized = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const pad = normalized.length % 4;
+    const payloadBase64 = normalized + (pad ? "=".repeat(4 - pad) : "");
+    const payload = JSON.parse(atob(payloadBase64));
+    return payload && typeof payload === "object" ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
+function buildFreshsalesAuthDiagnostic(env) {
+  const tokenPayload = decodeJwtPayload(env.FRESHSALES_ACCESS_TOKEN);
+  const scope = Array.isArray(tokenPayload?.scope)
+    ? tokenPayload.scope.slice(0, 8)
+    : typeof tokenPayload?.scope === "string"
+      ? String(tokenPayload.scope).split(/\s+/).slice(0, 8)
+      : [];
+  return {
+    org_domain_env: resolveOauthOrgDomain(env),
+    token_iss: getCleanEnvValue(tokenPayload?.iss) || null,
+    token_org_domain: getCleanEnvValue(tokenPayload?.organisation_domain) || getCleanEnvValue(tokenPayload?.org_domain) || null,
+    token_aud: getCleanEnvValue(tokenPayload?.aud) || null,
+    token_scope_sample: scope,
+  };
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -354,8 +386,8 @@ async function getAuthHeaders(env) {
   const headers = [
     apiKey ? { name: "api_key", header: { Authorization: `Token token=${apiKey}` } } : null,
     basicAuth ? { name: "basic_auth", header: /^Basic\s+/i.test(basicAuth) ? { Authorization: basicAuth } : { Authorization: `Basic ${basicAuth}` } } : null,
-    supabaseOauthToken ? { name: "supabase_oauth", header: { Authorization: `Bearer ${supabaseOauthToken}` } } : null,
-    accessToken ? { name: "access_token", header: { Authorization: `Bearer ${accessToken}` } } : null,
+    supabaseOauthToken ? { name: "supabase_oauth", header: { Authorization: `Authtoken=${supabaseOauthToken}` } } : null,
+    accessToken ? { name: "access_token", header: { Authorization: `Authtoken=${accessToken}` } } : null,
   ].filter(Boolean);
 
   if (explicitMode === "oauth") {
@@ -440,6 +472,18 @@ export async function freshsalesRequest(env, path, init = {}) {
         };
       }
     }
+  }
+
+  if (Number(lastError?.status) === 401) {
+    const error = new Error(
+      `Freshsales recusou a autenticacao (${lastError?.base || "sem_base"}${path}). Verifique token OAuth/app instalada/dominio.`
+    );
+    error.status = 401;
+    error.payload = {
+      original_message: lastError?.message || null,
+      diagnostic: buildFreshsalesAuthDiagnostic(env),
+    };
+    throw error;
   }
 
   throw lastError || new Error("Falha ao conectar no Freshsales.");
