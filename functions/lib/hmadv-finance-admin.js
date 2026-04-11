@@ -245,8 +245,90 @@ function deriveResolutionStats(importRows, receivables, contracts) {
   };
 }
 
-export function getHmadvFinanceAdminConfig() {
+function getHmadvFinanceAdminDefaultSettings(env = {}) {
   return {
+    backfill_limit: Math.max(1, Math.min(200, Number(getCleanEnvValue(env.HMADV_FINANCE_BACKFILL_LIMIT) || 50) || 50)),
+    materialize_workspace_id: getCleanEnvValue(env.HMADV_WORKSPACE_ID) || null,
+    reprocess_limit: Math.max(1, Number(getCleanEnvValue(env.HMADV_FINANCE_REPROCESS_LIMIT) || 3000) || 3000),
+    publish_limit: Math.max(1, Number(getCleanEnvValue(env.HMADV_FINANCE_PUBLISH_LIMIT) || 50) || 50),
+    crm_events_limit: Math.max(1, Number(getCleanEnvValue(env.HMADV_FINANCE_CRM_EVENTS_LIMIT) || 50) || 50),
+    freshsales_owner_id: getCleanEnvValue(env.FRESHSALES_OWNER_ID) || getCleanEnvValue(env.FS_OWNER_ID) || null,
+  };
+}
+
+function sanitizeHmadvFinanceAdminSettings(input = {}, env = {}) {
+  const defaults = getHmadvFinanceAdminDefaultSettings(env);
+  const next = { ...defaults, ...(input && typeof input === "object" ? input : {}) };
+  return {
+    backfill_limit: Math.max(1, Math.min(200, Number(next.backfill_limit || defaults.backfill_limit) || defaults.backfill_limit)),
+    materialize_workspace_id: String(next.materialize_workspace_id || "").trim() || null,
+    reprocess_limit: Math.max(1, Number(next.reprocess_limit || defaults.reprocess_limit) || defaults.reprocess_limit),
+    publish_limit: Math.max(1, Number(next.publish_limit || defaults.publish_limit) || defaults.publish_limit),
+    crm_events_limit: Math.max(1, Number(next.crm_events_limit || defaults.crm_events_limit) || defaults.crm_events_limit),
+    freshsales_owner_id: String(next.freshsales_owner_id || defaults.freshsales_owner_id || "").trim() || null,
+  };
+}
+
+async function loadHmadvFinanceAdminSettings(env) {
+  try {
+    const rows = await fetchSupabaseSchema(
+      env,
+      "hmadv_finance_admin_settings?select=key,value,description,updated_at&key=eq.default&limit=1",
+      { schema: "public" }
+    );
+    const row = Array.isArray(rows) ? rows[0] || null : null;
+    const persisted = safeJsonParse(row?.value, {});
+    return {
+      key: row?.key || "default",
+      description: row?.description || "Configuracao operacional do modulo administrativo financeiro HMADV.",
+      updated_at: row?.updated_at || null,
+      value: sanitizeHmadvFinanceAdminSettings(persisted, env),
+    };
+  } catch {
+    return {
+      key: "default",
+      description: "Configuracao operacional do modulo administrativo financeiro HMADV.",
+      updated_at: null,
+      value: getHmadvFinanceAdminDefaultSettings(env),
+    };
+  }
+}
+
+export async function updateHmadvFinanceAdminConfig(env, payload = {}) {
+  const current = await loadHmadvFinanceAdminSettings(env);
+  const merged = sanitizeHmadvFinanceAdminSettings({
+    ...(current?.value || {}),
+    ...(payload?.settings || {}),
+  }, env);
+
+  await fetchSupabaseSchema(
+    env,
+    "hmadv_finance_admin_settings?on_conflict=key",
+    {
+      schema: "public",
+      init: {
+        method: "POST",
+        headers: {
+          Prefer: "resolution=merge-duplicates,return=representation",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify([{
+          key: "default",
+          description: "Configuracao operacional do modulo administrativo financeiro HMADV.",
+          value: merged,
+        }]),
+      },
+    }
+  );
+
+  return loadHmadvFinanceAdminSettings(env);
+}
+
+export async function getHmadvFinanceAdminConfig(env = {}) {
+  const settings = await loadHmadvFinanceAdminSettings(env);
+  const values = settings?.value || getHmadvFinanceAdminDefaultSettings(env);
+  return {
+    settings,
     endpoints: {
       overview: {
         method: "GET",
@@ -282,6 +364,7 @@ export function getHmadvFinanceAdminConfig() {
         endpoint: "/api/admin-hmadv-financeiro",
         method: "POST",
         action: "run_operation",
+        payload: {},
       },
       {
         key: "backfill_textual_accounts",
@@ -290,6 +373,9 @@ export function getHmadvFinanceAdminConfig() {
         endpoint: "/api/admin-hmadv-financeiro",
         method: "POST",
         action: "backfill_textual_accounts",
+        payload: {
+          limit: values.backfill_limit,
+        },
       },
       {
         key: "materialize_latest_run",
@@ -298,6 +384,9 @@ export function getHmadvFinanceAdminConfig() {
         endpoint: "/api/admin-hmadv-financeiro",
         method: "POST",
         action: "run_operation",
+        payload: {
+          workspace_id: values.materialize_workspace_id,
+        },
       },
       {
         key: "reprocess_billing",
@@ -306,6 +395,10 @@ export function getHmadvFinanceAdminConfig() {
         endpoint: "/api/admin-hmadv-financeiro",
         method: "POST",
         action: "run_operation",
+        payload: {
+          limit: values.reprocess_limit,
+          workspace_id: values.materialize_workspace_id,
+        },
       },
       {
         key: "publish_deals",
@@ -314,6 +407,9 @@ export function getHmadvFinanceAdminConfig() {
         endpoint: "/api/admin-hmadv-financeiro",
         method: "POST",
         action: "run_operation",
+        payload: {
+          limit: values.publish_limit,
+        },
       },
       {
         key: "diagnose_freshsales_auth",
@@ -322,6 +418,7 @@ export function getHmadvFinanceAdminConfig() {
         endpoint: "/api/admin-hmadv-financeiro",
         method: "POST",
         action: "run_operation",
+        payload: {},
       },
       {
         key: "process_crm_events",
@@ -330,6 +427,9 @@ export function getHmadvFinanceAdminConfig() {
         endpoint: "/api/admin-hmadv-financeiro",
         method: "POST",
         action: "run_operation",
+        payload: {
+          limit: values.crm_events_limit,
+        },
       },
       {
         key: "export_accounts_import",
@@ -338,6 +438,7 @@ export function getHmadvFinanceAdminConfig() {
         endpoint: "/api/admin-hmadv-financeiro",
         method: "POST",
         action: "run_operation",
+        payload: {},
       },
       {
         key: "export_deals_import",
@@ -346,6 +447,7 @@ export function getHmadvFinanceAdminConfig() {
         endpoint: "/api/admin-hmadv-financeiro",
         method: "POST",
         action: "run_operation",
+        payload: {},
       },
       {
         key: "report_ops",
@@ -354,12 +456,14 @@ export function getHmadvFinanceAdminConfig() {
         endpoint: "/api/admin-hmadv-financeiro",
         method: "POST",
         action: "run_operation",
+        payload: {},
       },
     ],
   };
 }
 
 export async function getHmadvFinanceAdminOverview(env) {
+  const config = await getHmadvFinanceAdminConfig(env);
   const [
     importRuns,
     importRows,
@@ -418,7 +522,7 @@ export async function getHmadvFinanceAdminOverview(env) {
 
   return {
     generated_at: new Date().toISOString(),
-    config: getHmadvFinanceAdminConfig(),
+    config,
     overview: {
       import_runs: importRuns.length,
       import_rows: importRows.length,
@@ -650,13 +754,13 @@ function mapSalesAccountByReference(accounts = []) {
   return byReference;
 }
 
-async function createTextualFreshsalesAccount(env, processReference) {
+async function createTextualFreshsalesAccount(env, processReference, { ownerId: ownerIdOverride } = {}) {
   const title = String(processReference || "").trim();
   if (!title) {
     throw new Error("Referencia textual do processo ausente para criar Sales Account.");
   }
 
-  const ownerId = Number(getCleanEnvValue(env.FRESHSALES_OWNER_ID) || getCleanEnvValue(env.FS_OWNER_ID) || "31000147944");
+  const ownerId = Number(ownerIdOverride || getCleanEnvValue(env.FRESHSALES_OWNER_ID) || getCleanEnvValue(env.FS_OWNER_ID) || "31000147944");
   const { payload } = await freshsalesRequest(env, "/sales_accounts", {
     method: "POST",
     body: JSON.stringify({
@@ -687,11 +791,11 @@ async function createTextualFreshsalesAccount(env, processReference) {
   };
 }
 
-async function createTextualFreshsalesAccountWithRetry(env, processReference, maxAttempts = 5) {
+async function createTextualFreshsalesAccountWithRetry(env, processReference, options = {}, maxAttempts = 5) {
   let lastError = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      return await createTextualFreshsalesAccount(env, processReference);
+      return await createTextualFreshsalesAccount(env, processReference, options);
     } catch (error) {
       lastError = error;
       const status = Number(error?.status || 0);
@@ -703,7 +807,7 @@ async function createTextualFreshsalesAccountWithRetry(env, processReference, ma
   throw lastError || new Error("Falha ao criar Sales Account textual no Freshsales.");
 }
 
-export async function backfillHmadvFinanceAccounts(env, { limit = 50 } = {}) {
+export async function backfillHmadvFinanceAccounts(env, { limit = 50, ownerId = null } = {}) {
   const safeLimit = Math.max(1, Math.min(Number(limit || 50), 200));
   const contracts = await fetchSupabaseAdminAll(
     env,
@@ -746,7 +850,7 @@ export async function backfillHmadvFinanceAccounts(env, { limit = 50 } = {}) {
       let mode = "linked_existing";
 
       if (!account) {
-        account = await createTextualFreshsalesAccountWithRetry(env, processReference);
+        account = await createTextualFreshsalesAccountWithRetry(env, processReference, { ownerId });
         byReference.set(key, account);
         mode = "created";
         createdAccounts += 1;

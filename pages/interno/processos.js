@@ -74,6 +74,17 @@ const MODULE_LIMITS = {
   maxPartesBatch: 30,
   maxAudienciasBatch: 10,
 };
+const DEFAULT_QUEUE_BATCHES = {
+  sem_movimentacoes: 5,
+  movimentacoes_pendentes: 5,
+  publicacoes_pendentes: 5,
+  partes_sem_contato: 10,
+  audiencias_pendentes: 5,
+  monitoramento_ativo: 5,
+  monitoramento_inativo: 5,
+  campos_orfaos: 1,
+  orfaos: 5,
+};
 
 function stringifyLogPayload(payload, limit = 8000) {
   if (payload === undefined) return "";
@@ -302,6 +313,14 @@ function uniqueProcessNumbers(values = []) {
   return [...new Set((values || []).map((item) => String(item || "").trim()).filter(Boolean))];
 }
 
+function getRelationSelectionValue(row) {
+  return String(row?.selection_key || row?.id || "").trim();
+}
+
+function getSuggestionSelectionValue(row) {
+  return String(row?.suggestion_key || "").trim();
+}
+
 function MetricCard({ label, value, helper }) {
   return <div className="rounded-[28px] border border-[#2D2E2E] bg-[linear-gradient(180deg,rgba(13,15,14,0.98),rgba(7,9,8,0.98))] p-5 shadow-[0_12px_36px_rgba(0,0,0,0.22)]"><p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">{label}</p><p className="mb-2 font-serif text-3xl">{value}</p>{helper ? <p className="text-sm leading-relaxed opacity-65">{helper}</p> : null}</div>;
 }
@@ -334,12 +353,120 @@ function QueueList({ title, rows, selected, onToggle, onTogglePage, page, setPag
   const updatedLabel = lastUpdated ? new Date(lastUpdated).toLocaleString("pt-BR") : "nao atualizado";
   return <div className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">{title}</p><span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{rows.length} nesta pagina</span><span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{totalRows} no total</span>{selected.length ? <span className="rounded-full border border-[#6E5630] bg-[rgba(76,57,26,0.22)] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-[#FDE68A]">{selected.length} selecionado(s)</span> : null}</div>{helper ? <p className="mt-1 text-xs leading-6 opacity-60">{helper}</p> : null}{totalRows ? <p className="mt-1 text-xs opacity-50">Pagina {page} de {totalPages}</p> : null}{lastUpdated !== undefined ? <p className="mt-1 text-xs opacity-50">Atualizado em {updatedLabel}</p> : null}{limited ? <p className="mt-1 text-xs text-[#FDE68A]">Fila em modo reduzido para evitar sobrecarga.</p> : null}{errorMessage ? <p className="mt-1 text-xs text-[#FECACA]">{errorMessage}</p> : null}</div><div className="flex flex-wrap gap-2"><ActionButton onClick={() => onTogglePage(!allSelected)} className="px-3 py-2 text-xs">{allSelected ? "Desmarcar pagina" : "Selecionar pagina"}</ActionButton><ActionButton onClick={() => setPage(Math.max(1, page - 1))} disabled={loading || page <= 1} className="px-3 py-2 text-xs">Anterior</ActionButton><ActionButton onClick={() => setPage(page + 1)} disabled={loading || page >= totalPages} className="px-3 py-2 text-xs">Proxima</ActionButton></div></div>{loading ? <p className="text-sm opacity-60">Carregando fila...</p> : null}{!loading && !rows.length ? <p className="rounded-2xl border border-dashed border-[#2D2E2E] px-4 py-6 text-sm opacity-60">Nenhum item encontrado nesta pagina.</p> : null}<div className="space-y-3">{rows.map((row) => { const selectionValue = getProcessSelectionValue(row); const statuses = renderStatuses ? renderStatuses(row) : []; return <label key={row.key} className="block cursor-pointer rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 transition hover:border-[#3A3E3D]"><div className="flex gap-3"><input type="checkbox" checked={selected.includes(selectionValue)} onChange={() => onToggle(selectionValue)} className="mt-1" /><div className="min-w-0 flex-1 space-y-2 text-sm"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold break-all">{row.numero_cnj || row.key}</p>{row.monitoramento_fallback ? <span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">fallback</span> : null}</div>{row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}{statuses.length ? <div className="flex flex-wrap gap-2">{statuses.map((status) => <StatusBadge key={status.label} tone={status.tone}>{status.label}</StatusBadge>)}</div> : null}<div className="flex flex-wrap gap-x-4 gap-y-1 opacity-60 text-xs">{row.status_atual_processo ? <span>Status: {row.status_atual_processo}</span> : null}{row.quantidade_movimentacoes !== undefined ? <span>Movimentacoes: {row.quantidade_movimentacoes ?? 0}</span> : null}{row.monitoramento_ativo !== undefined ? <span>Monitorado: {row.monitoramento_ativo ? "sim" : "nao"}</span> : null}{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]" onClick={(e) => e.stopPropagation()}>Account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}</div></div></div></label>; })}</div></div>;
 }
+function QueueActionBlock({ selectionCount = 0, batchSize = 1, onBatchChange, helper = "", disabled = false, actions = [] }) {
+  return <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4">
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="space-y-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Acao por fila</p>
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge tone={selectionCount ? "success" : "default"}>{selectionCount} selecionado(s)</StatusBadge>
+          <StatusBadge tone="default">lote local {batchSize}</StatusBadge>
+        </div>
+        {helper ? <p className="text-xs leading-6 opacity-60">{helper}</p> : null}
+      </div>
+      <label className="block min-w-[120px]">
+        <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Lote</span>
+        <input type="number" min="1" max="30" value={batchSize} onChange={(e) => onBatchChange(e.target.value)} className="w-full rounded-2xl border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" />
+      </label>
+    </div>
+    <div className="mt-4 flex flex-wrap gap-3">
+      {actions.map((action) => <ActionButton key={action.label} tone={action.tone || "subtle"} onClick={action.onClick} disabled={disabled || action.disabled}>{action.label}</ActionButton>)}
+    </div>
+  </div>;
+}
 function CoverageList({ rows, page, setPage, loading, totalRows = 0, pageSize = 20, onSelectProcess = null }) {
   const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / Math.max(1, pageSize)));
   return <div className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-semibold">Cobertura por processo</p><p className="mt-1 text-xs leading-6 opacity-60">Leitura consolidada do que ja esta coberto entre HMADV e Freshsales, por processo.</p><p className="mt-1 text-xs opacity-50">Pagina {page} de {totalPages} • {totalRows} processo(s) com pendencia</p></div><div className="flex flex-wrap gap-2"><ActionButton onClick={() => setPage(Math.max(1, page - 1))} disabled={loading || page <= 1} className="px-3 py-2 text-xs">Anterior</ActionButton><ActionButton onClick={() => setPage(page + 1)} disabled={loading || page >= totalPages} className="px-3 py-2 text-xs">Proxima</ActionButton></div></div>{loading ? <p className="text-sm opacity-60">Carregando cobertura...</p> : null}{!loading && !rows.length ? <p className="rounded-2xl border border-dashed border-[#2D2E2E] px-4 py-6 text-sm opacity-60">Nenhum processo com pendencia de cobertura nesta pagina.</p> : null}<div className="space-y-3">{rows.map((row) => <div key={row.key} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div className="space-y-2"><p className="font-semibold break-all">{row.numero_cnj || row.key}</p>{row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}<div className="flex flex-wrap gap-2"><StatusBadge tone={row.coveragePct >= 85 ? "success" : row.coveragePct >= 55 ? "warning" : "danger"}>{row.coveragePct || 0}% coberto</StatusBadge>{(row.pending || []).slice(0, 6).map((label) => <StatusBadge key={`${row.key}-${label}`} tone="warning">{label.replace(/_/g, " ")}</StatusBadge>)}</div><div className="flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60"><span>Publicacoes pendentes: {row.publicacoesPendentes || 0}</span><span>Movimentacoes pendentes: {row.movimentacoesPendentes || 0}</span><span>Partes sem contato: {row.partesSemContato || 0}</span><span>Audiencias pendentes: {row.audienciasPendentes || 0}</span>{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}</div></div>{onSelectProcess ? <ActionButton onClick={() => onSelectProcess(row.numero_cnj)} className="px-3 py-2 text-xs">Usar no lote</ActionButton> : null}</div></div>)}</div></div>;
 }
 function RelationProcessCard({ title, process, fallbackNumber }) {
   return <div className="rounded-[24px] border border-[#2D2E2E] bg-[#050706] p-4"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">{title}</p><p className="mt-3 break-all font-semibold">{process?.numero_cnj || fallbackNumber || "Sem CNJ"}</p><p className="mt-1 text-sm opacity-70">{process?.titulo || "Processo ainda nao encontrado na base judiciaria."}</p><div className="mt-2 flex flex-wrap gap-3 text-xs opacity-60">{process?.status_atual_processo ? <span>Status: {process.status_atual_processo}</span> : null}{process?.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${process.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Account {process.account_id_freshsales}</a> : null}</div></div>;
+}
+function RelationSelectionBar({
+  title,
+  helper,
+  page,
+  totalRows,
+  pageSize = 20,
+  selectedCount = 0,
+  allMatchingSelected = false,
+  loading = false,
+  onTogglePage,
+  onToggleAllMatching,
+  onPrevPage,
+  onNextPage,
+  disableNext = false,
+  disablePrev = false,
+}) {
+  const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / Math.max(1, pageSize)));
+  return <div className="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm font-semibold">{title}</p>
+        <span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{totalRows} no total</span>
+        {selectedCount ? <span className="rounded-full border border-[#6E5630] bg-[rgba(76,57,26,0.22)] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-[#FDE68A]">{selectedCount} selecionado(s)</span> : null}
+        {allMatchingSelected ? <StatusBadge tone="success">todos do filtro</StatusBadge> : null}
+      </div>
+      {helper ? <p className="mt-1 text-xs leading-6 opacity-60">{helper}</p> : null}
+      <p className="mt-1 text-xs opacity-50">Pagina {page} de {totalPages}</p>
+    </div>
+    <div className="flex flex-wrap gap-2">
+      <ActionButton onClick={onTogglePage} disabled={loading} className="px-3 py-2 text-xs">Selecionar pagina</ActionButton>
+      <ActionButton onClick={onToggleAllMatching} disabled={loading || !totalRows} className="px-3 py-2 text-xs">{allMatchingSelected ? "Limpar todos do filtro" : "Selecionar todos do filtro"}</ActionButton>
+      <ActionButton onClick={onPrevPage} disabled={loading || disablePrev} className="px-3 py-2 text-xs">Anterior</ActionButton>
+      <ActionButton onClick={onNextPage} disabled={loading || disableNext} className="px-3 py-2 text-xs">Proxima</ActionButton>
+    </div>
+  </div>;
+}
+function RelationSuggestionCard({ item, checked, onToggle, onUseSuggestion }) {
+  return <label className="block cursor-pointer rounded-[26px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 transition hover:border-[#3A3E3D]">
+    <div className="flex gap-3">
+      <input type="checkbox" checked={checked} onChange={onToggle} className="mt-1" />
+      <div className="min-w-0 flex-1 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge tone={item.score >= 0.8 ? "success" : item.score >= 0.6 ? "warning" : "default"}>{item.score_pct || Math.round(Number(item.score || 0) * 100)}% confianca</StatusBadge>
+          <StatusBadge tone="default">{item.tipo_relacao}</StatusBadge>
+          <StatusBadge tone="success">sugestao</StatusBadge>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <RelationProcessCard title="Pai sugerido" process={item.source_process?.numero_cnj === item.numero_cnj_pai ? item.source_process : item.target_process} fallbackNumber={item.numero_cnj_pai} />
+          <RelationProcessCard title="Filho sugerido" process={item.source_process?.numero_cnj === item.numero_cnj_filho ? item.source_process : item.target_process} fallbackNumber={item.numero_cnj_filho} />
+        </div>
+        {item.reasons?.length ? <div className="flex flex-wrap gap-2">{item.reasons.map((reason) => <StatusBadge key={reason} tone="warning">{reason}</StatusBadge>)}</div> : null}
+        {item.evidence?.trecho ? <div className="rounded-[20px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] p-3 text-sm opacity-75"><p className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-55">Trecho da publicacao</p><p className="mt-2 leading-6">{item.evidence.trecho}</p></div> : null}
+        <div className="flex flex-wrap items-center gap-3 text-xs opacity-60">
+          {item.evidence?.data_publicacao ? <span>Publicacao: {new Date(item.evidence.data_publicacao).toLocaleDateString("pt-BR")}</span> : null}
+          {item.evidence?.cnj_mencionado ? <span>CNJ citado: {item.evidence.cnj_mencionado}</span> : null}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <ActionButton onClick={(event) => { event.preventDefault(); onUseSuggestion(item); }} className="px-3 py-2 text-xs">Usar no formulario</ActionButton>
+        </div>
+      </div>
+    </div>
+  </label>;
+}
+function RegisteredRelationCard({ item, checked, onToggle, onEdit, onDelete, disabled = false }) {
+  return <label className="block cursor-pointer rounded-[28px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4">
+    <div className="flex gap-3">
+      <input type="checkbox" checked={checked} onChange={onToggle} className="mt-1" />
+      <div className="min-w-0 flex-1 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.15em]">
+            <span className="border border-[#2D2E2E] px-2 py-1">{item.tipo_relacao}</span>
+            <span className="border border-[#2D2E2E] px-2 py-1">{item.status}</span>
+          </div>
+          <div className="flex gap-2">
+            <ActionButton onClick={(event) => { event.preventDefault(); onEdit(item); }} disabled={disabled} className="px-3 py-2 text-xs">Editar</ActionButton>
+            <ActionButton tone="danger" onClick={(event) => { event.preventDefault(); onDelete(item.id); }} disabled={disabled} className="px-3 py-2 text-xs">Remover</ActionButton>
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <RelationProcessCard title="Processo principal" process={item.processo_pai} fallbackNumber={item.numero_cnj_pai} />
+          <RelationProcessCard title="Processo relacionado" process={item.processo_filho} fallbackNumber={item.numero_cnj_filho} />
+        </div>
+        {item.observacoes ? <p className="text-sm opacity-65">{item.observacoes}</p> : null}
+      </div>
+    </div>
+  </label>;
 }
 function StatusBadge({ children, tone = "default" }) {
   const tones = {
@@ -1062,6 +1189,7 @@ function InternoProcessosContent() {
   const bootstrappedRef = useRef(false);
   const snapshotPayloadRef = useRef("");
   const [limit, setLimit] = useState(2);
+  const [queueBatchSizes, setQueueBatchSizes] = useState(DEFAULT_QUEUE_BATCHES);
   const [processNumbers, setProcessNumbers] = useState("");
   const [withoutMovements, setWithoutMovements] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
   const [movementBacklog, setMovementBacklog] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
@@ -1091,12 +1219,20 @@ function InternoProcessosContent() {
   const [selectedMonitoringInactive, setSelectedMonitoringInactive] = useState([]);
   const [selectedFieldGaps, setSelectedFieldGaps] = useState([]);
   const [selectedOrphans, setSelectedOrphans] = useState([]);
-  const [relations, setRelations] = useState({ loading: true, error: null, items: [], totalRows: 0, page: 1 });
+  const [relations, setRelations] = useState({ loading: true, error: null, items: [], totalRows: 0, page: 1, pageSize: 20 });
+  const [relationSuggestions, setRelationSuggestions] = useState({ loading: true, error: null, items: [], totalRows: 0, page: 1, pageSize: 20 });
   const [search, setSearch] = useState("");
+  const [relationMinScore, setRelationMinScore] = useState("0.45");
   const [lookup, setLookup] = useState({ loading: false, items: [] });
   const [lookupTerm, setLookupTerm] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingRelationId, setEditingRelationId] = useState(null);
+  const [selectedRelations, setSelectedRelations] = useState([]);
+  const [selectedSuggestionKeys, setSelectedSuggestionKeys] = useState([]);
+  const [allMatchingRelationsSelected, setAllMatchingRelationsSelected] = useState(false);
+  const [allMatchingSuggestionsSelected, setAllMatchingSuggestionsSelected] = useState(false);
+  const [relationSelectionLoading, setRelationSelectionLoading] = useState(false);
+  const [suggestionSelectionLoading, setSuggestionSelectionLoading] = useState(false);
 
   async function adminFetch(path, init = {}, meta = {}) {
     const startedAt = Date.now();
@@ -1185,6 +1321,7 @@ function InternoProcessosContent() {
       if (saved.view && PROCESS_VIEW_ITEMS.some((item) => item.key === saved.view)) setView(saved.view);
       if (saved.processNumbers) setProcessNumbers(String(saved.processNumbers));
       if (saved.limit) setLimit(Number(saved.limit) || 2);
+      if (saved.queueBatchSizes && typeof saved.queueBatchSizes === "object") setQueueBatchSizes((current) => ({ ...current, ...saved.queueBatchSizes }));
       if (saved.wmPage) setWmPage(Math.max(1, Number(saved.wmPage) || 1));
       if (saved.movPage) setMovPage(Math.max(1, Number(saved.movPage) || 1));
       if (saved.pubPage) setPubPage(Math.max(1, Number(saved.pubPage) || 1));
@@ -1196,6 +1333,7 @@ function InternoProcessosContent() {
       if (saved.orphanPage) setOrphanPage(Math.max(1, Number(saved.orphanPage) || 1));
       if (saved.covPage) setCovPage(Math.max(1, Number(saved.covPage) || 1));
       if (saved.search) setSearch(String(saved.search));
+      if (saved.relationMinScore) setRelationMinScore(String(saved.relationMinScore));
       if (Array.isArray(saved.selectedWithoutMovements)) setSelectedWithoutMovements(saved.selectedWithoutMovements);
       if (Array.isArray(saved.selectedMovementBacklog)) setSelectedMovementBacklog(saved.selectedMovementBacklog);
       if (Array.isArray(saved.selectedPublicationBacklog)) setSelectedPublicationBacklog(saved.selectedPublicationBacklog);
@@ -1205,6 +1343,8 @@ function InternoProcessosContent() {
       if (Array.isArray(saved.selectedMonitoringInactive)) setSelectedMonitoringInactive(saved.selectedMonitoringInactive);
       if (Array.isArray(saved.selectedFieldGaps)) setSelectedFieldGaps(saved.selectedFieldGaps);
       if (Array.isArray(saved.selectedOrphans)) setSelectedOrphans(saved.selectedOrphans);
+      if (Array.isArray(saved.selectedRelations)) setSelectedRelations(saved.selectedRelations);
+      if (Array.isArray(saved.selectedSuggestionKeys)) setSelectedSuggestionKeys(saved.selectedSuggestionKeys);
     }
     setUiHydrated(true);
   }, []);
@@ -1240,6 +1380,7 @@ function InternoProcessosContent() {
       view,
       processNumbers,
       limit,
+      queueBatchSizes,
       wmPage,
       movPage,
       pubPage,
@@ -1251,6 +1392,7 @@ function InternoProcessosContent() {
       orphanPage,
       covPage,
       search,
+      relationMinScore,
       selectedWithoutMovements,
       selectedMovementBacklog,
       selectedPublicationBacklog,
@@ -1260,8 +1402,10 @@ function InternoProcessosContent() {
       selectedMonitoringInactive,
       selectedFieldGaps,
       selectedOrphans,
+      selectedRelations,
+      selectedSuggestionKeys,
     });
-  }, [view, processNumbers, limit, wmPage, movPage, pubPage, partesPage, audPage, maPage, miPage, fgPage, orphanPage, covPage, search, selectedWithoutMovements, selectedMovementBacklog, selectedPublicationBacklog, selectedPartesBacklog, selectedAudienciaCandidates, selectedMonitoringActive, selectedMonitoringInactive, selectedFieldGaps, selectedOrphans]);
+  }, [view, processNumbers, limit, queueBatchSizes, wmPage, movPage, pubPage, partesPage, audPage, maPage, miPage, fgPage, orphanPage, covPage, search, relationMinScore, selectedWithoutMovements, selectedMovementBacklog, selectedPublicationBacklog, selectedPartesBacklog, selectedAudienciaCandidates, selectedMonitoringActive, selectedMonitoringInactive, selectedFieldGaps, selectedOrphans, selectedRelations, selectedSuggestionKeys]);
   useEffect(() => {
     const snapshotPayload = {
       overview,
@@ -1323,7 +1467,7 @@ function InternoProcessosContent() {
         ]
         : [];
       const coverageCalls = shouldLoadCoverage ? [loadCoverage(covPage)] : [];
-      const relationCalls = shouldLoadRelations ? [loadRelations(1, search)] : [];
+      const relationCalls = shouldLoadRelations ? [loadRelations(1, search), loadRelationSuggestions(1, search, relationMinScore)] : [];
       await Promise.all([...baseCalls, ...queueCalls, ...coverageCalls, ...relationCalls]);
       if (!cancelled) bootstrappedRef.current = true;
     }
@@ -1331,7 +1475,7 @@ function InternoProcessosContent() {
     return () => {
       cancelled = true;
     };
-  }, [uiHydrated, view]);
+  }, [uiHydrated, view, relationMinScore]);
   useEffect(() => {
     if (globalError) {
       setOperationalStatus({ mode: "error", message: globalError, updatedAt: new Date().toISOString() });
@@ -1416,6 +1560,11 @@ function InternoProcessosContent() {
     loadRelations(1, search);
   }, [search, view]);
   useEffect(() => {
+    if (!bootstrappedRef.current) return;
+    if (!RELATION_VIEWS.has(view)) return;
+    loadRelationSuggestions(1, search, relationMinScore);
+  }, [search, relationMinScore, view]);
+  useEffect(() => {
     const term = lookupTerm.trim();
     if (!term) { setLookup({ loading: false, items: [] }); return undefined; }
     let cancelled = false;
@@ -1428,6 +1577,12 @@ function InternoProcessosContent() {
     }, 250);
     return () => { cancelled = true; clearTimeout(timeoutId); };
   }, [lookupTerm]);
+  useEffect(() => {
+    setAllMatchingRelationsSelected(false);
+  }, [search, relations.page]);
+  useEffect(() => {
+    setAllMatchingSuggestionsSelected(false);
+  }, [search, relationSuggestions.page, relationMinScore]);
   useEffect(() => {
     if (!jobs.length) return;
     const runningJob = jobs.find((item) => item.status === "running" || item.status === "pending");
@@ -1623,7 +1778,35 @@ function InternoProcessosContent() {
   }
   async function loadRelations(page = 1, query = "") {
     setRelations((current) => ({ ...current, loading: true, error: null }));
-    try { const payload = await adminFetch(`/api/admin-hmadv-processos?action=relacoes&page=${page}&pageSize=20&query=${encodeURIComponent(query || "")}`); setRelations({ loading: false, error: null, items: payload.data.items || [], totalRows: payload.data.totalRows || 0, page: payload.data.page || page }); } catch (error) { setRelations({ loading: false, error: error.message || "Falha ao carregar relacoes.", items: [], totalRows: 0, page }); }
+    try {
+      const payload = await adminFetch(`/api/admin-hmadv-processos?action=relacoes&page=${page}&pageSize=20&query=${encodeURIComponent(query || "")}`);
+      setRelations({
+        loading: false,
+        error: null,
+        items: payload.data.items || [],
+        totalRows: payload.data.totalRows || 0,
+        page: payload.data.page || page,
+        pageSize: payload.data.pageSize || 20,
+      });
+    } catch (error) {
+      setRelations({ loading: false, error: error.message || "Falha ao carregar relacoes.", items: [], totalRows: 0, page, pageSize: 20 });
+    }
+  }
+  async function loadRelationSuggestions(page = 1, query = "", minScore = relationMinScore) {
+    setRelationSuggestions((current) => ({ ...current, loading: true, error: null }));
+    try {
+      const payload = await adminFetch(`/api/admin-hmadv-processos?action=sugestoes_relacoes&page=${page}&pageSize=20&query=${encodeURIComponent(query || "")}&minScore=${encodeURIComponent(minScore || "0.45")}`);
+      setRelationSuggestions({
+        loading: false,
+        error: null,
+        items: payload.data.items || [],
+        totalRows: payload.data.totalRows || 0,
+        page: payload.data.page || page,
+        pageSize: payload.data.pageSize || 20,
+      });
+    } catch (error) {
+      setRelationSuggestions({ loading: false, error: error.message || "Falha ao carregar sugestoes.", items: [], totalRows: 0, page, pageSize: 20 });
+    }
   }
   async function loadRemoteHistory() {
     if (globalErrorUntil && Date.now() < globalErrorUntil) {
@@ -1776,6 +1959,17 @@ function InternoProcessosContent() {
     if (explicit) return explicit;
     return String(processNumbers || "").trim();
   }
+  function getQueueBatchSize(queueKey) {
+    const requested = Number(queueBatchSizes?.[queueKey] || DEFAULT_QUEUE_BATCHES[queueKey] || 1);
+    return Math.max(1, Math.min(requested, 30));
+  }
+  function updateQueueBatchSize(queueKey, rawValue) {
+    const nextValue = Math.max(1, Math.min(Number(rawValue || 1), 30));
+    setQueueBatchSizes((current) => ({ ...current, [queueKey]: nextValue }));
+  }
+  function runQueueAction(action, queueKey, payload = {}) {
+    handleAction(action, { ...payload, limit: getQueueBatchSize(queueKey) });
+  }
   function selectVisibleRecurringProcesses() {
     const recurringKeys = new Set(recurringProcesses.map((item) => item.key));
     setSelectedWithoutMovements(withoutMovements.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
@@ -1816,6 +2010,64 @@ function InternoProcessosContent() {
     setSelectedMonitoringInactive([]);
     setSelectedFieldGaps([]);
     setSelectedOrphans([]);
+  }
+  function toggleCustomSelection(setter, current, key) {
+    setter(current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
+  }
+  function toggleCustomPageSelection(setter, current, rows, getValue) {
+    const keys = rows.map((item) => getValue(item)).filter(Boolean);
+    const allSelected = keys.length > 0 && keys.every((key) => current.includes(key));
+    if (allSelected) {
+      setter(current.filter((item) => !keys.includes(item)));
+      return;
+    }
+    setter([...new Set([...current, ...keys])]);
+  }
+  async function toggleAllMatchingRelations() {
+    if (allMatchingRelationsSelected) {
+      setSelectedRelations([]);
+      setAllMatchingRelationsSelected(false);
+      return;
+    }
+    setRelationSelectionLoading(true);
+    try {
+      const payload = await adminFetch(`/api/admin-hmadv-processos?action=relacoes&selection=1&page=1&pageSize=500&query=${encodeURIComponent(search || "")}`);
+      setSelectedRelations((payload.data.items || []).map((item) => item.selection_key).filter(Boolean));
+      setAllMatchingRelationsSelected(true);
+    } finally {
+      setRelationSelectionLoading(false);
+    }
+  }
+  async function toggleAllMatchingSuggestions() {
+    if (allMatchingSuggestionsSelected) {
+      setSelectedSuggestionKeys([]);
+      setAllMatchingSuggestionsSelected(false);
+      return;
+    }
+    setSuggestionSelectionLoading(true);
+    try {
+      const payload = await adminFetch(`/api/admin-hmadv-processos?action=sugestoes_relacoes&selection=1&page=1&pageSize=500&query=${encodeURIComponent(search || "")}&minScore=${encodeURIComponent(relationMinScore || "0.45")}`);
+      setSelectedSuggestionKeys((payload.data.items || []).map((item) => item.suggestion_key).filter(Boolean));
+      setAllMatchingSuggestionsSelected(true);
+    } finally {
+      setSuggestionSelectionLoading(false);
+    }
+  }
+  async function loadSelectedRelationItems() {
+    const needRemote = allMatchingRelationsSelected || selectedRelations.length > relations.items.length;
+    if (!needRemote) {
+      return relations.items.filter((item) => selectedRelations.includes(getRelationSelectionValue(item)));
+    }
+    const payload = await adminFetch(`/api/admin-hmadv-processos?action=relacoes&page=1&pageSize=500&query=${encodeURIComponent(search || "")}`);
+    return (payload.data.items || []).filter((item) => selectedRelations.includes(getRelationSelectionValue(item)));
+  }
+  async function loadSelectedSuggestionItems() {
+    const needRemote = allMatchingSuggestionsSelected || selectedSuggestionKeys.length > relationSuggestions.items.length;
+    if (!needRemote) {
+      return relationSuggestions.items.filter((item) => selectedSuggestionKeys.includes(getSuggestionSelectionValue(item)));
+    }
+    const payload = await adminFetch(`/api/admin-hmadv-processos?action=sugestoes_relacoes&page=1&pageSize=500&query=${encodeURIComponent(search || "")}&minScore=${encodeURIComponent(relationMinScore || "0.45")}`);
+    return (payload.data.items || []).filter((item) => selectedSuggestionKeys.includes(getSuggestionSelectionValue(item)));
   }
   function useCoverageProcess(number) {
     if (!number) return;
@@ -2012,15 +2264,89 @@ function InternoProcessosContent() {
     setActionState({ loading: true, error: null, result: null });
     try {
       const payload = await adminFetch("/api/admin-hmadv-processos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "salvar_relacao", id: editingRelationId, ...form }) });
-      setActionState({ loading: false, error: null, result: payload.data }); setForm(EMPTY_FORM); setEditingRelationId(null); await loadRelations(relations.page, search);
+      setActionState({ loading: false, error: null, result: payload.data }); setForm(EMPTY_FORM); setEditingRelationId(null); await Promise.all([loadRelations(relations.page, search), loadRelationSuggestions(relationSuggestions.page, search, relationMinScore)]);
     } catch (error) { setActionState({ loading: false, error: error.message || "Falha ao salvar relacao.", result: null }); }
   }
   async function handleDeleteRelation(id) {
     setActionState({ loading: true, error: null, result: null });
     try {
       const payload = await adminFetch("/api/admin-hmadv-processos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "remover_relacao", id }) });
-      setActionState({ loading: false, error: null, result: payload.data }); await loadRelations(relations.page, search);
+      setActionState({ loading: false, error: null, result: payload.data }); await Promise.all([loadRelations(relations.page, search), loadRelationSuggestions(relationSuggestions.page, search, relationMinScore)]);
     } catch (error) { setActionState({ loading: false, error: error.message || "Falha ao remover relacao.", result: null }); }
+  }
+  async function handleBulkRelationStatus(nextStatus) {
+    if (!selectedRelations.length) return;
+    setActionState({ loading: true, error: null, result: null });
+    try {
+      const relationIds = (await loadSelectedRelationItems())
+        .map((item) => item.id)
+        .filter(Boolean);
+      const payload = await adminFetch("/api/admin-hmadv-processos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "bulk_relacoes", ids: relationIds, status: nextStatus }),
+      });
+      setActionState({ loading: false, error: null, result: payload.data });
+      await Promise.all([loadRelations(relations.page, search), loadRelationSuggestions(relationSuggestions.page, search, relationMinScore)]);
+    } catch (error) {
+      setActionState({ loading: false, error: error.message || "Falha na atualizacao em massa.", result: null });
+    }
+  }
+  async function handleBulkRelationRemoval() {
+    if (!selectedRelations.length) return;
+    setActionState({ loading: true, error: null, result: null });
+    try {
+      const relationIds = (await loadSelectedRelationItems())
+        .map((item) => item.id)
+        .filter(Boolean);
+      const payload = await adminFetch("/api/admin-hmadv-processos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "bulk_relacoes", ids: relationIds, remove: true }),
+      });
+      setActionState({ loading: false, error: null, result: payload.data });
+      setSelectedRelations([]);
+      await Promise.all([loadRelations(Math.max(1, relations.page), search), loadRelationSuggestions(relationSuggestions.page, search, relationMinScore)]);
+    } catch (error) {
+      setActionState({ loading: false, error: error.message || "Falha na remocao em massa.", result: null });
+    }
+  }
+  function useSuggestionInForm(item) {
+    setForm({
+      numero_cnj_pai: item.numero_cnj_pai || "",
+      numero_cnj_filho: item.numero_cnj_filho || "",
+      tipo_relacao: item.tipo_relacao || "dependencia",
+      status: item.status || "ativo",
+      observacoes: item.evidence?.trecho ? `Sugerido a partir de publicacao: ${item.evidence.trecho}` : "",
+    });
+  }
+  async function handleBulkSaveSuggestions() {
+    if (!selectedSuggestionKeys.length) return;
+    setActionState({ loading: true, error: null, result: null });
+    try {
+      const items = (await loadSelectedSuggestionItems())
+        .map((item) => ({
+          numero_cnj_pai: item.numero_cnj_pai,
+          numero_cnj_filho: item.numero_cnj_filho,
+          tipo_relacao: item.tipo_relacao,
+          status: item.status || "ativo",
+          score: item.score,
+          observacoes: item.evidence?.trecho ? `Sugestao validada em massa. Evidencia: ${item.evidence.trecho}` : "",
+        }));
+      const payload = await adminFetch("/api/admin-hmadv-processos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "bulk_salvar_relacoes", items }),
+      });
+      setActionState({ loading: false, error: null, result: payload.data });
+      setSelectedSuggestionKeys([]);
+      await Promise.all([
+        loadRelations(1, search),
+        loadRelationSuggestions(relationSuggestions.page, search, relationMinScore),
+      ]);
+    } catch (error) {
+      setActionState({ loading: false, error: error.message || "Falha ao validar sugestoes em massa.", result: null });
+    }
   }
   useEffect(() => {
     if (!uiHydrated) return;
@@ -2112,6 +2438,155 @@ function InternoProcessosContent() {
     if (!selectionSuggestedAction) return false;
     return selectionSuggestedAction.key === action && String(selectionSuggestedAction.intent || "") === String(intent || "");
   };
+  const queueActionConfigs = useMemo(() => ({
+    sem_movimentacoes: {
+      batchSize: getQueueBatchSize("sem_movimentacoes"),
+      selectionCount: selectedWithoutMovements.length,
+      helper: "Aplica o lote apenas sobre os processos selecionados nesta fila.",
+      actions: [
+        {
+          label: "Buscar movimentacoes",
+          tone: isSuggestedAction("enriquecer_datajud", "buscar_movimentacoes") ? "primary" : "subtle",
+          onClick: () => runQueueAction("enriquecer_datajud", "sem_movimentacoes", {
+            processNumbers: resolveActionProcessNumbers(getSelectedNumbers(withoutMovements.items, selectedWithoutMovements).join("\n")),
+            intent: "buscar_movimentacoes",
+            action: "enriquecer_datajud",
+          }),
+        },
+      ],
+    },
+    movimentacoes_pendentes: {
+      batchSize: getQueueBatchSize("movimentacoes_pendentes"),
+      selectionCount: selectedMovementBacklog.length,
+      helper: "Use o lote da fila para refletir apenas os andamentos selecionados no Freshsales.",
+      actions: [
+        {
+          label: "Sincronizar movimentacoes",
+          tone: isSuggestedAction("sincronizar_movimentacoes_activity") ? "primary" : "subtle",
+          onClick: () => runQueueAction("sincronizar_movimentacoes_activity", "movimentacoes_pendentes", {
+            processNumbers: resolveActionProcessNumbers(getSelectedNumbers(movementBacklog.items, selectedMovementBacklog).join("\n")),
+          }),
+        },
+      ],
+    },
+    publicacoes_pendentes: {
+      batchSize: getQueueBatchSize("publicacoes_pendentes"),
+      selectionCount: selectedPublicationBacklog.length,
+      helper: "Dispare o lote local para publicar apenas o recorte desta fila.",
+      actions: [
+        {
+          label: "Sincronizar publicacoes",
+          tone: isSuggestedAction("sincronizar_publicacoes_activity") ? "primary" : "subtle",
+          onClick: () => runQueueAction("sincronizar_publicacoes_activity", "publicacoes_pendentes", {
+            processNumbers: resolveActionProcessNumbers(getSelectedNumbers(publicationBacklog.items, selectedPublicationBacklog).join("\n")),
+          }),
+        },
+      ],
+    },
+    partes_sem_contato: {
+      batchSize: getQueueBatchSize("partes_sem_contato"),
+      selectionCount: selectedPartesBacklog.length,
+      helper: "O lote atua apenas nas partes dos processos marcados nesta fila.",
+      actions: [
+        {
+          label: "Reconciliar partes",
+          tone: isSuggestedAction("reconciliar_partes_contatos") ? "primary" : "subtle",
+          onClick: () => runQueueAction("reconciliar_partes_contatos", "partes_sem_contato", {
+            processNumbers: resolveActionProcessNumbers(getSelectedNumbers(partesBacklog.items, selectedPartesBacklog).join("\n")),
+          }),
+        },
+      ],
+    },
+    audiencias_pendentes: {
+      batchSize: getQueueBatchSize("audiencias_pendentes"),
+      selectionCount: selectedAudienciaCandidates.length,
+      helper: "Retroage audiencias somente para os processos escolhidos nesta fila.",
+      actions: [
+        {
+          label: "Retroagir audiencias",
+          tone: isSuggestedAction("backfill_audiencias") ? "primary" : "subtle",
+          onClick: () => runQueueAction("backfill_audiencias", "audiencias_pendentes", {
+            processNumbers: resolveActionProcessNumbers(getSelectedNumbers(audienciaCandidates.items, selectedAudienciaCandidates).join("\n")),
+            apply: true,
+          }),
+        },
+      ],
+    },
+    monitoramento_ativo: {
+      batchSize: getQueueBatchSize("monitoramento_ativo"),
+      selectionCount: selectedMonitoringActive.length,
+      helper: monitoringUnsupported ? "A fila fica em leitura ate a migracao de monitoramento ser aplicada." : "Escolha um lote local para sincronizar ou desligar o monitoramento do recorte atual.",
+      actions: monitoringUnsupported ? [] : [
+        {
+          label: "Sincronizar monitorados",
+          tone: isSuggestedAction("enriquecer_datajud", "sincronizar_monitorados") ? "primary" : "subtle",
+          onClick: () => runQueueAction("enriquecer_datajud", "monitoramento_ativo", {
+            processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n")),
+            intent: "sincronizar_monitorados",
+            action: "enriquecer_datajud",
+          }),
+        },
+        {
+          label: "Desativar monitoramento",
+          onClick: () => runQueueAction("monitoramento_status", "monitoramento_ativo", {
+            processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n")),
+            active: false,
+          }),
+        },
+      ],
+    },
+    monitoramento_inativo: {
+      batchSize: getQueueBatchSize("monitoramento_inativo"),
+      selectionCount: selectedMonitoringInactive.length,
+      helper: monitoringUnsupported ? "A fila mostra o backlog, mas a escrita segue bloqueada ate a migracao do schema." : "Reative em lote apenas os processos selecionados nesta fila.",
+      actions: monitoringUnsupported ? [] : [
+        {
+          label: "Ativar monitoramento",
+          tone: "primary",
+          onClick: () => runQueueAction("monitoramento_status", "monitoramento_inativo", {
+            processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringInactive.items, selectedMonitoringInactive).join("\n")),
+            active: true,
+          }),
+        },
+      ],
+    },
+    campos_orfaos: {
+      batchSize: getQueueBatchSize("campos_orfaos"),
+      selectionCount: selectedFieldGaps.length,
+      helper: "Combine reparo de CRM e reenriquecimento apenas para os gaps marcados nesta fila.",
+      actions: [
+        {
+          label: "Corrigir CRM",
+          tone: isSuggestedAction("repair_freshsales_accounts") ? "primary" : "subtle",
+          onClick: () => runQueueAction("repair_freshsales_accounts", "campos_orfaos", {
+            processNumbers: resolveActionProcessNumbers(getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n")),
+          }),
+        },
+        {
+          label: "Reenriquecer gaps",
+          onClick: () => runQueueAction("enriquecer_datajud", "campos_orfaos", {
+            processNumbers: resolveActionProcessNumbers(getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n")),
+            intent: "reenriquecer_gaps",
+            action: "enriquecer_datajud",
+          }),
+        },
+      ],
+    },
+    orfaos: {
+      batchSize: getQueueBatchSize("orfaos"),
+      selectionCount: selectedOrphans.length,
+      helper: "Cria Sales Accounts apenas para os processos escolhidos nesta fila.",
+      actions: [
+        {
+          label: "Criar accounts",
+          tone: isSuggestedAction("push_orfaos") ? "primary" : "subtle",
+          onClick: () => runQueueAction("push_orfaos", "orfaos", {
+            processNumbers: resolveActionProcessNumbers(getSelectedNumbers(orphans.items, selectedOrphans).join("\n")),
+          }),
+        },
+      ],
+    },
+  }), [selectedWithoutMovements, selectedMovementBacklog, selectedPublicationBacklog, selectedPartesBacklog, selectedAudienciaCandidates, selectedMonitoringActive, selectedMonitoringInactive, selectedFieldGaps, selectedOrphans, monitoringUnsupported, withoutMovements.items, movementBacklog.items, publicationBacklog.items, partesBacklog.items, audienciaCandidates.items, monitoringActive.items, monitoringInactive.items, fieldGaps.items, orphans.items, queueBatchSizes, selectionSuggestedAction, processNumbers]);
   const coverageSchemaExists = schemaStatus?.data?.exists;
   const coverageSchemaLabel = schemaStatus.loading
     ? "verificando schema"
@@ -2334,35 +2809,133 @@ function InternoProcessosContent() {
           <CoverageList rows={processCoverage.items} page={covPage} setPage={setCovPage} loading={processCoverage.loading} totalRows={processCoverage.totalRows} pageSize={processCoverage.pageSize} onSelectProcess={useCoverageProcess} />
         )}
       </Panel>
-      <Panel title="Processos sem movimentacoes" eyebrow="Fila paginada"><QueueList title="Sem movimentacoes" helper="Itens sem andamento local para reconsulta no DataJud." rows={withoutMovements.items} selected={selectedWithoutMovements} onToggle={(key) => toggleSelection(setSelectedWithoutMovements, selectedWithoutMovements, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedWithoutMovements, selectedWithoutMovements, withoutMovements.items, nextState)} page={wmPage} setPage={setWmPage} loading={withoutMovements.loading} totalRows={withoutMovements.totalRows} pageSize={withoutMovements.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "sem_movimentacoes")} lastUpdated={withoutMovements.updatedAt} limited={withoutMovements.limited} /></Panel>
-      <Panel title="Movimentacoes pendentes" eyebrow="Fila paginada"><QueueList title="Andamentos sem activity" helper="Processos com movimentacoes no HMADV ainda sem reflexo em sales_activities do Freshsales." rows={movementBacklog.items} selected={selectedMovementBacklog} onToggle={(key) => toggleSelection(setSelectedMovementBacklog, selectedMovementBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMovementBacklog, selectedMovementBacklog, movementBacklog.items, nextState)} page={movPage} setPage={setMovPage} loading={movementBacklog.loading} totalRows={movementBacklog.totalRows} pageSize={movementBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "movimentacoes_pendentes")} lastUpdated={movementBacklog.updatedAt} limited={movementBacklog.limited} /></Panel>
-      <Panel title="Publicacoes pendentes" eyebrow="Fila paginada"><QueueList title="Publicacoes sem activity" helper="Processos com publicacoes no HMADV ainda sem reflexo em sales_activities do Freshsales." rows={publicationBacklog.items} selected={selectedPublicationBacklog} onToggle={(key) => toggleSelection(setSelectedPublicationBacklog, selectedPublicationBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedPublicationBacklog, selectedPublicationBacklog, publicationBacklog.items, nextState)} page={pubPage} setPage={setPubPage} loading={publicationBacklog.loading} totalRows={publicationBacklog.totalRows} pageSize={publicationBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "publicacoes_pendentes")} lastUpdated={publicationBacklog.updatedAt} limited={publicationBacklog.limited} /></Panel>
-      <Panel title="Partes sem contato" eyebrow="Fila paginada"><QueueList title="Partes a reconciliar" helper="Processos com partes ainda sem contato_freshsales_id, prontos para reconciliacao com o modulo de contatos." rows={partesBacklog.items} selected={selectedPartesBacklog} onToggle={(key) => toggleSelection(setSelectedPartesBacklog, selectedPartesBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedPartesBacklog, selectedPartesBacklog, partesBacklog.items, nextState)} page={partesPage} setPage={setPartesPage} loading={partesBacklog.loading} totalRows={partesBacklog.totalRows} pageSize={partesBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "partes_sem_contato")} lastUpdated={partesBacklog.updatedAt} limited={partesBacklog.limited} /></Panel>
-      <Panel title="Audiencias detectaveis" eyebrow="Fila paginada"><QueueList title="Retroativo de audiencias" helper="Processos com sinais concretos de audiencia nas publicacoes e ainda sem persistencia equivalente." rows={audienciaCandidates.items} selected={selectedAudienciaCandidates} onToggle={(key) => toggleSelection(setSelectedAudienciaCandidates, selectedAudienciaCandidates, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedAudienciaCandidates, selectedAudienciaCandidates, audienciaCandidates.items, nextState)} page={audPage} setPage={setAudPage} loading={audienciaCandidates.loading} totalRows={audienciaCandidates.totalRows} pageSize={audienciaCandidates.pageSize} renderStatuses={(row) => [{ label: `${row.audiencias_pendentes || 0} audiencias pendentes`, tone: "warning" }, row.proxima_data_audiencia ? { label: `proxima ${new Date(row.proxima_data_audiencia).toLocaleDateString("pt-BR")}`, tone: "default" } : null].filter(Boolean)} lastUpdated={audienciaCandidates.updatedAt} limited={audienciaCandidates.limited} /></Panel>
-      <Panel title="Monitoramento ativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">A coluna <strong>monitoramento_ativo</strong> ainda nao existe no HMADV. A fila segue em modo de leitura por fallback, mas ativar/desativar monitoramento fica indisponivel ate a migracao do schema.</div> : null}<QueueList title="Monitorados" helper="Se a base ainda nao marca monitoramento_ativo, o painel usa fallback pelos processos com account." rows={monitoringActive.items} selected={selectedMonitoringActive} onToggle={(key) => toggleSelection(setSelectedMonitoringActive, selectedMonitoringActive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringActive, selectedMonitoringActive, monitoringActive.items, nextState)} page={maPage} setPage={setMaPage} loading={monitoringActive.loading} totalRows={monitoringActive.totalRows} pageSize={monitoringActive.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "monitoramento_ativo", { monitoringUnsupported })} lastUpdated={monitoringActive.updatedAt} limited={monitoringActive.limited} />{monitoringUnsupported ? <div className="rounded-[18px] border border-dashed border-[#6E5630] px-4 py-3 text-xs leading-6 text-[#F8E7B5]">Escrita de monitoramento temporariamente indisponivel: aplique a migracao do schema para liberar ativacao e desativacao pela fila.</div> : <div className="flex flex-wrap gap-3"><ActionButton onClick={() => handleAction("monitoramento_status", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n")), active: false, limit })} disabled={actionState.loading}>Desativar monitoramento</ActionButton></div>}</div></Panel>
-      <Panel title="Monitoramento inativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">Sem a coluna <strong>monitoramento_ativo</strong>, esta fila nao consegue gravar alteracoes. O painel mostra apenas o que precisa de adequacao de schema.</div> : null}<QueueList title="Nao monitorados" helper="Use esta fila para reativar o sync dos processos que ficaram fora da rotina." rows={monitoringInactive.items} selected={selectedMonitoringInactive} onToggle={(key) => toggleSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, monitoringInactive.items, nextState)} page={miPage} setPage={setMiPage} loading={monitoringInactive.loading} totalRows={monitoringInactive.totalRows} pageSize={monitoringInactive.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "monitoramento_inativo", { monitoringUnsupported })} lastUpdated={monitoringInactive.updatedAt} limited={monitoringInactive.limited} />{monitoringUnsupported ? <div className="rounded-[18px] border border-dashed border-[#6E5630] px-4 py-3 text-xs leading-6 text-[#F8E7B5]">A reativacao fica bloqueada ate a criacao da coluna <strong>monitoramento_ativo</strong> no HMADV.</div> : <div className="flex flex-wrap gap-3"><ActionButton tone="primary" onClick={() => handleAction("monitoramento_status", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringInactive.items, selectedMonitoringInactive).join("\n")), active: true, limit })} disabled={actionState.loading}>Ativar monitoramento</ActionButton></div>}</div></Panel>
-      <Panel title="GAP DataJud -> CRM" eyebrow="Campos orfaos"><QueueList title="Campos pendentes no Freshsales" helper="Processos vinculados cujo espelho ainda tem campos importantes em branco." rows={fieldGaps.items} selected={selectedFieldGaps} onToggle={(key) => toggleSelection(setSelectedFieldGaps, selectedFieldGaps, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedFieldGaps, selectedFieldGaps, fieldGaps.items, nextState)} page={fgPage} setPage={setFgPage} loading={fieldGaps.loading} totalRows={fieldGaps.totalRows} pageSize={fieldGaps.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "campos_orfaos")} lastUpdated={fieldGaps.updatedAt} limited={fieldGaps.limited} /></Panel>
-      <Panel title="Sem Sales Account" eyebrow="Processos orfaos"><QueueList title="Orfaos" helper="Itens do HMADV que ainda nao viraram Sales Account." rows={orphans.items} selected={selectedOrphans} onToggle={(key) => toggleSelection(setSelectedOrphans, selectedOrphans, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedOrphans, selectedOrphans, orphans.items, nextState)} page={orphanPage} setPage={setOrphanPage} loading={orphans.loading} totalRows={orphans.totalRows} pageSize={orphans.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "orfaos")} lastUpdated={orphans.updatedAt} limited={orphans.limited} /></Panel>
+      <Panel title="Processos sem movimentacoes" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Sem movimentacoes" helper="Itens sem andamento local para reconsulta no DataJud." rows={withoutMovements.items} selected={selectedWithoutMovements} onToggle={(key) => toggleSelection(setSelectedWithoutMovements, selectedWithoutMovements, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedWithoutMovements, selectedWithoutMovements, withoutMovements.items, nextState)} page={wmPage} setPage={setWmPage} loading={withoutMovements.loading} totalRows={withoutMovements.totalRows} pageSize={withoutMovements.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "sem_movimentacoes")} lastUpdated={withoutMovements.updatedAt} limited={withoutMovements.limited} /><QueueActionBlock selectionCount={queueActionConfigs.sem_movimentacoes.selectionCount} batchSize={queueActionConfigs.sem_movimentacoes.batchSize} onBatchChange={(value) => updateQueueBatchSize("sem_movimentacoes", value)} helper={queueActionConfigs.sem_movimentacoes.helper} disabled={actionState.loading} actions={queueActionConfigs.sem_movimentacoes.actions} /></div></Panel>
+      <Panel title="Movimentacoes pendentes" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Andamentos sem activity" helper="Processos com movimentacoes no HMADV ainda sem reflexo em sales_activities do Freshsales." rows={movementBacklog.items} selected={selectedMovementBacklog} onToggle={(key) => toggleSelection(setSelectedMovementBacklog, selectedMovementBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMovementBacklog, selectedMovementBacklog, movementBacklog.items, nextState)} page={movPage} setPage={setMovPage} loading={movementBacklog.loading} totalRows={movementBacklog.totalRows} pageSize={movementBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "movimentacoes_pendentes")} lastUpdated={movementBacklog.updatedAt} limited={movementBacklog.limited} /><QueueActionBlock selectionCount={queueActionConfigs.movimentacoes_pendentes.selectionCount} batchSize={queueActionConfigs.movimentacoes_pendentes.batchSize} onBatchChange={(value) => updateQueueBatchSize("movimentacoes_pendentes", value)} helper={queueActionConfigs.movimentacoes_pendentes.helper} disabled={actionState.loading} actions={queueActionConfigs.movimentacoes_pendentes.actions} /></div></Panel>
+      <Panel title="Publicacoes pendentes" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Publicacoes sem activity" helper="Processos com publicacoes no HMADV ainda sem reflexo em sales_activities do Freshsales." rows={publicationBacklog.items} selected={selectedPublicationBacklog} onToggle={(key) => toggleSelection(setSelectedPublicationBacklog, selectedPublicationBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedPublicationBacklog, selectedPublicationBacklog, publicationBacklog.items, nextState)} page={pubPage} setPage={setPubPage} loading={publicationBacklog.loading} totalRows={publicationBacklog.totalRows} pageSize={publicationBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "publicacoes_pendentes")} lastUpdated={publicationBacklog.updatedAt} limited={publicationBacklog.limited} /><QueueActionBlock selectionCount={queueActionConfigs.publicacoes_pendentes.selectionCount} batchSize={queueActionConfigs.publicacoes_pendentes.batchSize} onBatchChange={(value) => updateQueueBatchSize("publicacoes_pendentes", value)} helper={queueActionConfigs.publicacoes_pendentes.helper} disabled={actionState.loading} actions={queueActionConfigs.publicacoes_pendentes.actions} /></div></Panel>
+      <Panel title="Partes sem contato" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Partes a reconciliar" helper="Processos com partes ainda sem contato_freshsales_id, prontos para reconciliacao com o modulo de contatos." rows={partesBacklog.items} selected={selectedPartesBacklog} onToggle={(key) => toggleSelection(setSelectedPartesBacklog, selectedPartesBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedPartesBacklog, selectedPartesBacklog, partesBacklog.items, nextState)} page={partesPage} setPage={setPartesPage} loading={partesBacklog.loading} totalRows={partesBacklog.totalRows} pageSize={partesBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "partes_sem_contato")} lastUpdated={partesBacklog.updatedAt} limited={partesBacklog.limited} /><QueueActionBlock selectionCount={queueActionConfigs.partes_sem_contato.selectionCount} batchSize={queueActionConfigs.partes_sem_contato.batchSize} onBatchChange={(value) => updateQueueBatchSize("partes_sem_contato", value)} helper={queueActionConfigs.partes_sem_contato.helper} disabled={actionState.loading} actions={queueActionConfigs.partes_sem_contato.actions} /></div></Panel>
+      <Panel title="Audiencias detectaveis" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Retroativo de audiencias" helper="Processos com sinais concretos de audiencia nas publicacoes e ainda sem persistencia equivalente." rows={audienciaCandidates.items} selected={selectedAudienciaCandidates} onToggle={(key) => toggleSelection(setSelectedAudienciaCandidates, selectedAudienciaCandidates, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedAudienciaCandidates, selectedAudienciaCandidates, audienciaCandidates.items, nextState)} page={audPage} setPage={setAudPage} loading={audienciaCandidates.loading} totalRows={audienciaCandidates.totalRows} pageSize={audienciaCandidates.pageSize} renderStatuses={(row) => [{ label: `${row.audiencias_pendentes || 0} audiencias pendentes`, tone: "warning" }, row.proxima_data_audiencia ? { label: `proxima ${new Date(row.proxima_data_audiencia).toLocaleDateString("pt-BR")}`, tone: "default" } : null].filter(Boolean)} lastUpdated={audienciaCandidates.updatedAt} limited={audienciaCandidates.limited} /><QueueActionBlock selectionCount={queueActionConfigs.audiencias_pendentes.selectionCount} batchSize={queueActionConfigs.audiencias_pendentes.batchSize} onBatchChange={(value) => updateQueueBatchSize("audiencias_pendentes", value)} helper={queueActionConfigs.audiencias_pendentes.helper} disabled={actionState.loading} actions={queueActionConfigs.audiencias_pendentes.actions} /></div></Panel>
+      <Panel title="Monitoramento ativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">A coluna <strong>monitoramento_ativo</strong> ainda nao existe no HMADV. A fila segue em modo de leitura por fallback, mas ativar/desativar monitoramento fica indisponivel ate a migracao do schema.</div> : null}<QueueList title="Monitorados" helper="Se a base ainda nao marca monitoramento_ativo, o painel usa fallback pelos processos com account." rows={monitoringActive.items} selected={selectedMonitoringActive} onToggle={(key) => toggleSelection(setSelectedMonitoringActive, selectedMonitoringActive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringActive, selectedMonitoringActive, monitoringActive.items, nextState)} page={maPage} setPage={setMaPage} loading={monitoringActive.loading} totalRows={monitoringActive.totalRows} pageSize={monitoringActive.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "monitoramento_ativo", { monitoringUnsupported })} lastUpdated={monitoringActive.updatedAt} limited={monitoringActive.limited} />{monitoringUnsupported ? <div className="rounded-[18px] border border-dashed border-[#6E5630] px-4 py-3 text-xs leading-6 text-[#F8E7B5]">Escrita de monitoramento temporariamente indisponivel: aplique a migracao do schema para liberar ativacao e desativacao pela fila.</div> : null}<QueueActionBlock selectionCount={queueActionConfigs.monitoramento_ativo.selectionCount} batchSize={queueActionConfigs.monitoramento_ativo.batchSize} onBatchChange={(value) => updateQueueBatchSize("monitoramento_ativo", value)} helper={queueActionConfigs.monitoramento_ativo.helper} disabled={actionState.loading || monitoringUnsupported} actions={queueActionConfigs.monitoramento_ativo.actions} /></div></Panel>
+      <Panel title="Monitoramento inativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">Sem a coluna <strong>monitoramento_ativo</strong>, esta fila nao consegue gravar alteracoes. O painel mostra apenas o que precisa de adequacao de schema.</div> : null}<QueueList title="Nao monitorados" helper="Use esta fila para reativar o sync dos processos que ficaram fora da rotina." rows={monitoringInactive.items} selected={selectedMonitoringInactive} onToggle={(key) => toggleSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, monitoringInactive.items, nextState)} page={miPage} setPage={setMiPage} loading={monitoringInactive.loading} totalRows={monitoringInactive.totalRows} pageSize={monitoringInactive.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "monitoramento_inativo", { monitoringUnsupported })} lastUpdated={monitoringInactive.updatedAt} limited={monitoringInactive.limited} />{monitoringUnsupported ? <div className="rounded-[18px] border border-dashed border-[#6E5630] px-4 py-3 text-xs leading-6 text-[#F8E7B5]">A reativacao fica bloqueada ate a criacao da coluna <strong>monitoramento_ativo</strong> no HMADV.</div> : null}<QueueActionBlock selectionCount={queueActionConfigs.monitoramento_inativo.selectionCount} batchSize={queueActionConfigs.monitoramento_inativo.batchSize} onBatchChange={(value) => updateQueueBatchSize("monitoramento_inativo", value)} helper={queueActionConfigs.monitoramento_inativo.helper} disabled={actionState.loading || monitoringUnsupported} actions={queueActionConfigs.monitoramento_inativo.actions} /></div></Panel>
+      <Panel title="GAP DataJud -> CRM" eyebrow="Campos orfaos"><div className="space-y-4"><QueueList title="Campos pendentes no Freshsales" helper="Processos vinculados cujo espelho ainda tem campos importantes em branco." rows={fieldGaps.items} selected={selectedFieldGaps} onToggle={(key) => toggleSelection(setSelectedFieldGaps, selectedFieldGaps, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedFieldGaps, selectedFieldGaps, fieldGaps.items, nextState)} page={fgPage} setPage={setFgPage} loading={fieldGaps.loading} totalRows={fieldGaps.totalRows} pageSize={fieldGaps.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "campos_orfaos")} lastUpdated={fieldGaps.updatedAt} limited={fieldGaps.limited} /><QueueActionBlock selectionCount={queueActionConfigs.campos_orfaos.selectionCount} batchSize={queueActionConfigs.campos_orfaos.batchSize} onBatchChange={(value) => updateQueueBatchSize("campos_orfaos", value)} helper={queueActionConfigs.campos_orfaos.helper} disabled={actionState.loading} actions={queueActionConfigs.campos_orfaos.actions} /></div></Panel>
+      <Panel title="Sem Sales Account" eyebrow="Processos orfaos"><div className="space-y-4"><QueueList title="Orfaos" helper="Itens do HMADV que ainda nao viraram Sales Account." rows={orphans.items} selected={selectedOrphans} onToggle={(key) => toggleSelection(setSelectedOrphans, selectedOrphans, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedOrphans, selectedOrphans, orphans.items, nextState)} page={orphanPage} setPage={setOrphanPage} loading={orphans.loading} totalRows={orphans.totalRows} pageSize={orphans.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "orfaos")} lastUpdated={orphans.updatedAt} limited={orphans.limited} /><QueueActionBlock selectionCount={queueActionConfigs.orfaos.selectionCount} batchSize={queueActionConfigs.orfaos.batchSize} onBatchChange={(value) => updateQueueBatchSize("orfaos", value)} helper={queueActionConfigs.orfaos.helper} disabled={actionState.loading} actions={queueActionConfigs.orfaos.actions} /></div></Panel>
       </div>
     </div> : null}
 
-    {view === "relacoes" ? <div id="relacoes" className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-      <Panel title="Vincular processos relacionados" eyebrow="Arvore processual">
-        <div className="space-y-4">{editingRelationId ? <div className="rounded-2xl border border-[#6E5630] bg-[rgba(76,57,26,0.22)] px-4 py-3 text-sm">Editando relacao existente. Salve novamente para atualizar o vinculo.</div> : null}<Field label="Processo principal / pai" value={form.numero_cnj_pai} onChange={(value) => setForm((current) => ({ ...current, numero_cnj_pai: value }))} placeholder="CNJ do processo principal" /><Field label="Processo relacionado / filho" value={form.numero_cnj_filho} onChange={(value) => setForm((current) => ({ ...current, numero_cnj_filho: value }))} placeholder="CNJ do apenso, incidente, recurso ou dependencia" /><div className="grid gap-4 md:grid-cols-2"><SelectField label="Tipo de relacao" value={form.tipo_relacao} onChange={(value) => setForm((current) => ({ ...current, tipo_relacao: value }))} options={[{ value: "dependencia", label: "Dependencia" }, { value: "apenso", label: "Apenso" }, { value: "incidente", label: "Incidente" }, { value: "recurso", label: "Recurso" }]} /><SelectField label="Status" value={form.status} onChange={(value) => setForm((current) => ({ ...current, status: value }))} options={[{ value: "ativo", label: "Ativo" }, { value: "inativo", label: "Inativo" }]} /></div><label className="block"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Observacoes</span><textarea value={form.observacoes} onChange={(e) => setForm((current) => ({ ...current, observacoes: e.target.value }))} rows={4} className="w-full rounded-[22px] border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" placeholder="Ex.: recurso distribuido por dependencia do principal." /></label><div className="flex flex-wrap gap-3"><ActionButton tone="primary" onClick={handleSaveRelation} disabled={actionState.loading}>{editingRelationId ? "Atualizar relacao" : "Salvar relacao"}</ActionButton><ActionButton onClick={() => { setForm(EMPTY_FORM); setEditingRelationId(null); }} disabled={actionState.loading}>{editingRelationId ? "Cancelar edicao" : "Limpar formulario"}</ActionButton></div></div>
+    {view === "relacoes" ? <div className="space-y-6" id="relacoes">
+      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+        <Panel title="Vincular processos relacionados" eyebrow="Arvore processual">
+          <div className="space-y-4">
+            {editingRelationId ? <div className="rounded-2xl border border-[#6E5630] bg-[rgba(76,57,26,0.22)] px-4 py-3 text-sm">Editando relacao existente. Salve novamente para atualizar o vinculo.</div> : null}
+            <Field label="Processo principal / pai" value={form.numero_cnj_pai} onChange={(value) => setForm((current) => ({ ...current, numero_cnj_pai: value }))} placeholder="CNJ do processo principal" />
+            <Field label="Processo relacionado / filho" value={form.numero_cnj_filho} onChange={(value) => setForm((current) => ({ ...current, numero_cnj_filho: value }))} placeholder="CNJ do apenso, incidente, recurso ou dependencia" />
+            <div className="grid gap-4 md:grid-cols-2">
+              <SelectField label="Tipo de relacao" value={form.tipo_relacao} onChange={(value) => setForm((current) => ({ ...current, tipo_relacao: value }))} options={[{ value: "dependencia", label: "Dependencia" }, { value: "apenso", label: "Apenso" }, { value: "incidente", label: "Incidente" }, { value: "recurso", label: "Recurso" }]} />
+              <SelectField label="Status" value={form.status} onChange={(value) => setForm((current) => ({ ...current, status: value }))} options={[{ value: "ativo", label: "Ativo" }, { value: "inativo", label: "Inativo" }]} />
+            </div>
+            <label className="block">
+              <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Observacoes</span>
+              <textarea value={form.observacoes} onChange={(e) => setForm((current) => ({ ...current, observacoes: e.target.value }))} rows={4} className="w-full rounded-[22px] border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" placeholder="Ex.: recurso distribuido por dependencia do principal." />
+            </label>
+            <div className="flex flex-wrap gap-3">
+              <ActionButton tone="primary" onClick={handleSaveRelation} disabled={actionState.loading}>{editingRelationId ? "Atualizar relacao" : "Salvar relacao"}</ActionButton>
+              <ActionButton onClick={() => { setForm(EMPTY_FORM); setEditingRelationId(null); }} disabled={actionState.loading}>{editingRelationId ? "Cancelar edicao" : "Limpar formulario"}</ActionButton>
+            </div>
+          </div>
+        </Panel>
+        <Panel title="Busca e enriquecimento" eyebrow="Publicacoes + semelhanca">
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-[1fr_180px]">
+              <Field label="Buscar por CNJ, titulo ou parte" value={search} onChange={setSearch} placeholder="Use um CNJ, nome de parte ou trecho do titulo" />
+              <label className="block">
+                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Confianca minima</span>
+                <select value={relationMinScore} onChange={(e) => setRelationMinScore(e.target.value)} className="w-full rounded-2xl border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]">
+                  <option value="0.35">35%</option>
+                  <option value="0.45">45%</option>
+                  <option value="0.60">60%</option>
+                  <option value="0.75">75%</option>
+                </select>
+              </label>
+            </div>
+            <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] p-4 text-sm opacity-75">
+              <p className="font-semibold">Como as sugestoes sao montadas</p>
+              <p className="mt-2 leading-6">A tela cruza CNJs citados nas publicacoes recentes com semelhanca entre titulo e polos do processo. O resultado vira uma fila priorizada para validacao humana e aprovacao em massa.</p>
+            </div>
+            <div className="space-y-3">
+              <Field label="Busca rapida de processos" value={lookupTerm} onChange={setLookupTerm} placeholder="Digite o CNJ ou parte do titulo" />
+              {lookup.loading ? <p className="text-sm opacity-60">Buscando processos...</p> : null}
+              {!lookup.loading && !lookup.items.length && lookupTerm.trim() ? <p className="text-sm opacity-60">Nenhum processo encontrado para esse termo.</p> : null}
+              <div className="space-y-3">
+                {lookup.items.map((item) => <div key={item.id || item.numero_cnj} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm"><p className="font-semibold">{item.numero_cnj || "Sem CNJ"}</p><p className="mt-1 opacity-70">{item.titulo || "Sem titulo"}</p><div className="mt-2 flex flex-wrap gap-3 text-xs opacity-60"><span>Status: {item.status_atual_processo || "sem_status"}</span>{item.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${item.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Account {item.account_id_freshsales}</a> : null}</div><div className="mt-3 flex flex-wrap gap-2"><ActionButton onClick={() => setForm((current) => ({ ...current, numero_cnj_pai: item.numero_cnj || current.numero_cnj_pai }))} className="px-3 py-2 text-xs">Usar como pai</ActionButton><ActionButton onClick={() => setForm((current) => ({ ...current, numero_cnj_filho: item.numero_cnj || current.numero_cnj_filho }))} className="px-3 py-2 text-xs">Usar como filho</ActionButton></div></div>)}
+              </div>
+            </div>
+          </div>
+        </Panel>
+      </div>
+
+      <Panel title="Sugestoes de associacao" eyebrow="Validacao em massa">
+        <div className="space-y-4">
+          <RelationSelectionBar
+            title="Fila enriquecida por publicacoes"
+            helper="Use a selecao multipla para validar varias associacoes de uma vez. O botao de todos do filtro considera as paginas seguintes."
+            page={relationSuggestions.page}
+            totalRows={relationSuggestions.totalRows}
+            pageSize={relationSuggestions.pageSize}
+            selectedCount={selectedSuggestionKeys.length}
+            allMatchingSelected={allMatchingSuggestionsSelected}
+            loading={relationSuggestions.loading || suggestionSelectionLoading}
+            onTogglePage={() => toggleCustomPageSelection(setSelectedSuggestionKeys, selectedSuggestionKeys, relationSuggestions.items, getSuggestionSelectionValue)}
+            onToggleAllMatching={toggleAllMatchingSuggestions}
+            onPrevPage={() => loadRelationSuggestions(Math.max(1, relationSuggestions.page - 1), search, relationMinScore)}
+            onNextPage={() => loadRelationSuggestions(relationSuggestions.page + 1, search, relationMinScore)}
+            disablePrev={relationSuggestions.page <= 1}
+            disableNext={relationSuggestions.page >= Math.max(1, Math.ceil(Number(relationSuggestions.totalRows || 0) / Math.max(1, relationSuggestions.pageSize || 20)))}
+          />
+          <div className="flex flex-wrap gap-3">
+            <ActionButton tone="primary" onClick={handleBulkSaveSuggestions} disabled={actionState.loading || !selectedSuggestionKeys.length}>Validar selecionadas</ActionButton>
+            <ActionButton onClick={() => setSelectedSuggestionKeys([])} disabled={actionState.loading || !selectedSuggestionKeys.length}>Limpar selecao</ActionButton>
+          </div>
+          {relationSuggestions.loading ? <p className="text-sm opacity-60">Carregando sugestoes...</p> : null}
+          {relationSuggestions.error ? <p className="text-sm text-red-300">{relationSuggestions.error}</p> : null}
+          {!relationSuggestions.loading && !relationSuggestions.items.length ? <p className="rounded-2xl border border-dashed border-[#2D2E2E] px-4 py-6 text-sm opacity-60">Nenhuma sugestao encontrada para os filtros atuais.</p> : null}
+          <div className="space-y-4">
+            {relationSuggestions.items.map((item) => <RelationSuggestionCard key={item.suggestion_key} item={item} checked={selectedSuggestionKeys.includes(getSuggestionSelectionValue(item))} onToggle={() => toggleCustomSelection(setSelectedSuggestionKeys, selectedSuggestionKeys, getSuggestionSelectionValue(item))} onUseSuggestion={useSuggestionInForm} />)}
+          </div>
+        </div>
       </Panel>
-      <Panel title="Busca rapida de processos" eyebrow="Apoio operacional">
-        <div className="space-y-4"><Field label="Buscar por CNJ ou titulo" value={lookupTerm} onChange={setLookupTerm} placeholder="Digite o CNJ ou parte do titulo" />{lookup.loading ? <p className="text-sm opacity-60">Buscando processos...</p> : null}{!lookup.loading && !lookup.items.length && lookupTerm.trim() ? <p className="text-sm opacity-60">Nenhum processo encontrado para esse termo.</p> : null}<div className="space-y-3">{lookup.items.map((item) => <div key={item.id || item.numero_cnj} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm"><p className="font-semibold">{item.numero_cnj || "Sem CNJ"}</p><p className="mt-1 opacity-70">{item.titulo || "Sem titulo"}</p><div className="mt-2 flex flex-wrap gap-3 text-xs opacity-60"><span>Status: {item.status || "sem_status"}</span>{item.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${item.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Account {item.account_id_freshsales}</a> : null}</div><div className="mt-3 flex flex-wrap gap-2"><ActionButton onClick={() => setForm((current) => ({ ...current, numero_cnj_pai: item.numero_cnj || current.numero_cnj_pai }))} className="px-3 py-2 text-xs">Usar como pai</ActionButton><ActionButton onClick={() => setForm((current) => ({ ...current, numero_cnj_filho: item.numero_cnj || current.numero_cnj_filho }))} className="px-3 py-2 text-xs">Usar como filho</ActionButton></div></div>)}</div></div>
+
+      <Panel title="Relacoes processuais cadastradas" eyebrow="Lista paginada">
+        <div className="space-y-4">
+          {relations.items.length ? <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.15em] opacity-70">{Object.entries(relationTypeSummary).map(([key, value]) => <span key={key} className="border border-[#2D2E2E] px-2 py-1">{key}: {value}</span>)}</div> : null}
+          <RelationSelectionBar
+            title="Cadastro de relacoes"
+            helper="Voce pode ativar, inativar ou remover varias relacoes de uma vez, com paginação e selecao global por filtro."
+            page={relations.page}
+            totalRows={relations.totalRows}
+            pageSize={relations.pageSize}
+            selectedCount={selectedRelations.length}
+            allMatchingSelected={allMatchingRelationsSelected}
+            loading={relations.loading || relationSelectionLoading}
+            onTogglePage={() => toggleCustomPageSelection(setSelectedRelations, selectedRelations, relations.items, getRelationSelectionValue)}
+            onToggleAllMatching={toggleAllMatchingRelations}
+            onPrevPage={() => loadRelations(Math.max(1, relations.page - 1), search)}
+            onNextPage={() => loadRelations(relations.page + 1, search)}
+            disablePrev={relations.page <= 1}
+            disableNext={relations.page >= Math.max(1, Math.ceil(Number(relations.totalRows || 0) / Math.max(1, relations.pageSize || 20)))}
+          />
+          <div className="flex flex-wrap gap-3">
+            <ActionButton tone="primary" onClick={() => handleBulkRelationStatus("ativo")} disabled={actionState.loading || !selectedRelations.length}>Ativar selecionadas</ActionButton>
+            <ActionButton onClick={() => handleBulkRelationStatus("inativo")} disabled={actionState.loading || !selectedRelations.length}>Inativar selecionadas</ActionButton>
+            <ActionButton tone="danger" onClick={handleBulkRelationRemoval} disabled={actionState.loading || !selectedRelations.length}>Remover selecionadas</ActionButton>
+          </div>
+          {relations.loading ? <p className="text-sm opacity-60">Carregando relacoes...</p> : null}
+          {relations.error ? <p className="text-sm text-red-300">{relations.error}</p> : null}
+          {!relations.loading && !relations.items.length ? <p className="rounded-2xl border border-dashed border-[#2D2E2E] px-4 py-6 text-sm opacity-60">Nenhuma relacao cadastrada ainda.</p> : null}
+          <div className="space-y-4">
+            {relations.items.map((item) => <RegisteredRelationCard key={item.id} item={item} checked={selectedRelations.includes(getRelationSelectionValue(item))} onToggle={() => toggleCustomSelection(setSelectedRelations, selectedRelations, getRelationSelectionValue(item))} onEdit={startEditing} onDelete={handleDeleteRelation} disabled={actionState.loading} />)}
+          </div>
+        </div>
       </Panel>
     </div> : null}
-
-    {view === "relacoes" ? <Panel title="Relacoes processuais cadastradas" eyebrow="Reflexo no portal">
-      <div className="mb-4 flex flex-wrap items-center gap-3"><input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filtrar por CNJ relacionado" className="min-w-[280px] rounded-2xl border border-[#2D2E2E] bg-[#050706] px-3 py-2 text-sm outline-none focus:border-[#C5A059]" /><ActionButton onClick={() => loadRelations(1, search)} className="px-4 py-2">Atualizar</ActionButton><ActionButton onClick={() => loadRelations(Math.max(1, relations.page - 1), search)} disabled={relations.loading || relations.page <= 1} className="px-4 py-2">Anterior</ActionButton><ActionButton onClick={() => loadRelations(relations.page + 1, search)} disabled={relations.loading || !relations.items.length} className="px-4 py-2">Proxima</ActionButton></div>
-      {relations.items.length ? <div className="mb-4 flex flex-wrap gap-2 text-xs uppercase tracking-[0.15em] opacity-70">{Object.entries(relationTypeSummary).map(([key, value]) => <span key={key} className="border border-[#2D2E2E] px-2 py-1">{key}: {value}</span>)}</div> : null}
-      {relations.loading ? <p className="text-sm opacity-60">Carregando relacoes...</p> : null}
-      {relations.error ? <p className="text-sm text-red-300">{relations.error}</p> : null}
-      {!relations.loading && !relations.items.length ? <p className="text-sm opacity-60">Nenhuma relacao cadastrada ainda.</p> : null}
-      <div className="space-y-4">{relations.items.map((item) => <div key={item.id} className="rounded-[28px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.15em]"><span className="border border-[#2D2E2E] px-2 py-1">{item.tipo_relacao}</span><span className="border border-[#2D2E2E] px-2 py-1">{item.status}</span></div><div className="flex gap-2"><ActionButton onClick={() => startEditing(item)} disabled={actionState.loading} className="px-3 py-2 text-xs">Editar</ActionButton><ActionButton tone="danger" onClick={() => handleDeleteRelation(item.id)} disabled={actionState.loading} className="px-3 py-2 text-xs">Remover</ActionButton></div></div><div className="mt-4 grid gap-4 md:grid-cols-2"><RelationProcessCard title="Processo principal" process={item.processo_pai} fallbackNumber={item.numero_cnj_pai} /><RelationProcessCard title="Processo relacionado" process={item.processo_filho} fallbackNumber={item.numero_cnj_filho} /></div>{item.observacoes ? <p className="mt-3 text-sm opacity-65">{item.observacoes}</p> : null}</div>)}</div>
-    </Panel> : null}
 
     {view === "resultado" ? <div id="resultado" className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
       <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">{actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}{actionState.error ? <p className="rounded-2xl border border-[#4B2222] bg-[rgba(127,29,29,0.18)] p-4 text-sm text-red-200">{actionState.error}</p> : null}{!actionState.loading && actionState.result?.drain ? <div className="mb-4 rounded-[20px] border border-[#30543A] bg-[rgba(48,84,58,0.12)] p-4 text-sm"><p className="font-semibold">Drenagem de fila</p><p className="mt-2 opacity-75">{buildDrainPreview(actionState.result.drain)}</p></div> : null}{jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}{!actionState.loading && !actionState.error && actionState.result ? <OperationResult result={actionState.result} /> : null}{!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p> : null}</Panel>

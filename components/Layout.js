@@ -3,6 +3,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/router";
 import dynamic from "next/dynamic";
+import { setModuleHistory } from "../lib/admin/activity-log";
 const WhatsappWidgetCircle = dynamic(() => import("./WhatsappWidgetCircle"), { ssr: false });
 
 const NAV_ITEMS = [
@@ -91,6 +92,20 @@ export default function Layout({ children }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    setModuleHistory("public-shell", {
+      routePath: router.pathname,
+      asPath: router.asPath || router.pathname,
+      shell: "public",
+      navItems: NAV_ITEMS.length,
+      menuOpen,
+      scrolled,
+      hasFloatingWhatsapp: true,
+      supportsPortalEntry: true,
+      updatedAt: new Date().toISOString(),
+    });
+  }, [menuOpen, router.asPath, router.pathname, scrolled]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {

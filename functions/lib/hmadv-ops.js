@@ -86,6 +86,16 @@ function summarizeRawBody(body, limit = 240) {
   return text.length > limit ? `${text.slice(0, limit)}...` : text;
 }
 
+function isWorkerResourceLimitError(error) {
+  const message = String(error?.message || "");
+  const rawBody = String(error?.rawBody || "");
+  return (
+    message.includes("Worker exceeded resource limits") ||
+    message.includes("exceeded resource limits") ||
+    rawBody.includes("Worker exceeded resource limits")
+  );
+}
+
 export async function parseHmadvFunctionResponse(response, name) {
   const status = Number(response?.status || 0);
   const contentType = String(response?.headers?.get?.("content-type") || "").trim();
@@ -1102,8 +1112,9 @@ async function collectPartesExtractionCandidatePage(env, { page = 1, pageSize = 
   const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
   const targetStart = (safePage - 1) * safePageSize;
   const targetEnd = targetStart + safePageSize;
-  const processBatchSize = Math.max(80, safePageSize * 6);
-  const maxScans = 20;
+  // Keep each candidate scan small enough to stay under Cloudflare worker limits.
+  const processBatchSize = Math.min(40, Math.max(24, safePageSize * 2));
+  const maxScans = 8;
   const collected = [];
   const seen = new Set();
   let offset = 0;
@@ -3936,8 +3947,24 @@ export async function processProcessAdminJob(env, id) {
 }
 
 function normalizePublicacoesJobPayload(action, payload = {}) {
-  const maxLimit = action === "backfill_partes" ? 50 : action === "sincronizar_publicacoes_activity" ? 10 : action === "criar_processos_publicacoes" ? 15 : 20;
-  const defaultLimit = action === "backfill_partes" ? 15 : action === "sincronizar_publicacoes_activity" ? 5 : 10;
+  const maxLimit =
+    action === "backfill_partes"
+      ? 2
+      : action === "sincronizar_partes"
+        ? 1
+        : action === "sincronizar_publicacoes_activity"
+          ? 10
+          : action === "criar_processos_publicacoes"
+            ? 15
+            : 20;
+  const defaultLimit =
+    action === "backfill_partes"
+      ? 1
+      : action === "sincronizar_partes"
+        ? 1
+        : action === "sincronizar_publicacoes_activity"
+          ? 5
+          : 10;
   return {
     ...payload,
     action,
@@ -4055,6 +4082,19 @@ export async function processPublicacoesAdminJob(env, id) {
     }
     return nextJob || job;
   } catch (error) {
+    if (isWorkerResourceLimitError(error) && chunk.length > 1) {
+      const downgradedLimit = Math.max(1, Math.floor(chunk.length / 2));
+      const downgradedJob = await patchOperationJob(env, job.id, {
+        status: "pending",
+        payload: {
+          ...(job.payload || {}),
+          limit: downgradedLimit,
+        },
+        last_error: `Lote reduzido automaticamente para ${downgradedLimit} apos limite de recursos do Worker.`,
+        finished_at: null,
+      });
+      return downgradedJob || job;
+    }
     const failedJob = await patchOperationJob(env, job.id, {
       status: "error",
       last_error: error.message || "Falha ao processar job operacional de publicacoes.",

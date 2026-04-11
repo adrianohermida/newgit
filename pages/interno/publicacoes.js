@@ -10,6 +10,7 @@ const PUBLICACOES_VIEW_ITEMS = [
   { key: "resultado", label: "Resultado" },
 ];
 const HISTORY_STORAGE_KEY = "hmadv:interno-publicacoes:history:v1";
+const VALIDATION_STORAGE_KEY = "hmadv:interno-publicacoes:validations:v1";
 const ACTION_LABELS = {
   criar_processos_publicacoes: "Criar processos das publicacoes",
   backfill_partes: "Extracao retroativa de partes",
@@ -146,6 +147,73 @@ function persistHistoryEntries(entries) {
 
 function getPublicacaoSelectionValue(row) {
   return String(row?.numero_cnj || row?.publicacao_id || row?.id || row?.key || "").trim();
+}
+
+function loadValidationState() {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(VALIDATION_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function persistValidationState(value) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(VALIDATION_STORAGE_KEY, JSON.stringify(value || {}));
+  } catch {}
+}
+
+function validationTone(status) {
+  if (status === "validado") return "success";
+  if (status === "bloqueado") return "danger";
+  if (status === "revisar") return "warning";
+  return "default";
+}
+
+function validationLabel(status) {
+  if (status === "validado") return "validado";
+  if (status === "bloqueado") return "bloqueado";
+  if (status === "revisar") return "revisar";
+  return "sem validacao";
+}
+
+function buildUnifiedQueueRows(processRows = [], partesRows = [], validations = {}) {
+  const mappedProcessRows = (processRows || []).map((row) => {
+    const numeroCnj = row?.numero_cnj || row?.key || "";
+    return {
+      ...row,
+      queueSource: "processos",
+      unifiedKey: `processos:${row.key}`,
+      numero_cnj: numeroCnj,
+      selectionValue: row.key,
+      validation: validations[numeroCnj] || { status: "", note: "", updatedAt: null },
+      enrichmentLabel: row?.account_id_freshsales ? "processo localizado" : "processo pendente",
+      enrichmentCount: Number(row?.publicacoes || 0),
+    };
+  });
+  const mappedPartesRows = (partesRows || []).map((row) => {
+    const numeroCnj = row?.numero_cnj || row?.key || "";
+    return {
+      ...row,
+      queueSource: "partes",
+      unifiedKey: `partes:${row.key}`,
+      numero_cnj: numeroCnj,
+      selectionValue: row.key,
+      validation: validations[numeroCnj] || { status: "", note: "", updatedAt: null },
+      enrichmentLabel: row?.partes_novas ? "partes detectadas" : "fila de enriquecimento",
+      enrichmentCount: Number(row?.partes_novas || 0),
+    };
+  });
+  return [...mappedProcessRows, ...mappedPartesRows].sort((a, b) => {
+    const aValidation = a?.validation?.status ? 1 : 0;
+    const bValidation = b?.validation?.status ? 1 : 0;
+    if (aValidation !== bValidation) return aValidation - bValidation;
+    return String(a?.numero_cnj || "").localeCompare(String(b?.numero_cnj || ""));
+  });
 }
 
 function CompactHistoryPanel({ localHistory, remoteHistory }) {
@@ -561,6 +629,190 @@ function QueueList({
   );
 }
 
+function IntegratedQueueList({
+  rows,
+  selectedCount,
+  page,
+  setPage,
+  pageSize,
+  onOpenDetail,
+  onToggleRow,
+  onTogglePage,
+  onToggleAllFiltered,
+  allPageSelected,
+  allFilteredSelected,
+}) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / Math.max(1, pageSize)));
+  const start = (page - 1) * pageSize;
+  const pagedRows = rows.slice(start, start + pageSize);
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">Lista operacional integrada</p>
+          <p className="text-xs opacity-60">Mesma leitura de filas, agora em modo de lista para validar, editar e agir em lote.</p>
+          <p className="mt-1 text-xs opacity-50">{rows.length} item(ns) filtrado(s) nesta leitura. {selectedCount} marcado(s).</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => onTogglePage(!allPageSelected)} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">
+            {allPageSelected ? "Desmarcar pagina" : "Selecionar pagina"}
+          </button>
+          <button type="button" onClick={() => onToggleAllFiltered(!allFilteredSelected)} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">
+            {allFilteredSelected ? "Desmarcar filtrados" : "Selecionar filtrados"}
+          </button>
+          <button type="button" onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1} className="border border-[#2D2E2E] px-3 py-2 text-xs disabled:opacity-40">
+            Anterior
+          </button>
+          <button type="button" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages} className="border border-[#2D2E2E] px-3 py-2 text-xs disabled:opacity-40">
+            Proxima
+          </button>
+        </div>
+      </div>
+      {!pagedRows.length ? <p className="text-sm opacity-60">Nenhum item atende aos filtros atuais.</p> : null}
+      <div className="space-y-3">
+        {pagedRows.map((row) => {
+          const isSelected = Boolean(row.selected);
+          return (
+            <div key={row.unifiedKey} className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4">
+              <div className="flex gap-3">
+                <input type="checkbox" checked={isSelected} onChange={() => onToggleRow(row)} className="mt-1" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold break-all">{row.numero_cnj || row.key}</p>
+                    <HealthBadge label={row.queueSource === "partes" ? "enriquecimento de partes" : "criacao de processo"} tone={row.queueSource === "partes" ? "warning" : "default"} />
+                    <HealthBadge label={validationLabel(row.validation?.status)} tone={validationTone(row.validation?.status)} />
+                    {row.account_id_freshsales ? <HealthBadge label={`account ${row.account_id_freshsales}`} tone="success" /> : null}
+                    {row.partes_novas ? <HealthBadge label={`${row.partes_novas} novas`} tone="warning" /> : null}
+                  </div>
+                  {row.titulo ? <p className="mt-2 opacity-75">{row.titulo}</p> : null}
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60">
+                    <span>Origem: {row.queueSource}</span>
+                    <span>{row.enrichmentLabel}: {row.enrichmentCount || 0}</span>
+                    {row.partes_existentes !== undefined ? <span>Partes existentes: {row.partes_existentes}</span> : null}
+                    {row.partes_detectadas !== undefined ? <span>Detectadas: {row.partes_detectadas}</span> : null}
+                  </div>
+                  {row.validation?.note ? <p className="mt-2 text-xs opacity-60">Validacao: {row.validation.note}</p> : null}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => onOpenDetail(row)} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">
+                      Ver detalhe
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PublicacaoDetailPanel({
+  detailState,
+  detailEditForm,
+  setDetailEditForm,
+  onRefresh,
+  onSaveContact,
+  onApplyValidation,
+  actionLoading,
+}) {
+  const row = detailState?.row || null;
+  const data = detailState?.data || null;
+  const linkedItems = data?.linkedPartes?.items || [];
+  const pendingItems = data?.pendingPartes?.items || [];
+  const firstLinkedContact = linkedItems.find((item) => item?.contact?.freshsales_contact_id)?.contact || data?.contactDetail?.contact || null;
+  return (
+    <div className="space-y-4">
+      {!row ? <p className="text-sm opacity-60">Selecione um item da lista para abrir o detalhe integrado.</p> : null}
+      {row ? <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-semibold break-all">{row.numero_cnj}</p>
+          <HealthBadge label={row.queueSource} tone={row.queueSource === "partes" ? "warning" : "default"} />
+          <HealthBadge label={validationLabel(row.validation?.status)} tone={validationTone(row.validation?.status)} />
+        </div>
+        {row.titulo ? <p className="mt-2 text-sm opacity-75">{row.titulo}</p> : null}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" onClick={onRefresh} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">
+            Recarregar detalhe
+          </button>
+          <button type="button" onClick={() => onApplyValidation("validado")} className="border border-[#30543A] px-3 py-2 text-xs text-[#B7F7C6]">
+            Validar
+          </button>
+          <button type="button" onClick={() => onApplyValidation("revisar")} className="border border-[#6E5630] px-3 py-2 text-xs text-[#FDE68A]">
+            Marcar revisar
+          </button>
+          <button type="button" onClick={() => onApplyValidation("bloqueado")} className="border border-[#5B2D2D] px-3 py-2 text-xs text-[#FECACA]">
+            Bloquear
+          </button>
+        </div>
+      </div> : null}
+      {detailState.loading ? <p className="text-sm opacity-60">Carregando detalhe integrado...</p> : null}
+      {detailState.error ? <p className="text-sm text-red-300">{detailState.error}</p> : null}
+      {data?.coverage?.items?.[0] ? <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
+        <p className="font-semibold">Processo no HMADV</p>
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-65">
+          <span>CNJ: {data.coverage.items[0].numero_cnj || row?.numero_cnj}</span>
+          {data.coverage.items[0].account_id_freshsales ? <span>Account: {data.coverage.items[0].account_id_freshsales}</span> : null}
+          {data.coverage.items[0].status_atual_processo ? <span>Status: {data.coverage.items[0].status_atual_processo}</span> : null}
+        </div>
+        {data.coverage.items[0].titulo ? <p className="mt-2 opacity-70">{data.coverage.items[0].titulo}</p> : null}
+      </div> : null}
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
+          <p className="font-semibold">Partes vinculadas</p>
+          <p className="mt-1 text-xs opacity-60">{linkedItems.length} carregada(s)</p>
+          <div className="mt-3 space-y-2">
+            {linkedItems.slice(0, 6).map((item) => <div key={item.id} className="border border-[#2D2E2E] p-3">
+              <p className="font-semibold">{item.nome}</p>
+              <p className="mt-1 text-xs opacity-60">{item.tipo_contato || "sem tipo"} {item.contact?.name ? `• ${item.contact.name}` : ""}</p>
+            </div>)}
+            {!linkedItems.length ? <p className="text-xs opacity-60">Nenhuma parte vinculada carregada.</p> : null}
+          </div>
+        </div>
+        <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
+          <p className="font-semibold">Partes pendentes</p>
+          <p className="mt-1 text-xs opacity-60">{pendingItems.length} carregada(s)</p>
+          <div className="mt-3 space-y-2">
+            {pendingItems.slice(0, 6).map((item) => <div key={item.id} className="border border-[#2D2E2E] p-3">
+              <p className="font-semibold">{item.nome}</p>
+              <p className="mt-1 text-xs opacity-60">{item.polo || "sem polo"} {item.tipo_pessoa ? `• ${item.tipo_pessoa}` : ""}</p>
+            </div>)}
+            {!pendingItems.length ? <p className="text-xs opacity-60">Nenhuma parte pendente carregada.</p> : null}
+          </div>
+        </div>
+      </div>
+      {firstLinkedContact ? <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-semibold">Contato integrado</p>
+            <p className="text-xs opacity-60">{firstLinkedContact.freshsales_contact_id || data?.contactDetail?.contact?.freshsales_contact_id}</p>
+          </div>
+          {firstLinkedContact.freshsales_url ? <a href={firstLinkedContact.freshsales_url} target="_blank" rel="noreferrer" className="text-xs underline hover:text-[#C5A059]">Abrir no Freshsales</a> : null}
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <label className="text-xs uppercase tracking-[0.14em] opacity-60">Nome
+            <input value={detailEditForm.name} onChange={(event) => setDetailEditForm((state) => ({ ...state, name: event.target.value }))} className="mt-2 w-full border border-[#2D2E2E] bg-transparent px-3 py-2 text-sm text-[#F4F1EA]" />
+          </label>
+          <label className="text-xs uppercase tracking-[0.14em] opacity-60">Email
+            <input value={detailEditForm.email} onChange={(event) => setDetailEditForm((state) => ({ ...state, email: event.target.value }))} className="mt-2 w-full border border-[#2D2E2E] bg-transparent px-3 py-2 text-sm text-[#F4F1EA]" />
+          </label>
+          <label className="text-xs uppercase tracking-[0.14em] opacity-60">Telefone
+            <input value={detailEditForm.phone} onChange={(event) => setDetailEditForm((state) => ({ ...state, phone: event.target.value }))} className="mt-2 w-full border border-[#2D2E2E] bg-transparent px-3 py-2 text-sm text-[#F4F1EA]" />
+          </label>
+          <label className="text-xs uppercase tracking-[0.14em] opacity-60">Observacao operacional
+            <input value={detailEditForm.note} onChange={(event) => setDetailEditForm((state) => ({ ...state, note: event.target.value }))} className="mt-2 w-full border border-[#2D2E2E] bg-transparent px-3 py-2 text-sm text-[#F4F1EA]" />
+          </label>
+        </div>
+        <div className="mt-3">
+          <button type="button" onClick={onSaveContact} disabled={actionLoading} className="bg-[#C5A059] px-4 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-[#050706] disabled:opacity-50">
+            Salvar contato
+          </button>
+        </div>
+      </div> : null}
+    </div>
+  );
+}
+
 function HistoryCard({ entry, onReuse }) {
   return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -800,6 +1052,13 @@ function PublicacoesContent() {
   const [partesPage, setPartesPage] = useState(1);
   const [selectedProcessKeys, setSelectedProcessKeys] = useState([]);
   const [selectedPartesKeys, setSelectedPartesKeys] = useState([]);
+  const [validationMap, setValidationMap] = useState({});
+  const [integratedFilters, setIntegratedFilters] = useState({ query: "", source: "todos", validation: "todos" });
+  const [integratedPage, setIntegratedPage] = useState(1);
+  const [detailState, setDetailState] = useState({ loading: false, error: null, row: null, data: null });
+  const [detailEditForm, setDetailEditForm] = useState({ name: "", email: "", phone: "", note: "" });
+  const [bulkValidationStatus, setBulkValidationStatus] = useState("validado");
+  const [bulkValidationNote, setBulkValidationNote] = useState("");
   const processCandidatesRequestRef = useRef({ promise: null, page: null });
   const partesCandidatesRequestRef = useRef({ promise: null, page: null });
 
@@ -898,6 +1157,8 @@ function PublicacoesContent() {
     };
   }, []);
   useEffect(() => { setExecutionHistory(loadHistoryEntries()); }, []);
+  useEffect(() => { setValidationMap(loadValidationState()); }, []);
+  useEffect(() => { persistValidationState(validationMap); }, [validationMap]);
   useEffect(() => {
     setModuleHistory("publicacoes", {
       executionHistory,
@@ -972,6 +1233,21 @@ function PublicacoesContent() {
     if (activeJobId) return;
     loadPartesCandidates(partesPage);
   }, [partesPage, view, activeJobId]);
+  useEffect(() => {
+    setIntegratedPage(1);
+  }, [integratedFilters]);
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredIntegratedRows.length / integratedPageSize));
+    if (integratedPage > totalPages) setIntegratedPage(totalPages);
+  }, [filteredIntegratedRows.length, integratedPage, integratedPageSize]);
+  useEffect(() => {
+    if (!detailState?.row?.numero_cnj) return;
+    const nextValidation = validationMap[detailState.row.numero_cnj] || { status: "", note: "", updatedAt: null };
+    setDetailState((state) => state?.row?.numero_cnj === detailState.row.numero_cnj ? {
+      ...state,
+      row: { ...state.row, validation: nextValidation },
+    } : state);
+  }, [detailState?.row?.numero_cnj, validationMap]);
   useEffect(() => {
     if (!jobs.length) return;
     const runningJob = jobs.find((item) => item.status === "running" || item.status === "pending");
@@ -1314,6 +1590,164 @@ function PublicacoesContent() {
     setter(current.filter((item) => !keys.includes(item)));
   }
 
+  function toggleUnifiedRow(row) {
+    if (!row) return;
+    if (row.queueSource === "partes") {
+      toggleSelection(setSelectedPartesKeys, selectedPartesKeys, row.selectionValue);
+      return;
+    }
+    toggleSelection(setSelectedProcessKeys, selectedProcessKeys, row.selectionValue);
+  }
+
+  function toggleIntegratedPage(nextState) {
+    const processRows = pagedIntegratedRows.filter((row) => row.queueSource === "processos").map((row) => ({ key: row.selectionValue }));
+    const partesRows = pagedIntegratedRows.filter((row) => row.queueSource === "partes").map((row) => ({ key: row.selectionValue }));
+    togglePageSelection(setSelectedProcessKeys, selectedProcessKeys, processRows, nextState);
+    togglePageSelection(setSelectedPartesKeys, selectedPartesKeys, partesRows, nextState);
+  }
+
+  function toggleIntegratedFiltered(nextState) {
+    const processKeys = filteredIntegratedRows.filter((row) => row.queueSource === "processos").map((row) => row.selectionValue);
+    const partesKeys = filteredIntegratedRows.filter((row) => row.queueSource === "partes").map((row) => row.selectionValue);
+    if (nextState) {
+      setSelectedProcessKeys((current) => [...new Set([...current, ...processKeys])]);
+      setSelectedPartesKeys((current) => [...new Set([...current, ...partesKeys])]);
+      return;
+    }
+    setSelectedProcessKeys((current) => current.filter((item) => !processKeys.includes(item)));
+    setSelectedPartesKeys((current) => current.filter((item) => !partesKeys.includes(item)));
+  }
+
+  function applyValidationToNumbers(numbers, status, note = "") {
+    if (!numbers.length) return;
+    setValidationMap((current) => {
+      const next = { ...current };
+      const now = new Date().toISOString();
+      numbers.forEach((number) => {
+        if (!number) return;
+        next[number] = { status, note, updatedAt: now };
+      });
+      return next;
+    });
+  }
+
+  async function loadIntegratedDetail(row) {
+    if (!row?.numero_cnj) return;
+    setDetailState({ loading: true, error: null, row, data: null });
+    try {
+      const [coveragePayload, linkedPayload, pendingPayload] = await Promise.all([
+        adminFetch(`/api/admin-hmadv-processos?action=cobertura_processos&page=1&pageSize=5&query=${encodeURIComponent(row.numero_cnj)}`, {}, {
+          action: "cobertura_processos",
+          component: "publicacoes-integrated-detail",
+          label: `Carregar cobertura do processo ${row.numero_cnj}`,
+          expectation: "Trazer contexto do processo na mesa de publicacoes",
+        }),
+        adminFetch(`/api/admin-hmadv-contacts?action=partes_vinculadas&page=1&pageSize=20&query=${encodeURIComponent(row.numero_cnj)}`, {}, {
+          action: "partes_vinculadas",
+          component: "publicacoes-integrated-detail",
+          label: `Carregar partes vinculadas de ${row.numero_cnj}`,
+          expectation: "Trazer contatos ligados ao processo",
+        }),
+        adminFetch(`/api/admin-hmadv-contacts?action=partes_pendentes&page=1&pageSize=20&query=${encodeURIComponent(row.numero_cnj)}`, {}, {
+          action: "partes_pendentes",
+          component: "publicacoes-integrated-detail",
+          label: `Carregar partes pendentes de ${row.numero_cnj}`,
+          expectation: "Trazer partes ainda sem contato vinculado",
+        }),
+      ]);
+      const linkedItems = linkedPayload.data?.items || [];
+      const linkedContactId = linkedItems.find((item) => item?.contact?.freshsales_contact_id)?.contact?.freshsales_contact_id || "";
+      const detailPayload = linkedContactId
+        ? await adminFetch(`/api/admin-hmadv-contacts?action=detail&contactId=${encodeURIComponent(linkedContactId)}`, {}, {
+          action: "detail",
+          component: "publicacoes-integrated-detail",
+          label: `Carregar detalhe do contato ${linkedContactId}`,
+          expectation: "Abrir contexto detalhado do contato relacionado ao processo",
+        })
+        : { data: null };
+      const nextData = {
+        coverage: coveragePayload.data || { items: [] },
+        linkedPartes: linkedPayload.data || { items: [] },
+        pendingPartes: pendingPayload.data || { items: [] },
+        contactDetail: detailPayload.data || null,
+      };
+      setDetailState({ loading: false, error: null, row, data: nextData });
+      const contact = nextData.contactDetail?.contact || linkedItems.find((item) => item?.contact)?.contact || null;
+      setDetailEditForm({
+        name: contact?.name || "",
+        email: contact?.email || "",
+        phone: contact?.phone || "",
+        note: row?.validation?.note || "",
+      });
+    } catch (error) {
+      setDetailState({ loading: false, error: error.message || "Falha ao carregar detalhe integrado.", row, data: null });
+    }
+  }
+
+  async function saveDetailContact() {
+    const contactId = detailState?.data?.contactDetail?.contact?.freshsales_contact_id || detailState?.data?.linkedPartes?.items?.find((item) => item?.contact?.freshsales_contact_id)?.contact?.freshsales_contact_id;
+    if (!contactId) {
+      setActionState({ loading: false, error: "Nao existe contato vinculado para edicao simples neste item.", result: null });
+      return;
+    }
+    setActionState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-hmadv-contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_contact",
+          contactId,
+          name: detailEditForm.name,
+          email: detailEditForm.email,
+          phone: detailEditForm.phone,
+        }),
+      }, {
+        action: "update_contact",
+        component: "publicacoes-integrated-detail",
+        label: `Atualizar contato ${contactId} pela mesa de publicacoes`,
+        expectation: "Salvar edicao simples do contato relacionado ao processo",
+      });
+      if (detailState?.row?.numero_cnj) {
+        applyValidationToNumbers([detailState.row.numero_cnj], detailState.row.validation?.status || "", detailEditForm.note || "");
+        await loadIntegratedDetail(detailState.row);
+      }
+      setActionState({ loading: false, error: null, result: payload.data || { ok: true } });
+    } catch (error) {
+      setActionState({ loading: false, error: error.message || "Falha ao salvar contato.", result: null });
+    }
+  }
+
+  async function runBulkContactsReconcile(apply) {
+    if (!selectedUnifiedNumbers.length) {
+      setActionState({ loading: false, error: "Selecione ao menos um CNJ para reconciliar partes e contatos.", result: null });
+      return;
+    }
+    setActionState({ loading: true, error: null, result: null });
+    updateView("resultado");
+    try {
+      const payload = await adminFetch("/api/admin-hmadv-contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "reconcile_partes",
+          processNumbers: selectedUnifiedNumbers.join("\n"),
+          limit: Math.max(1, Math.min(limit, 20)),
+          apply,
+        }),
+      }, {
+        action: "reconcile_partes",
+        component: "publicacoes-bulk",
+        label: `${apply ? "Aplicar" : "Simular"} reconciliacao de partes x contatos`,
+        expectation: "Validar ou vincular contatos a partir da fila de publicacoes",
+      });
+      setActionState({ loading: false, error: null, result: payload.data || { ok: true } });
+      await refreshOperationalContext({ forceQueues: true });
+    } catch (error) {
+      setActionState({ loading: false, error: error.message || "Falha ao reconciliar partes e contatos.", result: null });
+    }
+  }
+
   const selectedProcessNumbers = useMemo(
     () => processCandidates.items.filter((item) => selectedProcessKeys.includes(item.key)).map((item) => item.numero_cnj),
     [processCandidates.items, selectedProcessKeys]
@@ -1343,6 +1777,38 @@ function PublicacoesContent() {
   const primaryPublicacoesAction = derivePrimaryPublicacoesAction(recurringPublicacoesActions);
   const partesBacklogCount = Number(partesCandidates.totalRows || partesCandidates.items.length || 0);
   const syncWorkerShouldFocusCrm = Number(data.publicacoesPendentesComAccount || 0) > 0;
+  const integratedRows = useMemo(
+    () => buildUnifiedQueueRows(processCandidates.items, partesCandidates.items, validationMap),
+    [processCandidates.items, partesCandidates.items, validationMap]
+  );
+  const filteredIntegratedRows = useMemo(() => {
+    const query = String(integratedFilters.query || "").trim().toLowerCase();
+    return integratedRows.filter((row) => {
+      if (integratedFilters.source !== "todos" && row.queueSource !== integratedFilters.source) return false;
+      if (integratedFilters.validation !== "todos" && (row.validation?.status || "") !== integratedFilters.validation) return false;
+      if (!query) return true;
+      const haystack = [row.numero_cnj, row.titulo, row.account_id_freshsales, row.sample_partes_novas?.map((item) => item.nome).join(" | "), row.sample_partes_existentes?.map((item) => item.nome).join(" | ")]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [integratedFilters, integratedRows]);
+  const integratedPageSize = 12;
+  const pagedIntegratedRows = useMemo(() => {
+    const start = (integratedPage - 1) * integratedPageSize;
+    return filteredIntegratedRows.slice(start, start + integratedPageSize).map((row) => ({
+      ...row,
+      selected: row.queueSource === "partes" ? selectedPartesKeys.includes(row.selectionValue) : selectedProcessKeys.includes(row.selectionValue),
+    }));
+  }, [filteredIntegratedRows, integratedPage, selectedPartesKeys, selectedProcessKeys]);
+  const selectedUnifiedCount = selectedProcessKeys.length + selectedPartesKeys.length;
+  const allIntegratedPageSelected = pagedIntegratedRows.length > 0 && pagedIntegratedRows.every((row) => row.selected);
+  const allIntegratedFilteredSelected = filteredIntegratedRows.length > 0 && filteredIntegratedRows.every((row) => (row.queueSource === "partes" ? selectedPartesKeys.includes(row.selectionValue) : selectedProcessKeys.includes(row.selectionValue)));
+  const selectedUnifiedNumbers = useMemo(
+    () => Array.from(new Set([...selectedProcessNumbers, ...selectedPartesNumbers])),
+    [selectedPartesNumbers, selectedProcessNumbers]
+  );
 
   function selectVisibleRecurringPublicacoes() {
     const recurringKeys = new Set(recurringPublicacoes.map((item) => item.key));
@@ -1886,6 +2352,107 @@ function PublicacoesContent() {
           <QueueSummaryCard title="Partes extraiveis" count={partesCandidates.totalRows || partesCandidates.items.length || 0} helper={partesCandidates.totalEstimated ? "Fila estimada para enriquecer judiciario.partes." : "Fila para enriquecer judiciario.partes."} />
           <QueueSummaryCard title="Com activity" count={data.publicacoesComActivity || 0} helper="Publicacoes ja refletidas no Freshsales." />
           <QueueSummaryCard title="Pendentes" count={data.publicacoesPendentesComAccount || 0} helper="Publicacoes ainda sem activity." />
+        </div>
+        <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+          <Panel title="Mesa integrada" eyebrow="Lista paginada + selecao multipla">
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                <label className="text-xs uppercase tracking-[0.14em] opacity-60">Buscar por CNJ, titulo ou parte
+                  <input
+                    value={integratedFilters.query}
+                    onChange={(event) => setIntegratedFilters((state) => ({ ...state, query: event.target.value }))}
+                    className="mt-2 w-full border border-[#2D2E2E] bg-transparent px-3 py-2 text-sm text-[#F4F1EA]"
+                    placeholder="0004600-54.2009..."
+                  />
+                </label>
+                <label className="text-xs uppercase tracking-[0.14em] opacity-60">Origem
+                  <select value={integratedFilters.source} onChange={(event) => setIntegratedFilters((state) => ({ ...state, source: event.target.value }))} className="mt-2 w-full border border-[#2D2E2E] bg-[#050706] px-3 py-2 text-sm text-[#F4F1EA]">
+                    <option value="todos">Todos</option>
+                    <option value="processos">Criacao de processo</option>
+                    <option value="partes">Enriquecimento de partes</option>
+                  </select>
+                </label>
+                <label className="text-xs uppercase tracking-[0.14em] opacity-60">Validacao
+                  <select value={integratedFilters.validation} onChange={(event) => setIntegratedFilters((state) => ({ ...state, validation: event.target.value }))} className="mt-2 w-full border border-[#2D2E2E] bg-[#050706] px-3 py-2 text-sm text-[#F4F1EA]">
+                    <option value="todos">Todos</option>
+                    <option value="validado">Validado</option>
+                    <option value="revisar">Revisar</option>
+                    <option value="bloqueado">Bloqueado</option>
+                    <option value="">Sem validacao</option>
+                  </select>
+                </label>
+              </div>
+              <div className="rounded-[20px] border border-[#2D2E2E] bg-[rgba(255,255,255,0.02)] p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <HealthBadge label={`${selectedUnifiedCount} selecionado(s)`} tone="default" />
+                  <HealthBadge label={`${selectedUnifiedNumbers.length} CNJ(s) unicos`} tone="default" />
+                  <HealthBadge label={`${filteredIntegratedRows.length} filtrado(s)`} tone="warning" />
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-[0.9fr_1.1fr_auto_auto_auto_auto]">
+                  <label className="text-xs uppercase tracking-[0.14em] opacity-60">Validacao em massa
+                    <select value={bulkValidationStatus} onChange={(event) => setBulkValidationStatus(event.target.value)} className="mt-2 w-full border border-[#2D2E2E] bg-[#050706] px-3 py-2 text-sm text-[#F4F1EA]">
+                      <option value="validado">Validado</option>
+                      <option value="revisar">Revisar</option>
+                      <option value="bloqueado">Bloqueado</option>
+                    </select>
+                  </label>
+                  <label className="text-xs uppercase tracking-[0.14em] opacity-60">Observacao
+                    <input value={bulkValidationNote} onChange={(event) => setBulkValidationNote(event.target.value)} className="mt-2 w-full border border-[#2D2E2E] bg-transparent px-3 py-2 text-sm text-[#F4F1EA]" placeholder="Motivo, proximo passo, responsavel..." />
+                  </label>
+                  <button type="button" onClick={() => applyValidationToNumbers(selectedUnifiedNumbers, bulkValidationStatus, bulkValidationNote)} disabled={!selectedUnifiedNumbers.length} className="self-end border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-40">
+                    Validar lote
+                  </button>
+                  <button type="button" onClick={() => runBulkContactsReconcile(false)} disabled={actionState.loading || !selectedUnifiedNumbers.length} className="self-end border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-40">
+                    Simular contatos
+                  </button>
+                  <button type="button" onClick={() => runBulkContactsReconcile(true)} disabled={actionState.loading || !selectedUnifiedNumbers.length} className="self-end border border-[#6E5630] px-3 py-2 text-xs text-[#F8E7B5] disabled:opacity-40">
+                    Aplicar contatos
+                  </button>
+                  <button type="button" onClick={clearQueueSelections} className="self-end border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">
+                    Limpar selecao
+                  </button>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => handleAction("criar_processos_publicacoes", true, selectedUnifiedNumbers)} disabled={actionState.loading || hasBlockingJob || !selectedUnifiedNumbers.length} className="border border-[#2D2E2E] px-3 py-2 text-xs disabled:opacity-40">
+                    Criar processos
+                  </button>
+                  <button type="button" onClick={() => handleAction("backfill_partes", true, selectedUnifiedNumbers)} disabled={actionState.loading || hasBlockingJob || !selectedUnifiedNumbers.length} className="border border-[#2D2E2E] px-3 py-2 text-xs disabled:opacity-40">
+                    Backfill partes
+                  </button>
+                  <button type="button" onClick={() => handleAction("sincronizar_partes", true, selectedUnifiedNumbers)} disabled={actionState.loading || hasBlockingJob || !selectedUnifiedNumbers.length} className="border border-[#6E5630] px-3 py-2 text-xs text-[#F8E7B5] disabled:opacity-40">
+                    Salvar + CRM
+                  </button>
+                </div>
+              </div>
+              <IntegratedQueueList
+                rows={filteredIntegratedRows.map((row) => ({
+                  ...row,
+                  selected: row.queueSource === "partes" ? selectedPartesKeys.includes(row.selectionValue) : selectedProcessKeys.includes(row.selectionValue),
+                }))}
+                selectedCount={selectedUnifiedCount}
+                page={integratedPage}
+                setPage={setIntegratedPage}
+                pageSize={integratedPageSize}
+                onOpenDetail={loadIntegratedDetail}
+                onToggleRow={toggleUnifiedRow}
+                onTogglePage={toggleIntegratedPage}
+                onToggleAllFiltered={toggleIntegratedFiltered}
+                allPageSelected={allIntegratedPageSelected}
+                allFilteredSelected={allIntegratedFilteredSelected}
+              />
+            </div>
+          </Panel>
+          <Panel title="Detalhe integrado" eyebrow="Processo + contatos + validacao">
+            <PublicacaoDetailPanel
+              detailState={detailState}
+              detailEditForm={detailEditForm}
+              setDetailEditForm={setDetailEditForm}
+              onRefresh={() => detailState.row ? loadIntegratedDetail(detailState.row) : Promise.resolve()}
+              onSaveContact={saveDetailContact}
+              onApplyValidation={(status) => detailState.row?.numero_cnj ? applyValidationToNumbers([detailState.row.numero_cnj], status, detailEditForm.note || "") : null}
+              actionLoading={actionState.loading}
+            />
+          </Panel>
         </div>
         <div className="grid gap-6 xl:grid-cols-2">
         <Panel title="Fila de processos criaveis" eyebrow="Criacao a partir das publicacoes">

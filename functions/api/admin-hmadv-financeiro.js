@@ -3,6 +3,7 @@ import {
   backfillHmadvFinanceAccounts,
   getHmadvFinanceAdminConfig,
   getHmadvFinanceAdminOverview,
+  updateHmadvFinanceAdminConfig,
   resolveHmadvFinancePendingAccounts,
   searchHmadvFinanceProcessCandidates,
 } from "../lib/hmadv-finance-admin.js";
@@ -38,7 +39,7 @@ export async function onRequestGet(context) {
       return jsonOk({ data });
     }
     if (action === "config") {
-      const data = getHmadvFinanceAdminConfig();
+      const data = await getHmadvFinanceAdminConfig(context.env);
       return jsonOk({ data });
     }
     if (action === "search_processes") {
@@ -65,8 +66,9 @@ export async function onRequestPost(context) {
     const body = await context.request.json();
     const action = String(body.action || "");
     if (action === "backfill_textual_accounts") {
+      const config = await getHmadvFinanceAdminConfig(context.env);
       const data = await backfillHmadvFinanceAccounts(context.env, {
-        limit: Number(body.limit || 50),
+        limit: Number(body.limit || config.settings?.value?.backfill_limit || 50),
       });
       return jsonOk({ data });
     }
@@ -76,6 +78,10 @@ export async function onRequestPost(context) {
     }
     if (action === "run_operation") {
       return jsonError(new Error("Operacao runner disponivel apenas na rota Node /api/admin-hmadv-financeiro neste ambiente."), 501);
+    }
+    if (action === "update_config") {
+      const data = await updateHmadvFinanceAdminConfig(context.env, body || {});
+      return jsonOk({ data });
     }
     return jsonError(new Error("Acao POST invalida."), 400);
   } catch (error) {

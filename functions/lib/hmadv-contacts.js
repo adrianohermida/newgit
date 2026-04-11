@@ -7,9 +7,25 @@ function cleanValue(value) {
   return text || null;
 }
 
+function sanitizeContactName(value) {
+  const text = String(value || "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s*,+\s*/g, ", ")
+    .replace(/^[,\s;:._-]+/, "")
+    .replace(/[,\s;:._-]+$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text || null;
+}
+
 function cleanDigits(value) {
   const digits = String(value || "").replace(/\D+/g, "");
   return digits || null;
+}
+
+function normalizeEmail(value) {
+  const email = cleanValue(value);
+  return email ? email.toLowerCase() : null;
 }
 
 function normalizeText(value) {
@@ -17,7 +33,7 @@ function normalizeText(value) {
 }
 
 function splitName(fullName) {
-  const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
+  const parts = String(sanitizeContactName(fullName) || "").trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return { first_name: "Contato", last_name: "HMADV" };
   if (parts.length === 1) return { first_name: parts[0], last_name: "HMADV" };
   return { first_name: parts[0], last_name: parts.slice(1).join(" ") };
@@ -68,8 +84,8 @@ function mapMirrorRow(row) {
     id: row.id,
     freshsales_contact_id: row.freshsales_contact_id,
     external_id: cleanValue(row?.raw_payload?.external_id),
-    name: row.name || row.raw_payload?.display_name || row.raw_payload?.name || "Contato sem nome",
-    email: row.email || null,
+    name: sanitizeContactName(row.name || row.raw_payload?.display_name || row.raw_payload?.name) || "Contato sem nome",
+    email: normalizeEmail(row.email) || null,
     phone: row.phone || null,
     type: getCustomField(row.raw_payload, "cf_tipo") || cleanValue(row?.raw_payload?.type) || "Nao classificado",
     cpf: getCustomField(row.raw_payload, "cf_cpf"),
@@ -82,14 +98,20 @@ function mapMirrorRow(row) {
 }
 
 function buildMirrorRow(contact) {
-  const name = cleanValue(contact?.display_name) || cleanValue(contact?.name) || [cleanValue(contact?.first_name), cleanValue(contact?.last_name)].filter(Boolean).join(" ") || "Contato sem nome";
-  const email = cleanValue(contact?.email) || (Array.isArray(contact?.emails) ? cleanValue(contact.emails[0]) : null);
-  const phone = cleanValue(contact?.mobile_number) || cleanValue(contact?.phone) || cleanValue(contact?.work_number);
+  const name =
+    sanitizeContactName(contact?.display_name) ||
+    sanitizeContactName(contact?.name) ||
+    sanitizeContactName([cleanValue(contact?.first_name), cleanValue(contact?.last_name)].filter(Boolean).join(" ")) ||
+    "Contato sem nome";
+  const email = normalizeEmail(contact?.email) || (Array.isArray(contact?.emails) ? normalizeEmail(contact.emails[0]) : null);
+  const phone = cleanDigits(contact?.mobile_number) || cleanDigits(contact?.phone) || cleanDigits(contact?.work_number);
   return {
     freshsales_contact_id: String(contact.id),
     name,
     email,
+    email_normalized: email,
     phone,
+    phone_normalized: phone,
     raw_payload: contact,
     last_synced_at: new Date().toISOString(),
   };
@@ -117,17 +139,21 @@ async function upsertMirrorRows(env, rows) {
 }
 
 async function createOrUpdateFreshsalesContact(env, { name, type, email, phone, cpf, cnpj, cep, externalId }) {
-  const { first_name, last_name } = splitName(name);
+  const sanitizedName = sanitizeContactName(name);
+  if (!sanitizedName) throw new Error("Nome obrigatorio para criar contato.");
+  const normalizedEmail = normalizeEmail(email);
+  const normalizedPhone = cleanDigits(phone);
+  const { first_name, last_name } = splitName(sanitizedName);
   const body = {
     unique_identifier: externalId ? { external_id: String(externalId) } : undefined,
     contact: {
       first_name,
       last_name,
       external_id: externalId || undefined,
-      email: cleanValue(email) || undefined,
-      emails: cleanValue(email) ? [cleanValue(email)] : undefined,
-      mobile_number: cleanDigits(phone) || undefined,
-      phone: cleanDigits(phone) || undefined,
+      email: normalizedEmail || undefined,
+      emails: normalizedEmail ? [normalizedEmail] : undefined,
+      mobile_number: normalizedPhone || undefined,
+      phone: normalizedPhone || undefined,
       custom_field: {
         cf_tipo: type || "Cliente",
         ...(cleanDigits(cpf) ? { cf_cpf: cleanDigits(cpf) } : {}),
@@ -260,16 +286,39 @@ export async function getContactsOverview(env) {
 
 export async function listContacts(env, { page = 1, pageSize = 20, query = "", type = "" } = {}) {
   const safePage = Math.max(1, Number(page || 1));
-  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 100));
   const filters = [];
   if (query) {
     const encoded = encodeURIComponent(`*${query}*`);
     filters.push(`or=(name.ilike.${encoded},email.ilike.${encoded},phone.ilike.${encoded})`);
   }
+  if (type) {
+    const rows = await hmadvRest(env, `freshsales_contacts?select=id,freshsales_contact_id,name,email,phone,last_synced_at,raw_payload&${filters.join("&")}${filters.length ? "&" : ""}order=last_synced_at.desc.nullslast&limit=10000`);
+    const filtered = rows.map(mapMirrorRow).filter((item) => normalizeText(item.type) === normalizeText(type));
+    return {
+      page: safePage,
+      pageSize: safePageSize,
+      totalRows: filtered.length,
+      items: filtered.slice((safePage - 1) * safePageSize, safePage * safePageSize),
+    };
+  }
   const rows = await hmadvRest(env, `freshsales_contacts?select=id,freshsales_contact_id,name,email,phone,last_synced_at,raw_payload&${filters.join("&")}${filters.length ? "&" : ""}order=last_synced_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`);
+  return { page: safePage, pageSize: safePageSize, totalRows: await hmadvCount(env, "freshsales_contacts", filters.join("&")), items: rows.map(mapMirrorRow) };
+}
+
+export async function listContactIds(env, { query = "", type = "" } = {}) {
+  const filters = [];
+  if (query) {
+    const encoded = encodeURIComponent(`*${query}*`);
+    filters.push(`or=(name.ilike.${encoded},email.ilike.${encoded},phone.ilike.${encoded})`);
+  }
+  const rows = await hmadvRest(env, `freshsales_contacts?select=freshsales_contact_id,name,raw_payload&${filters.join("&")}${filters.length ? "&" : ""}limit=10000`);
   let items = rows.map(mapMirrorRow);
   if (type) items = items.filter((item) => normalizeText(item.type) === normalizeText(type));
-  return { page: safePage, pageSize: safePageSize, totalRows: await hmadvCount(env, "freshsales_contacts", filters.join("&")), items };
+  return {
+    totalRows: items.length,
+    ids: items.map((item) => item.freshsales_contact_id).filter(Boolean),
+  };
 }
 
 export async function listDuplicateContacts(env, { page = 1, pageSize = 20 } = {}) {
@@ -344,20 +393,43 @@ export async function getContactDetail(env, contactId) {
   const processos = processIds.length ? await hmadvRest(env, `processos?id=in.(${processIds.map((id) => `"${id}"`).join(",")})&select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo`, {}, "judiciario") : [];
   const publicacoes = processIds.length ? await hmadvRest(env, `publicacoes?processo_id=in.(${processIds.map((id) => `"${id}"`).join(",")})&select=id,processo_id,data_publicacao&limit=200`, {}, "judiciario") : [];
   const audiencias = processIds.length ? await hmadvRest(env, `audiencias?processo_id=in.(${processIds.map((id) => `"${id}"`).join(",")})&select=id,processo_id,data_audiencia&limit=200`, {}, "judiciario") : [];
-  return { contact, crm: await viewFreshsalesContact(env, contactId).catch(() => null), partes, processos, metrics: { processos: processos.length, publicacoes: publicacoes.length, audiencias: audiencias.length, consultas: 0, financeiro: 0, documentos: 0 } };
+  const recentPublicacoes = processIds.length
+    ? await hmadvRest(
+        env,
+        `publicacoes?processo_id=in.(${processIds.map((id) => `"${id}"`).join(",")})&select=id,processo_id,data_publicacao,conteudo,raw_payload&order=data_publicacao.desc.nullslast&limit=20`,
+        {},
+        "judiciario"
+      )
+    : [];
+  const processMap = new Map(processos.map((item) => [item.id, item]));
+  return {
+    contact,
+    crm: await viewFreshsalesContact(env, contactId).catch(() => null),
+    partes,
+    processos,
+    publicacoes: recentPublicacoes.map((item) => ({
+      id: item.id,
+      processo_id: item.processo_id,
+      data_publicacao: item.data_publicacao || null,
+      processo: processMap.get(item.processo_id) || null,
+      resumo: cleanValue(item.raw_payload?.resumo) || cleanValue(item.raw_payload?.titulo) || cleanValue(String(item.conteudo || "").replace(/\s+/g, " ").slice(0, 280)),
+    })),
+    metrics: { processos: processos.length, publicacoes: publicacoes.length, audiencias: audiencias.length, consultas: 0, financeiro: 0, documentos: 0 },
+  };
 }
 
-export async function syncFreshsalesContactsMirror(env, { limit = 200, dryRun = false } = {}) {
-  const safeLimit = Math.max(1, Math.min(Number(limit || 200), 5000));
+export async function syncFreshsalesContactsMirror(env, { limit = 200, dryRun = false, fetchAll = false } = {}) {
+  const safeLimit = fetchAll ? 50000 : Math.max(1, Math.min(Number(limit || 200), 5000));
   const rows = [];
   let source = "contacts_view";
   try {
     for (let page = 1; page <= Math.max(1, Math.ceil(safeLimit / 100)); page += 1) {
       await waitFreshsalesRate(env);
-      const { payload } = await freshsalesRequest(env, `/contacts/view/1?page=${page}&per_page=${Math.min(100, safeLimit)}`);
+      const { payload } = await freshsalesRequest(env, `/contacts/view/1?page=${page}&per_page=100`);
       const batch = Array.isArray(payload?.contacts) ? payload.contacts : Array.isArray(payload) ? payload : [];
       rows.push(...batch);
-      if (batch.length < Math.min(100, safeLimit)) break;
+      if (batch.length < 100) break;
+      if (!fetchAll && rows.length >= safeLimit) break;
     }
   } catch {
     source = "sales_accounts_contacts";
@@ -379,7 +451,7 @@ export async function syncFreshsalesContactsMirror(env, { limit = 200, dryRun = 
     if (unique.length >= safeLimit) break;
   }
   if (!dryRun && unique.length) await upsertMirrorRows(env, unique);
-  return { checkedAt: new Date().toISOString(), dryRun, total: unique.length, imported: unique.length, source, sample: unique.slice(0, 50).map((row) => ({ freshsales_contact_id: row.freshsales_contact_id, name: row.name })) };
+  return { checkedAt: new Date().toISOString(), dryRun, fetchAll, total: unique.length, imported: unique.length, source, sample: unique.slice(0, 50).map((row) => ({ freshsales_contact_id: row.freshsales_contact_id, name: row.name })) };
 }
 
 export async function enrichContactViaCep(env, { contactId, cep }) {
@@ -418,7 +490,7 @@ export async function enrichContactViaDirectData(env, { contactId, personType = 
 }
 
 export async function createOrUpdateContactByNameOnly(env, { name, type = "Cliente", externalId = null }) {
-  return createOrUpdateFreshsalesContact(env, { name, type, externalId });
+  return createOrUpdateFreshsalesContact(env, { name: sanitizeContactName(name), type, externalId });
 }
 
 export async function createContact(env, payload) {
@@ -428,15 +500,19 @@ export async function createContact(env, payload) {
 export async function updateContact(env, payload) {
   const contactId = cleanValue(payload.contactId);
   if (!contactId) throw new Error("contactId obrigatorio para atualizar.");
-  const { first_name, last_name } = splitName(payload.name);
+  const sanitizedName = sanitizeContactName(payload.name);
+  if (!sanitizedName) throw new Error("Nome obrigatorio para atualizar.");
+  const normalizedEmail = normalizeEmail(payload.email);
+  const normalizedPhone = cleanDigits(payload.phone);
+  const { first_name, last_name } = splitName(sanitizedName);
   const body = {
     contact: {
       first_name,
       last_name,
-      email: cleanValue(payload.email) || undefined,
-      emails: cleanValue(payload.email) ? [cleanValue(payload.email)] : undefined,
-      mobile_number: cleanDigits(payload.phone) || undefined,
-      phone: cleanDigits(payload.phone) || undefined,
+      email: normalizedEmail || undefined,
+      emails: normalizedEmail ? [normalizedEmail] : undefined,
+      mobile_number: normalizedPhone || undefined,
+      phone: normalizedPhone || undefined,
       external_id: cleanValue(payload.externalId) || undefined,
       custom_field: {
         cf_tipo: payload.type || "Cliente",
@@ -681,5 +757,147 @@ export async function reclassifyLinkedPartes(env, { parteIds = [], type = "" } =
       tipo_contato: nextType,
       modo: "reclassified",
     })),
+  };
+}
+
+async function resolveContactsForBulkAction(env, { contactIds = [], query = "", type = "", limit = 500 } = {}) {
+  const explicitIds = Array.isArray(contactIds) ? contactIds.map((item) => cleanValue(item)).filter(Boolean) : [];
+  if (explicitIds.length) {
+    const rows = await hmadvRest(
+      env,
+      `freshsales_contacts?freshsales_contact_id=in.(${explicitIds.map((id) => `"${id}"`).join(",")})&select=id,freshsales_contact_id,name,email,phone,last_synced_at,raw_payload&limit=${Math.min(explicitIds.length, 1000)}`
+    );
+    return rows.map(mapMirrorRow);
+  }
+  const listed = await listContacts(env, { page: 1, pageSize: Math.min(limit, 100), query, type });
+  return listed.items || [];
+}
+
+function buildValidatedContactPayload(contact, fallbackType = "Cliente") {
+  const sanitizedName = sanitizeContactName(contact?.name);
+  const email = normalizeEmail(contact?.email);
+  const phone = cleanDigits(contact?.phone);
+  const cpf = cleanDigits(contact?.cpf);
+  const cnpj = cleanDigits(contact?.cnpj);
+  const cep = cleanDigits(contact?.cep);
+  return {
+    contactId: contact?.freshsales_contact_id,
+    name: sanitizedName,
+    type: cleanValue(contact?.type) || fallbackType,
+    email,
+    phone,
+    cpf,
+    cnpj,
+    cep,
+    externalId: cleanValue(contact?.external_id),
+  };
+}
+
+export async function validateContacts(env, { contactIds = [], query = "", type = "", apply = false, limit = 100 } = {}) {
+  const contacts = await resolveContactsForBulkAction(env, { contactIds, query, type, limit: Math.max(1, Math.min(Number(limit || 100), 500)) });
+  const sample = [];
+  let changed = 0;
+  for (const contact of contacts) {
+    const nextPayload = buildValidatedContactPayload(contact, type || "Cliente");
+    const hasChanges =
+      nextPayload.name !== cleanValue(contact.name) ||
+      nextPayload.email !== cleanValue(contact.email) ||
+      nextPayload.phone !== cleanValue(contact.phone) ||
+      nextPayload.cpf !== cleanValue(contact.cpf) ||
+      nextPayload.cnpj !== cleanValue(contact.cnpj) ||
+      nextPayload.cep !== cleanValue(contact.cep);
+    const effectiveChange = hasChanges;
+    if (effectiveChange) {
+      changed += 1;
+      if (apply) {
+        await waitFreshsalesRate(env);
+        await updateContact(env, nextPayload);
+      }
+      sample.push({
+        freshsales_contact_id: contact.freshsales_contact_id,
+        before: {
+          name: contact.name,
+          email: contact.email,
+          phone: contact.phone,
+          cpf: contact.cpf,
+          cnpj: contact.cnpj,
+          cep: contact.cep,
+        },
+        after: {
+          name: nextPayload.name,
+          email: nextPayload.email,
+          phone: nextPayload.phone,
+          cpf: nextPayload.cpf,
+          cnpj: nextPayload.cnpj,
+          cep: nextPayload.cep,
+        },
+      });
+    }
+  }
+  return {
+    checkedAt: new Date().toISOString(),
+    apply,
+    totalRows: contacts.length,
+    changed,
+    sample: sample.slice(0, 50),
+  };
+}
+
+export async function bulkCreateContacts(env, { names = [], type = "Cliente", intervalMs = 1200, dryRun = false } = {}) {
+  const existingRows = await hmadvRest(env, "freshsales_contacts?select=freshsales_contact_id,name&limit=10000");
+  const existingKeys = new Set(existingRows.map((row) => buildNameKey(row.name)).filter(Boolean));
+  const cleanNames = [...new Set((Array.isArray(names) ? names : []).map((item) => sanitizeContactName(item)).filter(Boolean))];
+  const sample = [];
+  let created = 0;
+  let skipped = 0;
+  for (let index = 0; index < cleanNames.length; index += 1) {
+    const name = cleanNames[index];
+    const key = buildNameKey(name);
+    if (key && existingKeys.has(key)) {
+      skipped += 1;
+      sample.push({ name, mode: "already_exists" });
+      continue;
+    }
+    if (!dryRun) {
+      if (created > 0) {
+        await sleep(Math.max(500, Number(intervalMs || 1200)));
+      }
+      const createdContact = await createOrUpdateFreshsalesContact(env, {
+        name,
+        type,
+        externalId: `hmadv:bulk-contact:${Date.now()}:${index}`,
+      });
+      existingKeys.add(key);
+      sample.push({ name, mode: "created", freshsales_contact_id: String(createdContact.id) });
+    } else {
+      sample.push({ name, mode: "create_pending" });
+    }
+    created += 1;
+  }
+  return {
+    checkedAt: new Date().toISOString(),
+    dryRun,
+    totalRows: cleanNames.length,
+    created,
+    skipped,
+    intervalMs: Math.max(500, Number(intervalMs || 1200)),
+    sample: sample.slice(0, 100),
+  };
+}
+
+export async function deleteContactsBulk(env, { contactIds = [] } = {}) {
+  const ids = Array.isArray(contactIds) ? contactIds.map((item) => cleanValue(item)).filter(Boolean) : [];
+  if (!ids.length) throw new Error("Selecione ao menos um contato para exclusao em lote.");
+  const sample = [];
+  for (const contactId of ids) {
+    await waitFreshsalesRate(env);
+    await deleteContact(env, { contactId });
+    sample.push({ freshsales_contact_id: contactId, mode: "deleted" });
+  }
+  return {
+    checkedAt: new Date().toISOString(),
+    totalRows: ids.length,
+    deleted: ids.length,
+    sample,
   };
 }

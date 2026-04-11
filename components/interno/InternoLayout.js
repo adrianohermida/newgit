@@ -19,6 +19,7 @@ import {
   getActivityLogFilters,
   getFrontendIssues,
   getSchemaIssues,
+  setModuleHistory as persistModuleHistory,
   subscribeActivityLog,
   setActivityLogFilters,
 } from "../../lib/admin/activity-log";
@@ -203,6 +204,78 @@ function IntegrationGuideCard({ guide }) {
       </div>
     </section>
   );
+}
+
+const LOG_PANES = [
+  { key: "activity", label: "Atividade" },
+  { key: "debug", label: "Debug UI" },
+  { key: "history", label: "Historico" },
+  { key: "frontend", label: "Frontend" },
+  { key: "schema", label: "Schema" },
+  { key: "security", label: "Seguranca" },
+  { key: "functions", label: "Functions" },
+  { key: "routes", label: "Rotas" },
+  { key: "jobs", label: "Jobs" },
+  { key: "webhook", label: "Webhook" },
+  { key: "crm", label: "CRM" },
+  { key: "supabase", label: "Supabase" },
+  { key: "dotobot", label: "Dotobot" },
+  { key: "ai-task", label: "AI Task" },
+  { key: "data-quality", label: "Dados" },
+  { key: "notes", label: "Notas" },
+];
+
+function inferSnapshotTone(snapshot) {
+  if (!snapshot) return "muted";
+  if (snapshot.error) return "danger";
+  if (snapshot.loading) return "warn";
+  if (snapshot.uiState === "error" || snapshot.status === "error") return "danger";
+  return "success";
+}
+
+function inferSnapshotSummary(key, snapshot) {
+  if (!snapshot) return "Sem dados coletados.";
+  if (snapshot.error) return snapshot.error;
+  if (snapshot.routePath && snapshot.shell) {
+    return `${snapshot.shell} em ${snapshot.routePath}`;
+  }
+  if (snapshot.routePath) return `Rota ${snapshot.routePath}`;
+  if (key === "contacts" && snapshot.overview) {
+    return `Contatos ${snapshot.overview.total || 0}, duplicados ${snapshot.overview.duplicados || 0}`;
+  }
+  if (key === "processos") {
+    return `Histórico local ${snapshot.executionHistory?.length || 0}, remoto ${snapshot.remoteHistory?.length || 0}`;
+  }
+  if (key === "publicacoes") {
+    return `Jobs ${snapshot.jobs?.length || 0}, histórico remoto ${snapshot.remoteHistory?.length || 0}`;
+  }
+  if (key === "ai-task") {
+    return `Eventos ${snapshot.eventsTotal || 0}, automação ${snapshot.automation || "idle"}`;
+  }
+  if (key === "dotobot") {
+    return `Conversas ${snapshot.conversationCount || 0}, modo ${snapshot.mode || "n/a"}`;
+  }
+  if (key === "aprovacoes") {
+    return `Pendências de cadastro ${snapshot.pendingCadastro || 0}`;
+  }
+  return "Snapshot atualizado.";
+}
+
+function buildCoverageCards(moduleHistory = {}) {
+  return Object.entries(moduleHistory)
+    .map(([key, snapshot]) => ({
+      key,
+      routePath: snapshot?.routePath || snapshot?.asPath || null,
+      updatedAt: snapshot?.updatedAt || snapshot?.lastNavigationAt || null,
+      tone: inferSnapshotTone(snapshot),
+      summary: inferSnapshotSummary(key, snapshot),
+      snapshot,
+    }))
+    .sort((a, b) => {
+      const left = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const right = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      return right - left;
+    });
 }
 
 export default function InternoLayout({
@@ -524,6 +597,23 @@ export default function InternoLayout({
   }, [activityLog, logFilters, logSearch]);
   const debugLog = useMemo(() => filteredLog.filter((entry) => entry.action === "debug_ui" || (entry.tags || []).includes("debug-ui")), [filteredLog]);
   const activityOnlyLog = useMemo(() => filteredLog.filter((entry) => !["debug_ui", "frontend_issue", "schema_issue"].includes(String(entry.action || "")) && !(entry.tags || []).includes("debug-ui")), [filteredLog]);
+  const tagScopedLogs = useMemo(() => ({
+    security: filteredLog.filter((entry) => (entry.tags || []).includes("security")),
+    functions: filteredLog.filter((entry) => (entry.tags || []).includes("functions")),
+    routes: filteredLog.filter((entry) => (entry.tags || []).includes("routes")),
+    jobs: filteredLog.filter((entry) => (entry.tags || []).includes("jobs")),
+    webhook: filteredLog.filter((entry) => (entry.tags || []).includes("webhook")),
+    crm: filteredLog.filter((entry) => (entry.tags || []).includes("crm")),
+    supabase: filteredLog.filter((entry) => (entry.tags || []).includes("supabase")),
+    dotobot: filteredLog.filter((entry) => (entry.tags || []).includes("dotobot")),
+    "ai-task": filteredLog.filter((entry) => (entry.tags || []).includes("ai-task")),
+    "data-quality": filteredLog.filter((entry) => (entry.tags || []).includes("data-quality")),
+  }), [filteredLog]);
+  const paneEntries = useMemo(() => {
+    if (logPane === "activity") return activityOnlyLog;
+    if (logPane === "debug") return debugLog;
+    return tagScopedLogs[logPane] || [];
+  }, [activityOnlyLog, debugLog, logPane, tagScopedLogs]);
   const historyCards = useMemo(() => ([
     {
       key: "processos",
@@ -741,48 +831,14 @@ export default function InternoLayout({
                     <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8]">
                       {activityLog.length} entradas
                     </span>
-                    <button
+                    {LOG_PANES.map((pane) => <button
+                      key={pane.key}
                       type="button"
-                      onClick={() => setLogPane("activity")}
-                      className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === "activity" ? "border-[#C5A059] text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                      onClick={() => setLogPane(pane.key)}
+                      className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === pane.key ? "border-[#C5A059] text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8]"}`}
                     >
-                      Atividade
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLogPane("debug")}
-                      className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === "debug" ? "border-[#C5A059] text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8]"}`}
-                    >
-                      Debug UI
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLogPane("history")}
-                      className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === "history" ? "border-[#C5A059] text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8]"}`}
-                    >
-                      Historico
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLogPane("frontend")}
-                      className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === "frontend" ? "border-[#C5A059] text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8]"}`}
-                    >
-                      Frontend
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLogPane("schema")}
-                      className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === "schema" ? "border-[#C5A059] text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8]"}`}
-                    >
-                      Schema
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLogPane("notes")}
-                      className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === "notes" ? "border-[#C5A059] text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8]"}`}
-                    >
-                      Notas
-                    </button>
+                      {pane.label}
+                    </button>)}
                   </div>
                 ) : null}
               </div>
@@ -836,7 +892,7 @@ export default function InternoLayout({
                         {formattedArchiveHint}
                       </span>
                     </div>
-                    {(logPane === "activity" || logPane === "debug") ? <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 text-[10px] uppercase tracking-[0.14em] text-[#7F928C]">
+                    {!["history", "frontend", "schema", "notes"].includes(logPane) ? <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 text-[10px] uppercase tracking-[0.14em] text-[#7F928C]">
                       <span>Filtros</span>
                       <input
                         value={logFilters.module || ""}
@@ -884,6 +940,9 @@ export default function InternoLayout({
                       >
                         Limpar filtros
                       </button>
+                    </div> : null}
+                    {!["activity", "debug", "history", "frontend", "schema", "notes"].includes(logPane) ? <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 text-[11px] text-[#9BAEA8]">
+                      Trilha automatica por tag: <span className="text-[#F4E7C2]">{LOG_PANES.find((pane) => pane.key === logPane)?.label || logPane}</span>. Os eventos entram aqui conforme heuristica de coleta do console.
                     </div> : null}
                     {logPane === "history" ? <div className="space-y-3">
                       <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 text-[11px] text-[#9BAEA8]">
@@ -1259,9 +1318,9 @@ export default function InternoLayout({
                         <div className="mt-2 text-[11px] opacity-60">Nenhum ponto de schema registrado.</div>
                       )}
                     </div> : null}
-                    {(logPane === "activity" ? activityOnlyLog : logPane === "debug" ? debugLog : []).length ? (
+                    {paneEntries.length ? (
                       <div className="space-y-2">
-                        {(logPane === "activity" ? activityOnlyLog : debugLog).slice(0, 30).map((entry) => (
+                        {paneEntries.slice(0, 30).map((entry) => (
                           <div key={entry.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(8,10,9,0.6)] px-3 py-2 text-[11px]">
                             <div className="flex items-center justify-between">
                               <span className="font-semibold">{entry.label || entry.action}</span>
@@ -1327,8 +1386,10 @@ export default function InternoLayout({
                           </div>
                         ))}
                       </div>
-                    ) : (logPane === "activity" || logPane === "debug") ? (
-                      <div className="text-[11px] opacity-60">{logPane === "debug" ? "Nenhum debug UI registrado." : "Nenhuma atividade registrada."}</div>
+                    ) : !["history", "frontend", "schema", "notes"].includes(logPane) ? (
+                      <div className="text-[11px] opacity-60">
+                        {logPane === "debug" ? "Nenhum debug UI registrado." : `Nenhuma entrada classificada em ${LOG_PANES.find((pane) => pane.key === logPane)?.label || logPane}.`}
+                      </div>
                     ) : null}
                     {logPane === "notes" ? <div className="mt-4 rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
                       <div className="flex flex-wrap items-center justify-between gap-3">

@@ -21,6 +21,9 @@ const CONTACT_TYPE_OPTIONS = [
 
 const CONTACT_ACTION_LABELS = {
   sync_contacts: "Sincronizar contacts do Freshsales",
+  validate_contacts: "Validar e higienizar contatos",
+  bulk_create_contacts: "Criar contatos em lote",
+  delete_contacts_bulk: "Excluir contatos em lote",
   enrich_cep: "Enriquecer contato via CEP",
   enrich_directdata: "Enriquecer contato via DirectData",
   create_name_only: "Criar contato simplificado",
@@ -33,6 +36,13 @@ const CONTACT_ACTION_LABELS = {
   desvincular_partes: "Desvincular partes",
   reclassificar_partes: "Reclassificar partes",
 };
+
+function parseBulkLines(value) {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
 
 function stringifyLogPayload(payload, limit = 8000) {
   if (payload === undefined) return "";
@@ -175,17 +185,22 @@ function ContactsContent() {
   const [linkedQuery, setLinkedQuery] = useState("");
   const [linkedType, setLinkedType] = useState("");
   const [type, setType] = useState("");
+  const [selectedContactIds, setSelectedContactIds] = useState([]);
   const [selectedContactId, setSelectedContactId] = useState("");
+  const [contactPageSize, setContactPageSize] = useState(20);
   const [syncLimit, setSyncLimit] = useState(100);
   const [reconcileLimit, setReconcileLimit] = useState(20);
   const [selectedPartes, setSelectedPartes] = useState([]);
   const [selectedLinkedPartes, setSelectedLinkedPartes] = useState([]);
   const [createForm, setCreateForm] = useState({ name: "", type: "Cliente", email: "", phone: "", cpf: "", cnpj: "", cep: "", externalId: "" });
+  const [bulkCreateText, setBulkCreateText] = useState("");
+  const [bulkCreateIntervalMs, setBulkCreateIntervalMs] = useState(1200);
   const [editForm, setEditForm] = useState(buildEditableForm(null));
   const [mergeTargetId, setMergeTargetId] = useState("");
   const [cep, setCep] = useState("");
   const [personType, setPersonType] = useState("pf");
   const [linkType, setLinkType] = useState("Cliente");
+  const selected = detailState.data;
 
   async function adminFetch(path, init = {}, meta = {}) {
     const startedAt = Date.now();
@@ -235,7 +250,7 @@ function ContactsContent() {
   }
 
   useEffect(() => { loadOverview(); }, []);
-  useEffect(() => { loadList(page, query, type); }, [page, query, type]);
+  useEffect(() => { loadList(page, query, type, contactPageSize); }, [contactPageSize, page, query, type]);
   useEffect(() => { loadDuplicates(duplicatesPage); }, [duplicatesPage]);
   useEffect(() => { loadPartesPendentes(partesPage, partesQuery); }, [partesPage, partesQuery]);
   useEffect(() => { loadPartesVinculadas(linkedPage, linkedQuery, linkedType); }, [linkedPage, linkedQuery, linkedType]);
@@ -257,6 +272,8 @@ function ContactsContent() {
         query,
         type,
         page,
+        pageSize: contactPageSize,
+        selected: selectedContactIds.length,
         missingEmailOnPage: Number(listState.items.filter((item) => !item.email).length || 0),
         missingPhoneOnPage: Number(listState.items.filter((item) => !item.phone).length || 0),
         missingDocumentOnPage: Number(listState.items.filter((item) => !item.cpf && !item.cnpj).length || 0),
@@ -300,6 +317,7 @@ function ContactsContent() {
       },
       settings: {
         syncLimit: Number(syncLimit || 0),
+        bulkCreateIntervalMs: Number(bulkCreateIntervalMs || 0),
         reconcileLimit: Number(reconcileLimit || 0),
         personType,
         linkType,
@@ -325,6 +343,7 @@ function ContactsContent() {
     listState.totalRows,
     overview.data,
     page,
+    contactPageSize,
     partesPage,
     partesPendentes.error,
     partesPendentes.loading,
@@ -337,9 +356,11 @@ function ContactsContent() {
     query,
     reconcileLimit,
     selected,
+    selectedContactIds.length,
     selectedLinkedPartes.length,
     selectedPartes.length,
     syncLimit,
+    bulkCreateIntervalMs,
     type,
   ]);
 
@@ -356,10 +377,10 @@ function ContactsContent() {
     }
   }
 
-  async function loadList(nextPage, nextQuery, nextType) {
+  async function loadList(nextPage, nextQuery, nextType, nextPageSize = contactPageSize) {
     setListState((current) => ({ ...current, loading: true, error: null }));
     try {
-      const payload = await adminFetch(`/api/admin-hmadv-contacts?action=list&page=${nextPage}&pageSize=20&query=${encodeURIComponent(nextQuery || "")}&type=${encodeURIComponent(nextType || "")}`, {}, {
+      const payload = await adminFetch(`/api/admin-hmadv-contacts?action=list&page=${nextPage}&pageSize=${encodeURIComponent(nextPageSize || 20)}&query=${encodeURIComponent(nextQuery || "")}&type=${encodeURIComponent(nextType || "")}`, {}, {
         component: "contacts-list",
         label: "Listar contacts paginados",
       });
@@ -457,7 +478,7 @@ function ContactsContent() {
       } : entry));
       await Promise.all([
         loadOverview(),
-        loadList(page, query, type),
+        loadList(page, query, type, contactPageSize),
         loadDuplicates(duplicatesPage),
         loadPartesPendentes(partesPage, partesQuery),
         loadPartesVinculadas(linkedPage, linkedQuery, linkedType),
@@ -498,8 +519,28 @@ function ContactsContent() {
     });
   }
 
+  function toggleContactSelection(contactId) {
+    setSelectedContactIds((current) => current.includes(contactId) ? current.filter((item) => item !== contactId) : [...current, contactId]);
+  }
+
+  function toggleContactsPageSelection(nextChecked) {
+    const pageIds = listState.items.map((item) => item.freshsales_contact_id).filter(Boolean);
+    setSelectedContactIds((current) => {
+      if (nextChecked) return Array.from(new Set([...current, ...pageIds]));
+      return current.filter((id) => !pageIds.includes(id));
+    });
+  }
+
+  async function selectAllFilteredContacts() {
+    const payload = await adminFetch(`/api/admin-hmadv-contacts?action=contact_ids&query=${encodeURIComponent(query || "")}&type=${encodeURIComponent(type || "")}`, {}, {
+      component: "contacts-selection",
+      label: "Selecionar todos os contatos filtrados",
+    });
+    const ids = Array.isArray(payload?.data?.ids) ? payload.data.ids : [];
+    setSelectedContactIds(ids);
+  }
+
   const overviewData = overview.data || {};
-  const selected = detailState.data;
   const typeOptions = useMemo(() => Object.entries(overviewData.tipos || {}).sort((a, b) => b[1] - a[1]), [overviewData.tipos]);
   const selectedParteNumbers = useMemo(() => {
     const procMap = new Map();
@@ -512,6 +553,9 @@ function ContactsContent() {
   const linkedPageSelectedCount = useMemo(() => partesVinculadas.items.filter((item) => selectedLinkedPartes.includes(item.id)).length, [partesVinculadas.items, selectedLinkedPartes]);
   const allPendingPageSelected = Boolean(partesPendentes.items.length) && pendingPageSelectedCount === partesPendentes.items.length;
   const allLinkedPageSelected = Boolean(partesVinculadas.items.length) && linkedPageSelectedCount === partesVinculadas.items.length;
+  const contactPageSelectedCount = useMemo(() => listState.items.filter((item) => selectedContactIds.includes(item.freshsales_contact_id)).length, [listState.items, selectedContactIds]);
+  const allContactPageSelected = Boolean(listState.items.length) && contactPageSelectedCount === listState.items.length;
+  const bulkCreateNames = useMemo(() => parseBulkLines(bulkCreateText), [bulkCreateText]);
   const missingEmailOnPage = useMemo(() => listState.items.filter((item) => !item.email).length, [listState.items]);
   const missingPhoneOnPage = useMemo(() => listState.items.filter((item) => !item.phone).length, [listState.items]);
   const missingDocumentOnPage = useMemo(() => listState.items.filter((item) => !item.cpf && !item.cnpj).length, [listState.items]);
@@ -528,41 +572,67 @@ function ContactsContent() {
     <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
       <Panel title="Sync e lista paginada" eyebrow="Freshsales -> espelho local">
         <div className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-[1fr_220px_auto_auto]">
+          <div className="grid gap-4 md:grid-cols-[1fr_180px_120px_auto_auto]">
             <input value={query} onChange={(event) => { setPage(1); setQuery(event.target.value); }} placeholder="Buscar por nome, e-mail ou telefone" className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
             <select value={type} onChange={(event) => { setPage(1); setType(event.target.value); }} className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]">
               <option value="">Todos os tipos</option>
               {typeOptions.map(([label, total]) => <option key={label} value={label}>{label} ({total})</option>)}
             </select>
-            <ActionButton onClick={() => runAction("sync_contacts", { limit: syncLimit, dryRun: true })} disabled={actionState.loading}>Simular sync</ActionButton>
-            <ActionButton tone="primary" onClick={() => runAction("sync_contacts", { limit: syncLimit, dryRun: false })} disabled={actionState.loading}>Sincronizar tudo</ActionButton>
+            <select value={contactPageSize} onChange={(event) => { setPage(1); setContactPageSize(Number(event.target.value || 20)); }} className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]">
+              <option value={20}>20 / pagina</option>
+              <option value={50}>50 / pagina</option>
+              <option value={100}>100 / pagina</option>
+            </select>
+            <ActionButton onClick={() => runAction("sync_contacts", { limit: syncLimit, dryRun: true, fetchAll: false })} disabled={actionState.loading}>Simular sync</ActionButton>
+            <ActionButton tone="primary" onClick={() => runAction("sync_contacts", { limit: syncLimit, dryRun: false, fetchAll: true })} disabled={actionState.loading}>Importar todos</ActionButton>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs uppercase tracking-[0.15em] opacity-50">Lote sync</span>
             <input type="number" min="1" max="5000" value={syncLimit} onChange={(event) => setSyncLimit(Number(event.target.value || 100))} className="w-28 border border-[#2D2E2E] bg-[#050706] p-2 text-sm outline-none focus:border-[#C5A059]" />
+            <ActionButton onClick={() => toggleContactsPageSelection(!allContactPageSelected)} disabled={!listState.items.length}>
+              {allContactPageSelected ? "Desmarcar pagina" : "Selecionar pagina"}
+            </ActionButton>
+            <ActionButton onClick={() => selectAllFilteredContacts()} disabled={listState.loading}>Selecionar filtrados</ActionButton>
+            <ActionButton onClick={() => setSelectedContactIds([])} disabled={!selectedContactIds.length}>Limpar selecao</ActionButton>
+            <ActionButton onClick={() => runAction("validate_contacts", { contactIds: selectedContactIds, query, type, limit: selectedContactIds.length || contactPageSize, apply: false })} disabled={actionState.loading || (!selectedContactIds.length && !listState.items.length)}>Validar selecao</ActionButton>
+            <ActionButton tone="primary" onClick={() => runAction("validate_contacts", { contactIds: selectedContactIds, query, type, limit: selectedContactIds.length || contactPageSize, apply: true })} disabled={actionState.loading || (!selectedContactIds.length && !listState.items.length)}>Aplicar higienizacao</ActionButton>
+            <ActionButton tone="danger" onClick={() => runAction("delete_contacts_bulk", { contactIds: selectedContactIds })} disabled={actionState.loading || !selectedContactIds.length}>Excluir selecionados</ActionButton>
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60">
+            <span>Selecionados: {selectedContactIds.length}</span>
+            <span>Nesta pagina: {contactPageSelectedCount}/{listState.items.length || 0}</span>
+            <span>Total estimado: {listState.totalRows || 0}</span>
           </div>
           {listState.loading ? <p className="text-sm opacity-60">Carregando contatos...</p> : null}
           {listState.error ? <p className="text-sm text-red-300">{listState.error}</p> : null}
           <div className="space-y-3">
             {listState.items.map((item) => {
               const active = selectedContactId === item.freshsales_contact_id;
-              return <button key={item.freshsales_contact_id} type="button" onClick={() => setSelectedContactId(item.freshsales_contact_id)} className={`block w-full border p-4 text-left ${active ? "border-[#C5A059]" : "border-[#2D2E2E]"}`}>
-                <div className="space-y-1 text-sm">
-                  <p className="font-semibold">{item.name}</p>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-65">
-                    <span>Tipo: {item.type}</span>
-                    {item.email ? <span>E-mail: {item.email}</span> : null}
-                    {item.phone ? <span>Telefone: {item.phone}</span> : null}
-                    {item.cpf ? <span>CPF: {item.cpf}</span> : null}
-                    {item.cnpj ? <span>CNPJ: {item.cnpj}</span> : null}
-                  </div>
-                  {item.freshsales_url ? <a href={item.freshsales_url} target="_blank" rel="noreferrer" className="text-xs underline opacity-70 hover:text-[#C5A059]" onClick={(event) => event.stopPropagation()}>Abrir contato no Freshsales</a> : null}
+              return <div key={item.freshsales_contact_id} className={`border p-4 ${active ? "border-[#C5A059]" : "border-[#2D2E2E]"}`}>
+                <div className="flex gap-3">
+                  <input type="checkbox" checked={selectedContactIds.includes(item.freshsales_contact_id)} onChange={() => toggleContactSelection(item.freshsales_contact_id)} className="mt-1" />
+                  <button type="button" onClick={() => setSelectedContactId(item.freshsales_contact_id)} className="min-w-0 flex-1 text-left">
+                    <div className="space-y-1 text-sm">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold">{item.name}</p>
+                        <StatusBadge tone="accent">{item.type}</StatusBadge>
+                        {item.cpf || item.cnpj ? <StatusBadge tone="success">documentado</StatusBadge> : <StatusBadge tone="warn">sem documento</StatusBadge>}
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-65">
+                        {item.email ? <span>E-mail: {item.email}</span> : <span>Sem e-mail</span>}
+                        {item.phone ? <span>Telefone: {item.phone}</span> : <span>Sem telefone</span>}
+                        {item.cpf ? <span>CPF: {item.cpf}</span> : null}
+                        {item.cnpj ? <span>CNPJ: {item.cnpj}</span> : null}
+                      </div>
+                      {item.freshsales_url ? <a href={item.freshsales_url} target="_blank" rel="noreferrer" className="text-xs underline opacity-70 hover:text-[#C5A059]" onClick={(event) => event.stopPropagation()}>Abrir contato no Freshsales</a> : null}
+                    </div>
+                  </button>
                 </div>
-              </button>;
+              </div>;
             })}
           </div>
           <div className="flex items-center justify-between gap-3 text-sm">
-            <p className="opacity-60">Total estimado: {listState.totalRows || 0}</p>
+            <p className="opacity-60">Pagina {page} com {listState.items.length} registros carregados</p>
             <div className="flex gap-2">
               <ActionButton onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1 || listState.loading}>Anterior</ActionButton>
               <ActionButton onClick={() => setPage(page + 1)} disabled={listState.loading}>Proxima</ActionButton>
@@ -621,6 +691,18 @@ function ContactsContent() {
             {!selected.processos?.length ? <p className="opacity-60">Nenhum processo vinculado por contato_freshsales_id ainda.</p> : null}
             {selected.processos?.map((processo) => <div key={processo.id} className="border border-[#2D2E2E] p-3"><p className="font-semibold">{processo.numero_cnj || processo.id}</p>{processo.titulo ? <p className="opacity-70">{processo.titulo}</p> : null}<div className="flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60">{processo.status_atual_processo ? <span>Status: {processo.status_atual_processo}</span> : null}{processo.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${processo.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Account {processo.account_id_freshsales}</a> : null}</div></div>)}
           </div>
+          <div className="space-y-3">
+            <p className="text-xs uppercase tracking-[0.15em] opacity-50">Publicacoes relacionadas</p>
+            {!selected.publicacoes?.length ? <p className="opacity-60">Nenhuma publicacao recente encontrada para os processos deste contato.</p> : null}
+            {selected.publicacoes?.map((publicacao) => <div key={publicacao.id} className="border border-[#2D2E2E] p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {publicacao.processo?.numero_cnj ? <p className="font-semibold">{publicacao.processo.numero_cnj}</p> : null}
+                {publicacao.data_publicacao ? <StatusBadge tone="neutral">{new Date(publicacao.data_publicacao).toLocaleDateString("pt-BR")}</StatusBadge> : null}
+              </div>
+              {publicacao.processo?.titulo ? <p className="mt-1 text-xs opacity-60">{publicacao.processo.titulo}</p> : null}
+              {publicacao.resumo ? <p className="mt-2 opacity-75">{publicacao.resumo}</p> : null}
+            </div>)}
+          </div>
         </div> : null}
       </Panel>
     </div>
@@ -631,7 +713,7 @@ function ContactsContent() {
           <MetricCard label="Sem e-mail na pagina" value={missingEmailOnPage} helper="Ajuda a priorizar enriquecimento e match forte no CRM." />
           <MetricCard label="Sem telefone na pagina" value={missingPhoneOnPage} helper="Contato com baixo potencial de acionamento operacional." />
           <MetricCard label="Sem CPF/CNPJ na pagina" value={missingDocumentOnPage} helper="Base com baixa rastreabilidade para DirectData e deduplicacao." />
-          <MetricCard label="Lotes marcados" value={`${selectedPartes.length} / ${selectedLinkedPartes.length}`} helper="Pendentes e vinculadas prontas para bulk actions nesta sessao." />
+          <MetricCard label="Lotes marcados" value={`${selectedContactIds.length} / ${selectedPartes.length} / ${selectedLinkedPartes.length}`} helper="Contatos, partes pendentes e partes vinculadas prontas para bulk actions nesta sessao." />
         </div>
         <div className="mt-4 rounded-[20px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] p-4 text-sm">
           <p className="font-semibold">Persistencia no portal</p>
@@ -648,7 +730,7 @@ function ContactsContent() {
         </div>
       </Panel>
 
-      <Panel title="Criar novo contato" eyebrow="CRUD">
+      <Panel title="Criar novo contato" eyebrow="CRUD + lote">
         <div className="grid gap-3 md:grid-cols-2">
           <input value={createForm.name} onChange={(event) => setCreateForm((current) => ({ ...current, name: event.target.value }))} placeholder="Nome completo" className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
           <select value={createForm.type} onChange={(event) => setCreateForm((current) => ({ ...current, type: event.target.value }))} className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]">
@@ -663,6 +745,16 @@ function ContactsContent() {
         </div>
         <div className="mt-4 flex flex-wrap gap-3">
           <ActionButton tone="primary" onClick={() => runAction("create_contact", createForm)} disabled={actionState.loading}>Criar contato</ActionButton>
+        </div>
+        <div className="mt-6 space-y-3 border-t border-[#2D2E2E] pt-5">
+          <p className="text-xs uppercase tracking-[0.15em] opacity-50">Criacao em lote com protecao de rate limit</p>
+          <textarea value={bulkCreateText} onChange={(event) => setBulkCreateText(event.target.value)} placeholder={"Um nome por linha\n, Maria da Silva\nJoao Pereira,\nEmpresa XPTO LTDA"} rows={8} className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
+          <div className="grid gap-3 md:grid-cols-[220px_auto_auto]">
+            <input type="number" min="500" step="100" value={bulkCreateIntervalMs} onChange={(event) => setBulkCreateIntervalMs(Number(event.target.value || 1200))} className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
+            <ActionButton onClick={() => runAction("bulk_create_contacts", { names: bulkCreateNames, type: createForm.type, intervalMs: bulkCreateIntervalMs, dryRun: true })} disabled={actionState.loading || !bulkCreateNames.length}>Simular lote</ActionButton>
+            <ActionButton tone="primary" onClick={() => runAction("bulk_create_contacts", { names: bulkCreateNames, type: createForm.type, intervalMs: bulkCreateIntervalMs, dryRun: false })} disabled={actionState.loading || !bulkCreateNames.length}>Criar em lote</ActionButton>
+          </div>
+          <p className="text-xs opacity-60">{bulkCreateNames.length} nomes prontos para criacao. A higienizacao remove virgulas no inicio/fim e o backend respeita intervalo entre chamadas no Freshsales.</p>
         </div>
       </Panel>
 

@@ -3,6 +3,7 @@ import Script from "next/script";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import { useSupabaseBrowser } from "../../lib/supabase";
+import { setModuleHistory } from "../../lib/admin/activity-log";
 
 const FRESHWORKS_PORTAL_SCRIPT_URL = "//eu.fw-cdn.com/10713913/375987.js";
 const FRESHWORKS_PORTAL_WIDGET_ID = "2bb07572-34a4-4ea6-9708-4ec2ed23589d";
@@ -212,6 +213,21 @@ export default function PortalLayout({
   useEffect(() => {
     setIsRailOpen(rightRailDefaultOpen);
   }, [rightRailDefaultOpen, router.asPath]);
+
+  useEffect(() => {
+    setModuleHistory("portal-shell", {
+      routePath: router.pathname,
+      asPath: router.asPath || router.pathname,
+      shell: "portal",
+      title,
+      rightRailLabel,
+      rightRailOpen: isRailOpen,
+      navItems: NAV_ITEMS.length,
+      officeWhatsappReady: Boolean(officeWhatsapp),
+      profileEmail: profile?.email || null,
+      updatedAt: new Date().toISOString(),
+    });
+  }, [isRailOpen, officeWhatsapp, profile?.email, rightRailLabel, router.asPath, router.pathname, title]);
 
   async function handleSignOut() {
     if (supabase) {

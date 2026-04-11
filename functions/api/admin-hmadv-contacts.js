@@ -1,13 +1,16 @@
 import { requireAdminAccess } from "../lib/admin-auth.js";
 import {
+  bulkCreateContacts,
   createContact,
   createOrUpdateContactByNameOnly,
+  deleteContactsBulk,
   deleteContact,
   enrichContactViaCep,
   enrichContactViaDirectData,
   getContactDetail,
   getContactsOverview,
   linkPartesToExistingContact,
+  listContactIds,
   listContacts,
   listDuplicateContacts,
   listLinkedPartes,
@@ -18,6 +21,7 @@ import {
   syncFreshsalesContactsMirror,
   unlinkPartesFromContact,
   updateContact,
+  validateContacts,
 } from "../lib/hmadv-contacts.js";
 import { jsonError, jsonOk } from "../lib/hmadv-ops.js";
 
@@ -75,6 +79,13 @@ export async function onRequestGet(context) {
       const data = await getContactDetail(context.env, contactId);
       return jsonOk({ data });
     }
+    if (action === "contact_ids") {
+      const data = await listContactIds(context.env, {
+        query: String(url.searchParams.get("query") || ""),
+        type: String(url.searchParams.get("type") || ""),
+      });
+      return jsonOk({ data });
+    }
     return jsonError(new Error("Acao GET invalida."), 400);
   } catch (error) {
     return jsonError(error, 500);
@@ -94,6 +105,7 @@ export async function onRequestPost(context) {
       const data = await syncFreshsalesContactsMirror(context.env, {
         limit: Number(body.limit || 50),
         dryRun: Boolean(body.dryRun),
+        fetchAll: Boolean(body.fetchAll),
       });
       return jsonOk({ data });
     }
@@ -131,10 +143,51 @@ export async function onRequestPost(context) {
       const data = await deleteContact(context.env, { contactId: body.contactId });
       return jsonOk({ data });
     }
+    if (action === "delete_contacts_bulk") {
+      const contactIds = Array.isArray(body.contactIds)
+        ? body.contactIds
+        : String(body.contactIds || "")
+            .split(/\r?\n|,|;/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+      const data = await deleteContactsBulk(context.env, { contactIds });
+      return jsonOk({ data });
+    }
     if (action === "merge_contacts") {
       const data = await mergeContacts(context.env, {
         primaryContactId: body.primaryContactId,
         duplicateContactId: body.duplicateContactId,
+      });
+      return jsonOk({ data });
+    }
+    if (action === "validate_contacts") {
+      const contactIds = Array.isArray(body.contactIds)
+        ? body.contactIds
+        : String(body.contactIds || "")
+            .split(/\r?\n|,|;/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+      const data = await validateContacts(context.env, {
+        contactIds,
+        query: String(body.query || ""),
+        type: String(body.type || ""),
+        limit: Number(body.limit || 100),
+        apply: Boolean(body.apply),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "bulk_create_contacts") {
+      const names = Array.isArray(body.names)
+        ? body.names
+        : String(body.names || "")
+            .split(/\r?\n|,|;/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+      const data = await bulkCreateContacts(context.env, {
+        names,
+        type: body.type || "Cliente",
+        intervalMs: Number(body.intervalMs || 1200),
+        dryRun: Boolean(body.dryRun),
       });
       return jsonOk({ data });
     }

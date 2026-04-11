@@ -6,12 +6,14 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
 import { ToastProvider } from '../components/ui/toast';
+import useConsoleRouteInstrumentation from '../hooks/useConsoleRouteInstrumentation';
 
 const FreshchatWebMessenger = dynamic(() => import('../components/FreshchatWebMessenger'), { ssr: false });
 
 export default function App({ Component, pageProps }) {
   const router = useRouter();
   const isPortalRoute = String(router.pathname || '').startsWith('/portal');
+  useConsoleRouteInstrumentation(router);
 
   // Google Tag Manager noscript e Setmore
   useEffect(() => {

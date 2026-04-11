@@ -5,6 +5,7 @@ import {
   backfillHmadvFinanceAccounts,
   getHmadvFinanceAdminConfig,
   getHmadvFinanceAdminOverview,
+  updateHmadvFinanceAdminConfig,
   resolveHmadvFinancePendingAccounts,
   searchHmadvFinanceProcessCandidates,
 } from "../../functions/lib/hmadv-finance-admin.js";
@@ -33,6 +34,54 @@ function parseJsonOutput(stdoutText) {
   } catch {
     return null;
   }
+}
+
+function pushIfPresent(target, ...values) {
+  for (const value of values) {
+    if (value == null) continue;
+    const text = String(value).trim();
+    if (text) target.push(text);
+  }
+}
+
+function buildScriptArgs(operation, settings = {}, body = {}) {
+  if (operation === "refresh_freshsales_token") return [];
+  if (operation === "diagnose_freshsales_auth") return [];
+  if (operation === "report_ops") return [];
+  if (operation === "export_accounts_import") return [];
+  if (operation === "export_deals_import") return [];
+
+  if (operation === "backfill_textual_accounts") {
+    return [String(body.limit || settings.backfill_limit || 50)];
+  }
+
+  if (operation === "materialize_latest_run") {
+    const args = [];
+    pushIfPresent(args, body.import_run_id);
+    pushIfPresent(args, body.workspace_id || settings.materialize_workspace_id);
+    return args;
+  }
+
+  if (operation === "reprocess_billing") {
+    const args = [];
+    if (body.workspace_id || settings.materialize_workspace_id) {
+      args.push("--workspace-id", String(body.workspace_id || settings.materialize_workspace_id));
+    }
+    args.push("--limit", String(body.limit || settings.reprocess_limit || 3000));
+    return args;
+  }
+
+  if (operation === "publish_deals") {
+    const args = [String(body.limit || settings.publish_limit || 50)];
+    pushIfPresent(args, body.receivable_id);
+    return args;
+  }
+
+  if (operation === "process_crm_events") {
+    return [String(body.limit || settings.crm_events_limit || 50)];
+  }
+
+  return [];
 }
 
 async function runNodeScript(scriptName, args = []) {
@@ -91,7 +140,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, data });
       }
       if (action === "config") {
-        const data = getHmadvFinanceAdminConfig();
+        const data = await getHmadvFinanceAdminConfig(process.env);
         return res.status(200).json({ ok: true, data });
       }
       if (action === "search_processes") {
@@ -108,8 +157,10 @@ export default async function handler(req, res) {
     if (req.method === "POST") {
       const action = String(req.body?.action || "");
       if (action === "backfill_textual_accounts") {
+        const config = await getHmadvFinanceAdminConfig(process.env);
         const data = await backfillHmadvFinanceAccounts(process.env, {
-          limit: Number(req.body?.limit || 50),
+          limit: Number(req.body?.limit || config.settings?.value?.backfill_limit || 50),
+          ownerId: req.body?.ownerId || config.settings?.value?.freshsales_owner_id || null,
         });
         return res.status(200).json({ ok: true, data });
       }
@@ -119,12 +170,15 @@ export default async function handler(req, res) {
       }
       if (action === "run_operation") {
         const operation = String(req.body?.operation || "").trim();
-        const allowedKeys = new Set((getHmadvFinanceAdminConfig().operations || []).map((item) => item.key));
+        const config = await getHmadvFinanceAdminConfig(process.env);
+        const allowedKeys = new Set((config.operations || []).map((item) => item.key));
         const selected = allowedKeys.has(operation) ? SCRIPT_ACTIONS[operation] : null;
         if (!selected) {
           return res.status(400).json({ ok: false, error: "Operacao administrativa invalida." });
         }
-        const data = await runNodeScript(selected.script, selected.args || []);
+        const settings = config.settings?.value || {};
+        const dynamicArgs = buildScriptArgs(operation, settings, req.body || {});
+        const data = await runNodeScript(selected.script, dynamicArgs);
         return res.status(200).json({
           ok: true,
           data: {
@@ -133,6 +187,10 @@ export default async function handler(req, res) {
             ...data,
           },
         });
+      }
+      if (action === "update_config") {
+        const data = await updateHmadvFinanceAdminConfig(process.env, req.body || {});
+        return res.status(200).json({ ok: true, data });
       }
       return res.status(400).json({ ok: false, error: "Acao POST invalida." });
     }

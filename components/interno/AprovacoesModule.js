@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { adminFetch } from "../../lib/admin/api";
+import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
 
 const DEPARTMENTS = [
   {
@@ -244,8 +245,28 @@ export default function AprovacoesModule() {
         actingId: null,
         message: action === "approve" ? "Solicitacao aprovada e aplicada." : "Solicitacao rejeitada.",
       }));
+      appendActivityLog({
+        label: "Aprovacao processada",
+        action: "approval_review",
+        method: "UI",
+        module: "aprovacoes",
+        page: "/interno/aprovacoes",
+        status: "success",
+        response: `Acao ${action} aplicada para a solicitacao ${id}.`,
+        tags: ["approval", "manual"],
+      });
       await load();
     } catch (error) {
+      appendActivityLog({
+        label: "Falha ao processar aprovacao",
+        action: "approval_review",
+        method: "UI",
+        module: "aprovacoes",
+        page: "/interno/aprovacoes",
+        status: "error",
+        error: error.message || "Falha ao processar aprovacao.",
+        tags: ["approval", "manual"],
+      });
       setState((current) => ({ ...current, actingId: null, error: error.message }));
     }
   }
@@ -262,6 +283,16 @@ export default function AprovacoesModule() {
           cpf_verified: !(currentLocks?.cpf_verified === true),
           full_name_verified: currentLocks?.full_name_verified === true,
         }),
+      });
+      appendActivityLog({
+        label: "Lock de CPF atualizado",
+        action: "approval_lock_cpf",
+        method: "UI",
+        module: "aprovacoes",
+        page: "/interno/aprovacoes",
+        status: "success",
+        response: `Cliente ${clientId} teve o lock de CPF alternado.`,
+        tags: ["approval", "manual"],
       });
       setState((current) => ({ ...current, actingId: null, message: "Bloqueio de CPF atualizado." }));
       await load();
@@ -283,6 +314,16 @@ export default function AprovacoesModule() {
           full_name_verified: !(currentLocks?.full_name_verified === true),
         }),
       });
+      appendActivityLog({
+        label: "Lock de nome atualizado",
+        action: "approval_lock_name",
+        method: "UI",
+        module: "aprovacoes",
+        page: "/interno/aprovacoes",
+        status: "success",
+        response: `Cliente ${clientId} teve o lock de nome alternado.`,
+        tags: ["approval", "manual"],
+      });
       setState((current) => ({ ...current, actingId: null, message: "Bloqueio do nome atualizado." }));
       await load();
     } catch (error) {
@@ -298,6 +339,19 @@ export default function AprovacoesModule() {
     }),
     [state.items.length],
   );
+
+  useEffect(() => {
+    setModuleHistory("aprovacoes", {
+      routePath: "/interno/aprovacoes",
+      activeDepartment,
+      loading: state.loading,
+      error: state.error,
+      pendingCadastro: state.items.length,
+      actingId: state.actingId,
+      message: state.message,
+      departmentCounts,
+    });
+  }, [activeDepartment, departmentCounts, state]);
 
   return (
     <div className="space-y-6">

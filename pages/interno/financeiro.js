@@ -49,6 +49,21 @@ function OperationButton({ label, helper, onClick, disabled, loading }) {
   );
 }
 
+function ConfigField({ label, value, onChange, type = "text", placeholder }) {
+  return (
+    <label className="block">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] opacity-50">{label}</p>
+      <input
+        type={type}
+        value={value ?? ""}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]"
+      />
+    </label>
+  );
+}
+
 function formatMoney(value) {
   const parsed = typeof value === "number" ? value : Number(value || 0);
   return parsed.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -95,11 +110,29 @@ function FinanceiroInternoContent() {
   const [textualBackfillLimit, setTextualBackfillLimit] = useState(50);
   const [textualBackfillState, setTextualBackfillState] = useState({ loading: false, error: null, result: null });
   const [operationState, setOperationState] = useState({ loading: null, error: null, result: null });
+  const [configForm, setConfigForm] = useState({
+    backfill_limit: 50,
+    materialize_workspace_id: "",
+    reprocess_limit: 3000,
+    publish_limit: 50,
+    crm_events_limit: 50,
+    freshsales_owner_id: "",
+  });
+  const [configState, setConfigState] = useState({ loading: false, error: null, result: null });
 
   async function load() {
     setState((current) => ({ ...current, loading: true, error: null }));
     try {
       const payload = await adminFetch("/api/admin-hmadv-financeiro");
+      const settings = payload.data?.config?.settings?.value || {};
+      setConfigForm({
+        backfill_limit: settings.backfill_limit ?? 50,
+        materialize_workspace_id: settings.materialize_workspace_id ?? "",
+        reprocess_limit: settings.reprocess_limit ?? 3000,
+        publish_limit: settings.publish_limit ?? 50,
+        crm_events_limit: settings.crm_events_limit ?? 50,
+        freshsales_owner_id: settings.freshsales_owner_id ?? "",
+      });
       setState({ loading: false, error: null, data: payload.data || null });
     } catch (error) {
       setState({ loading: false, error: error.message || "Falha ao carregar o modulo financeiro.", data: null });
@@ -180,6 +213,24 @@ function FinanceiroInternoContent() {
       await load();
     } catch (error) {
       setOperationState({ loading: null, error: error.message || "Falha ao executar operacao administrativa.", result: null });
+    }
+  }
+
+  async function saveConfig() {
+    setConfigState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-hmadv-financeiro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_config",
+          settings: configForm,
+        }),
+      });
+      setConfigState({ loading: false, error: null, result: payload.data || null });
+      await load();
+    } catch (error) {
+      setConfigState({ loading: false, error: error.message || "Falha ao salvar configuracao operacional.", result: null });
     }
   }
 
@@ -332,12 +383,65 @@ function FinanceiroInternoContent() {
             </div>
           </div>
         ) : null}
+        <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <ConfigField
+            label="Backfill limit"
+            type="number"
+            value={configForm.backfill_limit}
+            onChange={(event) => setConfigForm((current) => ({ ...current, backfill_limit: Number(event.target.value || 50) }))}
+          />
+          <ConfigField
+            label="Workspace padrao"
+            value={configForm.materialize_workspace_id}
+            placeholder="UUID do workspace"
+            onChange={(event) => setConfigForm((current) => ({ ...current, materialize_workspace_id: event.target.value }))}
+          />
+          <ConfigField
+            label="Reprocess limit"
+            type="number"
+            value={configForm.reprocess_limit}
+            onChange={(event) => setConfigForm((current) => ({ ...current, reprocess_limit: Number(event.target.value || 3000) }))}
+          />
+          <ConfigField
+            label="Publish limit"
+            type="number"
+            value={configForm.publish_limit}
+            onChange={(event) => setConfigForm((current) => ({ ...current, publish_limit: Number(event.target.value || 50) }))}
+          />
+          <ConfigField
+            label="CRM events limit"
+            type="number"
+            value={configForm.crm_events_limit}
+            onChange={(event) => setConfigForm((current) => ({ ...current, crm_events_limit: Number(event.target.value || 50) }))}
+          />
+          <ConfigField
+            label="Freshsales owner"
+            value={configForm.freshsales_owner_id}
+            placeholder="ID do owner no Freshsales"
+            onChange={(event) => setConfigForm((current) => ({ ...current, freshsales_owner_id: event.target.value }))}
+          />
+        </div>
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={saveConfig}
+            disabled={configState.loading}
+            className="border border-[#C5A059] bg-[#C5A059] px-4 py-3 text-sm font-semibold text-[#050706] disabled:opacity-50"
+          >
+            {configState.loading ? "Salvando configuracao..." : "Salvar configuracao operacional"}
+          </button>
+          {data.config?.settings?.updated_at ? (
+            <span className="text-sm opacity-65">Atualizado em {formatDate(data.config.settings.updated_at)}</span>
+          ) : null}
+        </div>
+        {configState.error ? <p className="mb-4 text-sm text-red-200">{configState.error}</p> : null}
+        {configState.result ? <p className="mb-4 text-sm opacity-70">Configuracao operacional persistida no backend.</p> : null}
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {operationButtons.map((item) => (
             <OperationButton
               key={item.key}
               label={item.label}
-              helper={item.helper}
+              helper={`${item.helper}${item.payload ? ` | payload: ${JSON.stringify(item.payload)}` : ""}`}
               loading={operationState.loading === item.key}
               disabled={Boolean(operationState.loading)}
               onClick={() => runOperation(item.key)}

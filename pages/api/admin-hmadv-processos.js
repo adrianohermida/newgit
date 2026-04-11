@@ -1,10 +1,17 @@
 import { requireAdminNode } from "../../lib/admin/node-auth.js";
 import {
   backfillAudiencias,
+  bulkSaveSuggestedRelations,
+  bulkUpdateProcessRelations,
+  deleteProcessRelation,
   getProcessosOverview,
   inspectAudiencias,
+  listProcessRelations,
   runSyncWorker,
   scanOrphanProcesses,
+  saveProcessRelation,
+  searchProcesses,
+  suggestProcessRelations,
 } from "../../lib/admin/hmadv-ops.js";
 
 function parseProcessNumbers(value) {
@@ -37,6 +44,29 @@ export default async function handler(req, res) {
         const data = await inspectAudiencias(Number(req.query.limit || 10));
         return res.status(200).json({ ok: true, data });
       }
+      if (action === "buscar_processos") {
+        const data = await searchProcesses(String(req.query.query || ""), Number(req.query.limit || 8));
+        return res.status(200).json({ ok: true, data });
+      }
+      if (action === "relacoes") {
+        const data = await listProcessRelations({
+          page: Number(req.query.page || 1),
+          pageSize: Number(req.query.pageSize || 20),
+          query: String(req.query.query || ""),
+          selectionOnly: String(req.query.selection || "") === "1",
+        });
+        return res.status(200).json({ ok: true, data });
+      }
+      if (action === "sugestoes_relacoes") {
+        const data = await suggestProcessRelations({
+          page: Number(req.query.page || 1),
+          pageSize: Number(req.query.pageSize || 20),
+          query: String(req.query.query || ""),
+          minScore: Number(req.query.minScore || 0.45),
+          selectionOnly: String(req.query.selection || "") === "1",
+        });
+        return res.status(200).json({ ok: true, data });
+      }
       return res.status(400).json({ ok: false, error: "Acao GET invalida." });
     }
 
@@ -52,6 +82,28 @@ export default async function handler(req, res) {
       }
       if (action === "run_sync_worker") {
         const data = await runSyncWorker();
+        return res.status(200).json({ ok: true, data });
+      }
+      if (action === "salvar_relacao") {
+        const data = await saveProcessRelation(req.body || {});
+        return res.status(200).json({ ok: true, data });
+      }
+      if (action === "remover_relacao") {
+        const data = await deleteProcessRelation(req.body?.id);
+        return res.status(200).json({ ok: true, data });
+      }
+      if (action === "bulk_relacoes") {
+        const data = await bulkUpdateProcessRelations({
+          ids: Array.isArray(req.body?.ids) ? req.body.ids : [],
+          status: req.body?.status,
+          remove: Boolean(req.body?.remove),
+        });
+        return res.status(200).json({ ok: true, data });
+      }
+      if (action === "bulk_salvar_relacoes") {
+        const data = await bulkSaveSuggestedRelations({
+          items: Array.isArray(req.body?.items) ? req.body.items : [],
+        });
         return res.status(200).json({ ok: true, data });
       }
       return res.status(400).json({ ok: false, error: "Acao POST invalida." });

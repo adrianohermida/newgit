@@ -40,7 +40,12 @@ function isJobInfraError(error) {
 
 function isQueueOverloadError(error) {
   const message = String(error?.message || "");
-  return message.includes("Too many subrequests") || message.includes("subrequests");
+  return (
+    message.includes("Too many subrequests") ||
+    message.includes("subrequests") ||
+    message.includes("Worker exceeded resource limits") ||
+    message.includes("exceeded resource limits")
+  );
 }
 
 function buildQueueFallback({ page, pageSize, error }) {
