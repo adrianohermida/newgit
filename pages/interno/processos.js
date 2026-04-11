@@ -1740,17 +1740,17 @@ function InternoProcessosContent() {
   }
   async function loadCoverage(page = 1) {
     if (schemaStatus?.data?.exists === false) {
-      setProcessCoverage({ loading: false, items: [], totalRows: 0, page, pageSize: 20, unsupported: true });
+      setProcessCoverage({ loading: false, items: [], totalRows: 0, page, pageSize: 20, unsupported: true, limited: false, error: null });
       pushQueueRefresh("cobertura");
       return;
     }
     setProcessCoverage((state) => ({ ...state, loading: true }));
     try {
       const payload = await adminFetch(`/api/admin-hmadv-processos?action=cobertura_processos&page=${page}&pageSize=20`);
-      setProcessCoverage({ loading: false, items: payload.data.items || [], totalRows: payload.data.totalRows || 0, page: payload.data.page || page, pageSize: payload.data.pageSize || 20, unsupported: false });
+      setProcessCoverage({ loading: false, items: payload.data.items || [], totalRows: payload.data.totalRows || 0, page: payload.data.page || page, pageSize: payload.data.pageSize || 20, unsupported: false, limited: Boolean(payload.data.limited), error: payload.data?.error || null });
       pushQueueRefresh("cobertura");
-    } catch {
-      setProcessCoverage({ loading: false, items: [], totalRows: 0, page, pageSize: 20, unsupported: false });
+    } catch (error) {
+      setProcessCoverage((state) => ({ loading: false, items: state?.items || [], totalRows: state?.totalRows || 0, page, pageSize: state?.pageSize || 20, unsupported: false, limited: Boolean(state?.limited), error: error.message || "Falha ao carregar cobertura." }));
       pushQueueRefresh("cobertura");
     }
   }
