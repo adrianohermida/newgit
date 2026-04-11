@@ -67,14 +67,14 @@ function decodeStateKind(value: string | null): OAuthKind {
 function resolveConfig(kind: OAuthKind) {
   const isContacts = kind === 'contacts';
   const clientId = isContacts
-    ? Deno.env.get('FRESHSALES_OAUTH_CONTACTS_CLIENT_ID') ?? Deno.env.get('FRESHSALES_OAUTH_CLIENT_ID') ?? ''
-    : Deno.env.get('FRESHSALES_OAUTH_DEALS_CLIENT_ID') ?? Deno.env.get('FRESHSALES_OAUTH_CLIENT_ID') ?? '';
+    ? Deno.env.get('FRESHSALES_OAUTH_CONTACTS_CLIENT_ID') ?? Deno.env.get('FRESHSALES_OAUTH_DEALS_CLIENT_ID') ?? Deno.env.get('FRESHSALES_OAUTH_CLIENT_ID') ?? ''
+    : Deno.env.get('FRESHSALES_OAUTH_CONTACTS_CLIENT_ID') ?? Deno.env.get('FRESHSALES_OAUTH_DEALS_CLIENT_ID') ?? Deno.env.get('FRESHSALES_OAUTH_CLIENT_ID') ?? '';
   const clientSecret = isContacts
-    ? Deno.env.get('FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET') ?? Deno.env.get('FRESHSALES_OAUTH_CLIENT_SECRET') ?? ''
-    : Deno.env.get('FRESHSALES_OAUTH_DEALS_CLIENT_SECRET') ?? Deno.env.get('FRESHSALES_OAUTH_CLIENT_SECRET') ?? '';
+    ? Deno.env.get('FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET') ?? Deno.env.get('FRESHSALES_OAUTH_DEALS_CLIENT_SECRET') ?? Deno.env.get('FRESHSALES_OAUTH_CLIENT_SECRET') ?? ''
+    : Deno.env.get('FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET') ?? Deno.env.get('FRESHSALES_OAUTH_DEALS_CLIENT_SECRET') ?? Deno.env.get('FRESHSALES_OAUTH_CLIENT_SECRET') ?? '';
   const scopes = isContacts
-    ? Deno.env.get('FRESHSALES_CONTACTS_SCOPES') ?? Deno.env.get('FRESHSALES_SCOPES') ?? ''
-    : Deno.env.get('FRESHSALES_DEALS_SCOPES') ?? Deno.env.get('FRESHSALES_SCOPES') ?? '';
+    ? Deno.env.get('FRESHSALES_CONTACTS_SCOPES') ?? Deno.env.get('FRESHSALES_DEALS_SCOPES') ?? Deno.env.get('FRESHSALES_SCOPES') ?? ''
+    : Deno.env.get('FRESHSALES_CONTACTS_SCOPES') ?? Deno.env.get('FRESHSALES_DEALS_SCOPES') ?? Deno.env.get('FRESHSALES_SCOPES') ?? '';
 
   return {
     kind,
