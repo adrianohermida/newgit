@@ -74,6 +74,9 @@ $resolvedAdminToken = Resolve-EnvValue -ExplicitValue $AdminToken -Names @(
 
 $resolvedSharedSecret = Resolve-EnvValue -ExplicitValue $SharedSecret -Names @(
   "PROCESS_AI_SHARED_SECRET",
+  "HMDAV_AI_SHARED_SECRET",
+  "HMADV_AI_SHARED_SECRET",
+  "LAWDESK_AI_SHARED_SECRET",
   "HMADV_PROCESS_AI_SHARED_SECRET",
   "WORKER_SHARED_SECRET"
 )
