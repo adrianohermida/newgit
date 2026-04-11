@@ -1,0 +1,110 @@
+const assert = require("node:assert/strict");
+const fs = require("node:fs/promises");
+const path = require("node:path");
+const vm = require("node:vm");
+const { pathToFileURL, fileURLToPath } = require("node:url");
+
+const moduleCache = new Map();
+const tests = [];
+
+function registerTest(name, fn) {
+  tests.push({ name, fn });
+}
+
+async function loadEsmModule(entryPath) {
+  const absolutePath = path.resolve(entryPath);
+  const identifier = pathToFileURL(absolutePath).href;
+  if (moduleCache.has(identifier)) return moduleCache.get(identifier);
+
+  const source = await fs.readFile(absolutePath, "utf8");
+  const module = new vm.SourceTextModule(source, {
+    identifier,
+    initializeImportMeta(meta) {
+      meta.url = identifier;
+    },
+    importModuleDynamically: async (specifier, referencingModule) => {
+      const child = await loadResolvedModule(specifier, referencingModule.identifier);
+      await evaluateModule(child);
+      return child;
+    },
+  });
+
+  moduleCache.set(identifier, module);
+  await module.link(async (specifier, referencingModule) => loadResolvedModule(specifier, referencingModule.identifier));
+  return module;
+}
+
+async function loadResolvedModule(specifier, parentIdentifier) {
+  if (specifier.startsWith("node:")) {
+    throw new Error(`Unsupported built-in import in test loader: ${specifier}`);
+  }
+  if (!specifier.startsWith(".")) {
+    throw new Error(`Unsupported external import in test loader: ${specifier}`);
+  }
+  const parentPath = fileURLToPath(parentIdentifier);
+  const resolvedPath = path.resolve(path.dirname(parentPath), specifier);
+  return loadEsmModule(resolvedPath);
+}
+
+async function evaluateModule(module) {
+  if (module.status === "unlinked") {
+    await module.link(async (specifier, referencingModule) => loadResolvedModule(specifier, referencingModule.identifier));
+  }
+  if (module.status !== "evaluated") await module.evaluate();
+  return module;
+}
+
+async function loadConsoleModule() {
+  const module = await evaluateModule(await loadEsmModule("D:/Github/newgit/lib/lawdesk/llm-test-console.js"));
+  return module.namespace;
+}
+
+registerTest("filterLlmTestActivityEntries keeps only llm test related entries", async () => {
+  const utils = await loadConsoleModule();
+  const result = utils.filterLlmTestActivityEntries([
+    { id: "1", module: "llm-test", createdAt: "2026-04-11T10:00:00.000Z" },
+    { id: "2", component: "LLMTestChat", createdAt: "2026-04-11T11:00:00.000Z" },
+    { id: "3", module: "dotobot", createdAt: "2026-04-11T12:00:00.000Z" },
+  ]);
+
+  assert.deepEqual(result.map((entry) => entry.id), ["2", "1"]);
+});
+
+registerTest("buildLlmTestTimeline exposes telemetry, backend logs and errors", async () => {
+  const utils = await loadConsoleModule();
+  const result = utils.buildLlmTestTimeline({
+    provider: "local",
+    providerLabel: "LLM local",
+    source: "local_llm_api",
+    model: "hmadv-local",
+    durationMs: 420,
+    telemetry: [{ event: "rag_lookup", matches: 0, status: "ok" }],
+    logs: [{ phase: "request_sent" }],
+    errors: ["falha secundaria"],
+  });
+
+  assert.ok(result.some((item) => item.label === "Provider selecionado"));
+  assert.ok(result.some((item) => item.label === "rag_lookup"));
+  assert.ok(result.some((item) => item.label === "backend_log_1"));
+  assert.ok(result.some((item) => item.label === "backend_error_1"));
+});
+
+(async () => {
+  let failures = 0;
+  for (const test of tests) {
+    try {
+      await test.fn();
+      console.log(`PASS ${test.name}`);
+    } catch (error) {
+      failures += 1;
+      console.error(`FAIL ${test.name}`);
+      console.error(error);
+    }
+  }
+
+  if (failures > 0) {
+    process.exitCode = 1;
+  } else {
+    console.log(`PASS ${tests.length} tests`);
+  }
+})();
