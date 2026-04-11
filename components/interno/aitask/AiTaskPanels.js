@@ -1,4 +1,4 @@
-export function TaskCard({ task, isSelected, onSelect }) {
+export function TaskCard({ task, isSelected, onSelect, compact = false, draggable = false, onDragStart = null }) {
   const statusTone = {
     pending: "text-[#9BAEA8] border-[#22342F]",
     running: "text-[#D9B46A] border-[#8b6f33]",
@@ -9,6 +9,8 @@ export function TaskCard({ task, isSelected, onSelect }) {
   return (
     <button
       type="button"
+      draggable={draggable}
+      onDragStart={onDragStart}
       onClick={() => onSelect(task.id)}
       className={`w-full rounded-[20px] border p-4 text-left transition ${
         isSelected ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#35554B]"
@@ -25,7 +27,7 @@ export function TaskCard({ task, isSelected, onSelect }) {
           {task.priority}
         </span>
       </div>
-      <p className="mt-2 text-sm leading-6 text-[#9BAEA8]">{task.description}</p>
+      <p className={`mt-2 text-sm leading-6 text-[#9BAEA8] ${compact ? "line-clamp-3" : ""}`}>{task.description}</p>
       <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[#9BAEA8]">
         <span className="rounded-full border border-[#22342F] px-2.5 py-1">Agente: {task.assignedAgent}</span>
         {task.dependencies?.length ? <span className="rounded-full border border-[#22342F] px-2.5 py-1">Depende: {task.dependencies.join(", ")}</span> : null}

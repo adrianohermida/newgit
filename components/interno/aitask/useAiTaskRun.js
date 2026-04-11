@@ -194,7 +194,7 @@ export function useAiTaskRun({
               created_at: nowIso(),
               updated_at: nowIso(),
               logs: step?.error ? [step.error] : [],
-              dependencies: Array.isArray(step?.dependsOn) ? step.dependsOn : [],
+              dependencies: Array.isArray(step?.dependencies) ? step.dependencies : Array.isArray(step?.dependsOn) ? step.dependsOn : [],
             };
           });
           setTasks(mappedTasks);
