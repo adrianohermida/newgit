@@ -7,7 +7,7 @@ import { FixedSizeList as VirtualList } from "react-window";
 import { detectIntent } from "../../lib/ai/intent_router";
 import { getCurrentContext } from "../../lib/ai/context_engine";
 import { useRouter } from "next/router";
-import { adminFetch, getAdminAccessToken } from "../../lib/admin/api";
+import { adminFetch } from "../../lib/admin/api";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import { cancelTaskRun, createPendingTaskRun, pollTaskRun, startTaskRun } from "./dotobotTaskRun";
 import { appendActivityLog, getModuleHistory, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
@@ -885,13 +885,16 @@ export default function DotobotCopilot({
         status: "running",
         startedAt: chatStartedAt,
       });
-      // PATCH 2.8/2.9: Streaming
-      const accessToken = await getAdminAccessToken();
-      const response = await fetch("/api/admin-lawdesk-chat", {
+      setMessages((msgs) => [
+        ...msgs,
+        { role: "assistant", text: "", createdAt: nowIso(), status: "thinking" },
+      ]);
+      setUiState("thinking");
+
+      const data = await adminFetch("/api/admin-lawdesk-chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           query: trimmedQuestion,
@@ -901,75 +904,41 @@ export default function DotobotCopilot({
           context: globalContext,
         }),
       });
-      if (!response.body || !window.ReadableStream) {
-        // Fallback para resposta normal
-        const data = await response.json();
-        updateActivityLog(chatLogId, {
-          status: response.ok ? "success" : "error",
-          durationMs: Date.now() - chatStartedAt,
-          response: buildDiagnosticReport({
-            title: "Dotobot chat response",
-            summary: response.ok ? "Resposta concluida sem stream" : "Falha sem stream",
-            sections: [{ label: "payload", value: data }],
-          }),
-          error: response.ok ? "" : stringifyDiagnostic(data),
-        });
-        setMessages((msgs) => [
-          ...msgs,
-          {
-            role: "assistant",
-            text: extractAssistantResponseText(data),
-            createdAt: nowIso(),
-          },
-        ]);
-        setLoading(false);
-        setUiState("idle");
-        return;
-      }
-      // Mensagem inicial de execuÃ§Ã£o
-      setMessages((msgs) => [
-        ...msgs,
-        { role: "assistant", text: "", createdAt: nowIso(), status: "thinking" },
-      ]);
-      setUiState("thinking");
-      const reader = response.body.getReader();
-      let fullText = "";
-      let done = false;
-      while (!done) {
-        const { value, done: streamDone } = await reader.read();
-        done = streamDone;
-        if (value) {
-          const chunk = new TextDecoder().decode(value);
-          fullText += chunk;
-          setMessages((msgs) => {
-            const last = msgs[msgs.length - 1];
-            // Atualiza Ãºltima mensagem do assistente
-            return [
-              ...msgs.slice(0, -1),
-              { ...last, text: fullText, status: done ? "ok" : "running" },
-            ];
-          });
-          setUiState(done ? "idle" : "running");
-        }
-      }
+
+      const assistantText = extractAssistantResponseText(data);
+      setMessages((msgs) => {
+        const last = msgs[msgs.length - 1];
+        return [
+          ...msgs.slice(0, -1),
+          { ...last, text: assistantText, status: "ok" },
+        ];
+      });
+
       updateActivityLog(chatLogId, {
-        status: response.ok ? "success" : "error",
+        status: "success",
         durationMs: Date.now() - chatStartedAt,
         response: buildDiagnosticReport({
-          title: "Dotobot chat stream",
-          summary: response.ok ? "Stream finalizado" : "Stream com erro HTTP",
+          title: "Dotobot chat response",
+          summary: "Resposta concluida",
           sections: [
-            { label: "status", value: { ok: response.ok, status: response.status } },
-            { label: "responseText", value: fullText },
+            { label: "endpoint", value: "/api/admin-lawdesk-chat" },
+            { label: "payload", value: data },
           ],
         }),
-        error: response.ok ? "" : `HTTP ${response.status}`,
+        error: "",
       });
       setLoading(false);
       setUiState("idle");
     } catch (err) {
       const message = err.message || "Erro ao conectar ao backend.";
       setError(message);
+      setMessages((msgs) => {
+        const last = msgs[msgs.length - 1];
+        if (last?.role === "assistant" && !last?.text && last?.status === "thinking") {
+          return msgs.slice(0, -1);
+        }
+        return msgs;
+      });
       logDotobotUi("Dotobot chat falhou", "dotobot_chat_error", null, {
         component: "DotobotChat",
         status: "error",
