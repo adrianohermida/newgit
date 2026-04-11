@@ -719,7 +719,7 @@ export async function getHmadvFinanceAdminOverview(env) {
     ),
     fetchSupabaseAdminAll(
       env,
-      "freshsales_products?select=id,name,code,freshsales_product_id,active,updated_at&order=name.asc"
+      "freshsales_products?select=id,name,code,freshsales_product_id,updated_at&order=name.asc"
     ).catch(() => []),
   ]);
 

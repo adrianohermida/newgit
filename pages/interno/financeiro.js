@@ -1061,47 +1061,6 @@ function FinanceiroInternoContent({ routeFocus }) {
         ) : null}
       </Panel>
       <div className="grid gap-6 xl:grid-cols-2">
-        <Panel title="Falhas de publicação" eyebrow="Deals">
-          <div className="space-y-3">
-            {data.product_sync ? (
-              <article className="border border-[#5C4724] bg-[rgba(91,78,53,0.14)] p-4 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold">Produtos Freshsales</p>
-                  <StatusBadge tone={data.product_sync.pending ? "warn" : "success"}>
-                    {data.product_sync.synced || 0}/{data.product_sync.total || 0} sincronizados
-                  </StatusBadge>
-                  {data.product_sync.pending ? <StatusBadge tone="warn">{data.product_sync.pending} pendente(s)</StatusBadge> : null}
-                </div>
-                {data.product_sync.pending_names?.length ? (
-                  <p className="mt-2 opacity-75">Pendentes: {data.product_sync.pending_names.join(", ")}</p>
-                ) : null}
-              </article>
-            ) : null}
-            {data.deal_failures_summary?.length ? (
-              <article className="border border-[#2D2E2E] bg-[rgba(11,24,21,0.72)] p-4 text-sm">
-                <p className="font-semibold">Resumo por motivo</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {data.deal_failures_summary.map((item) => (
-                    <StatusBadge key={`${item.key}-${item.count}`} tone="danger">
-                      {item.count}x {item.key}
-                    </StatusBadge>
-                  ))}
-                </div>
-              </article>
-            ) : null}
-            {(data.deal_failures || []).map((item) => (
-              <article key={item.id} className="border border-[#5C2A2A] bg-[rgba(91,53,53,0.12)] p-4 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold">{item.billing_receivable_id || item.id}</p>
-                  <StatusBadge tone="danger">erro</StatusBadge>
-                </div>
-                <p className="mt-2 opacity-75">{item.last_sync_error || "Sem detalhe do erro."}</p>
-              </article>
-            ))}
-            {!data.deal_failures?.length ? <p className="opacity-65">Sem falhas recentes de publicação.</p> : null}
-          </div>
-        </Panel>
- 
         <Panel title="Backlog CRM" eyebrow="Fila">
           <div className="space-y-3">
             {(data.crm_queue_backlog || []).map((item) => (
