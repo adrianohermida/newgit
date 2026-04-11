@@ -852,6 +852,17 @@ function getBulkGuardrail(logPane, paneRisk, paneSla, paneEntries = []) {
   };
 }
 
+function getConsoleHeightLimits() {
+  if (typeof window === "undefined") {
+    return { min: 160, max: 320, preferred: 220 };
+  }
+  const viewportHeight = window.innerHeight || 900;
+  const min = 160;
+  const max = Math.max(220, Math.min(360, Math.round(viewportHeight * 0.34)));
+  const preferred = Math.max(min, Math.min(max, Math.round(viewportHeight * 0.24)));
+  return { min, max, preferred };
+}
+
 export default function InternoLayout({
   title,
   description,
@@ -880,7 +891,7 @@ export default function InternoLayout({
   const [fingerprintStates, setFingerprintStates] = useState(() => getFingerprintStates());
   const [schemaIssues, setSchemaIssues] = useState(() => getSchemaIssues());
   const [moduleHistory, setModuleHistory] = useState({});
-  const [consoleHeight, setConsoleHeight] = useState(260);
+  const [consoleHeight, setConsoleHeight] = useState(() => getConsoleHeightLimits().preferred);
   const [noteInput, setNoteInput] = useState("");
   const [frontendForm, setFrontendForm] = useState({
     page: "",
@@ -919,7 +930,8 @@ export default function InternoLayout({
     function handleMove(event) {
       if (!dragStateRef.current.dragging) return;
       const delta = dragStateRef.current.startY - event.clientY;
-      const nextHeight = Math.min(560, Math.max(160, dragStateRef.current.startHeight + delta));
+      const limits = getConsoleHeightLimits();
+      const nextHeight = Math.min(limits.max, Math.max(limits.min, dragStateRef.current.startHeight + delta));
       setConsoleHeight(nextHeight);
     }
     function handleUp() {
@@ -960,6 +972,30 @@ export default function InternoLayout({
     }
     return map;
   }, [activityLog, coverageCards, fingerprintStates]);
+
+  useEffect(() => {
+    function syncConsoleHeightToViewport() {
+      const limits = getConsoleHeightLimits();
+      setConsoleHeight((current) => {
+        const safeCurrent = Number(current || 0) || limits.preferred;
+        return Math.min(limits.max, Math.max(limits.min, safeCurrent));
+      });
+    }
+
+    syncConsoleHeightToViewport();
+    window.addEventListener("resize", syncConsoleHeightToViewport);
+    return () => {
+      window.removeEventListener("resize", syncConsoleHeightToViewport);
+    };
+  }, []);
+
+  useEffect(() => {
+    const limits = getConsoleHeightLimits();
+    setConsoleHeight((current) => {
+      const safeCurrent = Number(current || 0) || limits.preferred;
+      return Math.min(limits.max, Math.max(limits.min, safeCurrent));
+    });
+  }, [router.pathname]);
 
   useEffect(() => {
     persistModuleHistory("interno-shell", {
