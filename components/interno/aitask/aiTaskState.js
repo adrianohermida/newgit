@@ -12,6 +12,36 @@ export function buildTaskColumns(tasks = []) {
   return base;
 }
 
+export function paginateItems(items = [], page = 1, pageSize = 10) {
+  const source = Array.isArray(items) ? items : [];
+  const safePageSize = Number.isFinite(Number(pageSize)) && Number(pageSize) > 0 ? Number(pageSize) : 10;
+  const totalPages = Math.max(1, Math.ceil(source.length / safePageSize));
+  const safePage = Math.min(Math.max(Number(page) || 1, 1), totalPages);
+  const start = (safePage - 1) * safePageSize;
+  return {
+    items: source.slice(start, start + safePageSize),
+    page: safePage,
+    pageSize: safePageSize,
+    totalPages,
+    totalItems: source.length,
+  };
+}
+
+export function moveTaskToStatus(tasks = [], taskId, nextStatus, nowIso = () => new Date().toISOString()) {
+  const source = Array.isArray(tasks) ? tasks : [];
+  const index = source.findIndex((task) => task?.id === taskId);
+  if (index < 0) return source;
+  const current = source[index];
+  const updated = {
+    ...current,
+    status: nextStatus,
+    updated_at: nowIso(),
+  };
+  const remaining = source.filter((task) => task?.id !== taskId);
+  const targetIndex = nextStatus === "running" ? 0 : remaining.length;
+  return [...remaining.slice(0, targetIndex), updated, ...remaining.slice(targetIndex)];
+}
+
 export function buildAgentLanes(tasks = []) {
   const lanes = new Map();
   tasks.forEach((task) => {

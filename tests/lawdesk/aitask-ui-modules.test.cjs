@@ -136,6 +136,10 @@ registerTest("filter helpers and selected task resolution preserve operator focu
   assert.equal(state.filterLogsBySearch(logs, "timeout").length, 1);
   assert.equal(state.findSelectedTask([{ id: "a" }, { id: "b" }], "b").id, "b");
   assert.equal(state.findSelectedTask([{ id: "a" }, { id: "b" }], "x").id, "a");
+  const page = state.paginateItems([{ id: 1 }, { id: 2 }, { id: 3 }], 2, 2);
+  assert.equal(page.page, 2);
+  assert.equal(page.totalPages, 2);
+  assert.equal(page.items.length, 1);
 });
 
 registerTest("attachment and history helpers enforce compact workspace limits", async () => {
@@ -152,6 +156,18 @@ registerTest("attachment and history helpers enforce compact workspace limits", 
   assert.equal(attachments.length, 6);
   assert.deepEqual(attachments[0], { name: "file-0.txt", type: "text/plain", size: 1 });
   assert.equal(recentHistory.length, 4);
+});
+
+registerTest("moveTaskToStatus reorders running tasks to the top and updates timestamp", async () => {
+  const { state } = await loadAiTaskModules();
+  const result = state.moveTaskToStatus([
+    { id: "1", status: "pending", updated_at: "old" },
+    { id: "2", status: "done", updated_at: "old" },
+  ], "2", "running", () => "2026-04-11T10:00:00.000Z");
+
+  assert.equal(result[0].id, "2");
+  assert.equal(result[0].status, "running");
+  assert.equal(result[0].updated_at, "2026-04-11T10:00:00.000Z");
 });
 
 registerTest("task run adapters normalize backend payloads and fallback fields", async () => {
