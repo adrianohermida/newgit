@@ -47,6 +47,27 @@ function buildFreshsalesAuthDiagnostic(env) {
   };
 }
 
+function extractFreshsalesTokenScopes(token) {
+  const tokenPayload = decodeJwtPayload(token);
+  if (Array.isArray(tokenPayload?.scope)) {
+    return tokenPayload.scope.map((item) => String(item || "").trim()).filter(Boolean);
+  }
+  if (typeof tokenPayload?.scope === "string") {
+    return String(tokenPayload.scope)
+      .split(/\s+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function tokenNeedsFreshsalesGeneralScopeRefresh(token) {
+  const scopes = extractFreshsalesTokenScopes(token);
+  if (!scopes.length) return false;
+  const requiredScopes = ["freshsales.sales_activities.create", "freshsales.selectors.view"];
+  return requiredScopes.some((scope) => !scopes.includes(scope));
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -228,27 +249,27 @@ function resolveOauthRedirectUri(env) {
 
 function resolveFreshsalesOauthClientId(env) {
   return (
+    getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_ID) ||
     getCleanEnvValue(env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
     getCleanEnvValue(env.FRESHSALES_DEAL_OAUTH_CLIENT_ID) ||
-    getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_ID) ||
     null
   );
 }
 
 function resolveFreshsalesOauthClientSecret(env) {
   return (
+    getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_SECRET) ||
     getCleanEnvValue(env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
     getCleanEnvValue(env.FRESHSALES_DEAL_OAUTH_CLIENT_SECRET) ||
-    getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_SECRET) ||
     null
   );
 }
 
 function resolveFreshsalesOauthScope(env) {
   return (
+    getCleanEnvValue(env.FRESHSALES_SCOPES) ||
     getCleanEnvValue(env.FRESHSALES_DEALS_SCOPES) ||
     getCleanEnvValue(env.FRESHSALES_DEAL_SCOPES) ||
-    getCleanEnvValue(env.FRESHSALES_SCOPES) ||
     null
   );
 }
@@ -395,7 +416,11 @@ async function getSupabaseOauthAccessToken(env) {
   if (!row?.access_token) return null;
 
   const expiresAt = new Date(row.expires_at || 0).getTime();
-  const shouldRefresh = row.refresh_token && (!expiresAt || Date.now() >= expiresAt - 60_000);
+  const shouldRefresh = row.refresh_token && (
+    !expiresAt ||
+    Date.now() >= expiresAt - 60_000 ||
+    tokenNeedsFreshsalesGeneralScopeRefresh(row.access_token)
+  );
   if (shouldRefresh) {
     const refreshed = await refreshOauthRow(env, row.refresh_token);
     if (refreshed) return refreshed;
@@ -438,7 +463,7 @@ async function getAuthHeaders(env) {
     headers.sort((left, right) => (left.name === explicitMode ? -1 : right.name === explicitMode ? 1 : 0));
   }
 
-  return headers.map((item) => item.header);
+  return headers;
 }
 
 export async function freshsalesRequest(env, path, init = {}) {
@@ -449,8 +474,12 @@ export async function freshsalesRequest(env, path, init = {}) {
   }
 
   let lastError = null;
+  const attemptedAuthModes = [];
   for (const base of candidates) {
-    for (const authHeader of authHeaders) {
+    for (const authEntry of authHeaders) {
+      const authHeader = authEntry?.header || {};
+      const authName = String(authEntry?.name || "unknown");
+      if (!attemptedAuthModes.includes(authName)) attemptedAuthModes.push(authName);
       for (let attempt = 0; attempt < 4; attempt += 1) {
         const response = await fetchWithTimeout(`${base}${path}`, {
           ...init,
@@ -523,6 +552,8 @@ export async function freshsalesRequest(env, path, init = {}) {
     error.status = 401;
     error.payload = {
       original_message: lastError?.message || null,
+      original_payload: lastError?.payload || null,
+      attempted_auth_modes: attemptedAuthModes,
       diagnostic: buildFreshsalesAuthDiagnostic(env),
     };
     throw error;

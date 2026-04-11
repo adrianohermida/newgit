@@ -52,6 +52,16 @@ function formatJson(value) {
 }
 
 function ProviderMatrixCard({ item, onRun }) {
+  const diagnostics = item.diagnostics && typeof item.diagnostics === "object" ? item.diagnostics : null;
+  const diagnosticBlocks = diagnostics
+    ? Object.entries(diagnostics)
+        .map(([key, value]) => ({
+          key,
+          configuredFrom: value?.configuredFrom || null,
+          missing: Array.isArray(value?.missing) ? value.missing : [],
+        }))
+        .filter((entry) => entry.configuredFrom || entry.missing.length)
+    : [];
   return (
     <article className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
       <div className="flex items-start justify-between gap-3">
@@ -87,6 +97,17 @@ function ProviderMatrixCard({ item, onRun }) {
         <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Leitura rápida</p>
         <p className="mt-2 text-xs leading-6 text-[#D8DEDA]">{item.failureReason || "Sem falha registrada. Provider pronto para validação comparativa."}</p>
       </div>
+      {diagnosticBlocks.length ? (
+        <div className="mt-3 space-y-2">
+          {diagnosticBlocks.slice(0, 3).map((entry) => (
+            <div key={entry.key} className="rounded-[14px] border border-[#22342F] px-3 py-2 text-xs leading-6 text-[#9BAEA8]">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">{entry.key}</p>
+              <p className="mt-1 text-[#D8DEDA]">{entry.configuredFrom ? `Lido de ${entry.configuredFrom}.` : "Sem source resolvida."}</p>
+              {entry.missing.length ? <p className="mt-1 text-[#8FA39C]">Faltando ou sem uso: {entry.missing.join(", ")}</p> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
       {item.recommendations?.length ? (
         <div className="mt-3 space-y-2">
           {item.recommendations.slice(0, 2).map((rec) => (

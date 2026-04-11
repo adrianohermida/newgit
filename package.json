@@ -41,6 +41,7 @@
     "gh-pages": "GITHUB_PAGES=true next build && rm -rf docs && mkdir docs && cp -r out/* docs/ && touch docs/.nojekyll",
     "test:integration": "node scripts/test-integration.js",
     "test:dotobot": "node --experimental-vm-modules tests/lawdesk/dotobot-backend.test.cjs",
+    "test:providers-health": "node --experimental-vm-modules tests/lawdesk/providers-health.test.cjs",
     "test:aitask-ui": "node --experimental-vm-modules tests/lawdesk/aitask-ui-modules.test.cjs",
     "test:llm-test": "node --experimental-vm-modules tests/lawdesk/llm-test-console.test.cjs",
     "test:task-runs": "node --experimental-vm-modules tests/lawdesk/task-runs-backend.test.cjs",

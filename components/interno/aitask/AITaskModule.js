@@ -15,6 +15,7 @@ import {
   WorkspaceHeader,
 } from "./AiTaskPanels";
 import {
+  buildAgentLanes,
   buildTaskColumns,
   filterLogsBySearch,
   filterLogsByType,
@@ -22,6 +23,7 @@ import {
   moveTaskToStatus,
   normalizeAttachmentsFromEvent,
   paginateItems,
+  reorderTaskInBoard,
   resolveAutomationLabel,
   trimRecentHistory,
 } from "./aiTaskState";
@@ -246,6 +248,7 @@ export default function AITaskModule({ profile, routePath }) {
   const [taskViewMode, setTaskViewMode] = useState("kanban");
   const [taskVisibleCount, setTaskVisibleCount] = useState(8);
   const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const [taskBoardLayout, setTaskBoardLayout] = useState({});
   const [contact360Query, setContact360Query] = useState("");
   const [contact360Loading, setContact360Loading] = useState(false);
   const [contact360, setContact360] = useState(null);
@@ -367,6 +370,7 @@ export default function AITaskModule({ profile, routePath }) {
     setHistoryPage(Number.isFinite(Number(persisted.historyPage)) ? Number(persisted.historyPage) : 1);
     setTaskViewMode(typeof persisted.taskViewMode === "string" ? persisted.taskViewMode : "kanban");
     setTaskVisibleCount(Number.isFinite(Number(persisted.taskVisibleCount)) ? Math.max(8, Number(persisted.taskVisibleCount)) : 8);
+    setTaskBoardLayout(persisted.taskBoardLayout && typeof persisted.taskBoardLayout === "object" ? persisted.taskBoardLayout : {});
     setContact360Query(typeof persisted.contact360Query === "string" ? persisted.contact360Query : "");
     setContact360(persisted.contact360 && typeof persisted.contact360 === "object" ? persisted.contact360 : null);
   }, [uiStorageKey]);
@@ -377,10 +381,11 @@ export default function AITaskModule({ profile, routePath }) {
       historyPage,
       taskViewMode,
       taskVisibleCount,
+      taskBoardLayout,
       contact360Query,
       contact360,
     }));
-  }, [contact360, contact360Query, historyPage, taskViewMode, taskVisibleCount, uiStorageKey]);
+  }, [contact360, contact360Query, historyPage, taskBoardLayout, taskViewMode, taskVisibleCount, uiStorageKey]);
 
   const { executeMission, handleContinueLastRun, handlePause, handleStart, handleStop } = useAiTaskRun({
     mission,
@@ -485,6 +490,13 @@ export default function AITaskModule({ profile, routePath }) {
   function handleTaskMove(taskId, nextStatus) {
     setTasks((current) => moveTaskToStatus(current, taskId, nextStatus, nowIso));
     setDraggedTaskId(null);
+    setTaskBoardLayout((current) => ({
+      ...current,
+      [taskId]: {
+        status: nextStatus,
+        updatedAt: nowIso(),
+      },
+    }));
     pushLog({
       type: "control",
       action: "task_status_moved",
@@ -492,7 +504,28 @@ export default function AITaskModule({ profile, routePath }) {
     });
   }
 
+  function handleTaskBoardDrop(taskId, nextStatus, targetTaskId = null) {
+    setTasks((current) => reorderTaskInBoard(current, taskId, nextStatus, targetTaskId, nowIso));
+    setDraggedTaskId(null);
+    setTaskBoardLayout((current) => ({
+      ...current,
+      [taskId]: {
+        status: nextStatus,
+        targetTaskId: targetTaskId || null,
+        updatedAt: nowIso(),
+      },
+    }));
+    pushLog({
+      type: "control",
+      action: "task_board_reordered",
+      result: targetTaskId
+        ? `Tarefa reposicionada em ${nextStatus} antes de ${targetTaskId}.`
+        : `Tarefa enviada para a coluna ${nextStatus}.`,
+    });
+  }
+
   const taskColumns = useMemo(() => buildTaskColumns(tasks), [tasks]);
+  const agentLanes = useMemo(() => buildAgentLanes(tasks), [tasks]);
   const visibleLogs = useMemo(() => filterLogsByType(logs, selectedLogFilter), [logs, selectedLogFilter]);
   const deferredSearch = useDeferredValue(search);
   const compactLogs = useMemo(() => filterLogsBySearch(visibleLogs, deferredSearch), [visibleLogs, deferredSearch]);
@@ -606,6 +639,7 @@ export default function AITaskModule({ profile, routePath }) {
         taskViewMode,
         historyPage,
         taskVisibleCount,
+        taskBoardLayout,
       },
     });
   }, [
@@ -632,6 +666,7 @@ export default function AITaskModule({ profile, routePath }) {
     selectedTaskId,
     showContext,
     showTasks,
+    taskBoardLayout,
     historyPage,
     tasks,
     taskViewMode,
@@ -749,8 +784,10 @@ export default function AITaskModule({ profile, routePath }) {
             showTasks={showTasks}
             setShowTasks={setShowTasks}
             taskViewMode={taskViewMode}
+            agentLanes={agentLanes}
             onTaskViewModeChange={setTaskViewMode}
             onTaskMove={handleTaskMove}
+            onTaskBoardDrop={handleTaskBoardDrop}
             onDragTaskStart={setDraggedTaskId}
             draggedTaskId={draggedTaskId}
             hasMoreTasks={hasMoreTasks}

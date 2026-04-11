@@ -42,6 +42,52 @@ export function moveTaskToStatus(tasks = [], taskId, nextStatus, nowIso = () => 
   return [...remaining.slice(0, targetIndex), updated, ...remaining.slice(targetIndex)];
 }
 
+export function reorderTaskInBoard(tasks = [], taskId, nextStatus, targetTaskId = null, nowIso = () => new Date().toISOString()) {
+  const source = Array.isArray(tasks) ? tasks : [];
+  const currentTask = source.find((task) => task?.id === taskId);
+  if (!currentTask) return source;
+
+  const movedTask = {
+    ...currentTask,
+    status: nextStatus || currentTask.status,
+    updated_at: nowIso(),
+  };
+
+  const remaining = source.filter((task) => task?.id !== taskId);
+  const before = [];
+  const targetColumn = [];
+  const after = [];
+  const normalizedStatus = movedTask.status;
+
+  remaining.forEach((task) => {
+    if (task?.status === normalizedStatus) {
+      targetColumn.push(task);
+      return;
+    }
+    if (!targetColumn.length) before.push(task);
+    else after.push(task);
+  });
+
+  if (!targetTaskId) {
+    const inserted = normalizedStatus === "running"
+      ? [movedTask, ...targetColumn]
+      : [...targetColumn, movedTask];
+    return [...before, ...inserted, ...after];
+  }
+
+  const targetIndex = targetColumn.findIndex((task) => task?.id === targetTaskId);
+  if (targetIndex < 0) {
+    return [...before, ...targetColumn, movedTask, ...after];
+  }
+
+  const inserted = [
+    ...targetColumn.slice(0, targetIndex),
+    movedTask,
+    ...targetColumn.slice(targetIndex),
+  ];
+  return [...before, ...inserted, ...after];
+}
+
 export function buildAgentLanes(tasks = []) {
   const lanes = new Map();
   tasks.forEach((task) => {
