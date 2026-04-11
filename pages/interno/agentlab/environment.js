@@ -327,8 +327,11 @@ function EnvironmentContent({ state }) {
             </p>
           ) : null}
           <p>SUPABASE_URL: {dotobotSupabase.baseUrlConfigured ? "configurado" : "ausente"}</p>
+          {dotobotSupabase.baseUrlSource ? <p>Fonte SUPABASE_URL: {dotobotSupabase.baseUrlSource}</p> : null}
           <p>SUPABASE_SERVICE_ROLE_KEY: {dotobotSupabase.serviceKeyConfigured ? "configurado" : "ausente"}</p>
+          {dotobotSupabase.serviceKeySource ? <p>Fonte service role: {dotobotSupabase.serviceKeySource}</p> : null}
           <p>DOTOBOT_SUPABASE_EMBED_SECRET: {dotobotSupabase.embedSecretConfigured ? "configurado" : "ausente"}</p>
+          {dotobotSupabase.embedSecretSource ? <p>Fonte embed secret: {dotobotSupabase.embedSecretSource}</p> : null}
           {dotobotSignals.appEmbedSecretMissing ? (
             <p className="text-amber-300">Sinal: o app que chama o healthcheck não tem DOTOBOT_SUPABASE_EMBED_SECRET configurado.</p>
           ) : null}
@@ -337,7 +340,9 @@ function EnvironmentContent({ state }) {
           ) : null}
           {dotobotSupabase?.memoryTable ? <p>Tabela: {dotobotSupabase.memoryTable}</p> : null}
           {dotobotSupabase?.embeddingFunction ? <p>Function: {dotobotSupabase.embeddingFunction}</p> : null}
+          {dotobotSupabase?.embeddingFunctionSource ? <p>Fonte function: {dotobotSupabase.embeddingFunctionSource}</p> : null}
           {dotobotSupabase?.embeddingModel ? <p>Modelo: {dotobotSupabase.embeddingModel}</p> : null}
+          {dotobotSupabase?.embeddingModelSource ? <p>Fonte modelo: {dotobotSupabase.embeddingModelSource}</p> : null}
           {dotobotObsidian?.enabled !== undefined ? (
             <p>
               Obsidian fallback:{" "}
@@ -399,6 +404,11 @@ function EnvironmentContent({ state }) {
                   <p className="mt-2">Configurado: {provider.configured ? "sim" : "não"}</p>
                   <p>Disponível: {provider.available ? "sim" : "não"}</p>
                   <p>Modelo: {provider.model || "n/a"}</p>
+                  {provider.modelSource ? <p>Fonte modelo: {provider.modelSource}</p> : null}
+                  {provider.baseUrlSource ? <p>Fonte base URL: {provider.baseUrlSource}</p> : null}
+                  {provider.apiKeySource ? <p>Fonte API key: {provider.apiKeySource}</p> : null}
+                  {provider.authTokenSource ? <p>Fonte auth token: {provider.authTokenSource}</p> : null}
+                  {provider.sharedSecretSource ? <p>Fonte shared secret: {provider.sharedSecretSource}</p> : null}
                   <p>Diagnóstico: {provider.reason || "Sem mensagem."}</p>
                 </div>
               ))}
