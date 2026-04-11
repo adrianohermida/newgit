@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { setModuleHistory } from "../../../lib/admin/activity-log";
 import {
   Bubble,
   ConfirmModal,
@@ -297,6 +298,62 @@ export default function AITaskModule({ profile, routePath }) {
   const selectedTask = useMemo(() => findSelectedTask(tasks, selectedTaskId), [tasks, selectedTaskId]);
   const activeMode = MODE_OPTIONS.find((item) => item.value === mode) || MODE_OPTIONS[1];
   const stateLabel = resolveAutomationLabel(automation);
+
+  useEffect(() => {
+    setModuleHistory("ai-task", {
+      routePath: routePath || "/interno/ai-task",
+      mission,
+      automation,
+      provider,
+      mode,
+      approved,
+      paused,
+      error: error || null,
+      activeRun,
+      latestResult: typeof latestResult === "string" ? latestResult.slice(0, 2000) : latestResult,
+      executionSource,
+      executionModel,
+      eventsTotal,
+      contextSnapshot,
+      recentHistory: recentHistory.slice(0, 10),
+      tasks: tasks.slice(0, 20),
+      thinking: thinking.slice(0, 12),
+      logs: logs.slice(-40),
+      attachments,
+      ui: {
+        selectedLogFilter,
+        search,
+        showContext,
+        showTasks,
+        selectedTaskId,
+      },
+    });
+  }, [
+    activeRun,
+    approved,
+    attachments,
+    automation,
+    contextSnapshot,
+    error,
+    eventsTotal,
+    executionModel,
+    executionSource,
+    latestResult,
+    logs,
+    mission,
+    mode,
+    paused,
+    provider,
+    recentHistory,
+    routePath,
+    search,
+    selectedLogFilter,
+    selectedTaskId,
+    showContext,
+    showTasks,
+    tasks,
+    thinking,
+  ]);
 
   return (
     <div className="space-y-4">

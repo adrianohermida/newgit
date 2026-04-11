@@ -168,15 +168,15 @@ async function runInlineProcessAction(env, action, body) {
   const processNumbers = parseProcessNumbers(body.processNumbers);
   const requestedLimit = Number(body.limit || 0);
   if (action === "push_orfaos") {
-    return pushOrphanAccounts(env, { processNumbers, limit: requestedLimit || 2 });
+    return pushOrphanAccounts(env, { processNumbers, limit: requestedLimit || 5 });
   }
   if (action === "repair_freshsales_accounts") {
-    return repairFreshsalesAccounts(env, { processNumbers, limit: requestedLimit || 2 });
+    return repairFreshsalesAccounts(env, { processNumbers, limit: requestedLimit || 1 });
   }
   if (action === "enriquecer_datajud") {
     return enrichProcessesViaDatajud(env, {
       processNumbers,
-      limit: requestedLimit || 2,
+      limit: requestedLimit || 5,
       intent: String(body.intent || ""),
     });
   }
@@ -188,10 +188,10 @@ async function runInlineProcessAction(env, action, body) {
     });
   }
   if (action === "backfill_audiencias") {
-    return backfillAudiencias(env, { processNumbers, limit: requestedLimit || 2, apply: true });
+    return backfillAudiencias(env, { processNumbers, limit: requestedLimit || 5, apply: true });
   }
   if (action === "sincronizar_movimentacoes_activity") {
-    return syncMovementActivities(env, { processNumbers, limit: requestedLimit || 10 });
+    return syncMovementActivities(env, { processNumbers, limit: requestedLimit || 5 });
   }
   if (action === "sincronizar_publicacoes_activity") {
     return syncPublicationActivities(env, { processNumbers, limit: requestedLimit || 5 });
@@ -499,7 +499,7 @@ export async function onRequestPost(context) {
     if (action === "backfill_audiencias") {
       return runLogged(async () => backfillAudiencias(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 2),
+        limit: Number(body.limit || 5),
         apply: Boolean(body.apply),
       }));
     }
@@ -593,19 +593,19 @@ export async function onRequestPost(context) {
     if (action === "push_orfaos") {
       return runLogged(async () => pushOrphanAccounts(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 2),
+        limit: Number(body.limit || 5),
       }));
     }
     if (action === "repair_freshsales_accounts") {
       return runLogged(async () => repairFreshsalesAccounts(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 2),
+        limit: Number(body.limit || 1),
       }));
     }
     if (action === "enriquecer_datajud") {
       return runLogged(async () => enrichProcessesViaDatajud(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 2),
+        limit: Number(body.limit || 5),
         intent: String(body.intent || ""),
       }));
     }
@@ -619,7 +619,7 @@ export async function onRequestPost(context) {
     if (action === "sincronizar_movimentacoes_activity") {
       return runLogged(async () => syncMovementActivities(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 10),
+        limit: Number(body.limit || 5),
       }));
     }
     if (action === "sincronizar_publicacoes_activity") {
@@ -637,7 +637,7 @@ export async function onRequestPost(context) {
     if (action === "reconciliar_partes_contatos") {
       return runLogged(async () => reconcilePartesContacts(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 20),
+        limit: Number(body.limit || 10),
         apply: true,
       }));
     }

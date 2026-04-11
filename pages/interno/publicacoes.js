@@ -25,11 +25,11 @@ const ASYNC_PUBLICACOES_ACTIONS = new Set([
 const QUEUE_ERROR_TTL_MS = 1000 * 60 * 3;
 const GLOBAL_ERROR_TTL_MS = 1000 * 60 * 2;
 const MODULE_LIMITS = {
-  maxCreateProcess: 5,
-  maxBackfillPartes: 5,
-  maxSyncPartes: 3,
+  maxCreateProcess: 15,
+  maxBackfillPartes: 50,
+  maxSyncPartes: 20,
   maxSyncWorker: 2,
-  maxDefault: 10,
+  maxDefault: 20,
 };
 const PUBLICACOES_QUEUE_VIEWS = new Set(["operacao", "filas"]);
 const QUEUE_LABELS = {
@@ -70,11 +70,15 @@ function extractActionFromRequest(path, init) {
 
 function getSafePublicacoesActionLimit(action, requestedLimit) {
   const normalized = Number(requestedLimit || 0) || 0;
-  if (action === "sincronizar_partes") return Math.max(1, Math.min(normalized || 3, MODULE_LIMITS.maxSyncPartes));
-  if (action === "criar_processos_publicacoes") return Math.max(1, Math.min(normalized || 5, MODULE_LIMITS.maxCreateProcess));
-  if (action === "backfill_partes") return Math.max(1, Math.min(normalized || 5, MODULE_LIMITS.maxBackfillPartes));
+  if (action === "sincronizar_partes") return Math.max(1, Math.min(normalized || 10, MODULE_LIMITS.maxSyncPartes));
+  if (action === "criar_processos_publicacoes") return Math.max(1, Math.min(normalized || 10, MODULE_LIMITS.maxCreateProcess));
+  if (action === "backfill_partes") return Math.max(1, Math.min(normalized || 15, MODULE_LIMITS.maxBackfillPartes));
   if (action === "run_sync_worker") return Math.max(1, Math.min(normalized || 2, MODULE_LIMITS.maxSyncWorker));
   return Math.max(1, Math.min(normalized || MODULE_LIMITS.maxDefault, MODULE_LIMITS.maxDefault));
+}
+
+function getPublicacoesActionLabel(action) {
+  return ACTION_LABELS[action] || action || "publicacoes";
 }
 
 function buildHistoryPreview(result) {
@@ -779,6 +783,23 @@ function PublicacoesContent() {
   const [selectedProcessKeys, setSelectedProcessKeys] = useState([]);
   const [selectedPartesKeys, setSelectedPartesKeys] = useState([]);
 
+  function logUiEvent(label, action, response, patch = {}) {
+    appendActivityLog({
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      module: "publicacoes",
+      component: patch.component || "publicacoes-ui",
+      label,
+      action,
+      method: "UI",
+      path: "/interno/publicacoes",
+      expectation: patch.expectation || label,
+      status: patch.status || "success",
+      request: patch.request || "",
+      response: stringifyLogPayload(response),
+      error: patch.error || "",
+    });
+  }
+
   async function adminFetch(path, init = {}, meta = {}) {
     const startedAt = Date.now();
     const method = String(init?.method || "GET").toUpperCase();
@@ -858,8 +879,62 @@ function PublicacoesContent() {
   }, []);
   useEffect(() => { setExecutionHistory(loadHistoryEntries()); }, []);
   useEffect(() => {
-    setModuleHistory("publicacoes", { executionHistory, remoteHistory });
-  }, [executionHistory, remoteHistory]);
+    setModuleHistory("publicacoes", {
+      executionHistory,
+      remoteHistory,
+      jobs,
+      overview: overview?.data || null,
+      queues: {
+        candidatosProcessos: {
+          totalRows: Number(processCandidates?.totalRows || 0),
+          pageSize: Number(processCandidates?.pageSize || 20),
+          updatedAt: processCandidates?.updatedAt || null,
+          limited: Boolean(processCandidates?.limited),
+          error: processCandidates?.error || null,
+        },
+        candidatosPartes: {
+          totalRows: Number(partesCandidates?.totalRows || 0),
+          pageSize: Number(partesCandidates?.pageSize || 20),
+          updatedAt: partesCandidates?.updatedAt || null,
+          limited: Boolean(partesCandidates?.limited),
+          error: partesCandidates?.error || null,
+        },
+      },
+      queueRefreshLog,
+      operationalStatus,
+      backendHealth,
+      actionState: {
+        loading: Boolean(actionState?.loading),
+        error: actionState?.error || null,
+        result: actionState?.result || null,
+      },
+      ui: {
+        view,
+        limit,
+        processPage,
+        partesPage,
+        selectedProcessCount: selectedProcessKeys.length,
+        selectedPartesCount: selectedPartesKeys.length,
+      },
+    });
+  }, [
+    executionHistory,
+    remoteHistory,
+    jobs,
+    overview,
+    processCandidates,
+    partesCandidates,
+    queueRefreshLog,
+    operationalStatus,
+    backendHealth,
+    actionState,
+    view,
+    limit,
+    processPage,
+    partesPage,
+    selectedProcessKeys,
+    selectedPartesKeys,
+  ]);
   useEffect(() => { loadRemoteHistory(); }, []);
   useEffect(() => { loadJobs(); }, []);
 
@@ -993,7 +1068,12 @@ function PublicacoesContent() {
     }
     setOverview({ loading: true, error: null, data: null });
     try {
-      const payload = await adminFetch("/api/admin-hmadv-publicacoes?action=overview");
+      const payload = await adminFetch("/api/admin-hmadv-publicacoes?action=overview", {}, {
+        action: "overview",
+        component: "publicacoes-overview",
+        label: "Carregar overview de publicacoes",
+        expectation: "Atualizar indicadores e leitura do modulo",
+      });
       setOverview({ loading: false, error: null, data: payload.data });
       setGlobalError(null);
       setGlobalErrorUntil(null);
@@ -1014,7 +1094,12 @@ function PublicacoesContent() {
       return { ...state, loading: true, error: null };
     });
     try {
-      const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=candidatos_processos&page=${page}&pageSize=20`);
+      const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=candidatos_processos&page=${page}&pageSize=20`, {}, {
+        action: "candidatos_processos",
+        component: "publicacoes-filas",
+        label: `Carregar fila de processos criaveis (pagina ${page})`,
+        expectation: "Atualizar a fila de processos derivados de publicacoes",
+      });
       const payloadError = payload.data?.error || null;
       const nextErrorUntil = payloadError ? Date.now() + QUEUE_ERROR_TTL_MS : null;
       setProcessCandidates({
@@ -1055,7 +1140,12 @@ function PublicacoesContent() {
       return { ...state, loading: true, error: null };
     });
     try {
-      const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=candidatos_partes&page=${page}&pageSize=20`);
+      const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=candidatos_partes&page=${page}&pageSize=20`, {}, {
+        action: "candidatos_partes",
+        component: "publicacoes-filas",
+        label: `Carregar fila de partes extraiveis (pagina ${page})`,
+        expectation: "Atualizar a fila de extracao retroativa de partes",
+      });
       const payloadError = payload.data?.error || null;
       const nextErrorUntil = payloadError ? Date.now() + QUEUE_ERROR_TTL_MS : null;
       setPartesCandidates({
@@ -1091,7 +1181,12 @@ function PublicacoesContent() {
       return;
     }
     try {
-      const payload = await adminFetch("/api/admin-hmadv-publicacoes?action=historico&limit=20");
+      const payload = await adminFetch("/api/admin-hmadv-publicacoes?action=historico&limit=20", {}, {
+        action: "historico",
+        component: "publicacoes-console",
+        label: "Carregar historico remoto de publicacoes",
+        expectation: "Sincronizar o historico HMADV no console",
+      });
       setRemoteHistory(payload.data.items || []);
       setGlobalError(null);
       setGlobalErrorUntil(null);
@@ -1104,7 +1199,12 @@ function PublicacoesContent() {
       return;
     }
     try {
-      const payload = await adminFetch("/api/admin-hmadv-publicacoes?action=jobs&limit=12");
+      const payload = await adminFetch("/api/admin-hmadv-publicacoes?action=jobs&limit=12", {}, {
+        action: "jobs",
+        component: "publicacoes-jobs",
+        label: "Carregar jobs de publicacoes",
+        expectation: "Atualizar a fila operacional de jobs",
+      });
       setJobs(payload.data.items || []);
       setGlobalError(null);
       setGlobalErrorUntil(null);
@@ -1176,21 +1276,37 @@ function PublicacoesContent() {
     const recurringKeys = new Set(recurringPublicacoes.map((item) => item.key));
     setSelectedProcessKeys(processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
     setSelectedPartesKeys(partesCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
+    logUiEvent("Selecionar reincidentes visiveis", "selecionar_reincidentes_publicacoes", {
+      selectedProcessos: processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).length,
+      selectedPartes: partesCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).length,
+    }, { component: "publicacoes-recorrencia" });
     updateView("filas");
   }
   function selectVisibleSevereRecurringPublicacoes() {
     const recurringKeys = new Set(recurringPublicacoes.filter((item) => item.hits >= 3).map((item) => item.key));
     setSelectedProcessKeys(processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
     setSelectedPartesKeys(partesCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
+    logUiEvent("Selecionar reincidentes severos", "selecionar_reincidentes_severos_publicacoes", {
+      selectedProcessos: processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).length,
+      selectedPartes: partesCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).length,
+    }, { component: "publicacoes-recorrencia" });
     updateView("filas");
   }
   function applySevereRecurringPreset() {
     setLimit(recurringPublicacoesBatch.size);
+    logUiEvent("Aplicar lote prioritario", "aplicar_preset_publicacoes", {
+      limit: recurringPublicacoesBatch.size,
+      recurringSummary: recurringPublicacoesSummary,
+    }, { component: "publicacoes-recorrencia" });
     selectVisibleSevereRecurringPublicacoes();
   }
   function clearQueueSelections() {
     setSelectedProcessKeys([]);
     setSelectedPartesKeys([]);
+    logUiEvent("Limpar selecoes de filas", "limpar_selecoes_publicacoes", {
+      selectedProcessos: 0,
+      selectedPartes: 0,
+    }, { component: "publicacoes-filas" });
   }
   const visibleRecurringCount = [...processCandidates.items, ...partesCandidates.items]
     .filter((item, index, array) => array.findIndex((other) => (other.numero_cnj || other.key) === (item.numero_cnj || item.key)) === index)
@@ -1207,6 +1323,7 @@ function PublicacoesContent() {
 
   function updateView(nextView) {
     setView(nextView);
+    logUiEvent(`Alternar view para ${nextView}`, "alterar_view_publicacoes", { view: nextView }, { component: "publicacoes-navigation" });
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
     url.searchParams.set("view", nextView);
@@ -1251,6 +1368,11 @@ function PublicacoesContent() {
         limit: safeLimit,
         processNumbers: numbers.length ? numbers.join("\n") : processNumbers,
       }),
+    }, {
+      action,
+      component: "publicacoes-actions",
+      label: `${getPublicacoesActionLabel(action)} (criar job)`,
+      expectation: `Criar job de publicacoes com lote ${safeLimit}`,
     });
     if (response.data?.legacy_inline) {
       setActionState({ loading: false, error: null, result: response.data.result });
@@ -1273,7 +1395,14 @@ function PublicacoesContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "run_pending_jobs", id: activeJobId, maxChunks: 1 }),
-      }, { timeoutMs: 120000, maxRetries: 0 });
+      }, {
+        action: "run_pending_jobs",
+        component: "publicacoes-jobs",
+        label: "Drenar fila de publicacoes",
+        expectation: "Processar o proximo chunk da fila HMADV",
+        timeoutMs: 120000,
+        maxRetries: 0,
+      });
       const result = payload.data || {};
       setActionState({ loading: false, error: null, result: result.job ? { job: result.job, drain: result } : { drain: result } });
       setActiveJobId(result.completedAll ? null : (result.job?.id || null));
@@ -1323,6 +1452,11 @@ function PublicacoesContent() {
           limit: safeLimit,
           processNumbers: numbers.length ? numbers.join("\n") : processNumbers,
         }),
+      }, {
+        action,
+        component: "publicacoes-actions",
+        label: getPublicacoesActionLabel(action),
+        expectation: `Executar ${getPublicacoesActionLabel(action)} com lote ${safeLimit}`,
       });
       setActionState({ loading: false, error: null, result: payload.data });
       replaceHistoryEntry(historyId, {
@@ -1344,6 +1478,10 @@ function PublicacoesContent() {
   function reuseHistoryEntry(entry) {
     if (entry?.payload?.processNumbers) setProcessNumbers(entry.payload.processNumbers);
     if (entry?.payload?.limit) setLimit(Number(entry.payload.limit) || 10);
+    logUiEvent("Reusar parametros do historico", "reusar_historico_publicacoes", {
+      action: entry?.action || "",
+      limit: entry?.payload?.limit || null,
+    }, { component: "publicacoes-history" });
     updateView("operacao");
   }
 
@@ -1442,7 +1580,7 @@ function PublicacoesContent() {
               <input
                 type="number"
                 min="1"
-                max="20"
+                max="50"
                 value={limit}
                 onChange={(event) => setLimit(Number(event.target.value || 10))}
                 className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]"

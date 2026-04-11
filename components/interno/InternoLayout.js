@@ -15,6 +15,7 @@ import {
   formatActivityLogMarkdown,
   formatFrontendIssuesMarkdown,
   formatSchemaIssuesMarkdown,
+  getActivityLogResponseText,
   getActivityLogFilters,
   getFrontendIssues,
   getSchemaIssues,
@@ -210,7 +211,7 @@ export default function InternoLayout({
   }
 
   async function handleCopyPublicacoesHistory() {
-    const payload = {
+    const payload = publicacoesHistory || {
       local: publicacoesLocalHistory,
       remote: publicacoesRemoteHistory,
     };
@@ -892,10 +893,10 @@ export default function InternoLayout({
                                     <pre className="mt-1 max-h-[160px] overflow-auto rounded-lg border border-[#1E2E29] bg-[rgba(9,12,11,0.6)] p-2 text-[10px] text-[#DADFD8]">{entry.request}</pre>
                                   </div>
                                 ) : null}
-                                {entry.response ? (
+                                {getActivityLogResponseText(entry) ? (
                                   <div>
                                     <p className="text-[10px] uppercase tracking-[0.14em] text-[#7F928C]">Response</p>
-                                    <pre className="mt-1 max-h-[160px] overflow-auto rounded-lg border border-[#1E2E29] bg-[rgba(9,12,11,0.6)] p-2 text-[10px] text-[#DADFD8]">{entry.response}</pre>
+                                    <pre className="mt-1 max-h-[160px] overflow-auto rounded-lg border border-[#1E2E29] bg-[rgba(9,12,11,0.6)] p-2 text-[10px] text-[#DADFD8]">{getActivityLogResponseText(entry)}</pre>
                                   </div>
                                 ) : null}
                                 {entry.error ? (

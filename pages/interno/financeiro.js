@@ -35,6 +35,20 @@ function StatusBadge({ children, tone = "neutral" }) {
   return <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${tones[tone]}`}>{children}</span>;
 }
 
+function OperationButton({ label, helper, onClick, disabled, loading }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || loading}
+      className="border border-[#2D2E2E] bg-[#050706] p-4 text-left transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
+    >
+      <p className="font-semibold">{loading ? "Executando..." : label}</p>
+      {helper ? <p className="mt-2 text-sm opacity-65">{helper}</p> : null}
+    </button>
+  );
+}
+
 function formatMoney(value) {
   const parsed = typeof value === "number" ? value : Number(value || 0);
   return parsed.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -80,6 +94,7 @@ function FinanceiroInternoContent() {
   const [resolutionState, setResolutionState] = useState({ loading: false, error: null, result: null });
   const [textualBackfillLimit, setTextualBackfillLimit] = useState(50);
   const [textualBackfillState, setTextualBackfillState] = useState({ loading: false, error: null, result: null });
+  const [operationState, setOperationState] = useState({ loading: null, error: null, result: null });
 
   async function load() {
     setState((current) => ({ ...current, loading: true, error: null }));
@@ -150,6 +165,24 @@ function FinanceiroInternoContent() {
     }
   }
 
+  async function runOperation(operation) {
+    setOperationState({ loading: operation, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-hmadv-financeiro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "run_operation",
+          operation,
+        }),
+      }, { timeoutMs: 180000, maxRetries: 0 });
+      setOperationState({ loading: null, error: null, result: payload.data || null });
+      await load();
+    } catch (error) {
+      setOperationState({ loading: null, error: error.message || "Falha ao executar operacao administrativa.", result: null });
+    }
+  }
+
   function togglePendingRow(id) {
     setSelectedPendingRows((current) => (
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
@@ -187,6 +220,7 @@ function FinanceiroInternoContent() {
   const counts = data.counts || {};
   const diagnostics = data.diagnostics || {};
   const freshsalesAuth = data.freshsales_auth || {};
+  const operationButtons = Array.isArray(data.config?.operations) ? data.config.operations : [];
 
   return (
     <div className="space-y-8">
@@ -281,6 +315,52 @@ function FinanceiroInternoContent() {
           ) : null}
         </Panel>
       </div>
+
+      <Panel title="Operacao assistida" eyebrow="Runner">
+        <p className="mb-4 text-sm opacity-65">
+          Este runner lê a configuração operacional do backend do financeiro e expõe sempre os acionamentos disponíveis para migração, publicação e suporte de CRM.
+        </p>
+        {data.config?.endpoints ? (
+          <div className="mb-4 rounded-[18px] border border-[#2D2E2E] bg-[#050706] p-4 text-sm">
+            <p className="font-semibold">Endpoints configurados no backend</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {Object.entries(data.config.endpoints).map(([key, endpoint]) => (
+                <StatusBadge key={key} tone="accent">
+                  {endpoint.method} {endpoint.path} [{key}]
+                </StatusBadge>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {operationButtons.map((item) => (
+            <OperationButton
+              key={item.key}
+              label={item.label}
+              helper={item.helper}
+              loading={operationState.loading === item.key}
+              disabled={Boolean(operationState.loading)}
+              onClick={() => runOperation(item.key)}
+            />
+          ))}
+        </div>
+        {operationState.error ? <p className="mt-4 text-sm text-red-200">{operationState.error}</p> : null}
+        {operationState.result ? (
+          <div className="mt-4 rounded-[18px] border border-[#35554B] bg-[rgba(11,24,21,0.72)] p-4 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-semibold">{operationState.result.operation}</p>
+              <StatusBadge tone={operationState.result.code === 0 ? "success" : "danger"}>exit {operationState.result.code}</StatusBadge>
+            </div>
+            {operationState.result.json?.output ? <p className="mt-2 opacity-80">Arquivo: {operationState.result.json.output}</p> : null}
+            {operationState.result.json?.total_rows != null ? <p className="mt-2 opacity-80">Linhas: {operationState.result.json.total_rows}</p> : null}
+            {operationState.result.stdout ? (
+              <pre className="mt-3 overflow-auto whitespace-pre-wrap border border-[#2D2E2E] bg-[#050706] p-3 text-xs opacity-85">
+                {operationState.result.stdout}
+              </pre>
+            ) : null}
+          </div>
+        ) : null}
+      </Panel>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Panel title="Importações recentes" eyebrow="Runs">

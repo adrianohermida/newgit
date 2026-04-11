@@ -1,6 +1,7 @@
 import { requireAdminAccess } from "../lib/admin-auth.js";
 import {
   backfillHmadvFinanceAccounts,
+  getHmadvFinanceAdminConfig,
   getHmadvFinanceAdminOverview,
   resolveHmadvFinancePendingAccounts,
   searchHmadvFinanceProcessCandidates,
@@ -36,6 +37,10 @@ export async function onRequestGet(context) {
       const data = await getHmadvFinanceAdminOverview(context.env);
       return jsonOk({ data });
     }
+    if (action === "config") {
+      const data = getHmadvFinanceAdminConfig();
+      return jsonOk({ data });
+    }
     if (action === "search_processes") {
       const data = await searchHmadvFinanceProcessCandidates(
         context.env,
@@ -68,6 +73,9 @@ export async function onRequestPost(context) {
     if (action === "resolve_account_rows") {
       const data = await resolveHmadvFinancePendingAccounts(context.env, body || {});
       return jsonOk({ data });
+    }
+    if (action === "run_operation") {
+      return jsonError(new Error("Operacao runner disponivel apenas na rota Node /api/admin-hmadv-financeiro neste ambiente."), 501);
     }
     return jsonError(new Error("Acao POST invalida."), 400);
   } catch (error) {

@@ -422,7 +422,12 @@ export async function listAdminOperations(env, { modulo, limit = 20 } = {}) {
     "judiciario",
     []
   );
-  return { items };
+  return {
+    items: (items || []).map((item) => ({
+      ...item,
+      acao: buildProcessActionLogName(item?.acao, item?.payload || {}),
+    })),
+  };
 }
 
 export async function getCoverageSchemaStatus(env) {
@@ -884,10 +889,13 @@ export async function listAudienciaBackfillCandidates(env, { page = 1, pageSize 
 function getProcessActionLimitConfig(action) {
   if (action === "sync_supabase_crm") return { defaultLimit: 1, maxLimit: 1 };
   if (action === "repair_freshsales_accounts") return { defaultLimit: 1, maxLimit: 1 };
-  if (action === "enriquecer_datajud") return { defaultLimit: 2, maxLimit: 3 };
-  if (action === "push_orfaos") return { defaultLimit: 2, maxLimit: 3 };
-  if (action === "backfill_audiencias") return { defaultLimit: 2, maxLimit: 3 };
-  return { defaultLimit: 10, maxLimit: 20 };
+  if (action === "sincronizar_movimentacoes_activity") return { defaultLimit: 5, maxLimit: 25 };
+  if (action === "sincronizar_publicacoes_activity") return { defaultLimit: 5, maxLimit: 10 };
+  if (action === "reconciliar_partes_contatos") return { defaultLimit: 10, maxLimit: 30 };
+  if (action === "enriquecer_datajud") return { defaultLimit: 5, maxLimit: 10 };
+  if (action === "push_orfaos") return { defaultLimit: 5, maxLimit: 10 };
+  if (action === "backfill_audiencias") return { defaultLimit: 5, maxLimit: 10 };
+  return { defaultLimit: 15, maxLimit: 25 };
 }
 
 async function collectPublicacoesTargets(loader, env) {
@@ -3928,12 +3936,13 @@ export async function processProcessAdminJob(env, id) {
 }
 
 function normalizePublicacoesJobPayload(action, payload = {}) {
-  const maxLimit = action === "backfill_partes" ? 50 : action === "sincronizar_publicacoes_activity" ? 5 : 20;
+  const maxLimit = action === "backfill_partes" ? 50 : action === "sincronizar_publicacoes_activity" ? 10 : action === "criar_processos_publicacoes" ? 15 : 20;
+  const defaultLimit = action === "backfill_partes" ? 15 : action === "sincronizar_publicacoes_activity" ? 5 : 10;
   return {
     ...payload,
     action,
     processNumbers: uniqueNonEmpty(payload.processNumbers || []),
-    limit: Math.max(1, Math.min(Number(payload.limit || 10), maxLimit)),
+    limit: Math.max(1, Math.min(Number(payload.limit || defaultLimit), maxLimit)),
   };
 }
 

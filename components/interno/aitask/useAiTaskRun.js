@@ -1,5 +1,29 @@
 import { useEffect, useRef } from "react";
 import { adminFetch } from "../../../lib/admin/api";
+import { appendActivityLog, updateActivityLog } from "../../../lib/admin/activity-log";
+
+function stringifyDiagnostic(value, limit = 12000) {
+  if (value === undefined || value === null) return "";
+  let text = "";
+  try {
+    text = JSON.stringify(value, null, 2);
+  } catch {
+    text = String(value);
+  }
+  return text.length > limit ? `${text.slice(0, limit)}...` : text;
+}
+
+function buildAiTaskDiagnostic({ title, summary = "", sections = [] }) {
+  return [
+    title ? `# ${title}` : "",
+    summary ? String(summary).trim() : "",
+    ...sections
+      .filter((section) => section?.value !== undefined && section?.value !== null && section?.value !== "")
+      .map((section) => `${section.label}:\n${stringifyDiagnostic(section.value)}`),
+  ]
+    .filter(Boolean)
+    .join("\n\n---\n\n");
+}
 
 export function useAiTaskRun({
   mission,
@@ -67,6 +91,25 @@ export function useAiTaskRun({
       if (disposed || pollingInFlightRef.current) return;
       pollingInFlightRef.current = true;
       try {
+        const pollLogId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        appendActivityLog({
+          id: pollLogId,
+          module: "ai-task",
+          component: "AITaskPolling",
+          label: "AI Task: consultar run",
+          action: "ai_task_run_poll",
+          method: "POST",
+          path: "/functions/api/admin-lawdesk-chat",
+          expectation: "Consultar novos eventos e status da execução",
+          request: stringifyDiagnostic({
+            action: "task_run_get",
+            runId,
+            sinceEventId: lastEventCursorRef.current || null,
+            sinceSequence: lastEventSequenceRef.current || null,
+          }),
+          status: "running",
+          startedAt: Date.now(),
+        });
         const payload = await adminFetch("/functions/api/admin-lawdesk-chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -80,6 +123,20 @@ export function useAiTaskRun({
         });
 
         const normalized = normalizeTaskRunPayload(payload);
+        updateActivityLog(pollLogId, {
+          status: "success",
+          durationMs: Date.now() - startedAt,
+          response: buildAiTaskDiagnostic({
+            title: "AI Task poll",
+            summary: normalized?.status || "poll_ok",
+            sections: [
+              { label: "run", value: normalized?.run || null },
+              { label: "events", value: (normalized?.events || []).slice(-8) },
+              { label: "steps", value: (normalized?.steps || []).slice(-8) },
+              { label: "rag", value: normalized?.rag || null },
+            ],
+          }),
+        });
         const run = normalized.run;
         const events = normalized.events;
         if (normalized.eventsCursor) {
@@ -180,6 +237,26 @@ export function useAiTaskRun({
         }
       } catch (pollError) {
         if (!disposed) {
+          appendActivityLog({
+            id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            module: "ai-task",
+            component: "AITaskPolling",
+            label: "AI Task: falha ao consultar run",
+            action: "ai_task_run_poll_error",
+            method: "POST",
+            path: "/functions/api/admin-lawdesk-chat",
+            status: "error",
+            startedAt: Date.now(),
+            error: buildAiTaskDiagnostic({
+              title: "Falha no polling do AI Task",
+              summary: pollError?.message || "Falha ao consultar status da execução.",
+              sections: [
+                { label: "error", value: pollError?.payload || pollError?.stack || pollError },
+                { label: "runId", value: runId },
+                { label: "cursor", value: { eventId: lastEventCursorRef.current, sequence: lastEventSequenceRef.current } },
+              ],
+            }),
+          });
           pushLog({
             type: "warning",
             action: "Polling TaskRun",
@@ -283,10 +360,43 @@ export function useAiTaskRun({
     }
 
     try {
+      const startLogId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       pushLog({
         type: "api",
         action: "Iniciando TaskRun",
         result: "POST /functions/api/admin-lawdesk-chat (action=task_run_start)",
+      });
+      appendActivityLog({
+        id: startLogId,
+        module: "ai-task",
+        component: "AITaskRun",
+        label: "AI Task: iniciar run",
+        action: "ai_task_run_start",
+        method: "POST",
+        path: "/functions/api/admin-lawdesk-chat",
+        expectation: "Criar uma nova run da missão no backend",
+        request: buildAiTaskDiagnostic({
+          title: "AI Task start",
+          summary: normalizedMission,
+          sections: [
+            { label: "mission", value: normalizedMission },
+            { label: "mode", value: mode },
+            { label: "provider", value: provider },
+            { label: "attachments", value: attachments },
+            { label: "context", value: {
+              route: routePath || "/interno/ai-task",
+              approved,
+              automation,
+              profile: {
+                id: profile?.id || null,
+                email: profile?.email || null,
+                role: profile?.role || null,
+              },
+            } },
+          ],
+        }),
+        status: "running",
+        startedAt: Date.now(),
       });
 
       const payload = await adminFetch("/functions/api/admin-lawdesk-chat", {
@@ -315,6 +425,20 @@ export function useAiTaskRun({
       });
 
       const normalized = normalizeTaskRunPayload(payload);
+      updateActivityLog(startLogId, {
+        status: normalized?.status === "failed" ? "error" : "success",
+        durationMs: Date.now() - Date.now() + 0,
+        response: buildAiTaskDiagnostic({
+          title: "AI Task start result",
+          summary: normalized?.status || "run_started",
+          sections: [
+            { label: "run", value: normalized?.run || null },
+            { label: "events", value: (normalized?.events || []).slice(-12) },
+            { label: "steps", value: (normalized?.steps || []).slice(-12) },
+            { label: "rag", value: normalized?.rag || null },
+          ],
+        }),
+      });
       const run = normalized.run;
       if (run?.id) {
         setActiveRun({ id: run.id, startedAt: run.created_at || nowIso(), mission: normalizedMission });
@@ -456,6 +580,27 @@ export function useAiTaskRun({
       });
     } catch (missionError) {
       const message = missionError?.message || "Falha ao executar a missão.";
+      appendActivityLog({
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        module: "ai-task",
+        component: "AITaskRun",
+        label: "AI Task: falha na execução",
+        action: "ai_task_run_error",
+        method: "POST",
+        path: "/functions/api/admin-lawdesk-chat",
+        status: "error",
+        startedAt: Date.now(),
+        error: buildAiTaskDiagnostic({
+          title: "Falha na execução do AI Task",
+          summary: message,
+          sections: [
+            { label: "mission", value: normalizedMission },
+            { label: "mode", value: mode },
+            { label: "provider", value: provider },
+            { label: "error", value: missionError?.payload || missionError?.stack || missionError },
+          ],
+        }),
+      });
       setError(message);
       setAutomation("failed");
       setMissionHistory((current) =>
@@ -494,16 +639,59 @@ export function useAiTaskRun({
     const runId = activeRun?.id;
     if (runId) {
       try {
+        const cancelStartedAt = Date.now();
+        const cancelLogId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        appendActivityLog({
+          id: cancelLogId,
+          module: "ai-task",
+          component: "AITaskRun",
+          label: "AI Task: cancelar run",
+          action: "ai_task_run_cancel",
+          method: "POST",
+          path: "/functions/api/admin-lawdesk-chat",
+          expectation: "Cancelar a execução ativa",
+          request: stringifyDiagnostic({ action: "task_run_cancel", runId }),
+          status: "running",
+          startedAt: cancelStartedAt,
+        });
         const payload = await adminFetch("/functions/api/admin-lawdesk-chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "task_run_cancel", runId }),
+        });
+        updateActivityLog(cancelLogId, {
+          status: "success",
+          durationMs: Date.now() - cancelStartedAt,
+          response: buildAiTaskDiagnostic({
+            title: "AI Task cancel",
+            summary: payload?.data?.run?.status || "cancel_requested",
+            sections: [{ label: "payload", value: payload }],
+          }),
         });
         const canceledStatus = payload?.data?.run?.status;
         if (canceledStatus === "canceled") {
           pushLog({ type: "backend", action: "run.canceled", result: "Cancelamento confirmado pelo backend." });
         }
       } catch (cancelError) {
+        appendActivityLog({
+          id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          module: "ai-task",
+          component: "AITaskRun",
+          label: "AI Task: falha ao cancelar",
+          action: "ai_task_run_cancel_error",
+          method: "POST",
+          path: "/functions/api/admin-lawdesk-chat",
+          status: "error",
+          startedAt: Date.now(),
+          error: buildAiTaskDiagnostic({
+            title: "Falha ao cancelar AI Task",
+            summary: cancelError?.message || "Falha ao confirmar cancelamento.",
+            sections: [
+              { label: "runId", value: runId },
+              { label: "error", value: cancelError?.payload || cancelError?.stack || cancelError },
+            ],
+          }),
+        });
         pushLog({
           type: "warning",
           action: "Cancelamento parcial",
@@ -539,6 +727,27 @@ export function useAiTaskRun({
       lastEventCursorRef.current = null;
       lastEventSequenceRef.current = null;
       setEventsTotal(0);
+      const continueStartedAt = Date.now();
+      const continueLogId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      appendActivityLog({
+        id: continueLogId,
+        module: "ai-task",
+        component: "AITaskRun",
+        label: "AI Task: retomar run",
+        action: "ai_task_run_continue",
+        method: "POST",
+        path: "/functions/api/admin-lawdesk-chat",
+        expectation: "Retomar uma run falhada ou parada",
+        request: stringifyDiagnostic({
+          action: "task_run_continue",
+          runId: lastRecoverable.id,
+          mission: lastRecoverable.mission,
+          mode: lastRecoverable.mode,
+          provider: lastRecoverable.provider,
+        }),
+        status: "running",
+        startedAt: continueStartedAt,
+      });
       const payload = await adminFetch("/functions/api/admin-lawdesk-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -550,6 +759,18 @@ export function useAiTaskRun({
       });
 
       const normalized = normalizeTaskRunPayload(payload);
+      updateActivityLog(continueLogId, {
+        status: "success",
+        durationMs: Date.now() - continueStartedAt,
+        response: buildAiTaskDiagnostic({
+          title: "AI Task continue",
+          summary: normalized?.status || "continue_requested",
+          sections: [
+            { label: "run", value: normalized?.run || null },
+            { label: "events", value: (normalized?.events || []).slice(-8) },
+          ],
+        }),
+      });
       const continuedRun = normalized.run;
       if (continuedRun?.id) {
         setActiveRun({
@@ -586,6 +807,25 @@ export function useAiTaskRun({
       });
     } catch (continueError) {
       const message = continueError?.message || "Falha ao retomar run.";
+      appendActivityLog({
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        module: "ai-task",
+        component: "AITaskRun",
+        label: "AI Task: falha ao retomar",
+        action: "ai_task_run_continue_error",
+        method: "POST",
+        path: "/functions/api/admin-lawdesk-chat",
+        status: "error",
+        startedAt: Date.now(),
+        error: buildAiTaskDiagnostic({
+          title: "Falha ao retomar AI Task",
+          summary: message,
+          sections: [
+            { label: "run", value: lastRecoverable },
+            { label: "error", value: continueError?.payload || continueError?.stack || continueError },
+          ],
+        }),
+      });
       setError(message);
       setAutomation("failed");
       pushLog({ type: "error", action: "Retomada falhou", result: message });

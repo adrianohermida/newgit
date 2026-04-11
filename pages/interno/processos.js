@@ -68,11 +68,11 @@ const QUEUE_LABELS = {
   cobertura: "Cobertura por processo",
 };
 const MODULE_LIMITS = {
-  maxProcessBatch: 10,
-  maxMovementBatch: 5,
-  maxPublicationBatch: 5,
-  maxPartesBatch: 10,
-  maxAudienciasBatch: 3,
+  maxProcessBatch: 25,
+  maxMovementBatch: 25,
+  maxPublicationBatch: 10,
+  maxPartesBatch: 30,
+  maxAudienciasBatch: 10,
 };
 
 function stringifyLogPayload(payload, limit = 8000) {
@@ -109,13 +109,13 @@ function extractActionFromRequest(path, init) {
 function getProcessActionLimitConfig(action) {
   if (action === "sync_supabase_crm") return { defaultLimit: 1, maxLimit: 1 };
   if (action === "repair_freshsales_accounts") return { defaultLimit: 1, maxLimit: 1 };
-  if (action === "sincronizar_movimentacoes_activity") return { defaultLimit: 2, maxLimit: 5 };
-  if (action === "sincronizar_publicacoes_activity") return { defaultLimit: 2, maxLimit: 5 };
-  if (action === "reconciliar_partes_contatos") return { defaultLimit: 5, maxLimit: 10 };
-  if (action === "enriquecer_datajud") return { defaultLimit: 2, maxLimit: 3 };
-  if (action === "push_orfaos") return { defaultLimit: 2, maxLimit: 3 };
-  if (action === "backfill_audiencias") return { defaultLimit: 2, maxLimit: 3 };
-  return { defaultLimit: 10, maxLimit: 20 };
+  if (action === "sincronizar_movimentacoes_activity") return { defaultLimit: 5, maxLimit: 25 };
+  if (action === "sincronizar_publicacoes_activity") return { defaultLimit: 5, maxLimit: 10 };
+  if (action === "reconciliar_partes_contatos") return { defaultLimit: 10, maxLimit: 30 };
+  if (action === "enriquecer_datajud") return { defaultLimit: 5, maxLimit: 10 };
+  if (action === "push_orfaos") return { defaultLimit: 5, maxLimit: 10 };
+  if (action === "backfill_audiencias") return { defaultLimit: 5, maxLimit: 10 };
+  return { defaultLimit: 15, maxLimit: 25 };
 }
 
 function getSafeProcessActionLimit(action, requestedLimit) {
@@ -2206,7 +2206,7 @@ function InternoProcessosContent() {
         <div className="space-y-4">
           {latestJob ? <JobCard job={latestJob} active={latestJob.id === activeJobId} /> : null}
           <label className="block"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">CNJs para foco manual</span><textarea value={processNumbers} onChange={(e) => setProcessNumbers(e.target.value)} rows={4} placeholder="Opcional: cole CNJs manualmente, um por linha." className="w-full rounded-[22px] border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" /></label>
-          <label className="block max-w-[220px]"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Lote</span><input type="number" min="1" max="20" value={limit} onChange={(e) => setLimit(Number(e.target.value || 2))} className="w-full rounded-2xl border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" /><span className="mt-2 block text-xs leading-5 opacity-55">Acoes pesadas como sincronismo, reparo CRM, criacao de accounts e retroativo de audiencias sao reduzidas automaticamente para lote curto seguro.</span></label>
+          <label className="block max-w-[220px]"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Lote</span><input type="number" min="1" max="30" value={limit} onChange={(e) => setLimit(Number(e.target.value || 2))} className="w-full rounded-2xl border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" /><span className="mt-2 block text-xs leading-5 opacity-55">Lotes maiores ficam disponiveis na operacao, com reducao automatica so quando a acao tiver um teto tecnico mais baixo.</span></label>
           <div className="grid gap-3 md:grid-cols-2">
             {selectionSuggestedAction ? <ActionButton tone={selectionSuggestedAction.tone || "primary"} onClick={() => handleAction(selectionSuggestedAction.key, selectionSuggestedAction.payload || {})} disabled={actionState.loading || selectionSuggestedAction.disabled} className="md:col-span-2">{selectionSuggestedAction.label}</ActionButton> : null}
             <ActionButton onClick={() => handleAction("run_sync_worker")} disabled={actionState.loading} tone={isSuggestedAction("run_sync_worker") ? "primary" : "subtle"}>Rodar sync-worker</ActionButton>

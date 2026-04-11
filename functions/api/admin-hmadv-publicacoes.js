@@ -60,26 +60,26 @@ async function runInlinePublicacoesAction(env, action, body) {
   if (action === "backfill_partes") {
     return backfillPartesFromPublicacoes(env, {
       processNumbers,
-      limit: requestedLimit || 3,
+      limit: requestedLimit || 15,
       apply: Boolean(body.apply),
     });
   }
   if (action === "sincronizar_partes") {
     return syncPartesFromPublicacoes(env, {
       processNumbers,
-      limit: requestedLimit || 2,
+      limit: requestedLimit || 10,
     });
   }
   if (action === "criar_processos_publicacoes") {
     return createProcessesFromPublicacoes(env, {
       processNumbers,
-      limit: requestedLimit || 2,
+      limit: requestedLimit || 10,
     });
   }
   if (action === "sincronizar_publicacoes_activity") {
     return syncPublicationActivities(env, {
       processNumbers,
-      limit: requestedLimit || 2,
+      limit: requestedLimit || 5,
     });
   }
   throw new Error(`Acao inline de publicacoes nao suportada: ${action}`);
@@ -226,7 +226,7 @@ export async function onRequestPost(context) {
     if (action === "backfill_partes") {
       return runLogged(async () => backfillPartesFromPublicacoes(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 3),
+        limit: Number(body.limit || 15),
         apply: Boolean(body.apply),
       }));
     }
@@ -295,19 +295,19 @@ export async function onRequestPost(context) {
     if (action === "sincronizar_partes") {
       return runLogged(async () => syncPartesFromPublicacoes(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 2),
+        limit: Number(body.limit || 10),
       }));
     }
     if (action === "criar_processos_publicacoes") {
       return runLogged(async () => createProcessesFromPublicacoes(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 2),
+        limit: Number(body.limit || 10),
       }));
     }
     if (action === "sincronizar_publicacoes_activity") {
       return runLogged(async () => syncPublicationActivities(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 2),
+        limit: Number(body.limit || 5),
       }));
     }
     if (action === "run_sync_worker") {

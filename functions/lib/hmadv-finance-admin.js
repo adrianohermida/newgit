@@ -69,9 +69,14 @@ function buildFreshsalesAuthorizationUrl(env) {
   const clientId = getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_ID);
   const orgDomain = resolveFreshsalesOrgDomain(env);
   const supabaseUrl = getCleanEnvValue(env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL);
-  const redirectUri = getCleanEnvValue(env.FRESHSALES_REDIRECT_URI) || (supabaseUrl ? `${supabaseUrl}/functions/v1/oauth` : null);
+  const redirectUri =
+    getCleanEnvValue(env.FRESHSALES_REDIRECT_URI) ||
+    getCleanEnvValue(env.REDIRECT_URI) ||
+    getCleanEnvValue(env.FRESHSALES_OAUTH_CALLBACK_URL) ||
+    getCleanEnvValue(env.OAUTH_CALLBACK_URL) ||
+    (supabaseUrl ? `${supabaseUrl}/functions/v1/oauth` : null);
   const state = getCleanEnvValue(env.FRESHSALES_OAUTH_STATE) || "hmadv-billing";
-  const scopes = getCleanEnvValue(env.FRESHSALES_OAUTH_SCOPES) || [
+  const scopes = getCleanEnvValue(env.FRESHSALES_SCOPES) || getCleanEnvValue(env.FRESHSALES_OAUTH_SCOPES) || [
     "freshsales.contacts.create",
     "freshsales.contacts.edit",
     "freshsales.contacts.view",
@@ -94,7 +99,7 @@ function buildFreshsalesAuthorizationUrl(env) {
     scope: scopes,
   });
 
-  return `https://${orgDomain}/crm/sales/oauth/authorize?${params.toString()}`;
+  return `https://${orgDomain}/org/oauth/v2/authorize?${params.toString()}`;
 }
 
 function buildFreshsalesAuthSnapshot(env) {
@@ -240,6 +245,120 @@ function deriveResolutionStats(importRows, receivables, contracts) {
   };
 }
 
+export function getHmadvFinanceAdminConfig() {
+  return {
+    endpoints: {
+      overview: {
+        method: "GET",
+        path: "/api/admin-hmadv-financeiro",
+        query: { action: "overview" },
+      },
+      search_processes: {
+        method: "GET",
+        path: "/api/admin-hmadv-financeiro",
+        query: { action: "search_processes" },
+      },
+      run_operation: {
+        method: "POST",
+        path: "/api/admin-hmadv-financeiro",
+        body: { action: "run_operation" },
+      },
+      backfill_textual_accounts: {
+        method: "POST",
+        path: "/api/admin-hmadv-financeiro",
+        body: { action: "backfill_textual_accounts" },
+      },
+      resolve_account_rows: {
+        method: "POST",
+        path: "/api/admin-hmadv-financeiro",
+        body: { action: "resolve_account_rows" },
+      },
+    },
+    operations: [
+      {
+        key: "refresh_freshsales_token",
+        label: "Renovar token Freshsales",
+        helper: "Atualiza o access token persistido no backend antes de publicar deals.",
+        endpoint: "/api/admin-hmadv-financeiro",
+        method: "POST",
+        action: "run_operation",
+      },
+      {
+        key: "backfill_textual_accounts",
+        label: "Backfill de accounts textuais",
+        helper: "Cria ou vincula Sales Accounts a partir do processo textual quando ainda nao existe account resolvido.",
+        endpoint: "/api/admin-hmadv-financeiro",
+        method: "POST",
+        action: "backfill_textual_accounts",
+      },
+      {
+        key: "materialize_latest_run",
+        label: "Materializar staging",
+        helper: "Transforma rows importadas em contratos e recebiveis canonicos.",
+        endpoint: "/api/admin-hmadv-financeiro",
+        method: "POST",
+        action: "run_operation",
+      },
+      {
+        key: "reprocess_billing",
+        label: "Reprocessar pendencias",
+        helper: "Recalcula rows que ja ganharam contact, account ou processo.",
+        endpoint: "/api/admin-hmadv-financeiro",
+        method: "POST",
+        action: "run_operation",
+      },
+      {
+        key: "publish_deals",
+        label: "Publicar deals no Freshsales",
+        helper: "Tenta criar ou atualizar deals a partir dos recebiveis aptos.",
+        endpoint: "/api/admin-hmadv-financeiro",
+        method: "POST",
+        action: "run_operation",
+      },
+      {
+        key: "diagnose_freshsales_auth",
+        label: "Diagnosticar autenticacao Freshsales",
+        helper: "Valida as bases e credenciais efetivas do Freshsales.",
+        endpoint: "/api/admin-hmadv-financeiro",
+        method: "POST",
+        action: "run_operation",
+      },
+      {
+        key: "process_crm_events",
+        label: "Processar fila CRM",
+        helper: "Aplica eventos pendentes de sincronismo do CRM.",
+        endpoint: "/api/admin-hmadv-financeiro",
+        method: "POST",
+        action: "run_operation",
+      },
+      {
+        key: "export_accounts_import",
+        label: "Exportar CSV de accounts",
+        helper: "Gera import manual de Sales Accounts para destravar processos sem account.",
+        endpoint: "/api/admin-hmadv-financeiro",
+        method: "POST",
+        action: "run_operation",
+      },
+      {
+        key: "export_deals_import",
+        label: "Exportar CSV de deals",
+        helper: "Gera import manual de Deals para concluir a migracao historica.",
+        endpoint: "/api/admin-hmadv-financeiro",
+        method: "POST",
+        action: "run_operation",
+      },
+      {
+        key: "report_ops",
+        label: "Gerar relatorio ops",
+        helper: "Atualiza a fotografia operacional da base financeira HMADV.",
+        endpoint: "/api/admin-hmadv-financeiro",
+        method: "POST",
+        action: "run_operation",
+      },
+    ],
+  };
+}
+
 export async function getHmadvFinanceAdminOverview(env) {
   const [
     importRuns,
@@ -299,6 +418,7 @@ export async function getHmadvFinanceAdminOverview(env) {
 
   return {
     generated_at: new Date().toISOString(),
+    config: getHmadvFinanceAdminConfig(),
     overview: {
       import_runs: importRuns.length,
       import_rows: importRows.length,
@@ -567,6 +687,22 @@ async function createTextualFreshsalesAccount(env, processReference) {
   };
 }
 
+async function createTextualFreshsalesAccountWithRetry(env, processReference, maxAttempts = 5) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await createTextualFreshsalesAccount(env, processReference);
+    } catch (error) {
+      lastError = error;
+      const status = Number(error?.status || 0);
+      if (status !== 429 || attempt >= maxAttempts) break;
+      const delayMs = attempt * 2000;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  throw lastError || new Error("Falha ao criar Sales Account textual no Freshsales.");
+}
+
 export async function backfillHmadvFinanceAccounts(env, { limit = 50 } = {}) {
   const safeLimit = Math.max(1, Math.min(Number(limit || 50), 200));
   const contracts = await fetchSupabaseAdminAll(
@@ -610,10 +746,11 @@ export async function backfillHmadvFinanceAccounts(env, { limit = 50 } = {}) {
       let mode = "linked_existing";
 
       if (!account) {
-        account = await createTextualFreshsalesAccount(env, processReference);
+        account = await createTextualFreshsalesAccountWithRetry(env, processReference);
         byReference.set(key, account);
         mode = "created";
         createdAccounts += 1;
+        await new Promise((resolve) => setTimeout(resolve, 400));
       } else {
         linkedExisting += 1;
       }
