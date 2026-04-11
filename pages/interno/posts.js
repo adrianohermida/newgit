@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch } from "../../lib/admin/api";
+import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../lib/admin/module-registry";
 
 export default function InternoPostsPage() {
   const [state, setState] = useState({ loading: true, error: null, items: [] });
@@ -30,10 +32,30 @@ function PostsContent({ state, setState }) {
       try {
         const payload = await adminFetch("/api/admin-posts?limit=100");
         if (!cancelled) {
+          appendActivityLog({
+            label: "Leitura do modulo de posts",
+            action: "posts_load",
+            method: "UI",
+            module: "posts",
+            page: "/interno/posts",
+            status: "success",
+            response: `Posts carregados: ${payload.items?.length || 0}.`,
+            tags: ["posts", "manual", "conteudo"],
+          });
           setState({ loading: false, error: null, items: payload.items || [] });
         }
       } catch (error) {
         if (!cancelled) {
+          appendActivityLog({
+            label: "Falha ao carregar posts",
+            action: "posts_load",
+            method: "UI",
+            module: "posts",
+            page: "/interno/posts",
+            status: "error",
+            error: error.message || "Falha ao carregar posts.",
+            tags: ["posts", "manual", "conteudo"],
+          });
           setState({ loading: false, error: error.message, items: [] });
         }
       }
@@ -44,6 +66,30 @@ function PostsContent({ state, setState }) {
       cancelled = true;
     };
   }, [setState]);
+
+  useEffect(() => {
+    setModuleHistory(
+      "posts",
+      buildModuleSnapshot("posts", {
+        routePath: "/interno/posts",
+        loading: state.loading,
+        error: state.error,
+        total: state.items.length,
+        drafts: state.items.filter((item) => String(item.status || "").toLowerCase().includes("draft")).length,
+        published: state.items.filter((item) => String(item.status || "").toLowerCase().includes("publish")).length,
+        recentItems: state.items.slice(0, 8).map((item) => ({
+          id: item.id,
+          title: item.title,
+          status: item.status,
+          slug: item.slug,
+        })),
+        coverage: {
+          routeTracked: true,
+          consoleIntegrated: true,
+        },
+      }),
+    );
+  }, [state]);
 
   return (
     <div>

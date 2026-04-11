@@ -248,6 +248,65 @@ function deriveResolutionStats(importRows, receivables, contracts) {
   };
 }
 
+function deriveMigrationProgressBySource(importRows, receivables, runsById) {
+  const bucket = new Map();
+
+  const ensureSource = (sourceName) => {
+    const key = basename(sourceName || "desconhecido");
+    if (!bucket.has(key)) {
+      bucket.set(key, {
+        source_file: key,
+        import_rows: 0,
+        duplicates: 0,
+        pending_contact: 0,
+        pending_account: 0,
+        pending_review: 0,
+        matched: 0,
+        materialized_receivables: 0,
+        freshsales_synced: 0,
+        canonical_only: 0,
+        publish_ready: 0,
+      });
+    }
+    return bucket.get(key);
+  };
+
+  const rowSourceById = new Map();
+  for (const row of importRows) {
+    const run = runsById.get(String(row.import_run_id || "").trim()) || null;
+    const source = ensureSource(run?.source_file || run?.source_name || "desconhecido");
+    source.import_rows += 1;
+    if (row.is_duplicate === true) source.duplicates += 1;
+    if (row.matching_status === "pendente_contato") source.pending_contact += 1;
+    if (row.matching_status === "pendente_account") source.pending_account += 1;
+    if (row.matching_status === "pendente_revisao") source.pending_review += 1;
+    if (row.matching_status === "pareado") source.matched += 1;
+    rowSourceById.set(String(row.id), source.source_file);
+  }
+
+  for (const receivable of receivables) {
+    const sourceFile = rowSourceById.get(String(receivable.source_import_row_id || "").trim()) || "desconhecido";
+    const source = ensureSource(sourceFile);
+    source.materialized_receivables += 1;
+    if (receivable.freshsales_deal_id) {
+      source.freshsales_synced += 1;
+    } else {
+      source.canonical_only += 1;
+    }
+    if (receivable.contact_id && receivable.freshsales_account_id && !receivable.freshsales_deal_id) {
+      source.publish_ready += 1;
+    }
+  }
+
+  return Array.from(bucket.values())
+    .map((item) => ({
+      ...item,
+      materialization_rate: item.import_rows ? Number(((item.materialized_receivables / item.import_rows) * 100).toFixed(2)) : 0,
+      freshsales_sync_rate: item.materialized_receivables ? Number(((item.freshsales_synced / item.materialized_receivables) * 100).toFixed(2)) : 0,
+    }))
+    .sort((left, right) => left.source_file.localeCompare(right.source_file, "pt-BR"));
+}
+
 function getHmadvFinanceAdminDefaultSettings(env = {}) {
   return {
     backfill_limit: Math.max(1, Math.min(200, Number(getCleanEnvValue(env.HMADV_FINANCE_BACKFILL_LIMIT) || 50) || 50)),
@@ -482,7 +541,7 @@ export async function getHmadvFinanceAdminOverview(env) {
     ),
     fetchSupabaseAdminAll(
       env,
-      "billing_import_rows?select=id,import_run_id,person_name,email,invoice_number,due_date,matching_status,resolved_contact_id,resolved_account_id_freshsales,resolved_process_reference,deal_reference_raw,product_family_inferred,billing_type_inferred,validation_errors,created_at&order=created_at.desc"
+      "billing_import_rows?select=id,import_run_id,person_name,email,invoice_number,due_date,matching_status,resolved_contact_id,resolved_account_id_freshsales,resolved_process_reference,deal_reference_raw,product_family_inferred,billing_type_inferred,validation_errors,is_duplicate,created_at&order=created_at.desc"
     ),
     fetchSupabaseAdminAll(
       env,
@@ -490,7 +549,7 @@ export async function getHmadvFinanceAdminOverview(env) {
     ),
     fetchSupabaseAdminAll(
       env,
-      "billing_receivables?select=id,contract_id,contact_id,freshsales_deal_id,freshsales_account_id,receivable_type,invoice_number,description,due_date,status,amount_original,balance_due,balance_due_corrected,created_at,updated_at&order=created_at.desc"
+      "billing_receivables?select=id,contract_id,contact_id,source_import_row_id,freshsales_deal_id,freshsales_account_id,receivable_type,invoice_number,description,due_date,status,amount_original,balance_due,balance_due_corrected,created_at,updated_at&order=created_at.desc"
     ),
     fetchSupabaseAdminAll(
       env,
@@ -515,6 +574,7 @@ export async function getHmadvFinanceAdminOverview(env) {
   const crmQueueCounts = buildStatusCounts(crmQueue, "status");
   const sourceCounts = buildImportSourceCounts(importRows, runsById);
   const resolution = deriveResolutionStats(importRows, receivables, contracts);
+  const migrationProgressBySource = deriveMigrationProgressBySource(importRows, receivables, runsById);
 
   const publishReady = receivables.filter((item) => item.contact_id && item.freshsales_account_id && !item.freshsales_deal_id).length;
   const portalReady = receivables.filter((item) => item.contact_id).length;
@@ -548,6 +608,7 @@ export async function getHmadvFinanceAdminOverview(env) {
       crm_queue_status: crmQueueCounts,
       import_sources: sourceCounts,
     },
+    migration_progress_by_source: migrationProgressBySource,
     recent_import_runs: importRuns.slice(0, 8).map((row) => ({
       id: row.id,
       source_name: row.source_name || null,

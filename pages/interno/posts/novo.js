@@ -1,9 +1,11 @@
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import PostEditorForm from "../../../components/interno/PostEditorForm";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import { adminFetch } from "../../../lib/admin/api";
+import { appendActivityLog, setModuleHistory } from "../../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../../lib/admin/module-registry";
 
 export default function NovoPostPage() {
   const router = useRouter();
@@ -19,11 +21,47 @@ export default function NovoPostPage() {
         },
         body: JSON.stringify(form),
       });
+      appendActivityLog({
+        label: "Novo post criado",
+        action: "post_create",
+        method: "UI",
+        module: "posts",
+        page: "/interno/posts/novo",
+        status: "success",
+        response: `Post ${payload.item?.id || "n/d"} criado com slug ${payload.item?.slug || "n/d"}.`,
+        tags: ["posts", "manual", "conteudo"],
+      });
       router.replace(`/interno/posts/editar?id=${payload.item.id}`);
     } catch (error) {
+      appendActivityLog({
+        label: "Falha ao criar post",
+        action: "post_create",
+        method: "UI",
+        module: "posts",
+        page: "/interno/posts/novo",
+        status: "error",
+        error: error.message || "Falha ao criar post.",
+        tags: ["posts", "manual", "conteudo"],
+      });
       setState({ saving: false, error: error.message });
     }
   }
+
+  useEffect(() => {
+    setModuleHistory(
+      "posts-novo",
+      buildModuleSnapshot("posts", {
+        routePath: "/interno/posts/novo",
+        saving: state.saving,
+        error: state.error,
+        coverage: {
+          routeTracked: true,
+          consoleIntegrated: true,
+          actionsTracked: true,
+        },
+      }),
+    );
+  }, [state.error, state.saving]);
 
   return (
     <RequireAdmin>

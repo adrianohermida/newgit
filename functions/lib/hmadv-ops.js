@@ -239,6 +239,17 @@ function uniqueNonEmpty(values = []) {
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
 }
 
+function safeJsonObject(value, fallback = {}) {
+  if (!value) return { ...fallback };
+  if (typeof value === "object" && !Array.isArray(value)) return { ...fallback, ...value };
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? { ...fallback, ...parsed } : { ...fallback };
+  } catch {
+    return { ...fallback };
+  }
+}
+
 function formatCnj(value) {
   const digits = normalizeProcessNumber(value);
   if (digits.length !== 20) return String(value || "").trim();
@@ -1388,6 +1399,72 @@ export async function listCreateProcessCandidates(env, { page = 1, pageSize = 20
 
 export async function listPartesExtractionCandidates(env, { page = 1, pageSize = 20 } = {}) {
   return collectPartesExtractionCandidatePage(env, { page, pageSize });
+}
+
+export async function getPublicacoesValidationMap(env, processNumbers = []) {
+  const numbers = uniqueNonEmpty((processNumbers || []).map((item) => normalizeProcessNumber(item)).filter(Boolean));
+  if (!numbers.length) return {};
+  const rows = await loadProcessesByNumbers(env, numbers, "id,numero_cnj,metadata");
+  const output = {};
+  for (const row of rows) {
+    const metadata = safeJsonObject(row?.metadata);
+    const validation = metadata?.publicacoes_validation;
+    if (!row?.numero_cnj || !validation || typeof validation !== "object") continue;
+    output[row.numero_cnj] = {
+      status: String(validation.status || "").trim(),
+      note: String(validation.note || "").trim(),
+      updatedAt: validation.updatedAt || validation.updated_at || null,
+      updatedBy: validation.updatedBy || validation.updated_by || null,
+    };
+  }
+  return output;
+}
+
+export async function savePublicacoesValidation(env, { processNumbers = [], status = "", note = "", updatedBy = "" } = {}) {
+  const numbers = uniqueNonEmpty((processNumbers || []).map((item) => normalizeProcessNumber(item)).filter(Boolean));
+  if (!numbers.length) {
+    return { updated: 0, validations: {} };
+  }
+  const rows = await loadProcessesByNumbers(env, numbers, "id,numero_cnj,metadata");
+  const validations = {};
+  let updated = 0;
+  const now = new Date().toISOString();
+  for (const row of rows) {
+    if (!row?.id || !row?.numero_cnj) continue;
+    const metadata = safeJsonObject(row.metadata);
+    const nextValidation = status
+      ? {
+          status: String(status || "").trim(),
+          note: String(note || "").trim(),
+          updatedAt: now,
+          updatedBy: String(updatedBy || "").trim() || null,
+        }
+      : null;
+    const nextMetadata = { ...metadata };
+    if (nextValidation) nextMetadata.publicacoes_validation = nextValidation;
+    else delete nextMetadata.publicacoes_validation;
+    await hmadvRest(
+      env,
+      `processos?id=eq.${encodeURIComponent(String(row.id))}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Profile": "judiciario",
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({ metadata: nextMetadata }),
+      },
+      "judiciario"
+    );
+    updated += 1;
+    validations[row.numero_cnj] = nextValidation;
+  }
+  return {
+    updated,
+    validations,
+    updatedAt: now,
+  };
 }
 
 export async function getProcessosOverview(env) {

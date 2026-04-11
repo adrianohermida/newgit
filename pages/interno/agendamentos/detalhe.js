@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import { adminFetch } from "../../../lib/admin/api";
+import { appendActivityLog, setModuleHistory } from "../../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../../lib/admin/module-registry";
 
 const OUTCOME_OPTIONS = [
   { value: "attended", label: "Compareceu" },
@@ -86,10 +88,30 @@ export default function InternoAgendamentoDetalhePage() {
       try {
         const payload = await adminFetch(`/api/admin-agendamentos?id=${encodeURIComponent(id)}`);
         if (!cancelled) {
+          appendActivityLog({
+            label: "Leitura do detalhe de agendamento",
+            action: "agendamento_detail_load",
+            method: "UI",
+            module: "agendamentos",
+            page: "/interno/agendamentos/detalhe",
+            status: "success",
+            response: `Agendamento ${id} carregado.`,
+            tags: ["agendamentos", "manual"],
+          });
           setState({ loading: false, error: null, item: payload.item });
         }
       } catch (error) {
         if (!cancelled) {
+          appendActivityLog({
+            label: "Falha ao carregar detalhe de agendamento",
+            action: "agendamento_detail_load",
+            method: "UI",
+            module: "agendamentos",
+            page: "/interno/agendamentos/detalhe",
+            status: "error",
+            error: error.message || "Falha ao carregar agendamento.",
+            tags: ["agendamentos", "manual"],
+          });
           setState({ loading: false, error: error.message, item: null });
         }
       }
@@ -121,6 +143,16 @@ export default function InternoAgendamentoDetalhePage() {
       });
 
       setState((current) => ({ ...current, item: payload.item || current.item }));
+      appendActivityLog({
+        label: "Desfecho do agendamento sincronizado",
+        action: "agendamento_outcome_submit",
+        method: "UI",
+        module: "agendamentos",
+        page: "/interno/agendamentos/detalhe",
+        status: "success",
+        response: `Outcome ${outcome} enviado para o CRM.`,
+        tags: ["agendamentos", "manual", "crm"],
+      });
       setActionState({
         loading: false,
         error: null,
@@ -128,6 +160,16 @@ export default function InternoAgendamentoDetalhePage() {
         warnings: payload.warnings || [],
       });
     } catch (error) {
+      appendActivityLog({
+        label: "Falha ao sincronizar desfecho do agendamento",
+        action: "agendamento_outcome_submit",
+        method: "UI",
+        module: "agendamentos",
+        page: "/interno/agendamentos/detalhe",
+        status: "error",
+        error: error.message || "Falha ao registrar desfecho.",
+        tags: ["agendamentos", "manual", "crm"],
+      });
       setActionState({
         loading: false,
         error: error.message,
@@ -164,6 +206,16 @@ export default function InternoAgendamentoDetalhePage() {
       if (payload.zoom?.applied?.item) {
         setState((current) => ({ ...current, item: payload.zoom.applied.item }));
       }
+      appendActivityLog({
+        label: applySuggestion ? "Sugestao do Zoom aplicada" : "Presenca do Zoom sincronizada",
+        action: "agendamento_zoom_sync",
+        method: "UI",
+        module: "agendamentos",
+        page: "/interno/agendamentos/detalhe",
+        status: "success",
+        response: `Participantes ${payload.zoom?.participants?.length || 0}. Aplicacao=${applySuggestion ? "sim" : "nao"}.`,
+        tags: ["agendamentos", "manual", "crm"],
+      });
 
       setZoomState({
         loading: false,
@@ -176,6 +228,16 @@ export default function InternoAgendamentoDetalhePage() {
         warnings: payload.warnings || [],
       });
     } catch (error) {
+      appendActivityLog({
+        label: "Falha na sincronizacao de presenca do Zoom",
+        action: "agendamento_zoom_sync",
+        method: "UI",
+        module: "agendamentos",
+        page: "/interno/agendamentos/detalhe",
+        status: "error",
+        error: error.message || "Falha ao consultar presenca do Zoom.",
+        tags: ["agendamentos", "manual", "crm"],
+      });
       setZoomState({
         loading: false,
         error: error.message,
@@ -186,6 +248,35 @@ export default function InternoAgendamentoDetalhePage() {
       });
     }
   }
+
+  useEffect(() => {
+    setModuleHistory(
+      "agendamentos-detalhe",
+      buildModuleSnapshot("agendamentos", {
+        routePath: "/interno/agendamentos/detalhe",
+        loading: state.loading,
+        error: state.error,
+        itemId: state.item?.id || null,
+        status: state.item?.status || null,
+        area: state.item?.area || null,
+        outcome,
+        notesLength: notes.length,
+        actionState,
+        zoomState: {
+          loading: zoomState.loading,
+          error: zoomState.error,
+          success: zoomState.success,
+          participants: zoomState.participants?.length || 0,
+          hasSuggestion: Boolean(zoomState.suggestion),
+        },
+        coverage: {
+          routeTracked: true,
+          consoleIntegrated: true,
+          actionsTracked: true,
+        },
+      }),
+    );
+  }, [actionState, notes.length, outcome, state, zoomState]);
 
   return (
     <RequireAdmin>
