@@ -22,6 +22,17 @@ function Import-LocalEnvFile([string]$Path) {
   }
 }
 
+function Normalize-CloudflareToken([string]$Value) {
+  if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
+  $normalized = $Value.Trim()
+  $normalized = $normalized.Trim('"').Trim("'")
+  if ($normalized.StartsWith('Bearer ')) {
+    $normalized = $normalized.Substring(7).Trim()
+  }
+  $normalized = -join ($normalized.ToCharArray() | Where-Object { -not [char]::IsWhiteSpace($_) })
+  return $normalized
+}
+
 function Invoke-WranglerDeployWithFallback([string]$ResolvedAccountId, [string]$ResolvedApiToken) {
   if (-not [string]::IsNullOrWhiteSpace($ResolvedAccountId)) {
     $env:CLOUDFLARE_ACCOUNT_ID = $ResolvedAccountId
@@ -59,6 +70,7 @@ if ([string]::IsNullOrWhiteSpace($ApiToken)) {
 if ([string]::IsNullOrWhiteSpace($ApiToken)) {
   $ApiToken = $env:CLOUDFLARE_API_TOKEN
 }
+$ApiToken = Normalize-CloudflareToken $ApiToken
 
 Push-Location 'D:\Github\newgit'
 try {

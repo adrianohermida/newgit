@@ -20,6 +20,7 @@ const SCRIPT_ACTIONS = {
   sync_products_catalog: { script: "sync-freshsales-products.js", args: [] },
   publish_deals: { script: "publish-hmadv-deals.js", args: ["50"] },
   sync_existing_deals: { script: "sync-freshsales-deals.js", args: ["50"] },
+  import_existing_deals_to_staging: { script: "import-hmadv-freshsales-deals.js", args: ["50"] },
   sync_bidirectional_deals: { script: "sync-hmadv-deals-bidirectional.js", args: ["50", "50", "50"] },
   process_crm_events: { script: "process-hmadv-crm-events.js", args: ["50"] },
   export_accounts_import: { script: "export-freshsales-sales-accounts-import.js", args: [] },

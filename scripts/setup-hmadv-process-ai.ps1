@@ -35,6 +35,17 @@ function Import-LocalEnvFile([string]$Path) {
   }
 }
 
+function Normalize-CloudflareToken([string]$Value) {
+  if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
+  $normalized = $Value.Trim()
+  $normalized = $normalized.Trim('"').Trim("'")
+  if ($normalized.StartsWith('Bearer ')) {
+    $normalized = $normalized.Substring(7).Trim()
+  }
+  $normalized = -join ($normalized.ToCharArray() | Where-Object { -not [char]::IsWhiteSpace($_) })
+  return $normalized
+}
+
 function Require-Value([string]$Name, [string]$Value) {
   if ([string]::IsNullOrWhiteSpace($Value)) {
     throw "Defina $Name."
@@ -61,6 +72,7 @@ if ([string]::IsNullOrWhiteSpace($CloudflareApiToken)) {
 if ([string]::IsNullOrWhiteSpace($CloudflareApiToken)) {
   $CloudflareApiToken = $env:CLOUDFLARE_API_TOKEN
 }
+$CloudflareApiToken = Normalize-CloudflareToken $CloudflareApiToken
 
 function Put-WranglerSecret([string]$Name, [string]$Value) {
   if ([string]::IsNullOrWhiteSpace($Value)) { return }

@@ -487,6 +487,7 @@ function FinanceiroInternoContent({ routeFocus }) {
   const executiveSummary = data.executive_summary || {};
   const freshsalesAuth = data.freshsales_auth || {};
   const operationButtons = Array.isArray(data.config?.operations) ? data.config.operations : [];
+  const configuredProductMapEntries = Object.entries(data.product_mapping_help?.configured_map || {});
 
   return (
     <div className="space-y-8">
@@ -583,6 +584,20 @@ function FinanceiroInternoContent({ routeFocus }) {
           </div>
         ) : (
           <p className="text-sm opacity-65">Nao ha bloqueios de publicacao por produto neste recorte.</p>
+        )}
+        {configuredProductMapEntries.length ? (
+          <div className="mt-4">
+            <p className="mb-2 text-sm font-semibold">Mapa manual atualmente salvo</p>
+            <div className="flex flex-wrap gap-2">
+              {configuredProductMapEntries.map(([name, productId]) => (
+                <StatusBadge key={`${name}-${productId}`} tone="accent">
+                  {name}: {productId}
+                </StatusBadge>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm opacity-60">Nenhum mapeamento manual persistido ainda. Salve os product IDs aqui para destravar a publicacao dos deals bloqueados.</p>
         )}
         {data.product_mapping_help?.env_key ? (
           <p className="mt-4 text-sm opacity-60">Chave de mapeamento manual: {data.product_mapping_help.env_key}</p>
@@ -783,16 +798,27 @@ function FinanceiroInternoContent({ routeFocus }) {
                   <StatusBadge tone="warn">sem account: {operationState.result.guidance.snapshot?.receivables_without_account ?? 0}</StatusBadge>
                   <StatusBadge tone="warn">pendente contato: {operationState.result.guidance.snapshot?.pending_contact ?? 0}</StatusBadge>
                   <StatusBadge tone="warn">pendente account: {operationState.result.guidance.snapshot?.pending_account ?? 0}</StatusBadge>
+                  <StatusBadge tone="warn">produtos pendentes: {operationState.result.guidance.snapshot?.pending_products ?? 0}</StatusBadge>
                 </div>
                 <div className="mt-3 space-y-2">
                   {(operationState.result.guidance.next_steps || []).map((item) => (
                     <p key={item} className="opacity-80">{item}</p>
                   ))}
                 </div>
+                {operationState.result.guidance.blockers?.products?.length ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {operationState.result.guidance.blockers.products.map((item) => (
+                      <StatusBadge key={item.id} tone={item.freshsales_product_id ? "success" : "warn"}>
+                        {item.name || item.id}
+                      </StatusBadge>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {operationState.result.guidance.fallback?.should_export_accounts_csv ? <StatusBadge tone="accent">fallback accounts CSV</StatusBadge> : null}
                   {operationState.result.guidance.fallback?.should_export_deals_csv ? <StatusBadge tone="accent">fallback deals CSV</StatusBadge> : null}
                   {operationState.result.guidance.fallback?.should_retry_publish ? <StatusBadge tone="success">retry publish direto</StatusBadge> : null}
+                  {operationState.result.guidance.fallback?.should_sync_products ? <StatusBadge tone="warn">sincronizar produtos</StatusBadge> : null}
                 </div>
               </div>
             ) : null}
