@@ -86,6 +86,11 @@ function summarizeRawBody(body, limit = 240) {
   return text.length > limit ? `${text.slice(0, limit)}...` : text;
 }
 
+function hasJsonTruncationMessage(value) {
+  const text = String(value || "");
+  return text.includes("Unexpected end of JSON input");
+}
+
 function isWorkerResourceLimitError(error) {
   const message = String(error?.message || "");
   const rawBody = String(error?.rawBody || "");
@@ -333,6 +338,10 @@ function summarizeOperationResult(result) {
   ]) {
     if (result?.[key] !== undefined) summary[key] = result[key];
   }
+  if (result?.fallbackReason) summary.fallbackReason = result.fallbackReason;
+  if (result?.upstreamWarning?.functionName) summary.upstreamFunction = result.upstreamWarning.functionName;
+  if (result?.upstreamWarning?.status != null) summary.upstreamStatus = result.upstreamWarning.status;
+  if (result?.upstreamWarning?.message) summary.upstreamMessage = result.upstreamWarning.message;
   if (result?.coverageMetrics && typeof result.coverageMetrics === "object") {
     for (const [key, value] of Object.entries(result.coverageMetrics)) {
       if (typeof value === "number" && Number.isFinite(value)) {
@@ -382,6 +391,18 @@ function summarizeOperationResult(result) {
       Number(result?.audienciasInseridas || 0) ||
       Number(result?.disparados || 0) ||
       rows.length,
+  };
+}
+
+function buildPublicationFallbackDiagnostic(upstreamWarning) {
+  if (!upstreamWarning) return null;
+  return {
+    status: "fallback_local",
+    detalhe: upstreamWarning.message || "Edge function de publicacoes indisponivel; sincronizacao local acionada.",
+    functionName: upstreamWarning.functionName || "publicacoes-freshsales",
+    http_status: upstreamWarning.status ?? null,
+    content_type: upstreamWarning.contentType || null,
+    raw_body: upstreamWarning.rawBody || null,
   };
 }
 
@@ -1602,24 +1623,56 @@ export async function syncPublicationActivities(env, { processNumbers = [], limi
   let upstreamWarning = null;
   if (!processNumbers.length) {
     try {
-      const remote = await hmadvFunction(
+      const remoteResponse = await hmadvFunction(
         env,
         "publicacoes-freshsales",
         { action: "sync", batch: safeLimit },
         { method: "POST", body: {} }
       );
-      return {
-        checkedAt: new Date().toISOString(),
-        source: "edge_function_publicacoes_freshsales",
-        processosLidos: Number(remote?.total || 0),
-        publicacoes: Number(remote?.sucesso || 0),
-        activitiesCriadas: Number(remote?.sucesso || 0),
-        publicacoesAtualizadas: Number(remote?.sucesso || 0),
-        semAccount: Number(remote?.sem_account || 0),
-        errors: Number(remote?.erro || 0),
-        sample: Array.isArray(remote?.detalhes) ? remote.detalhes.slice(0, 10) : [],
+      const remote =
+        remoteResponse && typeof remoteResponse === "object" && remoteResponse.payload && typeof remoteResponse.payload === "object"
+          ? remoteResponse.payload
+          : remoteResponse;
+      const remoteDetails = Array.isArray(remote?.detalhes) ? remote.detalhes.slice(0, 10) : [];
+      const remoteErrors = Number(remote?.erro || 0);
+      const remoteSuccess = Number(remote?.sucesso || 0);
+      const checksumInvalid = Number(remote?.checksum_invalido || 0);
+      const allDetailsLookTruncated =
+        remoteDetails.length > 0 &&
+        remoteDetails.every((item) => hasJsonTruncationMessage(item?.detalhe));
+      const shouldFallbackLocally =
+        remoteSuccess <= 0 &&
+        remoteErrors > 0 &&
+        (checksumInvalid >= remoteErrors || allDetailsLookTruncated);
+
+      if (!shouldFallbackLocally) {
+        return {
+          checkedAt: new Date().toISOString(),
+          source: "edge_function_publicacoes_freshsales",
+          processosLidos: Number(remote?.total || 0),
+          publicacoes: remoteSuccess,
+          activitiesCriadas: remoteSuccess,
+          publicacoesAtualizadas: remoteSuccess,
+          semAccount: Number(remote?.sem_account || 0),
+          errors: remoteErrors,
+          sample: remoteDetails,
+          remote,
+        };
+      }
+
+      upstreamWarning = {
+        functionName: "publicacoes-freshsales",
+        message: "Edge function retornou lote com JSON truncado; seguindo com fallback local.",
+        status: 200,
+        contentType: "application/json",
+        rawBody: summarizeRawBody(JSON.stringify({
+          total: remote?.total || 0,
+          erro: remoteErrors,
+          checksum_invalido: checksumInvalid,
+        })),
         remote,
       };
+      // Fallback local keeps the panel usable when the remote sync returns a broken batch.
     } catch (error) {
       upstreamWarning = {
         functionName: "publicacoes-freshsales",
@@ -1736,7 +1789,10 @@ export async function syncPublicationActivities(env, { processNumbers = [], limi
     publicacoes: publicacoesUpdated,
     activitiesCriadas: activitiesCreated,
     publicacoesAtualizadas: publicacoesUpdated,
-    sample,
+    sample: [
+      ...(upstreamWarning ? [buildPublicationFallbackDiagnostic(upstreamWarning)].filter(Boolean) : []),
+      ...sample,
+    ].slice(0, 20),
   };
 }
 
@@ -2098,8 +2154,7 @@ async function collectGroupedBacklogByProcess(env, {
         key: process.numero_cnj || item.processo_id,
         fallback: !process.numero_cnj,
       };
-    })
-    .filter((item) => item.numero_cnj);
+    });
 
   return {
     page: safePage,
@@ -2243,10 +2298,16 @@ export async function listProcessCoverage(env, { page = 1, pageSize = 20, query 
   ].join(",");
   const countFilters = baseQuery;
   const totalRows = await countTableSafe(env, "processos", countFilters);
-  const processes = await listTableSafe(
+  let processes = await listTableSafe(
     env,
     `processos?select=${processSelect}${baseQuery ? `&${baseQuery}` : ""}&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
   );
+  if (!Array.isArray(processes) || (!processes.length && totalRows > 0)) {
+    processes = await listTableSafe(
+      env,
+      `processos?select=${processSelect}${baseQuery ? `&${baseQuery}` : ""}&order=numero_cnj.asc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
+    );
+  }
   const processIds = uniqueNonEmpty((processes || []).map((item) => item.id));
   if (!processIds.length) {
     return {
