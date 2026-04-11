@@ -410,7 +410,7 @@ function EnvironmentContent({ state }) {
       </Panel>
 
       <Panel title="Saúde do widget em produção">
-        <div className="grid gap-3 md:grid-cols-4 text-sm opacity-75">
+        <div className="grid gap-3 text-sm opacity-75 md:grid-cols-4">
           <p>Eventos: {widgetEventSummary.total || 0}</p>
           <p>Aberturas: {widgetEventSummary.openedCount || 0}</p>
           <p>Auth: {widgetEventSummary.authCount || 0}</p>
@@ -430,7 +430,7 @@ function EnvironmentContent({ state }) {
       </Panel>
 
       <Panel title="Checklist do schema">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 text-sm opacity-75">
+        <div className="grid gap-3 text-sm opacity-75 md:grid-cols-2 xl:grid-cols-3">
           {schemaChecklist.map((item) => (
             <div key={item.table} className="border border-[#2D2E2E] p-3">
               <p className="font-semibold">{item.table}</p>
