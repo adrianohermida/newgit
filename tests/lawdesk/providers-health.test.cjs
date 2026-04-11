@@ -85,6 +85,40 @@ registerTest("runLawdeskProvidersHealth returns actionable missing base URL mess
   assert.equal(custom.diagnostics.baseUrl.configuredFrom, null);
 });
 
+registerTest("runLawdeskProvidersHealth marks gpt degraded when health is ok but execute route is missing", async () => {
+  const providers = await loadProvidersModule();
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url) => {
+    if (String(url) === "https://ai.example.test/health") {
+      return new Response(JSON.stringify({ ok: true, service: "hmadv-process-ai" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (String(url) === "https://ai.example.test/execute" || String(url) === "https://ai.example.test/v1/execute") {
+      return new Response(JSON.stringify({ error: "not_found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    throw new Error(`Unexpected fetch in gpt execute probe test: ${url}`);
+  };
+
+  try {
+    const health = await providers.runLawdeskProvidersHealth({
+      PROCESS_AI_BASE: "https://ai.example.test",
+    });
+    const gpt = health.providers.find((item) => item.id === "gpt");
+
+    assert.equal(gpt.status, "degraded");
+    assert.match(gpt.reason, /execute/i);
+    assert.equal(gpt.details.executeProbe.ok, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 async function run() {
   let failures = 0;
   for (const entry of tests) {

@@ -74,6 +74,15 @@ function flattenProviderDiagnostics(diagnostics, prefix = "") {
 function ProviderMatrixCard({ item, onRun }) {
   const diagnostics = item.diagnostics && typeof item.diagnostics === "object" ? item.diagnostics : null;
   const diagnosticBlocks = diagnostics ? flattenProviderDiagnostics(diagnostics).filter((entry) => entry.configuredFrom || entry.missing.length) : [];
+  const expectedEnv = Array.isArray(item.expectedEnv) ? item.expectedEnv : [];
+  const failureText = String(item.failureReason || "").toLowerCase();
+  const hasExecutionRouteIssue =
+    item.id === "gpt" &&
+    (failureText.includes("requested function was not found") ||
+      failureText.includes("not_found") ||
+      failureText.includes("/execute") ||
+      failureText.includes("/v1/execute"));
+  const backendHealthOk = String(item.healthStatus || "").toLowerCase() === "operational";
   return (
     <article className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
       <div className="flex items-start justify-between gap-3">
@@ -109,6 +118,33 @@ function ProviderMatrixCard({ item, onRun }) {
         <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Leitura rápida</p>
         <p className="mt-2 text-xs leading-6 text-[#D8DEDA]">{item.failureReason || "Sem falha registrada. Provider pronto para validação comparativa."}</p>
       </div>
+      {!item.catalogLoaded ? (
+        <div className="mt-3 rounded-[14px] border border-[#8b6f33] bg-[rgba(139,111,51,0.12)] px-3 py-2 text-xs leading-6 text-[#D9B46A]">
+          O catalogo de providers nao carregou por completo nesta sessao. Valide tambem `/api/admin-lawdesk-providers`.
+        </div>
+      ) : null}
+      {hasExecutionRouteIssue ? (
+        <div className={`mt-3 rounded-[14px] border px-3 py-2 text-xs leading-6 ${backendHealthOk ? "border-[#8b6f33] bg-[rgba(139,111,51,0.12)] text-[#D9B46A]" : "border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] text-[#f2b2b2]"}`}>
+          {backendHealthOk
+            ? "Health do backend principal esta operacional, mas a execucao falhou. O sinal mais forte aqui e rota ou deploy divergente em `/execute` ou `/v1/execute`."
+            : "O provider principal falhou na execucao e no health. Revise primeiro deploy, roteamento e disponibilidade do backend antes de testar novamente."}
+        </div>
+      ) : null}
+      {expectedEnv.length ? (
+        <div className="mt-3 rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Ambiente esperado</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {expectedEnv.map((entry) => (
+              <span key={`${item.id}_${entry}`} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                {entry}
+              </span>
+            ))}
+          </div>
+          {item.id === "gpt" ? (
+            <p className="mt-2 text-xs leading-6 text-[#8FA39C]">O backend principal precisa responder em `/execute` ou `/v1/execute`. Se `health` estiver OK e a execucao falhar, o problema tende a ser deploy ou roteamento.</p>
+          ) : null}
+        </div>
+      ) : null}
       {diagnosticBlocks.length ? (
         <div className="mt-3 space-y-2">
           {diagnosticBlocks.slice(0, 3).map((entry) => (
