@@ -8,6 +8,7 @@ import {
   getHmadvFinanceOperationGuidance,
   updateHmadvFinanceAdminConfig,
   resolveHmadvFinancePendingAccounts,
+  resolveHmadvFinancePendingContacts,
   searchHmadvFinanceProcessCandidates,
 } from "../../functions/lib/hmadv-finance-admin.js";
 
@@ -17,6 +18,8 @@ const SCRIPT_ACTIONS = {
   materialize_latest_run: { script: "materialize-hmadv-billing.js", args: [] },
   reprocess_billing: { script: "reprocess-hmadv-billing.js", args: ["--limit", "3000"] },
   publish_deals: { script: "publish-hmadv-deals.js", args: ["50"] },
+  sync_existing_deals: { script: "sync-freshsales-deals.js", args: ["50"] },
+  sync_bidirectional_deals: { script: "sync-hmadv-deals-bidirectional.js", args: ["50", "50", "50"] },
   process_crm_events: { script: "process-hmadv-crm-events.js", args: ["50"] },
   export_accounts_import: { script: "export-freshsales-sales-accounts-import.js", args: [] },
   export_deals_import: { script: "export-freshsales-deals-import.js", args: [] },
@@ -75,6 +78,23 @@ function buildScriptArgs(operation, settings = {}, body = {}) {
   if (operation === "publish_deals") {
     const args = [String(body.limit || settings.publish_limit || 50)];
     pushIfPresent(args, body.receivable_id);
+    return args;
+  }
+
+  if (operation === "sync_existing_deals") {
+    const args = [String(body.limit || settings.publish_limit || 50)];
+    pushIfPresent(args, body.deal_id);
+    if (body.apply_status === true) args.push("--apply-status");
+    return args;
+  }
+
+  if (operation === "sync_bidirectional_deals") {
+    const args = [
+      String(body.import_limit || body.limit || settings.publish_limit || 50),
+      String(body.publish_limit || body.limit || settings.publish_limit || 50),
+      String(body.crm_limit || body.limit || settings.crm_events_limit || 50),
+    ];
+    if (body.apply_status === true) args.push("--apply-status");
     return args;
   }
 
@@ -167,6 +187,10 @@ export default async function handler(req, res) {
       }
       if (action === "resolve_account_rows") {
         const data = await resolveHmadvFinancePendingAccounts(process.env, req.body || {});
+        return res.status(200).json({ ok: true, data });
+      }
+      if (action === "resolve_contact_rows") {
+        const data = await resolveHmadvFinancePendingContacts(process.env, req.body || {});
         return res.status(200).json({ ok: true, data });
       }
       if (action === "run_operation") {
