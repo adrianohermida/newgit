@@ -81,6 +81,15 @@ export default function ClientStep({
                   rows={3}
                 />
               </div>
+              <div className="hidden" aria-hidden="true">
+                <label>Website</label>
+                <Input
+                  value={formData.website || ""}
+                  onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                  tabIndex={-1}
+                  autoComplete="off"
+                />
+              </div>
             </div>
             <div className="flex justify-between mt-6">
               <button onClick={onBack} className="px-4 py-2 rounded-lg font-bold text-xs sm:text-base bg-black/40 text-[#C5A059] border border-[#C5A059] hover:bg-[#C5A059]/10 transition-all">

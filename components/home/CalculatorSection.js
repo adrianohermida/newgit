@@ -15,9 +15,11 @@ export default function CalculatorSection() {
   const [whatsapp, setWhatsapp] = useState("");
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
+  const [website, setWebsite] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const ref = useRef(null);
+  const startedAtRef = useRef(Date.now());
   const isInView = useInView(ref, { once: true, margin: "-100px" });
 
   const selectedType = DEBT_TYPES.find(d => d.value === debtType);
@@ -42,12 +44,15 @@ export default function CalculatorSection() {
           email: email,
           subject: `Lead Calculadora - ${debtType}`,
           description: `Valor da dívida: R$ ${debtAmount}\nTipo: ${debtType}\nEconomia estimada: R$ ${savings}\nWhatsApp: ${whatsapp}`,
-          custom_fields: {}
+          custom_fields: {},
+          website,
+          startedAt: startedAtRef.current
         })
       });
       const data = await res.json();
       if (data.ok) {
         setFeedback('Simulação enviada com sucesso! Um especialista entrará em contato.');
+        startedAtRef.current = Date.now();
         setSubmitted(true);
       } else {
         setFeedback('Erro ao enviar simulação: ' + (data.error || 'Tente novamente.'));
@@ -246,6 +251,16 @@ export default function CalculatorSection() {
                       }}
                       onFocus={(e) => e.target.style.borderColor = "#C5A059"}
                       onBlur={(e) => e.target.style.borderColor = "#2D2E2E"}
+                    />
+                  </div>
+                  <div className="hidden" aria-hidden="true">
+                    <label>Website</label>
+                    <input
+                      type="text"
+                      value={website}
+                      onChange={(e) => setWebsite(e.target.value)}
+                      tabIndex={-1}
+                      autoComplete="off"
                     />
                   </div>
 

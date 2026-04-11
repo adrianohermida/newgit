@@ -3,6 +3,7 @@ import {
   createBlogPostForAdmin,
   getBlogPostForAdmin,
   listBlogPostsForAdmin,
+  normalizeBlogPostPayload,
   updateBlogPostForAdmin,
 } from "../lib/blog-admin.js";
 
@@ -21,48 +22,15 @@ function slugify(value) {
 function normalizePayload(body, profile, isUpdate = false) {
   const title = String(body.title || "").trim();
   const slug = slugify(body.slug || body.title || "");
-  const excerpt = String(body.excerpt || "").trim();
-  const content = String(body.content || "").trim();
-  const status = String(body.status || "draft").trim();
-  const category = String(body.category || "").trim() || null;
-  const coverImageUrl = String(body.cover_image_url || "").trim() || null;
-  const seoTitle = String(body.seo_title || title).trim() || null;
-  const seoDescription = String(body.seo_description || excerpt).trim() || null;
-
-  if (!isUpdate && (!title || !slug || !excerpt || !content)) {
-    return { error: "Preencha titulo, slug, resumo e conteudo para salvar o post." };
-  }
-
-  const allowedStatus = ["draft", "published", "archived"];
-  if (status && !allowedStatus.includes(status)) {
-    return { error: "Status invalido. Use draft, published ou archived." };
-  }
-
-  const payload = {
-    updated_at: new Date().toISOString(),
-  };
-
-  if (title) payload.title = title;
-  if (slug) payload.slug = slug;
-  if (excerpt) payload.excerpt = excerpt;
-  if (content) payload.content = content;
-  if (body.cover_image_url !== undefined) payload.cover_image_url = coverImageUrl;
-  if (body.category !== undefined) payload.category = category;
-  if (body.status !== undefined || !isUpdate) payload.status = status;
-  if (body.seo_title !== undefined || !isUpdate) payload.seo_title = seoTitle;
-  if (body.seo_description !== undefined || !isUpdate) payload.seo_description = seoDescription;
-
-  if (!isUpdate) {
-    payload.author_id = profile.id;
-    payload.created_at = new Date().toISOString();
-    if (status === "published") {
-      payload.published_at = new Date().toISOString();
-    }
-  } else if (body.status === "published" && !body.published_at) {
-    payload.published_at = new Date().toISOString();
-  }
-
-  return { payload };
+  return normalizeBlogPostPayload(
+    {
+      ...body,
+      title,
+      slug,
+    },
+    profile,
+    isUpdate
+  );
 }
 
 export async function onRequestGet(context) {

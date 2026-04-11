@@ -1,10 +1,28 @@
+import { validatePublicMutationRequest } from '../lib/request-protection.js';
+
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
 export async function onRequestPost(context) {
   const { request, env } = context;
 
   try {
-    const { name, email, subject, description, priority = 1, status = 2, custom_fields = {} } = await request.json();
+    const payload = await request.json();
+    const blocked = await validatePublicMutationRequest(request, env, payload, {
+      honeypotFields: ['website', 'company_url'],
+    });
+    if (blocked) {
+      return blocked;
+    }
+
+    const {
+      name,
+      email,
+      subject,
+      description,
+      priority = 1,
+      status = 2,
+      custom_fields = {},
+    } = payload;
     if (!name || !email || !subject || !description) {
       return new Response(JSON.stringify({ ok: false, error: 'Campos obrigatórios ausentes.' }), {
         status: 400,

@@ -19,6 +19,11 @@ async function main() {
     return;
   }
 
+  const normalizedDeals = liveDeals.map((deal) => normalizeFreshsalesDeal(deal));
+  for (const deal of normalizedDeals) {
+    await syncDealContacts(deal);
+  }
+
   const context = await loadLocalContext();
   const summary = {
     ok: true,
@@ -33,9 +38,7 @@ async function main() {
     unmatched_details: [],
   };
 
-  for (const deal of liveDeals) {
-    const normalized = normalizeFreshsalesDeal(deal);
-    await syncDealContacts(normalized);
+  for (const normalized of normalizedDeals) {
     summary.products_reconciled += await syncDealProducts(normalized, context.productIndex);
     const match = resolveReceivableMatch(normalized, context);
 
@@ -199,6 +202,20 @@ function inferInvoiceFromName(name) {
   return null;
 }
 
+function extractProcessReferences(value) {
+  const text = String(value || '');
+  if (!text) return [];
+
+  const found = [];
+  const cnjMatches = text.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g) || [];
+  const digitsMatches = text.match(/\b\d{20}\b/g) || [];
+  for (const item of [...cnjMatches, ...digitsMatches]) {
+    const normalized = normalizeText(item);
+    if (normalized && !found.includes(normalized)) found.push(normalized);
+  }
+  return found;
+}
+
 function deriveInboundStatus(deal, billingConfig) {
   const fieldStatus = cleanValue(readCustomField(deal, billingConfig.fieldMap.receivable_status));
   if (fieldStatus) return normalizeText(fieldStatus);
@@ -236,6 +253,11 @@ function normalizeFreshsalesDeal(deal) {
     externalReference: inferredExternal,
     externalReceivableId: extractUuid(inferredExternal),
     invoiceReference: normalizeInvoiceToken(invoiceReference),
+    processReferences: uniqueValues([
+      readCustomField(deal, billingConfig.fieldMap.process_reference),
+      deal.name,
+      inferredExternal,
+    ].flatMap((item) => extractProcessReferences(item))),
     inboundStatus: deriveInboundStatus(deal, billingConfig),
   };
 }
@@ -286,9 +308,9 @@ async function loadFreshsalesDeals(limit, specificDealId = null) {
 }
 
 async function loadLocalContext() {
-  const [receivables, registry, products] = await Promise.all([
+  const [receivables, registry, products, contacts, importRows] = await Promise.all([
     supabaseRequestAll(
-      'billing_receivables?select=id,contract_id,invoice_number,status,balance_due,balance_due_corrected,amount_original,freshsales_deal_id,freshsales_account_id,contracts:billing_contracts(id,workspace_id,title,external_reference,freshsales_contact_id,freshsales_account_id,process_reference)&order=created_at.asc'
+      'billing_receivables?select=id,contract_id,contact_id,source_import_row_id,invoice_number,status,balance_due,balance_due_corrected,amount_original,freshsales_deal_id,freshsales_account_id,contracts:billing_contracts(id,workspace_id,title,external_reference,contact_id,freshsales_contact_id,freshsales_account_id,process_reference)&order=created_at.asc'
     ),
     supabaseRequestAll(
       'freshsales_deals_registry?select=id,billing_receivable_id,freshsales_deal_id,last_sync_status,payload_last_sent'
@@ -296,21 +318,40 @@ async function loadLocalContext() {
     supabaseRequestAll(
       'freshsales_products?select=id,name,billing_type,freshsales_product_id,status,last_synced_at'
     ).catch(() => []),
+    supabaseRequestAll(
+      'freshsales_contacts?select=id,freshsales_contact_id,name,email,email_normalized'
+    ).catch(() => []),
+    supabaseRequestAll(
+      'billing_import_rows?select=id,raw_payload'
+    ).catch(() => []),
   ]);
 
+  const contactById = new Map((contacts || []).map((item) => [String(item.id), item]));
+  const importRowById = new Map((importRows || []).map((item) => [String(item.id), item]));
   const byReceivableId = new Map();
   const byDealId = new Map();
   const byExternalRef = new Map();
   const byInvoice = new Map();
   const byContactId = new Map();
   const byContactAmount = new Map();
+  const byContactEmail = new Map();
+  const byContactEmailAmount = new Map();
+  const byContactName = new Map();
+  const byContactNameAmount = new Map();
+  const byProcessReference = new Map();
+  const byProcessReferenceAmount = new Map();
 
   for (const row of receivables) {
     const contract = firstRelation(row.contracts);
+    const localContact = contactById.get(String(contract?.contact_id || row.contact_id || '')) || null;
     byReceivableId.set(String(row.id), row);
 
     const liveDealId = cleanValue(row.freshsales_deal_id);
     if (liveDealId) byDealId.set(liveDealId, row);
+
+    const importRow = importRowById.get(String(row.source_import_row_id || '')) || null;
+    const importedDealId = cleanValue(importRow?.raw_payload?.freshsales_deal_id);
+    if (importedDealId) byDealId.set(importedDealId, row);
 
     const externalRefs = new Set([
       buildExternalReference(row.id),
@@ -327,18 +368,61 @@ async function loadLocalContext() {
       byInvoice.set(invoiceKey, items);
     }
 
+    const amountKey = buildAmountKey(row.balance_due_corrected ?? row.balance_due ?? row.amount_original);
+    const processReferenceKeys = uniqueValues([
+      contract?.process_reference,
+      contract?.title,
+      contract?.external_reference,
+    ].flatMap((item) => extractProcessReferences(item)));
+    for (const processReference of processReferenceKeys) {
+      const items = byProcessReference.get(processReference) || [];
+      items.push(row);
+      byProcessReference.set(processReference, items);
+      if (amountKey) {
+        const processAmountKey = `${processReference}::${amountKey}`;
+        const amountItems = byProcessReferenceAmount.get(processAmountKey) || [];
+        amountItems.push(row);
+        byProcessReferenceAmount.set(processAmountKey, amountItems);
+      }
+    }
+
     const contactId = cleanValue(contract?.freshsales_contact_id);
     if (contactId) {
       const byContactItems = byContactId.get(contactId) || [];
       byContactItems.push(row);
       byContactId.set(contactId, byContactItems);
 
-      const amountKey = buildAmountKey(row.balance_due_corrected ?? row.balance_due ?? row.amount_original);
       if (amountKey) {
         const contactAmountKey = `${contactId}::${amountKey}`;
         const byContactAmountItems = byContactAmount.get(contactAmountKey) || [];
         byContactAmountItems.push(row);
         byContactAmount.set(contactAmountKey, byContactAmountItems);
+      }
+    }
+
+    const emailKey = normalizeText(localContact?.email_normalized || localContact?.email);
+    if (emailKey) {
+      const items = byContactEmail.get(emailKey) || [];
+      items.push(row);
+      byContactEmail.set(emailKey, items);
+      if (amountKey) {
+        const emailAmountKey = `${emailKey}::${amountKey}`;
+        const amountItems = byContactEmailAmount.get(emailAmountKey) || [];
+        amountItems.push(row);
+        byContactEmailAmount.set(emailAmountKey, amountItems);
+      }
+    }
+
+    const nameKey = normalizeText(localContact?.name);
+    if (nameKey) {
+      const items = byContactName.get(nameKey) || [];
+      items.push(row);
+      byContactName.set(nameKey, items);
+      if (amountKey) {
+        const nameAmountKey = `${nameKey}::${amountKey}`;
+        const amountItems = byContactNameAmount.get(nameAmountKey) || [];
+        amountItems.push(row);
+        byContactNameAmount.set(nameAmountKey, amountItems);
       }
     }
   }
@@ -360,6 +444,12 @@ async function loadLocalContext() {
     byInvoice,
     byContactId,
     byContactAmount,
+    byContactEmail,
+    byContactEmailAmount,
+    byContactName,
+    byContactNameAmount,
+    byProcessReference,
+    byProcessReferenceAmount,
     productIndex: buildProductIndex(products),
   };
 }
@@ -385,7 +475,27 @@ function resolveReceivableMatch(deal, context) {
   }
 
   const contactIds = deal.contacts.map((item) => cleanValue(item?.id)).filter(Boolean);
+  const contactEmails = uniqueValues(deal.contacts.map((item) => normalizeText(item?.email)));
+  const contactNames = uniqueValues(
+    deal.contacts.map((item) => normalizeText(firstNonEmpty(item?.display_name, [item?.first_name, item?.last_name].filter(Boolean).join(' '), item?.name)))
+  );
   const amountKey = buildAmountKey(deal.amount);
+  const processReferences = uniqueValues(deal.processReferences || []);
+
+  for (const processReference of processReferences) {
+    if (amountKey) {
+      const processAmountMatches = context.byProcessReferenceAmount.get(`${processReference}::${amountKey}`) || [];
+      if (processAmountMatches.length === 1) {
+        return { row: processAmountMatches[0], reason: 'process_reference_amount_unique' };
+      }
+    }
+
+    const processMatches = context.byProcessReference.get(processReference) || [];
+    const openMatches = processMatches.filter((item) => !cleanValue(item.freshsales_deal_id));
+    if (openMatches.length === 1) {
+      return { row: openMatches[0], reason: 'process_reference_unique_open_receivable' };
+    }
+  }
 
   for (const contactId of contactIds) {
     if (amountKey) {
@@ -399,6 +509,36 @@ function resolveReceivableMatch(deal, context) {
     const openMatches = contactMatches.filter((item) => !cleanValue(item.freshsales_deal_id));
     if (openMatches.length === 1) {
       return { row: openMatches[0], reason: 'freshsales_contact_id_unique_open_receivable' };
+    }
+  }
+
+  for (const contactEmail of contactEmails) {
+    if (amountKey) {
+      const emailAmountMatches = context.byContactEmailAmount.get(`${contactEmail}::${amountKey}`) || [];
+      if (emailAmountMatches.length === 1) {
+        return { row: emailAmountMatches[0], reason: 'contact_email_amount_unique' };
+      }
+    }
+
+    const emailMatches = context.byContactEmail.get(contactEmail) || [];
+    const openMatches = emailMatches.filter((item) => !cleanValue(item.freshsales_deal_id));
+    if (openMatches.length === 1) {
+      return { row: openMatches[0], reason: 'contact_email_unique_open_receivable' };
+    }
+  }
+
+  for (const contactName of contactNames) {
+    if (amountKey) {
+      const nameAmountMatches = context.byContactNameAmount.get(`${contactName}::${amountKey}`) || [];
+      if (nameAmountMatches.length === 1) {
+        return { row: nameAmountMatches[0], reason: 'contact_name_amount_unique' };
+      }
+    }
+
+    const nameMatches = context.byContactName.get(contactName) || [];
+    const openMatches = nameMatches.filter((item) => !cleanValue(item.freshsales_deal_id));
+    if (openMatches.length === 1) {
+      return { row: openMatches[0], reason: 'contact_name_unique_open_receivable' };
     }
   }
 

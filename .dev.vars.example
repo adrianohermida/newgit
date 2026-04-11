@@ -34,6 +34,7 @@ GOOGLE_OAUTH_REFRESH_TOKEN=
 GOOGLE_ACCESS_TOKEN=
 RESEND_API_KEY=
 SITE_URL=http://localhost:8788
+<<<<<<< HEAD
 PROCESS_AI_BASE=
 LAWDESK_DEFAULT_PROVIDER=gpt
 # Segredo compartilhado entre Pages e o worker `hmadv-process-ai`.
@@ -49,6 +50,21 @@ LOCAL_LLM_API_KEY=
 LOCAL_LLM_AUTH_TOKEN=
 LOCAL_LLM_MODEL=
 CLOUDFLARE_WORKERS_AI_ENABLED=
+=======
+AGENTLAB_REMOTE_DASHBOARD_URL=https://ampwhwqbtuwxpgnzsxau.functions.supabase.co/agentLabDashboardProbe
+FRESHDESK_DOMAIN=https://sua-conta.freshdesk.com
+FRESHDESK_API_KEY=seu_api_key_freshdesk
+FRESHDESK_BASIC_TOKEN=Basic base64_token
+FRESHDESK_PORTAL_TICKET_BASE_URL=https://sua-conta.freshdesk.com/support/tickets
+FRESHDESK_NEW_TICKET_URL=https://sua-conta.freshdesk.com/support/tickets/new
+NEXT_PUBLIC_SUPPORT_CHANNEL=whatsapp
+NEXT_PUBLIC_FRESHWORKS_WIDGET_SCRIPT_URL=//eu.fw-cdn.com/10713913/375987.js
+NEXT_PUBLIC_FRESHWORKS_WIDGET_CHAT=false
+FRESHSALES_API_BASE=https://sua-conta.freshsales.io
+FRESHSALES_API_KEY=seu_token_token_header
+CLOUDFLARE_WORKER_ACCOUNT_ID=seu-account-id
+CLOUDFLARE_WORKER_API_TOKEN=cfut_...
+>>>>>>> codex/hmadv-tpu-fase53
 CLOUDFLARE_WORKERS_AI_MODEL=@cf/meta/llama-3.1-8b-instruct
 HMADV_RUNNER_TOKEN=
 ZOOM_ACCOUNT_ID=

@@ -2,7 +2,11 @@ import { getGoogleAccessToken } from '../lib/google-auth.js';
 import { MINIMUM_LEAD_HOURS, isSlotBookable } from '../lib/slot-policy.js';
 import { getSupabaseBaseUrl, getSupabaseServerKey, inspectSupabaseKey } from '../lib/env.js';
 import { buildActionLinks, formatAgendamentoDate, INTERNAL_RECIPIENTS, sendTransactionalEmail, getSiteUrl } from '../lib/agendamento-helpers.js';
+<<<<<<< HEAD
 import { runAgendamentoBookedIntegrations } from '../lib/agendamento-integrations.js';
+=======
+import { validatePublicMutationRequest } from '../lib/request-protection.js';
+>>>>>>> codex/hmadv-tpu-fase53
 
 // Função simples para gerar uuidv4-like (suficiente para ambiente Cloudflare)
 // Função para gerar uuidv4 (Cloudflare)
@@ -16,6 +20,12 @@ function uuidv4() {
 export async function onRequestPost(context) {
   const { request, env } = context;
   const body = await request.json();
+  const blocked = await validatePublicMutationRequest(request, env, body, {
+    honeypotFields: ['website', 'company_url'],
+  });
+  if (blocked) {
+    return blocked;
+  }
   const { nome, email, telefone, observacoes, area, data, hora } = body;
 
   // Validação de campos obrigatórios

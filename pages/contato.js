@@ -9,10 +9,12 @@ export default function Contato() {
     email: '',
     phone: '',
     subject: 'Revisão de Dívidas',
-    message: ''
+    message: '',
+    website: ''
   });
   const [loading, setLoading] = React.useState(false);
   const [feedback, setFeedback] = React.useState(null);
+  const startedAtRef = React.useRef(Date.now());
 
   const handleChange = e => {
     const { name, value } = e.target;
@@ -36,13 +38,16 @@ export default function Contato() {
           email: form.email,
           subject: form.subject,
           description: `${form.message}\nTelefone: ${form.phone}`,
-          custom_fields: {}
+          custom_fields: {},
+          website: form.website,
+          startedAt: startedAtRef.current
         })
       });
       const data = await res.json();
       if (data.ok) {
         setFeedback('Mensagem enviada com sucesso! Em breve entraremos em contato.');
-        setForm({ name: '', email: '', phone: '', subject: 'Revisão de Dívidas', message: '' });
+        startedAtRef.current = Date.now();
+        setForm({ name: '', email: '', phone: '', subject: 'Revisão de Dívidas', message: '', website: '' });
       } else {
         setFeedback('Erro ao enviar mensagem: ' + (data.error || 'Tente novamente.'));
       }
@@ -93,6 +98,10 @@ export default function Contato() {
             <div className="flex flex-col gap-2">
               <label className="text-sm font-semibold text-[#C5A059]">Sua Mensagem</label>
               <textarea name="message" value={form.message} onChange={handleChange} className="rounded-lg border-[#2D2E2E] bg-[#232323] p-3 text-[#F4F1EA] focus:border-[#C5A059] focus:ring-[#C5A059]" placeholder="Como podemos ajudar?" rows={4} required></textarea>
+            </div>
+            <div className="hidden" aria-hidden="true">
+              <label>Website</label>
+              <input name="website" value={form.website} onChange={handleChange} tabIndex={-1} autoComplete="off" />
             </div>
             <button className="w-full rounded-lg bg-[#C5A059] py-4 font-bold text-[#050706] transition-transform hover:scale-[1.02]" type="submit" disabled={loading}>
               {loading ? 'Enviando...' : 'Enviar Mensagem com Segurança'}

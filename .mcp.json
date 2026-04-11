@@ -4,7 +4,7 @@
       "type": "http",
       "url": "https://stitch.googleapis.com/mcp",
       "headers": {
-        "X-Goog-Api-Key": "AQ.Ab8RN6J1nOTT1CZ3B-HbkFFqQDiQdOq-I12rWs-VfwSLd75Q1g"
+        "X-Goog-Api-Key": "SET_LOCAL_GOOGLE_API_KEY"
       }
     }
   }

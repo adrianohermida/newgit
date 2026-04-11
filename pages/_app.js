@@ -10,6 +10,10 @@ import useConsoleRouteInstrumentation from '../hooks/useConsoleRouteInstrumentat
 
 const FreshchatWebMessenger = dynamic(() => import('../components/FreshchatWebMessenger'), { ssr: false });
 
+const freshworksWidgetScriptUrl =
+  process.env.NEXT_PUBLIC_FRESHWORKS_WIDGET_SCRIPT_URL || '//eu.fw-cdn.com/10713913/375987.js';
+const freshworksChatEnabled = process.env.NEXT_PUBLIC_FRESHWORKS_WIDGET_CHAT === 'true';
+
 export default function App({ Component, pageProps }) {
   const router = useRouter();
   const isPortalRoute = String(router.pathname || '').startsWith('/portal');
@@ -49,10 +53,29 @@ export default function App({ Component, pageProps }) {
         setmoreScript?.remove();
         setmoreButton?.remove();
       }
+<<<<<<< HEAD
 
       const legacyTrackingScript = document.getElementById('freshsales_crm_script');
       if (legacyTrackingScript) {
         legacyTrackingScript.remove();
+=======
+      if (!document.getElementById('Setmore_button_iframe')) {
+        const a = document.createElement('a');
+        a.id = 'Setmore_button_iframe';
+        a.href = 'https://booking.setmore.com/scheduleappointment/93965fbc-3be5-4b72-aa5b-3b2e2b67d46b';
+        a.style.cssText = 'float:none; position: fixed; right: -2px; top: 25%; display: block; z-index: 20000';
+        a.innerHTML = '<img border="none" src="https://fm.sendpul.se/8672e56ee69550b039f6b32e73b058d56692731/Site/booking.svg" alt="Book an appointment with Hermida Maia Advocacia using Setmore"/>';
+        document.body.appendChild(a);
+      }
+      // Freshsales Suite CRM Tracking
+      if (freshworksWidgetScriptUrl && !document.getElementById('freshworks_widget_script')) {
+        const crmScript = document.createElement('script');
+        crmScript.id = 'freshworks_widget_script';
+        crmScript.src = freshworksWidgetScriptUrl;
+        crmScript.setAttribute('chat', freshworksChatEnabled ? 'true' : 'false');
+        crmScript.async = true;
+        document.body.appendChild(crmScript);
+>>>>>>> codex/hmadv-tpu-fase53
       }
     }
   }, [isInternalRoute, isPortalRoute]);

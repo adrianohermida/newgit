@@ -422,9 +422,18 @@ FodyWeavers.xsd
 
 # Wrangler local secrets (nunca commitar)
 .dev.vars
+.mcp.json
 
 # Wrangler runtime/cache
 .wrangler/
 
 # Static export
 out/
+
+# Local workspace analysis and generated operational artifacts
+supabase/.temp/
+_analysis/
+_hmadv_review/
+_postdeploy_check/
+_stitch/
+_tmp_docx_review/

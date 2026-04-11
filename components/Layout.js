@@ -3,8 +3,12 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/router";
 import dynamic from "next/dynamic";
+<<<<<<< HEAD
 import { setModuleHistory } from "../lib/admin/activity-log";
 const WhatsappWidgetCircle = dynamic(() => import("./WhatsappWidgetCircle"), { ssr: false });
+=======
+const SupportWidget = dynamic(() => import("./SupportWidget"), { ssr: false });
+>>>>>>> codex/hmadv-tpu-fase53
 
 const NAV_ITEMS = [
   { label: "Início", href: "/" },
@@ -348,7 +352,7 @@ export default function Layout({ children }) {
           </div>
         </div>
       </footer>
-      <WhatsappWidgetCircle />
+      <SupportWidget />
     </div>
   );
 }

@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 # HMADV - Fechamento 100% da Integracao
+=======
+﻿# HMADV - Fechamento 100% da Integracao
+>>>>>>> codex/hmadv-tpu-fase53
 
 ## Objetivo final
 
@@ -40,7 +44,10 @@ Aceite:
 - `LEILAO_IGNORADO` aparece apenas nos casos de leilao;
 - publicacoes validas criam activity unica no Freshsales;
 - account recalcula `Diario`, `Publicacao em`, `Conteudo publicacao`.
+<<<<<<< HEAD
 - cada publicacao nova relevante tambem gera registro correspondente em `Consulta`.
+=======
+>>>>>>> codex/hmadv-tpu-fase53
 
 ## Fase 3 - Partes por publicacoes
 
@@ -63,18 +70,25 @@ Arquivos:
 - [hmadv_fase4_audiencias_schema.sql](/D:/Github/newgit/docs/hmadv_fase4_audiencias_schema.sql)
 - [hmadv_reconciliar_audiencias.ps1](/D:/Github/newgit/docs/hmadv_reconciliar_audiencias.ps1)
 - [hmadv_fase4_audiencias.md](/D:/Github/newgit/docs/hmadv_fase4_audiencias.md)
+<<<<<<< HEAD
 - [hmadv_freshsales_consulta_rollout.md](/D:/Github/newgit/docs/hmadv_freshsales_consulta_rollout.md)
 - [hmadv_freshsales_rate_limit.md](/D:/Github/newgit/docs/hmadv_freshsales_rate_limit.md)
 - [hmadv_deploy_homologacao.md](/D:/Github/newgit/docs/hmadv_deploy_homologacao.md)
+=======
+>>>>>>> codex/hmadv-tpu-fase53
 
 Aceite:
 
 - `judiciario.audiencias` aplicada;
 - candidatas auditadas;
 - `sales_activity_type_id` de Audiencias definido no Freshsales;
+<<<<<<< HEAD
 - exportacao idempotente pronta para entrar no `sync-worker`;
 - audiencias futuras criam `Reuniões/Appointments` automaticamente quando possivel;
 - cada nova audiencia relevante tambem gera registro correspondente em `Consulta`.
+=======
+- exportacao idempotente pronta para entrar no `sync-worker`.
+>>>>>>> codex/hmadv-tpu-fase53
 
 ## Fase 5 - TPU / SGT
 
@@ -103,6 +117,7 @@ Aceite:
 - carga anual da TPU fica repetivel a partir dos dumps reais `ITENS`;
 - complementos e temporalidade ficam disponiveis para movimentos e futuras regras de audiencia/prazo.
 
+<<<<<<< HEAD
 ### Fase 5.4 - Gateway TPU detalhado
 
 - `tpu-sync` deve consultar:
@@ -137,6 +152,8 @@ Aceite:
 - detectar decisao
 - detectar despacho
 
+=======
+>>>>>>> codex/hmadv-tpu-fase53
 ## Fase 6 - Camada institucional CNJ
 
 Arquivos base:
@@ -159,6 +176,7 @@ Aceite:
 - `advise-sync`: incremental diario
 - `fs-account-repair`: janelas pequenas ate estabilizar os accounts
 - `tpu-sync`: diario ou semanal, depois da carga anual
+<<<<<<< HEAD
 - `hmadv-process-ai`: cron no Cloudflare para reconciliacao e resumos
 
 ## Fase 7 - Cloudflare AI
@@ -244,6 +262,8 @@ Aceite:
 - calculo automatico de prazo a partir de publicacoes, movimentos e audiencias;
 - `Tasks` no Freshsales vinculadas ao processo;
 - IA preenchendo descricoes e contexto das tasks de prazo e audiencia.
+=======
+>>>>>>> codex/hmadv-tpu-fase53
 
 ## Indicadores de pronto
 
@@ -253,6 +273,7 @@ Aceite:
 - `processos_sem_polos` em queda sustentada
 - `audiencias` detectadas e prontas para exportacao
 - `movimentos` com TPU em cobertura aceitavel
+<<<<<<< HEAD
 - `contacts` relacionados consistentes por processo
 - `prazos_calculados` com tasks geradas para eventos elegiveis
 - auditoria operacional de [hmadv_garantia_operacional.md](/D:/Github/newgit/docs/hmadv_garantia_operacional.md) sem pendencias criticas
@@ -276,6 +297,8 @@ Aceite:
   - bloquear quando a evidencia for fraca
 - worker IA fica homologado para `notes`, `tasks` e suporte a reconciliacao;
 - roadmap de integracao Slack fica formalizado para consulta e acao conversacional.
+=======
+>>>>>>> codex/hmadv-tpu-fase53
 
 ## Ordem recomendada
 
@@ -286,9 +309,14 @@ Aceite:
 5. Rodar a carga anual da TPU
 6. Resolver backlog historico via `tpu-sync`
 7. Concluir camada institucional
+<<<<<<< HEAD
 8. Publicar e integrar o Cloudflare Worker IA
 9. Destravar audiencias e appointments
 10. Implantar contatos, polos e status processual
 11. Implantar motor de prazos processuais
 12. Fechar reconciliacao diaria Freshsales x Supabase
 13. Homologar o worker IA e abrir a frente conversacional via Slack
+=======
+8. Fechar reconciliacao diaria Freshsales x Supabase
+
+>>>>>>> codex/hmadv-tpu-fase53

@@ -1,4 +1,12 @@
 import { fetchSupabaseAdmin } from "./supabase-rest.js";
+import { buildConversationIntelligencePayload } from "../../lib/agentlab/conversation-intelligence.js";
+import {
+  normalizeTrainingRun,
+  normalizeTrainingScenario,
+  summarizeTrainingCenter,
+} from "../../lib/agentlab/training-center.js";
+const REMOTE_AGENTLAB_DASHBOARD_URL =
+  "https://ampwhwqbtuwxpgnzsxau.functions.supabase.co/agentLabDashboardProbe";
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -75,6 +83,23 @@ function summarizeConversations(rows) {
   }
 
   return Array.from(channelMap.values()).sort((left, right) => right.total - left.total);
+}
+
+function summarizeImprovementQueue(rows) {
+  const byCategory = new Map();
+  const bySprint = new Map();
+
+  for (const row of rows) {
+    const category = row.category || "geral";
+    const sprint = row.sprint_bucket || "Sem sprint";
+    byCategory.set(category, (byCategory.get(category) || 0) + 1);
+    bySprint.set(sprint, (bySprint.get(sprint) || 0) + 1);
+  }
+
+  return {
+    by_category: Array.from(byCategory.entries()).map(([category, total]) => ({ category, total })),
+    by_sprint: Array.from(bySprint.entries()).map(([sprint, total]) => ({ sprint, total })),
+  };
 }
 
 function isMissingSourceError(error) {
@@ -178,22 +203,127 @@ export async function getAgentLabDashboard(env) {
   conversationParams.set("order", "updated_at.desc");
   conversationParams.set("limit", "30");
 
-  const [agentsRaw, runsRaw, snapshotsRaw, conversationsRaw] = await Promise.all([
+  const intelligenceThreadParams = new URLSearchParams();
+  intelligenceThreadParams.set(
+    "select",
+    "id,source_system,source_conversation_id,workspace_id,contact_id,process_id,channel,status,subject,last_message,started_at,last_message_at,assigned_to,sentiment_label,urgency_label,intent_label,handoff_required,metadata,raw_payload,created_at,updated_at"
+  );
+  intelligenceThreadParams.set("order", "last_message_at.desc");
+  intelligenceThreadParams.set("limit", "100");
+
+  const intelligenceIncidentParams = new URLSearchParams();
+  intelligenceIncidentParams.set(
+    "select",
+    "id,source_system,category,severity,status,title,description,agent_ref,conversation_id,internal_user_id,internal_user_email,metadata,occurred_at,created_at,updated_at"
+  );
+  intelligenceIncidentParams.set("order", "occurred_at.desc");
+  intelligenceIncidentParams.set("limit", "100");
+
+  const profileParams = new URLSearchParams();
+  profileParams.set(
+    "select",
+    "id,agent_ref,agent_name,owner_name,business_goal,persona_prompt,response_policy,knowledge_strategy,workflow_strategy,handoff_rules,settings,metrics,status,updated_at"
+  );
+  profileParams.set("order", "updated_at.desc");
+
+  const queueParams = new URLSearchParams();
+  queueParams.set(
+    "select",
+    "id,agent_ref,category,title,description,priority,status,source_channel,sprint_bucket,metadata,updated_at"
+  );
+  queueParams.set("order", "updated_at.desc");
+  queueParams.set("limit", "100");
+
+  const trainingScenarioParams = new URLSearchParams();
+  trainingScenarioParams.set(
+    "select",
+    "id,agent_ref,scenario_name,category,user_message,expected_intent,expected_outcome,expected_workflow,expected_knowledge_pack,expected_handoff,difficulty,score_threshold,tags,metadata,status,created_at,updated_at"
+  );
+  trainingScenarioParams.set("order", "scenario_name.asc");
+
+  const trainingRunParams = new URLSearchParams();
+  trainingRunParams.set(
+    "select",
+    "id,scenario_id,agent_ref,provider,model,prompt_version,generated_response,evaluator_summary,intent_detected,handoff_recommended,scores,recommendations,raw_result,status,created_at"
+  );
+  trainingRunParams.set("order", "created_at.desc");
+  trainingRunParams.set("limit", "30");
+
+  const sourceSyncRunParams = new URLSearchParams();
+  sourceSyncRunParams.set("select", "id,source_name,sync_scope,status,records_synced,notes,metadata,created_at");
+  sourceSyncRunParams.set("order", "created_at.desc");
+  sourceSyncRunParams.set("limit", "20");
+
+  const [agentsRaw, runsRaw, snapshotsRaw, conversationsRaw, intelligenceThreadsRaw, intelligenceIncidentsRaw, sourceSyncRunsRaw, profilesRaw, queueRaw, trainingScenariosRaw, trainingRunsRaw] = await Promise.all([
     fetchAgentsWithFallback(env, warnings),
     safeFetchSupabaseAdmin(env, `freshsales_sync_runs?${runParams.toString()}`, [], warnings, "freshsales_sync_runs"),
     safeFetchSupabaseAdmin(env, `freshsales_sync_snapshots?${snapshotParams.toString()}`, [], warnings, "freshsales_sync_snapshots"),
     safeFetchSupabaseAdmin(env, `conversas?${conversationParams.toString()}`, [], warnings, "conversas"),
+    safeFetchSupabaseAdmin(env, `agentlab_conversation_threads?${intelligenceThreadParams.toString()}`, [], warnings, "agentlab_conversation_threads"),
+    safeFetchSupabaseAdmin(env, `agentlab_incidents?${intelligenceIncidentParams.toString()}`, [], warnings, "agentlab_incidents"),
+    safeFetchSupabaseAdmin(env, `agentlab_source_sync_runs?${sourceSyncRunParams.toString()}`, [], warnings, "agentlab_source_sync_runs"),
+    safeFetchSupabaseAdmin(env, `agentlab_agent_profiles?${profileParams.toString()}`, [], warnings, "agentlab_agent_profiles"),
+    safeFetchSupabaseAdmin(env, `agentlab_improvement_queue?${queueParams.toString()}`, [], warnings, "agentlab_improvement_queue"),
+    safeFetchSupabaseAdmin(env, `agentlab_training_scenarios?${trainingScenarioParams.toString()}`, [], warnings, "agentlab_training_scenarios"),
+    safeFetchSupabaseAdmin(env, `agentlab_training_runs?${trainingRunParams.toString()}`, [], warnings, "agentlab_training_runs"),
   ]);
 
   const agents = asArray(agentsRaw).map(normalizeAgent);
   const runs = asArray(runsRaw);
   const snapshots = asArray(snapshotsRaw);
   const conversations = asArray(conversationsRaw);
+  const intelligenceThreads = asArray(intelligenceThreadsRaw);
+  const intelligenceIncidents = asArray(intelligenceIncidentsRaw);
+  const sourceSyncRuns = asArray(sourceSyncRunsRaw);
+  const profiles = asArray(profilesRaw);
+  const queue = asArray(queueRaw);
+  const trainingScenarios = asArray(trainingScenariosRaw).map(normalizeTrainingScenario);
+  const trainingRuns = asArray(trainingRunsRaw).map(normalizeTrainingRun);
   const coverage = summarizeSnapshots(snapshots);
   const channels = summarizeConversations(conversations);
+  const conversationIntelligence = buildConversationIntelligencePayload(
+    intelligenceThreads.length ? intelligenceThreads : conversations,
+    intelligenceIncidents
+  );
+  const queueSummary = summarizeImprovementQueue(queue);
+  const trainingSummary = summarizeTrainingCenter(trainingScenarios, trainingRuns);
 
   const totalSnapshots = coverage.reduce((sum, item) => sum + item.total, 0);
   const lastSyncAt = runs.length ? runs[0].completed_at || runs[0].started_at : null;
+
+  const noPrimaryData =
+    agents.length === 0 &&
+    runs.length === 0 &&
+    snapshots.length === 0 &&
+    conversations.length === 0 &&
+    warnings.length > 0;
+
+  if (noPrimaryData) {
+    try {
+      const response = await fetch(env.AGENTLAB_REMOTE_DASHBOARD_URL || REMOTE_AGENTLAB_DASHBOARD_URL, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const payload = await response.json();
+        if (payload?.success) {
+          return {
+            ...payload,
+            warnings: payload.warnings || [],
+          };
+        }
+      }
+    } catch (_error) {
+      warnings.push({
+        source: "remote_fallback",
+        level: "warning",
+        message: "Falha ao consultar o fallback remoto do AgentLab.",
+      });
+    }
+  }
 
   return {
     overview: {
@@ -203,8 +333,16 @@ export async function getAgentLabDashboard(env) {
       total_snapshots: totalSnapshots,
       recent_sync_runs: runs.length,
       recent_conversations: conversations.length,
-      conversation_channels: channels.length,
+      conversation_channels: conversationIntelligence.summary.by_channel?.length || channels.length,
       last_sync_at: lastSyncAt,
+      configured_agent_profiles: profiles.length,
+      improvement_queue_items: queue.length,
+      training_scenarios: trainingSummary.total_scenarios,
+      training_runs: trainingSummary.total_runs,
+      training_average_score: trainingSummary.average_score,
+      imported_conversations: conversationIntelligence.summary.total_threads || 0,
+      open_incidents: conversationIntelligence.summary.open_incidents || 0,
+      source_sync_runs: sourceSyncRuns.length,
     },
     agents,
     crm_sync: {
@@ -212,8 +350,30 @@ export async function getAgentLabDashboard(env) {
       coverage,
     },
     conversations: {
-      channels,
-      recent: conversations,
+      channels: conversationIntelligence.summary.by_channel?.length
+        ? conversationIntelligence.summary.by_channel.map((item) => ({
+            channel: item.channel,
+            total: item.total,
+            statuses: {},
+          }))
+        : channels,
+      recent: conversationIntelligence.threads.length ? conversationIntelligence.threads : conversations,
+    },
+    intelligence: {
+      summary: conversationIntelligence.summary,
+      threads: conversationIntelligence.threads,
+      incidents: conversationIntelligence.incidents,
+      sync_runs: sourceSyncRuns,
+    },
+    governance: {
+      profiles,
+      queue,
+      queue_summary: queueSummary,
+    },
+    training: {
+      summary: trainingSummary,
+      scenarios: trainingScenarios,
+      recent_runs: trainingRuns,
     },
     warnings,
   };
