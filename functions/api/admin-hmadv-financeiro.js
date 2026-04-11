@@ -4,6 +4,7 @@ import {
   getHmadvFinanceAdminConfig,
   getHmadvFinanceAdminOverview,
   updateHmadvFinanceAdminConfig,
+  resolveHmadvFinancePendingContacts,
   resolveHmadvFinancePendingAccounts,
   searchHmadvFinanceProcessCandidates,
 } from "../lib/hmadv-finance-admin.js";
@@ -77,8 +78,24 @@ export async function onRequestPost(context) {
       const data = await resolveHmadvFinancePendingAccounts(context.env, body || {});
       return jsonOk({ data });
     }
+    if (action === "resolve_contact_rows") {
+      const data = await resolveHmadvFinancePendingContacts(context.env, body || {});
+      return jsonOk({ data });
+    }
     if (action === "run_operation") {
-      return jsonError(new Error("Operacao runner disponivel apenas na rota Node /api/admin-hmadv-financeiro neste ambiente."), 501);
+      return new Response(JSON.stringify({
+        ok: false,
+        error: "Operacao runner disponivel apenas na rota Node /api/admin-hmadv-financeiro neste ambiente.",
+        runner_available: false,
+        fallback_actions: [
+          "backfill_textual_accounts",
+          "resolve_account_rows",
+          "update_config",
+        ],
+      }), {
+        status: 501,
+        headers: { "Content-Type": "application/json" },
+      });
     }
     if (action === "update_config") {
       const data = await updateHmadvFinanceAdminConfig(context.env, body || {});

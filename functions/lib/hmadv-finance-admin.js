@@ -1,6 +1,7 @@
 import { fetchSupabaseAdmin } from "./supabase-rest.js";
 import { freshsalesRequest, listFreshsalesSalesAccountsFromViews } from "./freshsales-crm.js";
 import { getCleanEnvValue } from "./env.js";
+import { createContact, linkPartesToExistingContact } from "./hmadv-contacts.js";
 
 function safeJsonParse(value, fallback = {}) {
   if (!value) return fallback;
@@ -857,6 +858,99 @@ function formatProcessCandidate(item, source = "processos", matchedBy = "query")
   };
 }
 
+async function updateFinanceImportRow(env, rowId, patch) {
+  await fetchSupabaseSchema(
+    env,
+    `billing_import_rows?id=eq.${encodeURIComponent(String(rowId))}`,
+    {
+      schema: "public",
+      init: {
+        method: "PATCH",
+        headers: {
+          Prefer: "return=minimal",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(patch),
+      },
+    }
+  );
+}
+
+async function loadFinanceImportRowsByIds(env, rowIds = []) {
+  if (!rowIds.length) return [];
+  return fetchSupabaseSchema(
+    env,
+    `billing_import_rows?select=id,person_name,email,email_normalized,invoice_number,due_date,matching_status,resolved_contact_id,resolved_process_id,resolved_account_id_freshsales,resolved_process_reference,deal_reference_raw,product_family_inferred,billing_type_inferred,validation_errors&id=in.(${rowIds.map((item) => `"${item}"`).join(",")})`,
+    { schema: "public" }
+  );
+}
+
+async function findFinancePartesByPersonName(env, personName, limit = 20) {
+  const normalizedName = normalizeText(personName);
+  if (!normalizedName) return { exact: [], broad: [], processos: [] };
+
+  const encodedLike = encodeURIComponent(`*${String(personName || "").replace(/\*/g, "").trim()}*`);
+  const partes = await fetchSupabaseSchema(
+    env,
+    `partes?select=id,processo_id,nome,polo,tipo_pessoa,contato_freshsales_id,cliente_hmadv,representada_pelo_escritorio,principal_no_account&nome=ilike.${encodedLike}&limit=${Math.max(5, Math.min(limit, 50))}`,
+    { schema: "judiciario" }
+  ).catch(() => []);
+
+  const safePartes = Array.isArray(partes) ? partes : [];
+  const exact = safePartes.filter((item) => normalizeText(item?.nome) === normalizedName);
+  const processIds = uniqueBy(
+    safePartes.map((item) => item?.processo_id).filter(Boolean),
+    (item) => item
+  );
+
+  const processos = processIds.length
+    ? await fetchSupabaseSchema(
+        env,
+        `processos?select=id,numero_cnj,numero_processo,titulo,account_id_freshsales,status_atual_processo,updated_at&id=in.(${processIds.map((item) => `"${item}"`).join(",")})&limit=${Math.max(processIds.length, 1)}`,
+        { schema: "judiciario" }
+      ).catch(() => [])
+    : [];
+
+  return {
+    exact,
+    broad: safePartes,
+    processos: Array.isArray(processos) ? processos : [],
+  };
+}
+
+function chooseFinanceProcessCandidate(row, parteProcessCandidates = [], searchedCandidates = []) {
+  const explicitReferences = [
+    normalizeText(row?.resolved_process_reference),
+    normalizeText(row?.deal_reference_raw),
+    normalizeText(row?.invoice_number),
+  ].filter(Boolean);
+
+  const merged = uniqueBy(
+    [
+      ...parteProcessCandidates.map((item) => formatProcessCandidate(item, "partes", "nome_da_parte")),
+      ...searchedCandidates.map((item) => ({ ...item })),
+    ],
+    (item) => item.id
+  );
+
+  for (const candidate of merged) {
+    const corpus = [
+      normalizeText(candidate?.numero_cnj),
+      normalizeText(candidate?.numero_processo),
+      normalizeText(candidate?.titulo),
+      normalizeText(candidate?.account_id_freshsales),
+    ].filter(Boolean);
+    if (explicitReferences.some((reference) => corpus.some((piece) => piece && piece.includes(reference)))) {
+      return candidate;
+    }
+  }
+
+  const withAccount = merged.filter((item) => cleanValue(item?.account_id_freshsales));
+  if (withAccount.length === 1) return withAccount[0];
+  if (merged.length === 1) return merged[0];
+  return null;
+}
+
 export async function searchHmadvFinanceProcessCandidates(env, rawQuery, limit = 20) {
   const query = String(rawQuery || "").trim();
   if (!query) {
@@ -971,6 +1065,113 @@ export async function resolveHmadvFinancePendingAccounts(env, payload = {}) {
     freshsales_account_id: explicitAccountId,
     process_reference: explicitProcessReference,
     rows: updates,
+  };
+}
+
+export async function resolveHmadvFinancePendingContacts(env, payload = {}) {
+  const rowIds = uniqueBy(Array.isArray(payload.rowIds) ? payload.rowIds.filter(Boolean) : [], (item) => item);
+  if (!rowIds.length) {
+    throw new Error("Nenhuma linha pendente de contato foi informada.");
+  }
+
+  const rows = await loadFinanceImportRowsByIds(env, rowIds);
+  const processed = [];
+
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const personName = firstNonEmpty(row?.person_name, row?.email, row?.invoice_number);
+    if (!personName) {
+      await updateFinanceImportRow(env, row.id, {
+        matching_status: "pendente_revisao",
+      });
+      processed.push({
+        id: row.id,
+        created_contact: null,
+        linked_partes: 0,
+        matching_status: "pendente_revisao",
+        error: "Linha sem nome ou email para criar contato.",
+        possible_processes: [],
+      });
+      continue;
+    }
+
+    const created = await createContact(env, {
+      name: row.person_name || row.email,
+      type: "Cliente",
+      email: row.email || row.email_normalized || null,
+      externalId: `hmadv:financeiro:import_row:${row.id}`,
+    });
+
+    const createdContactId = String(created?.id || "").trim();
+    if (!createdContactId) {
+      throw new Error(`Freshsales nao retornou id para a linha ${row.id}.`);
+    }
+
+    const parteMatches = await findFinancePartesByPersonName(env, row.person_name || row.email || "", 30);
+    const exactUnlinkedPartes = (parteMatches.exact || []).filter((item) => !cleanValue(item?.contato_freshsales_id));
+
+    if (exactUnlinkedPartes.length) {
+      await linkPartesToExistingContact(env, {
+        parteIds: exactUnlinkedPartes.map((item) => item.id),
+        contactId: createdContactId,
+        type: "Cliente",
+      });
+    }
+
+    const searchedCandidates = [];
+    const searchQueries = uniqueBy(
+      [row?.resolved_process_reference, row?.deal_reference_raw, row?.person_name].filter(Boolean),
+      (item) => item
+    );
+    for (const query of searchQueries) {
+      const result = await searchHmadvFinanceProcessCandidates(env, query, 10);
+      searchedCandidates.push(...(Array.isArray(result?.items) ? result.items : []));
+    }
+
+    const chosenProcess = chooseFinanceProcessCandidate(row, parteMatches.processos || [], searchedCandidates);
+    const nextAccountId = cleanValue(row?.resolved_account_id_freshsales) || cleanValue(chosenProcess?.account_id_freshsales) || null;
+    const nextProcessReference =
+      cleanValue(row?.resolved_process_reference) ||
+      cleanValue(chosenProcess?.numero_cnj) ||
+      cleanValue(chosenProcess?.numero_processo) ||
+      cleanValue(chosenProcess?.titulo) ||
+      cleanValue(row?.deal_reference_raw) ||
+      null;
+    const nextStatus = nextAccountId || chosenProcess?.id ? "pareado" : "pendente_account";
+
+    await updateFinanceImportRow(env, row.id, {
+      resolved_contact_id: createdContactId,
+      resolved_process_id: chosenProcess?.id || row?.resolved_process_id || null,
+      resolved_account_id_freshsales: nextAccountId,
+      resolved_process_reference: nextProcessReference,
+      matching_status: nextStatus,
+    });
+
+    processed.push({
+      id: row.id,
+      created_contact: {
+        id: createdContactId,
+        name: [created?.first_name, created?.last_name].filter(Boolean).join(" ").trim() || row.person_name || row.email || "Contato criado",
+        email: row.email || row.email_normalized || null,
+      },
+      linked_partes: exactUnlinkedPartes.length,
+      matching_status: nextStatus,
+      process: chosenProcess || null,
+      possible_processes: uniqueBy(
+        [
+          ...(parteMatches.processos || []).map((item) => formatProcessCandidate(item, "partes", "nome_da_parte")),
+          ...searchedCandidates,
+        ],
+        (item) => item.id
+      ).slice(0, 10),
+    });
+  }
+
+  return {
+    updated: processed.length,
+    contacts_created: processed.filter((item) => item.created_contact?.id).length,
+    partes_linked: processed.reduce((sum, item) => sum + Number(item.linked_partes || 0), 0),
+    matched_processes: processed.filter((item) => item.process?.id).length,
+    rows: processed,
   };
 }
 

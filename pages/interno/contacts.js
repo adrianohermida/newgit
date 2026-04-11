@@ -336,6 +336,37 @@ function ContactsContent() {
     }
     loadDetail(selectedContactId);
   }, [selectedContactId]);
+  const overviewData = overview.data || {};
+  const typeOptions = useMemo(() => Object.entries(overviewData.tipos || {}).sort((a, b) => b[1] - a[1]), [overviewData.tipos]);
+  const selectedParteNumbers = useMemo(() => {
+    const procMap = new Map();
+    for (const item of partesPendentes.items) {
+      if (selectedPartes.includes(item.id) && item.processo?.numero_cnj) procMap.set(item.processo.numero_cnj, item.processo.numero_cnj);
+    }
+    return Array.from(procMap.values());
+  }, [partesPendentes.items, selectedPartes]);
+  const pendingPageSelectedCount = useMemo(() => partesPendentes.items.filter((item) => selectedPartes.includes(item.id)).length, [partesPendentes.items, selectedPartes]);
+  const linkedPageSelectedCount = useMemo(() => partesVinculadas.items.filter((item) => selectedLinkedPartes.includes(item.id)).length, [partesVinculadas.items, selectedLinkedPartes]);
+  const allPendingPageSelected = Boolean(partesPendentes.items.length) && pendingPageSelectedCount === partesPendentes.items.length;
+  const allLinkedPageSelected = Boolean(partesVinculadas.items.length) && linkedPageSelectedCount === partesVinculadas.items.length;
+  const contactPageSelectedCount = useMemo(() => listState.items.filter((item) => selectedContactIds.includes(item.freshsales_contact_id)).length, [listState.items, selectedContactIds]);
+  const allContactPageSelected = Boolean(listState.items.length) && contactPageSelectedCount === listState.items.length;
+  const bulkCreateNames = useMemo(() => parseBulkLines(bulkCreateText), [bulkCreateText]);
+  const pendingContactJobs = useMemo(() => jobsState.items.filter((item) => ["pending", "running"].includes(String(item?.status || ""))).length, [jobsState.items]);
+  const contactsGuardrail = useMemo(() => deriveContactsOperationalGuardrail({
+    entries: contactsLogEntries,
+    fingerprintStates,
+    syncLimit,
+    reconcileLimit,
+    selectedContacts: selectedContactIds.length,
+    selectedPartes: selectedPartes.length,
+    bulkCreateCount: bulkCreateNames.length,
+    pendingJobs: pendingContactJobs,
+  }), [bulkCreateNames.length, contactsLogEntries, fingerprintStates, pendingContactJobs, reconcileLimit, selectedContactIds.length, selectedPartes.length, syncLimit]);
+  const missingEmailOnPage = useMemo(() => listState.items.filter((item) => !item.email).length, [listState.items]);
+  const missingPhoneOnPage = useMemo(() => listState.items.filter((item) => !item.phone).length, [listState.items]);
+  const missingDocumentOnPage = useMemo(() => listState.items.filter((item) => !item.cpf && !item.cnpj).length, [listState.items]);
+
   useEffect(() => {
     setModuleHistory("contacts", {
       overview: overview.data || null,
@@ -654,41 +685,10 @@ function ContactsContent() {
     return Number.isNaN(Date.parse(iso)) ? null : iso;
   }
 
-  const overviewData = overview.data || {};
-  const typeOptions = useMemo(() => Object.entries(overviewData.tipos || {}).sort((a, b) => b[1] - a[1]), [overviewData.tipos]);
-  const selectedParteNumbers = useMemo(() => {
-    const procMap = new Map();
-    for (const item of partesPendentes.items) {
-      if (selectedPartes.includes(item.id) && item.processo?.numero_cnj) procMap.set(item.processo.numero_cnj, item.processo.numero_cnj);
-    }
-    return Array.from(procMap.values());
-  }, [partesPendentes.items, selectedPartes]);
-  const pendingPageSelectedCount = useMemo(() => partesPendentes.items.filter((item) => selectedPartes.includes(item.id)).length, [partesPendentes.items, selectedPartes]);
-  const linkedPageSelectedCount = useMemo(() => partesVinculadas.items.filter((item) => selectedLinkedPartes.includes(item.id)).length, [partesVinculadas.items, selectedLinkedPartes]);
-  const allPendingPageSelected = Boolean(partesPendentes.items.length) && pendingPageSelectedCount === partesPendentes.items.length;
-  const allLinkedPageSelected = Boolean(partesVinculadas.items.length) && linkedPageSelectedCount === partesVinculadas.items.length;
-  const contactPageSelectedCount = useMemo(() => listState.items.filter((item) => selectedContactIds.includes(item.freshsales_contact_id)).length, [listState.items, selectedContactIds]);
-  const allContactPageSelected = Boolean(listState.items.length) && contactPageSelectedCount === listState.items.length;
-  const bulkCreateNames = useMemo(() => parseBulkLines(bulkCreateText), [bulkCreateText]);
-  const pendingContactJobs = useMemo(() => jobsState.items.filter((item) => ["pending", "running"].includes(String(item?.status || ""))).length, [jobsState.items]);
-  const contactsGuardrail = useMemo(() => deriveContactsOperationalGuardrail({
-    entries: contactsLogEntries,
-    fingerprintStates,
-    syncLimit,
-    reconcileLimit,
-    selectedContacts: selectedContactIds.length,
-    selectedPartes: selectedPartes.length,
-    bulkCreateCount: bulkCreateNames.length,
-    pendingJobs: pendingContactJobs,
-  }), [bulkCreateNames.length, contactsLogEntries, fingerprintStates, pendingContactJobs, reconcileLimit, selectedContactIds.length, selectedPartes.length, syncLimit]);
-
   function applySafeContactsLimits() {
     setSyncLimit(contactsGuardrail.safeLimits.sync);
     setReconcileLimit(contactsGuardrail.safeLimits.reconcile);
   }
-  const missingEmailOnPage = useMemo(() => listState.items.filter((item) => !item.email).length, [listState.items]);
-  const missingPhoneOnPage = useMemo(() => listState.items.filter((item) => !item.phone).length, [listState.items]);
-  const missingDocumentOnPage = useMemo(() => listState.items.filter((item) => !item.cpf && !item.cnpj).length, [listState.items]);
 
   return <div className="space-y-8">
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">

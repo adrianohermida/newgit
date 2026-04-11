@@ -97,6 +97,7 @@ export function useAiTaskRun({
       if (disposed || pollingInFlightRef.current) return;
       pollingInFlightRef.current = true;
       try {
+        const startedAt = Date.now();
         const pollLogId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         appendActivityLog({
           id: pollLogId,
@@ -115,7 +116,7 @@ export function useAiTaskRun({
           }),
           ...AI_TASK_CONSOLE_META,
           status: "running",
-          startedAt: Date.now(),
+          startedAt,
         });
         const payload = await adminFetch("/api/admin-lawdesk-chat", {
           method: "POST",

@@ -70,7 +70,7 @@ const VARS_POR_ROTA = {
     oneOf: [],
   },
   "/api/admin-leads": {
-    required: ["SUPABASE_SERVICE_ROLE_KEY", "FRESHDESK_DOMAIN", "FRESHDESK_BASIC_TOKEN"],
+    required: ["SUPABASE_SERVICE_ROLE_KEY"],
     requiredAny: [
       ["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"],
       ["SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"],

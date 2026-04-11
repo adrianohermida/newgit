@@ -71,34 +71,35 @@ function resolveFreshsalesBases() {
   const raw = process.env.FRESHSALES_API_BASE || expandEnvTemplate(process.env.FRESHSALES_BASE_URL) || process.env.FRESHSALES_ALIAS_DOMAIN || process.env.FRESHSALES_DOMAIN;
   const orgDomain = resolveOrgDomain();
   const bases = [];
+  const push = (value) => {
+    if (!value) return;
+    if (!bases.includes(value)) bases.push(value);
+  };
   if (!raw && !orgDomain) throw new Error('FRESHSALES_API_BASE/FRESHSALES_BASE_URL/FRESHSALES_DOMAIN nao configurado');
+  if (orgDomain) {
+    push(`https://${orgDomain}/crm/sales/api`);
+    push(`https://${orgDomain}/api`);
+  }
   if (raw) {
     const base = raw.startsWith('http') ? raw.replace(/\/+$/, '') : `https://${raw.replace(/\/+$/, '')}`;
     if (base.includes('/crm/sales/api') || base.includes('/api')) {
       const host = base.replace(/^https?:\/\//i, '').replace(/\/(crm\/sales\/api|api)\/?$/i, '');
       const myfreshworksHost = host.includes('myfreshworks.com') ? host : host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
-      bases.push(
-        base,
-        `https://${host}/api`,
-        `https://${host}/crm/sales/api`,
-        `https://${myfreshworksHost}/api`,
-        `https://${myfreshworksHost}/crm/sales/api`,
-      );
+      push(`https://${host}/crm/sales/api`);
+      push(`https://${host}/api`);
+      push(`https://${myfreshworksHost}/crm/sales/api`);
+      push(`https://${myfreshworksHost}/api`);
+      push(base);
     } else {
       const host = base.replace(/^https?:\/\//i, '');
       const myfreshworksHost = host.includes('myfreshworks.com') ? host : host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
-      bases.push(
-        `${base}/api`,
-        `${base}/crm/sales/api`,
-        `https://${myfreshworksHost}/api`,
-        `https://${myfreshworksHost}/crm/sales/api`,
-      );
+      push(`${base}/crm/sales/api`);
+      push(`${base}/api`);
+      push(`https://${myfreshworksHost}/crm/sales/api`);
+      push(`https://${myfreshworksHost}/api`);
     }
   }
-  if (orgDomain) {
-    bases.push(`https://${orgDomain}/api`, `https://${orgDomain}/crm/sales/api`);
-  }
-  return Array.from(new Set(bases));
+  return bases;
 }
 
 function expandEnvTemplate(value) {
@@ -188,7 +189,7 @@ async function seedOauthRowFromEnv() {
     refresh_token: refreshToken,
     expires_at: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),
     token_type: cleanValue(process.env.FRESHSALES_TOKEN_TYPE) || 'Bearer',
-    scope: cleanValue(process.env.FRESHSALES_SCOPES) || null,
+    scope: cleanValue(process.env.FRESHSALES_DEALS_SCOPES) || cleanValue(process.env.FRESHSALES_DEAL_SCOPES) || cleanValue(process.env.FRESHSALES_SCOPES) || null,
     updated_at: new Date().toISOString(),
   });
 }
@@ -198,7 +199,8 @@ function resolveOrgDomain() {
     cleanValue(process.env.FRESHSALES_ORG_DOMAIN) ||
     cleanValue(process.env.FRESHSALES_DOMAIN) ||
     cleanValue(process.env.FRESHSALES_ALIAS_DOMAIN) ||
-    resolveFreshsalesBases()[0] ||
+    cleanValue(process.env.FRESHSALES_API_BASE) ||
+    expandEnvTemplate(process.env.FRESHSALES_BASE_URL) ||
     null;
   if (!direct) return null;
 
@@ -218,13 +220,20 @@ function resolveRedirectUri() {
     cleanValue(process.env.REDIRECT_URI) ||
     cleanValue(process.env.FRESHSALES_OAUTH_CALLBACK_URL) ||
     cleanValue(process.env.OAUTH_CALLBACK_URL) ||
+    resolveSupabaseOauthUrl('callback')?.replace(/\?action=callback$/, '') ||
     null
   );
 }
 
 async function refreshOauthRow(refreshToken) {
-  const clientId = cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID);
-  const clientSecret = cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET);
+  const clientId =
+    cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
+    cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_ID) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID);
+  const clientSecret =
+    cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
+    cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_SECRET) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET);
   const orgDomain = resolveOrgDomain();
   const redirectUri = resolveRedirectUri();
   if (!clientId || !clientSecret || !orgDomain || !redirectUri || !refreshToken) return null;
@@ -256,7 +265,7 @@ async function refreshOauthRow(refreshToken) {
     refresh_token: payload.refresh_token || refreshToken,
     expires_at: new Date(Date.now() + Number(payload.expires_in || 1799) * 1000).toISOString(),
     token_type: payload.token_type || 'Bearer',
-    scope: payload.scope || cleanValue(process.env.FRESHSALES_SCOPES) || null,
+    scope: payload.scope || cleanValue(process.env.FRESHSALES_DEALS_SCOPES) || cleanValue(process.env.FRESHSALES_DEAL_SCOPES) || cleanValue(process.env.FRESHSALES_SCOPES) || null,
     updated_at: new Date().toISOString(),
   });
 
@@ -264,7 +273,8 @@ async function refreshOauthRow(refreshToken) {
 }
 
 async function ensureSupabaseOauthSeed() {
-  const seedUrl = resolveSupabaseOauthUrl('seed');
+  const baseSeedUrl = resolveSupabaseOauthUrl('seed');
+  const seedUrl = baseSeedUrl ? `${baseSeedUrl}&kind=deals` : null;
   if (seedUrl && cleanValue(process.env.FRESHSALES_ACCESS_TOKEN) && cleanValue(process.env.FRESHSALES_REFRESH_TOKEN)) {
     const response = await fetch(seedUrl, {
       method: 'POST',
@@ -278,7 +288,8 @@ async function ensureSupabaseOauthSeed() {
 }
 
 async function getSupabaseOauthAccessToken() {
-  const tokenUrl = resolveSupabaseOauthUrl('token');
+  const baseTokenUrl = resolveSupabaseOauthUrl('token');
+  const tokenUrl = baseTokenUrl ? `${baseTokenUrl}&kind=deals` : null;
   if (tokenUrl) {
     const requestToken = async () => {
       const response = await fetch(tokenUrl, {
@@ -354,7 +365,7 @@ async function freshsalesHeaderCandidates() {
       __mode: 'supabase_oauth',
       Accept: 'application/json',
       'Content-Type': 'application/json',
-      Authorization: `Token token=${supabaseOauthToken}`,
+      Authorization: `Authtoken=${supabaseOauthToken}`,
     });
   }
   if (accessToken) {
@@ -362,7 +373,7 @@ async function freshsalesHeaderCandidates() {
       __mode: 'access_token',
       Accept: 'application/json',
       'Content-Type': 'application/json',
-      Authorization: `Token token=${accessToken}`,
+      Authorization: `Authtoken=${accessToken}`,
     });
   }
   if (!candidates.length) throw new Error('Credenciais do Freshsales ausentes');
@@ -371,6 +382,17 @@ async function freshsalesHeaderCandidates() {
       const leftRank = left.__mode === 'supabase_oauth' ? 0 : left.__mode === 'access_token' ? 1 : 2;
       const rightRank = right.__mode === 'supabase_oauth' ? 0 : right.__mode === 'access_token' ? 1 : 2;
       return leftRank - rightRank;
+    });
+  } else if (!explicitMode && (supabaseOauthToken || accessToken)) {
+    candidates.sort((left, right) => {
+      const rank = (mode) => {
+        if (mode === 'supabase_oauth') return 0;
+        if (mode === 'access_token') return 1;
+        if (mode === 'api_key') return 2;
+        if (mode === 'basic_auth') return 3;
+        return 4;
+      };
+      return rank(left.__mode) - rank(right.__mode);
     });
   } else if (explicitMode) {
     candidates.sort((left, right) => (left.__mode === explicitMode ? -1 : right.__mode === explicitMode ? 1 : 0));
@@ -389,7 +411,7 @@ async function loadReceivables(limit, specificReceivableId = null) {
   const enrichedRows = await enrichReceivableLinks(rows);
   return enrichedRows.filter((row) => {
     const contract = firstRelation(row.contracts);
-    return Boolean(contract && contract.freshsales_contact_id && (row.freshsales_account_id || contract.freshsales_account_id));
+    return Boolean(contract && contract.freshsales_contact_id);
   });
 }
 
@@ -468,11 +490,14 @@ async function publishDeal(row) {
   const contract = firstRelation(row.contracts);
   const product = firstRelation(row.products);
   const registry = firstRelation(row.registry);
+  if (!toFreshsalesNumericId(product?.freshsales_product_id)) {
+    throw new Error(`Produto Freshsales nao sincronizado para o receivable (${product?.name || row.product_id || 'sem_produto'}).`);
+  }
   const dealPayload = buildDealPayload(row, contract, product);
   const externalReference = buildExternalReference(row);
 
   let responsePayload;
-  let dealId = registry?.freshsales_deal_id || row.freshsales_deal_id || null;
+  let dealId = normalizeFreshsalesDealId(registry?.freshsales_deal_id || row.freshsales_deal_id || null);
   let mode = 'created';
 
   if (dealId) {
@@ -543,10 +568,13 @@ function buildDealPayload(row, contract, product) {
       currency: row.currency || 'BRL',
       expected_close: row.due_date || currentDateIso(),
       owner_id: billingConfig.ownerId,
-      deal_stage_id: billingConfig.defaultDealStageId,
+      deal_pipeline_id: billingConfig.defaultDealPipelineId,
+      deal_stage_id: resolveDealStageId(row.status, billingConfig),
+      probability: resolveDealProbability(row.status),
+      deal_product_id: toFreshsalesNumericId(product?.freshsales_product_id),
       sales_account_id: toFreshsalesNumericId(row.freshsales_account_id || contract.freshsales_account_id),
       ...coreFields,
-      contact_ids: contract.freshsales_contact_id ? [Number(contract.freshsales_contact_id)] : undefined,
+      contacts_added_list: contract.freshsales_contact_id ? [Number(contract.freshsales_contact_id)] : undefined,
       custom_field: cleanObject(customFields),
     },
   };
@@ -565,6 +593,13 @@ function buildExternalReference(row) {
   return `hmadv-receivable-${row.id}`;
 }
 
+function normalizeFreshsalesDealId(value) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  if (/^pending-/i.test(text)) return null;
+  return text;
+}
+
 function mapDealStatus(status) {
   const text = String(status || '').toLowerCase();
   if (text.includes('pago')) return 'won';
@@ -572,12 +607,37 @@ function mapDealStatus(status) {
   return 'open';
 }
 
+function normalizeStatusKey(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function resolveDealStageId(status, billingConfig) {
+  const normalized = normalizeStatusKey(status);
+  const mapped = billingConfig.dealStageIdMap[normalized];
+  if (/^\d+$/.test(String(mapped || ''))) return Number(mapped);
+  if (/^\d+$/.test(String(billingConfig.defaultDealStageId || ''))) return Number(billingConfig.defaultDealStageId);
+  return undefined;
+}
+
+function resolveDealProbability(status) {
+  const normalized = normalizeStatusKey(status);
+  if (normalized.includes('pago')) return 100;
+  if (normalized.includes('venc')) return 40;
+  if (normalized.includes('cancel') || normalized.includes('nao pago') || normalized.includes('não pago')) return 0;
+  if (normalized.includes('aberto')) return 75;
+  return 50;
+}
+
 async function upsertDealRegistry(row, dealId, extra) {
   const contract = firstRelation(row.contracts);
   const payload = {
     workspace_id: contract?.workspace_id || null,
     billing_receivable_id: row.id,
-    freshsales_deal_id: dealId || row.freshsales_deal_id || `pending-${row.id}`,
+    freshsales_deal_id: normalizeFreshsalesDealId(dealId || row.freshsales_deal_id || null) || `pending-${row.id}`,
     ...extra,
   };
 
@@ -648,7 +708,17 @@ function currentDateIso() {
 function getBillingConfig() {
   return {
     ownerId: cleanValue(process.env.FRESHSALES_OWNER_ID),
+    defaultDealPipelineId: cleanValue(process.env.FRESHSALES_DEFAULT_DEAL_PIPELINE_ID) || '31000060365',
     defaultDealStageId: cleanValue(process.env.FRESHSALES_DEFAULT_DEAL_STAGE_ID),
+    dealStageIdMap: parseJsonEnv(process.env.FRESHSALES_BILLING_DEAL_STAGE_ID_MAP, {
+      faturar: '31000423211',
+      aberto: '31000423213',
+      em_aberto: '31000423213',
+      vencido: '31001026893',
+      pago: '31000423216',
+      nao_pago: '31000423217',
+      cancelado: '31000423217',
+    }),
     dealTypeIdMap: parseJsonEnv(process.env.FRESHSALES_BILLING_DEAL_TYPE_ID_MAP, {}),
     dealFieldMap: parseJsonEnv(process.env.FRESHSALES_BILLING_DEAL_FIELD_MAP, {
       external_reference: 'cf_hmadv_external_reference',

@@ -106,12 +106,15 @@ export default function InternoFinanceiroPage() {
 function FinanceiroInternoContent() {
   const [state, setState] = useState({ loading: true, error: null, data: null });
   const [selectedPendingRows, setSelectedPendingRows] = useState([]);
+  const [selectedPendingContactRows, setSelectedPendingContactRows] = useState([]);
   const [processQuery, setProcessQuery] = useState("");
   const [processSearch, setProcessSearch] = useState({ loading: false, error: null, items: [] });
   const [resolutionState, setResolutionState] = useState({ loading: false, error: null, result: null });
+  const [contactResolutionState, setContactResolutionState] = useState({ loading: false, error: null, result: null });
   const [textualBackfillLimit, setTextualBackfillLimit] = useState(50);
   const [textualBackfillState, setTextualBackfillState] = useState({ loading: false, error: null, result: null });
   const [operationState, setOperationState] = useState({ loading: null, error: null, result: null });
+  const [runnerUnavailable, setRunnerUnavailable] = useState(false);
   const [configForm, setConfigForm] = useState({
     backfill_limit: 50,
     materialize_workspace_id: "",
@@ -202,6 +205,49 @@ function FinanceiroInternoContent() {
     }
   }
 
+  async function resolvePendingContacts() {
+    if (!selectedPendingContactRows.length) {
+      setContactResolutionState({ loading: false, error: "Selecione ao menos uma linha pendente de contato.", result: null });
+      return;
+    }
+    setContactResolutionState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-hmadv-financeiro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "resolve_contact_rows",
+          rowIds: selectedPendingContactRows,
+        }),
+      });
+      setContactResolutionState({ loading: false, error: null, result: payload.data || null });
+      appendActivityLog({
+        label: "Contatos pendentes resolvidos",
+        action: "financeiro_resolve_contact_rows",
+        method: "UI",
+        module: "financeiro",
+        page: "/interno/financeiro",
+        status: "success",
+        response: `Linhas ${selectedPendingContactRows.join(", ")} processadas no fluxo de contato.`,
+        tags: ["financeiro", "manual", "crm", "contatos"],
+      });
+      setSelectedPendingContactRows([]);
+      await load();
+    } catch (error) {
+      appendActivityLog({
+        label: "Falha ao resolver contatos pendentes",
+        action: "financeiro_resolve_contact_rows",
+        method: "UI",
+        module: "financeiro",
+        page: "/interno/financeiro",
+        status: "error",
+        error: error.message || "Falha ao criar contatos e reconciliar partes.",
+        tags: ["financeiro", "manual", "crm", "contatos"],
+      });
+      setContactResolutionState({ loading: false, error: error.message || "Falha ao criar contatos e reconciliar partes.", result: null });
+    }
+  }
+
   async function backfillTextualAccounts() {
     setTextualBackfillState({ loading: true, error: null, result: null });
     try {
@@ -251,6 +297,7 @@ function FinanceiroInternoContent() {
           operation,
         }),
       }, { timeoutMs: 180000, maxRetries: 0 });
+      setRunnerUnavailable(false);
       setOperationState({ loading: null, error: null, result: payload.data || null });
       appendActivityLog({
         label: "Runner financeiro executado",
@@ -264,6 +311,8 @@ function FinanceiroInternoContent() {
       });
       await load();
     } catch (error) {
+      const isRunnerUnavailable = String(error.message || "").includes("Operacao runner disponivel apenas na rota Node");
+      if (isRunnerUnavailable) setRunnerUnavailable(true);
       appendActivityLog({
         label: "Falha no runner financeiro",
         action: "financeiro_run_operation",
@@ -322,6 +371,12 @@ function FinanceiroInternoContent() {
     ));
   }
 
+  function togglePendingContactRow(id) {
+    setSelectedPendingContactRows((current) => (
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+    ));
+  }
+
   useEffect(() => {
     load();
   }, []);
@@ -330,20 +385,22 @@ function FinanceiroInternoContent() {
     const data = state.data || {};
     setModuleHistory(
       "financeiro",
-      buildModuleSnapshot("financeiro", {
-        routePath: "/interno/financeiro",
-        loading: state.loading,
-        error: state.error,
-        overview: data.overview || null,
-        resolution: data.resolution || null,
-        diagnostics: data.diagnostics || null,
-        selectedPendingRows: selectedPendingRows.length,
-        processSearchCount: processSearch.items.length,
-        processSearchLoading: processSearch.loading,
-        operationLoading: operationState.loading,
-        configLoading: configState.loading,
-        textualBackfillLoading: textualBackfillState.loading,
-        guidance: operationState.result?.guidance || null,
+        buildModuleSnapshot("financeiro", {
+          routePath: "/interno/financeiro",
+          loading: state.loading,
+          error: state.error,
+          overview: data.overview || null,
+          resolution: data.resolution || null,
+          diagnostics: data.diagnostics || null,
+          selectedPendingRows: selectedPendingRows.length,
+          selectedPendingContactRows: selectedPendingContactRows.length,
+          processSearchCount: processSearch.items.length,
+          processSearchLoading: processSearch.loading,
+          operationLoading: operationState.loading,
+          configLoading: configState.loading,
+          contactResolutionLoading: contactResolutionState.loading,
+          textualBackfillLoading: textualBackfillState.loading,
+          guidance: operationState.result?.guidance || null,
         freshsalesAuth: data.freshsales_auth || null,
         recentImportRuns: Array.isArray(data.recent_import_runs) ? data.recent_import_runs.slice(0, 6) : [],
         recentReceivables: Array.isArray(data.recent_receivables) ? data.recent_receivables.slice(0, 6) : [],
@@ -365,7 +422,9 @@ function FinanceiroInternoContent() {
     operationState.result,
     processSearch.items,
     processSearch.loading,
+    contactResolutionState.loading,
     selectedPendingRows.length,
+    selectedPendingContactRows.length,
     state,
     textualBackfillState.loading,
   ]);
@@ -607,6 +666,12 @@ function FinanceiroInternoContent() {
         </div>
         {configState.error ? <p className="mb-4 text-sm text-red-200">{configState.error}</p> : null}
         {configState.result ? <p className="mb-4 text-sm opacity-70">Configuracao operacional persistida no backend.</p> : null}
+        {runnerUnavailable ? (
+          <p className="mb-4 text-sm text-amber-200">
+            Este ambiente expõe apenas a leitura e as ações diretas do financeiro. O runner de scripts administrativos precisa da rota Node
+            <code className="ml-1">/api/admin-hmadv-financeiro</code>.
+          </p>
+        ) : null}
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {operationButtons.map((item) => (
             <OperationButton
@@ -614,7 +679,7 @@ function FinanceiroInternoContent() {
               label={item.label}
               helper={`${item.helper}${item.payload ? ` | payload: ${JSON.stringify(item.payload)}` : ""}`}
               loading={operationState.loading === item.key}
-              disabled={Boolean(operationState.loading)}
+              disabled={Boolean(operationState.loading) || runnerUnavailable}
               onClick={() => runOperation(item.key)}
             />
           ))}

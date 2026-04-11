@@ -2305,38 +2305,29 @@ export async function listProcessCoverage(env, { page = 1, pageSize = 20, query 
   const coverageFilter = buildCoverageQueryFilter(query);
   const baseFilters = [coverageFilter].filter(Boolean);
   const baseQuery = baseFilters.join("&");
+  const processCoreColumns = [
+    "id",
+    "numero_cnj",
+    "titulo",
+    "account_id_freshsales",
+  ];
+  const processOptionalColumns = [
+    "numero_processo",
+    "quantidade_movimentacoes",
+    "classe",
+    "assunto_principal",
+    "area",
+    "data_ajuizamento",
+    "sistema",
+    "polo_ativo",
+    "polo_passivo",
+    "status_atual_processo",
+  ];
   const processSelectVariants = [
-    [
-      "id",
-      "numero_cnj",
-      "numero_processo",
-      "titulo",
-      "account_id_freshsales",
-      "quantidade_movimentacoes",
-      "classe",
-      "assunto_principal",
-      "area",
-      "data_ajuizamento",
-      "sistema",
-      "polo_ativo",
-      "polo_passivo",
-      "status_atual_processo",
-    ].join(","),
-    [
-      "id",
-      "numero_cnj",
-      "titulo",
-      "account_id_freshsales",
-      "quantidade_movimentacoes",
-      "classe",
-      "assunto_principal",
-      "area",
-      "data_ajuizamento",
-      "sistema",
-      "polo_ativo",
-      "polo_passivo",
-      "status_atual_processo",
-    ].join(","),
+    [...processCoreColumns, ...processOptionalColumns].join(","),
+    [...processCoreColumns, ...processOptionalColumns.filter((column) => column !== "numero_processo")].join(","),
+    [...processCoreColumns, ...processOptionalColumns.filter((column) => !["numero_processo", "quantidade_movimentacoes"].includes(column))].join(","),
+    processCoreColumns.join(","),
   ];
   const countFilters = baseQuery;
   const totalRows = await countTableSafe(env, "processos", countFilters);
@@ -2355,12 +2346,12 @@ export async function listProcessCoverage(env, { page = 1, pageSize = 20, query 
           if (rows.length || totalRows === 0) break;
         }
       } catch (error) {
-        if (schemaMessageMatches(error?.message, "numero_processo")) {
-          selectFailed = true;
-          break;
-        }
         if (schemaMessageMatches(error?.message, "updated_at") || schemaMessageMatches(error?.message, "numero_cnj")) {
           continue;
+        }
+        if (schemaMessageMatches(error?.message)) {
+          selectFailed = true;
+          break;
         }
         throw error;
       }

@@ -89,6 +89,11 @@ async function processQueueItem(item) {
     return;
   }
 
+  if (!canUpdateFreshsalesContacts()) {
+    await markSkipped(item, 'Token/configuracao atual nao permite atualizar contatos no Freshsales.');
+    return;
+  }
+
   await freshsalesRequest(`/contacts/${encodeURIComponent(String(freshsalesContactId))}`, {
     method: 'PUT',
     body: JSON.stringify({
@@ -121,6 +126,37 @@ function mapQueueEventToJourney(queueEventType, payload) {
   if (payload?.is_overdue) return 'contract_sent';
   const mapping = getFinancialEventMap();
   return mapping[queueEventType] || mapping[payload?.receivable_status] || null;
+}
+
+function canUpdateFreshsalesContacts() {
+  if (cleanValue(process.env.FRESHSALES_API_KEY) || cleanValue(process.env.FRESHSALES_BASIC_AUTH)) {
+    return true;
+  }
+
+  const accessToken = cleanValue(process.env.FRESHSALES_ACCESS_TOKEN);
+  if (!accessToken) return false;
+
+  const scopes = readOauthScopes(accessToken);
+  if (!scopes.length) return false;
+
+  return scopes.some((scope) => /^freshsales\.contacts\./i.test(scope));
+}
+
+function readOauthScopes(token) {
+  const text = cleanValue(token);
+  if (!text || !text.includes('.')) return [];
+  try {
+    const [, payloadBase64Raw] = text.split('.');
+    const payloadBase64 = payloadBase64Raw.replace(/-/g, '+').replace(/_/g, '/');
+    const padding = payloadBase64.length % 4;
+    const normalized = payloadBase64 + (padding ? '='.repeat(4 - padding) : '');
+    const payload = JSON.parse(Buffer.from(normalized, 'base64').toString('utf8'));
+    if (Array.isArray(payload?.scope)) return payload.scope.map((item) => String(item || '').trim()).filter(Boolean);
+    if (typeof payload?.scope === 'string') return payload.scope.split(/\s+/).map((item) => item.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+  return [];
 }
 
 function getFinancialEventMap() {
@@ -204,28 +240,46 @@ async function markSkipped(item, reason) {
 }
 
 function resolveFreshsalesBases() {
-  const raw = process.env.FRESHSALES_API_BASE || process.env.FRESHSALES_BASE_URL || process.env.FRESHSALES_DOMAIN;
-  if (!raw) throw new Error('FRESHSALES_API_BASE/FRESHSALES_BASE_URL/FRESHSALES_DOMAIN nao configurado');
-  const base = raw.startsWith('http') ? raw.replace(/\/+$/, '') : `https://${raw.replace(/\/+$/, '')}`;
-  if (base.includes('/crm/sales/api') || base.includes('/api')) {
-    const host = base.replace(/^https?:\/\//i, '').replace(/\/(crm\/sales\/api|api)\/?$/i, '');
-    const myfreshworksHost = host.includes('myfreshworks.com') ? host : host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
-    return Array.from(new Set([
-      base,
-      `https://${host}/api`,
-      `https://${host}/crm/sales/api`,
-      `https://${myfreshworksHost}/api`,
-      `https://${myfreshworksHost}/crm/sales/api`,
-    ]));
+  const raw =
+    cleanValue(process.env.FRESHSALES_API_BASE) ||
+    cleanValue(process.env.FRESHSALES_BASE_URL) ||
+    cleanValue(process.env.FRESHSALES_ALIAS_DOMAIN) ||
+    cleanValue(process.env.FRESHSALES_DOMAIN);
+  const orgDomain = cleanValue(process.env.FRESHSALES_ORG_DOMAIN);
+  const bases = [];
+  const push = (value) => {
+    if (!value) return;
+    if (!bases.includes(value)) bases.push(value);
+  };
+
+  if (!raw && !orgDomain) throw new Error('FRESHSALES_API_BASE/FRESHSALES_BASE_URL/FRESHSALES_DOMAIN nao configurado');
+
+  if (orgDomain) {
+    push(`https://${orgDomain}/crm/sales/api`);
+    push(`https://${orgDomain}/api`);
   }
-  const host = base.replace(/^https?:\/\//i, '');
-  const myfreshworksHost = host.includes('myfreshworks.com') ? host : host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
-  return Array.from(new Set([
-    `${base}/api`,
-    `${base}/crm/sales/api`,
-    `https://${myfreshworksHost}/api`,
-    `https://${myfreshworksHost}/crm/sales/api`,
-  ]));
+
+  if (raw) {
+    const base = raw.startsWith('http') ? raw.replace(/\/+$/, '') : `https://${raw.replace(/\/+$/, '')}`;
+    if (base.includes('/crm/sales/api') || base.includes('/api')) {
+      const host = base.replace(/^https?:\/\//i, '').replace(/\/(crm\/sales\/api|api)\/?$/i, '');
+      const myfreshworksHost = host.includes('myfreshworks.com') ? host : host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
+      push(`https://${host}/crm/sales/api`);
+      push(`https://${host}/api`);
+      push(`https://${myfreshworksHost}/crm/sales/api`);
+      push(`https://${myfreshworksHost}/api`);
+      push(base);
+    } else {
+      const host = base.replace(/^https?:\/\//i, '');
+      const myfreshworksHost = host.includes('myfreshworks.com') ? host : host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
+      push(`${base}/crm/sales/api`);
+      push(`${base}/api`);
+      push(`https://${myfreshworksHost}/crm/sales/api`);
+      push(`https://${myfreshworksHost}/api`);
+    }
+  }
+
+  return bases;
 }
 
 function freshsalesHeaderCandidates() {
@@ -243,7 +297,7 @@ function freshsalesHeaderCandidates() {
     candidates.push({
       Accept: 'application/json',
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Authtoken=${accessToken}`,
     });
   }
   if (!candidates.length) throw new Error('Credenciais do Freshsales ausentes');

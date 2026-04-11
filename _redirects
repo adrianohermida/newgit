@@ -1,1 +1,2 @@
 /llm-test    /llm-test.html   200
+/functions/api/*   /api/:splat   307
