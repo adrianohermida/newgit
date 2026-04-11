@@ -1,4 +1,4 @@
-import { getCleanEnvValue } from "./env.js";
+import { getCleanEnvValue, getSupabaseBaseUrl, getSupabaseServerKey } from "./env.js";
 import { buildFreshsalesAppointmentPayload, buildFreshsalesJourneyUpdate, getFreshsalesJourneyConfig } from "./freshsales-journey.js";
 
 function splitName(fullName) {
@@ -574,6 +574,91 @@ async function listFreshsalesSalesActivityTypes(env) {
   return promise;
 }
 
+async function listFreshsalesSalesActivityTypesFromEdge(env) {
+  const baseUrl = getSupabaseBaseUrl(env);
+  const serviceKey = getSupabaseServerKey(env);
+  if (!baseUrl || !serviceKey) return [];
+
+  const sharedSecret =
+    getCleanEnvValue(env.HMDAV_AI_SHARED_SECRET) ||
+    getCleanEnvValue(env.HMADV_AI_SHARED_SECRET) ||
+    getCleanEnvValue(env.LAWDESK_AI_SHARED_SECRET) ||
+    "";
+  const runnerToken =
+    getCleanEnvValue(env.HMADV_RUNNER_TOKEN) ||
+    getCleanEnvValue(env.MADV_RUNNER_TOKEN) ||
+    "";
+
+  const response = await fetch(
+    `${baseUrl.replace(/\/+$/, "")}/functions/v1/publicacoes-freshsales?action=activity_types`,
+    {
+      method: "GET",
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        Accept: "application/json",
+        ...(sharedSecret
+          ? {
+              "x-hmadv-secret": sharedSecret,
+              "x-shared-secret": sharedSecret,
+            }
+          : {}),
+        ...(runnerToken
+          ? {
+              "x-hmadv-runner-token": runnerToken,
+            }
+          : {}),
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Falha ao consultar activity types remotos (${response.status}).`);
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  const items = Array.isArray(payload?.sales_activity_types)
+    ? payload.sales_activity_types
+    : Array.isArray(payload?.items)
+      ? payload.items
+      : Array.isArray(payload)
+        ? payload
+        : [];
+
+  return items
+    .map((item) => ({
+      id: item?.id ?? item?.value ?? null,
+      name: item?.name ?? item?.label ?? item?.value ?? null,
+      raw: item,
+    }))
+    .filter((item) => item.id && item.name);
+}
+
+function matchFreshsalesActivityType(activityTypes = [], labelCandidates = []) {
+  if (!activityTypes.length) return null;
+  const normalizedCandidates = labelCandidates.map((item) => normalizeActivityTypeLabel(item)).filter(Boolean);
+  const exactMatch = activityTypes.find((item) => normalizedCandidates.includes(normalizeActivityTypeLabel(item.name)));
+  if (exactMatch) {
+    return {
+      id: String(exactMatch.id),
+      matchSource: "exact",
+      detail: exactMatch.name,
+    };
+  }
+  const partialMatch = activityTypes.find((item) => {
+    const normalizedName = normalizeActivityTypeLabel(item.name);
+    return normalizedCandidates.some((candidate) => normalizedName.includes(candidate) || candidate.includes(normalizedName));
+  });
+  if (partialMatch) {
+    return {
+      id: String(partialMatch.id),
+      matchSource: "partial",
+      detail: partialMatch.name,
+    };
+  }
+  return null;
+}
+
 async function resolveFreshsalesActivityType(env, {
   envKeys = [],
   eventKeys = [],
@@ -610,27 +695,29 @@ async function resolveFreshsalesActivityType(env, {
     activityTypes = [];
   }
 
-  if (activityTypes.length) {
-    const normalizedCandidates = labelCandidates.map((item) => normalizeActivityTypeLabel(item)).filter(Boolean);
-    const exactMatch = activityTypes.find((item) => normalizedCandidates.includes(normalizeActivityTypeLabel(item.name)));
-    if (exactMatch) {
-      return {
-        id: String(exactMatch.id),
-        source: "catalog_exact",
-        detail: exactMatch.name,
-      };
-    }
-    const partialMatch = activityTypes.find((item) => {
-      const normalizedName = normalizeActivityTypeLabel(item.name);
-      return normalizedCandidates.some((candidate) => normalizedName.includes(candidate) || candidate.includes(normalizedName));
-    });
-    if (partialMatch) {
-      return {
-        id: String(partialMatch.id),
-        source: "catalog_partial",
-        detail: partialMatch.name,
-      };
-    }
+  const catalogMatch = matchFreshsalesActivityType(activityTypes, labelCandidates);
+  if (catalogMatch?.id) {
+    return {
+      id: catalogMatch.id,
+      source: `catalog_${catalogMatch.matchSource}`,
+      detail: catalogMatch.detail,
+    };
+  }
+
+  let edgeActivityTypes = [];
+  try {
+    edgeActivityTypes = await listFreshsalesSalesActivityTypesFromEdge(env);
+  } catch {
+    edgeActivityTypes = [];
+  }
+
+  const edgeCatalogMatch = matchFreshsalesActivityType(edgeActivityTypes, labelCandidates);
+  if (edgeCatalogMatch?.id) {
+    return {
+      id: edgeCatalogMatch.id,
+      source: `edge_catalog_${edgeCatalogMatch.matchSource}`,
+      detail: edgeCatalogMatch.detail,
+    };
   }
 
   const fallbackId = resolveFreshsalesActivityTypeId(env, ["FRESHSALES_DEFAULT_ACTIVITY_TYPE_ID"]);

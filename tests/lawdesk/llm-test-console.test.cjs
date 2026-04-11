@@ -109,6 +109,32 @@ registerTest("classifyLlmTestError separates configuration auth and timeout fail
   assert.equal(utils.classifyLlmTestError("Provider nao esta configurado no servidor."), "configuration");
   assert.equal(utils.classifyLlmTestError("Authentication error on embed secret"), "authentication");
   assert.equal(utils.classifyLlmTestError("Timeout na chamada administrativa."), "timeout");
+  assert.equal(utils.classifyLlmTestError("Requested function was not found"), "missing_function");
+});
+
+registerTest("buildTechnicalDebugger includes recommendations and subsystem sections", async () => {
+  const utils = await loadConsoleModule();
+  const report = utils.buildTechnicalDebugger({
+    errorMessage: "Requested function was not found",
+    provider: "gpt",
+    providerLabel: "Nuvem principal",
+    durationMs: 7126,
+    request: { provider: "gpt", prompt: "teste" },
+    providersHealth: {
+      providers: [{ id: "gpt", status: "failed", available: true }],
+    },
+    ragHealth: {
+      status: "failed",
+      signals: { appEmbedSecretMissing: true },
+      report: { supabaseEmbedding: { error: "auth" } },
+    },
+    providerCatalog: [{ id: "gpt", label: "Nuvem principal" }],
+  });
+
+  assert.match(report, /Debugger técnico completo/);
+  assert.match(report, /missing_function/);
+  assert.match(report, /recommendations/);
+  assert.match(report, /security_and_persistence/);
 });
 
 (async () => {

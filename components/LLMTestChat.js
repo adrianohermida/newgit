@@ -11,6 +11,7 @@ import { formatLawdeskProviderLabel } from "../lib/lawdesk/providers";
 import {
   applyLlmTestConsoleFilters,
   buildDiagnosticReport,
+  buildTechnicalDebugger,
   buildLlmTestResultRecord,
   buildLlmTestTimeline,
   classifyLlmTestError,
@@ -538,6 +539,13 @@ export default function LLMTestChat() {
           summary: "A execucao falhou antes de retornar resposta valida.",
           sections: [
             { label: "meta", value: { provider: selectedProvider, providerLabel, durationMs } },
+            {
+              label: "health_snapshot",
+              value: {
+                providers: providersHealth?.status || null,
+                rag: ragHealth?.status || null,
+              },
+            },
           ],
         }),
         error: buildDiagnosticReport({
@@ -547,6 +555,39 @@ export default function LLMTestChat() {
             { label: "request", value: { provider: selectedProvider, prompt: trimmedPrompt } },
           ],
         }),
+        request: buildDiagnosticReport({
+          title: "LLM smoke test request",
+          summary: `Provider ${providerLabel} selecionado para validacao.`,
+          sections: [
+            { label: "request", value: { provider: selectedProvider, prompt: trimmedPrompt, route: "/llm-test" } },
+          ],
+        }),
+      });
+      updateActivityLog(activityId, {
+        response: `${buildDiagnosticReport({
+          title: "LLM smoke test failure context",
+          summary: "A execucao falhou antes de retornar resposta valida.",
+          sections: [
+            { label: "meta", value: { provider: selectedProvider, providerLabel, durationMs } },
+            {
+              label: "health_snapshot",
+              value: {
+                providers: providersHealth?.status || null,
+                rag: ragHealth?.status || null,
+              },
+            },
+          ],
+        })}\n\n---\n\n${buildTechnicalDebugger({
+          errorMessage: runError?.message || "Falha desconhecida.",
+          provider: selectedProvider,
+          providerLabel,
+          durationMs,
+          request: { provider: selectedProvider, prompt: trimmedPrompt, route: "/llm-test" },
+          providersHealth,
+          ragHealth,
+          providerCatalog,
+          route: "/llm-test",
+        })}`,
       });
     } finally {
       setLoading(false);
