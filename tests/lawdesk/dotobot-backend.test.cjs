@@ -353,7 +353,7 @@ registerTest("runLawdeskChat prefixes failures with provider strategy for cleare
   const originalFetch = globalThis.fetch;
 
   globalThis.fetch = async (url) => {
-    if (String(url) === "https://ai.example.test/execute") {
+    if (String(url) === "https://ai.example.test/execute" || String(url) === "https://ai.example.test/v1/execute") {
       return new Response(JSON.stringify({ error: "Requested function was not found" }), {
         status: 404,
         headers: { "Content-Type": "application/json" },
