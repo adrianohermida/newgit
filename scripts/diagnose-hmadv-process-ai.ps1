@@ -89,6 +89,24 @@ $executeBody = @{
 }
 $execute = Invoke-JsonRequest -Uri "$base/execute" -Method "POST" -Headers $headers -Body $executeBody
 $executeV1 = Invoke-JsonRequest -Uri "$base/v1/execute" -Method "POST" -Headers $headers -Body $executeBody
+$messagesBody = @{
+  model = "aetherlab-legal-v1"
+  max_tokens = 300
+  system = "Diagnostico tecnico do endpoint custom."
+  stream = $false
+  messages = @(
+    @{
+      role = "user"
+      content = @(
+        @{
+          type = "text"
+          text = "Responda com uma confirmacao curta de que o endpoint /v1/messages esta funcional."
+        }
+      )
+    }
+  )
+}
+$messagesV1 = Invoke-JsonRequest -Uri "$base/v1/messages" -Method "POST" -Headers $headers -Body $messagesBody
 
 $healthData = $health.data
 $routes = @()
@@ -125,6 +143,14 @@ $report = [ordered]@{
     resultTextPreview = if ($executeV1.data.resultText) { [string]$executeV1.data.resultText.Substring(0, [Math]::Min(160, $executeV1.data.resultText.Length)) } else { $null }
     raw = if ($executeV1.ok) { $executeV1.data } else { $executeV1.raw }
   }
+  messagesV1 = [ordered]@{
+    ok = $messagesV1.ok
+    status = $messagesV1.status
+    error = if ($messagesV1.data.error) { $messagesV1.data.error } else { $messagesV1.error }
+    resultTextPreview = if ($messagesV1.data.content[0].text) { [string]$messagesV1.data.content[0].text.Substring(0, [Math]::Min(160, $messagesV1.data.content[0].text.Length)) } else { $null }
+    model = if ($messagesV1.data.model) { $messagesV1.data.model } else { $null }
+    raw = if ($messagesV1.ok) { $messagesV1.data } else { $messagesV1.raw }
+  }
   diagnosis = @()
 }
 
@@ -142,6 +168,12 @@ if (-not $execute.ok -and $executeV1.ok) {
 }
 if (-not $execute.ok -and -not $executeV1.ok) {
   $report.diagnosis += "As rotas /execute e /v1/execute falharam. A camada de execucao do worker nao esta estavel."
+}
+if ($messagesV1.ok) {
+  $report.diagnosis += "A rota /v1/messages respondeu com sucesso para o alias do modelo AetherLab."
+}
+if (-not $messagesV1.ok) {
+  $report.diagnosis += "A rota /v1/messages falhou. O provider custom nao esta operacional no worker remoto."
 }
 if ($health.ok -and (-not $routes -or $routes.Count -eq 0)) {
   $report.diagnosis += "O health nao anuncia rotas suportadas. Isso sugere deploy antigo do payload de health ou build remoto ainda sem fingerprint novo."

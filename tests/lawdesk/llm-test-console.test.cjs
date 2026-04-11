@@ -110,6 +110,7 @@ registerTest("classifyLlmTestError separates configuration auth and timeout fail
   assert.equal(utils.classifyLlmTestError("Authentication error on embed secret"), "authentication");
   assert.equal(utils.classifyLlmTestError("Timeout na chamada administrativa."), "timeout");
   assert.equal(utils.classifyLlmTestError("Requested function was not found"), "missing_function");
+  assert.equal(utils.classifyLlmTestError("Cloudflare worker exception (500) em custom_llm_api: Worker threw exception | Ray ID 123"), "execution");
 });
 
 registerTest("buildTechnicalDebugger includes recommendations and subsystem sections", async () => {

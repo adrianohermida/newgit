@@ -10,6 +10,7 @@ param(
   [string]$FreshsalesActivityTypeNotaProcessual = $env:FRESHSALES_ACTIVITY_TYPE_NOTA_PROCESSUAL,
   [string]$FreshsalesActivityTypeAudiencia = $env:FRESHSALES_ACTIVITY_TYPE_AUDIENCIA,
   [string]$CloudflareWorkersAiModel = $env:CLOUDFLARE_WORKERS_AI_MODEL,
+  [string]$AetherlabLegalModel = $env:AETHERLAB_LEGAL_MODEL,
   [string]$SharedSecret = $env:HMDAV_AI_SHARED_SECRET,
   [string]$ProcessAiBase = $env:PROCESS_AI_BASE,
   [switch]$SkipDeploy,
@@ -126,6 +127,9 @@ Require-Value 'FRESHSALES_ACTIVITY_TYPE_AUDIENCIA' $FreshsalesActivityTypeAudien
 if ([string]::IsNullOrWhiteSpace($CloudflareWorkersAiModel)) {
   $CloudflareWorkersAiModel = '@cf/meta/llama-3.1-8b-instruct'
 }
+if ([string]::IsNullOrWhiteSpace($AetherlabLegalModel)) {
+  $AetherlabLegalModel = $CloudflareWorkersAiModel
+}
 
 $env:CLOUDFLARE_ACCOUNT_ID = $CloudflareAccountId
 $env:CLOUDFLARE_API_TOKEN = $CloudflareApiToken
@@ -148,6 +152,7 @@ try {
   Put-WranglerSecret 'FRESHSALES_ACTIVITY_TYPE_AUDIENCIA' $FreshsalesActivityTypeAudiencia
   Put-WranglerSecret 'HMDAV_AI_SHARED_SECRET' $SharedSecret
   Put-WranglerSecret 'CLOUDFLARE_WORKERS_AI_MODEL' $CloudflareWorkersAiModel
+  Put-WranglerSecret 'AETHERLAB_LEGAL_MODEL' $AetherlabLegalModel
 
   if (-not $SkipSupabaseSecrets) {
     if ([string]::IsNullOrWhiteSpace($ProcessAiBase)) {
@@ -166,12 +171,14 @@ try {
   Write-Host "  CLOUDFLARE_WORKER_ACCOUNT_ID = $(Mask-Value $CloudflareAccountId)"
   Write-Host "  PROCESS_AI_BASE = $ProcessAiBase"
   Write-Host "  HMDAV_AI_SHARED_SECRET = $(Mask-Value $SharedSecret)"
+  Write-Host "  AETHERLAB_LEGAL_MODEL = $AetherlabLegalModel"
   Write-Host ''
   Write-Host 'Validacoes recomendadas apos o deploy:'
   Write-Host "  1. GET  $ProcessAiBase/health"
   Write-Host "  2. POST $ProcessAiBase/execute"
   Write-Host "  3. POST $ProcessAiBase/v1/execute"
-  Write-Host '  4. Rodar /llm-test com provider gpt'
+  Write-Host "  4. POST $ProcessAiBase/v1/messages"
+  Write-Host '  5. Rodar /llm-test com provider custom'
 }
 finally {
   Pop-Location
