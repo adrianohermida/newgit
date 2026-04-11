@@ -89,6 +89,28 @@ registerTest("buildLlmTestTimeline exposes telemetry, backend logs and errors", 
   assert.ok(result.some((item) => item.label === "backend_error_1"));
 });
 
+registerTest("applyLlmTestConsoleFilters narrows entries by provider status and source", async () => {
+  const utils = await loadConsoleModule();
+  const result = utils.applyLlmTestConsoleFilters([
+    { id: "1", provider: "local", status: "error", source: "local_llm_api" },
+    { id: "2", provider: "gpt", status: "success", source: "primary_api" },
+    { id: "3", provider: "local", status: "success", source: "local_llm_api" },
+  ], {
+    provider: "local",
+    status: "success",
+    source: "local_llm_api",
+  });
+
+  assert.deepEqual(result.map((entry) => entry.id), ["3"]);
+});
+
+registerTest("classifyLlmTestError separates configuration auth and timeout failures", async () => {
+  const utils = await loadConsoleModule();
+  assert.equal(utils.classifyLlmTestError("Provider nao esta configurado no servidor."), "configuration");
+  assert.equal(utils.classifyLlmTestError("Authentication error on embed secret"), "authentication");
+  assert.equal(utils.classifyLlmTestError("Timeout na chamada administrativa."), "timeout");
+});
+
 (async () => {
   let failures = 0;
   for (const test of tests) {

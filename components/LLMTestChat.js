@@ -9,9 +9,11 @@ import {
 } from "../lib/admin/activity-log";
 import { formatLawdeskProviderLabel } from "../lib/lawdesk/providers";
 import {
+  applyLlmTestConsoleFilters,
   buildDiagnosticReport,
   buildLlmTestResultRecord,
   buildLlmTestTimeline,
+  classifyLlmTestError,
   filterLlmTestActivityEntries,
 } from "../lib/lawdesk/llm-test-console";
 
@@ -101,7 +103,15 @@ function ResultCard({ result, onSelect }) {
   );
 }
 
-function ConsoleRail({ entries, activeEntryId, onSelectEntry }) {
+function ConsoleRail({
+  entries,
+  activeEntryId,
+  onSelectEntry,
+  filters,
+  onFilterChange,
+  sourceOptions,
+  onOpenDiagnostics,
+}) {
   const activeEntry = entries.find((entry) => entry.id === activeEntryId) || entries[0] || null;
   const latestCreatedAt = activeEntry?.createdAt ? new Date(activeEntry.createdAt).toLocaleTimeString("pt-BR") : "n/a";
 
@@ -120,6 +130,39 @@ function ConsoleRail({ entries, activeEntryId, onSelectEntry }) {
             <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Ultimo evento</p>
             <p className="mt-1 text-sm font-semibold text-[#F5F1E8]">{latestCreatedAt}</p>
           </div>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <select
+            value={filters.provider}
+            onChange={(event) => onFilterChange("provider", event.target.value)}
+            className="h-10 rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.98)] px-3 text-xs text-[#F5F1E8] outline-none"
+          >
+            <option value="">Todos providers</option>
+            <option value="gpt">Nuvem principal</option>
+            <option value="local">LLM local</option>
+            <option value="cloudflare">Cloudflare</option>
+            <option value="custom">Custom</option>
+          </select>
+          <select
+            value={filters.status}
+            onChange={(event) => onFilterChange("status", event.target.value)}
+            className="h-10 rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.98)] px-3 text-xs text-[#F5F1E8] outline-none"
+          >
+            <option value="">Todos status</option>
+            <option value="running">Running</option>
+            <option value="success">Success</option>
+            <option value="error">Error</option>
+          </select>
+          <select
+            value={filters.source}
+            onChange={(event) => onFilterChange("source", event.target.value)}
+            className="h-10 rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.98)] px-3 text-xs text-[#F5F1E8] outline-none"
+          >
+            <option value="">Todas sources</option>
+            {sourceOptions.map((item) => (
+              <option key={item} value={item}>{item}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -206,6 +249,15 @@ function ConsoleRail({ entries, activeEntryId, onSelectEntry }) {
                 <div className="rounded-[20px] border border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] p-4">
                   <p className="text-[10px] uppercase tracking-[0.16em] text-[#f2b2b2]">Erro</p>
                   <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-6 text-[#f2b2b2]">{activeEntry.error}</pre>
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      onClick={() => onOpenDiagnostics(activeEntry)}
+                      className="rounded-full border border-[#C5A059] px-3 py-1.5 text-[11px] font-semibold text-[#C5A059] transition hover:bg-[rgba(197,160,89,0.12)]"
+                    >
+                      Abrir diagnostico
+                    </button>
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -231,6 +283,9 @@ export default function LLMTestChat() {
   const [consoleEntries, setConsoleEntries] = useState([]);
   const [selectedConsoleEntryId, setSelectedConsoleEntryId] = useState(null);
   const [selectedResultId, setSelectedResultId] = useState(null);
+  const [consoleFilters, setConsoleFilters] = useState({ provider: "", status: "", source: "" });
+  const [providersHealth, setProvidersHealth] = useState(null);
+  const [ragHealth, setRagHealth] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -239,12 +294,32 @@ export default function LLMTestChat() {
         if (!active) return;
         const providers = Array.isArray(payload?.data?.providers) ? payload.data.providers : [];
         const defaultProvider = typeof payload?.data?.defaultProvider === "string" ? payload.data.defaultProvider : "gpt";
+        setProvidersHealth(payload?.data?.health || null);
         setProviderCatalog(providers);
         setProvider((current) => current || defaultProvider || providers.find((item) => item.available)?.id || "gpt");
       })
       .catch((fetchError) => {
         if (!active) return;
         setError(fetchError?.message || "Falha ao carregar catalogo de providers.");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    adminFetch("/api/admin-dotobot-rag-health?include_upsert=0", { method: "GET" })
+      .then((payload) => {
+        if (!active) return;
+        setRagHealth(payload || null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setRagHealth({
+          status: "failed",
+          error: "Falha ao carregar health do RAG.",
+        });
       });
     return () => {
       active = false;
@@ -283,6 +358,8 @@ export default function LLMTestChat() {
       lastResult: results[0] || null,
       recentResults: results.slice(0, 8),
       consoleEntries: consoleEntries.slice(0, 12),
+      providersHealth,
+      ragHealth,
       coverage: {
         routeTracked: true,
         consoleIntegrated: true,
@@ -291,7 +368,7 @@ export default function LLMTestChat() {
       consoleTags: ["ai-task", "dotobot", "functions"],
       updatedAt: nowIso(),
     });
-  }, [consoleEntries, error, loading, prompt, provider, providerCatalog, results]);
+  }, [consoleEntries, error, loading, prompt, provider, providerCatalog, providersHealth, ragHealth, results]);
 
   const quickActions = useMemo(
     () => [
@@ -308,10 +385,38 @@ export default function LLMTestChat() {
     [results, selectedResultId]
   );
 
+  const filteredConsoleEntries = useMemo(
+    () => applyLlmTestConsoleFilters(consoleEntries, consoleFilters),
+    [consoleEntries, consoleFilters]
+  );
+
+  const consoleSourceOptions = useMemo(
+    () => Array.from(new Set(consoleEntries.map((entry) => String(entry.source || "").trim()).filter(Boolean))),
+    [consoleEntries]
+  );
+
   const selectedTimeline = useMemo(
     () => buildLlmTestTimeline(selectedResult || {}),
     [selectedResult]
   );
+
+  function handleConsoleFilterChange(key, value) {
+    setConsoleFilters((current) => ({ ...current, [key]: value }));
+    setSelectedConsoleEntryId(null);
+  }
+
+  function handleOpenDiagnostics(entry) {
+    const providerHint = String(entry?.provider || provider || "").trim();
+    const sourceHint = String(entry?.source || "").trim();
+    router.push({
+      pathname: "/interno/agentlab/environment",
+      query: {
+        origin: "llm-test",
+        provider: providerHint || undefined,
+        source: sourceHint || undefined,
+      },
+    });
+  }
 
   async function runSmokeTest(selectedProvider) {
     const trimmedPrompt = String(prompt || "").trim();
@@ -328,6 +433,7 @@ export default function LLMTestChat() {
     appendActivityLog({
       id: activityId,
       module: "llm-test",
+      provider: selectedProvider,
       component: "LLMTestChat",
       label: `LLM Test: ${providerLabel}`,
       action: "llm_smoke_test",
@@ -383,6 +489,8 @@ export default function LLMTestChat() {
 
       updateActivityLog(activityId, {
         status: "success",
+        provider: selectedProvider,
+        source: resultRecord.source || "",
         durationMs,
         response: buildDiagnosticReport({
           title: "LLM smoke test response",
@@ -421,6 +529,9 @@ export default function LLMTestChat() {
 
       updateActivityLog(activityId, {
         status: "error",
+        provider: selectedProvider,
+        source: "",
+        errorType: classifyLlmTestError(runError?.message || ""),
         durationMs,
         response: buildDiagnosticReport({
           title: "LLM smoke test failure context",
@@ -530,6 +641,35 @@ export default function LLMTestChat() {
             </div>
           </div>
         </div>
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-3">
+          <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-4">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Health providers</p>
+            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{providersHealth?.status || "carregando"}</p>
+            <p className="mt-1 text-sm text-[#8FA39C]">
+              {Number.isFinite(Number(providersHealth?.summary?.operational))
+                ? `${providersHealth.summary.operational} operacionais de ${providersHealth.summary.total || 0}`
+                : "Catalogo e probes do servidor."}
+            </p>
+          </div>
+          <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-4">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Health RAG</p>
+            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{ragHealth?.status || "carregando"}</p>
+            <p className="mt-1 text-sm text-[#8FA39C]">
+              {ragHealth?.report?.supabaseEmbedding?.error || ragHealth?.error || "Embedding, retrieval e fallback."}
+            </p>
+          </div>
+          <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-4">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Diagnostico rapido</p>
+            <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">
+              {ragHealth?.status === "failed"
+                ? "RAG com falha; revisar secrets e embedding."
+                : providersHealth?.status === "failed"
+                  ? "Providers sem saude operacional suficiente."
+                  : "Ambiente pronto para smoke tests comparativos."}
+            </p>
+          </div>
+        </div>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_400px]">
@@ -608,9 +748,13 @@ export default function LLMTestChat() {
         </div>
 
         <ConsoleRail
-          entries={consoleEntries}
+          entries={filteredConsoleEntries}
           activeEntryId={selectedConsoleEntryId}
           onSelectEntry={setSelectedConsoleEntryId}
+          filters={consoleFilters}
+          onFilterChange={handleConsoleFilterChange}
+          sourceOptions={consoleSourceOptions}
+          onOpenDiagnostics={handleOpenDiagnostics}
         />
       </section>
     </div>
