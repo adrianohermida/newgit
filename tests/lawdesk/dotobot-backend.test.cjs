@@ -348,6 +348,59 @@ registerTest("runLawdeskChat uses local provider when LLM_BASE_URL is configured
   }
 });
 
+registerTest("runLawdeskChat allows custom provider to reuse primary worker with shared secret bearer", async () => {
+  const { runLawdeskChat } = await loadLawdeskModules();
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    return new Response(
+      JSON.stringify({
+        id: "msg_custom_1",
+        type: "message",
+        role: "assistant",
+        model: "aetherlab-legal-v1",
+        metadata: {
+          requested_model: "aetherlab-legal-v1",
+          resolved_model: "@cf/meta/llama-3.1-8b-instruct",
+        },
+        content: [{ type: "text", text: "Resposta do endpoint custom." }],
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  };
+
+  try {
+    const result = await runLawdeskChat(
+      {
+        PROCESS_AI_BASE: "https://ai.hermidamaia.adv.br",
+        HMDAV_AI_SHARED_SECRET: "shared-secret",
+        CUSTOM_LLM_MODEL: "aetherlab-legal-v1",
+      },
+      {
+        query: "Use o modelo custom",
+        provider: "custom",
+        context: { route: "/llm-test" },
+      }
+    );
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "https://ai.hermidamaia.adv.br/v1/messages");
+    assert.equal(calls[0].options.headers.Authorization, "Bearer shared-secret");
+    assert.equal(result.status, "ok");
+    assert.equal(result.result.message, "Resposta do endpoint custom.");
+    assert.equal(result._metadata.source, "custom_llm_api");
+    assert.equal(result._metadata.model, "aetherlab-legal-v1");
+    assert.equal(result._metadata.resolvedModel, "@cf/meta/llama-3.1-8b-instruct");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 registerTest("runLawdeskChat prefixes failures with provider strategy for clearer diagnostics", async () => {
   const { runLawdeskChat } = await loadLawdeskModules();
   const originalFetch = globalThis.fetch;

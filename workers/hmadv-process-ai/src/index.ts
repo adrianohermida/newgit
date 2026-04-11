@@ -58,6 +58,7 @@ export interface Env {
   hmadv_process_ai_logs?: R2BucketBinding;
   CLOUDFLARE_WORKERS_AI_MODEL?: string;
   CLOUDFLARE_WORKERS_AI_EMBEDDING_MODEL?: string;
+  AETHERLAB_LEGAL_MODEL?: string;
   CLOUDFLARE_R2_ACCOUNT_ID?: string;
   CLOUDFLARE_S3_API?: string;
   HMDAV_AI_SHARED_SECRET?: string;
@@ -93,6 +94,25 @@ function getSharedSecret(env: Env) {
   );
 }
 
+function getDefaultChatModel(env: Env) {
+  return env.CLOUDFLARE_WORKERS_AI_MODEL || '@cf/meta/llama-3.1-8b-instruct';
+}
+
+function resolveChatModel(env: Env, requestedModel?: string | null) {
+  const normalized = String(requestedModel || '').trim().toLowerCase();
+  if (!normalized) {
+    return getDefaultChatModel(env);
+  }
+
+  const aliases: Record<string, string> = {
+    'aetherlab-legal-v1': env.AETHERLAB_LEGAL_MODEL || getDefaultChatModel(env),
+    'aetherlab-legal-ptbr-v1': env.AETHERLAB_LEGAL_MODEL || getDefaultChatModel(env),
+    'aetherlab-legal': env.AETHERLAB_LEGAL_MODEL || getDefaultChatModel(env),
+  };
+
+  return aliases[normalized] || String(requestedModel).trim();
+}
+
 function assertSecret(req: Request, env: Env) {
   const expectedSecret = getSharedSecret(env);
   if (!expectedSecret) return null;
@@ -120,6 +140,10 @@ function nowIso() {
 
 function isExecutePath(pathname: string) {
   return pathname === '/execute' || pathname === '/execute/' || pathname === '/v1/execute' || pathname === '/v1/execute/';
+}
+
+function isMessagesPath(pathname: string) {
+  return pathname === '/v1/messages' || pathname === '/v1/messages/';
 }
 
 function sleep(ms: number) {
@@ -169,7 +193,7 @@ async function withVectorizeRetry<T>(operation: () => Promise<T>, maxRetries = 2
 }
 
 async function runJson(env: Env, prompt: string) {
-  const model = env.CLOUDFLARE_WORKERS_AI_MODEL || '@cf/meta/llama-3.1-8b-instruct';
+  const model = resolveChatModel(env);
   const result = await env.AI.run(model, {
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
@@ -212,13 +236,13 @@ async function runConversation(env: Env, query: string, context: Json) {
     route: '/execute',
     mission: query.slice(0, 120),
     mode: String((context as Record<string, any>)?.assistant?.mode || context?.mode || 'chat'),
-    provider: env.CLOUDFLARE_WORKERS_AI_MODEL || '@cf/meta/llama-3.1-8b-instruct',
+    provider: resolveChatModel(env),
     status: 'running',
     metadata_json: JSON.stringify({ retrieved_context_count: retrievedContext.length }),
   }).catch(() => null);
 
   const prompt = buildConversationPrompt(query, context, retrievedContext);
-  const model = env.CLOUDFLARE_WORKERS_AI_MODEL || '@cf/meta/llama-3.1-8b-instruct';
+  const model = resolveChatModel(env);
   const result = await env.AI.run(model, {
     messages: [
       { role: 'system', content: CONVERSATION_SYSTEM_PROMPT },
@@ -284,6 +308,122 @@ async function runConversation(env: Env, query: string, context: Json) {
       retrieved_context: retrievedContext,
     },
   };
+}
+
+function normalizeMessageText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item === 'object' && 'text' in item) {
+          return String((item as { text?: unknown }).text || '');
+        }
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+  if (value && typeof value === 'object' && 'text' in value) {
+    return String((value as { text?: unknown }).text || '');
+  }
+  return '';
+}
+
+function extractCompatibleMessagesPrompt(body: Json | null) {
+  const messages = Array.isArray(body?.messages) ? body.messages : [];
+  const system = typeof body?.system === 'string' ? body.system.trim() : '';
+  const prompt = messages
+    .map((message) => {
+      if (!message || typeof message !== 'object') return '';
+      const entry = message as Record<string, unknown>;
+      const role = typeof entry.role === 'string' ? entry.role.trim() : 'user';
+      const content = normalizeMessageText(entry.content);
+      if (!content) return '';
+      return `${role.toUpperCase()}:\n${content}`;
+    })
+    .filter(Boolean)
+    .join('\n\n');
+
+  return {
+    prompt,
+    system,
+    requestedModel: typeof body?.model === 'string' ? body.model.trim() : '',
+    maxTokens: Number(body?.max_tokens ?? body?.maxTokens ?? 1200) || 1200,
+  };
+}
+
+async function runCompatibleMessagesApi(env: Env, body: Json | null) {
+  const { prompt, system, requestedModel, maxTokens } = extractCompatibleMessagesPrompt(body);
+  if (!prompt) {
+    return json({ ok: false, error: { message: 'messages_required' } }, 400);
+  }
+
+  const runId = crypto.randomUUID();
+  const combinedPrompt = system ? `${system}\n\n${prompt}` : prompt;
+  const retrievedContext = await queryRelatedMemory(env, combinedPrompt.slice(0, 6000), 6).catch(() => []);
+  const ragSnippet = retrievedContext.length
+    ? `\n\nContexto RAG recuperado:\n${JSON.stringify(retrievedContext.slice(0, 6), null, 2)}`
+    : '';
+  const model = resolveChatModel(env, requestedModel);
+
+  await recordRun(env, {
+    id: runId,
+    kind: 'messages_api',
+    route: '/v1/messages',
+    mission: combinedPrompt.slice(0, 120),
+    mode: 'messages',
+    provider: model,
+    status: 'running',
+    metadata_json: JSON.stringify({ retrieved_context_count: retrievedContext.length }),
+  }).catch(() => null);
+
+  const result = await env.AI.run(model, {
+    messages: [
+      {
+        role: 'system',
+        content: system || CONVERSATION_SYSTEM_PROMPT,
+      },
+      {
+        role: 'user',
+        content: `${prompt}${ragSnippet}`,
+      },
+    ],
+    max_tokens: Math.min(Math.max(maxTokens, 128), 4096),
+  });
+
+  const responseText = String((result as Json)?.response || '').trim() || 'Sem resposta do modelo.';
+
+  await recordRun(env, {
+    id: runId,
+    kind: 'messages_api',
+    route: '/v1/messages',
+    mission: combinedPrompt.slice(0, 120),
+    mode: 'messages',
+    provider: model,
+    status: 'done',
+    result: responseText,
+    metadata_json: JSON.stringify({ retrieved_context_count: retrievedContext.length }),
+  }).catch(() => null);
+
+  return json({
+    id: `msg_${runId}`,
+    type: 'message',
+    role: 'assistant',
+    model: requestedModel || model,
+    content: [{ type: 'text', text: responseText }],
+    usage: {
+      input_tokens: combinedPrompt.length,
+      output_tokens: responseText.length,
+    },
+    request_id: runId,
+    metadata: {
+      requested_model: requestedModel || model,
+      resolved_model: model,
+      retrieved_context_count: retrievedContext.length,
+      route: '/v1/messages',
+    },
+  });
 }
 
 function getEmbeddingModel(env: Env) {
@@ -886,7 +1026,7 @@ export default {
         ok: true,
         service: 'hmadv-process-ai',
         now: new Date().toISOString(),
-        routes: ['/health', '/execute', '/v1/execute', '/analyze/activity', '/analyze/process', '/cron/reconcile', '/reconcile/process'],
+        routes: ['/health', '/execute', '/v1/execute', '/v1/messages', '/analyze/activity', '/analyze/process', '/cron/reconcile', '/reconcile/process'],
         auth_configured: sharedSecretConfigured,
         vectorize: Boolean(env.VECTORIZE),
         analytics_engine: Boolean(env.ANALYTICS_ENGINE),
@@ -906,6 +1046,10 @@ export default {
       }
       const context = (body?.context && typeof body.context === 'object' ? body.context : {}) as Json;
       return json(await runConversation(env, query, context));
+    }
+    if (req.method === 'POST' && isMessagesPath(url.pathname)) {
+      const body = (await parseBody(req)) as Json | null;
+      return runCompatibleMessagesApi(env, body);
     }
     if (req.method === 'POST' && url.pathname === '/analyze/activity') {
       return analyzeActivity(req, env);

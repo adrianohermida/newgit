@@ -223,6 +223,22 @@ registerTest("getPrimaryBackendConfig accepts HMADV_RUNNER_URL as fallback", asy
   assert.equal(config.diagnostics.baseUrl.configuredFrom, "HMADV_RUNNER_URL");
 });
 
+registerTest("getCustomLlmConfig can reuse primary backend and shared secret aliases", async () => {
+  const providers = await loadProvidersModule();
+  const config = providers.getCustomLlmConfig({
+    PROCESS_AI_BASE: "https://ai.hermidamaia.adv.br",
+    HMDAV_AI_SHARED_SECRET: "shared-secret",
+    CLOUDFLARE_WORKERS_AI_MODEL: "hermida-custom-v1",
+  });
+
+  assert.equal(config.baseUrl, "https://ai.hermidamaia.adv.br");
+  assert.equal(config.baseUrlSource, "PROCESS_AI_BASE");
+  assert.equal(config.authToken, "shared-secret");
+  assert.equal(config.authTokenSource, "HMDAV_AI_SHARED_SECRET");
+  assert.equal(config.model, "hermida-custom-v1");
+  assert.equal(config.modelSource, "CLOUDFLARE_WORKERS_AI_MODEL");
+});
+
 async function run() {
   let failures = 0;
   for (const entry of tests) {

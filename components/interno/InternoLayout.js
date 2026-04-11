@@ -52,6 +52,7 @@ const NAV_ITEMS = [
   { href: "/interno/posts", label: "Conteudo" },
   { href: "/interno/agendamentos", label: "Agenda" },
   { href: "/interno/leads", label: "Leads" },
+  { href: "/interno/market-ads", label: "Market Ads" },
 ];
 
 function normalizeDisplayName(profile) {
@@ -188,6 +189,30 @@ function getModuleIntegrationGuide(pathname = "") {
           helper: "As rotas de embed e funcoes do Supabase complementam a trilha de IA quando houver dependencias vetoriais.",
           endpoint: "supabase/functions/dotobot-embed",
           trigger: "Acione quando a pipeline de contexto precisar regenerar embeddings ou depurar resposta do copiloto.",
+        },
+      ],
+    },
+    "/interno/market-ads": {
+      title: "Market Ads: growth, compliance e campanha",
+      subtitle: "Anuncios juridicos precisam unir inteligencia competitiva, operacao de midia e filtro etico no mesmo loop.",
+      items: [
+        {
+          label: "Painel interno",
+          helper: "O cockpit administrativo do modulo parte de /api/admin-market-ads para benchmarks, previsoes e validacao de copy.",
+          endpoint: "/api/admin-market-ads",
+          trigger: "Use para carregar o dashboard, gerar preview de anuncio e validar compliance OAB antes da publicacao.",
+        },
+        {
+          label: "Geracao assistida",
+          helper: "A camada de IA produz headlines, descricoes, CTA, criativos sugeridos e keywords sempre com guarda juridica.",
+          endpoint: "lib/admin/market-ads.js",
+          trigger: "Acione quando precisar montar variacoes A/B, revisar copy ou preparar o handoff para integracoes futuras.",
+        },
+        {
+          label: "Integracoes futuras",
+          helper: "Google Ads, Meta Ads, analytics e landing pages devem convergir para uma mesma trilha de auditoria e otimizacao.",
+          endpoint: "Google Ads API + Meta Marketing API + HMADV landing pages",
+          trigger: "Acione quando o modulo sair do modo cockpit e passar a sincronizar campanhas reais com publicacao segura.",
         },
       ],
     },
@@ -1413,6 +1438,9 @@ export default function InternoLayout({
   const resolvedRightRail = typeof rightRail === "function"
     ? rightRail({ moduleKey: currentModuleKey, moduleHistory, activityLog })
     : rightRail;
+  const consoleReservedSpace = consoleOpen ? consoleHeight + 20 : 52;
+  const consoleDockLeft = leftCollapsed ? 88 : 272;
+  const consoleDockRight = shouldRenderDotobotRail && !rightCollapsed ? 360 : 0;
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.24),transparent_30%),linear-gradient(180deg,#050706_0%,#070A09_100%)] text-[#F4F1EA]">
@@ -1469,10 +1497,7 @@ export default function InternoLayout({
       {/* MAIN + COPILOT */}
       <div className="flex h-full min-h-0 flex-1">
         {/* CONTEÚDO PRINCIPAL */}
-        <div
-          className="relative flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden"
-          style={{ "--interno-console-height": consoleOpen ? `${consoleHeight}px` : "44px" }}
-        >
+        <div className="relative flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden">
           <div className="shrink-0 flex items-center justify-between gap-4 border-b border-[#1E2E29] px-6 py-4">
             <div className="text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">Workspace</div>
             <div className="flex-1 px-6">
@@ -1529,7 +1554,7 @@ export default function InternoLayout({
               </button>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-[var(--interno-console-height)]">
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden" style={{ paddingBottom: `${consoleReservedSpace}px` }}>
           <header className="mb-6 shrink-0 border-b border-[#1E2E29] pb-5 px-6 pt-6">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
               <div className="min-w-0">
@@ -1546,8 +1571,12 @@ export default function InternoLayout({
           </div>
           </div>
           <div
-            className={`absolute bottom-0 left-0 right-0 z-20 min-h-[44px] border-t border-[#1E2E29] bg-[rgba(6,8,7,0.92)] transition-all ${consoleOpen ? "flex flex-col" : "block h-[44px]"}`}
-            style={consoleOpen ? { height: `${consoleHeight}px` } : undefined}
+            className={`fixed bottom-0 z-30 min-h-[44px] border-t border-[#1E2E29] bg-[rgba(6,8,7,0.96)] shadow-[0_-18px_44px_rgba(0,0,0,0.38)] transition-all ${consoleOpen ? "flex flex-col" : "block h-[44px]"}`}
+            style={{
+              left: `${consoleDockLeft}px`,
+              right: `${consoleDockRight}px`,
+              height: consoleOpen ? `${consoleHeight}px` : undefined,
+            }}
           >
             {consoleOpen ? (
               <div

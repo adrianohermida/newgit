@@ -440,6 +440,11 @@ export default function InternoHomePage() {
                         title="Abrir Publicacoes"
                         helper="Criacao de processos, extracao de partes, polos e reflexo no CRM."
                       />
+                      <FocusLink
+                        href="/interno/market-ads"
+                        title="Abrir HMADV Market Ads"
+                        helper="Cockpit de anuncios juridicos com inteligencia de concorrencia, gerador de copy e compliance OAB."
+                      />
                     </div>
                   </div>
                   <div className="border border-[#2D2E2E] bg-[rgba(10,12,11,0.82)] p-4 text-sm">
@@ -559,6 +564,9 @@ export default function InternoHomePage() {
                 </Link>
                 <Link href="/interno/leads" prefetch={false} className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
                   Abrir leads e tickets
+                </Link>
+                <Link href="/interno/market-ads" prefetch={false} className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
+                  Abrir HMADV Market Ads
                 </Link>
               </div>
             </div>
