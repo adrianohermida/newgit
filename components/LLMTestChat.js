@@ -104,6 +104,20 @@ function ProviderMatrixCard({ item, onRun }) {
           <p className="mt-1 text-sm text-[#F5F1E8]">{item.latestResultStatus || "sem teste"}</p>
         </div>
       </div>
+      {item.id === "gpt" ? (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="rounded-[16px] border border-[#22342F] px-3 py-2">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Sonda de execucao</p>
+            <p className="mt-1 text-sm text-[#F5F1E8]">
+              {item.executeProbeOk == null ? "n/a" : item.executeProbeOk ? "ok" : "falhou"}
+            </p>
+          </div>
+          <div className="rounded-[16px] border border-[#22342F] px-3 py-2">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Rota sondada</p>
+            <p className="mt-1 break-all text-sm text-[#F5F1E8]">{item.executeProbeRoute || "sem sucesso"}</p>
+          </div>
+        </div>
+      ) : null}
       <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
         <span className={`rounded-full border px-2.5 py-1 ${item.configured ? "border-[#234034] text-[#8FCFA9]" : "border-[#5b2d2d] text-[#f2b2b2]"}`}>
           {item.configured ? "Configurado" : "Nao configurado"}
@@ -143,6 +157,15 @@ function ProviderMatrixCard({ item, onRun }) {
           {item.id === "gpt" ? (
             <p className="mt-2 text-xs leading-6 text-[#8FA39C]">O backend principal precisa responder em `/execute` ou `/v1/execute`. Se `health` estiver OK e a execucao falhar, o problema tende a ser deploy ou roteamento.</p>
           ) : null}
+        </div>
+      ) : null}
+      {item.id === "gpt" && item.executeProbeErrors?.length ? (
+        <div className="mt-3 space-y-2">
+          {item.executeProbeErrors.slice(0, 2).map((entry) => (
+            <p key={entry} className="rounded-[14px] border border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] px-3 py-2 text-xs leading-6 text-[#f2b2b2]">
+              {entry}
+            </p>
+          ))}
         </div>
       ) : null}
       {diagnosticBlocks.length ? (
@@ -819,11 +842,11 @@ export default function LLMTestChat() {
           <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-4">
             <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Health providers</p>
             <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{providersHealth?.status || "carregando"}</p>
-            <p className="mt-1 text-sm text-[#8FA39C]">
-              {Number.isFinite(Number(providersHealth?.summary?.operational))
-                ? `${providersHealth.summary.operational} operacionais de ${providersHealth.summary.total || 0}`
-                : "Catalogo e probes do servidor."}
-            </p>
+              <p className="mt-1 text-sm text-[#8FA39C]">
+                {Number.isFinite(Number(providersHealth?.summary?.operational))
+                  ? `${providersHealth.summary.operational} operacionais de ${providersHealth.summary.total || providerDebugMatrix.length || 0}`
+                  : "Catalogo e probes do servidor."}
+              </p>
           </div>
           <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-4">
             <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Health RAG</p>

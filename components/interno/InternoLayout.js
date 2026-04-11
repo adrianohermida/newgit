@@ -46,6 +46,7 @@ const NAV_ITEMS = [
   { href: "/interno/publicacoes", label: "Publicacoes" },
   { href: "/interno/contacts", label: "Contatos" },
   { href: "/interno/agentlab", label: "AgentLab" },
+  { href: "/interno/integration-kit", label: "Integration Kit" },
   { href: "/llm-test", label: "LLM Test" },
   { href: "/interno/posts", label: "Conteudo" },
   { href: "/interno/agendamentos", label: "Agenda" },
