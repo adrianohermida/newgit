@@ -215,6 +215,22 @@ function formatDateTimeLabel(value) {
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("pt-BR");
 }
 
+function formatFallbackReason(reason) {
+  if (reason === "edge_function_unavailable") return "Fallback local apos falha da edge function.";
+  if (reason === "local_backlog_path") return "Processamento local orientado pelo backlog.";
+  if (reason === "edge_function_unavailable_or_empty") return "Fallback local apos resposta vazia ou indisponivel.";
+  return reason ? String(reason) : "";
+}
+
+function formatUpstreamWarningText(upstreamWarning) {
+  if (!upstreamWarning) return "";
+  const parts = [];
+  if (upstreamWarning.functionName) parts.push(`Funcao: ${upstreamWarning.functionName}`);
+  if (upstreamWarning.status) parts.push(`HTTP ${upstreamWarning.status}`);
+  if (upstreamWarning.message) parts.push(upstreamWarning.message);
+  return parts.join(" - ");
+}
+
 function CompactHistoryPanel({ localHistory, remoteHistory }) {
   const latestLocal = localHistory[0];
   const latestRemote = remoteHistory[0];
@@ -641,6 +657,9 @@ function IntegratedQueueList({
   onToggleAllFiltered,
   allPageSelected,
   allFilteredSelected,
+  limited = false,
+  totalEstimated = false,
+  errorMessage = "",
 }) {
   const totalPages = Math.max(1, Math.ceil(Number(totalRows || rows.length || 0) / Math.max(1, pageSize)));
   const pagedRows = rows;
@@ -651,6 +670,9 @@ function IntegratedQueueList({
           <p className="text-sm font-semibold">Lista operacional integrada</p>
           <p className="text-xs opacity-60">Mesma leitura de filas, agora em modo de lista para validar, editar e agir em lote.</p>
           <p className="mt-1 text-xs opacity-50">{totalRows || rows.length || 0} item(ns) filtrado(s). {selectedCount} marcado(s).</p>
+          {limited ? <p className="mt-1 text-xs text-[#FDE68A]">Leitura parcial protegida. A lista e a selecao de filtrados podem representar apenas a amostra carregada.</p> : null}
+          {totalEstimated ? <p className="mt-1 text-xs opacity-60">O total atual e estimado porque a fila foi consolidada em multiplas leituras paginadas.</p> : null}
+          {errorMessage ? <p className="mt-1 text-xs text-[#FECACA]">{errorMessage}</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => onTogglePage(!allPageSelected)} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">
@@ -763,6 +785,10 @@ function PublicacaoDetailPanel({
       </div> : null}
       {detailState.loading ? <p className="text-sm opacity-60">Carregando detalhe integrado...</p> : null}
       {detailState.error ? <p className="text-sm text-red-300">{detailState.error}</p> : null}
+      {data?.coverage?.totalRows > 0 && !data?.coverage?.items?.length ? <div className="border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#FDE68A]">
+        <p className="font-semibold">Cobertura parcial do processo</p>
+        <p className="mt-2 opacity-90">O processo foi encontrado na contagem, mas os detalhes nao vieram completos nesta leitura. Recarregue o detalhe para uma nova tentativa.</p>
+      </div> : null}
       {data?.coverage?.items?.[0] ? <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
         <p className="font-semibold">Processo no HMADV</p>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-65">
@@ -771,6 +797,10 @@ function PublicacaoDetailPanel({
           {data.coverage.items[0].status_atual_processo ? <span>Status: {data.coverage.items[0].status_atual_processo}</span> : null}
         </div>
         {data.coverage.items[0].titulo ? <p className="mt-2 opacity-70">{data.coverage.items[0].titulo}</p> : null}
+      </div> : null}
+      {(data?.linkedPartes?.limited || data?.pendingPartes?.limited) ? <div className="border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#FDE68A]">
+        <p className="font-semibold">Partes carregadas em modo reduzido</p>
+        <p className="mt-2 opacity-90">A listagem de partes pode estar parcial nesta leitura. Use "Recarregar detalhe" antes de editar em lote se precisar de garantia total.</p>
       </div> : null}
       <div className="grid gap-4 md:grid-cols-2">
         <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
@@ -1000,6 +1030,13 @@ function OperationResult({ result }) {
 
   return (
     <div className="space-y-4">
+      {result?.fallbackReason || result?.upstreamWarning ? (
+        <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#FDE68A]">
+          <p className="font-semibold">Execucao em modo degradado</p>
+          {result?.fallbackReason ? <p className="mt-2 opacity-90">{formatFallbackReason(result.fallbackReason)}</p> : null}
+          {result?.upstreamWarning ? <p className="mt-2 opacity-90">{formatUpstreamWarningText(result.upstreamWarning)}</p> : null}
+        </div>
+      ) : null}
       {result?.uiHint ? (
         <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#FDE68A]">
           <p className="font-semibold">Leitura operacional</p>
@@ -1038,6 +1075,14 @@ function OperationResult({ result }) {
                     {renderSyncStatuses(row).map((item) => <StatusBadge key={item.label} tone={item.tone}>{item.label}</StatusBadge>)}
                   </div>
                 ) : null}
+                {row.status === "fallback_local" ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <StatusBadge tone="warning">fallback local</StatusBadge>
+                    {row.functionName ? <StatusBadge tone="default">{row.functionName}</StatusBadge> : null}
+                    {row.http_status ? <StatusBadge tone="default">HTTP {row.http_status}</StatusBadge> : null}
+                  </div>
+                ) : null}
+                {row.detalhe ? <p className="mt-2 text-xs text-[#FDE68A]">{row.detalhe}</p> : null}
                 {row.account_id_freshsales ? (
                   <a
                     href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`}
@@ -2697,6 +2742,9 @@ function PublicacoesContent() {
                 onToggleAllFiltered={toggleIntegratedFiltered}
                 allPageSelected={allIntegratedPageSelected}
                 allFilteredSelected={allIntegratedFilteredSelected}
+                limited={integratedQueue.limited}
+                totalEstimated={integratedQueue.totalEstimated}
+                errorMessage={integratedQueue.error}
               />
             </div>
           </Panel>

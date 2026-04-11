@@ -40,6 +40,20 @@ import {
   updateConversationCollection,
 } from "./dotobotPanelState";
 
+function safeLocalSet(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch (e) {
+    if (e?.name !== "QuotaExceededError" && e?.code !== 22) return;
+    try {
+      const parsed = JSON.parse(value);
+      const trimmed = Array.isArray(parsed) ? parsed.slice(-Math.ceil(parsed.length / 2)) : parsed;
+      window.localStorage.setItem(key, JSON.stringify(trimmed));
+    } catch {
+      // quota insuficiente — silent fail
+    }
+  }
+}
 
 // Utilitário para sumarizar contexto RAG
 function buildRagSummary(rag) {
@@ -501,8 +515,8 @@ export default function DotobotCopilot({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(chatStorageKey, JSON.stringify(messages.slice(-MAX_HISTORY)));
-    // Scroll automÃ¡tico para o final ao carregar/trocar conversa
+    safeLocalSet(chatStorageKey, JSON.stringify(messages.slice(-MAX_HISTORY)));
+    // Scroll automático para o final ao carregar/trocar conversa
     if (scrollRef.current) {
       setTimeout(() => {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -523,7 +537,7 @@ export default function DotobotCopilot({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(taskStorageKey, JSON.stringify(taskHistory.slice(-MAX_TASKS)));
+    safeLocalSet(taskStorageKey, JSON.stringify(taskHistory.slice(-MAX_TASKS)));
   }, [taskHistory, taskStorageKey]);
 
   useEffect(() => {
@@ -536,13 +550,13 @@ export default function DotobotCopilot({
       taskHistory,
       attachments,
     });
-    window.localStorage.setItem(conversationStorageKey, JSON.stringify(next));
+    safeLocalSet(conversationStorageKey, JSON.stringify(next));
     setConversations(next);
   }, [messages, taskHistory, attachments, activeConversationId, conversationStorageKey]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(
+    safeLocalSet(
       prefStorageKey,
       JSON.stringify({
         mode,
