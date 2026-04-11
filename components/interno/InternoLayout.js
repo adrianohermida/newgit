@@ -991,10 +991,7 @@ export default function InternoLayout({
 
   useEffect(() => {
     const limits = getConsoleHeightLimits();
-    setConsoleHeight((current) => {
-      const safeCurrent = Number(current || 0) || limits.preferred;
-      return Math.min(limits.max, Math.max(limits.min, safeCurrent));
-    });
+    setConsoleHeight(limits.preferred);
   }, [router.pathname]);
 
   useEffect(() => {
