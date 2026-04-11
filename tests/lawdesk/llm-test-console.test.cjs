@@ -141,11 +141,27 @@ registerTest("buildProviderDebugMatrix combines catalog health and latest result
   const utils = await loadConsoleModule();
   const matrix = utils.buildProviderDebugMatrix({
     providerCatalog: [
-      { id: "local", label: "LLM local", available: false, configured: false, model: "local-model" },
+      {
+        id: "local",
+        label: "LLM local",
+        available: false,
+        configured: false,
+        model: "local-model",
+        diagnostics: {
+          baseUrl: { configuredFrom: null, missing: ["LOCAL_LLM_BASE_URL", "LLM_BASE_URL"] },
+        },
+      },
     ],
     providersHealth: {
       providers: [
-        { id: "local", status: "failed", reason: "Base URL ausente." },
+        {
+          id: "local",
+          status: "failed",
+          reason: "Base URL ausente.",
+          diagnostics: {
+            baseUrl: { configuredFrom: null, missing: ["LOCAL_LLM_BASE_URL", "LLM_BASE_URL"] },
+          },
+        },
       ],
     },
     results: [
@@ -158,6 +174,8 @@ registerTest("buildProviderDebugMatrix combines catalog health and latest result
   assert.equal(matrix[0].healthStatus, "failed");
   assert.equal(matrix[0].errorType, "configuration");
   assert.match(matrix[0].failureReason, /nao esta configurado/i);
+  assert.equal(matrix[0].diagnostics.baseUrl.configuredFrom, null);
+  assert.equal(matrix[0].diagnostics.baseUrl.missing.includes("LOCAL_LLM_BASE_URL"), true);
 });
 
 (async () => {

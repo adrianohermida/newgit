@@ -51,17 +51,29 @@ function formatJson(value) {
   }
 }
 
+function flattenProviderDiagnostics(diagnostics, prefix = "") {
+  if (!diagnostics || typeof diagnostics !== "object") return [];
+
+  return Object.entries(diagnostics).flatMap(([key, value]) => {
+    const nextKey = prefix ? `${prefix}.${key}` : key;
+    if (!value || typeof value !== "object") return [];
+
+    const hasShape = Object.prototype.hasOwnProperty.call(value, "configuredFrom") || Object.prototype.hasOwnProperty.call(value, "missing");
+    if (hasShape) {
+      return [{
+        key: nextKey,
+        configuredFrom: value?.configuredFrom || null,
+        missing: Array.isArray(value?.missing) ? value.missing : [],
+      }];
+    }
+
+    return flattenProviderDiagnostics(value, nextKey);
+  });
+}
+
 function ProviderMatrixCard({ item, onRun }) {
   const diagnostics = item.diagnostics && typeof item.diagnostics === "object" ? item.diagnostics : null;
-  const diagnosticBlocks = diagnostics
-    ? Object.entries(diagnostics)
-        .map(([key, value]) => ({
-          key,
-          configuredFrom: value?.configuredFrom || null,
-          missing: Array.isArray(value?.missing) ? value.missing : [],
-        }))
-        .filter((entry) => entry.configuredFrom || entry.missing.length)
-    : [];
+  const diagnosticBlocks = diagnostics ? flattenProviderDiagnostics(diagnostics).filter((entry) => entry.configuredFrom || entry.missing.length) : [];
   return (
     <article className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
       <div className="flex items-start justify-between gap-3">
