@@ -111,6 +111,21 @@ export default function InternoFinanceiroPage() {
   );
 }
 
+function ConfigTextArea({ label, value, onChange, placeholder, rows = 6 }) {
+  return (
+    <label className="block">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] opacity-50">{label}</p>
+      <textarea
+        value={value ?? ""}
+        onChange={onChange}
+        placeholder={placeholder}
+        rows={rows}
+        className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]"
+      />
+    </label>
+  );
+}
+
 function FinanceiroInternoContent({ routeFocus }) {
   const [state, setState] = useState({ loading: true, error: null, data: null });
   const [selectedPendingRows, setSelectedPendingRows] = useState([]);
@@ -130,6 +145,7 @@ function FinanceiroInternoContent({ routeFocus }) {
     publish_limit: 50,
     crm_events_limit: 50,
     freshsales_owner_id: "",
+    freshsales_product_id_map: "{}",
   });
   const [configState, setConfigState] = useState({ loading: false, error: null, result: null });
 
@@ -145,6 +161,7 @@ function FinanceiroInternoContent({ routeFocus }) {
         publish_limit: settings.publish_limit ?? 50,
         crm_events_limit: settings.crm_events_limit ?? 50,
         freshsales_owner_id: settings.freshsales_owner_id ?? "",
+        freshsales_product_id_map: JSON.stringify(settings.freshsales_product_id_map || {}, null, 2),
       });
       setState({ loading: false, error: null, data: payload.data || null });
     } catch (error) {
@@ -338,12 +355,16 @@ function FinanceiroInternoContent({ routeFocus }) {
   async function saveConfig() {
     setConfigState({ loading: true, error: null, result: null });
     try {
+      const parsedProductMap = JSON.parse(configForm.freshsales_product_id_map || "{}");
       const payload = await adminFetch("/api/admin-hmadv-financeiro", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "update_config",
-          settings: configForm,
+          settings: {
+            ...configForm,
+            freshsales_product_id_map: parsedProductMap,
+          },
         }),
       });
       setConfigState({ loading: false, error: null, result: payload.data || null });
@@ -697,6 +718,15 @@ function FinanceiroInternoContent({ routeFocus }) {
             placeholder="ID do owner no Freshsales"
             onChange={(event) => setConfigForm((current) => ({ ...current, freshsales_owner_id: event.target.value }))}
           />
+          <div className="md:col-span-2">
+            <ConfigTextArea
+              label="Mapa manual de produtos"
+              value={configForm.freshsales_product_id_map}
+              placeholder='{"Honorarios Unitarios":"31002148103","Fatura Avulsa":"31000000000"}'
+              rows={8}
+              onChange={(event) => setConfigForm((current) => ({ ...current, freshsales_product_id_map: event.target.value }))}
+            />
+          </div>
         </div>
         <div className="mb-6 flex flex-wrap items-center gap-3">
           <button

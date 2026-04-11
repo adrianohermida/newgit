@@ -106,14 +106,17 @@ function buildScriptArgs(operation, settings = {}, body = {}) {
   return [];
 }
 
-async function runNodeScript(scriptName, args = []) {
+async function runNodeScript(scriptName, args = [], envOverrides = {}) {
   const cwd = process.cwd();
   const scriptPath = path.join(cwd, "scripts", scriptName);
 
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [scriptPath, ...args], {
       cwd,
-      env: process.env,
+      env: {
+        ...process.env,
+        ...envOverrides,
+      },
       windowsHide: true,
     });
 
@@ -204,7 +207,11 @@ export default async function handler(req, res) {
         }
         const settings = config.settings?.value || {};
         const dynamicArgs = buildScriptArgs(operation, settings, req.body || {});
-        const data = await runNodeScript(selected.script, dynamicArgs);
+        const envOverrides = {};
+        if (settings.freshsales_product_id_map && Object.keys(settings.freshsales_product_id_map).length) {
+          envOverrides.HMADV_FRESHSALES_PRODUCT_ID_MAP = JSON.stringify(settings.freshsales_product_id_map);
+        }
+        const data = await runNodeScript(selected.script, dynamicArgs, envOverrides);
         const guidance = await getHmadvFinanceOperationGuidance(process.env, operation);
         return res.status(200).json({
           ok: true,

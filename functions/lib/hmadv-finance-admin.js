@@ -444,12 +444,25 @@ function getHmadvFinanceAdminDefaultSettings(env = {}) {
     publish_limit: Math.max(1, Number(getCleanEnvValue(env.HMADV_FINANCE_PUBLISH_LIMIT) || 50) || 50),
     crm_events_limit: Math.max(1, Number(getCleanEnvValue(env.HMADV_FINANCE_CRM_EVENTS_LIMIT) || 50) || 50),
     freshsales_owner_id: getCleanEnvValue(env.FRESHSALES_OWNER_ID) || getCleanEnvValue(env.FS_OWNER_ID) || null,
+    freshsales_product_id_map: safeJsonParse(
+      getCleanEnvValue(env.HMADV_FRESHSALES_PRODUCT_ID_MAP) || getCleanEnvValue(env.FRESHSALES_PRODUCT_ID_MAP),
+      {}
+    ),
   };
 }
 
 function sanitizeHmadvFinanceAdminSettings(input = {}, env = {}) {
   const defaults = getHmadvFinanceAdminDefaultSettings(env);
   const next = { ...defaults, ...(input && typeof input === "object" ? input : {}) };
+  const rawProductMap =
+    typeof next.freshsales_product_id_map === "string"
+      ? safeJsonParse(next.freshsales_product_id_map, {})
+      : safeJsonParse(next.freshsales_product_id_map, {});
+  const normalizedProductMap = Object.fromEntries(
+    Object.entries(rawProductMap || {})
+      .map(([key, value]) => [String(key || "").trim(), String(value || "").trim()])
+      .filter(([key, value]) => key && /^\d+$/.test(value))
+  );
   return {
     backfill_limit: Math.max(1, Math.min(200, Number(next.backfill_limit || defaults.backfill_limit) || defaults.backfill_limit)),
     materialize_workspace_id: String(next.materialize_workspace_id || "").trim() || null,
@@ -457,6 +470,7 @@ function sanitizeHmadvFinanceAdminSettings(input = {}, env = {}) {
     publish_limit: Math.max(1, Number(next.publish_limit || defaults.publish_limit) || defaults.publish_limit),
     crm_events_limit: Math.max(1, Number(next.crm_events_limit || defaults.crm_events_limit) || defaults.crm_events_limit),
     freshsales_owner_id: String(next.freshsales_owner_id || defaults.freshsales_owner_id || "").trim() || null,
+    freshsales_product_id_map: normalizedProductMap,
   };
 }
 
@@ -885,6 +899,7 @@ export async function getHmadvFinanceAdminOverview(env) {
       env_key: "HMADV_FRESHSALES_PRODUCT_ID_MAP",
       example: "{\"Honorarios Unitarios\":\"31002148103\",\"Parcela Contratual\":\"31002919756\"}",
       note: "Use este mapa quando o endpoint de products do Freshsales nao estiver acessivel, mas deals existentes ja revelarem product_id validos.",
+      configured_map: config?.settings?.value?.freshsales_product_id_map || {},
     },
   };
 }

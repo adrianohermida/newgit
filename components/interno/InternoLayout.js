@@ -1474,7 +1474,10 @@ export default function InternoLayout({
       {/* MAIN + COPILOT */}
       <div className="flex h-full min-h-0 flex-1">
         {/* CONTEÚDO PRINCIPAL */}
-        <div className="grid min-h-0 flex-1 min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
+        <div
+          className="relative flex min-h-0 flex-1 min-w-0 flex-col overflow-hidden"
+          style={{ "--interno-console-height": consoleOpen ? `${consoleHeight}px` : "44px" }}
+        >
           <div className="shrink-0 flex items-center justify-between gap-4 border-b border-[#1E2E29] px-6 py-4">
             <div className="text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">Workspace</div>
             <div className="flex-1 px-6">
@@ -1531,7 +1534,7 @@ export default function InternoLayout({
               </button>
             </div>
           </div>
-          <div className="min-h-0 overflow-y-auto overflow-x-hidden">
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-[var(--interno-console-height)]">
           <header className="mb-6 shrink-0 border-b border-[#1E2E29] pb-5 px-6 pt-6">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
               <div className="min-w-0">
@@ -1548,7 +1551,7 @@ export default function InternoLayout({
           </div>
           </div>
           <div
-            className={`min-h-[44px] shrink-0 border-t border-[#1E2E29] bg-[rgba(6,8,7,0.92)] transition-all ${consoleOpen ? "flex flex-col" : "block h-[44px]"}`}
+            className={`absolute bottom-0 left-0 right-0 z-20 min-h-[44px] border-t border-[#1E2E29] bg-[rgba(6,8,7,0.92)] transition-all ${consoleOpen ? "flex flex-col" : "block h-[44px]"}`}
             style={consoleOpen ? { height: `${consoleHeight}px` } : undefined}
           >
             {consoleOpen ? (
