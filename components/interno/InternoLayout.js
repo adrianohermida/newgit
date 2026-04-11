@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import DotobotCopilot from "./DotobotPanel";
 import DotobotExtensionManager from "./DotobotExtensionManager";
 import {
+  appendOperationalNote,
+  archiveActivityLog,
   clearActivityLog,
   formatActivityLogText,
+  formatActivityLogMarkdown,
   subscribeActivityLog,
 } from "../../lib/admin/activity-log";
 
@@ -77,10 +80,84 @@ export default function InternoLayout({
   const [copilotOpen, setCopilotOpen] = useState(true);
   const [consoleTab, setConsoleTab] = useState("console");
   const [activityLog, setActivityLog] = useState([]);
+  const [archivedLogs, setArchivedLogs] = useState([]);
+  const [operationalNotes, setOperationalNotes] = useState([]);
+  const [consoleHeight, setConsoleHeight] = useState(260);
+  const [noteInput, setNoteInput] = useState("");
+  const dragStateRef = useRef({ dragging: false, startY: 0, startHeight: 260 });
 
   useEffect(() => {
-    return subscribeActivityLog((entries) => setActivityLog(entries));
+    return subscribeActivityLog((entries, archives, notes) => {
+      setActivityLog(entries);
+      setArchivedLogs(archives || []);
+      setOperationalNotes(notes || []);
+    });
   }, []);
+
+  useEffect(() => {
+    function handleMove(event) {
+      if (!dragStateRef.current.dragging) return;
+      const delta = dragStateRef.current.startY - event.clientY;
+      const nextHeight = Math.min(560, Math.max(160, dragStateRef.current.startHeight + delta));
+      setConsoleHeight(nextHeight);
+    }
+    function handleUp() {
+      dragStateRef.current.dragging = false;
+    }
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+  }, []);
+
+  const archivedCount = archivedLogs.length;
+  const lastArchiveAt = archivedLogs[0]?.createdAt || null;
+  const formattedArchiveHint = useMemo(() => {
+    if (!lastArchiveAt) return "Sem arquivos ainda";
+    const date = new Date(lastArchiveAt);
+    return `Ultimo arquivo: ${date.toLocaleString("pt-BR")}`;
+  }, [lastArchiveAt]);
+
+  function handleStartResize(event) {
+    if (!consoleOpen) return;
+    dragStateRef.current.dragging = true;
+    dragStateRef.current.startY = event.clientY;
+    dragStateRef.current.startHeight = consoleHeight;
+  }
+
+  async function handleCopyLog() {
+    const text = formatActivityLogText(activityLog);
+    if (text && navigator?.clipboard) {
+      await navigator.clipboard.writeText(text);
+    }
+  }
+
+  async function handleExportLog() {
+    const text = formatActivityLogMarkdown(activityLog, operationalNotes);
+    if (!text) return;
+    const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `hmadv-log-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.md`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleArchive(reason) {
+    archiveActivityLog(reason);
+  }
+
+  function handleAddNote() {
+    const text = noteInput.trim();
+    if (!text) return;
+    appendOperationalNote({ text, type: "observacao" });
+    setNoteInput("");
+  }
 
   async function handleSignOut() {
     if (supabase) {
@@ -208,7 +285,19 @@ export default function InternoLayout({
             <DotobotExtensionManager />
           </div>
           </div>
-          <div className={`border-t border-[#1E2E29] bg-[rgba(6,8,7,0.92)] transition-all ${consoleOpen ? "h-[260px]" : "h-[44px]"}`}>
+          <div
+            className={`border-t border-[#1E2E29] bg-[rgba(6,8,7,0.92)] transition-all ${consoleOpen ? "" : "h-[44px]"}`}
+            style={consoleOpen ? { height: `${consoleHeight}px` } : undefined}
+          >
+            {consoleOpen ? (
+              <div
+                onMouseDown={handleStartResize}
+                className="flex h-3 cursor-row-resize items-center justify-center border-b border-[#1E2E29] text-[#60706A]"
+                title="Arraste para redimensionar"
+              >
+                <span className="h-1 w-10 rounded-full bg-[#22342F]" />
+              </div>
+            ) : null}
             <div className="flex items-center justify-between px-5 py-2 text-xs uppercase tracking-[0.18em] text-[#C5A059]">
               <div className="flex items-center gap-3">
                 <button
@@ -248,7 +337,7 @@ export default function InternoLayout({
               </button>
             </div>
             {consoleOpen ? (
-              <div className="h-[200px] overflow-y-auto px-5 pb-4 text-xs text-[#9BAEA8]">
+              <div className="h-[calc(100%-52px)] overflow-y-auto px-5 pb-4 text-xs text-[#9BAEA8]">
                 {consoleTab === "console" ? (
                   <div className="opacity-70">Console operacional (placeholder). Aqui entram logs estilo VS Code.</div>
                 ) : (
@@ -259,20 +348,35 @@ export default function InternoLayout({
                         onClick={() => clearActivityLog()}
                         className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                       >
-                        Limpar
+                        Limpar (arquivar)
                       </button>
                       <button
                         type="button"
-                        onClick={async () => {
-                          const text = formatActivityLogText(activityLog);
-                          if (text && navigator?.clipboard) {
-                            await navigator.clipboard.writeText(text);
-                          }
-                        }}
+                        onClick={() => handleArchive("Arquivo manual")}
+                        className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                      >
+                        Arquivar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCopyLog}
                         className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                       >
                         Copiar log
                       </button>
+                      <button
+                        type="button"
+                        onClick={handleExportLog}
+                        className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                      >
+                        Exportar MD
+                      </button>
+                      <span className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8]">
+                        Arquivos: {archivedCount}
+                      </span>
+                      <span className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8]">
+                        {formattedArchiveHint}
+                      </span>
                     </div>
                     {activityLog.length ? (
                       <div className="space-y-2">
@@ -280,7 +384,17 @@ export default function InternoLayout({
                           <div key={entry.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(8,10,9,0.6)] px-3 py-2 text-[11px]">
                             <div className="flex items-center justify-between">
                               <span className="font-semibold">{entry.label || entry.action}</span>
-                              <span className={entry.status === "error" ? "text-red-200" : "text-[#C5A059]"}>{entry.status}</span>
+                              <span
+                                className={
+                                  entry.status === "error"
+                                    ? "text-red-200"
+                                    : entry.status === "success"
+                                      ? "text-[#11D473]"
+                                      : "text-[#C5A059]"
+                                }
+                              >
+                                {entry.status}
+                              </span>
                             </div>
                             <div className="opacity-60">{entry.action || entry.path}</div>
                           </div>
@@ -289,6 +403,46 @@ export default function InternoLayout({
                     ) : (
                       <div className="text-[11px] opacity-60">Nenhuma atividade registrada.</div>
                     )}
+                    <div className="mt-4 rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Memoria operacional</p>
+                          <p className="mt-1 text-[11px] text-[#9BAEA8]">Registre gargalos, debitos tecnicos e progresso.</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={noteInput}
+                            onChange={(event) => setNoteInput(event.target.value)}
+                            placeholder="Adicionar nota rapida..."
+                            className="h-8 w-[220px] rounded-full border border-[#22342F] bg-transparent px-3 text-[11px] text-[#E6E0D3] outline-none placeholder:text-[#54605B]"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddNote}
+                            className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                          >
+                            Salvar
+                          </button>
+                        </div>
+                      </div>
+                      {operationalNotes.length ? (
+                        <div className="mt-3 space-y-2">
+                          {operationalNotes.slice(0, 10).map((note) => (
+                            <div key={note.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2 text-[11px]">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[#D9B46A]">{note.type || "nota"}</span>
+                                <span className="text-[10px] text-[#6E7E78]">
+                                  {new Date(note.createdAt || Date.now()).toLocaleString("pt-BR")}
+                                </span>
+                              </div>
+                              <div className="mt-1 text-[#C7D0CA]">{note.text}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-[11px] opacity-60">Nenhuma nota registrada.</div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
