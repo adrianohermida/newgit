@@ -580,6 +580,8 @@ async function publishDeal(row) {
 
 function buildDealPayload(row, contract, product) {
   const billingConfig = getBillingConfig();
+  const amount = row.balance_due_corrected || row.balance_due || row.amount_original || 0;
+  const freshsalesProductId = toFreshsalesNumericId(product?.freshsales_product_id);
   const rawValues = {
     external_reference: buildExternalReference(row),
     invoice_number: row.invoice_number || null,
@@ -598,15 +600,15 @@ function buildDealPayload(row, contract, product) {
   return {
     deal: cleanObject({
       name: buildDealName(row, contract, product),
-      amount: row.balance_due_corrected || row.balance_due || row.amount_original || 0,
+      amount,
       currency: row.currency || 'BRL',
       expected_close: row.due_date || currentDateIso(),
       owner_id: billingConfig.ownerId,
       deal_pipeline_id: billingConfig.defaultDealPipelineId,
       deal_stage_id: resolveDealStageId(row.status, billingConfig),
       probability: resolveDealProbability(row.status),
-      deal_product_id: toFreshsalesNumericId(product?.freshsales_product_id),
       sales_account_id: toFreshsalesNumericId(row.freshsales_account_id || contract.freshsales_account_id),
+      products: freshsalesProductId ? [{ id: freshsalesProductId, quantity: 1, unit_price: amount }] : undefined,
       ...coreFields,
       contacts_added_list: contract.freshsales_contact_id ? [Number(contract.freshsales_contact_id)] : undefined,
       custom_field: cleanObject(customFields),
