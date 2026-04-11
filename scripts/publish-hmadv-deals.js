@@ -18,6 +18,7 @@ async function main() {
   let created = 0;
   let updated = 0;
   let failed = 0;
+  const failureDetails = [];
 
   for (const row of receivables) {
     try {
@@ -26,15 +27,29 @@ async function main() {
       if (result.mode === 'updated') updated += 1;
     } catch (error) {
       failed += 1;
+      const message = String(error.message || error);
+      failureDetails.push({
+        receivable_id: row.id,
+        invoice_number: row.invoice_number || null,
+        product_name: firstRelation(row.products)?.name || null,
+        reason: message,
+      });
+      console.error(`[deal_publish_failed] ${row.id}: ${message}`);
       await upsertDealRegistry(row, null, {
         last_sync_status: 'error',
-        last_sync_error: String(error.message || error).slice(0, 1000),
+        last_sync_error: message.slice(0, 1000),
         payload_last_sent: { external_reference: buildExternalReference(row) },
       });
     }
   }
 
-  console.log(JSON.stringify({ total: receivables.length, created, updated, failed }, null, 2));
+  console.log(JSON.stringify({
+    total: receivables.length,
+    created,
+    updated,
+    failed,
+    failure_details: failureDetails,
+  }, null, 2));
 }
 
 function sanitizePositiveInt(value, fallback) {
