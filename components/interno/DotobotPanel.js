@@ -218,21 +218,21 @@ function MessageBubble({ message, isTyping, onCopy, onReuse, onOpenAiTask }) {
                 <button
                   type="button"
                   onClick={() => onCopy?.(message)}
-                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#C6D1CC] transition hover:border-[#C5A059] hover:text-[#F1D39A]"
+                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#C6D1CC] transition hover:border-[#C5A059] hover:text-[#F1D39A] sm:px-3"
                 >
                   Copiar
                 </button>
                 <button
                   type="button"
                   onClick={() => onReuse?.(message)}
-                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#C6D1CC] transition hover:border-[#C5A059] hover:text-[#F1D39A]"
+                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#C6D1CC] transition hover:border-[#C5A059] hover:text-[#F1D39A] sm:px-3"
                 >
                   Usar no composer
                 </button>
                 <button
                   type="button"
                   onClick={() => onOpenAiTask?.(message)}
-                  className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                  className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF] sm:px-3"
                 >
                   Abrir no AI Task
                 </button>
@@ -980,9 +980,13 @@ export default function DotobotCopilot({
       isCollapsed && (
         <button
           type="button"
-          className="fixed right-0 top-1/2 z-[75] -translate-y-1/2 rounded-l-2xl border border-[#2D2E2E] bg-[rgba(14,16,15,0.95)] px-3 py-5 text-[11px] uppercase tracking-[0.28em] text-[#C5A059] shadow-[0_10px_30px_rgba(0,0,0,0.35)] transition hover:border-[#C5A059] hover:text-[#F5E6C5]"
+          className={`fixed z-[75] border border-[#2D2E2E] bg-[rgba(14,16,15,0.95)] text-[11px] uppercase text-[#C5A059] shadow-[0_10px_30px_rgba(0,0,0,0.35)] transition hover:border-[#C5A059] hover:text-[#F5E6C5] ${
+            isCompactViewport
+              ? "bottom-24 right-3 rounded-full px-4 py-3 tracking-[0.18em]"
+              : "right-0 top-1/2 -translate-y-1/2 rounded-l-2xl px-3 py-5 tracking-[0.28em]"
+          }`}
           onClick={() => setIsCollapsed(false)}
-          style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
+          style={isCompactViewport ? undefined : { writingMode: "vertical-rl", textOrientation: "mixed" }}
           title="Abrir Copilot (Ctrl + .)"
         >
           Copilot
@@ -1479,8 +1483,8 @@ export default function DotobotCopilot({
   const isWorkspaceShell = workspaceOpen;
   const railCollapsed = compactRail ? true : isCollapsed;
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
-  const visibleLegalActions = LEGAL_ACTIONS.slice(0, 3);
-  const visibleQuickPrompts = QUICK_PROMPTS.slice(0, 2);
+  const visibleLegalActions = LEGAL_ACTIONS.slice(0, isCompactViewport ? 1 : 3);
+  const visibleQuickPrompts = QUICK_PROMPTS.slice(0, isCompactViewport ? 1 : 2);
   let filteredConversations = filterVisibleConversations(conversations, conversationSearch);
   if (!showArchived) {
     filteredConversations = filteredConversations.filter(c => !c.archived);
@@ -1552,7 +1556,7 @@ export default function DotobotCopilot({
       />
       {showCollapsedTrigger ? <CollapsedTrigger /> : null}
       {!isCollapsed ? (
-      <section className="border border-[#22342F] bg-[rgba(10,12,11,0.98)] backdrop-blur-sm">
+      <section className={`border border-[#22342F] bg-[rgba(10,12,11,0.98)] backdrop-blur-sm ${compactRail ? "" : "mr-10 md:mr-0"}`}>
         <header className="border-b border-[#22342F] px-4 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -1565,10 +1569,10 @@ export default function DotobotCopilot({
                 </span>
               </div>
               <p className="mt-2 max-w-md text-xs leading-6 text-[#8FA19B]">
-                Chat focado em execucao, contexto e handoff com AI Task.
+                {isCompactViewport ? "Chat para execucao e handoff com AI Task." : "Chat focado em execucao, contexto e handoff com AI Task."}
               </p>
             </div>
-            <div className="flex flex-col items-end gap-2">
+            <div className="flex flex-row flex-wrap items-start justify-end gap-2 sm:flex-col sm:items-end">
               <button
                 type="button"
                 onClick={handleCopilotDebug}
@@ -1647,13 +1651,13 @@ export default function DotobotCopilot({
         ) : !railCollapsed ? (
           <>
             <div className="border-b border-[#22342F] px-4 py-3">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5 sm:gap-2">
                 {visibleLegalActions.slice(0, 2).map((action) => (
                   <button
                     key={action.label}
                     type="button"
                     onClick={() => handleQuickAction(action.prompt)}
-                    className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D9E0DB] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                    className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D9E0DB] transition hover:border-[#C5A059] hover:text-[#C5A059] sm:text-[11px]"
                   >
                     {action.label}
                   </button>
@@ -1661,21 +1665,19 @@ export default function DotobotCopilot({
               </div>
             </div>
 
-            <div ref={scrollRef} className="max-h-[46vh] overflow-y-auto px-4 py-4 space-y-3">
+            <div ref={scrollRef} className="max-h-[50vh] overflow-y-auto space-y-3 px-4 py-4 pr-3 sm:pr-4">
               {messages.length ? (
-                <VirtualList
-                  height={320}
-                  itemCount={messages.length}
-                  itemSize={110}
-                  width={"100%"}
-                  overscanCount={6}
-                >
-                  {({ index, style }) => (
-                    <div style={style}>
-                      <MessageBubble message={messages[index]} />
-                    </div>
-                  )}
-                </VirtualList>
+                <div className="space-y-3">
+                  {messages.map((message, index) => (
+                    <MessageBubble
+                      key={message.id || `${message.role}-${message.createdAt || index}-${index}`}
+                      message={message}
+                      onCopy={handleCopyMessage}
+                      onReuse={handleReuseMessage}
+                      onOpenAiTask={handleOpenMessageInAiTask}
+                    />
+                  ))}
+                </div>
               ) : (
                 <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm text-[#9BAEA8]">
                   <p className="font-medium text-[#F5F1E8]">Pronto para operar.</p>
@@ -1694,12 +1696,12 @@ export default function DotobotCopilot({
             </div>
 
             <div className="border-t border-[#22342F] px-4 py-4">
-              <div className="mb-3 flex flex-wrap gap-2">
+              <div className="mb-3 flex flex-wrap gap-1.5 sm:gap-2">
                 {visibleQuickPrompts.map((prompt) => (
                   <button
                     key={prompt}
                     type="button"
-                    className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#C6D1CC] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                    className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#C6D1CC] transition hover:border-[#C5A059] hover:text-[#C5A059] sm:text-[11px]"
                     onClick={() => setInput(prompt)}
                   >
                     {prompt}
@@ -1718,7 +1720,7 @@ export default function DotobotCopilot({
                   onPaste={handlePaste}
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={handleDrop}
-                  rows={4}
+                  rows={isCompactViewport ? 3 : 4}
                   placeholder="Descreva a tarefa, caso, ordem do administrador ou instrucao de treinamento..."
                   className="w-full resize-y rounded-[22px] border border-[#22342F] bg-[rgba(7,9,8,0.98)] px-4 py-3 text-sm outline-none transition focus:border-[#C5A059]"
                 />

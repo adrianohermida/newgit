@@ -2305,33 +2305,69 @@ export async function listProcessCoverage(env, { page = 1, pageSize = 20, query 
   const coverageFilter = buildCoverageQueryFilter(query);
   const baseFilters = [coverageFilter].filter(Boolean);
   const baseQuery = baseFilters.join("&");
-  const processSelect = [
-    "id",
-    "numero_cnj",
-    "numero_processo",
-    "titulo",
-    "account_id_freshsales",
-    "quantidade_movimentacoes",
-    "classe",
-    "assunto_principal",
-    "area",
-    "data_ajuizamento",
-    "sistema",
-    "polo_ativo",
-    "polo_passivo",
-    "status_atual_processo",
-  ].join(",");
+  const processSelectVariants = [
+    [
+      "id",
+      "numero_cnj",
+      "numero_processo",
+      "titulo",
+      "account_id_freshsales",
+      "quantidade_movimentacoes",
+      "classe",
+      "assunto_principal",
+      "area",
+      "data_ajuizamento",
+      "sistema",
+      "polo_ativo",
+      "polo_passivo",
+      "status_atual_processo",
+    ].join(","),
+    [
+      "id",
+      "numero_cnj",
+      "titulo",
+      "account_id_freshsales",
+      "quantidade_movimentacoes",
+      "classe",
+      "assunto_principal",
+      "area",
+      "data_ajuizamento",
+      "sistema",
+      "polo_ativo",
+      "polo_passivo",
+      "status_atual_processo",
+    ].join(","),
+  ];
   const countFilters = baseQuery;
   const totalRows = await countTableSafe(env, "processos", countFilters);
-  let processes = await listTableSafe(
-    env,
-    `processos?select=${processSelect}${baseQuery ? `&${baseQuery}` : ""}&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
-  );
-  if (!Array.isArray(processes) || (!processes.length && totalRows > 0)) {
-    processes = await listTableSafe(
-      env,
-      `processos?select=${processSelect}${baseQuery ? `&${baseQuery}` : ""}&order=numero_cnj.asc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
-    );
+  const orderVariants = ["updated_at.desc.nullslast", "numero_cnj.asc.nullslast"];
+  let processes = [];
+  for (const processSelect of processSelectVariants) {
+    let selectFailed = false;
+    for (const orderBy of orderVariants) {
+      try {
+        const rows = await hmadvRest(
+          env,
+          `processos?select=${processSelect}${baseQuery ? `&${baseQuery}` : ""}&order=${orderBy}&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
+        );
+        if (Array.isArray(rows)) {
+          processes = rows;
+          if (rows.length || totalRows === 0) break;
+        }
+      } catch (error) {
+        if (schemaMessageMatches(error?.message, "numero_processo")) {
+          selectFailed = true;
+          break;
+        }
+        if (schemaMessageMatches(error?.message, "updated_at") || schemaMessageMatches(error?.message, "numero_cnj")) {
+          continue;
+        }
+        throw error;
+      }
+    }
+    if (processes.length || totalRows === 0 || !selectFailed) {
+      break;
+    }
   }
   const processIds = uniqueNonEmpty((processes || []).map((item) => item.id));
   if (!processIds.length) {

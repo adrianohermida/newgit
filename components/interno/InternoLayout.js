@@ -2340,7 +2340,7 @@ export default function InternoLayout({
           <button
             type="button"
             onClick={() => setCopilotOpen(false)}
-            className="group fixed right-0 top-1/2 z-[80] -translate-y-1/2 rounded-l-2xl border border-[#C5A059] bg-[#C5A059] px-2 py-5 text-[10px] uppercase tracking-[0.32em] text-[#07110E] shadow-[0_10px_30px_rgba(197,160,89,0.3)]"
+            className="group fixed bottom-28 right-3 z-[80] rounded-full border border-[#C5A059] bg-[#C5A059] px-3 py-3 text-[10px] uppercase tracking-[0.2em] text-[#07110E] shadow-[0_10px_30px_rgba(197,160,89,0.3)] md:right-0 md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-l-2xl md:rounded-r-none md:px-2 md:py-5 md:tracking-[0.32em]"
             style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
           >
             <span className="group-hover:hidden">Copilot</span>
