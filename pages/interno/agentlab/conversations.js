@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
 import { adminFetch } from "../../../lib/admin/api";
 import { useAgentLabData } from "../../../lib/agentlab/useAgentLabData";
+import { setModuleHistory } from "../../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../../lib/admin/module-registry";
 
 function Panel({ title, children }) {
   return (
@@ -79,6 +81,42 @@ function ConversationsContent({ state, syncState, runSync }) {
   const syncRuns = state.data?.intelligence?.syncRuns || [];
   const environment = state.data?.environment || {};
   const syncBlocked = environment.mode === "degraded";
+
+  useEffect(() => {
+    setModuleHistory(
+      "agentlab-conversations",
+      buildModuleSnapshot("agentlab", {
+        routePath: "/interno/agentlab/conversations",
+        loading: state.loading,
+        error: state.error,
+        section: "conversations",
+        syncBlocked,
+        syncLoading: syncState.loading,
+        conversations: conversations.length,
+        recentMessages: recentMessages.length,
+        widgetEvents: widgetEvents.length,
+        incidents: incidents.length,
+        crmSignals: crmSignals.length,
+        summary,
+        coverage: {
+          routeTracked: true,
+          consoleIntegrated: true,
+          actionsTracked: true,
+        },
+      }),
+    );
+  }, [
+    conversations.length,
+    crmSignals.length,
+    incidents.length,
+    recentMessages.length,
+    state.error,
+    state.loading,
+    summary,
+    syncBlocked,
+    syncState.loading,
+    widgetEvents.length,
+  ]);
 
   return (
     <div className="space-y-8">

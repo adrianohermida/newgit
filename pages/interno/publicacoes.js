@@ -1598,6 +1598,15 @@ function PublicacoesContent() {
           totalEstimated: Boolean(payload.data?.totalEstimated),
           hasMore: Boolean(payload.data?.hasMore),
         };
+        if (Array.isArray(payload.data?.items)) {
+          setValidationMap((current) => {
+            const next = { ...current };
+            for (const item of payload.data.items) {
+              if (item?.numero_cnj && item?.validation) next[item.numero_cnj] = item.validation;
+            }
+            return next;
+          });
+        }
         setIntegratedQueue(nextState);
         return nextState;
       } catch (error) {
@@ -1740,15 +1749,28 @@ function PublicacoesContent() {
   }
 
   function applyValidationToNumbers(numbers, status, note = "") {
-    if (!numbers.length) return;
-    setValidationMap((current) => {
-      const next = { ...current };
-      const now = new Date().toISOString();
-      numbers.forEach((number) => {
-        if (!number) return;
-        next[number] = { status, note, updatedAt: now };
-      });
-      return next;
+    if (!numbers.length) return Promise.resolve();
+    return adminFetch("/api/admin-hmadv-publicacoes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "salvar_validacao",
+        processNumbers: numbers.join("\n"),
+        status,
+        note,
+      }),
+    }, {
+      action: "salvar_validacao",
+      component: "publicacoes-validacao",
+      label: `Salvar validacao (${status || "limpar"})`,
+      expectation: "Persistir validacao operacional da mesa de publicacoes",
+    }).then((payload) => {
+      const validations = payload.data?.validations || {};
+      setValidationMap((current) => ({ ...current, ...validations }));
+      return payload.data || {};
+    }).catch((error) => {
+      setActionState({ loading: false, error: error.message || "Falha ao salvar validacao.", result: null });
+      throw error;
     });
   }
 
@@ -1763,6 +1785,9 @@ function PublicacoesContent() {
         expectation: "Trazer processo, partes e contato no mesmo payload",
       });
       const nextData = payload.data || null;
+      if (row?.numero_cnj && nextData?.validation) {
+        setValidationMap((current) => ({ ...current, [row.numero_cnj]: nextData.validation }));
+      }
       setDetailState({ loading: false, error: null, row, data: nextData });
       const linkedItems = nextData?.linkedPartes?.items || [];
       const contact = nextData.contactDetail?.contact || linkedItems.find((item) => item?.contact)?.contact || null;
@@ -1802,7 +1827,7 @@ function PublicacoesContent() {
         expectation: "Salvar edicao simples do contato relacionado ao processo",
       });
       if (detailState?.row?.numero_cnj) {
-        applyValidationToNumbers([detailState.row.numero_cnj], detailState.row.validation?.status || "", detailEditForm.note || "");
+        await applyValidationToNumbers([detailState.row.numero_cnj], detailState.row.validation?.status || "", detailEditForm.note || "");
         await loadIntegratedDetail(detailState.row);
       }
       setActionState({ loading: false, error: null, result: payload.data || { ok: true } });

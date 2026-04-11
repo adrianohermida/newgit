@@ -646,6 +646,34 @@ function FinanceiroInternoContent() {
         </Panel>
       </div>
 
+      <Panel title="Migracao para Deals" eyebrow="Por origem">
+        <div className="space-y-3">
+          {(data.migration_progress_by_source || []).map((item) => (
+            <article key={item.source_file} className="border border-[#2D2E2E] p-4 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="font-semibold">{item.source_file}</p>
+                <div className="flex flex-wrap gap-2">
+                  <StatusBadge tone="accent">{item.materialization_rate}% materializado</StatusBadge>
+                  <StatusBadge tone={item.freshsales_sync_rate > 0 ? "success" : "warn"}>{item.freshsales_sync_rate}% no Freshsales</StatusBadge>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <StatusBadge tone="neutral">rows: {item.import_rows}</StatusBadge>
+                <StatusBadge tone="success">receivables: {item.materialized_receivables}</StatusBadge>
+                <StatusBadge tone="success">deals: {item.freshsales_synced}</StatusBadge>
+                <StatusBadge tone="accent">publish_ready: {item.publish_ready}</StatusBadge>
+                <StatusBadge tone="warn">canonical_only: {item.canonical_only}</StatusBadge>
+                <StatusBadge tone="warn">pendente_contato: {item.pending_contact}</StatusBadge>
+                <StatusBadge tone="warn">pendente_account: {item.pending_account}</StatusBadge>
+                <StatusBadge tone="danger">pendente_revisao: {item.pending_review}</StatusBadge>
+                {item.duplicates ? <StatusBadge tone="neutral">duplicadas: {item.duplicates}</StatusBadge> : null}
+              </div>
+            </article>
+          ))}
+          {!data.migration_progress_by_source?.length ? <p className="opacity-65">Sem dados de migracao por origem neste momento.</p> : null}
+        </div>
+      </Panel>
+
       <Panel title="Freshsales auth" eyebrow="OAuth">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="API key" value={freshsalesAuth.has_api_key ? "OK" : "Ausente"} helper="Melhor rota para operar a migração sem depender de OAuth." />

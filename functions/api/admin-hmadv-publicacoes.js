@@ -6,6 +6,7 @@ import {
   getPublicacoesAdminJob,
   getPublicationActivityTypes,
   getPublicacoesOverview,
+  getPublicacoesValidationMap,
   jsonError,
   jsonOk,
   listAdminJobs,
@@ -17,6 +18,7 @@ import {
   logAdminOperation,
   processPublicacoesAdminJob,
   runSyncWorker,
+  savePublicacoesValidation,
   syncPublicationActivities,
   syncPartesFromPublicacoes,
 } from "../lib/hmadv-ops.js";
@@ -137,6 +139,7 @@ async function collectIntegratedQueueSlice(env, { source = "todos", page = 1, pa
     return String(left?.numero_cnj || "").localeCompare(String(right?.numero_cnj || ""));
   });
   const pageItems = ordered.slice((safePage - 1) * safePageSize, safePage * safePageSize);
+  const validations = await getPublicacoesValidationMap(env, pageItems.map((item) => item.numero_cnj));
   return {
     page: safePage,
     pageSize: safePageSize,
@@ -144,7 +147,7 @@ async function collectIntegratedQueueSlice(env, { source = "todos", page = 1, pa
     totalEstimated: limited,
     hasMore: ordered.length > safePage * safePageSize || limited,
     limited,
-    items: pageItems,
+    items: pageItems.map((item) => ({ ...item, validation: validations[item.numero_cnj] || null })),
   };
 }
 
@@ -191,11 +194,13 @@ async function loadIntegratedDetail(env, numeroCnj) {
   const linkedContactId =
     linkedPartes?.items?.find((item) => item?.contact?.freshsales_contact_id)?.contact?.freshsales_contact_id || "";
   const contactDetail = linkedContactId ? await getContactDetail(env, linkedContactId).catch(() => null) : null;
+  const validations = await getPublicacoesValidationMap(env, [numeroCnj]);
   return {
     coverage,
     linkedPartes,
     pendingPartes,
     contactDetail,
+    validation: validations[numeroCnj] || null,
   };
 }
 
@@ -494,6 +499,14 @@ export async function onRequestPost(context) {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 20),
         apply: Boolean(body.apply),
+      }));
+    }
+    if (action === "salvar_validacao") {
+      return runLogged(async () => savePublicacoesValidation(context.env, {
+        processNumbers: parseProcessNumbers(body.processNumbers),
+        status: String(body.status || ""),
+        note: String(body.note || ""),
+        updatedBy: auth.profile?.email || auth.user?.email || auth.user?.id || "",
       }));
     }
     if (action === "run_sync_worker") {

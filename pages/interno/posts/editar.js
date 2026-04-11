@@ -4,6 +4,8 @@ import InternoLayout from "../../../components/interno/InternoLayout";
 import PostEditorForm from "../../../components/interno/PostEditorForm";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import { adminFetch } from "../../../lib/admin/api";
+import { appendActivityLog, setModuleHistory } from "../../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../../lib/admin/module-registry";
 
 export default function EditarPostPage() {
   const router = useRouter();
@@ -31,10 +33,30 @@ export default function EditarPostPage() {
       try {
         const payload = await adminFetch(`/api/admin-posts?id=${encodeURIComponent(id)}`);
         if (!cancelled) {
+          appendActivityLog({
+            label: "Leitura de post para edicao",
+            action: "post_edit_load",
+            method: "UI",
+            module: "posts",
+            page: "/interno/posts/editar",
+            status: "success",
+            response: `Post ${id} carregado para edicao.`,
+            tags: ["posts", "manual", "conteudo"],
+          });
           setState({ loading: false, saving: false, error: null, item: payload.item });
         }
       } catch (error) {
         if (!cancelled) {
+          appendActivityLog({
+            label: "Falha ao carregar post para edicao",
+            action: "post_edit_load",
+            method: "UI",
+            module: "posts",
+            page: "/interno/posts/editar",
+            status: "error",
+            error: error.message || "Falha ao carregar post.",
+            tags: ["posts", "manual", "conteudo"],
+          });
           setState({ loading: false, saving: false, error: error.message, item: null });
         }
       }
@@ -60,11 +82,52 @@ export default function EditarPostPage() {
         }),
       });
 
+      appendActivityLog({
+        label: "Post atualizado",
+        action: "post_update",
+        method: "UI",
+        module: "posts",
+        page: "/interno/posts/editar",
+        status: "success",
+        response: `Post ${state.item.id} salvo com status ${payload.item?.status || "n/d"}.`,
+        tags: ["posts", "manual", "conteudo"],
+      });
       setState({ loading: false, saving: false, error: null, item: payload.item });
     } catch (error) {
+      appendActivityLog({
+        label: "Falha ao atualizar post",
+        action: "post_update",
+        method: "UI",
+        module: "posts",
+        page: "/interno/posts/editar",
+        status: "error",
+        error: error.message || "Falha ao atualizar post.",
+        tags: ["posts", "manual", "conteudo"],
+      });
       setState((current) => ({ ...current, saving: false, error: error.message }));
     }
   }
+
+  useEffect(() => {
+    setModuleHistory(
+      "posts-editar",
+      buildModuleSnapshot("posts", {
+        routePath: "/interno/posts/editar",
+        loading: state.loading,
+        saving: state.saving,
+        error: state.error,
+        itemId: state.item?.id || null,
+        title: state.item?.title || null,
+        slug: state.item?.slug || null,
+        status: state.item?.status || null,
+        coverage: {
+          routeTracked: true,
+          consoleIntegrated: true,
+          actionsTracked: true,
+        },
+      }),
+    );
+  }, [state]);
 
   return (
     <RequireAdmin>

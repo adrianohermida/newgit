@@ -4,6 +4,8 @@ import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
 import { adminFetch } from "../../../lib/admin/api";
 import { useAgentLabData } from "../../../lib/agentlab/useAgentLabData";
+import { setModuleHistory } from "../../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../../lib/admin/module-registry";
 
 function Panel({ title, children }) {
   return (
@@ -203,6 +205,40 @@ function AgentsContent({
       setQuickReplyMessage(error.message);
     }
   }
+
+  useEffect(() => {
+    setModuleHistory(
+      "agentlab-agents",
+      buildModuleSnapshot("agentlab", {
+        routePath: "/interno/agentlab/agents",
+        loading: state.loading,
+        error: state.error,
+        section: "agents",
+        selectedAgent,
+        catalogCount: catalog.length,
+        profileLoaded: Boolean(selectedProfile),
+        queueCount: visibleQueue.length,
+        quickRepliesCount: visibleQuickReplies.length,
+        playbooksCount: visiblePlaybooks.length,
+        saving,
+        coverage: {
+          routeTracked: true,
+          consoleIntegrated: true,
+          actionsTracked: true,
+        },
+      }),
+    );
+  }, [
+    catalog.length,
+    saving,
+    selectedAgent,
+    selectedProfile,
+    state.error,
+    state.loading,
+    visiblePlaybooks.length,
+    visibleQueue.length,
+    visibleQuickReplies.length,
+  ]);
 
   return (
     <div className="space-y-8">
