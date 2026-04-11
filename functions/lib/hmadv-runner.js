@@ -23,6 +23,7 @@ import {
   drainContactAdminJobs,
   getContactsOverview,
   reconcilePartesContacts,
+  syncContactsToPortal,
   syncFreshsalesContactsMirror,
 } from "./hmadv-contacts.js";
 import { pickNextDispatchableJob, sortAdminJobsForDispatch } from "./admin-job-control.js";
@@ -486,6 +487,7 @@ async function runContactsCoveragePipeline(env) {
   const result = {
     mirror: null,
     reconcile: null,
+    portal: null,
     ok: true,
   };
   try {
@@ -511,6 +513,19 @@ async function runContactsCoveragePipeline(env) {
     result.reconcile = {
       ok: false,
       error: error?.message || "Falha ao reconciliar partes com contatos do Freshsales.",
+    };
+  }
+
+  try {
+    result.portal = await syncContactsToPortal(env, {
+      limit: 250,
+      dryRun: false,
+    });
+  } catch (error) {
+    result.ok = false;
+    result.portal = {
+      ok: false,
+      error: error?.message || "Falha ao refletir contatos do CRM para o portal.",
     };
   }
 

@@ -147,6 +147,38 @@ function extrairPayload(body: Record<string,unknown>): {
   };
 }
 
+function extrairContatoPayload(body: Record<string, unknown>): {
+  contactId: string | null;
+  accountId: string | null;
+  email: string | null;
+} {
+  const contact = (body.contact ?? {}) as Record<string, unknown>;
+  const salesAccount = (body.sales_account ?? {}) as Record<string, unknown>;
+  const rawEmail = String(
+    contact.email ??
+    body.email ??
+    body.contact_email ??
+    ''
+  ).trim().toLowerCase();
+  return {
+    contactId: String(
+      contact.id ??
+      body.contact_id ??
+      body.id ??
+      ''
+    ).trim() || null,
+    accountId: String(
+      contact.sales_account_id ??
+      contact.account_id ??
+      body.account_id ??
+      body.sales_account_id ??
+      salesAccount.id ??
+      ''
+    ).trim() || null,
+    email: rawEmail || null,
+  };
+}
+
 Deno.serve(async (req: Request) => {
   const url    = new URL(req.url);
   const action = url.searchParams.get('action') ?? '';
@@ -177,6 +209,96 @@ Deno.serve(async (req: Request) => {
 
   let body: Record<string,unknown> = {};
   try { body = await req.json(); } catch { /* payload vazio ou inválido */ }
+
+  const { contactId, accountId: contactAccountId, email: contactEmail } = extrairContatoPayload(body);
+  if (contactId) {
+    try {
+      const { data: existingContactJob } = await db.from('operacao_jobs')
+        .select('id,status')
+        .eq('modulo', 'contacts')
+        .eq('acao', 'sync_contacts')
+        .in('status', ['pending', 'running'])
+        .contains('payload', { contactId })
+        .maybeSingle();
+
+      if (existingContactJob) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            enfileirado: false,
+            tipo: 'contact_sync',
+            motivo: 'job já pendente ou processando',
+            contact_id: contactId,
+            account_id: contactAccountId,
+            job_id: existingContactJob.id,
+            job_status: existingContactJob.status,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { data: contactJob, error: contactJobError } = await db.from('operacao_jobs').insert({
+        modulo: 'contacts',
+        acao: 'sync_contacts',
+        status: 'pending',
+        payload: {
+          action: 'sync_contacts',
+          contactId,
+          dryRun: false,
+          fetchAll: false,
+          reflectToPortal: true,
+          limit: 1,
+          clientEmail: contactEmail,
+          account_id: contactAccountId,
+          origem: 'freshsales_contact_webhook',
+          jobControl: {
+            source: 'interno',
+            priority: 2,
+            rateLimitKey: 'freshsales_contacts_webhook',
+            visibleToPortal: false,
+          },
+        },
+        requested_count: 1,
+        processed_count: 0,
+        success_count: 0,
+        error_count: 0,
+        result_summary: {},
+        result_sample: [],
+        last_error: null,
+        started_at: null,
+        finished_at: null,
+      }).select('id').single();
+
+      if (contactJobError) throw contactJobError;
+
+      log('info', 'webhook_contato_enfileirado', {
+        contact_id: contactId,
+        account_id: contactAccountId,
+        email: contactEmail,
+        job_id: contactJob?.id,
+      });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          enfileirado: true,
+          tipo: 'contact_sync',
+          contact_id: contactId,
+          account_id: contactAccountId,
+          email: contactEmail,
+          job_id: contactJob?.id,
+          mensagem: 'Sincronização do contato agendada para espelho local e portal.',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log('warn', 'webhook_contato_fila_erro', { contactId, erro: msg });
+      return new Response(
+        JSON.stringify({ ok: false, enfileirado: false, tipo: 'contact_sync', erro: msg, contact_id: contactId }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+  }
 
   if (!containsDatajudTag(body)) {
     return new Response(

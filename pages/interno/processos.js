@@ -2738,8 +2738,10 @@ function InternoProcessosContent() {
     healthSuggestedActions.push({ key: "operacao", label: "Ir para operacao", onClick: () => updateView("operacao", "operacao") });
   }
 
-  return <div className="space-y-8">
-    <section className="rounded-[34px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-6 py-6 md:px-7">
+  const isResultView = view === "resultado";
+
+  return <div className={isResultView ? "space-y-6" : "space-y-8"}>
+    <section className={`rounded-[34px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-6 md:px-7 ${isResultView ? "py-5" : "py-6"}`}>
       <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
         <div className="max-w-3xl">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C5A059]">Centro operacional</p>
@@ -2752,7 +2754,7 @@ function InternoProcessosContent() {
           {latestHistory ? <p className="text-xs opacity-60">{latestHistory.label}: {latestHistory.preview}</p> : null}
         </div>
       </div>
-        <div className="mt-6 space-y-4">
+        <div className={`mt-6 ${isResultView ? "space-y-3" : "space-y-4"}`}>
           <ViewToggle value={view} onChange={updateView} />
           <div className={`rounded-[22px] border p-4 text-sm ${operationalStatus.mode === "error" || backendHealth.status === "error" ? "border-[#4B2222] bg-[rgba(127,29,29,0.12)]" : operationalStatus.mode === "limited" || backendHealth.status === "warning" ? "border-[#6E5630] bg-[rgba(76,57,26,0.16)]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.45)]"}`}>
             <div className="flex flex-wrap items-center justify-between gap-3">

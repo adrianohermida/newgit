@@ -1228,7 +1228,7 @@ export default function InternoLayout({
       <div className="flex h-full min-h-0 flex-1">
         {/* CONTEÚDO PRINCIPAL */}
         <div className="flex min-h-0 flex-1 min-w-0 flex-col">
-          <div className="flex items-center justify-between border-b border-[#1E2E29] px-6 py-4">
+          <div className="shrink-0 flex items-center justify-between border-b border-[#1E2E29] px-6 py-4">
             <div className="text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">Workspace</div>
             <div className="flex-1 px-6">
               <div className="mx-auto flex max-w-xl items-center gap-3 rounded-full border border-[#22342F] bg-[rgba(8,10,9,0.7)] px-4 py-2 text-sm">
@@ -1285,7 +1285,7 @@ export default function InternoLayout({
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-auto">
-          <header className="mb-6 border-b border-[#1E2E29] pb-5 px-6 pt-6">
+          <header className="mb-6 shrink-0 border-b border-[#1E2E29] pb-5 px-6 pt-6">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
               <div className="min-w-0">
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">Operacao interna</p>
@@ -1301,7 +1301,7 @@ export default function InternoLayout({
           </div>
           </div>
           <div
-            className={`border-t border-[#1E2E29] bg-[rgba(6,8,7,0.92)] transition-all ${consoleOpen ? "" : "h-[44px]"}`}
+            className={`shrink-0 border-t border-[#1E2E29] bg-[rgba(6,8,7,0.92)] transition-all ${consoleOpen ? "" : "h-[44px]"}`}
             style={consoleOpen ? { height: `${consoleHeight}px` } : undefined}
           >
             {consoleOpen ? (

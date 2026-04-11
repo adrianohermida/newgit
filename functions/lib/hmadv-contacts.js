@@ -625,6 +625,24 @@ export async function syncFreshsalesContactsMirror(env, { limit = 200, dryRun = 
   return { checkedAt: new Date().toISOString(), dryRun, fetchAll, total: unique.length, imported: unique.length, source, sample: unique.slice(0, 50).map((row) => ({ freshsales_contact_id: row.freshsales_contact_id, name: row.name })) };
 }
 
+export async function syncFreshsalesContactById(env, { contactId, dryRun = false } = {}) {
+  const id = cleanValue(contactId);
+  if (!id) throw new Error("contactId obrigatorio para sync individual.");
+  const crm = await viewFreshsalesContact(env, id);
+  const row = buildMirrorRow(crm);
+  if (!dryRun) {
+    await upsertMirrorRows(env, [row]);
+  }
+  return {
+    checkedAt: new Date().toISOString(),
+    dryRun,
+    total: 1,
+    imported: 1,
+    source: "contact_detail",
+    sample: [{ freshsales_contact_id: row.freshsales_contact_id, name: row.name }],
+  };
+}
+
 export async function syncClientProfileToContacts(env, { clientId, clientEmail = "", dryRun = false } = {}) {
   const profiles = await getClientProfiles(env, {
     clientId: cleanValue(clientId) || undefined,
@@ -704,12 +722,16 @@ export async function syncClientProfileToContacts(env, { clientId, clientEmail =
   };
 }
 
-export async function syncContactsToPortal(env, { clientId = "", limit = 100, dryRun = false } = {}) {
+export async function syncContactsToPortal(env, { clientId = "", contactId = "", limit = 100, dryRun = false } = {}) {
   const profiles = await getClientProfiles(env, {
     clientId: cleanValue(clientId) || undefined,
     limit: clientId ? 1 : Math.max(1, Math.min(Number(limit || 100), 500)),
   });
-  const mirrorRows = await hmadvRest(env, `freshsales_contacts?select=id,freshsales_contact_id,name,email,phone,last_synced_at,raw_payload&limit=${Math.max(5000, Number(limit || 1000))}`);
+  const requestedContactId = cleanValue(contactId);
+  const mirrorPath = requestedContactId
+    ? `freshsales_contacts?freshsales_contact_id=eq.${encodeURIComponent(requestedContactId)}&select=id,freshsales_contact_id,name,email,phone,last_synced_at,raw_payload&limit=1`
+    : `freshsales_contacts?select=id,freshsales_contact_id,name,email,phone,last_synced_at,raw_payload&limit=${Math.max(5000, Number(limit || 1000))}`;
+  const mirrorRows = await hmadvRest(env, mirrorPath);
   const mirrorContacts = (Array.isArray(mirrorRows) ? mirrorRows : []).map(mapMirrorRow);
   let synced = 0;
   const sample = [];
@@ -1364,8 +1386,13 @@ async function patchOperationJob(env, id, body) {
 function normalizeContactsJobPayload(action, payload = {}) {
   const normalizedControl = normalizeContactsJobControl(payload, {
     defaultSource: "interno",
-    defaultPriority: action === "bulk_create_contacts" ? 3 : 4,
-    defaultRateLimitKey: action === "bulk_create_contacts" ? "freshsales_contacts_write" : "freshsales_contacts_validate",
+    defaultPriority: action === "bulk_create_contacts" ? 3 : action === "sync_portal_contacts" ? 2 : 4,
+    defaultRateLimitKey:
+      action === "bulk_create_contacts"
+        ? "freshsales_contacts_write"
+        : action === "sync_portal_contacts"
+          ? "freshsales_contacts_portal_sync"
+          : "freshsales_contacts_validate",
     defaultVisibleToPortal: false,
   });
   if (action === "bulk_create_contacts") {
@@ -1390,6 +1417,30 @@ function normalizeContactsJobPayload(action, payload = {}) {
       scheduledFor: cleanValue(payload.scheduledFor),
       contactIds: uniqueNonEmpty(payload.contactIds || []),
       limit: Math.max(1, Math.min(Number(payload.limit || 50), 200)),
+    };
+  }
+  if (action === "sync_contacts") {
+    return {
+      action,
+      jobControl: normalizedControl,
+      contactId: cleanValue(payload.contactId),
+      fetchAll: Boolean(payload.fetchAll),
+      reflectToPortal: payload.reflectToPortal !== false,
+      dryRun: Boolean(payload.dryRun),
+      scheduledFor: cleanValue(payload.scheduledFor),
+      limit: Math.max(1, Math.min(Number(payload.limit || 100), 5000)),
+    };
+  }
+  if (action === "sync_portal_contacts") {
+    return {
+      action,
+      jobControl: normalizedControl,
+      direction: String(payload.direction || "crm_to_portal").trim() === "portal_to_crm" ? "portal_to_crm" : "crm_to_portal",
+      clientId: cleanValue(payload.clientId),
+      clientEmail: normalizeEmail(payload.clientEmail),
+      dryRun: Boolean(payload.dryRun),
+      scheduledFor: cleanValue(payload.scheduledFor),
+      limit: Math.max(1, Math.min(Number(payload.limit || 100), 500)),
     };
   }
   throw new Error(`Acao de contatos nao suportada para job: ${action}`);
@@ -1424,6 +1475,10 @@ export async function createContactAdminJob(env, { action, payload = {} } = {}) 
   const normalized = normalizeContactsJobPayload(action, payload);
   const requestedCount = action === "bulk_create_contacts"
     ? normalized.names.length
+    : action === "sync_contacts"
+      ? 1
+    : action === "sync_portal_contacts"
+      ? 1
     : normalized.contactIds.length || normalized.limit;
   return insertOperationJob(env, {
     modulo: "contacts",
@@ -1447,6 +1502,41 @@ export async function getContactAdminJob(env, id) {
 }
 
 async function runContactJobAction(env, job, chunkPayload) {
+  if (job.acao === "sync_contacts") {
+    const mirrorResult = chunkPayload.contactId
+      ? await syncFreshsalesContactById(env, {
+          contactId: chunkPayload.contactId,
+          dryRun: chunkPayload.dryRun,
+        })
+      : await syncFreshsalesContactsMirror(env, {
+          limit: chunkPayload.limit,
+          dryRun: chunkPayload.dryRun,
+          fetchAll: chunkPayload.fetchAll,
+        });
+    let portalResult = null;
+    if (chunkPayload.reflectToPortal) {
+      portalResult = await syncContactsToPortal(env, {
+        clientId: chunkPayload.clientId,
+        contactId: chunkPayload.contactId,
+        limit: chunkPayload.limit,
+        dryRun: chunkPayload.dryRun,
+      });
+    }
+    return {
+      checkedAt: new Date().toISOString(),
+      dryRun: Boolean(chunkPayload.dryRun),
+      totalRows: Number(mirrorResult?.total || mirrorResult?.imported || 0),
+      imported: Number(mirrorResult?.imported || 0),
+      synced: Number(portalResult?.synced || 0),
+      direction: chunkPayload.reflectToPortal ? "crm_to_supabase_to_portal" : "crm_to_supabase",
+      mirror: mirrorResult,
+      portal: portalResult,
+      sample: [
+        ...(Array.isArray(mirrorResult?.sample) ? mirrorResult.sample : []),
+        ...(Array.isArray(portalResult?.sample) ? portalResult.sample : []),
+      ].slice(0, 50),
+    };
+  }
   if (job.acao === "bulk_create_contacts") {
     return bulkCreateContacts(env, {
       names: chunkPayload.names || [],
@@ -1462,6 +1552,20 @@ async function runContactJobAction(env, job, chunkPayload) {
       type: chunkPayload.type || "",
       apply: chunkPayload.apply,
       limit: chunkPayload.limit,
+    });
+  }
+  if (job.acao === "sync_portal_contacts") {
+    if (chunkPayload.direction === "portal_to_crm") {
+      return syncClientProfileToContacts(env, {
+        clientId: chunkPayload.clientId,
+        clientEmail: chunkPayload.clientEmail,
+        dryRun: chunkPayload.dryRun,
+      });
+    }
+    return syncContactsToPortal(env, {
+      clientId: chunkPayload.clientId,
+      limit: chunkPayload.limit,
+      dryRun: chunkPayload.dryRun,
     });
   }
   throw new Error(`Acao de job de contatos nao suportada: ${job.acao}`);
@@ -1484,6 +1588,57 @@ export async function processContactAdminJob(env, id) {
   }
 
   try {
+    if (job.acao === "sync_contacts") {
+      const result = await runContactJobAction(env, job, {
+        contactId: payload.contactId,
+        fetchAll: payload.fetchAll,
+        reflectToPortal: payload.reflectToPortal,
+        dryRun: payload.dryRun,
+        limit: payload.limit,
+      });
+      return patchOperationJob(env, job.id, {
+        status: "completed",
+        processed_count: 1,
+        success_count: Number(job.success_count || 0) + Number(result?.imported || 0),
+        error_count: Number(job.error_count || 0),
+        result_summary: {
+          ...(job.result_summary || {}),
+          totalRows: Number(result?.totalRows || 0),
+          imported: Number(result?.imported || 0),
+          synced: Number(result?.synced || 0),
+          direction: result?.direction || "crm_to_supabase",
+        },
+        result_sample: Array.isArray(result?.sample) ? result.sample.slice(0, 50) : [],
+        last_error: null,
+        finished_at: new Date().toISOString(),
+      });
+    }
+
+    if (job.acao === "sync_portal_contacts") {
+      const result = await runContactJobAction(env, job, {
+        direction: payload.direction,
+        clientId: payload.clientId,
+        clientEmail: payload.clientEmail,
+        dryRun: payload.dryRun,
+        limit: payload.limit,
+      });
+      return patchOperationJob(env, job.id, {
+        status: "completed",
+        processed_count: 1,
+        success_count: Number(job.success_count || 0) + Number(result?.synced || 0),
+        error_count: Number(job.error_count || 0),
+        result_summary: {
+          ...(job.result_summary || {}),
+          totalRows: Number(result?.totalRows || 0),
+          synced: Number(result?.synced || 0),
+          direction: result?.direction || payload.direction,
+        },
+        result_sample: Array.isArray(result?.sample) ? result.sample.slice(0, 50) : [],
+        last_error: null,
+        finished_at: new Date().toISOString(),
+      });
+    }
+
     if (job.acao === "bulk_create_contacts") {
       const names = uniqueNonEmpty(payload.names || []);
       const offset = Math.max(0, Number(job.processed_count || 0));

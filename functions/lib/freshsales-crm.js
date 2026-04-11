@@ -535,6 +535,116 @@ function resolveFreshsalesActivityTypeId(env, candidates = []) {
   return null;
 }
 
+function normalizeActivityTypeLabel(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+const freshsalesActivityTypeCache = new Map();
+
+async function listFreshsalesSalesActivityTypes(env) {
+  const cacheKey = resolveOauthOrgDomain(env) || resolveFreshsalesBase(env) || "default";
+  if (freshsalesActivityTypeCache.has(cacheKey)) {
+    return freshsalesActivityTypeCache.get(cacheKey);
+  }
+  const promise = (async () => {
+    const { payload } = await freshsalesRequest(env, "/selector/sales_activity_types");
+    const items = Array.isArray(payload?.sales_activity_types)
+      ? payload.sales_activity_types
+      : Array.isArray(payload?.items)
+        ? payload.items
+        : Array.isArray(payload)
+          ? payload
+          : [];
+    return items
+      .map((item) => ({
+        id: item?.id ?? item?.value ?? null,
+        name: item?.name ?? item?.label ?? item?.value ?? null,
+        raw: item,
+      }))
+      .filter((item) => item.id && item.name);
+  })().catch((error) => {
+    freshsalesActivityTypeCache.delete(cacheKey);
+    throw error;
+  });
+  freshsalesActivityTypeCache.set(cacheKey, promise);
+  return promise;
+}
+
+async function resolveFreshsalesActivityType(env, {
+  envKeys = [],
+  eventKeys = [],
+  labelCandidates = [],
+} = {}) {
+  const directId = resolveFreshsalesActivityTypeId(env, envKeys);
+  if (directId) {
+    return {
+      id: String(directId),
+      source: "env",
+      detail: envKeys.find((key) => getCleanEnvValue(env?.[key])) || null,
+    };
+  }
+
+  const journeyConfig = getFreshsalesJourneyConfig(env);
+  const eventMap = journeyConfig?.salesActivityTypeByEvent && typeof journeyConfig.salesActivityTypeByEvent === "object"
+    ? journeyConfig.salesActivityTypeByEvent
+    : {};
+  for (const eventKey of eventKeys) {
+    const mapped = getCleanEnvValue(eventMap?.[eventKey]);
+    if (mapped) {
+      return {
+        id: String(mapped),
+        source: "event_map",
+        detail: eventKey,
+      };
+    }
+  }
+
+  let activityTypes = [];
+  try {
+    activityTypes = await listFreshsalesSalesActivityTypes(env);
+  } catch {
+    activityTypes = [];
+  }
+
+  if (activityTypes.length) {
+    const normalizedCandidates = labelCandidates.map((item) => normalizeActivityTypeLabel(item)).filter(Boolean);
+    const exactMatch = activityTypes.find((item) => normalizedCandidates.includes(normalizeActivityTypeLabel(item.name)));
+    if (exactMatch) {
+      return {
+        id: String(exactMatch.id),
+        source: "catalog_exact",
+        detail: exactMatch.name,
+      };
+    }
+    const partialMatch = activityTypes.find((item) => {
+      const normalizedName = normalizeActivityTypeLabel(item.name);
+      return normalizedCandidates.some((candidate) => normalizedName.includes(candidate) || candidate.includes(normalizedName));
+    });
+    if (partialMatch) {
+      return {
+        id: String(partialMatch.id),
+        source: "catalog_partial",
+        detail: partialMatch.name,
+      };
+    }
+  }
+
+  const fallbackId = resolveFreshsalesActivityTypeId(env, ["FRESHSALES_DEFAULT_ACTIVITY_TYPE_ID"]);
+  if (fallbackId) {
+    return {
+      id: String(fallbackId),
+      source: "default_env",
+      detail: "FRESHSALES_DEFAULT_ACTIVITY_TYPE_ID",
+    };
+  }
+
+  return null;
+}
+
 export async function lookupFreshsalesContactByEmail(env, email) {
   const query = encodeURIComponent(String(email || "").trim());
   const candidates = [
@@ -808,15 +918,27 @@ export async function createFreshsalesPublicationActivity(env, {
     throw new Error("Sales Account ausente para criar activity de publicacao.");
   }
 
-  const activityTypeId = resolveFreshsalesActivityTypeId(env, [
-    "FRESHSALES_PUBLICACAO_ACTIVITY_TYPE_ID",
-    "FRESHSALES_PUBLICACOES_ACTIVITY_TYPE_ID",
-    "FRESHSALES_ACTIVITY_TYPE_PUBLICACAO_ID",
-    "FRESHSALES_SALES_ACTIVITY_TYPE_PUBLICACAO_ID",
-    "FRESHSALES_DEFAULT_ACTIVITY_TYPE_ID",
-  ]);
-  if (!activityTypeId) {
-    throw new Error("Tipo de activity de publicacao nao configurado no ambiente do Freshsales.");
+  const activityType = await resolveFreshsalesActivityType(env, {
+    envKeys: [
+      "FRESHSALES_PUBLICACAO_ACTIVITY_TYPE_ID",
+      "FRESHSALES_PUBLICACOES_ACTIVITY_TYPE_ID",
+      "FRESHSALES_ACTIVITY_TYPE_PUBLICACAO_ID",
+      "FRESHSALES_SALES_ACTIVITY_TYPE_PUBLICACAO_ID",
+      "FRESHSALES_DEFAULT_ACTIVITY_TYPE_ID",
+    ],
+    eventKeys: ["publicacao", "publicacoes", "publication", "publicacao_judicial", "intimacao"],
+    labelCandidates: [
+      "Publicacao judicial",
+      "Publicacao",
+      "Publicacoes",
+      "Intimacao",
+      "Intimacoes",
+      "Nota processual",
+      "Andamento processual",
+    ],
+  });
+  if (!activityType?.id) {
+    throw new Error("Tipo de activity de publicacao nao configurado nem encontrado automaticamente no catalogo do Freshsales.");
   }
 
   const processNumber = String(process?.numero_cnj || publication?.numero_processo_api || "").trim();
@@ -846,7 +968,7 @@ export async function createFreshsalesPublicationActivity(env, {
       owner_id: getCleanEnvValue(env.FRESHSALES_OWNER_ID) || null,
       targetable_type: "SalesAccount",
       targetable_id: normalizedAccountId,
-      sales_activity_type_id: activityTypeId,
+      sales_activity_type_id: activityType.id,
     },
   };
 
@@ -859,6 +981,7 @@ export async function createFreshsalesPublicationActivity(env, {
     base,
     activity: payload.sales_activity || payload,
     requestPayload: activityPayload,
+    resolvedActivityType: activityType,
   };
 }
 

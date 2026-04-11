@@ -727,6 +727,7 @@ function ContactsContent() {
             <ActionButton tone="primary" onClick={() => runAction("sync_portal_contacts", { direction: "portal_to_crm", dryRun: false })} disabled={actionState.loading}>Aplicar portal {"->"} CRM</ActionButton>
             <ActionButton onClick={() => runAction("sync_portal_contacts", { direction: "crm_to_portal", dryRun: true, limit: syncLimit })} disabled={actionState.loading}>Simular CRM {"->"} portal</ActionButton>
             <ActionButton tone="primary" onClick={() => runAction("sync_portal_contacts", { direction: "crm_to_portal", dryRun: false, limit: syncLimit })} disabled={actionState.loading}>Aplicar CRM {"->"} portal</ActionButton>
+            <ActionButton onClick={() => runAction("schedule_contact_job", { jobAction: "sync_portal_contacts", direction: "crm_to_portal", dryRun: false, limit: syncLimit, scheduledFor: buildScheduledIso() })} disabled={actionState.loading}>Agendar CRM {"->"} portal</ActionButton>
             <ActionButton onClick={() => toggleContactsPageSelection(!allContactPageSelected)} disabled={!listState.items.length}>
               {allContactPageSelected ? "Desmarcar pagina" : "Selecionar pagina"}
             </ActionButton>

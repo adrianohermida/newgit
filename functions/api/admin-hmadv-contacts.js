@@ -243,6 +243,9 @@ export async function onRequestPost(context) {
         payload: {
           names,
           contactIds,
+          direction: body.direction || "",
+          clientId: body.clientId || "",
+          clientEmail: body.clientEmail || "",
           type: body.type || "",
           query: body.query || "",
           apply: Boolean(body.apply),

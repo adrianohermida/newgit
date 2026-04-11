@@ -587,6 +587,30 @@ export async function getHmadvFinanceAdminConfig(env = {}) {
         },
       },
       {
+        key: "sync_existing_deals",
+        label: "Importar deals do Freshsales",
+        helper: "Lê deals já existentes no Freshsales e reconcilia com os recebiveis locais quando houver match confiável.",
+        endpoint: "/api/admin-hmadv-financeiro",
+        method: "POST",
+        action: "run_operation",
+        payload: {
+          limit: values.publish_limit,
+        },
+      },
+      {
+        key: "sync_bidirectional_deals",
+        label: "Sincronismo bidirecional",
+        helper: "Executa import dos deals existentes, publica os locais pendentes e processa a fila CRM em sequência.",
+        endpoint: "/api/admin-hmadv-financeiro",
+        method: "POST",
+        action: "run_operation",
+        payload: {
+          import_limit: values.publish_limit,
+          publish_limit: values.publish_limit,
+          crm_limit: values.crm_events_limit,
+        },
+      },
+      {
         key: "diagnose_freshsales_auth",
         label: "Diagnosticar autenticacao Freshsales",
         helper: "Valida as bases e credenciais efetivas do Freshsales.",
@@ -819,6 +843,7 @@ export async function getHmadvFinanceOperationGuidance(env, operation = null) {
   if (publishReady > 0) {
     nextSteps.push("Executar publicacao direta de deals no Freshsales para os recebiveis ja aptos.");
   }
+  nextSteps.push("Importar deals ja existentes do Freshsales para reconciliar o historico local e reduzir duplicidade antes do sincronismo bidirecional.");
   if (!publishReady && receivablesWithoutAccount > 0) {
     nextSteps.push("Gerar CSV de accounts e deals para concluir a migracao historica diretamente pelo importador do Freshsales.");
   }
