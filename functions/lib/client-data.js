@@ -585,7 +585,6 @@ function mapFreshsalesAccountToProcessRow(accountSnapshot, processFieldKeys = []
 }
 
 async function listFreshsalesRelatedAccounts(env, email) {
-  const ownerId = getFreshsalesOwnerFallbackId(email, env);
   const safeSnapshots = async (entity, fallbackLimit) => {
     try {
       return await listFreshsalesSnapshots(env, entity, getFreshsalesSnapshotLimit(env, entity, fallbackLimit));
@@ -611,14 +610,12 @@ async function listFreshsalesRelatedAccounts(env, email) {
   const contacts = Array.isArray(contactsRaw) ? contactsRaw.filter((item) => snapshotHasEmail(item, email)) : [];
   const contactIds = contacts.map((item) => String(item.source_id || "").trim()).filter(Boolean);
   const accountProcessFields = parseEnvList(env, "FRESHSALES_FINANCE_ACCOUNT_PROCESS_FIELDS");
-  const includeOwnerFallback = shouldUseFreshsalesOwnerFallback(email, env);
   const deals = Array.isArray(dealsRaw) ? dealsRaw : [];
   const preRelatedDeals = deals.filter((snapshot) => {
     const relationships = getSnapshotRelationships(snapshot);
     const accountId = String(relationships.sales_account_id || "").trim();
     if (snapshotMatchesRelatedContacts(snapshot, contactIds)) return true;
     if (snapshotHasEmail(snapshot, email)) return true;
-    if (includeOwnerFallback && snapshotMatchesOwner(snapshot, ownerId)) return true;
     if (accountId && snapshotContainsAnyId(snapshot, contactIds)) return true;
     return false;
   });
@@ -628,7 +625,6 @@ async function listFreshsalesRelatedAccounts(env, email) {
   const accounts = (Array.isArray(accountsRaw) ? accountsRaw : []).filter((snapshot) => {
     if (snapshotContainsAnyId(snapshot, contactIds)) return true;
     if (dealAccountIds.includes(String(snapshot.source_id || "").trim())) return true;
-    if (includeOwnerFallback && snapshotMatchesOwner(snapshot, ownerId)) return true;
     return false;
   });
   const accountIds = accounts.map((item) => String(item.source_id || "").trim()).filter(Boolean);
@@ -643,7 +639,7 @@ async function listFreshsalesRelatedAccounts(env, email) {
   return {
     contacts,
     contactIds,
-    ownerId: includeOwnerFallback ? ownerId : null,
+    ownerId: null,
     relatedDeals,
     accounts,
     accountIds,
@@ -704,7 +700,6 @@ async function getFreshsalesPortalContextLive(env, email) {
   try {
     const contactSummary = await lookupFreshsalesContactByEmail(env, email);
     const contactId = contactSummary?.id ? String(contactSummary.id) : null;
-    const ownerId = getFreshsalesOwnerFallbackId(email, env);
     const contact = contactId ? await viewFreshsalesContact(env, contactId) : null;
     const accountRefs = Array.isArray(contact?.sales_accounts) ? contact.sales_accounts : [];
     const dealRefs = Array.isArray(contact?.deals) ? contact.deals : [];
@@ -722,9 +717,6 @@ async function getFreshsalesPortalContextLive(env, email) {
       const listedAccounts = await listFreshsalesSalesAccountsFromViews(env, { maxPages: 4, perPage: 100 });
       const normalizedEmail = normalizeEmail(email);
       fallbackAccounts = listedAccounts.filter((item) => {
-        const accountOwnerId = String(item?.owner_id || item?.user_id || "").trim();
-        if (ownerId && accountOwnerId && accountOwnerId === String(ownerId)) return true;
-
         const corpus = flattenToStrings([
           item?.name,
           item?.website,
@@ -779,9 +771,7 @@ async function getFreshsalesPortalContextLive(env, email) {
     const filteredAccounts = accounts.filter((account) => {
       const accountId = String(account?.id || "").trim();
       if (!accountId) return false;
-      const accountOwnerId = String(account?.owner_id || account?.user_id || "").trim();
       if (contactLinkedAccountIds.includes(accountId)) return true;
-      if (ownerId && accountOwnerId && accountOwnerId === String(ownerId)) return true;
       const corpus = flattenToStrings([
         account?.name,
         account?.website,
@@ -793,6 +783,7 @@ async function getFreshsalesPortalContextLive(env, email) {
     });
 
     const accountDealRefs = filteredAccounts.flatMap((item) => (Array.isArray(item?.deals) ? item.deals : []));
+    const accountIds = filteredAccounts.map((item) => String(item?.id || "").trim()).filter(Boolean);
     let listedDeals = [];
     try {
       listedDeals = await listFreshsalesDealsFromViews(env, { maxPages: 4, perPage: 100 });
@@ -824,9 +815,7 @@ async function getFreshsalesPortalContextLive(env, email) {
     const mergedAppointments = [...appointments, ...accountAppointments, ...listedAppointments]
       .filter((item) => {
         const accountId = String(item?.sales_account_id || item?.sales_account?.id || "").trim();
-        const ownerMatch = ownerId && String(item?.owner_id || item?.user_id || "").trim() === String(ownerId);
         if (accountId && accountIds.includes(accountId)) return true;
-        if (ownerMatch) return true;
         const textCorpus = flattenToStrings([item?.title, item?.description, item?.summary, item]).join(" | ").toLowerCase();
         return normalizedEmail && textCorpus.includes(normalizedEmail);
       })
@@ -837,7 +826,6 @@ async function getFreshsalesPortalContextLive(env, email) {
       return acc;
     }, []);
 
-    const accountIds = filteredAccounts.map((item) => String(item?.id || "").trim()).filter(Boolean);
     let accountActivities = [];
     try {
       const liveActivities = await listFreshsalesSalesActivities(env, { page: 1, perPage: 100 });
