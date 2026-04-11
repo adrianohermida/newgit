@@ -857,6 +857,11 @@ export async function getHmadvFinanceAdminOverview(env) {
       executive_sync_rate: executiveSummary.freshsales_sync_rate_over_materialized,
       executive_materialization_rate: executiveSummary.materialization_rate,
     },
+    product_mapping_help: {
+      env_key: "HMADV_FRESHSALES_PRODUCT_ID_MAP",
+      example: "{\"Honorarios Unitarios\":\"31002148103\",\"Parcela Contratual\":\"31002919756\"}",
+      note: "Use este mapa quando o endpoint de products do Freshsales nao estiver acessivel, mas deals existentes ja revelarem product_id validos.",
+    },
   };
 }
 
