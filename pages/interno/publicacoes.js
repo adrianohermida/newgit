@@ -10,6 +10,7 @@ const PUBLICACOES_VIEW_ITEMS = [
   { key: "resultado", label: "Resultado" },
 ];
 const HISTORY_STORAGE_KEY = "hmadv:interno-publicacoes:history:v1";
+const UI_STATE_STORAGE_KEY = "hmadv:interno-publicacoes:ui:v1";
 const VALIDATION_STORAGE_KEY = "hmadv:interno-publicacoes:validations:v1";
 const ACTION_LABELS = {
   criar_processos_publicacoes: "Criar processos das publicacoes",
@@ -258,6 +259,29 @@ function CompactHistoryPanel({ localHistory, remoteHistory }) {
       </div>
     </div>
   );
+}
+
+function candidateQueueHasReadMismatch(queue) {
+  return Number(queue?.totalRows || 0) > 0 && !(queue?.items || []).length;
+}
+
+function loadUiState() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(UI_STATE_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistUiState(nextState) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(UI_STATE_STORAGE_KEY, JSON.stringify(nextState));
+  } catch {}
 }
 
 function MetricCard({ label, value, helper }) {
@@ -1172,6 +1196,7 @@ function PublicacoesContent() {
   const [processNumbers, setProcessNumbers] = useState("");
   const [queueRefreshLog, setQueueRefreshLog] = useState([]);
   const [pageVisible, setPageVisible] = useState(true);
+  const [lastFocusHash, setLastFocusHash] = useState("");
   const [globalError, setGlobalError] = useState(null);
   const [globalErrorUntil, setGlobalErrorUntil] = useState(null);
   const [operationalStatus, setOperationalStatus] = useState({ mode: "ok", message: "", updatedAt: null });
@@ -1267,12 +1292,27 @@ function PublicacoesContent() {
       const url = new URL(window.location.href);
       const queryView = url.searchParams.get("view");
       const hashView = window.location.hash ? window.location.hash.replace("#", "") : "";
+      if (!queryView && !hashView) {
+        const saved = loadUiState();
+        if (saved?.view && PUBLICACOES_VIEW_ITEMS.some((item) => item.key === saved.view)) {
+          setView(saved.view);
+          if (saved.lastFocusHash) {
+            setLastFocusHash(String(saved.lastFocusHash));
+            const nextUrl = new URL(window.location.href);
+            nextUrl.searchParams.set("view", saved.view);
+            nextUrl.hash = String(saved.lastFocusHash);
+            window.history.replaceState({}, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+          }
+          return;
+        }
+      }
       const nextView = PUBLICACOES_VIEW_ITEMS.some((item) => item.key === queryView)
         ? queryView
         : PUBLICACOES_VIEW_ITEMS.some((item) => item.key === hashView)
           ? hashView
           : "operacao";
       setView(nextView);
+      setLastFocusHash(hashView || nextView);
     };
     syncViewFromLocation();
     if (typeof window !== "undefined") window.addEventListener("hashchange", syncViewFromLocation);
@@ -1294,6 +1334,19 @@ function PublicacoesContent() {
   useEffect(() => { setExecutionHistory(loadHistoryEntries()); }, []);
   useEffect(() => { setValidationMap(loadValidationState()); }, []);
   useEffect(() => { persistValidationState(validationMap); }, [validationMap]);
+  useEffect(() => {
+    persistUiState({ view, lastFocusHash });
+  }, [view, lastFocusHash]);
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const targetHash = String(window.location.hash || "").replace(/^#/, "") || lastFocusHash || view;
+    if (!targetHash) return undefined;
+    const timer = window.setTimeout(() => {
+      const target = document.getElementById(targetHash);
+      if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [view, lastFocusHash]);
   useEffect(() => {
     setModuleHistory("publicacoes", {
       executionHistory,
@@ -1466,7 +1519,26 @@ function PublicacoesContent() {
       setOperationalStatus({ mode: "error", message: globalError, updatedAt: new Date().toISOString() });
       return;
     }
-    const limitedCount = [processCandidates, partesCandidates].filter((queue) => queue?.limited).length;
+    const queues = [processCandidates, partesCandidates];
+    const queueErrorCount = queues.filter((queue) => queue?.error).length;
+    const mismatchCount = queues.filter((queue) => candidateQueueHasReadMismatch(queue)).length;
+    const limitedCount = queues.filter((queue) => queue?.limited).length;
+    if (queueErrorCount > 0) {
+      setOperationalStatus({
+        mode: "error",
+        message: `${queueErrorCount} fila(s) com erro de leitura no painel.`,
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
+    if (mismatchCount > 0) {
+      setOperationalStatus({
+        mode: "limited",
+        message: `${mismatchCount} fila(s) com contagem maior que a pagina retornada.`,
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
     if (limitedCount > 0) {
       setOperationalStatus({
         mode: "limited",
@@ -1486,6 +1558,12 @@ function PublicacoesContent() {
     }
     if (latest.status === "error") {
       setBackendHealth({ status: "error", message: "Ultimo ciclo HMADV falhou.", updatedAt: latest.created_at });
+      return;
+    }
+    const latestRows = Array.isArray(latest?.result_sample) ? latest.result_sample : [];
+    const fallbackRows = latestRows.filter((row) => row?.status === "fallback_local").length;
+    if (fallbackRows > 0) {
+      setBackendHealth({ status: "warning", message: `Ultimo ciclo operou em fallback local para ${fallbackRows} item(ns).`, updatedAt: latest.created_at });
       return;
     }
     if (Number(latest.affected_count || 0) === 0) {
@@ -2040,6 +2118,29 @@ function PublicacoesContent() {
   const hasBlockingJob = pendingOrRunningJobs.length > 0;
   const hasMultipleBlockingJobs = pendingOrRunningJobs.length > 1;
   const canManuallyDrainActiveJob = Boolean(activeJobId) && pendingOrRunningJobs.length === 1 && pendingOrRunningJobs[0]?.id === activeJobId;
+  const candidateQueues = [processCandidates, partesCandidates];
+  const candidateQueueErrorCount = candidateQueues.filter((queue) => queue?.error).length;
+  const candidateQueueMismatchCount = candidateQueues.filter((queue) => candidateQueueHasReadMismatch(queue)).length;
+  const healthQueueTarget = processCandidates.error || candidateQueueHasReadMismatch(processCandidates)
+    ? { hash: "publicacoes-fila-processos-criaveis", label: "Criar processos", view: "filas" }
+    : partesCandidates.error || candidateQueueHasReadMismatch(partesCandidates)
+      ? { hash: "publicacoes-fila-partes-extraiveis", label: "Salvar + CRM", view: "filas" }
+      : integratedQueue.error
+        ? { hash: "publicacoes-mesa-integrada", label: "Revisar mesa integrada", view: "operacao" }
+        : { hash: "filas", label: "Abrir filas", view: "filas" };
+  const healthSuggestedActions = [];
+  if (candidateQueueErrorCount > 0 || candidateQueueMismatchCount > 0) {
+    healthSuggestedActions.push({ key: "filas", label: healthQueueTarget.label, onClick: () => updateView(healthQueueTarget.view, healthQueueTarget.hash) });
+  }
+  if (backendHealth.status === "warning" || backendHealth.status === "error") {
+    healthSuggestedActions.push({ key: "resultado", label: "Ver resultado", onClick: () => updateView("resultado", "resultado") });
+  }
+  if (canManuallyDrainActiveJob) {
+    healthSuggestedActions.push({ key: "drain", label: drainInFlight ? "Drenando..." : "Drenar fila", onClick: runPendingJobsNow, disabled: actionState.loading || drainInFlight || !canManuallyDrainActiveJob });
+  }
+  if (!healthSuggestedActions.length || (candidateQueueErrorCount === 0 && candidateQueueMismatchCount === 0 && backendHealth.status === "ok" && !canManuallyDrainActiveJob)) {
+    healthSuggestedActions.push({ key: "operacao", label: "Ir para operacao", onClick: () => updateView("operacao", "operacao") });
+  }
   const remoteHealth = deriveRemoteHealth(remoteHistory);
   const recurringPublicacoes = deriveRecurringPublicacoes(remoteHistory);
   const recurringPublicacoesSummary = summarizeRecurringPublicacoes(recurringPublicacoes);
@@ -2155,13 +2256,14 @@ function PublicacoesContent() {
     .length;
   const priorityBatchReady = visibleSevereRecurringCount > 0 && selectedVisibleSevereRecurringCount >= visibleSevereRecurringCount && limit === recurringPublicacoesBatch.size;
 
-  function updateView(nextView) {
+  function updateView(nextView, nextHash = nextView) {
     setView(nextView);
+    setLastFocusHash(nextHash || nextView);
     logUiEvent(`Alternar view para ${nextView}`, "alterar_view_publicacoes", { view: nextView }, { component: "publicacoes-navigation" });
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
     url.searchParams.set("view", nextView);
-    url.hash = nextView;
+    url.hash = nextHash || nextView;
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   }
 
@@ -2376,6 +2478,24 @@ function PublicacoesContent() {
         </div>
         <div className="mt-6 space-y-4">
           <ViewToggle value={view} onChange={updateView} />
+          <div className={`border p-4 text-sm ${operationalStatus.mode === "error" || backendHealth.status === "error" ? "border-[#4B2222] bg-[rgba(127,29,29,0.12)]" : operationalStatus.mode === "limited" || backendHealth.status === "warning" ? "border-[#6E5630] bg-[rgba(76,57,26,0.16)]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.45)]"}`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-60">Barra de saude operacional</p>
+                <p className="mt-2">{operationalStatus.message || "Operacao normal"} • {backendHealth.message || "Sem historico recente."}</p>
+                <p className="mt-2 text-xs opacity-70">Acao sugerida: {healthSuggestedActions[0]?.label || "Ir para operacao"}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <StatusBadge tone={operationalStatus.mode === "error" ? "danger" : operationalStatus.mode === "limited" ? "warning" : "success"}>{operationalStatus.mode === "error" ? "operacao com alerta" : operationalStatus.mode === "limited" ? "operacao degradada" : "operacao estavel"}</StatusBadge>
+                <StatusBadge tone={backendHealth.status === "error" ? "danger" : backendHealth.status === "warning" ? "warning" : "success"}>{backendHealth.status === "error" ? "backend com falha" : backendHealth.status === "warning" ? "backend com ressalva" : "backend saudavel"}</StatusBadge>
+                {candidateQueueErrorCount ? <StatusBadge tone="danger">{candidateQueueErrorCount} fila(s) com erro</StatusBadge> : null}
+                {candidateQueueMismatchCount ? <StatusBadge tone="warning">{candidateQueueMismatchCount} fila(s) com leitura parcial</StatusBadge> : null}
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {healthSuggestedActions.map((action) => <button key={action.key} type="button" onClick={action.onClick} disabled={action.disabled} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">{action.label}</button>)}
+            </div>
+          </div>
           <div className={`border p-4 text-xs ${operationalStatus.mode === "error" ? "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200" : operationalStatus.mode === "limited" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="uppercase tracking-[0.18em] text-[10px]">Status operacional</span>
@@ -2414,7 +2534,7 @@ function PublicacoesContent() {
         <MetricCard label="Sem processo" value={data.publicacoesSemProcesso || 0} helper="Publicacoes ainda sem processo vinculado no HMADV." />
       </div>
 
-      {view === "operacao" ? <div className="grid gap-6 xl:grid-cols-2">
+      {view === "operacao" ? <div id="operacao" className="grid gap-6 xl:grid-cols-2">
         <Panel title="Criacao de processos a partir das publicacoes" eyebrow="Operacao orientada por fila">
           <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
@@ -2650,7 +2770,7 @@ function PublicacoesContent() {
           <QueueSummaryCard title="Pendentes" count={data.publicacoesPendentesComAccount || 0} helper="Publicacoes ainda sem activity." />
         </div>
         <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
-          <Panel title="Mesa integrada" eyebrow="Lista paginada + selecao multipla">
+          <div id="publicacoes-mesa-integrada"><Panel title="Mesa integrada" eyebrow="Lista paginada + selecao multipla">
             <div className="space-y-4">
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <label className="text-xs uppercase tracking-[0.14em] opacity-60">Buscar por CNJ, titulo ou parte
@@ -2747,7 +2867,7 @@ function PublicacoesContent() {
                 errorMessage={integratedQueue.error}
               />
             </div>
-          </Panel>
+          </Panel></div>
           <Panel title="Detalhe integrado" eyebrow="Processo + contatos + validacao">
             <PublicacaoDetailPanel
               detailState={detailState}
@@ -2773,7 +2893,7 @@ function PublicacoesContent() {
           </Panel>
         </div>
         <div className="grid gap-6 xl:grid-cols-2">
-        <Panel title="Fila de processos criaveis" eyebrow="Criacao a partir das publicacoes">
+        <div id="publicacoes-fila-processos-criaveis"><Panel title="Fila de processos criaveis" eyebrow="Criacao a partir das publicacoes">
           <QueueList
             title="Processos criaveis"
             helper="Selecione itens da pagina para disparar a criacao do processo no HMADV via DataJud."
@@ -2791,8 +2911,8 @@ function PublicacoesContent() {
             limited={processCandidates.limited}
             errorMessage={processCandidates.error}
           />
-        </Panel>
-        <Panel title="Fila de partes extraiveis" eyebrow="Backfill pelo conteudo das publicacoes">
+        </Panel></div>
+        <div id="publicacoes-fila-partes-extraiveis"><Panel title="Fila de partes extraiveis" eyebrow="Backfill pelo conteudo das publicacoes">
           <QueueList
             title="Processos com partes extraiveis"
             helper="Selecione processos vinculados que ainda tenham partes detectadas no conteudo das publicacoes."
@@ -2810,11 +2930,11 @@ function PublicacoesContent() {
             limited={partesCandidates.limited}
             errorMessage={partesCandidates.error}
           />
-        </Panel>
+        </Panel></div>
         </div>
       </div> : null}
 
-      {view === "resultado" ? <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      {view === "resultado" ? <div id="resultado" className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">
           {actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}
           {actionState.error ? <p className="text-sm text-red-300">{actionState.error}</p> : null}

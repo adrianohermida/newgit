@@ -1054,7 +1054,12 @@ export async function getHmadvQueueSnapshot(env) {
   const tendenciaLabel = tendenciaBase?.label || "Estavel";
   const executiveSummary = `${healthLabel}: foco em ${focoLabel}; tendencia ${tendenciaLabel.toLowerCase()}.`;
   const datajudTagSummary = buildTaggedCoverageMetrics(datajudTagCoverage);
-  const datajudActionMetrics = buildDatajudActionMetrics(datajudActionRepair);
+  const datajudActionMetrics = buildDatajudActionMetrics({
+    ok: true,
+    skipped: true,
+    reason: "snapshot_only",
+    plan: datajudTagActionPlan,
+  });
   const alerts = buildAlerts({
     runnerConfigured,
     totalPendingJobs,

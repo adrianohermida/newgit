@@ -86,6 +86,10 @@ function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function normalizeDocumentDigits(value) {
+  return String(value || "").replace(/\D+/g, "").trim();
+}
+
 const FRESHSALES_OWNER_FALLBACKS = {
   "adrianohermida@gmail.com": "31000147944",
 };
@@ -856,6 +860,26 @@ async function getFreshsalesPortalContextLive(env, email) {
   }
 }
 
+function resolveClientPortalScope(profileOrEmail) {
+  if (typeof profileOrEmail === "string") {
+    return {
+      email: normalizeEmail(profileOrEmail),
+      cpf: "",
+      fullName: "",
+      metadata: {},
+    };
+  }
+
+  const profile = profileOrEmail && typeof profileOrEmail === "object" ? profileOrEmail : {};
+  const metadata = safeJsonParse(profile?.metadata, {});
+  return {
+    email: normalizeEmail(profile?.email || metadata?.email || ""),
+    cpf: normalizeDocumentDigits(profile?.cpf || metadata?.cpf || ""),
+    fullName: String(profile?.full_name || metadata?.full_name || "").trim(),
+    metadata,
+  };
+}
+
 export async function getClientPortalAudit(env, email) {
   const liveContext = await getFreshsalesPortalContextLive(env, email);
   const snapshotContext = await listFreshsalesRelatedAccounts(env, email);
@@ -993,7 +1017,7 @@ function normalizeProcessRow(row) {
   return {
     id: row.id || row.processo_id || row.numero_cnj || row.numero || null,
     account_id_freshsales: row.account_id_freshsales || row.sales_account_id || null,
-    number: row.numero_cnj || row.numero || row.cnj || row.processo_numero_cnj || null,
+    number: row.numero_cnj || row.numero || row.numero_processo || row.cnj || row.processo_numero_cnj || null,
     title: row.titulo || row.title || row.assunto || row.numero_cnj || row.numero || "Processo",
     court: row.tribunal || row.tribunal_sigla || row.orgao_julgador || null,
     status: rawStatus,
@@ -1169,6 +1193,39 @@ function mapDocumentStatusLabel(status) {
     expirado: "Expirado",
   };
   return labels[status] || "Disponivel";
+}
+
+function mapDocumentRow(row, options = {}) {
+  return {
+    id: row.id,
+    name: row.nome || row.titulo || "Documento",
+    status: mapDocumentStatus(row.status),
+    status_label: mapDocumentStatusLabel(mapDocumentStatus(row.status)),
+    category: inferDocumentCategory(row),
+    category_label: mapDocumentCategoryLabel(inferDocumentCategory(row)),
+    created_at: row.created_at || null,
+    updated_at: row.updated_at || null,
+    reference_date: row.updated_at || row.created_at || null,
+    url: row.arquivo_url || row.file_url || null,
+    process_id: row.processo_id || row.numero_cnj || row.numero_processo || options.processId || null,
+    summary: row.descricao || null,
+  };
+}
+
+function buildDocumentoVariants(filter) {
+  const normalizedFilter = String(filter || "").trim();
+  if (!normalizedFilter) return [];
+
+  return [
+    {
+      path: `documentos?select=id,nome,status,created_at,updated_at,arquivo_url,file_url,cliente_email,email_cliente,tipo,categoria,descricao,metadata,processo_id,numero_cnj,numero_processo,account_id_freshsales,sales_account_id&${normalizedFilter}&order=updated_at.desc&limit=50`,
+      mapRow: (row) => mapDocumentRow(row),
+    },
+    {
+      path: `documentos?select=id,titulo,status,created_at,updated_at,arquivo_url,file_url,cliente_email,email_cliente,tipo,categoria,descricao,metadata,processo_id,numero_cnj,numero_processo,account_id_freshsales,sales_account_id&${normalizedFilter}&order=updated_at.desc&limit=50`,
+      mapRow: (row) => mapDocumentRow(row),
+    },
+  ];
 }
 
 function mapDocumentCategoryLabel(category) {
@@ -1403,12 +1460,14 @@ function buildProcessIdentifierCandidates(process, processId) {
     processId,
     process?.id,
     process?.number,
+    process?.numero_processo,
     process?.account_id_freshsales,
     process?.metadata?.source_id,
     process?.metadata?.process_reference,
     process?.raw?.id,
     process?.raw?.numero_cnj,
     process?.raw?.numero,
+    process?.raw?.numero_processo,
     process?.raw?.account_id_freshsales,
   ];
   const expanded = [];
@@ -1591,6 +1650,50 @@ async function listJudicialProcessesByFreshsalesContactIds(env, contactIds = [])
   };
 }
 
+async function listJudicialProcessesByClientScope(env, scope = {}) {
+  const cpf = normalizeDocumentDigits(scope?.cpf);
+  if (!cpf) return [];
+
+  const processIds = new Set();
+  const processNumbers = new Set();
+
+  for (const tableName of ["processo_partes", "partes_processo"]) {
+    const rows = await safeResolve(
+      () => fetchSupabaseJudiciario(
+        env,
+        `${tableName}?select=processo_id,numero_cnj,e_cliente_escritorio,cpf_cnpj&or=(cpf_cnpj.eq.${encodeURIComponent(cpf)},cpf_cnpj.ilike.*${encodeURIComponent(cpf)}*)&limit=500`
+      ),
+      []
+    );
+
+    for (const row of Array.isArray(rows) ? rows : []) {
+      if (row?.e_cliente_escritorio === false) continue;
+      const processId = String(row?.processo_id || "").trim();
+      const processNumber = String(row?.numero_cnj || "").trim();
+      if (processId) processIds.add(processId);
+      if (processNumber) processNumbers.add(processNumber);
+    }
+  }
+
+  const processesById = await listJudicialProcessesByIds(env, Array.from(processIds));
+  const processesByNumber = [];
+  for (const processNumber of Array.from(processNumbers).slice(0, 100)) {
+    const result = await tryFetchOptional(env, [
+      {
+        path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,account_id_freshsales&numero_cnj=eq.${encodeURIComponent(processNumber)}&limit=10`,
+        mapRow: normalizeProcessRow,
+      },
+      {
+        path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,account_id_freshsales&numero=eq.${encodeURIComponent(processNumber)}&limit=10`,
+        mapRow: normalizeProcessRow,
+      },
+    ]);
+    processesByNumber.push(...(result.items || []));
+  }
+
+  return uniqueBy([...processesById, ...processesByNumber], (item) => String(item?.id || item?.number || "").trim());
+}
+
 function normalizeConsultaStatus(value) {
   const normalized = normalizeText(value);
   if (!normalized) return "agendada";
@@ -1727,18 +1830,20 @@ export async function listClientConsultas(env, email) {
 }
 
 export async function listClientProcessos(env, email, options = {}) {
+  const scope = resolveClientPortalScope(email);
+  const normalizedEmail = scope.email;
   const statusFilter = String(options.status || "").trim().toLowerCase();
   const result = await tryFetchOptional(env, [
     {
-      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,account_id_freshsales&cliente_email=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=200`,
+      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,account_id_freshsales&cliente_email=eq.${encodeURIComponent(normalizedEmail)}&order=updated_at.desc&limit=200`,
       mapRow: normalizeProcessRow,
     },
     {
-      path: `processos?select=id,cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,account_id_freshsales&cliente_email=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=200`,
+      path: `processos?select=id,cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,account_id_freshsales&cliente_email=eq.${encodeURIComponent(normalizedEmail)}&order=updated_at.desc&limit=200`,
       mapRow: normalizeProcessRow,
     },
     {
-      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,account_id_freshsales&email_cliente=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=200`,
+      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,account_id_freshsales&email_cliente=eq.${encodeURIComponent(normalizedEmail)}&order=updated_at.desc&limit=200`,
       mapRow: normalizeProcessRow,
     },
   ]);
@@ -1747,12 +1852,13 @@ export async function listClientProcessos(env, email, options = {}) {
   let freshsalesItems = [];
   let linkedJudicialItems = [];
   let linkedContactJudicialItems = [];
+  let scopedJudicialItems = [];
   try {
-    const freshsalesContext = await listFreshsalesRelatedAccounts(env, email);
+    const freshsalesContext = await listFreshsalesRelatedAccounts(env, normalizedEmail);
     freshsalesItems = freshsalesContext.accounts.map((account) =>
       mapFreshsalesAccountToProcessRow(account, freshsalesContext.processFieldKeys)
     );
-    const liveContext = await getFreshsalesPortalContextLive(env, email);
+    const liveContext = await getFreshsalesPortalContextLive(env, normalizedEmail);
     const liveItems = (liveContext.accounts || []).map((account) =>
       mapFreshsalesAccountToProcessRow(
         {
@@ -1778,6 +1884,7 @@ export async function listClientProcessos(env, email, options = {}) {
     );
     linkedJudicialItems = await listJudicialProcessesByFreshsalesAccountIds(env, linkedAccountIds);
     linkedContactJudicialItems = (await listJudicialProcessesByFreshsalesContactIds(env, linkedContactIds)).processes || [];
+    scopedJudicialItems = await listJudicialProcessesByClientScope(env, scope);
     if (freshsalesItems.length) {
       freshsalesWarning = "Parte da carteira processual foi vinculada via Freshsales, a partir dos accounts associados ao seu cadastro.";
     }
@@ -1786,7 +1893,7 @@ export async function listClientProcessos(env, email, options = {}) {
     freshsalesItems = [];
 
     try {
-      const liveContext = await getFreshsalesPortalContextLive(env, email);
+      const liveContext = await getFreshsalesPortalContextLive(env, normalizedEmail);
       freshsalesItems = (liveContext.accounts || []).map((account) =>
         mapFreshsalesAccountToProcessRow(
           {
@@ -1811,14 +1918,16 @@ export async function listClientProcessos(env, email, options = {}) {
           [String(liveContext.contact?.id || "").trim()].filter(Boolean)
         )
       ).processes || [];
+      scopedJudicialItems = await listJudicialProcessesByClientScope(env, scope);
     } catch {
       freshsalesItems = [];
       linkedJudicialItems = [];
       linkedContactJudicialItems = [];
+      scopedJudicialItems = await listJudicialProcessesByClientScope(env, scope);
     }
   }
 
-  if (!result.items.length && !freshsalesItems.length && !linkedJudicialItems.length && !linkedContactJudicialItems.length) {
+  if (!result.items.length && !freshsalesItems.length && !linkedJudicialItems.length && !linkedContactJudicialItems.length && !scopedJudicialItems.length) {
     return {
       items: [],
       warning: "Nenhum processo foi localizado nas fontes atuais do portal, incluindo o Freshsales e a base judicial.",
@@ -1826,7 +1935,7 @@ export async function listClientProcessos(env, email, options = {}) {
   }
 
   const mergedMap = new Map();
-  [...result.items, ...linkedJudicialItems, ...linkedContactJudicialItems, ...freshsalesItems].forEach((item) => {
+  [...result.items, ...scopedJudicialItems, ...linkedJudicialItems, ...linkedContactJudicialItems, ...freshsalesItems].forEach((item) => {
     const key = String(item.number || item.id || "").trim();
     if (!key) return;
     if (!mergedMap.has(key)) {
@@ -1884,53 +1993,47 @@ export async function listClientProcessos(env, email, options = {}) {
 }
 
 async function getClientProcessBase(env, email, processId) {
+  const scope = resolveClientPortalScope(email);
+  const normalizedEmail = scope.email;
   const rawProcessId = String(processId || "").trim();
   const normalizedProcessId = normalizeProcessLookupValue(rawProcessId);
   const result = await tryFetchOptional(env, [
     {
-      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&id=eq.${encodeURIComponent(rawProcessId)}&cliente_email=eq.${encodeURIComponent(email)}&limit=1`,
+      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&id=eq.${encodeURIComponent(rawProcessId)}&cliente_email=eq.${encodeURIComponent(normalizedEmail)}&limit=1`,
       mapRow: normalizeProcessRow,
     },
     {
-      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&id=eq.${encodeURIComponent(rawProcessId)}&email_cliente=eq.${encodeURIComponent(email)}&limit=1`,
+      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&id=eq.${encodeURIComponent(rawProcessId)}&email_cliente=eq.${encodeURIComponent(normalizedEmail)}&limit=1`,
       mapRow: normalizeProcessRow,
     },
     {
-      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero_cnj=eq.${encodeURIComponent(rawProcessId)}&cliente_email=eq.${encodeURIComponent(email)}&limit=1`,
+      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero_cnj=eq.${encodeURIComponent(rawProcessId)}&cliente_email=eq.${encodeURIComponent(normalizedEmail)}&limit=1`,
       mapRow: normalizeProcessRow,
     },
     {
-      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero_cnj=eq.${encodeURIComponent(rawProcessId)}&email_cliente=eq.${encodeURIComponent(email)}&limit=1`,
+      path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero_cnj=eq.${encodeURIComponent(rawProcessId)}&email_cliente=eq.${encodeURIComponent(normalizedEmail)}&limit=1`,
       mapRow: normalizeProcessRow,
     },
     {
-        path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero=eq.${encodeURIComponent(rawProcessId)}&cliente_email=eq.${encodeURIComponent(email)}&limit=1`,
-        mapRow: normalizeProcessRow,
-    },
-    {
-        path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata,account_id_freshsales&account_id_freshsales=eq.${encodeURIComponent(rawProcessId)}&limit=1`,
-        mapRow: normalizeProcessRow,
-    },
-    {
-        path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata,account_id_freshsales&account_id_freshsales=eq.${encodeURIComponent(rawProcessId)}&limit=1`,
+        path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero=eq.${encodeURIComponent(rawProcessId)}&cliente_email=eq.${encodeURIComponent(normalizedEmail)}&limit=1`,
         mapRow: normalizeProcessRow,
     },
     ...(normalizedProcessId && normalizedProcessId !== rawProcessId
       ? [
           {
-            path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero_cnj=eq.${encodeURIComponent(normalizedProcessId)}&cliente_email=eq.${encodeURIComponent(email)}&limit=1`,
+            path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero_cnj=eq.${encodeURIComponent(normalizedProcessId)}&cliente_email=eq.${encodeURIComponent(normalizedEmail)}&limit=1`,
             mapRow: normalizeProcessRow,
           },
           {
-            path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero_cnj=eq.${encodeURIComponent(normalizedProcessId)}&email_cliente=eq.${encodeURIComponent(email)}&limit=1`,
+            path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero_cnj=eq.${encodeURIComponent(normalizedProcessId)}&email_cliente=eq.${encodeURIComponent(normalizedEmail)}&limit=1`,
             mapRow: normalizeProcessRow,
           },
           {
-            path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero=eq.${encodeURIComponent(normalizedProcessId)}&cliente_email=eq.${encodeURIComponent(email)}&limit=1`,
+            path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,cliente_email,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero=eq.${encodeURIComponent(normalizedProcessId)}&cliente_email=eq.${encodeURIComponent(normalizedEmail)}&limit=1`,
             mapRow: normalizeProcessRow,
           },
           {
-            path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero=eq.${encodeURIComponent(normalizedProcessId)}&email_cliente=eq.${encodeURIComponent(email)}&limit=1`,
+            path: `processos?select=id,numero_cnj,numero,titulo,tribunal,status,updated_at,email_cliente,classe,valor_causa,data_distribuicao,polo_ativo,polo_passivo,quantidade_movimentacoes,movimentacoes,partes,metadata&numero=eq.${encodeURIComponent(normalizedProcessId)}&email_cliente=eq.${encodeURIComponent(normalizedEmail)}&limit=1`,
             mapRow: normalizeProcessRow,
           },
         ]
@@ -1941,8 +2044,19 @@ async function getClientProcessBase(env, email, processId) {
     return result.items[0];
   }
 
+  const scopedProcesses = await safeResolve(() => listJudicialProcessesByClientScope(env, scope), []);
+  if (scopedProcesses.length) {
+    const matchedScopedProcess = scopedProcesses.find((item) => {
+      const candidates = buildProcessIdentifierCandidates(item, rawProcessId);
+      return candidates.includes(rawProcessId) || (normalizedProcessId ? candidates.includes(normalizedProcessId) : false);
+    });
+    if (matchedScopedProcess) {
+      return matchedScopedProcess;
+    }
+  }
+
   try {
-    const freshsalesContext = await listFreshsalesRelatedAccounts(env, email);
+    const freshsalesContext = await listFreshsalesRelatedAccounts(env, normalizedEmail);
       const matchedAccount = freshsalesContext.accounts.find((account) => {
         const processRow = mapFreshsalesAccountToProcessRow(account, freshsalesContext.processFieldKeys);
       const candidates = buildProcessIdentifierCandidates(processRow, rawProcessId);
@@ -1952,7 +2066,7 @@ async function getClientProcessBase(env, email, processId) {
     return matchedAccount ? mapFreshsalesAccountToProcessRow(matchedAccount, freshsalesContext.processFieldKeys) : null;
   } catch {
     try {
-      const liveContext = await getFreshsalesPortalContextLive(env, email);
+      const liveContext = await getFreshsalesPortalContextLive(env, normalizedEmail);
       const matchedAccount = (liveContext.accounts || []).find((account) => {
         const processRow = mapFreshsalesAccountToProcessRow(
           {
@@ -2106,41 +2220,17 @@ async function listClientProcessAudiencias(env, processId) {
 async function listClientProcessDocuments(env, email, processId) {
   const candidates = buildProcessIdentifierCandidates(null, processId);
   for (const candidate of candidates) {
+    const encodedCandidate = encodeURIComponent(candidate);
+    const encodedEmail = encodeURIComponent(email);
     const result = await tryFetchOptional(env, [
-      {
-        path: `documentos?select=id,nome,status,created_at,updated_at,arquivo_url,cliente_email,tipo,categoria,descricao,metadata,processo_id,numero_cnj&processo_id=eq.${encodeURIComponent(candidate)}&cliente_email=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=50`,
-        mapRow: (row) => ({
-          id: row.id,
-          name: row.nome || "Documento",
-          status: mapDocumentStatus(row.status),
-          status_label: mapDocumentStatusLabel(mapDocumentStatus(row.status)),
-          category: inferDocumentCategory(row),
-          category_label: mapDocumentCategoryLabel(inferDocumentCategory(row)),
-          created_at: row.created_at || null,
-          updated_at: row.updated_at || null,
-          reference_date: row.updated_at || row.created_at || null,
-          url: row.arquivo_url || null,
-          process_id: row.processo_id || row.numero_cnj || null,
-          summary: row.descricao || null,
-        }),
-      },
-      {
-        path: `documentos?select=id,titulo,status,created_at,updated_at,file_url,cliente_email,tipo,categoria,descricao,metadata,processo_id,numero_cnj&processo_id=eq.${encodeURIComponent(candidate)}&cliente_email=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=50`,
-        mapRow: (row) => ({
-          id: row.id,
-          name: row.titulo || "Documento",
-          status: mapDocumentStatus(row.status),
-          status_label: mapDocumentStatusLabel(mapDocumentStatus(row.status)),
-          category: inferDocumentCategory(row),
-          category_label: mapDocumentCategoryLabel(inferDocumentCategory(row)),
-          created_at: row.created_at || null,
-          updated_at: row.updated_at || null,
-          reference_date: row.updated_at || row.created_at || null,
-          url: row.file_url || null,
-          process_id: row.processo_id || row.numero_cnj || null,
-          summary: row.descricao || null,
-        }),
-      },
+      ...buildDocumentoVariants(`processo_id=eq.${encodedCandidate}&cliente_email=eq.${encodedEmail}`),
+      ...buildDocumentoVariants(`numero_cnj=eq.${encodedCandidate}&cliente_email=eq.${encodedEmail}`),
+      ...buildDocumentoVariants(`numero_processo=eq.${encodedCandidate}&cliente_email=eq.${encodedEmail}`),
+      ...buildDocumentoVariants(`processo_id=eq.${encodedCandidate}&email_cliente=eq.${encodedEmail}`),
+      ...buildDocumentoVariants(`numero_cnj=eq.${encodedCandidate}&email_cliente=eq.${encodedEmail}`),
+      ...buildDocumentoVariants(`numero_processo=eq.${encodedCandidate}&email_cliente=eq.${encodedEmail}`),
+      ...buildDocumentoVariants(`account_id_freshsales=eq.${encodedCandidate}&cliente_email=eq.${encodedEmail}`),
+      ...buildDocumentoVariants(`sales_account_id=eq.${encodedCandidate}&cliente_email=eq.${encodedEmail}`),
     ]);
     if (result.items.length) return result.items;
   }
@@ -2166,10 +2256,10 @@ async function listClientPublicationsFromJudicialBase(env, processItems = []) {
 }
 
 export async function getClientProcessDetails(env, profile, processId) {
-  let process = await safeResolve(() => getClientProcessBase(env, profile.email, processId), null);
+  let process = await safeResolve(() => getClientProcessBase(env, profile, processId), null);
 
   if (!process) {
-    const portfolio = await safeResolve(() => listClientProcessos(env, profile.email), { items: [] });
+    const portfolio = await safeResolve(() => listClientProcessos(env, profile), { items: [] });
     const rawProcessId = String(processId || "").trim();
     const normalizedProcessId = normalizeProcessLookupValue(rawProcessId);
     process = (portfolio.items || []).find((item) => {
@@ -2235,7 +2325,7 @@ export async function getClientProcessDetails(env, profile, processId) {
 
 export async function listClientPublicacoes(env, profile) {
   const processes = await safeResolve(
-    () => listClientProcessos(env, profile.email),
+    () => listClientProcessos(env, profile),
     {
       items: [],
       warning: "A carteira processual nao respondeu por completo; o portal tentara exibir as publicacoes disponiveis.",
@@ -2293,41 +2383,10 @@ export async function listClientPublicacoes(env, profile) {
 }
 
 export async function listClientDocumentos(env, email) {
+  const encodedEmail = encodeURIComponent(email);
   const result = await tryFetchOptional(env, [
-    {
-      path: `documentos?select=id,nome,status,created_at,updated_at,arquivo_url,cliente_email,tipo,categoria,descricao,metadata,processo_id,numero_cnj&cliente_email=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=20`,
-      mapRow: (row) => ({
-        id: row.id,
-        name: row.nome || "Documento",
-        status: mapDocumentStatus(row.status),
-        status_label: mapDocumentStatusLabel(mapDocumentStatus(row.status)),
-        category: inferDocumentCategory(row),
-        category_label: mapDocumentCategoryLabel(inferDocumentCategory(row)),
-        created_at: row.created_at || null,
-        updated_at: row.updated_at || null,
-        reference_date: row.updated_at || row.created_at || null,
-        url: row.arquivo_url || null,
-        process_id: row.processo_id || row.numero_cnj || null,
-        summary: row.descricao || null,
-      }),
-    },
-    {
-      path: `documentos?select=id,titulo,status,created_at,updated_at,file_url,cliente_email,tipo,categoria,descricao,metadata,processo_id,numero_cnj&cliente_email=eq.${encodeURIComponent(email)}&order=updated_at.desc&limit=20`,
-      mapRow: (row) => ({
-        id: row.id,
-        name: row.titulo || "Documento",
-        status: mapDocumentStatus(row.status),
-        status_label: mapDocumentStatusLabel(mapDocumentStatus(row.status)),
-        category: inferDocumentCategory(row),
-        category_label: mapDocumentCategoryLabel(inferDocumentCategory(row)),
-        created_at: row.created_at || null,
-        updated_at: row.updated_at || null,
-        reference_date: row.updated_at || row.created_at || null,
-        url: row.file_url || null,
-        process_id: row.processo_id || row.numero_cnj || null,
-        summary: row.descricao || null,
-      }),
-    },
+    ...buildDocumentoVariants(`cliente_email=eq.${encodedEmail}`),
+    ...buildDocumentoVariants(`email_cliente=eq.${encodedEmail}`),
   ]);
 
   let fallbackItems = [];
@@ -2341,41 +2400,13 @@ export async function listClientDocumentos(env, email) {
     );
 
     for (const candidate of processCandidates.slice(0, 40)) {
+      const encodedCandidate = encodeURIComponent(candidate);
       const byProcess = await tryFetchOptional(env, [
-        {
-          path: `documentos?select=id,nome,status,created_at,updated_at,arquivo_url,cliente_email,tipo,categoria,descricao,metadata,processo_id,numero_cnj&processo_id=eq.${encodeURIComponent(candidate)}&order=updated_at.desc&limit=20`,
-          mapRow: (row) => ({
-            id: row.id,
-            name: row.nome || "Documento",
-            status: mapDocumentStatus(row.status),
-            status_label: mapDocumentStatusLabel(mapDocumentStatus(row.status)),
-            category: inferDocumentCategory(row),
-            category_label: mapDocumentCategoryLabel(inferDocumentCategory(row)),
-            created_at: row.created_at || null,
-            updated_at: row.updated_at || null,
-            reference_date: row.updated_at || row.created_at || null,
-            url: row.arquivo_url || null,
-            process_id: row.processo_id || row.numero_cnj || null,
-            summary: row.descricao || null,
-          }),
-        },
-        {
-          path: `documentos?select=id,titulo,status,created_at,updated_at,file_url,cliente_email,tipo,categoria,descricao,metadata,processo_id,numero_cnj&processo_id=eq.${encodeURIComponent(candidate)}&order=updated_at.desc&limit=20`,
-          mapRow: (row) => ({
-            id: row.id,
-            name: row.titulo || "Documento",
-            status: mapDocumentStatus(row.status),
-            status_label: mapDocumentStatusLabel(mapDocumentStatus(row.status)),
-            category: inferDocumentCategory(row),
-            category_label: mapDocumentCategoryLabel(inferDocumentCategory(row)),
-            created_at: row.created_at || null,
-            updated_at: row.updated_at || null,
-            reference_date: row.updated_at || row.created_at || null,
-            url: row.file_url || null,
-            process_id: row.processo_id || row.numero_cnj || null,
-            summary: row.descricao || null,
-          }),
-        },
+        ...buildDocumentoVariants(`processo_id=eq.${encodedCandidate}`),
+        ...buildDocumentoVariants(`numero_cnj=eq.${encodedCandidate}`),
+        ...buildDocumentoVariants(`numero_processo=eq.${encodedCandidate}`),
+        ...buildDocumentoVariants(`account_id_freshsales=eq.${encodedCandidate}`),
+        ...buildDocumentoVariants(`sales_account_id=eq.${encodedCandidate}`),
       ]);
       if (byProcess.items.length) {
         fallbackItems.push(...byProcess.items);
@@ -2418,6 +2449,50 @@ export async function listClientDocumentos(env, email) {
 
 function firstRelation(value) {
   return Array.isArray(value) ? value[0] || null : value || null;
+}
+
+function buildInFilter(values = []) {
+  const items = values
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .map((item) => `"${item}"`);
+  return items.length ? `(${items.join(",")})` : null;
+}
+
+function canonicalReceivableMatchesScope(receivable, scope) {
+  const contract = firstRelation(receivable?.contracts);
+  const workspaceId = String(receivable?.workspace_id || contract?.workspace_id || "").trim();
+  if (scope.workspaceIds.size && workspaceId && !scope.workspaceIds.has(workspaceId)) {
+    return false;
+  }
+
+  const contactCandidates = [
+    receivable?.contact_id,
+    contract?.contact_id,
+  ]
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+  if (contactCandidates.some((item) => scope.contactIds.has(item))) {
+    return true;
+  }
+
+  const accountCandidates = [
+    receivable?.freshsales_account_id,
+    contract?.freshsales_account_id,
+  ]
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+  if (accountCandidates.some((item) => scope.accountIds.has(item))) {
+    return true;
+  }
+
+  const processCandidates = [
+    receivable?.process_id,
+    contract?.process_id,
+  ]
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+  return processCandidates.some((item) => scope.processIds.has(item));
 }
 
 function mapCanonicalFinanceKind(receivable) {
@@ -2487,39 +2562,96 @@ function buildCanonicalFinanceItem(receivable, processRow = null) {
 
 async function listCanonicalClientFinanceiro(env, email) {
   const normalizedEmail = normalizeEmail(email);
+  const processPortfolio = await safeResolve(() => listClientProcessos(env, email), { items: [], warning: null });
   const contacts = await safeResolve(
-    () => fetchSupabaseAdmin(env, `freshsales_contacts?select=id,freshsales_contact_id,name,email,email_normalized&email_normalized=eq.${encodeURIComponent(normalizedEmail)}&limit=50`),
+    () => fetchSupabaseAdmin(env, `freshsales_contacts?select=id,workspace_id,freshsales_contact_id,name,email,email_normalized&email_normalized=eq.${encodeURIComponent(normalizedEmail)}&limit=50`),
     []
   );
-  const processPortfolio = await safeResolve(() => listClientProcessos(env, email), { items: [], warning: null });
   const contactIds = uniqueBy((contacts || []).map((item) => item.id).filter(Boolean), (item) => item);
+  const workspaceIds = uniqueBy(
+    (contacts || []).map((item) => String(item?.workspace_id || "").trim()).filter(Boolean),
+    (item) => item
+  );
   const accountIds = uniqueBy(
     (processPortfolio.items || []).map((item) => String(item?.account_id_freshsales || "").trim()).filter(Boolean),
     (item) => item
   );
+  const processIds = uniqueBy(
+    (processPortfolio.items || []).map((item) => String(item?.id || "").trim()).filter(Boolean),
+    (item) => item
+  );
 
-  if (!contactIds.length && !accountIds.length) {
+  if (!contactIds.length && !accountIds.length && !processIds.length) {
     return null;
   }
 
   const orFilters = [];
-  if (contactIds.length) {
-    orFilters.push(`contact_id.in.(${contactIds.map((item) => `"${item}"`).join(",")})`);
+  const contactFilter = buildInFilter(contactIds);
+  if (contactFilter) {
+    orFilters.push(`contact_id.in.${contactFilter}`);
   }
-  if (accountIds.length) {
-    orFilters.push(`freshsales_account_id.in.(${accountIds.map((item) => `"${item}"`).join(",")})`);
+  const accountFilter = buildInFilter(accountIds);
+  if (accountFilter) {
+    orFilters.push(`freshsales_account_id.in.${accountFilter}`);
+  }
+  const processFilter = buildInFilter(processIds);
+  if (processFilter) {
+    orFilters.push(`process_id.in.${processFilter}`);
   }
   if (!orFilters.length) return null;
 
   const receivables = await safeResolve(
-    () => fetchSupabaseAdmin(
-      env,
-      `billing_receivables?select=id,contract_id,contact_id,process_id,freshsales_account_id,freshsales_deal_id,receivable_type,invoice_number,description,due_date,status,amount_original,balance_due,balance_due_corrected,created_at,updated_at,contracts:billing_contracts(id,title,process_reference,freshsales_contact_id,freshsales_account_id),products:freshsales_products(id,name,billing_type)&or=(${orFilters.join(",")})&order=due_date.desc&limit=500`
-    ),
+    () => {
+      const params = new URLSearchParams();
+      params.set(
+        "select",
+        [
+          "id",
+          "workspace_id",
+          "contract_id",
+          "contact_id",
+          "process_id",
+          "freshsales_account_id",
+          "freshsales_deal_id",
+          "receivable_type",
+          "invoice_number",
+          "description",
+          "due_date",
+          "status",
+          "amount_original",
+          "balance_due",
+          "balance_due_corrected",
+          "created_at",
+          "updated_at",
+          "contracts:billing_contracts(id,title,workspace_id,contact_id,process_id,process_reference,freshsales_contact_id,freshsales_account_id)",
+          "products:freshsales_products(id,name,billing_type)",
+        ].join(",")
+      );
+      params.set("or", `(${orFilters.join(",")})`);
+      if (workspaceIds.length) {
+        params.set("workspace_id", `in.${buildInFilter(workspaceIds)}`);
+      }
+      params.set("order", "due_date.desc");
+      params.set("limit", "500");
+      return fetchSupabaseAdmin(env, `billing_receivables?${params.toString()}`);
+    },
     []
   );
 
   if (!receivables.length) {
+    return null;
+  }
+
+  const scopedReceivables = receivables.filter((receivable) =>
+    canonicalReceivableMatchesScope(receivable, {
+      contactIds: new Set(contactIds.map((item) => String(item).trim())),
+      accountIds: new Set(accountIds.map((item) => String(item).trim())),
+      processIds: new Set(processIds.map((item) => String(item).trim())),
+      workspaceIds: new Set(workspaceIds.map((item) => String(item).trim())),
+    })
+  );
+
+  if (!scopedReceivables.length) {
     return null;
   }
 
@@ -2528,12 +2660,20 @@ async function listCanonicalClientFinanceiro(env, email) {
       .filter((item) => item?.account_id_freshsales)
       .map((item) => [String(item.account_id_freshsales).trim(), item])
   );
+  const processesById = new Map(
+    (processPortfolio.items || [])
+      .filter((item) => item?.id)
+      .map((item) => [String(item.id).trim(), item])
+  );
 
-  const items = receivables
+  const items = scopedReceivables
     .map((receivable) => {
       const contract = firstRelation(receivable.contracts);
       const accountId = String(receivable.freshsales_account_id || contract?.freshsales_account_id || "").trim();
-      const processRow = accountId ? processesByAccountId.get(accountId) || null : null;
+      const processId = String(receivable.process_id || contract?.process_id || "").trim();
+      const processRow =
+        (accountId ? processesByAccountId.get(accountId) || null : null)
+        || (processId ? processesById.get(processId) || null : null);
       return buildCanonicalFinanceItem(receivable, processRow);
     })
     .sort((left, right) => {
@@ -2604,6 +2744,7 @@ async function listCanonicalClientFinanceiro(env, email) {
       contacts_found: contacts.length,
       linked_accounts: accountIds.length,
       related_deals: items.length,
+      workspace_ids: workspaceIds.length,
       freshsales_synced: items.filter((item) => item.sync_status === "freshsales_synced").length,
       canonical_only: items.filter((item) => item.sync_status === "canonical_only").length,
       source: "supabase_billing_canonical",
@@ -3010,7 +3151,7 @@ export async function getClientSummary(env, profile) {
   const [consultas, tickets, processos, documentos, financeiro, publicacoes] = await Promise.all([
     listClientConsultas(env, profile.email),
     listClientTickets(env, profile.email),
-    listClientProcessos(env, profile.email),
+    listClientProcessos(env, profile),
     listClientDocumentos(env, profile.email),
     listClientFinanceiro(env, profile.email),
     listClientPublicacoes(env, profile),

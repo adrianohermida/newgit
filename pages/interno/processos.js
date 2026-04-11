@@ -330,6 +330,11 @@ function persistOperationalSnapshot(snapshot) {
   } catch {}
 }
 
+function currentHashValue() {
+  if (typeof window === "undefined") return "";
+  return window.location.hash ? window.location.hash.replace("#", "") : "";
+}
+
 function getProcessSelectionValue(row) {
   return String(row?.numero_cnj || row?.key || "").trim();
 }
@@ -1228,6 +1233,7 @@ function InternoProcessosContent() {
   const [globalErrorUntil, setGlobalErrorUntil] = useState(null);
   const [uiHydrated, setUiHydrated] = useState(false);
   const [pageVisible, setPageVisible] = useState(true);
+  const [lastFocusHash, setLastFocusHash] = useState("");
   const bootstrappedRef = useRef(false);
   const snapshotPayloadRef = useRef("");
   const [limit, setLimit] = useState(2);
@@ -1335,6 +1341,7 @@ function InternoProcessosContent() {
           ? hashView
           : "operacao";
       setView(nextView);
+      setLastFocusHash(hashView || nextView);
     };
     syncViewFromLocation();
     if (typeof window !== "undefined") window.addEventListener("hashchange", syncViewFromLocation);
@@ -1360,7 +1367,18 @@ function InternoProcessosContent() {
   useEffect(() => {
     const saved = loadUiState();
     if (saved) {
+      const currentUrl = typeof window !== "undefined" ? new URL(window.location.href) : null;
+      const hasExplicitTarget = Boolean(currentUrl?.searchParams.get("view") || currentHashValue());
       if (saved.view && PROCESS_VIEW_ITEMS.some((item) => item.key === saved.view)) setView(saved.view);
+      if (!hasExplicitTarget && saved.lastFocusHash) {
+        setLastFocusHash(String(saved.lastFocusHash));
+        if (typeof window !== "undefined") {
+          const url = new URL(window.location.href);
+          url.searchParams.set("view", saved.view && PROCESS_VIEW_ITEMS.some((item) => item.key === saved.view) ? saved.view : "operacao");
+          url.hash = String(saved.lastFocusHash);
+          window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+        }
+      }
       if (saved.processNumbers) setProcessNumbers(String(saved.processNumbers));
       if (saved.limit) setLimit(Number(saved.limit) || 2);
       if (saved.queueBatchSizes && typeof saved.queueBatchSizes === "object") setQueueBatchSizes((current) => ({ ...current, ...saved.queueBatchSizes }));
@@ -1420,6 +1438,7 @@ function InternoProcessosContent() {
   useEffect(() => {
     persistUiState({
       view,
+      lastFocusHash,
       processNumbers,
       limit,
       queueBatchSizes,
@@ -1447,7 +1466,17 @@ function InternoProcessosContent() {
       selectedRelations,
       selectedSuggestionKeys,
     });
-  }, [view, processNumbers, limit, queueBatchSizes, wmPage, movPage, pubPage, partesPage, audPage, maPage, miPage, fgPage, orphanPage, covPage, search, relationMinScore, selectedWithoutMovements, selectedMovementBacklog, selectedPublicationBacklog, selectedPartesBacklog, selectedAudienciaCandidates, selectedMonitoringActive, selectedMonitoringInactive, selectedFieldGaps, selectedOrphans, selectedRelations, selectedSuggestionKeys]);
+  }, [view, lastFocusHash, processNumbers, limit, queueBatchSizes, wmPage, movPage, pubPage, partesPage, audPage, maPage, miPage, fgPage, orphanPage, covPage, search, relationMinScore, selectedWithoutMovements, selectedMovementBacklog, selectedPublicationBacklog, selectedPartesBacklog, selectedAudienciaCandidates, selectedMonitoringActive, selectedMonitoringInactive, selectedFieldGaps, selectedOrphans, selectedRelations, selectedSuggestionKeys]);
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const targetHash = String(window.location.hash || "").replace(/^#/, "") || lastFocusHash || view;
+    if (!targetHash) return undefined;
+    const timer = window.setTimeout(() => {
+      const target = document.getElementById(targetHash);
+      if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [view, lastFocusHash]);
   useEffect(() => {
     const snapshotPayload = {
       overview,
@@ -1524,7 +1553,25 @@ function InternoProcessosContent() {
       return;
     }
     const queues = [withoutMovements, movementBacklog, publicationBacklog, partesBacklog, audienciaCandidates, monitoringActive, monitoringInactive, fieldGaps, orphans];
+    const queueErrorCount = countQueueErrors(queues);
+    const mismatchCount = countQueueReadMismatches(queues);
     const limitedCount = queues.filter((queue) => queue?.limited).length;
+    if (queueErrorCount > 0) {
+      setOperationalStatus({
+        mode: "error",
+        message: `${queueErrorCount} fila(s) com erro de leitura no painel.`,
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
+    if (mismatchCount > 0) {
+      setOperationalStatus({
+        mode: "limited",
+        message: `${mismatchCount} fila(s) com contagem maior que a pagina retornada.`,
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
     if (limitedCount > 0) {
       setOperationalStatus({
         mode: "limited",
@@ -1543,6 +1590,12 @@ function InternoProcessosContent() {
     }
     if (latest.status === "error") {
       setBackendHealth({ status: "error", message: "Ultimo ciclo HMADV falhou.", updatedAt: latest.created_at });
+      return;
+    }
+    const latestRows = Array.isArray(latest?.result_sample) ? latest.result_sample : [];
+    const truncationErrors = latestRows.filter((row) => hasJsonTruncationMessage(row?.detalhe)).length;
+    if (truncationErrors > 0) {
+      setBackendHealth({ status: "warning", message: `Ultimo ciclo remoto devolveu JSON truncado em ${truncationErrors} item(ns).`, updatedAt: latest.created_at });
       return;
     }
     if (Number(latest.affected_count || 0) === 0) {
@@ -2117,12 +2170,13 @@ function InternoProcessosContent() {
     setProcessNumbers(next.join("\n"));
     updateView("operacao");
   }
-  function updateView(nextView) {
+  function updateView(nextView, nextHash = nextView) {
     setView(nextView);
+    setLastFocusHash(nextHash || nextView);
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
     url.searchParams.set("view", nextView);
-    url.hash = nextView;
+    url.hash = nextHash || nextView;
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   }
   function buildActionMeta(payload = {}) {
@@ -2640,6 +2694,34 @@ function InternoProcessosContent() {
   const runnerDatajud = runnerData.datajud || {};
   const runnerTagged = runnerData.tagged || {};
   const runnerAction = runnerData.datajudAction || {};
+  const trackedQueues = [withoutMovements, movementBacklog, publicationBacklog, partesBacklog, audienciaCandidates, monitoringActive, monitoringInactive, fieldGaps, orphans];
+  const trackedQueueErrorCount = countQueueErrors(trackedQueues);
+  const trackedQueueMismatchCount = countQueueReadMismatches(trackedQueues);
+  const hasPendingJobs = jobs.some((item) => ["pending", "running"].includes(String(item.status || "")));
+  const healthQueueTarget = publicationBacklog.error || queueHasReadMismatch(publicationBacklog)
+    ? { hash: "processos-publicacoes-pendentes", label: "Sincronizar publicacoes", view: "filas" }
+    : partesBacklog.error || queueHasReadMismatch(partesBacklog)
+      ? { hash: "processos-partes-sem-contato", label: "Reconciliar partes", view: "filas" }
+      : movementBacklog.error || queueHasReadMismatch(movementBacklog)
+        ? { hash: "processos-movimentacoes-pendentes", label: "Sincronizar movimentacoes", view: "filas" }
+        : orphans.error || queueHasReadMismatch(orphans)
+          ? { hash: "processos-sem-sales-account", label: "Criar accounts", view: "filas" }
+          : processCoverage.error || processCoverage.limited || coverageMismatchMessage(processCoverage)
+            ? { hash: "processos-cobertura", label: "Auditar cobertura", view: "filas" }
+            : { hash: "filas", label: "Abrir filas", view: "filas" };
+  const healthSuggestedActions = [];
+  if (trackedQueueErrorCount > 0 || trackedQueueMismatchCount > 0) {
+    healthSuggestedActions.push({ key: "filas", label: healthQueueTarget.label, onClick: () => updateView(healthQueueTarget.view, healthQueueTarget.hash) });
+  }
+  if (backendHealth.status === "warning" || backendHealth.status === "error") {
+    healthSuggestedActions.push({ key: "resultado", label: "Ver resultado", onClick: () => updateView("resultado", "resultado") });
+  }
+  if (hasPendingJobs) {
+    healthSuggestedActions.push({ key: "drain", label: drainInFlight ? "Drenando..." : "Drenar fila", onClick: runPendingJobsNow, disabled: actionState.loading || drainInFlight });
+  }
+  if (!healthSuggestedActions.length || (trackedQueueErrorCount === 0 && trackedQueueMismatchCount === 0 && backendHealth.status === "ok" && !hasPendingJobs)) {
+    healthSuggestedActions.push({ key: "operacao", label: "Ir para operacao", onClick: () => updateView("operacao", "operacao") });
+  }
 
   return <div className="space-y-8">
     <section className="rounded-[34px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-6 py-6 md:px-7">
@@ -2657,6 +2739,24 @@ function InternoProcessosContent() {
       </div>
         <div className="mt-6 space-y-4">
           <ViewToggle value={view} onChange={updateView} />
+          <div className={`rounded-[22px] border p-4 text-sm ${operationalStatus.mode === "error" || backendHealth.status === "error" ? "border-[#4B2222] bg-[rgba(127,29,29,0.12)]" : operationalStatus.mode === "limited" || backendHealth.status === "warning" ? "border-[#6E5630] bg-[rgba(76,57,26,0.16)]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.45)]"}`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-60">Barra de saude operacional</p>
+                <p className="mt-2">{operationalStatus.message || "Operacao normal"} • {backendHealth.message || "Sem historico recente."}</p>
+                <p className="mt-2 text-xs opacity-70">Acao sugerida: {healthSuggestedActions[0]?.label || "Ir para operacao"}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <StatusBadge tone={operationalStatus.mode === "error" ? "danger" : operationalStatus.mode === "limited" ? "warning" : "success"}>{operationalStatus.mode === "error" ? "operacao com alerta" : operationalStatus.mode === "limited" ? "operacao degradada" : "operacao estavel"}</StatusBadge>
+                <StatusBadge tone={backendHealth.status === "error" ? "danger" : backendHealth.status === "warning" ? "warning" : "success"}>{backendHealth.status === "error" ? "backend com falha" : backendHealth.status === "warning" ? "backend com ressalva" : "backend saudavel"}</StatusBadge>
+                {trackedQueueErrorCount ? <StatusBadge tone="danger">{trackedQueueErrorCount} fila(s) com erro</StatusBadge> : null}
+                {trackedQueueMismatchCount ? <StatusBadge tone="warning">{trackedQueueMismatchCount} fila(s) com leitura parcial</StatusBadge> : null}
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {healthSuggestedActions.map((action) => <ActionButton key={action.key} className="px-3 py-2 text-xs" onClick={action.onClick} disabled={action.disabled}>{action.label}</ActionButton>)}
+            </div>
+          </div>
           <div className={`rounded-[20px] border p-4 text-xs ${operationalStatus.mode === "error" ? "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200" : operationalStatus.mode === "limited" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="uppercase tracking-[0.18em] text-[10px]">Status operacional</span>
@@ -2842,7 +2942,7 @@ function InternoProcessosContent() {
         <QueueSummaryCard title="Sem Sales Account" count={orphans.totalRows || 0} helper="Processos ainda sem account vinculada." />
       </div>
       <div className="grid gap-6 xl:grid-cols-2">
-      <Panel title="Cobertura por processo" eyebrow="Auditoria local">
+      <div id="processos-cobertura"><Panel title="Cobertura por processo" eyebrow="Auditoria local">
         {processCoverage.unsupported ? (
           <div className="rounded-[22px] border border-dashed border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">
             O schema de cobertura ainda nao foi aplicado no HMADV. Assim que a migracao estiver ativa, esta leitura vai mostrar o percentual real de cobertura por processo.
@@ -2855,16 +2955,16 @@ function InternoProcessosContent() {
             <CoverageList rows={processCoverage.items} page={covPage} setPage={setCovPage} loading={processCoverage.loading} totalRows={processCoverage.totalRows} pageSize={processCoverage.pageSize} onSelectProcess={useCoverageProcess} />
           </div>
         )}
-      </Panel>
+      </Panel></div>
       <Panel title="Processos sem movimentacoes" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Sem movimentacoes" helper="Itens sem andamento local para reconsulta no DataJud." rows={withoutMovements.items} selected={selectedWithoutMovements} onToggle={(key) => toggleSelection(setSelectedWithoutMovements, selectedWithoutMovements, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedWithoutMovements, selectedWithoutMovements, withoutMovements.items, nextState)} page={wmPage} setPage={setWmPage} loading={withoutMovements.loading} totalRows={withoutMovements.totalRows} pageSize={withoutMovements.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "sem_movimentacoes")} lastUpdated={withoutMovements.updatedAt} limited={withoutMovements.limited} errorMessage={withoutMovements.error} /><QueueActionBlock selectionCount={queueActionConfigs.sem_movimentacoes.selectionCount} batchSize={queueActionConfigs.sem_movimentacoes.batchSize} onBatchChange={(value) => updateQueueBatchSize("sem_movimentacoes", value)} helper={queueActionConfigs.sem_movimentacoes.helper} disabled={actionState.loading} actions={queueActionConfigs.sem_movimentacoes.actions} /></div></Panel>
-      <Panel title="Movimentacoes pendentes" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Andamentos sem activity" helper="Processos com movimentacoes no HMADV ainda sem reflexo em sales_activities do Freshsales." rows={movementBacklog.items} selected={selectedMovementBacklog} onToggle={(key) => toggleSelection(setSelectedMovementBacklog, selectedMovementBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMovementBacklog, selectedMovementBacklog, movementBacklog.items, nextState)} page={movPage} setPage={setMovPage} loading={movementBacklog.loading} totalRows={movementBacklog.totalRows} pageSize={movementBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "movimentacoes_pendentes")} lastUpdated={movementBacklog.updatedAt} limited={movementBacklog.limited} errorMessage={movementBacklog.error} /><QueueActionBlock selectionCount={queueActionConfigs.movimentacoes_pendentes.selectionCount} batchSize={queueActionConfigs.movimentacoes_pendentes.batchSize} onBatchChange={(value) => updateQueueBatchSize("movimentacoes_pendentes", value)} helper={queueActionConfigs.movimentacoes_pendentes.helper} disabled={actionState.loading} actions={queueActionConfigs.movimentacoes_pendentes.actions} /></div></Panel>
-      <Panel title="Publicacoes pendentes" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Publicacoes sem activity" helper="Processos com publicacoes no HMADV ainda sem reflexo em sales_activities do Freshsales." rows={publicationBacklog.items} selected={selectedPublicationBacklog} onToggle={(key) => toggleSelection(setSelectedPublicationBacklog, selectedPublicationBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedPublicationBacklog, selectedPublicationBacklog, publicationBacklog.items, nextState)} page={pubPage} setPage={setPubPage} loading={publicationBacklog.loading} totalRows={publicationBacklog.totalRows} pageSize={publicationBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "publicacoes_pendentes")} lastUpdated={publicationBacklog.updatedAt} limited={publicationBacklog.limited} errorMessage={publicationBacklog.error} /><QueueActionBlock selectionCount={queueActionConfigs.publicacoes_pendentes.selectionCount} batchSize={queueActionConfigs.publicacoes_pendentes.batchSize} onBatchChange={(value) => updateQueueBatchSize("publicacoes_pendentes", value)} helper={queueActionConfigs.publicacoes_pendentes.helper} disabled={actionState.loading} actions={queueActionConfigs.publicacoes_pendentes.actions} /></div></Panel>
-      <Panel title="Partes sem contato" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Partes a reconciliar" helper="Processos com partes ainda sem contato_freshsales_id, prontos para reconciliacao com o modulo de contatos." rows={partesBacklog.items} selected={selectedPartesBacklog} onToggle={(key) => toggleSelection(setSelectedPartesBacklog, selectedPartesBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedPartesBacklog, selectedPartesBacklog, partesBacklog.items, nextState)} page={partesPage} setPage={setPartesPage} loading={partesBacklog.loading} totalRows={partesBacklog.totalRows} pageSize={partesBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "partes_sem_contato")} lastUpdated={partesBacklog.updatedAt} limited={partesBacklog.limited} errorMessage={partesBacklog.error} /><QueueActionBlock selectionCount={queueActionConfigs.partes_sem_contato.selectionCount} batchSize={queueActionConfigs.partes_sem_contato.batchSize} onBatchChange={(value) => updateQueueBatchSize("partes_sem_contato", value)} helper={queueActionConfigs.partes_sem_contato.helper} disabled={actionState.loading} actions={queueActionConfigs.partes_sem_contato.actions} /></div></Panel>
+      <div id="processos-movimentacoes-pendentes"><Panel title="Movimentacoes pendentes" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Andamentos sem activity" helper="Processos com movimentacoes no HMADV ainda sem reflexo em sales_activities do Freshsales." rows={movementBacklog.items} selected={selectedMovementBacklog} onToggle={(key) => toggleSelection(setSelectedMovementBacklog, selectedMovementBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMovementBacklog, selectedMovementBacklog, movementBacklog.items, nextState)} page={movPage} setPage={setMovPage} loading={movementBacklog.loading} totalRows={movementBacklog.totalRows} pageSize={movementBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "movimentacoes_pendentes")} lastUpdated={movementBacklog.updatedAt} limited={movementBacklog.limited} errorMessage={movementBacklog.error} /><QueueActionBlock selectionCount={queueActionConfigs.movimentacoes_pendentes.selectionCount} batchSize={queueActionConfigs.movimentacoes_pendentes.batchSize} onBatchChange={(value) => updateQueueBatchSize("movimentacoes_pendentes", value)} helper={queueActionConfigs.movimentacoes_pendentes.helper} disabled={actionState.loading} actions={queueActionConfigs.movimentacoes_pendentes.actions} /></div></Panel></div>
+      <div id="processos-publicacoes-pendentes"><Panel title="Publicacoes pendentes" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Publicacoes sem activity" helper="Processos com publicacoes no HMADV ainda sem reflexo em sales_activities do Freshsales." rows={publicationBacklog.items} selected={selectedPublicationBacklog} onToggle={(key) => toggleSelection(setSelectedPublicationBacklog, selectedPublicationBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedPublicationBacklog, selectedPublicationBacklog, publicationBacklog.items, nextState)} page={pubPage} setPage={setPubPage} loading={publicationBacklog.loading} totalRows={publicationBacklog.totalRows} pageSize={publicationBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "publicacoes_pendentes")} lastUpdated={publicationBacklog.updatedAt} limited={publicationBacklog.limited} errorMessage={publicationBacklog.error} /><QueueActionBlock selectionCount={queueActionConfigs.publicacoes_pendentes.selectionCount} batchSize={queueActionConfigs.publicacoes_pendentes.batchSize} onBatchChange={(value) => updateQueueBatchSize("publicacoes_pendentes", value)} helper={queueActionConfigs.publicacoes_pendentes.helper} disabled={actionState.loading} actions={queueActionConfigs.publicacoes_pendentes.actions} /></div></Panel></div>
+      <div id="processos-partes-sem-contato"><Panel title="Partes sem contato" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Partes a reconciliar" helper="Processos com partes ainda sem contato_freshsales_id, prontos para reconciliacao com o modulo de contatos." rows={partesBacklog.items} selected={selectedPartesBacklog} onToggle={(key) => toggleSelection(setSelectedPartesBacklog, selectedPartesBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedPartesBacklog, selectedPartesBacklog, partesBacklog.items, nextState)} page={partesPage} setPage={setPartesPage} loading={partesBacklog.loading} totalRows={partesBacklog.totalRows} pageSize={partesBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "partes_sem_contato")} lastUpdated={partesBacklog.updatedAt} limited={partesBacklog.limited} errorMessage={partesBacklog.error} /><QueueActionBlock selectionCount={queueActionConfigs.partes_sem_contato.selectionCount} batchSize={queueActionConfigs.partes_sem_contato.batchSize} onBatchChange={(value) => updateQueueBatchSize("partes_sem_contato", value)} helper={queueActionConfigs.partes_sem_contato.helper} disabled={actionState.loading} actions={queueActionConfigs.partes_sem_contato.actions} /></div></Panel></div>
       <Panel title="Audiencias detectaveis" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Retroativo de audiencias" helper="Processos com sinais concretos de audiencia nas publicacoes e ainda sem persistencia equivalente." rows={audienciaCandidates.items} selected={selectedAudienciaCandidates} onToggle={(key) => toggleSelection(setSelectedAudienciaCandidates, selectedAudienciaCandidates, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedAudienciaCandidates, selectedAudienciaCandidates, audienciaCandidates.items, nextState)} page={audPage} setPage={setAudPage} loading={audienciaCandidates.loading} totalRows={audienciaCandidates.totalRows} pageSize={audienciaCandidates.pageSize} renderStatuses={(row) => [{ label: `${row.audiencias_pendentes || 0} audiencias pendentes`, tone: "warning" }, row.proxima_data_audiencia ? { label: `proxima ${new Date(row.proxima_data_audiencia).toLocaleDateString("pt-BR")}`, tone: "default" } : null].filter(Boolean)} lastUpdated={audienciaCandidates.updatedAt} limited={audienciaCandidates.limited} errorMessage={audienciaCandidates.error} /><QueueActionBlock selectionCount={queueActionConfigs.audiencias_pendentes.selectionCount} batchSize={queueActionConfigs.audiencias_pendentes.batchSize} onBatchChange={(value) => updateQueueBatchSize("audiencias_pendentes", value)} helper={queueActionConfigs.audiencias_pendentes.helper} disabled={actionState.loading} actions={queueActionConfigs.audiencias_pendentes.actions} /></div></Panel>
       <Panel title="Monitoramento ativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">A coluna <strong>monitoramento_ativo</strong> ainda nao existe no HMADV. A fila segue em modo de leitura por fallback, mas ativar/desativar monitoramento fica indisponivel ate a migracao do schema.</div> : null}<QueueList title="Monitorados" helper="Se a base ainda nao marca monitoramento_ativo, o painel usa fallback pelos processos com account." rows={monitoringActive.items} selected={selectedMonitoringActive} onToggle={(key) => toggleSelection(setSelectedMonitoringActive, selectedMonitoringActive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringActive, selectedMonitoringActive, monitoringActive.items, nextState)} page={maPage} setPage={setMaPage} loading={monitoringActive.loading} totalRows={monitoringActive.totalRows} pageSize={monitoringActive.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "monitoramento_ativo", { monitoringUnsupported })} lastUpdated={monitoringActive.updatedAt} limited={monitoringActive.limited} errorMessage={monitoringActive.error} />{monitoringUnsupported ? <div className="rounded-[18px] border border-dashed border-[#6E5630] px-4 py-3 text-xs leading-6 text-[#F8E7B5]">Escrita de monitoramento temporariamente indisponivel: aplique a migracao do schema para liberar ativacao e desativacao pela fila.</div> : null}<QueueActionBlock selectionCount={queueActionConfigs.monitoramento_ativo.selectionCount} batchSize={queueActionConfigs.monitoramento_ativo.batchSize} onBatchChange={(value) => updateQueueBatchSize("monitoramento_ativo", value)} helper={queueActionConfigs.monitoramento_ativo.helper} disabled={actionState.loading || monitoringUnsupported} actions={queueActionConfigs.monitoramento_ativo.actions} /></div></Panel>
       <Panel title="Monitoramento inativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">Sem a coluna <strong>monitoramento_ativo</strong>, esta fila nao consegue gravar alteracoes. O painel mostra apenas o que precisa de adequacao de schema.</div> : null}<QueueList title="Nao monitorados" helper="Use esta fila para reativar o sync dos processos que ficaram fora da rotina." rows={monitoringInactive.items} selected={selectedMonitoringInactive} onToggle={(key) => toggleSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, monitoringInactive.items, nextState)} page={miPage} setPage={setMiPage} loading={monitoringInactive.loading} totalRows={monitoringInactive.totalRows} pageSize={monitoringInactive.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "monitoramento_inativo", { monitoringUnsupported })} lastUpdated={monitoringInactive.updatedAt} limited={monitoringInactive.limited} errorMessage={monitoringInactive.error} />{monitoringUnsupported ? <div className="rounded-[18px] border border-dashed border-[#6E5630] px-4 py-3 text-xs leading-6 text-[#F8E7B5]">A reativacao fica bloqueada ate a criacao da coluna <strong>monitoramento_ativo</strong> no HMADV.</div> : null}<QueueActionBlock selectionCount={queueActionConfigs.monitoramento_inativo.selectionCount} batchSize={queueActionConfigs.monitoramento_inativo.batchSize} onBatchChange={(value) => updateQueueBatchSize("monitoramento_inativo", value)} helper={queueActionConfigs.monitoramento_inativo.helper} disabled={actionState.loading || monitoringUnsupported} actions={queueActionConfigs.monitoramento_inativo.actions} /></div></Panel>
       <Panel title="GAP DataJud -> CRM" eyebrow="Campos orfaos"><div className="space-y-4"><QueueList title="Campos pendentes no Freshsales" helper="Processos vinculados cujo espelho ainda tem campos importantes em branco." rows={fieldGaps.items} selected={selectedFieldGaps} onToggle={(key) => toggleSelection(setSelectedFieldGaps, selectedFieldGaps, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedFieldGaps, selectedFieldGaps, fieldGaps.items, nextState)} page={fgPage} setPage={setFgPage} loading={fieldGaps.loading} totalRows={fieldGaps.totalRows} pageSize={fieldGaps.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "campos_orfaos")} lastUpdated={fieldGaps.updatedAt} limited={fieldGaps.limited} errorMessage={fieldGaps.error} /><QueueActionBlock selectionCount={queueActionConfigs.campos_orfaos.selectionCount} batchSize={queueActionConfigs.campos_orfaos.batchSize} onBatchChange={(value) => updateQueueBatchSize("campos_orfaos", value)} helper={queueActionConfigs.campos_orfaos.helper} disabled={actionState.loading} actions={queueActionConfigs.campos_orfaos.actions} /></div></Panel>
-      <Panel title="Sem Sales Account" eyebrow="Processos orfaos"><div className="space-y-4"><QueueList title="Orfaos" helper="Itens do HMADV que ainda nao viraram Sales Account." rows={orphans.items} selected={selectedOrphans} onToggle={(key) => toggleSelection(setSelectedOrphans, selectedOrphans, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedOrphans, selectedOrphans, orphans.items, nextState)} page={orphanPage} setPage={setOrphanPage} loading={orphans.loading} totalRows={orphans.totalRows} pageSize={orphans.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "orfaos")} lastUpdated={orphans.updatedAt} limited={orphans.limited} errorMessage={orphans.error} /><QueueActionBlock selectionCount={queueActionConfigs.orfaos.selectionCount} batchSize={queueActionConfigs.orfaos.batchSize} onBatchChange={(value) => updateQueueBatchSize("orfaos", value)} helper={queueActionConfigs.orfaos.helper} disabled={actionState.loading} actions={queueActionConfigs.orfaos.actions} /></div></Panel>
+      <div id="processos-sem-sales-account"><Panel title="Sem Sales Account" eyebrow="Processos orfaos"><div className="space-y-4"><QueueList title="Orfaos" helper="Itens do HMADV que ainda nao viraram Sales Account." rows={orphans.items} selected={selectedOrphans} onToggle={(key) => toggleSelection(setSelectedOrphans, selectedOrphans, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedOrphans, selectedOrphans, orphans.items, nextState)} page={orphanPage} setPage={setOrphanPage} loading={orphans.loading} totalRows={orphans.totalRows} pageSize={orphans.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "orfaos")} lastUpdated={orphans.updatedAt} limited={orphans.limited} errorMessage={orphans.error} /><QueueActionBlock selectionCount={queueActionConfigs.orfaos.selectionCount} batchSize={queueActionConfigs.orfaos.batchSize} onBatchChange={(value) => updateQueueBatchSize("orfaos", value)} helper={queueActionConfigs.orfaos.helper} disabled={actionState.loading} actions={queueActionConfigs.orfaos.actions} /></div></Panel></div>
       </div>
     </div> : null}
 
