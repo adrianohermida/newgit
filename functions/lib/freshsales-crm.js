@@ -19,29 +19,48 @@ function buildCandidates(env) {
   const raw = resolveFreshsalesBase(env);
   const orgDomain = resolveOauthOrgDomain(env);
   const candidates = [];
+  const addCandidate = (value) => {
+    if (!value) return;
+    if (!candidates.includes(value)) candidates.push(value);
+  };
+  const pushHostVariants = (host) => {
+    if (!host) return;
+    const normalized = host.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+    if (normalized.includes("myfreshworks.com")) {
+      addCandidate(`https://${normalized.replace(/myfreshworks\.com$/i, "freshsales.io")}/crm/sales/api`);
+      addCandidate(`https://${normalized.replace(/myfreshworks\.com$/i, "freshsales.io")}/api`);
+    } else if (normalized.endsWith(".freshsales.io")) {
+      addCandidate(`https://${normalized.replace(/\.freshsales\.io$/i, ".myfreshworks.com")}/crm/sales/api`);
+      addCandidate(`https://${normalized.replace(/\.freshsales\.io$/i, ".myfreshworks.com")}/api`);
+    }
+  };
 
   if (raw) {
     const base = raw.startsWith("http") ? raw.replace(/\/+$/, "") : `https://${raw.replace(/\/+$/, "")}`;
 
     if (base.includes("/crm/sales/api")) {
-      candidates.push(base);
-      candidates.push(base.replace(/\/crm\/sales\/api$/i, "/api"));
+      addCandidate(base);
+      addCandidate(base.replace(/\/crm\/sales\/api$/i, "/api"));
+      pushHostVariants(base);
     } else if (base.includes("/api")) {
       const host = base.replace(/^https?:\/\//i, "").replace(/\/api\/?$/i, "");
-      candidates.push(`https://${host}/crm/sales/api`);
-      candidates.push(`https://${host}/api`);
+      addCandidate(`https://${host}/crm/sales/api`);
+      addCandidate(`https://${host}/api`);
+      pushHostVariants(host);
     } else {
-      candidates.push(`${base}/crm/sales/api`);
-      candidates.push(`${base}/api`);
+      addCandidate(`${base}/crm/sales/api`);
+      addCandidate(`${base}/api`);
+      pushHostVariants(base);
     }
   }
 
   if (orgDomain) {
-    candidates.push(`https://${orgDomain}/crm/sales/api`);
-    candidates.push(`https://${orgDomain}/api`);
+    addCandidate(`https://${orgDomain}/crm/sales/api`);
+    addCandidate(`https://${orgDomain}/api`);
+    pushHostVariants(orgDomain);
   }
 
-  return Array.from(new Set(candidates));
+  return candidates;
 }
 
 function resolveFreshsalesBase(env) {
@@ -350,7 +369,11 @@ export async function freshsalesRequest(env, path, init = {}) {
 
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
-          const err = new Error(payload.message || payload.error || `Freshsales request failed with status ${response.status}`);
+          const err = new Error(
+            payload.message ||
+              payload.error ||
+              `Freshsales request failed with status ${response.status} (${base}${path})`
+          );
           err.status = response.status;
           err.payload = payload;
           err.base = base;
