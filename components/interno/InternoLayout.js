@@ -276,6 +276,7 @@ function buildCoverageCards(moduleHistory = {}) {
         updatedAt: snapshot?.updatedAt || snapshot?.lastNavigationAt || null,
         tone: snapshot ? inferSnapshotTone(snapshot) : "muted",
         summary: snapshot ? inferSnapshotSummary(key, snapshot) : "Cobertura ainda nao publicada neste modulo.",
+        capabilities: snapshot?.capabilities || registered?.capabilities || [],
         snapshot,
       };
     })
@@ -691,45 +692,9 @@ export default function InternoLayout({
     if (logPane === "debug") return debugLog;
     return tagScopedLogs[logPane] || [];
   }, [activityOnlyLog, debugLog, logPane, tagScopedLogs]);
-  const historyCards = useMemo(() => ([
-    {
-      key: "processos",
-      title: "Historico de execucao",
-      subtitle: "Consolidado do modulo Processos no console.",
-      onCopy: handleCopyProcessHistory,
-      remote: processosRemoteHistory,
-      local: processosLocalHistory,
-    },
-    {
-      key: "publicacoes",
-      title: "Historico de publicacoes",
-      subtitle: "Consolidado do modulo Publicacoes no console.",
-      onCopy: handleCopyPublicacoesHistory,
-      remote: publicacoesRemoteHistory,
-      local: publicacoesLocalHistory,
-    },
-    {
-      key: "contacts",
-      title: "Contacts",
-      subtitle: "Snapshot de qualidade da base, bulk actions e persistencia do modulo.",
-      onCopy: handleCopyContactsHistory,
-      snapshot: contactsHistory,
-    },
-    {
-      key: "dotobot",
-      title: "Dotobot",
-      subtitle: "Snapshot do copilot, chat e task runs locais.",
-      onCopy: handleCopyDotobotHistory,
-      snapshot: dotobotHistory,
-    },
-    {
-      key: "ai-task",
-      title: "AI Task",
-      subtitle: "Run ativa, trilha de logs e contexto persistido do orquestrador.",
-      onCopy: handleCopyAiTaskHistory,
-      snapshot: aiTaskHistory,
-    },
-  ]), [aiTaskHistory, contactsHistory, dotobotHistory, processosLocalHistory, processosRemoteHistory, publicacoesLocalHistory, publicacoesRemoteHistory]);
+  useEffect(() => {
+    setLogExpanded(null);
+  }, [logPane]);
 
   async function handleSignOut() {
     if (supabase) {
@@ -986,6 +951,15 @@ export default function InternoLayout({
                           <div className="mt-2 text-[10px] text-[#7E918B]">
                             Atualizado em {item.updatedAt ? new Date(item.updatedAt).toLocaleString("pt-BR") : "sem horario"}
                           </div>
+                          {item.capabilities?.length ? (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {item.capabilities.slice(0, 4).map((capability) => (
+                                <span key={`${item.key}_${capability}`} className="rounded-full border border-[#22342F] px-2 py-0.5 text-[10px] text-[#9BAEA8]">
+                                  {capability}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
                         </div>
                       )) : (
                         <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.55)] p-3 text-[11px] text-[#9BAEA8]">

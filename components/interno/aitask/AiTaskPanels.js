@@ -304,6 +304,7 @@ export function ContextRail({
   showContext,
   setShowContext,
   contextSnapshot,
+  contextModuleEntries,
   mission,
   routePath,
   approved,
@@ -339,6 +340,41 @@ export function ContextRail({
               <MetricPill label="Documentos" value={contextSnapshot?.documents?.length || 0} />
               <MetricPill label="Aprovação" value={approved ? "concedida" : "pendente"} tone={approved ? "success" : "accent"} />
             </div>
+
+            {contextModuleEntries?.length ? (
+              <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Capacidades por módulo</p>
+                <div className="mt-3 space-y-3">
+                  {contextModuleEntries.slice(0, 4).map((entry) => (
+                    <div key={entry.key} className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.75)] p-3">
+                      <p className="text-sm font-semibold text-[#F5F1E8]">{entry.label}</p>
+                      <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-[#7F928C]">{entry.routePath || "sem rota"}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {(entry.capabilities || []).slice(0, 5).map((capability) => (
+                          <span key={`${entry.key}_${capability}`} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#9BAEA8]">
+                            {capability}
+                          </span>
+                        ))}
+                      </div>
+                      {(entry.quickMissions || []).length ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {entry.quickMissions.slice(0, 2).map((value) => (
+                            <button
+                              key={`${entry.key}_${value}`}
+                              type="button"
+                              onClick={() => handleQuickMission(value)}
+                              className="rounded-full border border-[#35554B] px-3 py-1 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                            >
+                              {value}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             {selectedTask ? (
               <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">

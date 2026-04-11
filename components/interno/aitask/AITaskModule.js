@@ -31,6 +31,7 @@ import {
 } from "./aiTaskAdapters";
 import { useAiTaskRun } from "./useAiTaskRun";
 import { useAiTaskWorkspace } from "./useAiTaskWorkspace";
+import { extractModuleKeysFromContext, resolveModuleEntries } from "../../../lib/admin/module-registry.js";
 
 function formatHistoryStatus(status) {
   const labels = {
@@ -298,6 +299,12 @@ export default function AITaskModule({ profile, routePath }) {
   const selectedTask = useMemo(() => findSelectedTask(tasks, selectedTaskId), [tasks, selectedTaskId]);
   const activeMode = MODE_OPTIONS.find((item) => item.value === mode) || MODE_OPTIONS[1];
   const stateLabel = resolveAutomationLabel(automation);
+  const contextModuleEntries = useMemo(() => {
+    const moduleKeys = contextSnapshot?.module
+      ? extractModuleKeysFromContext(contextSnapshot.module)
+      : detectModules(mission || "");
+    return resolveModuleEntries(moduleKeys);
+  }, [contextSnapshot?.module, mission]);
 
   useEffect(() => {
     setModuleHistory("ai-task", {
@@ -458,6 +465,7 @@ export default function AITaskModule({ profile, routePath }) {
             showContext={showContext}
             setShowContext={setShowContext}
             contextSnapshot={contextSnapshot}
+            contextModuleEntries={contextModuleEntries}
             mission={mission}
             routePath={routePath}
             approved={approved}

@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
 import { useAgentLabData } from "../../../lib/agentlab/useAgentLabData";
 import { adminFetch } from "../../../lib/admin/api";
+import { setModuleHistory } from "../../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../../lib/admin/module-registry";
 
 function RuleCard({ rule, onSave }) {
   const [form, setForm] = useState({
@@ -252,6 +254,54 @@ export default function AgentLabWorkflowsPage() {
     error: null,
     success: null,
   });
+
+  useEffect(() => {
+    setModuleHistory(
+      "agentlab-workflows",
+      buildModuleSnapshot("agentlab", {
+        routePath: "/interno/agentlab/workflows",
+        loading: state.loading,
+        error: state.error,
+        section: "workflows",
+        rules: rules.length,
+        runs: runs.length,
+        resourceMap: resourceMap.length,
+        dispatchRuns: dispatchRuns.length,
+        messageTemplates: messageTemplates.length,
+        actionQueue: actionQueue.length,
+        workflowLibrary: workflowLibrary.length,
+        intents: intents.length,
+        saving: Boolean(
+          catalogState.loading ||
+          resourceSaveState.loading ||
+          templateSaveState.loading ||
+          intentSaveState.loading ||
+          workflowLibrarySaveState.loading
+        ),
+        coverage: {
+          routeTracked: true,
+          consoleIntegrated: true,
+          actionsTracked: true,
+        },
+      }),
+    );
+  }, [
+    actionQueue.length,
+    catalogState.loading,
+    dispatchRuns.length,
+    intentSaveState.loading,
+    intents.length,
+    messageTemplates.length,
+    resourceMap.length,
+    resourceSaveState.loading,
+    rules.length,
+    runs.length,
+    state.error,
+    state.loading,
+    templateSaveState.loading,
+    workflowLibrary.length,
+    workflowLibrarySaveState.loading,
+  ]);
 
   async function handleSaveRule(form) {
     await adminFetch("/api/admin-agentlab-governance", {

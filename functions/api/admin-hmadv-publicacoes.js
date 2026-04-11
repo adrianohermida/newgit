@@ -195,12 +195,29 @@ async function loadIntegratedDetail(env, numeroCnj) {
     linkedPartes?.items?.find((item) => item?.contact?.freshsales_contact_id)?.contact?.freshsales_contact_id || "";
   const contactDetail = linkedContactId ? await getContactDetail(env, linkedContactId).catch(() => null) : null;
   const validations = await getPublicacoesValidationMap(env, [numeroCnj]);
+  const validationHistoryRaw = await listAdminOperations(env, { modulo: "publicacoes", limit: 100 });
+  const validationHistory = (validationHistoryRaw.items || [])
+    .filter((item) => String(item?.acao || "").includes("salvar_validacao"))
+    .filter((item) => {
+      const payloadNumbers = parseProcessNumbers(item?.payload?.processNumbers || []);
+      return payloadNumbers.includes(numeroCnj);
+    })
+    .slice(0, 12)
+    .map((item) => ({
+      id: item.id,
+      status: item?.payload?.status || "",
+      note: item?.payload?.note || "",
+      updatedBy: item?.payload?.updatedBy || null,
+      createdAt: item?.created_at || item?.finished_at || null,
+      statusLabel: item?.payload?.status || "",
+    }));
   return {
     coverage,
     linkedPartes,
     pendingPartes,
     contactDetail,
     validation: validations[numeroCnj] || null,
+    validationHistory,
   };
 }
 
@@ -230,6 +247,13 @@ async function runInlinePublicacoesAction(env, action, body) {
     return syncPublicationActivities(env, {
       processNumbers,
       limit: requestedLimit || 5,
+    });
+  }
+  if (action === "reconciliar_partes_contatos") {
+    return reconcilePartesContacts(env, {
+      processNumbers,
+      limit: requestedLimit || 10,
+      apply: body.apply !== undefined ? Boolean(body.apply) : true,
     });
   }
   throw new Error(`Acao inline de publicacoes nao suportada: ${action}`);
@@ -502,11 +526,12 @@ export async function onRequestPost(context) {
       }));
     }
     if (action === "salvar_validacao") {
+      body.updatedBy = auth.profile?.email || auth.user?.email || auth.user?.id || "";
       return runLogged(async () => savePublicacoesValidation(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
         status: String(body.status || ""),
         note: String(body.note || ""),
-        updatedBy: auth.profile?.email || auth.user?.email || auth.user?.id || "",
+        updatedBy: body.updatedBy,
       }));
     }
     if (action === "run_sync_worker") {

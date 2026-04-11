@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
 import { adminFetch } from "../../../lib/admin/api";
 import { useAgentLabData } from "../../../lib/agentlab/useAgentLabData";
+import { setModuleHistory } from "../../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../../lib/admin/module-registry";
 
 function Panel({ title, children }) {
   return (
@@ -95,6 +97,38 @@ function TrainingContent({
     selectedAgent === "all" ? scenarios : scenarios.filter((item) => item.agent_ref === selectedAgent);
   const visibleRuns =
     selectedAgent === "all" ? runs : runs.filter((item) => item.agent_ref === selectedAgent);
+
+  useEffect(() => {
+    setModuleHistory(
+      "agentlab-training",
+      buildModuleSnapshot("agentlab", {
+        routePath: "/interno/agentlab/training",
+        loading: state.loading,
+        error: state.error,
+        section: "training",
+        selectedAgent,
+        scenarios: visibleScenarios.length,
+        runs: visibleRuns.length,
+        runningId: runningId || null,
+        resultMessage: resultMessage || null,
+        averageScore: summary.averageScore || 0,
+        coverage: {
+          routeTracked: true,
+          consoleIntegrated: true,
+          actionsTracked: true,
+        },
+      }),
+    );
+  }, [
+    resultMessage,
+    runningId,
+    selectedAgent,
+    state.error,
+    state.loading,
+    summary.averageScore,
+    visibleRuns.length,
+    visibleScenarios.length,
+  ]);
 
   return (
     <div className="space-y-8">

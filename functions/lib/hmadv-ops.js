@@ -4029,6 +4029,8 @@ function normalizePublicacoesJobPayload(action, payload = {}) {
       ? 2
       : action === "sincronizar_partes"
         ? 1
+        : action === "reconciliar_partes_contatos"
+          ? 2
         : action === "sincronizar_publicacoes_activity"
           ? 10
           : action === "criar_processos_publicacoes"
@@ -4039,6 +4041,8 @@ function normalizePublicacoesJobPayload(action, payload = {}) {
       ? 1
       : action === "sincronizar_partes"
         ? 1
+        : action === "reconciliar_partes_contatos"
+          ? 1
         : action === "sincronizar_publicacoes_activity"
           ? 5
           : 10;
@@ -4047,6 +4051,7 @@ function normalizePublicacoesJobPayload(action, payload = {}) {
     action,
     processNumbers: uniqueNonEmpty(payload.processNumbers || []),
     limit: Math.max(1, Math.min(Number(payload.limit || defaultLimit), maxLimit)),
+    apply: payload.apply !== undefined ? Boolean(payload.apply) : true,
   };
 }
 
@@ -4078,7 +4083,8 @@ export async function getPublicacoesAdminJob(env, id) {
   return fetchOperationJobById(env, id);
 }
 
-async function runPublicacoesJobAction(env, action, processNumbers, limit) {
+async function runPublicacoesJobAction(env, action, processNumbers, limit, options = {}) {
+  const { apply = true } = options;
   if (action === "criar_processos_publicacoes") {
     return createProcessesFromPublicacoes(env, { processNumbers, limit });
   }
@@ -4090,6 +4096,9 @@ async function runPublicacoesJobAction(env, action, processNumbers, limit) {
   }
   if (action === "sincronizar_partes") {
     return syncPartesFromPublicacoes(env, { processNumbers, limit });
+  }
+  if (action === "reconciliar_partes_contatos") {
+    return reconcilePartesContacts(env, { processNumbers, limit, apply });
   }
   throw new Error(`Acao de job de publicacoes nao suportada: ${action}`);
 }
@@ -4130,7 +4139,9 @@ export async function processPublicacoesAdminJob(env, id) {
   }
 
   try {
-    const result = await runPublicacoesJobAction(env, job.acao, chunk, chunk.length);
+    const result = await runPublicacoesJobAction(env, job.acao, chunk, chunk.length, {
+      apply: payload.apply !== undefined ? Boolean(payload.apply) : true,
+    });
     const parsed = summarizeOperationResult(result || {});
     const failures = summarizeChunkFailures(result || {});
     const nextProcessed = offset + chunk.length;

@@ -307,6 +307,80 @@ function deriveMigrationProgressBySource(importRows, receivables, runsById) {
     .sort((left, right) => left.source_file.localeCompare(right.source_file, "pt-BR"));
 }
 
+function deriveExecutiveMigrationSummary({ importRows, receivables, resolution, migrationProgressBySource }) {
+  const totalImportRows = importRows.length;
+  const totalMaterialized = receivables.length;
+  const totalSynced = receivables.filter((item) => item.freshsales_deal_id).length;
+  const totalCanonicalOnly = totalMaterialized - totalSynced;
+  const totalPublishReady = receivables.filter((item) => item.contact_id && item.freshsales_account_id && !item.freshsales_deal_id).length;
+
+  const blockers = [];
+  if (resolution.pending_contact > 0) {
+    blockers.push({
+      key: "pending_contact",
+      label: "Contatos pendentes",
+      count: resolution.pending_contact,
+      helper: "Linhas ainda sem vinculo confiavel de contato para virar contrato/recebivel publicavel.",
+    });
+  }
+  if (resolution.pending_account > 0) {
+    blockers.push({
+      key: "pending_account",
+      label: "Accounts pendentes",
+      count: resolution.pending_account,
+      helper: "Linhas que dependem de processo/account para publicar Deals no Freshsales.",
+    });
+  }
+  if (resolution.pending_review > 0) {
+    blockers.push({
+      key: "pending_review",
+      label: "Revisao manual",
+      count: resolution.pending_review,
+      helper: "Linhas com erro de parsing, ambiguidade ou necessidade de saneamento.",
+    });
+  }
+  if (resolution.contracts_textual_only > 0) {
+    blockers.push({
+      key: "textual_only",
+      label: "Contratos textual_only",
+      count: resolution.contracts_textual_only,
+      helper: "Contratos canonicos sem Sales Account resolvido, ainda fora do fluxo ideal de Deals.",
+    });
+  }
+  if (resolution.receivables_without_account > 0) {
+    blockers.push({
+      key: "receivables_without_account",
+      label: "Recebiveis sem account",
+      count: resolution.receivables_without_account,
+      helper: "Recebiveis que ainda nao podem ser publicados diretamente no Freshsales.",
+    });
+  }
+
+  return {
+    total_import_rows: totalImportRows,
+    total_materialized_receivables: totalMaterialized,
+    total_freshsales_synced: totalSynced,
+    total_canonical_only: totalCanonicalOnly,
+    total_publish_ready: totalPublishReady,
+    materialization_rate: totalImportRows ? Number(((totalMaterialized / totalImportRows) * 100).toFixed(2)) : 0,
+    freshsales_sync_rate_over_materialized: totalMaterialized ? Number(((totalSynced / totalMaterialized) * 100).toFixed(2)) : 0,
+    freshsales_sync_rate_over_import_rows: totalImportRows ? Number(((totalSynced / totalImportRows) * 100).toFixed(2)) : 0,
+    by_source: migrationProgressBySource.map((item) => ({
+      source_file: item.source_file,
+      import_rows: item.import_rows,
+      materialized_receivables: item.materialized_receivables,
+      freshsales_synced: item.freshsales_synced,
+      canonical_only: item.canonical_only,
+      publish_ready: item.publish_ready,
+      materialization_rate: item.materialization_rate,
+      freshsales_sync_rate: item.freshsales_sync_rate,
+    })),
+    top_blockers: blockers
+      .sort((left, right) => right.count - left.count)
+      .slice(0, 5),
+  };
+}
+
 function getHmadvFinanceAdminDefaultSettings(env = {}) {
   return {
     backfill_limit: Math.max(1, Math.min(200, Number(getCleanEnvValue(env.HMADV_FINANCE_BACKFILL_LIMIT) || 50) || 50)),
@@ -575,6 +649,12 @@ export async function getHmadvFinanceAdminOverview(env) {
   const sourceCounts = buildImportSourceCounts(importRows, runsById);
   const resolution = deriveResolutionStats(importRows, receivables, contracts);
   const migrationProgressBySource = deriveMigrationProgressBySource(importRows, receivables, runsById);
+  const executiveSummary = deriveExecutiveMigrationSummary({
+    importRows,
+    receivables,
+    resolution,
+    migrationProgressBySource,
+  });
 
   const publishReady = receivables.filter((item) => item.contact_id && item.freshsales_account_id && !item.freshsales_deal_id).length;
   const portalReady = receivables.filter((item) => item.contact_id).length;
@@ -601,6 +681,7 @@ export async function getHmadvFinanceAdminOverview(env) {
     },
     freshsales_auth: buildFreshsalesAuthSnapshot(env),
     resolution,
+    executive_summary: executiveSummary,
     counts: {
       import_status: importStatusCounts,
       receivable_status: receivableStatusCounts,
@@ -660,6 +741,8 @@ export async function getHmadvFinanceAdminOverview(env) {
         : 0,
       import_sources_detected: Object.keys(sourceCounts).length,
       ready_for_freshsales_publish: publishReady > 0,
+      executive_sync_rate: executiveSummary.freshsales_sync_rate_over_materialized,
+      executive_materialization_rate: executiveSummary.materialization_rate,
     },
   };
 }

@@ -396,6 +396,7 @@ function FinanceiroInternoContent() {
   const data = state.data || {};
   const counts = data.counts || {};
   const diagnostics = data.diagnostics || {};
+  const executiveSummary = data.executive_summary || {};
   const freshsalesAuth = data.freshsales_auth || {};
   const operationButtons = Array.isArray(data.config?.operations) ? data.config.operations : [];
 
@@ -416,6 +417,50 @@ function FinanceiroInternoContent() {
           <MetricCard key={card.label} label={card.label} value={card.value} helper={card.helper} />
         ))}
       </section>
+
+      <Panel title="Resumo executivo" eyebrow="Migracao total">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="Sync Freshsales"
+            value={`${executiveSummary.freshsales_sync_rate_over_materialized || 0}%`}
+            helper="Percentual dos recebiveis materializados que ja viraram Deal no Freshsales."
+          />
+          <MetricCard
+            label="Materializacao"
+            value={`${executiveSummary.materialization_rate || 0}%`}
+            helper="Percentual das linhas importadas que ja viraram recebiveis canonicos."
+          />
+          <MetricCard
+            label="Deals sincronizados"
+            value={executiveSummary.total_freshsales_synced || 0}
+            helper="Volume total ja publicado no Freshsales."
+          />
+          <MetricCard
+            label="Ainda canonicos"
+            value={executiveSummary.total_canonical_only || 0}
+            helper="Recebiveis existentes que ainda nao chegaram ao Freshsales."
+          />
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {(executiveSummary.by_source || []).map((item) => (
+            <StatusBadge key={item.source_file} tone={item.freshsales_sync_rate > 0 ? "accent" : "warn"}>
+              {item.source_file}: {item.freshsales_sync_rate}% synced
+            </StatusBadge>
+          ))}
+        </div>
+        <div className="mt-4 space-y-3">
+          {(executiveSummary.top_blockers || []).map((item) => (
+            <article key={item.key} className="border border-[#2D2E2E] p-4 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-semibold">{item.label}</p>
+                <StatusBadge tone="warn">{item.count}</StatusBadge>
+              </div>
+              <p className="mt-2 opacity-70">{item.helper}</p>
+            </article>
+          ))}
+          {!executiveSummary.top_blockers?.length ? <p className="opacity-65">Sem bloqueios relevantes no resumo atual.</p> : null}
+        </div>
+      </Panel>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Panel title="Estado da migração" eyebrow="Pipeline">

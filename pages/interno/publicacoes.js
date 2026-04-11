@@ -15,6 +15,7 @@ const ACTION_LABELS = {
   criar_processos_publicacoes: "Criar processos das publicacoes",
   backfill_partes: "Extracao retroativa de partes",
   sincronizar_partes: "Salvar partes + atualizar polos + corrigir CRM",
+  reconciliar_partes_contatos: "Reconciliar partes com contatos",
   run_sync_worker: "Rodar sync-worker (activities/CRM)",
   run_pending_jobs: "Drenar fila HMADV",
 };
@@ -36,6 +37,7 @@ const ASYNC_PUBLICACOES_ACTIONS = new Set([
   "criar_processos_publicacoes",
   "backfill_partes",
   "sincronizar_partes",
+  "reconciliar_partes_contatos",
 ]);
 const QUEUE_ERROR_TTL_MS = 1000 * 60 * 3;
 const GLOBAL_ERROR_TTL_MS = 1000 * 60 * 2;
@@ -91,6 +93,7 @@ function getSafePublicacoesActionLimit(action, requestedLimit) {
   if (action === "sincronizar_partes") return Math.max(1, Math.min(normalized || 10, MODULE_LIMITS.maxSyncPartes));
   if (action === "criar_processos_publicacoes") return Math.max(1, Math.min(normalized || 10, MODULE_LIMITS.maxCreateProcess));
   if (action === "backfill_partes") return Math.max(1, Math.min(normalized || 15, MODULE_LIMITS.maxBackfillPartes));
+  if (action === "reconciliar_partes_contatos") return Math.max(1, Math.min(normalized || 5, 10));
   if (action === "run_sync_worker") return Math.max(1, Math.min(normalized || 2, MODULE_LIMITS.maxSyncWorker));
   return Math.max(1, Math.min(normalized || MODULE_LIMITS.maxDefault, MODULE_LIMITS.maxDefault));
 }
@@ -193,6 +196,23 @@ function validationLabel(status) {
   if (status === "bloqueado") return "bloqueado";
   if (status === "revisar") return "revisar";
   return "sem validacao";
+}
+
+function formatValidationMeta(validation) {
+  if (!validation?.updatedAt && !validation?.updatedBy) return "";
+  const parts = [];
+  if (validation.updatedBy) parts.push(String(validation.updatedBy));
+  if (validation.updatedAt) {
+    const date = new Date(validation.updatedAt);
+    parts.push(Number.isNaN(date.getTime()) ? String(validation.updatedAt) : date.toLocaleString("pt-BR"));
+  }
+  return parts.join(" • ");
+}
+
+function formatDateTimeLabel(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("pt-BR");
 }
 
 function CompactHistoryPanel({ localHistory, remoteHistory }) {
@@ -671,6 +691,7 @@ function IntegratedQueueList({
                     {row.partes_detectadas !== undefined ? <span>Detectadas: {row.partes_detectadas}</span> : null}
                   </div>
                   {row.validation?.note ? <p className="mt-2 text-xs opacity-60">Validacao: {row.validation.note}</p> : null}
+                  {formatValidationMeta(row.validation) ? <p className="mt-1 text-xs opacity-50">Auditoria: {formatValidationMeta(row.validation)}</p> : null}
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button type="button" onClick={() => onOpenDetail(row)} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">
                       Ver detalhe
@@ -724,6 +745,7 @@ function PublicacaoDetailPanel({
           <HealthBadge label={validationLabel(row.validation?.status)} tone={validationTone(row.validation?.status)} />
         </div>
         {row.titulo ? <p className="mt-2 text-sm opacity-75">{row.titulo}</p> : null}
+        {formatValidationMeta(row.validation) ? <p className="mt-2 text-xs opacity-55">Ultima validacao: {formatValidationMeta(row.validation)}</p> : null}
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" onClick={onRefresh} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">
             Recarregar detalhe
@@ -822,6 +844,25 @@ function PublicacaoDetailPanel({
           <span>Pendentes marcadas: {selectedPendingParteIds.length}</span>
           <span>Vinculadas marcadas: {selectedLinkedParteIds.length}</span>
           <span>Tipo alvo: {detailLinkType}</span>
+        </div>
+      </div> : null}
+      {data?.validationHistory?.length ? <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-semibold">Historico de validacao</p>
+            <p className="text-xs opacity-60">Ultimas alteracoes registradas para este CNJ.</p>
+          </div>
+          <HealthBadge label={`${data.validationHistory.length} evento(s)`} tone="default" />
+        </div>
+        <div className="mt-4 space-y-3">
+          {data.validationHistory.map((entry) => <div key={entry.id} className="border border-[#2D2E2E] p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <HealthBadge label={validationLabel(entry.status)} tone={validationTone(entry.status)} />
+              {entry.updatedBy ? <span className="text-xs opacity-60">{entry.updatedBy}</span> : null}
+              {entry.createdAt ? <span className="text-xs opacity-50">{formatDateTimeLabel(entry.createdAt)}</span> : null}
+            </div>
+            {entry.note ? <p className="mt-2 opacity-75">{entry.note}</p> : null}
+          </div>)}
         </div>
       </div> : null}
       {firstLinkedContact ? <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
@@ -1097,7 +1138,7 @@ function PublicacoesContent() {
   const [selectedPartesKeys, setSelectedPartesKeys] = useState([]);
   const [validationMap, setValidationMap] = useState({});
   const [integratedQueue, setIntegratedQueue] = useState({ loading: false, error: null, items: [], totalRows: 0, pageSize: 12, updatedAt: null, limited: false, totalEstimated: false, hasMore: false });
-  const [integratedFilters, setIntegratedFilters] = useState({ query: "", source: "todos", validation: "todos" });
+  const [integratedFilters, setIntegratedFilters] = useState({ query: "", source: "todos", validation: "todos", sort: "pendencia" });
   const [integratedPage, setIntegratedPage] = useState(1);
   const [selectedIntegratedNumbers, setSelectedIntegratedNumbers] = useState([]);
   const [detailState, setDetailState] = useState({ loading: false, error: null, row: null, data: null });
@@ -1844,23 +1885,7 @@ function PublicacoesContent() {
     setActionState({ loading: true, error: null, result: null });
     updateView("resultado");
     try {
-      const payload = await adminFetch("/api/admin-hmadv-publicacoes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "reconciliar_partes_contatos",
-          processNumbers: selectedUnifiedNumbers.join("\n"),
-          limit: Math.max(1, Math.min(limit, 20)),
-          apply,
-        }),
-      }, {
-        action: "reconciliar_partes_contatos",
-        component: "publicacoes-bulk",
-        label: `${apply ? "Aplicar" : "Simular"} reconciliacao de partes x contatos`,
-        expectation: "Validar ou vincular contatos a partir da fila de publicacoes",
-      });
-      setActionState({ loading: false, error: null, result: payload.data || { ok: true } });
-      await refreshOperationalContext({ forceQueues: true });
+      await queueAsyncAction("reconciliar_partes_contatos", apply, selectedUnifiedNumbers);
     } catch (error) {
       setActionState({ loading: false, error: error.message || "Falha ao reconciliar partes e contatos.", result: null });
     }
@@ -1990,11 +2015,31 @@ function PublicacoesContent() {
     [integratedQueue.items, validationMap]
   );
   const filteredIntegratedRows = useMemo(() => {
-    return integratedRows.filter((row) => {
+    const filtered = integratedRows.filter((row) => {
       if (integratedFilters.validation !== "todos" && (row.validation?.status || "") !== integratedFilters.validation) return false;
       return true;
     });
-  }, [integratedFilters.validation, integratedRows]);
+    const sorted = [...filtered];
+    if (integratedFilters.sort === "cnj") {
+      sorted.sort((a, b) => String(a.numero_cnj || "").localeCompare(String(b.numero_cnj || "")));
+      return sorted;
+    }
+    if (integratedFilters.sort === "validacao_recente") {
+      sorted.sort((a, b) => new Date(b.validation?.updatedAt || 0).getTime() - new Date(a.validation?.updatedAt || 0).getTime());
+      return sorted;
+    }
+    if (integratedFilters.sort === "validado_por") {
+      sorted.sort((a, b) => String(a.validation?.updatedBy || "").localeCompare(String(b.validation?.updatedBy || "")));
+      return sorted;
+    }
+    sorted.sort((a, b) => {
+      const aCount = Number(a?.partes_novas || a?.partes_detectadas || a?.publicacoes || 0);
+      const bCount = Number(b?.partes_novas || b?.partes_detectadas || b?.publicacoes || 0);
+      if (bCount !== aCount) return bCount - aCount;
+      return String(a.numero_cnj || "").localeCompare(String(b.numero_cnj || ""));
+    });
+    return sorted;
+  }, [integratedFilters.sort, integratedFilters.validation, integratedRows]);
   const integratedPageSize = 12;
   const pagedIntegratedRows = useMemo(() => {
     return filteredIntegratedRows.map((row) => ({
@@ -2562,7 +2607,7 @@ function PublicacoesContent() {
         <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
           <Panel title="Mesa integrada" eyebrow="Lista paginada + selecao multipla">
             <div className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <label className="text-xs uppercase tracking-[0.14em] opacity-60">Buscar por CNJ, titulo ou parte
                   <input
                     value={integratedFilters.query}
@@ -2585,6 +2630,14 @@ function PublicacoesContent() {
                     <option value="revisar">Revisar</option>
                     <option value="bloqueado">Bloqueado</option>
                     <option value="">Sem validacao</option>
+                  </select>
+                </label>
+                <label className="text-xs uppercase tracking-[0.14em] opacity-60">Ordenacao
+                  <select value={integratedFilters.sort} onChange={(event) => setIntegratedFilters((state) => ({ ...state, sort: event.target.value }))} className="mt-2 w-full border border-[#2D2E2E] bg-[#050706] px-3 py-2 text-sm text-[#F4F1EA]">
+                    <option value="pendencia">Maior pendencia</option>
+                    <option value="validacao_recente">Validacao mais recente</option>
+                    <option value="validado_por">Validado por</option>
+                    <option value="cnj">CNJ</option>
                   </select>
                 </label>
               </div>

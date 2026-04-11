@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { adminFetch } from "../../lib/admin/api";
 import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../lib/admin/module-registry";
 
 const DEPARTMENTS = [
   {
@@ -341,16 +342,30 @@ export default function AprovacoesModule() {
   );
 
   useEffect(() => {
-    setModuleHistory("aprovacoes", {
-      routePath: "/interno/aprovacoes",
-      activeDepartment,
-      loading: state.loading,
-      error: state.error,
-      pendingCadastro: state.items.length,
-      actingId: state.actingId,
-      message: state.message,
-      departmentCounts,
-    });
+    setModuleHistory(
+      "aprovacoes",
+      buildModuleSnapshot("aprovacoes", {
+        routePath: "/interno/aprovacoes",
+        activeDepartment,
+        loading: state.loading,
+        error: state.error,
+        pendingCadastro: state.items.length,
+        actingId: state.actingId,
+        message: state.message,
+        departmentCounts,
+        queuePreview: state.items.slice(0, 8).map((item) => ({
+          id: item.id,
+          client_id: item.client_id,
+          client_email: item.client_email,
+          status: item.status,
+        })),
+        coverage: {
+          routeTracked: true,
+          consoleIntegrated: true,
+          approvalsTracked: true,
+        },
+      }),
+    );
   }, [activeDepartment, departmentCounts, state]);
 
   return (
