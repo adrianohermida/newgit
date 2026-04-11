@@ -43,13 +43,29 @@ async function main() {
     }
   }
 
+  const failureSummaryByReason = summarizeFailures(failureDetails, (item) => item.reason);
+  const failureSummaryByProduct = summarizeFailures(failureDetails, (item) => item.product_name || 'sem_produto');
+
   console.log(JSON.stringify({
     total: receivables.length,
     created,
     updated,
     failed,
     failure_details: failureDetails,
+    failure_summary_by_reason: failureSummaryByReason,
+    failure_summary_by_product: failureSummaryByProduct,
   }, null, 2));
+}
+
+function summarizeFailures(items, getKey) {
+  const counts = new Map();
+  for (const item of items) {
+    const key = String(getKey(item) || 'desconhecido').trim() || 'desconhecido';
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .map(([key, count]) => ({ key, count }))
+    .sort((left, right) => right.count - left.count || left.key.localeCompare(right.key, 'pt-BR'));
 }
 
 function sanitizePositiveInt(value, fallback) {
