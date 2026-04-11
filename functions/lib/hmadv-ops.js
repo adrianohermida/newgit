@@ -769,7 +769,7 @@ async function loadProcessesByNumbers(
   return output;
 }
 
-async function loadProcessesByIds(env, processIds, select = "id,numero_cnj,titulo,account_id_freshsales,quantidade_movimentacoes,classe,assunto_principal,area,data_ajuizamento,sistema,polo_ativo,polo_passivo,status_atual_processo") {
+async function loadProcessesByIds(env, processIds, select = "id,numero_cnj,titulo,account_id_freshsales,classe,assunto_principal,area,data_ajuizamento,sistema,polo_ativo,polo_passivo,status_atual_processo") {
   const output = [];
   for (const chunk of splitIntoChunks(uniqueNonEmpty(processIds), 25)) {
     try {
@@ -1933,7 +1933,7 @@ export async function syncMovementActivities(env, { processNumbers = [], limit =
     ? await loadProcessesByNumbers(
         env,
         processNumbers,
-        "id,numero_cnj,titulo,account_id_freshsales,status_atual_processo,quantidade_movimentacoes"
+        "id,numero_cnj,titulo,account_id_freshsales,status_atual_processo"
       )
     : await listMovementActivityBacklog(env, { page: 1, pageSize: safeLimit }).then(async (data) => {
         const ids = uniqueNonEmpty((data.items || []).map((item) => item.processo_id));
@@ -1941,7 +1941,7 @@ export async function syncMovementActivities(env, { processNumbers = [], limit =
           ? loadProcessesByIds(
               env,
               ids,
-              "id,numero_cnj,titulo,account_id_freshsales,status_atual_processo,quantidade_movimentacoes"
+              "id,numero_cnj,titulo,account_id_freshsales,status_atual_processo"
             )
           : [];
       });
@@ -2077,7 +2077,7 @@ export async function listMonitoringProcesses(env, { page = 1, pageSize = 20, ac
   try {
     items = await hmadvRest(
       env,
-      `processos?select=id,numero_cnj,titulo,account_id_freshsales,monitoramento_ativo,status_atual_processo,quantidade_movimentacoes&monitoramento_ativo=eq.${flag}&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
+      `processos?select=id,numero_cnj,titulo,account_id_freshsales,monitoramento_ativo,status_atual_processo&monitoramento_ativo=eq.${flag}&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
     );
     totalRows = await countTable(env, "processos", `monitoramento_ativo=eq.${flag}`);
   } catch (error) {
@@ -2087,7 +2087,7 @@ export async function listMonitoringProcesses(env, { page = 1, pageSize = 20, ac
   if (active && !totalRows) {
     items = await listTableSafe(
       env,
-      `processos?select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo,quantidade_movimentacoes&account_id_freshsales=not.is.null&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
+      `processos?select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo&account_id_freshsales=not.is.null&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
     );
     items = items.map((item) => ({ ...item, monitoramento_ativo: true, monitoramento_fallback: true }));
     totalRows = await countTableSafe(env, "processos", "account_id_freshsales=not.is.null");
@@ -2162,7 +2162,7 @@ async function collectGroupedBacklogByProcess(env, {
     ? await loadProcessesByIds(
         env,
         processIds,
-        "id,numero_cnj,titulo,account_id_freshsales,status_atual_processo,quantidade_movimentacoes"
+        "id,numero_cnj,titulo,account_id_freshsales,status_atual_processo"
       )
     : [];
   const processMap = new Map(processRows.map((item) => [item.id, item]));
@@ -2175,7 +2175,6 @@ async function collectGroupedBacklogByProcess(env, {
         titulo: process.titulo || item.titulo || null,
         account_id_freshsales: process.account_id_freshsales || null,
         status_atual_processo: process.status_atual_processo || null,
-        quantidade_movimentacoes: process.quantidade_movimentacoes ?? null,
         key: process.numero_cnj || item.processo_id,
         fallback: !process.numero_cnj,
       };
@@ -2302,203 +2301,202 @@ function summarizeCoveragePercentage(parts = []) {
 export async function listProcessCoverage(env, { page = 1, pageSize = 20, query = "", onlyPending = false } = {}) {
   const safePage = Math.max(1, Number(page || 1));
   const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
-  const coverageFilter = buildCoverageQueryFilter(query);
-  const baseFilters = [coverageFilter].filter(Boolean);
-  const baseQuery = baseFilters.join("&");
-  const processCoreColumns = [
-    "id",
-    "numero_cnj",
-    "titulo",
-    "account_id_freshsales",
-  ];
-  const processOptionalColumns = [
-    "numero_processo",
-    "quantidade_movimentacoes",
-    "classe",
-    "assunto_principal",
-    "area",
-    "data_ajuizamento",
-    "sistema",
-    "polo_ativo",
-    "polo_passivo",
-    "status_atual_processo",
-  ];
-  const processSelectVariants = [
-    [...processCoreColumns, ...processOptionalColumns].join(","),
-    [...processCoreColumns, ...processOptionalColumns.filter((column) => column !== "numero_processo")].join(","),
-    [...processCoreColumns, ...processOptionalColumns.filter((column) => !["numero_processo", "quantidade_movimentacoes"].includes(column))].join(","),
-    processCoreColumns.join(","),
-  ];
-  const countFilters = baseQuery;
-  const totalRows = await countTableSafe(env, "processos", countFilters);
-  const orderVariants = ["updated_at.desc.nullslast", "numero_cnj.asc.nullslast"];
-  let processes = [];
-  for (const processSelect of processSelectVariants) {
-    let selectFailed = false;
-    for (const orderBy of orderVariants) {
-      try {
-        const rows = await hmadvRest(
-          env,
-          `processos?select=${processSelect}${baseQuery ? `&${baseQuery}` : ""}&order=${orderBy}&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
-        );
-        if (Array.isArray(rows)) {
-          processes = rows;
-          if (rows.length || totalRows === 0) break;
+  try {
+    const coverageFilter = buildCoverageQueryFilter(query);
+    const baseFilters = [coverageFilter].filter(Boolean);
+    const baseQuery = baseFilters.join("&");
+    const processSelectVariants = [
+      "id,numero_cnj,titulo,account_id_freshsales,numero_processo,classe,assunto_principal,area,data_ajuizamento,sistema,polo_ativo,polo_passivo,status_atual_processo",
+      "id,numero_cnj,titulo,account_id_freshsales,classe,assunto_principal,area,data_ajuizamento,sistema,polo_ativo,polo_passivo,status_atual_processo",
+      "id,numero_cnj,titulo,account_id_freshsales,status_atual_processo",
+      "id,numero_cnj,titulo,account_id_freshsales",
+    ];
+    const countFilters = baseQuery;
+    const totalRows = await countTableSafe(env, "processos", countFilters);
+    const orderVariants = ["updated_at.desc.nullslast", "numero_cnj.asc.nullslast"];
+    let processes = [];
+    for (const processSelect of processSelectVariants) {
+      let selectFailed = false;
+      for (const orderBy of orderVariants) {
+        try {
+          const rows = await hmadvRest(
+            env,
+            `processos?select=${processSelect}${baseQuery ? `&${baseQuery}` : ""}&order=${orderBy}&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
+          );
+          if (Array.isArray(rows)) {
+            processes = rows;
+            if (rows.length || totalRows === 0) break;
+          }
+        } catch (error) {
+          if (schemaMessageMatches(error?.message, "updated_at") || schemaMessageMatches(error?.message, "numero_cnj")) {
+            continue;
+          }
+          if (schemaMessageMatches(error?.message)) {
+            selectFailed = true;
+            break;
+          }
+          throw error;
         }
-      } catch (error) {
-        if (schemaMessageMatches(error?.message, "updated_at") || schemaMessageMatches(error?.message, "numero_cnj")) {
-          continue;
-        }
-        if (schemaMessageMatches(error?.message)) {
-          selectFailed = true;
-          break;
-        }
-        throw error;
+      }
+      if (processes.length || totalRows === 0 || !selectFailed) {
+        break;
       }
     }
-    if (processes.length || totalRows === 0 || !selectFailed) {
-      break;
+    const processIds = uniqueNonEmpty((processes || []).map((item) => item.id));
+    if (!processIds.length) {
+      return {
+        page: safePage,
+        pageSize: safePageSize,
+        totalRows,
+        items: [],
+      };
     }
-  }
-  const processIds = uniqueNonEmpty((processes || []).map((item) => item.id));
-  if (!processIds.length) {
+
+    const relationQueries = [
+      listTableSafe(env, `partes?select=processo_id,contato_freshsales_id&${buildInFilter("processo_id", processIds)}&limit=5000`),
+      listTableSafe(env, `publicacoes?select=processo_id,freshsales_activity_id&${buildInFilter("processo_id", processIds)}&limit=5000`),
+      listTableSafe(env, `movimentacoes?select=processo_id,freshsales_activity_id&${buildInFilter("processo_id", processIds)}&limit=5000`),
+      listTableSafe(env, `audiencias?select=processo_id,freshsales_activity_id&${buildInFilter("processo_id", processIds)}&limit=5000`),
+    ];
+    const [partesResult, publicacoesResult, movimentacoesResult, audienciasResult] = await Promise.allSettled(relationQueries);
+    const partesRows = partesResult.status === "fulfilled" ? partesResult.value : [];
+    const publicacoesRows = publicacoesResult.status === "fulfilled" ? publicacoesResult.value : [];
+    const movimentacoesRows = movimentacoesResult.status === "fulfilled" ? movimentacoesResult.value : [];
+    const audienciasRows = audienciasResult.status === "fulfilled" ? audienciasResult.value : [];
+
+    const grouped = new Map();
+    for (const processId of processIds) {
+      grouped.set(processId, {
+        partesTotal: 0,
+        partesComContato: 0,
+        publicacoesTotal: 0,
+        publicacoesComActivity: 0,
+        movimentacoesTotal: 0,
+        movimentacoesComActivity: 0,
+        audienciasTotal: 0,
+        audienciasComActivity: 0,
+      });
+    }
+
+    for (const row of partesRows || []) {
+      const current = grouped.get(row?.processo_id);
+      if (!current) continue;
+      current.partesTotal += 1;
+      if (row?.contato_freshsales_id) current.partesComContato += 1;
+    }
+    for (const row of publicacoesRows || []) {
+      const current = grouped.get(row?.processo_id);
+      if (!current) continue;
+      current.publicacoesTotal += 1;
+      if (row?.freshsales_activity_id) current.publicacoesComActivity += 1;
+    }
+    for (const row of movimentacoesRows || []) {
+      const current = grouped.get(row?.processo_id);
+      if (!current) continue;
+      current.movimentacoesTotal += 1;
+      if (row?.freshsales_activity_id) current.movimentacoesComActivity += 1;
+    }
+    for (const row of audienciasRows || []) {
+      const current = grouped.get(row?.processo_id);
+      if (!current) continue;
+      current.audienciasTotal += 1;
+      if (row?.freshsales_activity_id) current.audienciasComActivity += 1;
+    }
+
+    const items = (processes || [])
+      .map((row) => {
+        const totals = grouped.get(row.id) || {};
+        const hasAccount = Boolean(row.account_id_freshsales);
+        const detailsOk = Boolean(
+          row.classe &&
+          row.assunto_principal &&
+          row.area &&
+          row.data_ajuizamento &&
+          row.sistema &&
+          row.polo_ativo &&
+          row.polo_passivo &&
+          row.status_atual_processo
+        );
+        const hasMovements = Number(totals.movimentacoesTotal || 0) > 0;
+        const partsOk = Number(totals.partesTotal || 0) === 0
+          ? true
+          : Number(totals.partesComContato || 0) >= Number(totals.partesTotal || 0);
+        const publicationsOk = Number(totals.publicacoesTotal || 0) === 0
+          ? true
+          : Number(totals.publicacoesComActivity || 0) >= Number(totals.publicacoesTotal || 0);
+        const movementsOk = Number(totals.movimentacoesTotal || 0) === 0
+          ? hasMovements
+          : Number(totals.movimentacoesComActivity || 0) >= Number(totals.movimentacoesTotal || 0);
+        const hearingsOk = Number(totals.audienciasTotal || 0) === 0
+          ? true
+          : Number(totals.audienciasComActivity || 0) >= Number(totals.audienciasTotal || 0);
+        const crmGap = hasAccount && !detailsOk;
+        const pending = [];
+        if (!hasAccount) pending.push("sem_account");
+        if (!detailsOk) pending.push("detalhes_incompletos");
+        if (!hasMovements) pending.push("sem_movimentacoes");
+        if (!partsOk) pending.push("partes_sem_contato");
+        if (!publicationsOk) pending.push("publicacoes_pendentes");
+        if (!movementsOk) pending.push("movimentacoes_pendentes");
+        if (!hearingsOk) pending.push("audiencias_pendentes");
+        if (crmGap) pending.push("gap_crm");
+
+        const coveragePct = summarizeCoveragePercentage([
+          hasAccount,
+          detailsOk,
+          hasMovements,
+          partsOk,
+          publicationsOk,
+          movementsOk,
+          hearingsOk,
+        ]);
+
+        return {
+          key: row.numero_cnj || row.id,
+          processo_id: row.id,
+          numero_cnj: row.numero_cnj || row.numero_processo || null,
+          titulo: row.titulo || null,
+          account_id_freshsales: row.account_id_freshsales || null,
+          status_atual_processo: row.status_atual_processo || null,
+          coveragePct,
+          hasAccount,
+          detailsOk,
+          hasMovements,
+          partsOk,
+          publicationsOk,
+          movementsOk,
+          hearingsOk,
+          crmGap,
+          partesTotal: Number(totals.partesTotal || 0),
+          partesSemContato: Math.max(0, Number(totals.partesTotal || 0) - Number(totals.partesComContato || 0)),
+          publicacoesTotal: Number(totals.publicacoesTotal || 0),
+          publicacoesPendentes: Math.max(0, Number(totals.publicacoesTotal || 0) - Number(totals.publicacoesComActivity || 0)),
+          movimentacoesTotal: Number(totals.movimentacoesTotal || 0),
+          movimentacoesPendentes: Math.max(0, Number(totals.movimentacoesTotal || 0) - Number(totals.movimentacoesComActivity || 0)),
+          audienciasTotal: Number(totals.audienciasTotal || 0),
+          audienciasPendentes: Math.max(0, Number(totals.audienciasTotal || 0) - Number(totals.audienciasComActivity || 0)),
+          pending,
+        };
+      })
+      .filter((item) => !onlyPending || item.pending.length > 0);
+
     return {
       page: safePage,
       pageSize: safePageSize,
-      totalRows,
+      totalRows: onlyPending ? items.length : totalRows,
+      items,
+      limited: [partesResult, publicacoesResult, movimentacoesResult, audienciasResult].some((result) => result.status === "rejected"),
+    };
+  } catch (error) {
+    return {
+      page: safePage,
+      pageSize: safePageSize,
+      totalRows: 0,
       items: [],
+      limited: true,
+      error: error?.message || "Falha ao montar a cobertura por processo.",
     };
   }
-
-  const [partesRows, publicacoesRows, movimentacoesRows, audienciasRows] = await Promise.all([
-    listTableSafe(env, `partes?select=processo_id,contato_freshsales_id&${buildInFilter("processo_id", processIds)}&limit=5000`),
-    listTableSafe(env, `publicacoes?select=processo_id,freshsales_activity_id&${buildInFilter("processo_id", processIds)}&limit=5000`),
-    listTableSafe(env, `movimentacoes?select=processo_id,freshsales_activity_id&${buildInFilter("processo_id", processIds)}&limit=5000`),
-    listTableSafe(env, `audiencias?select=processo_id,freshsales_activity_id&${buildInFilter("processo_id", processIds)}&limit=5000`),
-  ]);
-
-  const grouped = new Map();
-  for (const processId of processIds) {
-    grouped.set(processId, {
-      partesTotal: 0,
-      partesComContato: 0,
-      publicacoesTotal: 0,
-      publicacoesComActivity: 0,
-      movimentacoesTotal: 0,
-      movimentacoesComActivity: 0,
-      audienciasTotal: 0,
-      audienciasComActivity: 0,
-    });
-  }
-
-  for (const row of partesRows || []) {
-    const current = grouped.get(row?.processo_id);
-    if (!current) continue;
-    current.partesTotal += 1;
-    if (row?.contato_freshsales_id) current.partesComContato += 1;
-  }
-  for (const row of publicacoesRows || []) {
-    const current = grouped.get(row?.processo_id);
-    if (!current) continue;
-    current.publicacoesTotal += 1;
-    if (row?.freshsales_activity_id) current.publicacoesComActivity += 1;
-  }
-  for (const row of movimentacoesRows || []) {
-    const current = grouped.get(row?.processo_id);
-    if (!current) continue;
-    current.movimentacoesTotal += 1;
-    if (row?.freshsales_activity_id) current.movimentacoesComActivity += 1;
-  }
-  for (const row of audienciasRows || []) {
-    const current = grouped.get(row?.processo_id);
-    if (!current) continue;
-    current.audienciasTotal += 1;
-    if (row?.freshsales_activity_id) current.audienciasComActivity += 1;
-  }
-
-  const items = (processes || [])
-    .map((row) => {
-      const totals = grouped.get(row.id) || {};
-      const hasAccount = Boolean(row.account_id_freshsales);
-      const detailsOk = Boolean(
-        row.classe &&
-        row.assunto_principal &&
-        row.area &&
-        row.data_ajuizamento &&
-        row.sistema &&
-        row.polo_ativo &&
-        row.polo_passivo &&
-        row.status_atual_processo
-      );
-      const hasMovements = Number(row.quantidade_movimentacoes || 0) > 0 || Number(totals.movimentacoesTotal || 0) > 0;
-      const partsOk = Number(totals.partesTotal || 0) === 0
-        ? true
-        : Number(totals.partesComContato || 0) >= Number(totals.partesTotal || 0);
-      const publicationsOk = Number(totals.publicacoesTotal || 0) === 0
-        ? true
-        : Number(totals.publicacoesComActivity || 0) >= Number(totals.publicacoesTotal || 0);
-      const movementsOk = Number(totals.movimentacoesTotal || 0) === 0
-        ? hasMovements
-        : Number(totals.movimentacoesComActivity || 0) >= Number(totals.movimentacoesTotal || 0);
-      const hearingsOk = Number(totals.audienciasTotal || 0) === 0
-        ? true
-        : Number(totals.audienciasComActivity || 0) >= Number(totals.audienciasTotal || 0);
-      const crmGap = hasAccount && !detailsOk;
-      const pending = [];
-      if (!hasAccount) pending.push("sem_account");
-      if (!detailsOk) pending.push("detalhes_incompletos");
-      if (!hasMovements) pending.push("sem_movimentacoes");
-      if (!partsOk) pending.push("partes_sem_contato");
-      if (!publicationsOk) pending.push("publicacoes_pendentes");
-      if (!movementsOk) pending.push("movimentacoes_pendentes");
-      if (!hearingsOk) pending.push("audiencias_pendentes");
-      if (crmGap) pending.push("gap_crm");
-
-      const coveragePct = summarizeCoveragePercentage([
-        hasAccount,
-        detailsOk,
-        hasMovements,
-        partsOk,
-        publicationsOk,
-        movementsOk,
-        hearingsOk,
-      ]);
-
-      return {
-        key: row.numero_cnj || row.id,
-        processo_id: row.id,
-        numero_cnj: row.numero_cnj || row.numero_processo || null,
-        titulo: row.titulo || null,
-        account_id_freshsales: row.account_id_freshsales || null,
-        status_atual_processo: row.status_atual_processo || null,
-        coveragePct,
-        hasAccount,
-        detailsOk,
-        hasMovements,
-        partsOk,
-        publicationsOk,
-        movementsOk,
-        hearingsOk,
-        crmGap,
-        partesTotal: Number(totals.partesTotal || 0),
-        partesSemContato: Math.max(0, Number(totals.partesTotal || 0) - Number(totals.partesComContato || 0)),
-        publicacoesTotal: Number(totals.publicacoesTotal || 0),
-        publicacoesPendentes: Math.max(0, Number(totals.publicacoesTotal || 0) - Number(totals.publicacoesComActivity || 0)),
-        movimentacoesTotal: Number(totals.movimentacoesTotal || 0),
-        movimentacoesPendentes: Math.max(0, Number(totals.movimentacoesTotal || 0) - Number(totals.movimentacoesComActivity || 0)),
-        audienciasTotal: Number(totals.audienciasTotal || 0),
-        audienciasPendentes: Math.max(0, Number(totals.audienciasTotal || 0) - Number(totals.audienciasComActivity || 0)),
-        pending,
-      };
-    })
-    .filter((item) => !onlyPending || item.pending.length > 0);
-
-  return {
-    page: safePage,
-    pageSize: safePageSize,
-    totalRows: onlyPending ? items.length : totalRows,
-    items,
-  };
 }
 
 export async function persistProcessCoverageSnapshot(env, { pageSize = 100, maxPages = 100 } = {}) {
