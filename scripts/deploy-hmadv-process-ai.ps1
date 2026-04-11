@@ -33,11 +33,38 @@ function Normalize-CloudflareToken([string]$Value) {
   return $normalized
 }
 
+function Test-CloudflareTokenLooksDuplicated([string]$Value) {
+  if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
+  if (($Value.Length % 2) -ne 0) { return $false }
+  $half = [int]($Value.Length / 2)
+  if ($half -lt 8) { return $false }
+  return $Value.Substring(0, $half) -eq $Value.Substring($half)
+}
+
+function Test-CloudflareApiToken([string]$Value) {
+  if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
+  $headers = @{
+    Authorization = "Bearer $Value"
+    "Content-Type" = "application/json"
+  }
+  try {
+    $response = Invoke-RestMethod -Uri 'https://api.cloudflare.com/client/v4/user/tokens/verify' -Headers $headers -Method Get
+    return [bool]$response.success
+  } catch {
+    return $false
+  }
+}
+
 function Invoke-WranglerDeployWithFallback([string]$ResolvedAccountId, [string]$ResolvedApiToken) {
   if (-not [string]::IsNullOrWhiteSpace($ResolvedAccountId)) {
     $env:CLOUDFLARE_ACCOUNT_ID = $ResolvedAccountId
   }
   if (-not [string]::IsNullOrWhiteSpace($ResolvedApiToken)) {
+    if (Test-CloudflareTokenLooksDuplicated $ResolvedApiToken) {
+      Write-Warning 'CLOUDFLARE_WORKER_API_TOKEN parece duplicado no .dev.vars. Revise a linha e mantenha apenas um token.'
+    } elseif (-not (Test-CloudflareApiToken $ResolvedApiToken)) {
+      Write-Warning 'CLOUDFLARE_WORKER_API_TOKEN nao passou na verificacao da API da Cloudflare. O deploy vai usar fallback OAuth local.'
+    }
     $env:CLOUDFLARE_API_TOKEN = $ResolvedApiToken
   }
 
