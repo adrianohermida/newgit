@@ -166,6 +166,12 @@ try {
   Write-Host "  CLOUDFLARE_WORKER_ACCOUNT_ID = $(Mask-Value $CloudflareAccountId)"
   Write-Host "  PROCESS_AI_BASE = $ProcessAiBase"
   Write-Host "  HMDAV_AI_SHARED_SECRET = $(Mask-Value $SharedSecret)"
+  Write-Host ''
+  Write-Host 'Validacoes recomendadas apos o deploy:'
+  Write-Host "  1. GET  $ProcessAiBase/health"
+  Write-Host "  2. POST $ProcessAiBase/execute"
+  Write-Host "  3. POST $ProcessAiBase/v1/execute"
+  Write-Host '  4. Rodar /llm-test com provider gpt'
 }
 finally {
   Pop-Location
