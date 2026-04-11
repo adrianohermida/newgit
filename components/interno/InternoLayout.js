@@ -365,6 +365,44 @@ export default function InternoLayout({
     const date = new Date(lastArchiveAt);
     return `Ultimo arquivo: ${date.toLocaleString("pt-BR")}`;
   }, [lastArchiveAt]);
+  const coverageCards = useMemo(() => buildCoverageCards(moduleHistory), [moduleHistory]);
+  const coverageRouteCount = useMemo(() => {
+    return new Set(coverageCards.map((item) => item.routePath).filter(Boolean)).size;
+  }, [coverageCards]);
+  const coverageErrorCount = useMemo(() => {
+    return coverageCards.filter((item) => item.tone === "danger").length;
+  }, [coverageCards]);
+
+  useEffect(() => {
+    persistModuleHistory("interno-shell", {
+      routePath: router.pathname,
+      shell: "interno",
+      title,
+      description,
+      consoleOpen,
+      consoleTab,
+      logPane,
+      copilotOpen,
+      navItems: NAV_ITEMS.length,
+      archivedCount,
+      recentLogCount: activityLog.length,
+      frontendIssueCount: frontendIssues.length,
+      schemaIssueCount: schemaIssues.length,
+      updatedAt: new Date().toISOString(),
+    });
+  }, [
+    activityLog.length,
+    archivedCount,
+    consoleOpen,
+    consoleTab,
+    copilotOpen,
+    description,
+    frontendIssues.length,
+    logPane,
+    router.pathname,
+    schemaIssues.length,
+    title,
+  ]);
 
   function handleStartResize(event) {
     if (!consoleOpen) return;

@@ -69,6 +69,7 @@ export async function onRequestPost(context) {
       const config = await getHmadvFinanceAdminConfig(context.env);
       const data = await backfillHmadvFinanceAccounts(context.env, {
         limit: Number(body.limit || config.settings?.value?.backfill_limit || 50),
+        ownerId: body.ownerId || config.settings?.value?.freshsales_owner_id || null,
       });
       return jsonOk({ data });
     }
