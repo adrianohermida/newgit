@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
 import { adminFetch } from "../../../lib/admin/api";
 import { useAgentLabData } from "../../../lib/agentlab/useAgentLabData";
+import { setModuleHistory } from "../../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../../lib/admin/module-registry";
 
 function Panel({ title, children }) {
   return (
@@ -47,6 +49,36 @@ function EvaluationContent({ state, message, setMessage }) {
     () => messages.filter((item) => Array.isArray(item.quality_signals) && item.quality_signals.length).slice(0, 12),
     [messages]
   );
+
+  useEffect(() => {
+    setModuleHistory(
+      "agentlab-evaluation",
+      buildModuleSnapshot("agentlab", {
+        routePath: "/interno/agentlab/evaluation",
+        loading: state.loading,
+        error: state.error,
+        section: "evaluation",
+        openIncidents: summary.open || 0,
+        unresolvedThreads: unresolvedThreads.length,
+        backlog: backlog.length,
+        riskyMessages: riskyMessages.length,
+        message: message || null,
+        coverage: {
+          routeTracked: true,
+          consoleIntegrated: true,
+          actionsTracked: true,
+        },
+      }),
+    );
+  }, [
+    backlog.length,
+    message,
+    riskyMessages.length,
+    state.error,
+    state.loading,
+    summary.open,
+    unresolvedThreads.length,
+  ]);
 
   if (state.loading) {
     return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando avaliacao...</div>;

@@ -1,7 +1,10 @@
+import { useEffect } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
 import { useAgentLabData } from "../../../lib/agentlab/useAgentLabData";
+import { setModuleHistory } from "../../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../../lib/admin/module-registry";
 
 function Panel({ title, children }) {
   return (
@@ -104,6 +107,38 @@ function EnvironmentContent({ state }) {
   const widgetEventSummary = state.data?.conversations?.widgetEventSummary || {};
   const readyCount = schemaChecklist.filter((item) => item.status === "ready").length;
   const missingCount = schemaChecklist.filter((item) => item.status !== "ready").length;
+
+  useEffect(() => {
+    setModuleHistory(
+      "agentlab-environment",
+      buildModuleSnapshot("agentlab", {
+        routePath: "/interno/agentlab/environment",
+        loading: state.loading,
+        error: state.error,
+        section: "environment",
+        mode: environment.mode || null,
+        readyCount,
+        missingCount,
+        warnings: warnings.length,
+        widgetEvents: widgetEventSummary.total || 0,
+        ragStatus: dotobotRagHealth.status || null,
+        coverage: {
+          routeTracked: true,
+          consoleIntegrated: true,
+          diagnosticsTracked: true,
+        },
+      }),
+    );
+  }, [
+    dotobotRagHealth.status,
+    environment.mode,
+    missingCount,
+    readyCount,
+    state.error,
+    state.loading,
+    warnings.length,
+    widgetEventSummary.total,
+  ]);
 
   return (
     <div className="space-y-8">

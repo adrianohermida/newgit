@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
 import { adminFetch } from "../../../lib/admin/api";
 import { useAgentLabData } from "../../../lib/agentlab/useAgentLabData";
+import { setModuleHistory } from "../../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../../lib/admin/module-registry";
 
 function Panel({ title, children }) {
   return (
@@ -74,6 +76,43 @@ export default function AgentLabOrquestracaoPage() {
   const handoffPlaybooks = (state.data?.governance?.handoffPlaybooks || []).filter(
     (item) => !item.agent_ref || item.agent_ref === selectedAgent
   );
+
+  useEffect(() => {
+    setModuleHistory(
+      "agentlab-orquestracao",
+      buildModuleSnapshot("agentlab", {
+        routePath: "/interno/agentlab/orquestracao",
+        loading: state.loading,
+        error: state.error,
+        section: "orquestracao",
+        selectedAgent,
+        quickReplies: quickReplies.length,
+        intents: intents.length,
+        knowledgeSources: knowledgeSources.length,
+        workflowLibrary: workflowLibrary.length,
+        handoffPlaybooks: handoffPlaybooks.length,
+        saving: Boolean(replyState?.loading || intentState?.loading || knowledgeState?.loading || workflowState?.loading),
+        coverage: {
+          routeTracked: true,
+          consoleIntegrated: true,
+          actionsTracked: true,
+        },
+      }),
+    );
+  }, [
+    handoffPlaybooks.length,
+    intentState?.loading,
+    intents.length,
+    knowledgeSources.length,
+    knowledgeState?.loading,
+    quickReplies.length,
+    replyState?.loading,
+    selectedAgent,
+    state.error,
+    state.loading,
+    workflowLibrary.length,
+    workflowState?.loading,
+  ]);
 
   async function saveQuickReply() {
     try {

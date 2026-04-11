@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
 import { useAgentLabData } from "../../../lib/agentlab/useAgentLabData";
 import { adminFetch } from "../../../lib/admin/api";
+import { setModuleHistory } from "../../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../../lib/admin/module-registry";
 
 function Panel({ title, children }) {
   return (
@@ -47,6 +49,27 @@ function KnowledgeContent({ state }) {
     () => (state.data?.governance?.queue || []).filter((item) => ["knowledge", "evaluation", "handoff"].includes(item.category)),
     [state.data]
   );
+
+  useEffect(() => {
+    setModuleHistory(
+      "agentlab-knowledge",
+      buildModuleSnapshot("agentlab", {
+        routePath: "/interno/agentlab/knowledge",
+        loading: state.loading,
+        error: state.error,
+        section: "knowledge",
+        packs: packs.length,
+        knowledgeSources: knowledgeSources.length,
+        queue: queue.length,
+        message: message || null,
+        coverage: {
+          routeTracked: true,
+          consoleIntegrated: true,
+          actionsTracked: true,
+        },
+      }),
+    );
+  }, [knowledgeSources.length, message, packs.length, queue.length, state.error, state.loading]);
 
   if (state.loading) {
     return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando conhecimento...</div>;
