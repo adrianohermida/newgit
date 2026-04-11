@@ -502,6 +502,12 @@ export default function AITaskModule({ profile, routePath }) {
   }, [taskViewMode, taskVisibleCount]);
 
   useEffect(() => {
+    if (taskVisibleCount > tasks.length && tasks.length > 0) {
+      setTaskVisibleCount(Math.max(8, tasks.length));
+    }
+  }, [taskVisibleCount, tasks.length]);
+
+  useEffect(() => {
     if (contact360Query) return;
     const documentEmails = Array.isArray(contextSnapshot?.documents)
       ? contextSnapshot.documents.map((item) => item?.email).filter(Boolean).join(" ")
