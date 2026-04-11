@@ -1442,7 +1442,7 @@ export default function InternoLayout({
       <div className="flex h-full min-h-0 flex-1">
         {/* CONTEÚDO PRINCIPAL */}
         <div className="grid min-h-0 flex-1 min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
-          <div className="shrink-0 flex items-center justify-between border-b border-[#1E2E29] px-6 py-4">
+          <div className="shrink-0 flex items-center justify-between gap-4 border-b border-[#1E2E29] px-6 py-4">
             <div className="text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">Workspace</div>
             <div className="flex-1 px-6">
               <div className="mx-auto flex max-w-xl items-center gap-3 rounded-full border border-[#22342F] bg-[rgba(8,10,9,0.7)] px-4 py-2 text-sm">
@@ -1460,7 +1460,7 @@ export default function InternoLayout({
                 </button>
               </div>
             </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={handlePageDebug}
@@ -1515,19 +1515,19 @@ export default function InternoLayout({
           </div>
           </div>
           <div
-            className={`min-h-[44px] shrink-0 border-t border-[#1E2E29] bg-[rgba(6,8,7,0.92)] transition-all ${consoleOpen ? "" : "h-[44px]"}`}
+            className={`min-h-[44px] shrink-0 border-t border-[#1E2E29] bg-[rgba(6,8,7,0.92)] transition-all ${consoleOpen ? "flex flex-col" : "block h-[44px]"}`}
             style={consoleOpen ? { height: `${consoleHeight}px` } : undefined}
           >
             {consoleOpen ? (
               <div
                 onMouseDown={handleStartResize}
-                className="flex h-3 cursor-row-resize items-center justify-center border-b border-[#1E2E29] text-[#60706A]"
+                className="shrink-0 flex h-3 cursor-row-resize items-center justify-center border-b border-[#1E2E29] text-[#60706A]"
                 title="Arraste para redimensionar"
               >
                 <span className="h-1 w-10 rounded-full bg-[#22342F]" />
               </div>
             ) : null}
-            <div className="flex items-center justify-between px-5 py-2 text-xs uppercase tracking-[0.18em] text-[#C5A059]">
+            <div className="shrink-0 flex items-center justify-between px-5 py-2 text-xs uppercase tracking-[0.18em] text-[#C5A059]">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -1581,7 +1581,7 @@ export default function InternoLayout({
               </button>
             </div>
             {consoleOpen ? (
-              <div className="h-[calc(100%-52px)] overflow-y-auto px-5 pb-4 text-xs text-[#9BAEA8]">
+              <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4 text-xs text-[#9BAEA8]">
                 {consoleTab === "console" ? (
                   <div className="space-y-3">
                     <div className="grid gap-3 md:grid-cols-4">

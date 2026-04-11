@@ -75,39 +75,52 @@ async function callProcessAiBase(message: string) {
     headers["x-shared-secret"] = sharedSecret;
   }
 
-  const response = await fetch(`${baseUrl.replace(/\/+$/, "")}/execute`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      query: message,
-      context: {
-        route: "app/api/chat",
-        locale: "pt-BR",
-        assistant: {
-          role: "assistente_juridico",
-          system_prompt: DEFAULT_SYSTEM_PROMPT,
-        },
+  const requestBody = {
+    query: message,
+    context: {
+      route: "app/api/chat",
+      locale: "pt-BR",
+      assistant: {
+        role: "assistente_juridico",
+        system_prompt: DEFAULT_SYSTEM_PROMPT,
       },
-    }),
-    cache: "no-store",
-  });
-
-  const payload = await parseJsonResponse(response);
-  if (!response.ok) {
-    throw new Error(payload?.error || payload?.message || `Falha no backend AI (${response.status}).`);
-  }
-
-  const content = extractTextFromResult(payload);
-  if (!content) {
-    throw new Error("O backend AI nao retornou texto util.");
-  }
-
-  return {
-    role: "assistant",
-    content,
-    provider: "process_ai_base",
-    raw: payload,
+    },
   };
+  const candidates = [`${baseUrl.replace(/\/+$/, "")}/execute`, `${baseUrl.replace(/\/+$/, "")}/v1/execute`];
+  const errors: string[] = [];
+
+  for (const candidate of candidates) {
+    const response = await fetch(candidate, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(requestBody),
+      cache: "no-store",
+    });
+
+    const payload = await parseJsonResponse(response);
+    if (!response.ok) {
+      const message = payload?.error || payload?.message || `Falha no backend AI (${response.status}).`;
+      errors.push(`[${candidate}] ${message}`);
+      if (/not_found|404|requested function was not found/i.test(String(message))) {
+        continue;
+      }
+      throw new Error(message);
+    }
+
+    const content = extractTextFromResult(payload);
+    if (!content) {
+      throw new Error("O backend AI nao retornou texto util.");
+    }
+
+    return {
+      role: "assistant",
+      content,
+      provider: "process_ai_base",
+      raw: payload,
+    };
+  }
+
+  throw new Error(errors.join(" | ") || "Falha no backend AI.");
 }
 
 async function callWorkersAiDirect(message: string) {

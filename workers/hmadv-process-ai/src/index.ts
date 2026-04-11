@@ -118,6 +118,10 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function isExecutePath(pathname: string) {
+  return pathname === '/execute' || pathname === '/execute/' || pathname === '/v1/execute' || pathname === '/v1/execute/';
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -891,7 +895,7 @@ export default {
         s3_api_configured: Boolean(env.CLOUDFLARE_S3_API),
       });
     }
-    if (req.method === 'POST' && url.pathname === '/execute') {
+    if (req.method === 'POST' && isExecutePath(url.pathname)) {
       const body = (await parseBody(req)) as Json | null;
       const query = String(body?.query ?? '').trim();
       if (!query) {

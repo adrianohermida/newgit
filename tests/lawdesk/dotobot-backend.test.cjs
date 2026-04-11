@@ -348,6 +348,48 @@ registerTest("runLawdeskChat uses local provider when LLM_BASE_URL is configured
   }
 });
 
+registerTest("runLawdeskChat prefixes failures with provider strategy for clearer diagnostics", async () => {
+  const { runLawdeskChat } = await loadLawdeskModules();
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url) => {
+    if (String(url) === "https://ai.example.test/execute") {
+      return new Response(JSON.stringify({ error: "Requested function was not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (String(url).includes("/functions/v1/dotobot-execute")) {
+      return new Response(JSON.stringify({ error: "Function not deployed" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ error: "unexpected" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  try {
+    await assert.rejects(
+      () => runLawdeskChat(
+        {
+          PROCESS_AI_BASE: "https://ai.example.test",
+          SUPABASE_URL: "https://supabase.example.test",
+          SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        },
+        { query: "Diagnostique", context: { route: "/llm-test" } }
+      ),
+      /\[primary_api\].*Requested function was not found.*\[supabase_edge\].*Function not deployed/i
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 registerTest("runLawdeskChat honors explicit cloudflare provider", async () => {
   const { runLawdeskChat } = await loadLawdeskModules();
   let calls = 0;
