@@ -22,6 +22,8 @@ import {
   mergeContacts,
   reclassifyLinkedPartes,
   reconcilePartesContacts,
+  syncClientProfileToContacts,
+  syncContactsToPortal,
   syncFreshsalesContactsMirror,
   unlinkPartesFromContact,
   updateContact,
@@ -124,6 +126,21 @@ export async function onRequestPost(context) {
         dryRun: Boolean(body.dryRun),
         fetchAll: Boolean(body.fetchAll),
       });
+      return jsonOk({ data });
+    }
+    if (action === "sync_portal_contacts") {
+      const direction = String(body.direction || "portal_to_crm");
+      const data = direction === "crm_to_portal"
+        ? await syncContactsToPortal(context.env, {
+            clientId: body.clientId || "",
+            limit: Number(body.limit || 100),
+            dryRun: Boolean(body.dryRun),
+          })
+        : await syncClientProfileToContacts(context.env, {
+            clientId: body.clientId || "",
+            clientEmail: body.clientEmail || "",
+            dryRun: Boolean(body.dryRun),
+          });
       return jsonOk({ data });
     }
     if (action === "enrich_cep") {

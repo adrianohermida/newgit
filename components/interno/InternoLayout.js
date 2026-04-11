@@ -1170,8 +1170,10 @@ export default function InternoLayout({
     });
   }
 
+  const showExtensionManager = router.pathname === "/interno/ai-task" || router.pathname === "/interno/agentlab";
+
   return (
-    <div className="flex w-full h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.24),transparent_30%),linear-gradient(180deg,#050706_0%,#070A09_100%)] text-[#F4F1EA]">
+    <div className="flex h-screen w-full overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.24),transparent_30%),linear-gradient(180deg,#050706_0%,#070A09_100%)] text-[#F4F1EA]">
       {/* SIDEBAR */}
       <aside className={`flex flex-col h-full border-r border-[#22342F] bg-[linear-gradient(180deg,rgba(10,18,16,0.98),rgba(8,15,13,0.94))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.22)] transition-all ${leftCollapsed ? "w-[88px]" : "w-[272px] min-w-[220px] max-w-[320px]"}`}>
         <Link href="/interno" prefetch={false} className="mb-8 block">
@@ -1223,9 +1225,9 @@ export default function InternoLayout({
         </div>
       </aside>
       {/* MAIN + COPILOT */}
-      <div className="flex flex-1 h-full">
+      <div className="flex h-full min-h-0 flex-1">
         {/* CONTEÚDO PRINCIPAL */}
-        <div className="flex flex-1 min-w-0 flex-col">
+        <div className="flex min-h-0 flex-1 min-w-0 flex-col">
           <div className="flex items-center justify-between border-b border-[#1E2E29] px-6 py-4">
             <div className="text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">Workspace</div>
             <div className="flex-1 px-6">
@@ -1282,7 +1284,7 @@ export default function InternoLayout({
               </button>
             </div>
           </div>
-          <div className="flex-1 overflow-auto">
+          <div className="min-h-0 flex-1 overflow-auto">
           <header className="mb-6 border-b border-[#1E2E29] pb-5 px-6 pt-6">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
               <div className="min-w-0">
@@ -1295,7 +1297,7 @@ export default function InternoLayout({
           <div className="space-y-6 px-6 pb-6">
             <IntegrationGuideCard guide={integrationGuide} />
             {children}
-            <DotobotExtensionManager />
+            {showExtensionManager ? <DotobotExtensionManager /> : null}
           </div>
           </div>
           <div

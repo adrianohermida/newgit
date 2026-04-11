@@ -24,10 +24,13 @@ import {
   trimRecentHistory,
 } from "./aiTaskState";
 import {
+  classifyTaskAgent,
   detectModules,
   extractTaskRunMemoryMatches,
   formatExecutionSourceLabel,
+  inferTaskPriority,
   normalizeMission,
+  normalizeTaskStepStatus,
   normalizeTaskRunPayload,
   requiresApproval,
 } from "./aiTaskAdapters";

@@ -8,6 +8,17 @@ function cleanValue(value) {
   return text || null;
 }
 
+function safeJsonObject(value, fallback = {}) {
+  if (!value) return { ...fallback };
+  if (typeof value === "object" && !Array.isArray(value)) return { ...fallback, ...value };
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? { ...fallback, ...parsed } : { ...fallback };
+  } catch {
+    return { ...fallback };
+  }
+}
+
 function sanitizeContactName(value) {
   const text = String(value || "")
     .replace(/[\r\n\t]+/g, " ")
@@ -27,6 +38,14 @@ function cleanDigits(value) {
 function normalizeEmail(value) {
   const email = cleanValue(value);
   return email ? email.toLowerCase() : null;
+}
+
+function normalizeWhatsapp(value) {
+  const digits = cleanDigits(value);
+  if (!digits) return null;
+  if (digits.length === 13 && digits.startsWith("55")) return digits;
+  if (digits.length === 11) return `55${digits}`;
+  return digits;
 }
 
 function normalizeText(value) {
@@ -165,6 +184,112 @@ function dedupeBy(rows = [], getKey = () => "") {
     map.set(key, row);
   }
   return [...map.values()];
+}
+
+function buildPortalContactExternalId(clientId, contactKey = "primary") {
+  return `portal:client:${String(clientId || "").trim()}:${String(contactKey || "primary").trim()}`;
+}
+
+function buildPortalProfilePrimaryContact(profile) {
+  return {
+    key: "primary",
+    name: sanitizeContactName(profile?.full_name),
+    type: "Cliente",
+    email: normalizeEmail(profile?.email),
+    phone: normalizeWhatsapp(profile?.whatsapp),
+    cpf: cleanDigits(profile?.cpf),
+    cnpj: null,
+    cep: cleanDigits(profile?.metadata?.addresses?.find?.((item) => item?.primary)?.postal_code) || cleanDigits(profile?.metadata?.addresses?.[0]?.postal_code),
+  };
+}
+
+function buildPortalMetadataContacts(profile) {
+  const metadata = safeJsonObject(profile?.metadata, {});
+  const contacts = Array.isArray(metadata.contacts) ? metadata.contacts : [];
+  return contacts.map((item, index) => ({
+    key: cleanValue(item?.id) || `contact-${index + 1}`,
+    name: sanitizeContactName(item?.label) || sanitizeContactName(profile?.full_name),
+    type: "Cliente",
+    email: String(item?.type || "").toLowerCase() === "email" ? normalizeEmail(item?.value) : null,
+    phone: ["telefone", "whatsapp", "celular"].includes(String(item?.type || "").toLowerCase()) ? normalizeWhatsapp(item?.value) : null,
+    cpf: null,
+    cnpj: null,
+    cep: null,
+  })).filter((item) => item.name && (item.email || item.phone));
+}
+
+function buildPortalProfileContactsPayload(profile) {
+  const primary = buildPortalProfilePrimaryContact(profile);
+  const extras = buildPortalMetadataContacts(profile);
+  return [primary, ...extras].filter((item, index, array) => {
+    if (!item?.name) return false;
+    const signature = `${item.name}|${item.email || ""}|${item.phone || ""}`;
+    return array.findIndex((candidate) => `${candidate.name}|${candidate.email || ""}|${candidate.phone || ""}` === signature) === index;
+  });
+}
+
+function normalizePortalContactItems(items = []) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map((item, index) => ({
+      id: cleanValue(item?.id) || `contact-${index + 1}`,
+      label: cleanValue(item?.label) || "",
+      type: cleanValue(item?.type) || "telefone",
+      value: cleanValue(item?.value) || "",
+      notes: cleanValue(item?.notes) || "",
+      primary: Boolean(item?.primary),
+    }))
+    .filter((item) => item.value);
+}
+
+function upsertPortalContactItem(items, nextItem) {
+  const current = normalizePortalContactItems(items);
+  const valueKey = cleanValue(nextItem?.value);
+  if (!valueKey) return current;
+  const index = current.findIndex((item) => cleanValue(item.value) === valueKey && String(item.type || "").toLowerCase() === String(nextItem.type || "").toLowerCase());
+  if (index >= 0) {
+    current[index] = { ...current[index], ...nextItem, id: current[index].id || nextItem.id };
+    return current;
+  }
+  return [...current, nextItem];
+}
+
+function matchMirrorContactToClientProfile(contact, profile) {
+  const metadata = safeJsonObject(profile?.metadata, {});
+  const portalContacts = normalizePortalContactItems(metadata.contacts);
+  const externalId = cleanValue(contact?.external_id);
+  if (externalId && externalId.startsWith(`portal:client:${String(profile?.id || "").trim()}:`)) return true;
+  const crmCpf = cleanDigits(contact?.cpf);
+  if (crmCpf && crmCpf === cleanDigits(profile?.cpf)) return true;
+  const crmEmail = normalizeEmail(contact?.email);
+  if (crmEmail && crmEmail === normalizeEmail(profile?.email)) return true;
+  const crmPhone = normalizeWhatsapp(contact?.phone);
+  if (crmPhone && crmPhone === normalizeWhatsapp(profile?.whatsapp)) return true;
+  if (crmEmail && portalContacts.some((item) => String(item.type || "").toLowerCase() === "email" && normalizeEmail(item.value) === crmEmail)) return true;
+  if (crmPhone && portalContacts.some((item) => ["telefone", "whatsapp", "celular"].includes(String(item.type || "").toLowerCase()) && normalizeWhatsapp(item.value) === crmPhone)) return true;
+  return Boolean(buildNameKey(contact?.name) && buildNameKey(contact?.name) === buildNameKey(profile?.full_name));
+}
+
+async function getClientProfiles(env, filters = {}) {
+  const clauses = [
+    "select=id,email,full_name,is_active,whatsapp,cpf,metadata,created_at,updated_at",
+    filters.clientId ? `id=eq.${encodeURIComponent(String(filters.clientId))}` : null,
+    filters.email ? `email=eq.${encodeURIComponent(String(filters.email).toLowerCase())}` : null,
+    `limit=${Math.max(1, Math.min(Number(filters.limit || 200), 1000))}`,
+  ].filter(Boolean);
+  return hmadvRest(env, `client_profiles?${clauses.join("&")}`);
+}
+
+async function patchClientProfile(env, clientId, body) {
+  const rows = await hmadvRest(env, `client_profiles?id=eq.${encodeURIComponent(String(clientId))}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Prefer: "return=representation" },
+    body: JSON.stringify({
+      ...body,
+      updated_at: new Date().toISOString(),
+    }),
+  });
+  return rows?.[0] || null;
 }
 
 async function sleep(ms) {
@@ -498,6 +623,186 @@ export async function syncFreshsalesContactsMirror(env, { limit = 200, dryRun = 
   }
   if (!dryRun && unique.length) await upsertMirrorRows(env, unique);
   return { checkedAt: new Date().toISOString(), dryRun, fetchAll, total: unique.length, imported: unique.length, source, sample: unique.slice(0, 50).map((row) => ({ freshsales_contact_id: row.freshsales_contact_id, name: row.name })) };
+}
+
+export async function syncClientProfileToContacts(env, { clientId, clientEmail = "", dryRun = false } = {}) {
+  const profiles = await getClientProfiles(env, {
+    clientId: cleanValue(clientId) || undefined,
+    email: normalizeEmail(clientEmail) || undefined,
+    limit: 1,
+  });
+  const profile = Array.isArray(profiles) ? profiles[0] || null : null;
+  if (!profile) throw new Error("Perfil do cliente nao encontrado para sincronizar com contacts.");
+
+  const desiredContacts = buildPortalProfileContactsPayload({
+    ...profile,
+    metadata: safeJsonObject(profile.metadata, {}),
+  });
+  const sample = [];
+  const mappings = [];
+
+  for (const item of desiredContacts) {
+    const payload = {
+      name: item.name,
+      type: item.type || "Cliente",
+      email: item.email,
+      phone: item.phone,
+      cpf: item.key === "primary" ? cleanDigits(profile.cpf) : item.cpf,
+      cnpj: item.cnpj,
+      cep: item.cep,
+      externalId: buildPortalContactExternalId(profile.id, item.key),
+    };
+    if (!dryRun) {
+      const created = await createOrUpdateFreshsalesContact(env, payload);
+      mappings.push({
+        portal_contact_key: item.key,
+        freshsales_contact_id: String(created.id),
+        external_id: payload.externalId,
+      });
+      sample.push({
+        portal_contact_key: item.key,
+        name: payload.name,
+        email: payload.email,
+        phone: payload.phone,
+        freshsales_contact_id: String(created.id),
+        mode: "upserted_to_crm",
+      });
+    } else {
+      sample.push({
+        portal_contact_key: item.key,
+        name: payload.name,
+        email: payload.email,
+        phone: payload.phone,
+        external_id: payload.externalId,
+        mode: "crm_upsert_pending",
+      });
+    }
+  }
+
+  if (!dryRun) {
+    const metadata = safeJsonObject(profile.metadata, {});
+    const nextMetadata = {
+      ...metadata,
+      contacts_sync: {
+        ...(safeJsonObject(metadata.contacts_sync, {})),
+        last_push_to_crm_at: new Date().toISOString(),
+        mappings,
+      },
+    };
+    await patchClientProfile(env, profile.id, { metadata: nextMetadata }).catch(() => null);
+  }
+
+  return {
+    checkedAt: new Date().toISOString(),
+    dryRun,
+    client_id: profile.id,
+    client_email: profile.email || null,
+    totalRows: desiredContacts.length,
+    synced: desiredContacts.length,
+    direction: "portal_to_crm",
+    sample,
+  };
+}
+
+export async function syncContactsToPortal(env, { clientId = "", limit = 100, dryRun = false } = {}) {
+  const profiles = await getClientProfiles(env, {
+    clientId: cleanValue(clientId) || undefined,
+    limit: clientId ? 1 : Math.max(1, Math.min(Number(limit || 100), 500)),
+  });
+  const mirrorRows = await hmadvRest(env, `freshsales_contacts?select=id,freshsales_contact_id,name,email,phone,last_synced_at,raw_payload&limit=${Math.max(5000, Number(limit || 1000))}`);
+  const mirrorContacts = (Array.isArray(mirrorRows) ? mirrorRows : []).map(mapMirrorRow);
+  let synced = 0;
+  const sample = [];
+
+  for (const profile of profiles) {
+    const matched = mirrorContacts.filter((contact) => matchMirrorContactToClientProfile(contact, profile));
+    if (!matched.length) continue;
+    const metadata = safeJsonObject(profile.metadata, {});
+    let nextContacts = normalizePortalContactItems(metadata.contacts);
+    let changed = false;
+
+    for (const contact of matched) {
+      const normalizedEmail = normalizeEmail(contact.email);
+      const normalizedPhone = normalizeWhatsapp(contact.phone);
+      if (normalizedEmail) {
+        const candidate = {
+          id: `crm-email-${contact.freshsales_contact_id}`,
+          label: cleanValue(contact.name) || "E-mail CRM",
+          type: "email",
+          value: normalizedEmail,
+          notes: "Sincronizado do Freshsales",
+          primary: normalizedEmail === normalizeEmail(profile.email),
+        };
+        const merged = upsertPortalContactItem(nextContacts, candidate);
+        changed = changed || merged.length !== nextContacts.length || JSON.stringify(merged) !== JSON.stringify(nextContacts);
+        nextContacts = merged;
+      }
+      if (normalizedPhone) {
+        const candidate = {
+          id: `crm-phone-${contact.freshsales_contact_id}`,
+          label: cleanValue(contact.name) || "Telefone CRM",
+          type: "telefone",
+          value: normalizedPhone,
+          notes: "Sincronizado do Freshsales",
+          primary: normalizedPhone === normalizeWhatsapp(profile.whatsapp),
+        };
+        const merged = upsertPortalContactItem(nextContacts, candidate);
+        changed = changed || merged.length !== nextContacts.length || JSON.stringify(merged) !== JSON.stringify(nextContacts);
+        nextContacts = merged;
+      }
+    }
+
+    const primaryMatch = matched.find((item) => cleanValue(item.external_id) === buildPortalContactExternalId(profile.id, "primary")) || matched[0];
+    const nextBody = {
+      metadata: {
+        ...metadata,
+        contacts: nextContacts,
+        contacts_sync: {
+          ...(safeJsonObject(metadata.contacts_sync, {})),
+          last_pull_from_crm_at: new Date().toISOString(),
+          linked_contact_ids: matched.map((item) => item.freshsales_contact_id),
+        },
+      },
+    };
+    if (!cleanValue(profile.full_name) && cleanValue(primaryMatch?.name)) {
+      nextBody.full_name = primaryMatch.name;
+      changed = true;
+    }
+    if (!normalizeEmail(profile.email) && normalizeEmail(primaryMatch?.email)) {
+      nextBody.email = normalizeEmail(primaryMatch.email);
+      changed = true;
+    }
+    if (!normalizeWhatsapp(profile.whatsapp) && normalizeWhatsapp(primaryMatch?.phone)) {
+      nextBody.whatsapp = normalizeWhatsapp(primaryMatch.phone);
+      changed = true;
+    }
+    if (!cleanDigits(profile.cpf) && cleanDigits(primaryMatch?.cpf)) {
+      nextBody.cpf = cleanDigits(primaryMatch.cpf);
+      changed = true;
+    }
+
+    if (changed) {
+      synced += 1;
+      if (!dryRun) {
+        await patchClientProfile(env, profile.id, nextBody);
+      }
+      sample.push({
+        client_id: profile.id,
+        client_email: profile.email || null,
+        matched_contacts: matched.map((item) => item.freshsales_contact_id),
+        mode: dryRun ? "portal_patch_pending" : "portal_updated",
+      });
+    }
+  }
+
+  return {
+    checkedAt: new Date().toISOString(),
+    dryRun,
+    totalRows: profiles.length,
+    synced,
+    direction: "crm_to_portal",
+    sample: sample.slice(0, 50),
+  };
 }
 
 export async function enrichContactViaCep(env, { contactId, cep }) {

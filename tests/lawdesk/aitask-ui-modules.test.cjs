@@ -197,6 +197,15 @@ registerTest("adapter helpers classify mission intent and approval risk", async 
   assert.equal(adapters.normalizeMission("  revisar caso  "), "revisar caso");
   assert.equal(adapters.formatExecutionSourceLabel("cloudflare"), "Cloudflare Workers AI");
   assert.equal(adapters.extractTaskRunResultText({ result: { message: "OK" } }), "OK");
+  assert.equal(adapters.classifyTaskAgent({ action: "Montar plano operacional" }), "Planner");
+  assert.equal(adapters.classifyTaskAgent({ tool: "rag_lookup", action: "Recuperar contexto" }), "Retriever");
+  assert.equal(adapters.classifyTaskAgent({ action: "Validar resposta final" }), "Critic");
+  assert.equal(adapters.classifyTaskAgent({ tool: "workers_ai_direct", action: "Executar resposta" }), "Executor");
+  assert.equal(adapters.classifyTaskAgent({ action: "Supervisor dispatch" }), "Supervisor");
+  assert.equal(adapters.normalizeTaskStepStatus("queued"), "pending");
+  assert.equal(adapters.normalizeTaskStepStatus("ok"), "done");
+  assert.equal(adapters.normalizeTaskStepStatus("error"), "failed");
+  assert.equal(adapters.inferTaskPriority({ action: "Recuperar contexto RAG" }), "medium");
 });
 
 async function run() {

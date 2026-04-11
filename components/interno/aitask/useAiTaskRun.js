@@ -47,6 +47,9 @@ export function useAiTaskRun({
   buildBlueprint,
   nowIso,
   normalizeTaskRunPayload,
+  normalizeTaskStepStatus,
+  classifyTaskAgent,
+  inferTaskPriority,
   extractTaskRunMemoryMatches,
   formatExecutionSourceLabel,
   pushLog,
@@ -176,21 +179,24 @@ export function useAiTaskRun({
         if (normalized.resultText) setLatestResult(normalized.resultText);
 
         if (normalized.steps.length) {
-          const mappedTasks = normalized.steps.map((step, index) => ({
-            id: `${run?.id || runId}_step_${index + 1}`,
-            title: step?.action || step?.title || `Etapa ${index + 1}`,
-            goal: step?.action || step?.title || `Etapa ${index + 1}`,
-            description: step?.action || step?.title || "Execução do backend",
-            step,
-            steps: [step?.action || step?.title || "Execução do backend"],
-            status: step?.status === "ok" ? "done" : step?.status === "fail" ? "failed" : "running",
-            priority: "high",
-            assignedAgent: step?.tool || "Dotobot",
-            created_at: nowIso(),
-            updated_at: nowIso(),
-            logs: step?.error ? [step.error] : [],
-            dependencies: [],
-          }));
+          const mappedTasks = normalized.steps.map((step, index) => {
+            const label = step?.action || step?.title || `Etapa ${index + 1}`;
+            return {
+              id: `${run?.id || runId}_step_${index + 1}`,
+              title: label,
+              goal: label,
+              description: label || "Execucao do backend",
+              step,
+              steps: [label || "Execucao do backend"],
+              status: normalizeTaskStepStatus(step?.status),
+              priority: inferTaskPriority(step),
+              assignedAgent: classifyTaskAgent(step),
+              created_at: nowIso(),
+              updated_at: nowIso(),
+              logs: step?.error ? [step.error] : [],
+              dependencies: Array.isArray(step?.dependsOn) ? step.dependsOn : [],
+            };
+          });
           setTasks(mappedTasks);
           setSelectedTaskId(mappedTasks[0]?.id || null);
         }

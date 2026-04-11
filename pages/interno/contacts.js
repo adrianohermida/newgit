@@ -21,6 +21,7 @@ const CONTACT_TYPE_OPTIONS = [
 
 const CONTACT_ACTION_LABELS = {
   sync_contacts: "Sincronizar contacts do Freshsales",
+  sync_portal_contacts: "Sincronizar contacts com portal",
   validate_contacts: "Validar e higienizar contatos",
   bulk_create_contacts: "Criar contatos em lote",
   delete_contacts_bulk: "Excluir contatos em lote",
@@ -722,6 +723,10 @@ function ContactsContent() {
             <StatusBadge tone={contactsGuardrail.tone === "danger" ? "danger" : contactsGuardrail.tone === "warn" ? "warn" : "success"}>
               sync seguro {contactsGuardrail.safeLimits.sync}
             </StatusBadge>
+            <ActionButton onClick={() => runAction("sync_portal_contacts", { direction: "portal_to_crm", dryRun: true })} disabled={actionState.loading}>Simular portal {"->"} CRM</ActionButton>
+            <ActionButton tone="primary" onClick={() => runAction("sync_portal_contacts", { direction: "portal_to_crm", dryRun: false })} disabled={actionState.loading}>Aplicar portal {"->"} CRM</ActionButton>
+            <ActionButton onClick={() => runAction("sync_portal_contacts", { direction: "crm_to_portal", dryRun: true, limit: syncLimit })} disabled={actionState.loading}>Simular CRM {"->"} portal</ActionButton>
+            <ActionButton tone="primary" onClick={() => runAction("sync_portal_contacts", { direction: "crm_to_portal", dryRun: false, limit: syncLimit })} disabled={actionState.loading}>Aplicar CRM {"->"} portal</ActionButton>
             <ActionButton onClick={() => toggleContactsPageSelection(!allContactPageSelected)} disabled={!listState.items.length}>
               {allContactPageSelected ? "Desmarcar pagina" : "Selecionar pagina"}
             </ActionButton>

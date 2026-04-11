@@ -22,6 +22,34 @@ export function formatExecutionSourceLabel(source) {
   return formatLawdeskProviderLabel(source);
 }
 
+export function classifyTaskAgent(step = {}) {
+  const tool = String(step?.tool || "").toLowerCase();
+  const action = String(step?.action || step?.title || step?.name || "").toLowerCase();
+  const combined = `${tool} ${action}`;
+
+  if (/critic|review|validate|validar|approval|approve|compliance/.test(combined)) return "Critic";
+  if (/plan|planner|breakdown|roteiro|plano/.test(combined)) return "Planner";
+  if (/rag|memory|retrieve|retrieval|context|search|obsidian|supabase/.test(combined)) return "Retriever";
+  if (/supervisor|orchestr|coord|dispatch|govern/.test(combined)) return "Supervisor";
+  if (/local|cloudflare|workers_ai|executor|execute|run|chat|tool_call|backend/.test(combined)) return "Executor";
+  return "Dotobot";
+}
+
+export function normalizeTaskStepStatus(status) {
+  const normalized = String(status || "").toLowerCase();
+  if (["ok", "done", "completed", "success"].includes(normalized)) return "done";
+  if (["fail", "failed", "error", "canceled", "cancelled"].includes(normalized)) return "failed";
+  if (["queued", "pending", "waiting", "planned"].includes(normalized)) return "pending";
+  return "running";
+}
+
+export function inferTaskPriority(step = {}) {
+  const combined = `${step?.tool || ""} ${step?.action || step?.title || ""}`.toLowerCase();
+  if (/approval|critic|review|compliance/.test(combined)) return "medium";
+  if (/rag|memory|retrieve|context/.test(combined)) return "medium";
+  return "high";
+}
+
 export function extractTaskRunResultText(...sources) {
   for (const source of sources) {
     if (!source) continue;

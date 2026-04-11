@@ -1,6 +1,7 @@
 import { fetchSupabaseAdmin } from "./supabase-rest.js";
 import { getSupabaseBaseUrl, getSupabaseServerKey } from "./env.js";
 import { createPortalAdminJob } from "./hmadv-ops.js";
+import { syncClientProfileToContacts } from "./hmadv-contacts.js";
 
 function safeJsonParse(value, fallback = {}) {
   if (!value) return fallback;
@@ -250,7 +251,13 @@ export async function upsertClientProfile(env, { user, currentProfile, payload }
       },
       body: JSON.stringify(row),
     });
-    return Array.isArray(rows) ? rows[0] || row : row;
+    const saved = Array.isArray(rows) ? rows[0] || row : row;
+    await syncClientProfileToContacts(env, {
+      clientId: user.id,
+      clientEmail: user.email,
+      dryRun: false,
+    }).catch(() => null);
+    return saved;
   } catch (error) {
     if (isMissingTableError(error, "client_profiles")) {
       throw new Error("A tabela client_profiles ainda nao esta disponivel neste projeto Supabase.");
