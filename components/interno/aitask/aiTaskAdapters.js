@@ -1,9 +1,8 @@
+import { detectRelevantModulesForMission } from "../../../lib/admin/module-registry";
+import { normalizeTaskRunPayload } from "../../../lib/admin/task-runner";
+
 export function detectModules(mission) {
-  if (!mission) return ["geral"];
-  if (/peticao|recurso|contestacao|acao|agravo/i.test(mission)) return ["documentos-juridicos"];
-  if (/audiencia|processo|cnj/i.test(mission)) return ["processos"];
-  if (/cliente|contato|cobranca/i.test(mission)) return ["clientes"];
-  return ["geral"];
+  return detectRelevantModulesForMission(mission);
 }
 
 export function requiresApproval(mission) {
@@ -49,25 +48,4 @@ export function extractTaskRunMemoryMatches(rag) {
   return [];
 }
 
-export function normalizeTaskRunPayload(payload) {
-  const data = payload?.data || {};
-  const run = data?.run || null;
-  const runResult = run?.result || null;
-  const steps = Array.isArray(data?.steps) ? data.steps : Array.isArray(runResult?.steps) ? runResult.steps : [];
-  const events = Array.isArray(data?.events) ? data.events : [];
-  const rag = data?.rag || runResult?.rag || null;
-  return {
-    run,
-    steps,
-    events,
-    rag,
-    resultText: extractTaskRunResultText(data, runResult),
-    source: data?.source || runResult?.source || null,
-    model: data?.model || runResult?.model || null,
-    status: run?.status || (payload?.ok ? "completed" : "failed"),
-    eventsCursor: data?.eventsCursor || null,
-    eventsCursorSequence: Number.isFinite(Number(data?.eventsCursorSequence)) ? Number(data.eventsCursorSequence) : null,
-    eventsTotal: Number.isFinite(Number(data?.eventsTotal)) ? Number(data.eventsTotal) : null,
-    pollIntervalMs: Number.isFinite(Number(data?.pollIntervalMs)) ? Number(data.pollIntervalMs) : null,
-  };
-}
+export { normalizeTaskRunPayload };

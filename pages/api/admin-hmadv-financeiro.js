@@ -5,6 +5,7 @@ import {
   backfillHmadvFinanceAccounts,
   getHmadvFinanceAdminConfig,
   getHmadvFinanceAdminOverview,
+  getHmadvFinanceOperationGuidance,
   updateHmadvFinanceAdminConfig,
   resolveHmadvFinancePendingAccounts,
   searchHmadvFinanceProcessCandidates,
@@ -179,11 +180,13 @@ export default async function handler(req, res) {
         const settings = config.settings?.value || {};
         const dynamicArgs = buildScriptArgs(operation, settings, req.body || {});
         const data = await runNodeScript(selected.script, dynamicArgs);
+        const guidance = await getHmadvFinanceOperationGuidance(process.env, operation);
         return res.status(200).json({
           ok: true,
           data: {
             operation,
             script: selected.script,
+            guidance,
             ...data,
           },
         });

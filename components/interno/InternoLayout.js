@@ -891,7 +891,70 @@ export default function InternoLayout({
             {consoleOpen ? (
               <div className="h-[calc(100%-52px)] overflow-y-auto px-5 pb-4 text-xs text-[#9BAEA8]">
                 {consoleTab === "console" ? (
-                  <div className="opacity-70">Console operacional (placeholder). Aqui entram logs estilo VS Code.</div>
+                  <div className="space-y-3">
+                    <div className="grid gap-3 md:grid-cols-4">
+                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3">
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Snapshots</p>
+                        <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{coverageCards.length}</p>
+                        <p className="mt-1 text-[11px] text-[#9BAEA8]">Módulos e shells publicados no console.</p>
+                      </div>
+                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3">
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Rotas cobertas</p>
+                        <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{coverageRouteCount}</p>
+                        <p className="mt-1 text-[11px] text-[#9BAEA8]">Rotas com telemetria ou snapshot ativo.</p>
+                      </div>
+                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3">
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Com erro</p>
+                        <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{coverageErrorCount}</p>
+                        <p className="mt-1 text-[11px] text-[#9BAEA8]">Snapshots que reportaram falha visível.</p>
+                      </div>
+                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3">
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Issues abertas</p>
+                        <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{frontendIssues.length + schemaIssues.length}</p>
+                        <p className="mt-1 text-[11px] text-[#9BAEA8]">UX e schema consolidados no workspace.</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 text-[11px] text-[#9BAEA8]">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Cobertura ativa</p>
+                      <p className="mt-2">
+                        O console agora agrega snapshots do app shell, layouts público e portal, shell interno e módulos operacionais.
+                        Isso substitui o placeholder anterior e cria uma base única para expansão da cobertura por página e componente.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 xl:grid-cols-2">
+                      {coverageCards.length ? coverageCards.map((item) => (
+                        <div key={item.key} className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.55)] p-3 text-[11px]">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">{item.key}</p>
+                              <p className="mt-1 font-semibold text-[#F5F1E8]">{item.routePath || "sem rota declarada"}</p>
+                            </div>
+                            <span
+                              className={
+                                item.tone === "danger"
+                                  ? "text-red-200"
+                                  : item.tone === "warn"
+                                    ? "text-[#D9B46A]"
+                                    : "text-[#11D473]"
+                              }
+                            >
+                              {item.tone === "danger" ? "erro" : item.tone === "warn" ? "atencao" : "ok"}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-[#C7D0CA]">{item.summary}</p>
+                          <div className="mt-2 text-[10px] text-[#7E918B]">
+                            Atualizado em {item.updatedAt ? new Date(item.updatedAt).toLocaleString("pt-BR") : "sem horario"}
+                          </div>
+                        </div>
+                      )) : (
+                        <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.55)] p-3 text-[11px] text-[#9BAEA8]">
+                          Nenhum snapshot publicado ainda.
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     <div className="flex flex-wrap gap-2">

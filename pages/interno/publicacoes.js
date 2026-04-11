@@ -181,41 +181,6 @@ function validationLabel(status) {
   return "sem validacao";
 }
 
-function buildUnifiedQueueRows(processRows = [], partesRows = [], validations = {}) {
-  const mappedProcessRows = (processRows || []).map((row) => {
-    const numeroCnj = row?.numero_cnj || row?.key || "";
-    return {
-      ...row,
-      queueSource: "processos",
-      unifiedKey: `processos:${row.key}`,
-      numero_cnj: numeroCnj,
-      selectionValue: row.key,
-      validation: validations[numeroCnj] || { status: "", note: "", updatedAt: null },
-      enrichmentLabel: row?.account_id_freshsales ? "processo localizado" : "processo pendente",
-      enrichmentCount: Number(row?.publicacoes || 0),
-    };
-  });
-  const mappedPartesRows = (partesRows || []).map((row) => {
-    const numeroCnj = row?.numero_cnj || row?.key || "";
-    return {
-      ...row,
-      queueSource: "partes",
-      unifiedKey: `partes:${row.key}`,
-      numero_cnj: numeroCnj,
-      selectionValue: row.key,
-      validation: validations[numeroCnj] || { status: "", note: "", updatedAt: null },
-      enrichmentLabel: row?.partes_novas ? "partes detectadas" : "fila de enriquecimento",
-      enrichmentCount: Number(row?.partes_novas || 0),
-    };
-  });
-  return [...mappedProcessRows, ...mappedPartesRows].sort((a, b) => {
-    const aValidation = a?.validation?.status ? 1 : 0;
-    const bValidation = b?.validation?.status ? 1 : 0;
-    if (aValidation !== bValidation) return aValidation - bValidation;
-    return String(a?.numero_cnj || "").localeCompare(String(b?.numero_cnj || ""));
-  });
-}
-
 function CompactHistoryPanel({ localHistory, remoteHistory }) {
   const latestLocal = localHistory[0];
   const latestRemote = remoteHistory[0];
@@ -631,6 +596,7 @@ function QueueList({
 
 function IntegratedQueueList({
   rows,
+  totalRows,
   selectedCount,
   page,
   setPage,
@@ -642,16 +608,15 @@ function IntegratedQueueList({
   allPageSelected,
   allFilteredSelected,
 }) {
-  const totalPages = Math.max(1, Math.ceil(rows.length / Math.max(1, pageSize)));
-  const start = (page - 1) * pageSize;
-  const pagedRows = rows.slice(start, start + pageSize);
+  const totalPages = Math.max(1, Math.ceil(Number(totalRows || rows.length || 0) / Math.max(1, pageSize)));
+  const pagedRows = rows;
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold">Lista operacional integrada</p>
           <p className="text-xs opacity-60">Mesma leitura de filas, agora em modo de lista para validar, editar e agir em lote.</p>
-          <p className="mt-1 text-xs opacity-50">{rows.length} item(ns) filtrado(s) nesta leitura. {selectedCount} marcado(s).</p>
+          <p className="mt-1 text-xs opacity-50">{totalRows || rows.length || 0} item(ns) filtrado(s). {selectedCount} marcado(s).</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => onTogglePage(!allPageSelected)} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">
@@ -1053,14 +1018,17 @@ function PublicacoesContent() {
   const [selectedProcessKeys, setSelectedProcessKeys] = useState([]);
   const [selectedPartesKeys, setSelectedPartesKeys] = useState([]);
   const [validationMap, setValidationMap] = useState({});
+  const [integratedQueue, setIntegratedQueue] = useState({ loading: false, error: null, items: [], totalRows: 0, pageSize: 12, updatedAt: null, limited: false, totalEstimated: false, hasMore: false });
   const [integratedFilters, setIntegratedFilters] = useState({ query: "", source: "todos", validation: "todos" });
   const [integratedPage, setIntegratedPage] = useState(1);
+  const [selectedIntegratedNumbers, setSelectedIntegratedNumbers] = useState([]);
   const [detailState, setDetailState] = useState({ loading: false, error: null, row: null, data: null });
   const [detailEditForm, setDetailEditForm] = useState({ name: "", email: "", phone: "", note: "" });
   const [bulkValidationStatus, setBulkValidationStatus] = useState("validado");
   const [bulkValidationNote, setBulkValidationNote] = useState("");
   const processCandidatesRequestRef = useRef({ promise: null, page: null });
   const partesCandidatesRequestRef = useRef({ promise: null, page: null });
+  const integratedQueueRequestRef = useRef({ promise: null, key: "" });
 
   function logUiEvent(label, action, response, patch = {}) {
     appendActivityLog({
@@ -1234,12 +1202,16 @@ function PublicacoesContent() {
     loadPartesCandidates(partesPage);
   }, [partesPage, view, activeJobId]);
   useEffect(() => {
+    if (view !== "filas") return;
+    loadIntegratedQueue(integratedPage);
+  }, [integratedPage, integratedFilters, view]);
+  useEffect(() => {
     setIntegratedPage(1);
   }, [integratedFilters]);
   useEffect(() => {
-    const totalPages = Math.max(1, Math.ceil(filteredIntegratedRows.length / integratedPageSize));
+    const totalPages = Math.max(1, Math.ceil((integratedQueue.totalRows || 0) / integratedPageSize));
     if (integratedPage > totalPages) setIntegratedPage(totalPages);
-  }, [filteredIntegratedRows.length, integratedPage, integratedPageSize]);
+  }, [integratedQueue.totalRows, integratedPage, integratedPageSize]);
   useEffect(() => {
     if (!detailState?.row?.numero_cnj) return;
     const nextValidation = validationMap[detailState.row.numero_cnj] || { status: "", note: "", updatedAt: null };
@@ -1514,6 +1486,56 @@ function PublicacoesContent() {
     partesCandidatesRequestRef.current = { promise: request, page };
     return request;
   }
+
+  async function loadIntegratedQueue(page, options = {}) {
+    const { force = false } = options;
+    const key = JSON.stringify({ page, query: integratedFilters.query, source: integratedFilters.source });
+    if (!force && integratedQueueRequestRef.current.promise && integratedQueueRequestRef.current.key === key) {
+      return integratedQueueRequestRef.current.promise;
+    }
+    setIntegratedQueue((state) => ({ ...state, loading: true, error: null }));
+    const request = (async () => {
+      try {
+        const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=mesa_integrada&page=${page}&pageSize=${integratedPageSize}&query=${encodeURIComponent(integratedFilters.query || "")}&source=${encodeURIComponent(integratedFilters.source || "todos")}`, {}, {
+          action: "mesa_integrada",
+          component: "publicacoes-mesa-integrada",
+          label: `Carregar mesa integrada (pagina ${page})`,
+          expectation: "Trazer fila integrada e paginada de publicacoes",
+        });
+        const nextState = {
+          loading: false,
+          error: payload.data?.error || null,
+          items: payload.data?.items || [],
+          totalRows: Number(payload.data?.totalRows || 0),
+          pageSize: Number(payload.data?.pageSize || integratedPageSize),
+          updatedAt: new Date().toISOString(),
+          limited: Boolean(payload.data?.limited),
+          totalEstimated: Boolean(payload.data?.totalEstimated),
+          hasMore: Boolean(payload.data?.hasMore),
+        };
+        setIntegratedQueue(nextState);
+        return nextState;
+      } catch (error) {
+        const nextState = {
+          loading: false,
+          error: error.message || "Falha ao carregar mesa integrada.",
+          items: [],
+          totalRows: 0,
+          pageSize: integratedPageSize,
+          updatedAt: new Date().toISOString(),
+          limited: false,
+          totalEstimated: false,
+          hasMore: false,
+        };
+        setIntegratedQueue(nextState);
+        return nextState;
+      } finally {
+        integratedQueueRequestRef.current = { promise: null, key: "" };
+      }
+    })();
+    integratedQueueRequestRef.current = { promise: request, key };
+    return request;
+  }
   async function loadRemoteHistory() {
     if (globalErrorUntil && Date.now() < globalErrorUntil) {
       return;
@@ -1560,6 +1582,7 @@ function PublicacoesContent() {
       if (!activeJobId || forceAll || forceQueues) {
         calls.push(loadPartesCandidates(partesPage, { force: forceAll || forceQueues }));
       }
+      calls.push(loadIntegratedQueue(integratedPage, { force: forceAll || forceQueues }));
     }
     await Promise.all(calls);
   }
@@ -1567,6 +1590,7 @@ function PublicacoesContent() {
   async function refreshAfterAction(action) {
     const calls = [loadOverview(), loadRemoteHistory(), loadJobs()];
     if (PUBLICACOES_QUEUE_VIEWS.has(view)) {
+      calls.push(loadIntegratedQueue(integratedPage, { force: true }));
       if (action === "criar_processos_publicacoes") {
         calls.push(loadProcessCandidates(processPage, { force: true }));
       }
@@ -1591,31 +1615,43 @@ function PublicacoesContent() {
   }
 
   function toggleUnifiedRow(row) {
-    if (!row) return;
-    if (row.queueSource === "partes") {
-      toggleSelection(setSelectedPartesKeys, selectedPartesKeys, row.selectionValue);
-      return;
-    }
-    toggleSelection(setSelectedProcessKeys, selectedProcessKeys, row.selectionValue);
+    const numero = row?.numero_cnj;
+    if (!numero) return;
+    setSelectedIntegratedNumbers((current) => current.includes(numero) ? current.filter((item) => item !== numero) : [...current, numero]);
   }
 
   function toggleIntegratedPage(nextState) {
-    const processRows = pagedIntegratedRows.filter((row) => row.queueSource === "processos").map((row) => ({ key: row.selectionValue }));
-    const partesRows = pagedIntegratedRows.filter((row) => row.queueSource === "partes").map((row) => ({ key: row.selectionValue }));
-    togglePageSelection(setSelectedProcessKeys, selectedProcessKeys, processRows, nextState);
-    togglePageSelection(setSelectedPartesKeys, selectedPartesKeys, partesRows, nextState);
-  }
-
-  function toggleIntegratedFiltered(nextState) {
-    const processKeys = filteredIntegratedRows.filter((row) => row.queueSource === "processos").map((row) => row.selectionValue);
-    const partesKeys = filteredIntegratedRows.filter((row) => row.queueSource === "partes").map((row) => row.selectionValue);
+    const numbers = pagedIntegratedRows.map((row) => row.numero_cnj).filter(Boolean);
     if (nextState) {
-      setSelectedProcessKeys((current) => [...new Set([...current, ...processKeys])]);
-      setSelectedPartesKeys((current) => [...new Set([...current, ...partesKeys])]);
+      setSelectedIntegratedNumbers((current) => [...new Set([...current, ...numbers])]);
       return;
     }
-    setSelectedProcessKeys((current) => current.filter((item) => !processKeys.includes(item)));
-    setSelectedPartesKeys((current) => current.filter((item) => !partesKeys.includes(item)));
+    setSelectedIntegratedNumbers((current) => current.filter((item) => !numbers.includes(item)));
+  }
+
+  async function toggleIntegratedFiltered(nextState) {
+    if (!nextState) {
+      const numbers = filteredIntegratedRows.map((row) => row.numero_cnj).filter(Boolean);
+      setSelectedIntegratedNumbers((current) => current.filter((item) => !numbers.includes(item)));
+      return;
+    }
+    if (!integratedQueue.hasMore && filteredIntegratedRows.length >= (integratedQueue.totalRows || 0)) {
+      const numbers = filteredIntegratedRows.map((row) => row.numero_cnj).filter(Boolean);
+      setSelectedIntegratedNumbers((current) => [...new Set([...current, ...numbers])]);
+      return;
+    }
+    try {
+      const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=mesa_integrada_selecao&query=${encodeURIComponent(integratedFilters.query || "")}&source=${encodeURIComponent(integratedFilters.source || "todos")}&limit=500`, {}, {
+        action: "mesa_integrada_selecao",
+        component: "publicacoes-mesa-integrada",
+        label: "Selecionar todos os itens filtrados",
+        expectation: "Trazer todos os CNJs filtrados da mesa integrada",
+      });
+      const numbers = payload.data?.items || [];
+      setSelectedIntegratedNumbers((current) => [...new Set([...current, ...numbers])]);
+    } catch (error) {
+      setActionState({ loading: false, error: error.message || "Falha ao selecionar todos os itens filtrados.", result: null });
+    }
   }
 
   function applyValidationToNumbers(numbers, status, note = "") {
@@ -1635,43 +1671,15 @@ function PublicacoesContent() {
     if (!row?.numero_cnj) return;
     setDetailState({ loading: true, error: null, row, data: null });
     try {
-      const [coveragePayload, linkedPayload, pendingPayload] = await Promise.all([
-        adminFetch(`/api/admin-hmadv-processos?action=cobertura_processos&page=1&pageSize=5&query=${encodeURIComponent(row.numero_cnj)}`, {}, {
-          action: "cobertura_processos",
-          component: "publicacoes-integrated-detail",
-          label: `Carregar cobertura do processo ${row.numero_cnj}`,
-          expectation: "Trazer contexto do processo na mesa de publicacoes",
-        }),
-        adminFetch(`/api/admin-hmadv-contacts?action=partes_vinculadas&page=1&pageSize=20&query=${encodeURIComponent(row.numero_cnj)}`, {}, {
-          action: "partes_vinculadas",
-          component: "publicacoes-integrated-detail",
-          label: `Carregar partes vinculadas de ${row.numero_cnj}`,
-          expectation: "Trazer contatos ligados ao processo",
-        }),
-        adminFetch(`/api/admin-hmadv-contacts?action=partes_pendentes&page=1&pageSize=20&query=${encodeURIComponent(row.numero_cnj)}`, {}, {
-          action: "partes_pendentes",
-          component: "publicacoes-integrated-detail",
-          label: `Carregar partes pendentes de ${row.numero_cnj}`,
-          expectation: "Trazer partes ainda sem contato vinculado",
-        }),
-      ]);
-      const linkedItems = linkedPayload.data?.items || [];
-      const linkedContactId = linkedItems.find((item) => item?.contact?.freshsales_contact_id)?.contact?.freshsales_contact_id || "";
-      const detailPayload = linkedContactId
-        ? await adminFetch(`/api/admin-hmadv-contacts?action=detail&contactId=${encodeURIComponent(linkedContactId)}`, {}, {
-          action: "detail",
-          component: "publicacoes-integrated-detail",
-          label: `Carregar detalhe do contato ${linkedContactId}`,
-          expectation: "Abrir contexto detalhado do contato relacionado ao processo",
-        })
-        : { data: null };
-      const nextData = {
-        coverage: coveragePayload.data || { items: [] },
-        linkedPartes: linkedPayload.data || { items: [] },
-        pendingPartes: pendingPayload.data || { items: [] },
-        contactDetail: detailPayload.data || null,
-      };
+      const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=detalhe_integrado&numero_cnj=${encodeURIComponent(row.numero_cnj)}`, {}, {
+        action: "detalhe_integrado",
+        component: "publicacoes-integrated-detail",
+        label: `Carregar detalhe integrado de ${row.numero_cnj}`,
+        expectation: "Trazer processo, partes e contato no mesmo payload",
+      });
+      const nextData = payload.data || null;
       setDetailState({ loading: false, error: null, row, data: nextData });
+      const linkedItems = nextData?.linkedPartes?.items || [];
       const contact = nextData.contactDetail?.contact || linkedItems.find((item) => item?.contact)?.contact || null;
       setDetailEditForm({
         name: contact?.name || "",
@@ -1726,17 +1734,17 @@ function PublicacoesContent() {
     setActionState({ loading: true, error: null, result: null });
     updateView("resultado");
     try {
-      const payload = await adminFetch("/api/admin-hmadv-contacts", {
+      const payload = await adminFetch("/api/admin-hmadv-publicacoes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "reconcile_partes",
+          action: "reconciliar_partes_contatos",
           processNumbers: selectedUnifiedNumbers.join("\n"),
           limit: Math.max(1, Math.min(limit, 20)),
           apply,
         }),
       }, {
-        action: "reconcile_partes",
+        action: "reconciliar_partes_contatos",
         component: "publicacoes-bulk",
         label: `${apply ? "Aplicar" : "Simular"} reconciliacao de partes x contatos`,
         expectation: "Validar ou vincular contatos a partir da fila de publicacoes",
@@ -1778,45 +1786,42 @@ function PublicacoesContent() {
   const partesBacklogCount = Number(partesCandidates.totalRows || partesCandidates.items.length || 0);
   const syncWorkerShouldFocusCrm = Number(data.publicacoesPendentesComAccount || 0) > 0;
   const integratedRows = useMemo(
-    () => buildUnifiedQueueRows(processCandidates.items, partesCandidates.items, validationMap),
-    [processCandidates.items, partesCandidates.items, validationMap]
+    () => (integratedQueue.items || []).map((row) => ({
+      ...row,
+      validation: validationMap[row.numero_cnj] || { status: "", note: "", updatedAt: null },
+    })),
+    [integratedQueue.items, validationMap]
   );
   const filteredIntegratedRows = useMemo(() => {
-    const query = String(integratedFilters.query || "").trim().toLowerCase();
     return integratedRows.filter((row) => {
-      if (integratedFilters.source !== "todos" && row.queueSource !== integratedFilters.source) return false;
       if (integratedFilters.validation !== "todos" && (row.validation?.status || "") !== integratedFilters.validation) return false;
-      if (!query) return true;
-      const haystack = [row.numero_cnj, row.titulo, row.account_id_freshsales, row.sample_partes_novas?.map((item) => item.nome).join(" | "), row.sample_partes_existentes?.map((item) => item.nome).join(" | ")]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(query);
+      return true;
     });
-  }, [integratedFilters, integratedRows]);
+  }, [integratedFilters.validation, integratedRows]);
   const integratedPageSize = 12;
   const pagedIntegratedRows = useMemo(() => {
-    const start = (integratedPage - 1) * integratedPageSize;
-    return filteredIntegratedRows.slice(start, start + integratedPageSize).map((row) => ({
+    return filteredIntegratedRows.map((row) => ({
       ...row,
-      selected: row.queueSource === "partes" ? selectedPartesKeys.includes(row.selectionValue) : selectedProcessKeys.includes(row.selectionValue),
+      selected: selectedIntegratedNumbers.includes(row.numero_cnj),
     }));
-  }, [filteredIntegratedRows, integratedPage, selectedPartesKeys, selectedProcessKeys]);
-  const selectedUnifiedCount = selectedProcessKeys.length + selectedPartesKeys.length;
+  }, [filteredIntegratedRows, selectedIntegratedNumbers]);
+  const selectedUnifiedCount = selectedIntegratedNumbers.length;
   const allIntegratedPageSelected = pagedIntegratedRows.length > 0 && pagedIntegratedRows.every((row) => row.selected);
-  const allIntegratedFilteredSelected = filteredIntegratedRows.length > 0 && filteredIntegratedRows.every((row) => (row.queueSource === "partes" ? selectedPartesKeys.includes(row.selectionValue) : selectedProcessKeys.includes(row.selectionValue)));
+  const allIntegratedFilteredSelected = filteredIntegratedRows.length > 0 && filteredIntegratedRows.every((row) => selectedIntegratedNumbers.includes(row.numero_cnj));
   const selectedUnifiedNumbers = useMemo(
-    () => Array.from(new Set([...selectedProcessNumbers, ...selectedPartesNumbers])),
-    [selectedPartesNumbers, selectedProcessNumbers]
+    () => selectedIntegratedNumbers,
+    [selectedIntegratedNumbers]
   );
 
   function selectVisibleRecurringPublicacoes() {
     const recurringKeys = new Set(recurringPublicacoes.map((item) => item.key));
     setSelectedProcessKeys(processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
     setSelectedPartesKeys(partesCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
+    setSelectedIntegratedNumbers(filteredIntegratedRows.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.numero_cnj).filter(Boolean));
     logUiEvent("Selecionar reincidentes visiveis", "selecionar_reincidentes_publicacoes", {
       selectedProcessos: processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).length,
       selectedPartes: partesCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).length,
+      selectedIntegrado: filteredIntegratedRows.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).length,
     }, { component: "publicacoes-recorrencia" });
     updateView("filas");
   }
@@ -1824,9 +1829,11 @@ function PublicacoesContent() {
     const recurringKeys = new Set(recurringPublicacoes.filter((item) => item.hits >= 3).map((item) => item.key));
     setSelectedProcessKeys(processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
     setSelectedPartesKeys(partesCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
+    setSelectedIntegratedNumbers(filteredIntegratedRows.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.numero_cnj).filter(Boolean));
     logUiEvent("Selecionar reincidentes severos", "selecionar_reincidentes_severos_publicacoes", {
       selectedProcessos: processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).length,
       selectedPartes: partesCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).length,
+      selectedIntegrado: filteredIntegratedRows.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).length,
     }, { component: "publicacoes-recorrencia" });
     updateView("filas");
   }
@@ -1841,9 +1848,11 @@ function PublicacoesContent() {
   function clearQueueSelections() {
     setSelectedProcessKeys([]);
     setSelectedPartesKeys([]);
+    setSelectedIntegratedNumbers([]);
     logUiEvent("Limpar selecoes de filas", "limpar_selecoes_publicacoes", {
       selectedProcessos: 0,
       selectedPartes: 0,
+      selectedIntegrado: 0,
     }, { component: "publicacoes-filas" });
   }
   const visibleRecurringCount = [...processCandidates.items, ...partesCandidates.items]
@@ -2386,7 +2395,8 @@ function PublicacoesContent() {
                 <div className="flex flex-wrap items-center gap-2">
                   <HealthBadge label={`${selectedUnifiedCount} selecionado(s)`} tone="default" />
                   <HealthBadge label={`${selectedUnifiedNumbers.length} CNJ(s) unicos`} tone="default" />
-                  <HealthBadge label={`${filteredIntegratedRows.length} filtrado(s)`} tone="warning" />
+                  <HealthBadge label={`${integratedQueue.totalRows || filteredIntegratedRows.length} filtrado(s)`} tone="warning" />
+                  {integratedQueue.limited ? <HealthBadge label="leitura parcial protegida" tone="warning" /> : null}
                 </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-[0.9fr_1.1fr_auto_auto_auto_auto]">
                   <label className="text-xs uppercase tracking-[0.14em] opacity-60">Validacao em massa
@@ -2425,10 +2435,8 @@ function PublicacoesContent() {
                 </div>
               </div>
               <IntegratedQueueList
-                rows={filteredIntegratedRows.map((row) => ({
-                  ...row,
-                  selected: row.queueSource === "partes" ? selectedPartesKeys.includes(row.selectionValue) : selectedProcessKeys.includes(row.selectionValue),
-                }))}
+                rows={pagedIntegratedRows}
+                totalRows={integratedQueue.totalRows || filteredIntegratedRows.length}
                 selectedCount={selectedUnifiedCount}
                 page={integratedPage}
                 setPage={setIntegratedPage}

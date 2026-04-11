@@ -9,7 +9,7 @@ import { getCurrentContext } from "../../lib/ai/context_engine";
 import { useRouter } from "next/router";
 import { adminFetch } from "../../lib/admin/api";
 import { useSupabaseBrowser } from "../../lib/supabase";
-import { pollTaskRun, startTaskRun } from "./dotobotTaskRun";
+import { cancelTaskRun, createPendingTaskRun, pollTaskRun, startTaskRun } from "./dotobotTaskRun";
 import { appendActivityLog, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
 import {
   CHAT_STORAGE_PREFIX,
@@ -215,7 +215,10 @@ function TaskStatusChip({ status }) {
     paused: "Pausado",
     canceled: "Cancelado",
     error: "Erro",
+    failed: "Falhou",
     ok: "Concluido",
+    completed: "Concluido",
+    done: "Concluido",
   };
   return <span>{mapping[status] || String(status || "Indefinido")}</span>;
 }
@@ -638,14 +641,13 @@ export default function DotobotCopilot({
     if (isTaskCommand(trimmedQuestion)) {
       // Dispara TaskRun
       setUiState("executing");
+      const pendingTask = createPendingTaskRun(trimmedQuestion, {
+        mode: nextMode,
+        provider: nextProvider,
+        contextEnabled: nextContextEnabled,
+      });
       setTaskHistory((tasks) => [
-        {
-          id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-          status: "running",
-          query: trimmedQuestion,
-          logs: ["ExecuÃ§Ã£o iniciada..."],
-          startedAt: nowIso(),
-        },
+        pendingTask,
         ...tasks,
       ]);
       try {
@@ -656,8 +658,20 @@ export default function DotobotCopilot({
           contextEnabled: nextContextEnabled,
           context: globalContext,
         });
-        if (data?.ok && data?.result?.id) {
-          const runId = data.result.id;
+        const runId = data?.run?.id || null;
+        if (runId) {
+          setTaskHistory((tasks) =>
+            tasks.map((task) =>
+              task.id === pendingTask.id
+                ? {
+                    ...task,
+                    id: runId,
+                    status: data.status || "running",
+                    logs: data.events?.map((event) => event?.message).filter(Boolean) || task.logs,
+                  }
+                : task
+            )
+          );
           logDotobotUi("Dotobot task run iniciado", "dotobot_task_started", {
             runId,
             query: trimmedQuestion,
@@ -672,9 +686,9 @@ export default function DotobotCopilot({
                     ? {
                         ...task,
                         status: result.status,
-                        logs: result.events?.map((event) => event.message) || [],
-                        result: result.result,
-                        finishedAt: result.updated_at,
+                        logs: result.events?.map((event) => event?.message).filter(Boolean) || [],
+                        result: result.run?.result || result.resultText || null,
+                        finishedAt: result.run?.updated_at || result.run?.finished_at || null,
                       }
                     : task
                 )
@@ -683,6 +697,17 @@ export default function DotobotCopilot({
           });
         } else {
           const taskError = data?.error || "Falha ao iniciar TaskRun.";
+          setTaskHistory((tasks) =>
+            tasks.map((task) =>
+              task.id === pendingTask.id
+                ? {
+                    ...task,
+                    status: "failed",
+                    logs: [...(task.logs || []), taskError],
+                  }
+                : task
+            )
+          );
           setError(taskError);
           logDotobotUi("Dotobot task run rejeitado", "dotobot_task_rejected", data || {}, {
             component: "DotobotTaskRun",
@@ -699,6 +724,17 @@ export default function DotobotCopilot({
         }
       } catch (err) {
         const message = err.message || "Erro ao executar TaskRun.";
+        setTaskHistory((tasks) =>
+          tasks.map((task) =>
+            task.id === pendingTask.id
+              ? {
+                  ...task,
+                  status: "failed",
+                  logs: [...(task.logs || []), message],
+                }
+              : task
+          )
+        );
         setError(message);
         logDotobotUi("Dotobot task run falhou", "dotobot_task_error", null, {
           component: "DotobotTaskRun",

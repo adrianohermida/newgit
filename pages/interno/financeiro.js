@@ -462,6 +462,27 @@ function FinanceiroInternoContent() {
                 {operationState.result.stdout}
               </pre>
             ) : null}
+            {operationState.result.guidance ? (
+              <div className="mt-4 border border-[#2D2E2E] bg-[#050706] p-4">
+                <p className="font-semibold">Proximo passo recomendado</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <StatusBadge tone="accent">publish_ready: {operationState.result.guidance.snapshot?.publish_ready ?? 0}</StatusBadge>
+                  <StatusBadge tone="warn">sem account: {operationState.result.guidance.snapshot?.receivables_without_account ?? 0}</StatusBadge>
+                  <StatusBadge tone="warn">pendente contato: {operationState.result.guidance.snapshot?.pending_contact ?? 0}</StatusBadge>
+                  <StatusBadge tone="warn">pendente account: {operationState.result.guidance.snapshot?.pending_account ?? 0}</StatusBadge>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {(operationState.result.guidance.next_steps || []).map((item) => (
+                    <p key={item} className="opacity-80">{item}</p>
+                  ))}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {operationState.result.guidance.fallback?.should_export_accounts_csv ? <StatusBadge tone="accent">fallback accounts CSV</StatusBadge> : null}
+                  {operationState.result.guidance.fallback?.should_export_deals_csv ? <StatusBadge tone="accent">fallback deals CSV</StatusBadge> : null}
+                  {operationState.result.guidance.fallback?.should_retry_publish ? <StatusBadge tone="success">retry publish direto</StatusBadge> : null}
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </Panel>

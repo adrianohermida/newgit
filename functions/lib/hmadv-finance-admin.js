@@ -600,6 +600,64 @@ export async function getHmadvFinanceAdminOverview(env) {
   };
 }
 
+export async function getHmadvFinanceOperationGuidance(env, operation = null) {
+  const [contracts, receivables, importRows] = await Promise.all([
+    fetchSupabaseAdminAll(
+      env,
+      "billing_contracts?select=id,freshsales_account_id,metadata"
+    ),
+    fetchSupabaseAdminAll(
+      env,
+      "billing_receivables?select=id,contact_id,freshsales_account_id,freshsales_deal_id,status"
+    ),
+    fetchSupabaseAdminAll(
+      env,
+      "billing_import_rows?select=id,matching_status"
+    ),
+  ]);
+
+  const contractsTextualOnly = contracts.filter((item) => safeJsonParse(item.metadata, {}).account_resolution_status === "textual_only").length;
+  const pendingAccount = importRows.filter((item) => item.matching_status === "pendente_account").length;
+  const pendingContact = importRows.filter((item) => item.matching_status === "pendente_contato").length;
+  const receivablesWithoutAccount = receivables.filter((item) => !item.freshsales_account_id).length;
+  const publishReady = receivables.filter((item) => item.contact_id && item.freshsales_account_id && !item.freshsales_deal_id).length;
+  const publishedDeals = receivables.filter((item) => item.freshsales_deal_id).length;
+
+  const nextSteps = [];
+  if (pendingContact > 0) {
+    nextSteps.push("Resolver ou importar contacts pendentes antes de tentar publicar 100% dos deals.");
+  }
+  if (pendingAccount > 0 || receivablesWithoutAccount > 0 || contractsTextualOnly > 0) {
+    nextSteps.push("Executar backfill de accounts textuais ou importar Sales Accounts via CSV para reduzir contratos textual_only.");
+  }
+  if (publishReady > 0) {
+    nextSteps.push("Executar publicacao direta de deals no Freshsales para os recebiveis ja aptos.");
+  }
+  if (!publishReady && receivablesWithoutAccount > 0) {
+    nextSteps.push("Gerar CSV de accounts e deals para concluir a migracao historica diretamente pelo importador do Freshsales.");
+  }
+
+  const fallback = {
+    should_export_accounts_csv: pendingAccount > 0 || receivablesWithoutAccount > 0 || contractsTextualOnly > 0,
+    should_export_deals_csv: publishReady === 0 && receivablesWithoutAccount > 0,
+    should_retry_publish: publishReady > 0,
+  };
+
+  return {
+    operation,
+    snapshot: {
+      pending_contact: pendingContact,
+      pending_account: pendingAccount,
+      contracts_textual_only: contractsTextualOnly,
+      receivables_without_account: receivablesWithoutAccount,
+      publish_ready: publishReady,
+      published_deals: publishedDeals,
+    },
+    fallback,
+    next_steps: nextSteps,
+  };
+}
+
 function formatProcessCandidate(item, source = "processos", matchedBy = "query") {
   return {
     id: item.id,

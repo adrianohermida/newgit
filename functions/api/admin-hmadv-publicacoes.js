@@ -11,6 +11,7 @@ import {
   listAdminJobs,
   listAdminOperations,
   listCreateProcessCandidates,
+  listProcessCoverage,
   listPublicationActivityBacklog,
   listPartesExtractionCandidates,
   logAdminOperation,
@@ -19,6 +20,12 @@ import {
   syncPublicationActivities,
   syncPartesFromPublicacoes,
 } from "../lib/hmadv-ops.js";
+import {
+  getContactDetail,
+  listLinkedPartes,
+  listUnlinkedPartes,
+  reconcilePartesContacts,
+} from "../lib/hmadv-contacts.js";
 
 function parseProcessNumbers(value) {
   if (!value) return [];
@@ -56,6 +63,139 @@ function buildQueueFallback({ page, pageSize, error }) {
     items: [],
     limited: true,
     error: error?.message || "Fila em modo reduzido por sobrecarga.",
+  };
+}
+
+function normalizeSearchText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function mapIntegratedQueueItem(source, row) {
+  return {
+    ...row,
+    queueSource: source,
+    unifiedKey: `${source}:${row?.key || row?.numero_cnj || row?.processo_id || row?.id || ""}`,
+    selectionValue: row?.key || row?.numero_cnj || row?.processo_id || row?.id || "",
+  };
+}
+
+function matchesIntegratedQuery(row, query) {
+  const normalized = normalizeSearchText(query);
+  if (!normalized) return true;
+  const fields = [
+    row?.numero_cnj,
+    row?.titulo,
+    row?.account_id_freshsales,
+    row?.sample_partes_novas?.map((item) => item?.nome).join(" | "),
+    row?.sample_partes_existentes?.map((item) => item?.nome).join(" | "),
+    row?.sample_partes?.map((item) => item?.nome).join(" | "),
+    row?.snippet,
+  ];
+  return normalizeSearchText(fields.filter(Boolean).join(" ")).includes(normalized);
+}
+
+async function collectIntegratedQueueSlice(env, { source = "todos", page = 1, pageSize = 20, query = "" } = {}) {
+  const safePage = Math.max(1, Number(page || 1));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  const targetEnd = safePage * safePageSize;
+  const maxScans = 6;
+  const queueSources = source === "todos" ? ["processos", "partes"] : [source];
+  const loaders = {
+    processos: async (nextPage) => listCreateProcessCandidates(env, { page: nextPage, pageSize: 50 }),
+    partes: async (nextPage) => listPartesExtractionCandidates(env, { page: nextPage, pageSize: 50 }),
+  };
+  const rows = [];
+  let limited = false;
+
+  for (const queueSource of queueSources) {
+    let nextPage = 1;
+    let scans = 0;
+    let hasMore = true;
+    while (hasMore && scans < maxScans && rows.length < targetEnd + safePageSize) {
+      const payload = await loaders[queueSource](nextPage);
+      const currentItems = (payload?.items || [])
+        .filter((item) => matchesIntegratedQuery(item, query))
+        .map((item) => mapIntegratedQueueItem(queueSource, item));
+      rows.push(...currentItems);
+      hasMore = Boolean(payload?.hasMore) || ((payload?.items || []).length >= 50);
+      if (payload?.limited) limited = true;
+      nextPage += 1;
+      scans += 1;
+      if (!(payload?.items || []).length) break;
+    }
+    if (hasMore) limited = true;
+  }
+
+  const ordered = rows.sort((left, right) => {
+    const leftCount = Number(left?.partes_novas || left?.partes_detectadas || left?.publicacoes || 0);
+    const rightCount = Number(right?.partes_novas || right?.partes_detectadas || right?.publicacoes || 0);
+    if (rightCount !== leftCount) return rightCount - leftCount;
+    return String(left?.numero_cnj || "").localeCompare(String(right?.numero_cnj || ""));
+  });
+  const pageItems = ordered.slice((safePage - 1) * safePageSize, safePage * safePageSize);
+  return {
+    page: safePage,
+    pageSize: safePageSize,
+    totalRows: limited ? Math.max(ordered.length, targetEnd + 1) : ordered.length,
+    totalEstimated: limited,
+    hasMore: ordered.length > safePage * safePageSize || limited,
+    limited,
+    items: pageItems,
+  };
+}
+
+async function collectIntegratedSelection(env, { source = "todos", query = "", limit = 500 } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 500), 1000));
+  const queueSources = source === "todos" ? ["processos", "partes"] : [source];
+  const loaders = {
+    processos: async (nextPage) => listCreateProcessCandidates(env, { page: nextPage, pageSize: 50 }),
+    partes: async (nextPage) => listPartesExtractionCandidates(env, { page: nextPage, pageSize: 50 }),
+  };
+  const selected = new Set();
+  for (const queueSource of queueSources) {
+    let nextPage = 1;
+    let scans = 0;
+    let hasMore = true;
+    while (hasMore && scans < 12 && selected.size < safeLimit) {
+      const payload = await loaders[queueSource](nextPage);
+      for (const item of payload?.items || []) {
+        if (matchesIntegratedQuery(item, query) && item?.numero_cnj) selected.add(item.numero_cnj);
+        if (selected.size >= safeLimit) break;
+      }
+      hasMore = Boolean(payload?.hasMore) || ((payload?.items || []).length >= 50);
+      nextPage += 1;
+      scans += 1;
+      if (!(payload?.items || []).length) break;
+    }
+  }
+  return {
+    totalRows: selected.size,
+    items: [...selected],
+    limited: selected.size >= safeLimit,
+  };
+}
+
+async function loadIntegratedDetail(env, numeroCnj) {
+  const coverage = await listProcessCoverage(env, {
+    page: 1,
+    pageSize: 5,
+    query: numeroCnj,
+    onlyPending: false,
+  });
+  const linkedPartes = await listLinkedPartes(env, { page: 1, pageSize: 20, query: numeroCnj });
+  const pendingPartes = await listUnlinkedPartes(env, { page: 1, pageSize: 20, query: numeroCnj });
+  const linkedContactId =
+    linkedPartes?.items?.find((item) => item?.contact?.freshsales_contact_id)?.contact?.freshsales_contact_id || "";
+  const contactDetail = linkedContactId ? await getContactDetail(env, linkedContactId).catch(() => null) : null;
+  return {
+    coverage,
+    linkedPartes,
+    pendingPartes,
+    contactDetail,
   };
 }
 
@@ -173,6 +313,40 @@ export async function onRequestGet(context) {
         }
         throw error;
       }
+    }
+    if (action === "mesa_integrada") {
+      const page = Number(url.searchParams.get("page") || 1);
+      const pageSize = Number(url.searchParams.get("pageSize") || 20);
+      const query = String(url.searchParams.get("query") || "");
+      const source = String(url.searchParams.get("source") || "todos");
+      try {
+        const data = await collectIntegratedQueueSlice(context.env, { page, pageSize, query, source });
+        return jsonOk({ data });
+      } catch (error) {
+        if (isQueueOverloadError(error)) {
+          return jsonOk({ data: buildQueueFallback({ page, pageSize, error }) });
+        }
+        throw error;
+      }
+    }
+    if (action === "mesa_integrada_selecao") {
+      const query = String(url.searchParams.get("query") || "");
+      const source = String(url.searchParams.get("source") || "todos");
+      const limit = Number(url.searchParams.get("limit") || 500);
+      try {
+        const data = await collectIntegratedSelection(context.env, { query, source, limit });
+        return jsonOk({ data });
+      } catch (error) {
+        return jsonError(error, 500);
+      }
+    }
+    if (action === "detalhe_integrado") {
+      const numeroCnj = String(url.searchParams.get("numero_cnj") || "").replace(/\D+/g, "");
+      if (!numeroCnj) {
+        return jsonError(new Error("numero_cnj obrigatorio."), 400);
+      }
+      const data = await loadIntegratedDetail(context.env, numeroCnj);
+      return jsonOk({ data });
     }
     if (action === "publicacoes_pendentes") {
       const data = await listPublicationActivityBacklog(context.env, {
@@ -313,6 +487,13 @@ export async function onRequestPost(context) {
       return runLogged(async () => syncPublicationActivities(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 5),
+      }));
+    }
+    if (action === "reconciliar_partes_contatos") {
+      return runLogged(async () => reconcilePartesContacts(context.env, {
+        processNumbers: parseProcessNumbers(body.processNumbers),
+        limit: Number(body.limit || 20),
+        apply: Boolean(body.apply),
       }));
     }
     if (action === "run_sync_worker") {
