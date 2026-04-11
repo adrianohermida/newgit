@@ -87,16 +87,16 @@ function cleanValue(value) {
 
 function resolveFreshsalesOauthClientId() {
   return (
-    cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID) ||
     cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
+    cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_ID) ||
     cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID)
   );
 }
 
 function resolveFreshsalesOauthClientSecret() {
   return (
-    cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET) ||
     cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
+    cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_SECRET) ||
     cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET)
   );
 }

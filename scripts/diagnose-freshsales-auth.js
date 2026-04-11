@@ -19,10 +19,10 @@ async function main() {
       has_basic_auth: Boolean(cleanValue(process.env.FRESHSALES_BASIC_AUTH)),
       has_client_id: Boolean(resolveFreshsalesOauthClientId()),
       has_client_secret: Boolean(resolveFreshsalesOauthClientSecret()),
-      has_deals_client_id: Boolean(cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_ID)),
-      has_deals_client_secret: Boolean(cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET)),
-      has_contacts_client_id: Boolean(cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID)),
-      has_contacts_client_secret: Boolean(cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET)),
+      has_deals_client_id: Boolean(cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) || cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_ID)),
+      has_deals_client_secret: Boolean(cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) || cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_SECRET)),
+      has_contacts_client_id: Boolean(cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID) || cleanValue(process.env.FRESHSALES_CONTACT_OAUTH_CLIENT_ID)),
+      has_contacts_client_secret: Boolean(cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET) || cleanValue(process.env.FRESHSALES_CONTACT_OAUTH_CLIENT_SECRET)),
       has_refresh_token: Boolean(cleanValue(process.env.FRESHSALES_REFRESH_TOKEN)),
       has_org_domain: Boolean(resolveOrgDomain()),
       has_redirect_uri: Boolean(cleanValue(process.env.FRESHSALES_REDIRECT_URI) || cleanValue(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)),
@@ -102,24 +102,24 @@ function cleanValue(value) {
 
 function resolveFreshsalesOauthClientId() {
   return (
-    cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID) ||
     cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
+    cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_ID) ||
     cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID)
   );
 }
 
 function resolveFreshsalesOauthClientSecret() {
   return (
-    cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET) ||
     cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
+    cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_SECRET) ||
     cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET)
   );
 }
 
 function resolveFreshsalesOauthScope() {
   return (
-    cleanValue(process.env.FRESHSALES_CONTACTS_SCOPES) ||
     cleanValue(process.env.FRESHSALES_DEALS_SCOPES) ||
+    cleanValue(process.env.FRESHSALES_DEAL_SCOPES) ||
     cleanValue(process.env.FRESHSALES_SCOPES)
   );
 }

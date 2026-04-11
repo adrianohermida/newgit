@@ -228,8 +228,8 @@ function resolveOauthRedirectUri(env) {
 
 function resolveFreshsalesOauthClientId(env) {
   return (
-    getCleanEnvValue(env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID) ||
     getCleanEnvValue(env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
+    getCleanEnvValue(env.FRESHSALES_DEAL_OAUTH_CLIENT_ID) ||
     getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_ID) ||
     null
   );
@@ -237,8 +237,8 @@ function resolveFreshsalesOauthClientId(env) {
 
 function resolveFreshsalesOauthClientSecret(env) {
   return (
-    getCleanEnvValue(env.FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET) ||
     getCleanEnvValue(env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
+    getCleanEnvValue(env.FRESHSALES_DEAL_OAUTH_CLIENT_SECRET) ||
     getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_SECRET) ||
     null
   );
@@ -246,8 +246,8 @@ function resolveFreshsalesOauthClientSecret(env) {
 
 function resolveFreshsalesOauthScope(env) {
   return (
-    getCleanEnvValue(env.FRESHSALES_CONTACTS_SCOPES) ||
     getCleanEnvValue(env.FRESHSALES_DEALS_SCOPES) ||
+    getCleanEnvValue(env.FRESHSALES_DEAL_SCOPES) ||
     getCleanEnvValue(env.FRESHSALES_SCOPES) ||
     null
   );

@@ -129,6 +129,33 @@ function buildNameKey(name) {
   return normalizeText(name).replace(/[^\p{L}\p{N}\s]/gu, "").trim();
 }
 
+function buildParteUpsertRow(parte, { contactId, role }) {
+  return {
+    id: parte.id,
+    processo_id: parte.processo_id,
+    nome: parte.nome,
+    polo: parte.polo,
+    tipo_pessoa: parte.tipo_pessoa || null,
+    documento: parte.documento || null,
+    contato_freshsales_id: String(contactId),
+    cliente_hmadv: role === "Cliente",
+    representada_pelo_escritorio: role === "Cliente",
+    principal_no_account: role === "Cliente",
+  };
+}
+
+function shouldPatchParteLink(parte, { contactId, role }) {
+  const nextContactId = cleanValue(contactId);
+  if (!nextContactId) return false;
+  const shouldBeClient = role === "Cliente";
+  return (
+    cleanValue(parte?.contato_freshsales_id) !== nextContactId ||
+    Boolean(parte?.cliente_hmadv) !== shouldBeClient ||
+    Boolean(parte?.representada_pelo_escritorio) !== shouldBeClient ||
+    Boolean(parte?.principal_no_account) !== shouldBeClient
+  );
+}
+
 async function sleep(ms) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -580,49 +607,54 @@ export async function reconcilePartesContacts(env, { processNumbers = [], limit 
   const processPath = cnjs.length
     ? `processos?numero_cnj=in.(${cnjs.map((item) => `"${item}"`).join(",")})&select=id,numero_cnj,account_id_freshsales,titulo`
     : `processos?account_id_freshsales=not.is.null&select=id,numero_cnj,account_id_freshsales,titulo&limit=${safeLimit}`;
-    const processos = (await hmadvRest(env, processPath, {}, "judiciario")) || [];
-    const processIds = processos.map((item) => item.id);
-    const [partes, publicacoes, mirrorRows] = await Promise.all([
-      processIds.length
-        ? hmadvRest(
-            env,
-            `partes?processo_id=in.(${processIds.map((id) => `"${id}"`).join(",")})&select=id,processo_id,nome,polo,tipo_pessoa,documento,cliente_hmadv,representada_pelo_escritorio,contato_freshsales_id&limit=${Math.max(processIds.length * 20, 20)}`,
-            {},
-            "judiciario"
-          )
-        : [],
-      processIds.length
-        ? hmadvRest(
-            env,
-            `publicacoes?processo_id=in.(${processIds.map((id) => `"${id}"`).join(",")})&select=id,processo_id,conteudo,raw_payload&limit=${Math.max(processIds.length * 10, 10)}`,
-            {},
-            "judiciario"
-          )
-        : [],
-      hmadvRest(env, "freshsales_contacts?select=id,freshsales_contact_id,name,email,phone,last_synced_at,raw_payload&limit=5000"),
-    ]);
-    const safePartes = Array.isArray(partes) ? partes : [];
-    const safePublicacoes = Array.isArray(publicacoes) ? publicacoes : [];
-    const safeMirrorRows = Array.isArray(mirrorRows) ? mirrorRows : [];
-    const mirrorByName = new Map();
-    for (const row of safeMirrorRows.map(mapMirrorRow)) {
-      const key = buildNameKey(row.name);
-      if (!key) continue;
-      if (!mirrorByName.has(key)) mirrorByName.set(key, []);
-      mirrorByName.get(key).push(row);
-    }
+  const processos = (await hmadvRest(env, processPath, {}, "judiciario")) || [];
+  const processIds = processos.map((item) => item.id);
+  const [partes, publicacoes, mirrorRows] = await Promise.all([
+    processIds.length
+      ? hmadvRest(
+          env,
+          `partes?processo_id=in.(${processIds.map((id) => `"${id}"`).join(",")})&select=id,processo_id,nome,polo,tipo_pessoa,documento,cliente_hmadv,representada_pelo_escritorio,principal_no_account,contato_freshsales_id&limit=${Math.max(processIds.length * 20, 20)}`,
+          {},
+          "judiciario"
+        )
+      : [],
+    processIds.length
+      ? hmadvRest(
+          env,
+          `publicacoes?processo_id=in.(${processIds.map((id) => `"${id}"`).join(",")})&select=id,processo_id,conteudo,raw_payload&limit=${Math.max(processIds.length * 10, 10)}`,
+          {},
+          "judiciario"
+        )
+      : [],
+    hmadvRest(env, "freshsales_contacts?select=id,freshsales_contact_id,name,email,phone,last_synced_at,raw_payload&limit=5000"),
+  ]);
+  const safePartes = Array.isArray(partes) ? partes : [];
+  const safePublicacoes = Array.isArray(publicacoes) ? publicacoes : [];
+  const safeMirrorRows = Array.isArray(mirrorRows) ? mirrorRows : [];
+  const mirrorByName = new Map();
+  for (const row of safeMirrorRows.map(mapMirrorRow)) {
+    const key = buildNameKey(row.name);
+    if (!key) continue;
+    if (!mirrorByName.has(key)) mirrorByName.set(key, []);
+    mirrorByName.get(key).push(row);
+  }
   let contatosVinculados = 0;
   let contatosCriados = 0;
+  let skippedByBudget = 0;
   const sample = [];
+  const pendingParteUpdates = [];
+  const pendingSyncRows = [];
+  let remainingCreateBudget = apply ? 12 : 0;
   for (const proc of processos) {
-      const partesProc = safePartes.filter((item) => item.processo_id === proc.id);
-      const pubsProc = safePublicacoes.filter((item) => item.processo_id === proc.id).slice(0, 10);
+    const partesProc = safePartes.filter((item) => item.processo_id === proc.id);
+    const pubsProc = safePublicacoes.filter((item) => item.processo_id === proc.id).slice(0, 10);
     const representedPole = publicationHasOfficeMarker(pubsProc) ? inferRepresentedPole(pubsProc, partesProc) : null;
     const partesOut = [];
     for (const parte of partesProc) {
       if (!cleanValue(parte.nome)) continue;
       const role = getParteRole(parte, representedPole);
-      const matches = mirrorByName.get(buildNameKey(parte.nome)) || [];
+      const nameKey = buildNameKey(parte.nome);
+      const matches = mirrorByName.get(nameKey) || [];
       let contactId = cleanValue(parte.contato_freshsales_id);
       let mode = "already_linked";
       if (!contactId) {
@@ -630,6 +662,10 @@ export async function reconcilePartesContacts(env, { processNumbers = [], limit 
           contactId = matches[0].freshsales_contact_id;
           mode = "matched_existing";
         } else if (apply) {
+          if (remainingCreateBudget <= 0) {
+            skippedByBudget += 1;
+            mode = "budget_exceeded";
+          } else {
           const created = await createOrUpdateFreshsalesContact(env, {
             name: parte.nome,
             type: role,
@@ -639,13 +675,33 @@ export async function reconcilePartesContacts(env, { processNumbers = [], limit 
           });
           contactId = String(created.id);
           contatosCriados += 1;
+          remainingCreateBudget -= 1;
           mode = "created";
+          const createdMirror = mapMirrorRow(buildMirrorRow(created));
+          const createdKey = buildNameKey(createdMirror.name);
+          if (createdKey) {
+            const existingMatches = mirrorByName.get(createdKey) || [];
+            mirrorByName.set(createdKey, [...existingMatches, createdMirror]);
+          }
+          }
         } else {
           mode = matches.length > 1 ? "ambiguous_match" : "create_needed";
         }
       }
       if (contactId && apply) {
-        await patchParteLink(env, parte.id, proc.id, proc.numero_cnj, proc.account_id_freshsales, contactId, role);
+        if (shouldPatchParteLink(parte, { contactId, role })) {
+          pendingParteUpdates.push(buildParteUpsertRow(parte, { contactId, role }));
+        }
+        pendingSyncRows.push({
+          processo_id: proc.id,
+          parte_id: parte.id,
+          contact_id_freshsales: String(contactId),
+          relacao: role === "Cliente" ? "cliente_principal" : role === "Parte Adversa" ? "parte_adversa" : "parte_relacionada",
+          principal: role === "Cliente",
+          origem: "interno_contacts_reconcile",
+          synced_at: new Date().toISOString(),
+          metadata: { numero_cnj: proc.numero_cnj, account_id_freshsales: proc.account_id_freshsales || null, tipo_contato: role },
+        });
         contatosVinculados += 1;
       }
       partesOut.push({
@@ -660,7 +716,37 @@ export async function reconcilePartesContacts(env, { processNumbers = [], limit 
     }
     if (partesOut.length) sample.push({ processo_id: proc.id, numero_cnj: proc.numero_cnj, account_id_freshsales: proc.account_id_freshsales || null, represented_pole: representedPole, partes: partesOut });
   }
-  return { checkedAt: new Date().toISOString(), apply, processosLidos: processos.length, contatosVinculados, contatosCriados, sample: sample.slice(0, 20) };
+  if (apply && pendingParteUpdates.length) {
+    await hmadvRest(env, "partes?on_conflict=id", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Profile": "judiciario",
+        Prefer: "resolution=merge-duplicates,return=minimal",
+      },
+      body: JSON.stringify(pendingParteUpdates),
+    }, "judiciario");
+  }
+  if (apply && pendingSyncRows.length) {
+    await hmadvRest(env, "processo_contato_sync?on_conflict=processo_id,contact_id_freshsales", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Profile": "judiciario",
+        Prefer: "resolution=merge-duplicates,return=minimal",
+      },
+      body: JSON.stringify(pendingSyncRows),
+    }, "judiciario");
+  }
+  return {
+    checkedAt: new Date().toISOString(),
+    apply,
+    processosLidos: processos.length,
+    contatosVinculados,
+    contatosCriados,
+    skippedByBudget,
+    sample: sample.slice(0, 20),
+  };
 }
 
 export async function linkPartesToExistingContact(env, { parteIds = [], contactId, type = "" } = {}) {

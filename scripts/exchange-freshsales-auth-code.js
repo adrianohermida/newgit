@@ -97,13 +97,13 @@ function resolveOauthClientId(kind) {
   if (kind === 'contacts') {
     return (
       cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID) ||
-      cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
+      cleanValue(process.env.FRESHSALES_CONTACT_OAUTH_CLIENT_ID) ||
       cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID)
     );
   }
   return (
-    cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID) ||
     cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
+    cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_ID) ||
     cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID)
   );
 }
@@ -112,13 +112,13 @@ function resolveOauthClientSecret(kind) {
   if (kind === 'contacts') {
     return (
       cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET) ||
-      cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
+      cleanValue(process.env.FRESHSALES_CONTACT_OAUTH_CLIENT_SECRET) ||
       cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET)
     );
   }
   return (
-    cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET) ||
     cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
+    cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_SECRET) ||
     cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET)
   );
 }
