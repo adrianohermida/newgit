@@ -16,6 +16,7 @@ function getExpectedSecret() {
   return (
     getClean(Deno.env.get("DOTOBOT_SUPABASE_EMBED_SECRET")) ||
     getClean(Deno.env.get("HMDAV_AI_SHARED_SECRET")) ||
+    getClean(Deno.env.get("HMADV_AI_SHARED_SECRET")) ||
     getClean(Deno.env.get("LAWDESK_AI_SHARED_SECRET"))
   );
 }

@@ -191,6 +191,43 @@ registerTest("runDotobotRagHealth exposes Supabase auth mismatch signals and rec
   }
 });
 
+registerTest("runDotobotRagHealth accepts HMADV_AI_SHARED_SECRET as embed secret alias", async () => {
+  const { runDotobotRagHealth } = await loadLawdeskModules();
+  const originalFetch = globalThis.fetch;
+  const env = {
+    SUPABASE_URL: "https://supabase.example.test",
+    SUPABASE_SERVICE_ROLE_KEY: "service-role-secret",
+    HMADV_AI_SHARED_SECRET: "shared-secret-ok",
+  };
+
+  globalThis.fetch = async (url, options = {}) => {
+    if (String(url).includes("/functions/v1/")) {
+      assert.equal(options.headers["x-dotobot-embed-secret"], "shared-secret-ok");
+      return new Response(JSON.stringify({ embedding: [0.12, 0.34, 0.56] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (String(url).includes("/rest/v1/rpc/")) {
+      return new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    throw new Error(`Unexpected fetch call during HMADV alias test: ${url}`);
+  };
+
+  try {
+    const result = await runDotobotRagHealth(env, { includeUpsert: false, query: "alias HMADV" });
+    assert.equal(result.report.supabaseEmbedding.ok, true);
+    assert.equal(result.signals.appEmbedSecretMissing, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 registerTest("runLawdeskChat falls back to Workers AI direct execution", async () => {
   const { runLawdeskChat } = await loadLawdeskModules();
   const env = {
