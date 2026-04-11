@@ -32,5 +32,12 @@ export async function fetchSupabaseAdmin(env, path, init = {}) {
     throw new Error(detail || `Supabase admin request failed with status ${response.status}`);
   }
 
-  return response.json();
+  if (response.status === 204) return null;
+  const text = await response.text().catch(() => "");
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new Error(`Supabase admin response invalida: ${error?.message || "JSON invalido"}`);
+  }
 }

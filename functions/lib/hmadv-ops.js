@@ -50,11 +50,31 @@ function hmadvHeaders(env, schema = "judiciario", extra = {}) {
   if (!serviceKey) {
     throw new Error("SUPABASE_SERVICE_ROLE_KEY ausente no ambiente.");
   }
+  const sharedSecret =
+    getCleanEnvValue(env.HMDAV_AI_SHARED_SECRET) ||
+    getCleanEnvValue(env.HMADV_AI_SHARED_SECRET) ||
+    getCleanEnvValue(env.LAWDESK_AI_SHARED_SECRET) ||
+    "";
+  const runnerToken =
+    getCleanEnvValue(env.HMADV_RUNNER_TOKEN) ||
+    getCleanEnvValue(env.MADV_RUNNER_TOKEN) ||
+    "";
   return {
     apikey: serviceKey,
     Authorization: `Bearer ${serviceKey}`,
     Accept: "application/json",
     "Accept-Profile": schema,
+    ...(sharedSecret
+      ? {
+          "x-hmadv-secret": sharedSecret,
+          "x-shared-secret": sharedSecret,
+        }
+      : {}),
+    ...(runnerToken
+      ? {
+          "x-hmadv-runner-token": runnerToken,
+        }
+      : {}),
     ...extra,
   };
 }
@@ -65,6 +85,15 @@ async function hmadvFunction(env, name, query = {}, init = {}) {
   if (!baseUrl || !serviceKey) {
     throw new Error("Configuracao HMADV/Supabase incompleta.");
   }
+  const sharedSecret =
+    getCleanEnvValue(env.HMDAV_AI_SHARED_SECRET) ||
+    getCleanEnvValue(env.HMADV_AI_SHARED_SECRET) ||
+    getCleanEnvValue(env.LAWDESK_AI_SHARED_SECRET) ||
+    "";
+  const runnerToken =
+    getCleanEnvValue(env.HMADV_RUNNER_TOKEN) ||
+    getCleanEnvValue(env.MADV_RUNNER_TOKEN) ||
+    "";
   const qs = new URLSearchParams();
   for (const [key, value] of Object.entries(query || {})) {
     if (value === undefined || value === null || value === "") continue;
@@ -78,6 +107,17 @@ async function hmadvFunction(env, name, query = {}, init = {}) {
         apikey: serviceKey,
         Authorization: `Bearer ${serviceKey}`,
         "Content-Type": "application/json",
+        ...(sharedSecret
+          ? {
+              "x-hmadv-secret": sharedSecret,
+              "x-shared-secret": sharedSecret,
+            }
+          : {}),
+        ...(runnerToken
+          ? {
+              "x-hmadv-runner-token": runnerToken,
+            }
+          : {}),
         ...(init.headers || {}),
       },
       body: init.body ? JSON.stringify(init.body) : undefined,

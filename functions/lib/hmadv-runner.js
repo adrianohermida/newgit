@@ -38,6 +38,8 @@ async function callHmadvFunction(env, name, query = {}, init = {}) {
   if (!baseUrl || !serviceKey) {
     throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes para chamar edge functions do HMADV.");
   }
+  const sharedSecret = String(env?.HMDAV_AI_SHARED_SECRET || env?.HMADV_AI_SHARED_SECRET || env?.LAWDESK_AI_SHARED_SECRET || "").trim();
+  const runnerToken = String(env?.HMADV_RUNNER_TOKEN || env?.MADV_RUNNER_TOKEN || "").trim();
   const url = new URL(`${baseUrl}/functions/v1/${name}`);
   Object.entries(query || {}).forEach(([key, value]) => {
     if (value === undefined || value === null || value === "") return;
@@ -49,6 +51,17 @@ async function callHmadvFunction(env, name, query = {}, init = {}) {
       Authorization: `Bearer ${serviceKey}`,
       apikey: serviceKey,
       "Content-Type": "application/json",
+      ...(sharedSecret
+        ? {
+            "x-hmadv-secret": sharedSecret,
+            "x-shared-secret": sharedSecret,
+          }
+        : {}),
+      ...(runnerToken
+        ? {
+            "x-hmadv-runner-token": runnerToken,
+          }
+        : {}),
       ...(init.headers || {}),
     },
     body: init.body ? JSON.stringify(init.body) : undefined,
