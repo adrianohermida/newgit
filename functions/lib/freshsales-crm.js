@@ -23,15 +23,22 @@ function buildCandidates(env) {
   if (raw) {
     const base = raw.startsWith("http") ? raw.replace(/\/+$/, "") : `https://${raw.replace(/\/+$/, "")}`;
 
-    if (base.includes("/crm/sales/api") || base.includes("/api")) {
+    if (base.includes("/crm/sales/api")) {
       candidates.push(base);
+      candidates.push(base.replace(/\/crm\/sales\/api$/i, "/api"));
+    } else if (base.includes("/api")) {
+      const host = base.replace(/^https?:\/\//i, "").replace(/\/api\/?$/i, "");
+      candidates.push(`https://${host}/crm/sales/api`);
+      candidates.push(`https://${host}/api`);
     } else {
-      candidates.push(`${base}/crm/sales/api`, `${base}/api`);
+      candidates.push(`${base}/crm/sales/api`);
+      candidates.push(`${base}/api`);
     }
   }
 
   if (orgDomain) {
-    candidates.push(`https://${orgDomain}/crm/sales/api`, `https://${orgDomain}/api`);
+    candidates.push(`https://${orgDomain}/crm/sales/api`);
+    candidates.push(`https://${orgDomain}/api`);
   }
 
   return Array.from(new Set(candidates));
@@ -341,11 +348,16 @@ export async function freshsalesRequest(env, path, init = {}) {
 
       if (!response) continue;
 
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        lastError = new Error(payload.message || payload.error || `Freshsales request failed with status ${response.status}`);
-        continue;
-      }
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const err = new Error(payload.message || payload.error || `Freshsales request failed with status ${response.status}`);
+          err.status = response.status;
+          err.payload = payload;
+          err.base = base;
+          err.path = path;
+          lastError = err;
+          continue;
+        }
 
       return {
         payload,

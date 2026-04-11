@@ -136,10 +136,23 @@ async function createOrUpdateFreshsalesContact(env, { name, type, email, phone, 
       },
     },
   };
-  const { payload } = await freshsalesRequest(env, "/contacts/upsert", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+  let payload = null;
+  try {
+    const response = await freshsalesRequest(env, "/contacts/upsert", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    payload = response?.payload;
+  } catch (error) {
+    if (Number(error?.status) !== 404) {
+      throw error;
+    }
+    const fallbackResponse = await freshsalesRequest(env, "/contacts", {
+      method: "POST",
+      body: JSON.stringify({ contact: body.contact }),
+    });
+    payload = fallbackResponse?.payload;
+  }
   const contact = payload?.contact || payload;
   if (!contact?.id) throw new Error("Freshsales nao retornou id do contato.");
   await upsertMirrorRows(env, [buildMirrorRow(contact)]);
