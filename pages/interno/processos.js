@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch as adminFetchRaw } from "../../lib/admin/api";
-import { appendActivityLog, updateActivityLog } from "../../lib/admin/activity-log";
+import { appendActivityLog, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
 
 const EMPTY_FORM = { numero_cnj_pai: "", numero_cnj_filho: "", tipo_relacao: "dependencia", status: "ativo", observacoes: "" };
 const PROCESS_VIEW_ITEMS = [
@@ -1147,6 +1147,9 @@ function InternoProcessosContent() {
     };
   }, []);
   useEffect(() => { setExecutionHistory(loadHistoryEntries()); }, []);
+  useEffect(() => {
+    setModuleHistory("processos", { executionHistory, remoteHistory });
+  }, [executionHistory, remoteHistory]);
   useEffect(() => {
     const saved = loadUiState();
     if (saved) {
@@ -2334,14 +2337,6 @@ function InternoProcessosContent() {
 
     {view === "resultado" ? <div id="resultado" className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
       <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">{actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}{actionState.error ? <p className="rounded-2xl border border-[#4B2222] bg-[rgba(127,29,29,0.18)] p-4 text-sm text-red-200">{actionState.error}</p> : null}{!actionState.loading && actionState.result?.drain ? <div className="mb-4 rounded-[20px] border border-[#30543A] bg-[rgba(48,84,58,0.12)] p-4 text-sm"><p className="font-semibold">Drenagem de fila</p><p className="mt-2 opacity-75">{buildDrainPreview(actionState.result.drain)}</p></div> : null}{jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}{!actionState.loading && !actionState.error && actionState.result ? <OperationResult result={actionState.result} /> : null}{!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p> : null}</Panel>
-      <Panel title="Historico de execucao" eyebrow="Memoria local da operacao">
-        <div className="mb-4 flex flex-wrap gap-3">
-          <ActionButton onClick={() => updateView("operacao")} className="px-4 py-2">Voltar para operacao</ActionButton>
-          <ActionButton onClick={clearHistory} className="px-4 py-2">Limpar historico</ActionButton>
-        </div>
-        {remoteHistory.length ? <div className="mb-5 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Historico persistido no HMADV</p>{remoteHistory.map((entry) => <div key={entry.id} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold">{getProcessActionLabel(entry.acao, entry.payload || {})}</p>{getProcessIntentBadge(entry.payload || {}) ? <p className="mt-1 text-xs uppercase tracking-[0.14em] text-[#C5A059]">{getProcessIntentBadge(entry.payload || {})}</p> : null}<p className="text-xs opacity-60">{new Date(entry.created_at).toLocaleString("pt-BR")}</p></div><span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${entry.status === "error" ? "border-[#4B2222] text-red-200" : "border-[#2D2E2E] opacity-70"}`}>{entry.status}</span></div>{entry.resumo ? <p className="mt-3 opacity-70">{entry.resumo}</p> : null}<div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60"><span>Solicitados: {entry.requested_count || 0}</span><span>Afetados: {entry.affected_count || 0}</span></div></div>)}</div> : null}
-        {!executionHistory.length ? <p className="text-sm opacity-65">Nenhuma solicitacao registrada ainda neste navegador.</p> : <div className="space-y-3">{executionHistory.map((entry) => <HistoryCard key={entry.id} entry={entry} onReuse={reuseHistoryEntry} />)}</div>}
-      </Panel>
     </div> : null}
   </div>;
 }

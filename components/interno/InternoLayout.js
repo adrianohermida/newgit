@@ -5,12 +5,18 @@ import { useSupabaseBrowser } from "../../lib/supabase";
 import DotobotCopilot from "./DotobotPanel";
 import DotobotExtensionManager from "./DotobotExtensionManager";
 import {
+  appendFrontendIssue,
   appendOperationalNote,
+  appendSchemaIssue,
   archiveActivityLog,
   clearActivityLog,
   formatActivityLogText,
   formatActivityLogMarkdown,
+  formatFrontendIssuesMarkdown,
+  formatSchemaIssuesMarkdown,
   getActivityLogFilters,
+  getFrontendIssues,
+  getSchemaIssues,
   subscribeActivityLog,
   setActivityLogFilters,
 } from "../../lib/admin/activity-log";
@@ -84,18 +90,39 @@ export default function InternoLayout({
   const [activityLog, setActivityLog] = useState([]);
   const [archivedLogs, setArchivedLogs] = useState([]);
   const [operationalNotes, setOperationalNotes] = useState([]);
+  const [frontendIssues, setFrontendIssues] = useState(() => getFrontendIssues());
+  const [schemaIssues, setSchemaIssues] = useState(() => getSchemaIssues());
+  const [moduleHistory, setModuleHistory] = useState({});
   const [consoleHeight, setConsoleHeight] = useState(260);
   const [noteInput, setNoteInput] = useState("");
+  const [frontendForm, setFrontendForm] = useState({
+    page: "",
+    component: "",
+    detail: "",
+    status: "aberto",
+  });
+  const [schemaForm, setSchemaForm] = useState({
+    type: "",
+    table: "",
+    column: "",
+    code: "",
+    detail: "",
+  });
   const [logFilters, setLogFilters] = useState(() => getActivityLogFilters());
   const [logSearch, setLogSearch] = useState("");
   const [logExpanded, setLogExpanded] = useState(null);
   const dragStateRef = useRef({ dragging: false, startY: 0, startHeight: 260 });
 
   useEffect(() => {
-    return subscribeActivityLog((entries, archives, notes, filters) => {
+    return subscribeActivityLog((entries, archives, notes, filters, frontendItems, schemaItems, moduleSnapshot) => {
       setActivityLog(entries);
       setArchivedLogs(archives || []);
       setOperationalNotes(notes || []);
+      setFrontendIssues(frontendItems || []);
+      setSchemaIssues(schemaItems || []);
+      if (moduleSnapshot && typeof moduleSnapshot === "object") {
+        setModuleHistory(moduleSnapshot);
+      }
       if (filters && Object.keys(filters).length) {
         setLogFilters(filters);
       }
@@ -156,6 +183,31 @@ export default function InternoLayout({
     URL.revokeObjectURL(url);
   }
 
+  async function handleCopyFrontendIssues() {
+    const text = formatFrontendIssuesMarkdown(frontendIssues);
+    if (text && navigator?.clipboard) {
+      await navigator.clipboard.writeText(text);
+    }
+  }
+
+  async function handleCopySchemaIssues() {
+    const text = formatSchemaIssuesMarkdown(schemaIssues);
+    if (text && navigator?.clipboard) {
+      await navigator.clipboard.writeText(text);
+    }
+  }
+
+  async function handleCopyProcessHistory() {
+    const payload = {
+      local: processosLocalHistory,
+      remote: processosRemoteHistory,
+    };
+    const text = JSON.stringify(payload, null, 2);
+    if (text && navigator?.clipboard) {
+      await navigator.clipboard.writeText(text);
+    }
+  }
+
   function handleArchive(reason) {
     archiveActivityLog(reason);
   }
@@ -167,10 +219,38 @@ export default function InternoLayout({
     setNoteInput("");
   }
 
+  function handleAddFrontendIssue() {
+    if (!frontendForm.detail.trim()) return;
+    appendFrontendIssue({
+      page: frontendForm.page,
+      component: frontendForm.component,
+      detail: frontendForm.detail,
+      status: frontendForm.status || "aberto",
+    });
+    setFrontendForm({ page: "", component: "", detail: "", status: "aberto" });
+  }
+
+  function handleAddSchemaIssue() {
+    const hasPayload = schemaForm.type || schemaForm.table || schemaForm.column || schemaForm.code || schemaForm.detail;
+    if (!hasPayload) return;
+    appendSchemaIssue({
+      type: schemaForm.type || "schema_issue",
+      table: schemaForm.table || null,
+      column: schemaForm.column || null,
+      code: schemaForm.code || null,
+      detail: schemaForm.detail || null,
+    });
+    setSchemaForm({ type: "", table: "", column: "", code: "", detail: "" });
+  }
+
   function updateFilters(next) {
     setLogFilters(next);
     setActivityLogFilters(next);
   }
+
+  const processosHistory = moduleHistory?.processos || null;
+  const processosLocalHistory = processosHistory?.executionHistory || [];
+  const processosRemoteHistory = processosHistory?.remoteHistory || [];
 
   const filteredLog = useMemo(() => {
     const normalizedSearch = logSearch.trim().toLowerCase();
@@ -481,6 +561,199 @@ export default function InternoLayout({
                       >
                         Limpar filtros
                       </button>
+                    </div>
+                    <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Historico de execucao</p>
+                          <p className="mt-1 text-[11px] text-[#9BAEA8]">Consolidado do modulo Processos no console.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleCopyProcessHistory}
+                          className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                        >
+                          Copiar historico
+                        </button>
+                      </div>
+                      {processosRemoteHistory.length ? (
+                        <div className="mt-3 space-y-2">
+                          {processosRemoteHistory.slice(0, 6).map((entry) => (
+                            <div key={entry.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2 text-[11px]">
+                              <div className="flex items-center justify-between">
+                                <span className="font-semibold">{entry.acao || "acao"}</span>
+                                <span className={entry.status === "error" ? "text-red-200" : "text-[#11D473]"}>
+                                  {entry.status}
+                                </span>
+                              </div>
+                              <div className="mt-1 text-[10px] text-[#7E918B]">
+                                {entry.created_at ? new Date(entry.created_at).toLocaleString("pt-BR") : "sem data"}
+                              </div>
+                              {entry.resumo ? <div className="mt-1 text-[#C7D0CA]">{entry.resumo}</div> : null}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-[11px] opacity-60">Sem historico remoto disponível.</div>
+                      )}
+                      {processosLocalHistory.length ? (
+                        <div className="mt-3">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Memoria local</p>
+                          <div className="mt-2 space-y-2">
+                            {processosLocalHistory.slice(0, 6).map((entry) => (
+                              <div key={entry.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2 text-[11px]">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-semibold">{entry.label || entry.action}</span>
+                                  <span className="text-[#9BAEA8]">{entry.status || "status"}</span>
+                                </div>
+                                <div className="mt-1 text-[10px] text-[#7E918B]">
+                                  {entry.startedAt ? new Date(entry.startedAt).toLocaleString("pt-BR") : "sem data"}
+                                </div>
+                                {entry.preview ? <div className="mt-1 text-[#C7D0CA]">{entry.preview}</div> : null}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-[11px] opacity-60">Sem historico local registrado.</div>
+                      )}
+                    </div>
+                    <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Frontend UX</p>
+                          <p className="mt-1 text-[11px] text-[#9BAEA8]">Registre bugs de interface e debitos tecnicos por pagina.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleCopyFrontendIssues}
+                          className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                        >
+                          Copiar UX
+                        </button>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em] text-[#7F928C]">
+                        <input
+                          value={frontendForm.page}
+                          onChange={(event) => setFrontendForm({ ...frontendForm, page: event.target.value })}
+                          placeholder="Pagina"
+                          className="h-7 w-[140px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                        />
+                        <input
+                          value={frontendForm.component}
+                          onChange={(event) => setFrontendForm({ ...frontendForm, component: event.target.value })}
+                          placeholder="Componente"
+                          className="h-7 w-[160px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                        />
+                        <input
+                          value={frontendForm.status}
+                          onChange={(event) => setFrontendForm({ ...frontendForm, status: event.target.value })}
+                          placeholder="Status"
+                          className="h-7 w-[110px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                        />
+                        <input
+                          value={frontendForm.detail}
+                          onChange={(event) => setFrontendForm({ ...frontendForm, detail: event.target.value })}
+                          placeholder="Detalhe do bug/UX"
+                          className="h-7 flex-1 min-w-[220px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddFrontendIssue}
+                          className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                        >
+                          Adicionar
+                        </button>
+                      </div>
+                      {frontendIssues.length ? (
+                        <div className="mt-3 space-y-2">
+                          {frontendIssues.slice(0, 8).map((issue) => (
+                            <div key={issue.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2 text-[11px]">
+                              <div className="flex items-center justify-between">
+                                <span className="font-semibold">{issue.page || "pagina n/a"}</span>
+                                <span className="text-[#D9B46A]">{issue.status || "aberto"}</span>
+                              </div>
+                              {issue.component ? <div className="mt-1 text-[#9BAEA8]">{issue.component}</div> : null}
+                              <div className="mt-1 text-[#C7D0CA]">{issue.detail}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-[11px] opacity-60">Nenhum bug/UX registrado.</div>
+                      )}
+                    </div>
+                    <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Schema</p>
+                          <p className="mt-1 text-[11px] text-[#9BAEA8]">Mapeie rotas quebradas, SQL e ajustes de schema.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleCopySchemaIssues}
+                          className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                        >
+                          Copiar Schema
+                        </button>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em] text-[#7F928C]">
+                        <input
+                          value={schemaForm.type}
+                          onChange={(event) => setSchemaForm({ ...schemaForm, type: event.target.value })}
+                          placeholder="Tipo"
+                          className="h-7 w-[120px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                        />
+                        <input
+                          value={schemaForm.table}
+                          onChange={(event) => setSchemaForm({ ...schemaForm, table: event.target.value })}
+                          placeholder="Tabela"
+                          className="h-7 w-[140px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                        />
+                        <input
+                          value={schemaForm.column}
+                          onChange={(event) => setSchemaForm({ ...schemaForm, column: event.target.value })}
+                          placeholder="Coluna"
+                          className="h-7 w-[140px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                        />
+                        <input
+                          value={schemaForm.code}
+                          onChange={(event) => setSchemaForm({ ...schemaForm, code: event.target.value })}
+                          placeholder="Codigo"
+                          className="h-7 w-[120px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                        />
+                        <input
+                          value={schemaForm.detail}
+                          onChange={(event) => setSchemaForm({ ...schemaForm, detail: event.target.value })}
+                          placeholder="Detalhe/SQL"
+                          className="h-7 flex-1 min-w-[220px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddSchemaIssue}
+                          className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                        >
+                          Adicionar
+                        </button>
+                      </div>
+                      {schemaIssues.length ? (
+                        <div className="mt-3 space-y-2">
+                          {schemaIssues.slice(0, 8).map((issue) => (
+                            <div key={issue.id || issue.createdAt} className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2 text-[11px]">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="font-semibold">{issue.issue?.type || "schema_issue"}</span>
+                                {issue.issue?.code ? <span className="text-[#D9B46A]">{issue.issue.code}</span> : null}
+                              </div>
+                              <div className="mt-1 text-[#9BAEA8]">
+                                {issue.issue?.table ? `Tabela: ${issue.issue.table}` : "Tabela: n/a"}
+                                {issue.issue?.column ? ` | Coluna: ${issue.issue.column}` : ""}
+                              </div>
+                              {issue.issue?.detail ? <div className="mt-1 text-[#C7D0CA]">{issue.issue.detail}</div> : null}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-[11px] opacity-60">Nenhum ponto de schema registrado.</div>
+                      )}
                     </div>
                     {filteredLog.length ? (
                       <div className="space-y-2">
