@@ -224,6 +224,7 @@ export default function InternoLayout({
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(true);
   const [consoleTab, setConsoleTab] = useState("console");
+  const [logPane, setLogPane] = useState("activity");
   const [activityLog, setActivityLog] = useState([]);
   const [archivedLogs, setArchivedLogs] = useState([]);
   const [operationalNotes, setOperationalNotes] = useState([]);
@@ -399,18 +400,43 @@ export default function InternoLayout({
       detail: frontendForm.detail,
       status: frontendForm.status || "aberto",
     });
+    appendActivityLog({
+      label: "Registro Frontend UX",
+      action: "frontend_issue",
+      method: "UI",
+      status: "success",
+      module: inferFrontendModule(frontendForm.page),
+      page: frontendForm.page || router.pathname,
+      component: frontendForm.component || "Frontend UX",
+      response: frontendForm.detail,
+      tags: ["frontend", "ux", "manual"],
+    });
     setFrontendForm({ page: "", component: "", detail: "", status: "aberto" });
   }
 
   function handleAddSchemaIssue() {
     const hasPayload = schemaForm.type || schemaForm.table || schemaForm.column || schemaForm.code || schemaForm.detail;
     if (!hasPayload) return;
-    appendSchemaIssue({
+    const issuePayload = {
       type: schemaForm.type || "schema_issue",
       table: schemaForm.table || null,
       column: schemaForm.column || null,
       code: schemaForm.code || null,
       detail: schemaForm.detail || null,
+    };
+    appendSchemaIssue({
+      ...issuePayload,
+    });
+    appendActivityLog({
+      label: "Registro de schema",
+      action: "schema_issue",
+      method: "UI",
+      status: "success",
+      page: router.pathname,
+      component: "Schema",
+      response: JSON.stringify(issuePayload, null, 2),
+      schemaIssue: issuePayload,
+      tags: ["schema", "manual"],
     });
     setSchemaForm({ type: "", table: "", column: "", code: "", detail: "" });
   }
@@ -430,7 +456,18 @@ export default function InternoLayout({
       page: router.pathname,
       component: title || "Pagina interna",
       response: `Debug manual iniciado em ${router.pathname}`,
+      tags: ["debug-ui", "manual"],
     });
+  }
+
+  function inferFrontendModule(pageValue) {
+    const value = String(pageValue || "").toLowerCase();
+    if (value.includes("contacts")) return "contacts";
+    if (value.includes("processos")) return "processos";
+    if (value.includes("publicacoes")) return "publicacoes";
+    if (value.includes("financeiro")) return "financeiro";
+    if (value.includes("ai-task")) return "ai-task";
+    return "";
   }
 
   const processosHistory = moduleHistory?.processos || null;
@@ -485,6 +522,47 @@ export default function InternoLayout({
       return true;
     });
   }, [activityLog, logFilters, logSearch]);
+  const debugLog = useMemo(() => filteredLog.filter((entry) => entry.action === "debug_ui" || (entry.tags || []).includes("debug-ui")), [filteredLog]);
+  const activityOnlyLog = useMemo(() => filteredLog.filter((entry) => !["debug_ui", "frontend_issue", "schema_issue"].includes(String(entry.action || "")) && !(entry.tags || []).includes("debug-ui")), [filteredLog]);
+  const historyCards = useMemo(() => ([
+    {
+      key: "processos",
+      title: "Historico de execucao",
+      subtitle: "Consolidado do modulo Processos no console.",
+      onCopy: handleCopyProcessHistory,
+      remote: processosRemoteHistory,
+      local: processosLocalHistory,
+    },
+    {
+      key: "publicacoes",
+      title: "Historico de publicacoes",
+      subtitle: "Consolidado do modulo Publicacoes no console.",
+      onCopy: handleCopyPublicacoesHistory,
+      remote: publicacoesRemoteHistory,
+      local: publicacoesLocalHistory,
+    },
+    {
+      key: "contacts",
+      title: "Contacts",
+      subtitle: "Snapshot de qualidade da base, bulk actions e persistencia do modulo.",
+      onCopy: handleCopyContactsHistory,
+      snapshot: contactsHistory,
+    },
+    {
+      key: "dotobot",
+      title: "Dotobot",
+      subtitle: "Snapshot do copilot, chat e task runs locais.",
+      onCopy: handleCopyDotobotHistory,
+      snapshot: dotobotHistory,
+    },
+    {
+      key: "ai-task",
+      title: "AI Task",
+      subtitle: "Run ativa, trilha de logs e contexto persistido do orquestrador.",
+      onCopy: handleCopyAiTaskHistory,
+      snapshot: aiTaskHistory,
+    },
+  ]), [aiTaskHistory, contactsHistory, dotobotHistory, processosLocalHistory, processosRemoteHistory, publicacoesLocalHistory, publicacoesRemoteHistory]);
 
   async function handleSignOut() {
     if (supabase) {
@@ -659,9 +737,53 @@ export default function InternoLayout({
                   Log
                 </button>
                 {consoleTab === "log" ? (
-                  <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8]">
-                    {activityLog.length} entradas
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8]">
+                      {activityLog.length} entradas
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setLogPane("activity")}
+                      className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === "activity" ? "border-[#C5A059] text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                    >
+                      Atividade
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLogPane("debug")}
+                      className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === "debug" ? "border-[#C5A059] text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                    >
+                      Debug UI
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLogPane("history")}
+                      className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === "history" ? "border-[#C5A059] text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                    >
+                      Historico
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLogPane("frontend")}
+                      className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === "frontend" ? "border-[#C5A059] text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                    >
+                      Frontend
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLogPane("schema")}
+                      className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === "schema" ? "border-[#C5A059] text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                    >
+                      Schema
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLogPane("notes")}
+                      className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === "notes" ? "border-[#C5A059] text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                    >
+                      Notas
+                    </button>
+                  </div>
                 ) : null}
               </div>
               <button
@@ -714,7 +836,7 @@ export default function InternoLayout({
                         {formattedArchiveHint}
                       </span>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 text-[10px] uppercase tracking-[0.14em] text-[#7F928C]">
+                    {(logPane === "activity" || logPane === "debug") ? <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 text-[10px] uppercase tracking-[0.14em] text-[#7F928C]">
                       <span>Filtros</span>
                       <input
                         value={logFilters.module || ""}
@@ -762,8 +884,12 @@ export default function InternoLayout({
                       >
                         Limpar filtros
                       </button>
-                    </div>
-                    <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                    </div> : null}
+                    {logPane === "history" ? <div className="space-y-3">
+                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 text-[11px] text-[#9BAEA8]">
+                        Historicos e snapshots operacionais separados por modulo.
+                      </div>
+                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Historico de execucao</p>
@@ -995,7 +1121,8 @@ export default function InternoLayout({
                         <div className="mt-2 text-[11px] opacity-60">Sem snapshot do AI Task.</div>
                       )}
                     </div>
-                    <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                    </div> : null}
+                    {logPane === "frontend" ? <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Frontend UX</p>
@@ -1058,8 +1185,8 @@ export default function InternoLayout({
                       ) : (
                         <div className="mt-2 text-[11px] opacity-60">Nenhum bug/UX registrado.</div>
                       )}
-                    </div>
-                    <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                    </div> : null}
+                    {logPane === "schema" ? <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Schema</p>
@@ -1131,10 +1258,10 @@ export default function InternoLayout({
                       ) : (
                         <div className="mt-2 text-[11px] opacity-60">Nenhum ponto de schema registrado.</div>
                       )}
-                    </div>
-                    {filteredLog.length ? (
+                    </div> : null}
+                    {(logPane === "activity" ? activityOnlyLog : logPane === "debug" ? debugLog : []).length ? (
                       <div className="space-y-2">
-                        {filteredLog.slice(0, 30).map((entry) => (
+                        {(logPane === "activity" ? activityOnlyLog : debugLog).slice(0, 30).map((entry) => (
                           <div key={entry.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(8,10,9,0.6)] px-3 py-2 text-[11px]">
                             <div className="flex items-center justify-between">
                               <span className="font-semibold">{entry.label || entry.action}</span>
@@ -1200,10 +1327,10 @@ export default function InternoLayout({
                           </div>
                         ))}
                       </div>
-                    ) : (
-                      <div className="text-[11px] opacity-60">Nenhuma atividade registrada.</div>
-                    )}
-                    <div className="mt-4 rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                    ) : (logPane === "activity" || logPane === "debug") ? (
+                      <div className="text-[11px] opacity-60">{logPane === "debug" ? "Nenhum debug UI registrado." : "Nenhuma atividade registrada."}</div>
+                    ) : null}
+                    {logPane === "notes" ? <div className="mt-4 rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Memoria operacional</p>
@@ -1242,7 +1369,7 @@ export default function InternoLayout({
                       ) : (
                         <div className="mt-2 text-[11px] opacity-60">Nenhuma nota registrada.</div>
                       )}
-                    </div>
+                    </div> : null}
                   </div>
                 )}
               </div>
