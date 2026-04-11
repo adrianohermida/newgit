@@ -1,5 +1,10 @@
 import { requireAdminNode } from "../../lib/admin/node-auth.js";
-import { generateLegalAdVariant, getMarketAdsDashboard, validateLegalAdCopy } from "../../lib/admin/market-ads.js";
+import {
+  generateLegalAdVariant,
+  getMarketAdsDashboardData,
+  persistComplianceValidation,
+  saveMarketAdsDraft,
+} from "../../lib/admin/market-ads.js";
 
 export default async function handler(req, res) {
   const auth = await requireAdminNode(req);
@@ -13,7 +18,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "GET") {
-    return res.status(200).json({ ok: true, data: getMarketAdsDashboard() });
+    return res.status(200).json({ ok: true, data: await getMarketAdsDashboardData() });
   }
 
   if (req.method === "POST") {
@@ -26,10 +31,15 @@ export default async function handler(req, res) {
       });
     }
 
+    if (action === "save_draft") {
+      const data = await saveMarketAdsDraft(req.body?.input || {}, auth.user?.id || null);
+      return res.status(200).json({ ok: true, data });
+    }
+
     if (action === "validate_copy") {
       return res.status(200).json({
         ok: true,
-        data: validateLegalAdCopy(req.body?.input || {}),
+        data: await persistComplianceValidation(req.body?.input || {}, auth.user?.id || null, req.body?.draftId || null),
       });
     }
 

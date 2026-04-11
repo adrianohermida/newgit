@@ -75,6 +75,7 @@ function MarketAdsContent() {
     location: "Sao Paulo",
   });
   const [previewState, setPreviewState] = useState({ loading: false, error: null, result: null });
+  const [draftState, setDraftState] = useState({ loading: false, error: null, result: null });
   const [complianceInput, setComplianceInput] = useState({
     headline: "Conheca seus direitos em casos de superendividamento",
     description: "Explicacao juridica clara sobre reorganizacao financeira e avaliacao tecnica do caso.",
@@ -127,6 +128,21 @@ function MarketAdsContent() {
       setComplianceState({ loading: false, error: null, result: payload.data || null });
     } catch (error) {
       setComplianceState({ loading: false, error: error.message || "Falha ao validar compliance.", result: null });
+    }
+  }
+
+  async function saveDraft() {
+    setDraftState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save_draft", input: generator }),
+      });
+      setDraftState({ loading: false, error: null, result: payload.data || null });
+      await load();
+    } catch (error) {
+      setDraftState({ loading: false, error: error.message || "Falha ao salvar draft.", result: null });
     }
   }
 
@@ -228,10 +244,16 @@ function MarketAdsContent() {
                 <button type="button" onClick={generatePreview} disabled={previewState.loading} className="rounded-full border border-[#C5A059] bg-[#C5A059] px-5 py-3 text-sm font-semibold text-[#07110E] disabled:opacity-50">
                   {previewState.loading ? "Gerando..." : "Gerar preview"}
                 </button>
+                <button type="button" onClick={saveDraft} disabled={draftState.loading} className="rounded-full border border-[#22342F] px-5 py-3 text-sm text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">
+                  {draftState.loading ? "Salvando..." : "Salvar draft"}
+                </button>
                 <button type="button" onClick={load} className="rounded-full border border-[#22342F] px-5 py-3 text-sm text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059]">
                   Atualizar painel
                 </button>
               </div>
+              {draftState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{draftState.error}</p> : null}
+              {draftState.result?.draft?.id ? <p className="mt-3 text-sm text-[#B7F7C6]">Draft salvo com score {draftState.result.draft.complianceScore}.</p> : null}
+              {draftState.result?.warning ? <p className="mt-2 text-sm text-[#FDE68A]">{draftState.result.warning}</p> : null}
               {preview ? (
                 <div className="mt-5 grid gap-4 md:grid-cols-2">
                   <article className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
@@ -279,6 +301,7 @@ function MarketAdsContent() {
                       <Tag tone="accent">score {complianceResult.score}</Tag>
                     </div>
                     <p className="mt-3 text-sm leading-6 text-[#8DA19A]">{complianceResult.guidance}</p>
+                    {complianceResult.warning ? <p className="mt-2 text-sm text-[#FDE68A]">{complianceResult.warning}</p> : null}
                   </div>
                   {complianceResult.violations?.map((item) => (
                     <div key={`${item.ruleId}-${item.offendingPattern}`} className="rounded-[18px] border border-[#4B2E2F] bg-[rgba(53,18,18,0.26)] p-4">
@@ -357,6 +380,34 @@ function MarketAdsContent() {
                   <p className="font-semibold text-[#F7F2E8]">Arquitetura tecnica</p>
                   <div className="mt-3 space-y-2 text-sm leading-6 text-[#C7D0CA]">
                     {data.architecture.backend.concat(data.architecture.integrations).concat(data.architecture.safeguards).map((item) => <p key={item}>{item}</p>)}
+                  </div>
+                </div>
+                <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                  <p className="font-semibold text-[#F7F2E8]">Drafts salvos</p>
+                  <div className="mt-3 space-y-2">
+                    {(data.drafts || []).length ? data.drafts.map((item) => (
+                      <div key={item.id} className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p>{item.title}</p>
+                          <Tag tone={toneFor(item.complianceStatus)}>{item.complianceStatus}</Tag>
+                        </div>
+                        <p className="mt-1 text-[#8FA29B]">{item.headline}</p>
+                      </div>
+                    )) : <p className="text-sm text-[#8FA29B]">Nenhum draft persistido ainda.</p>}
+                  </div>
+                </div>
+                <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                  <p className="font-semibold text-[#F7F2E8]">Historico de compliance</p>
+                  <div className="mt-3 space-y-2">
+                    {(data.complianceLog || []).length ? data.complianceLog.map((item) => (
+                      <div key={item.id} className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <Tag tone={toneFor(item.status)}>{item.status}</Tag>
+                          <Tag tone="accent">score {item.score}</Tag>
+                        </div>
+                        <p className="mt-1 text-[#8FA29B]">{item.headline || "Validacao sem headline"}</p>
+                      </div>
+                    )) : <p className="text-sm text-[#8FA29B]">Nenhum log persistido ainda.</p>}
                   </div>
                 </div>
               </div>
