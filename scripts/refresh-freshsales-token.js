@@ -2,16 +2,18 @@
 
 const fs = require('fs');
 const path = require('path');
+const { loadRuntimeEnv } = require('../lib/integration-kit/runtime');
 
 const ENV_PATH = path.join(process.cwd(), '.dev.vars');
 
-loadLocalEnv();
+loadRuntimeEnv(process.cwd(), process.env);
 
 async function main() {
+  const kind = resolveKind(process.argv.slice(2));
   const orgDomain = resolveOrgDomain();
-  const clientId = resolveFreshsalesOauthClientId();
-  const clientSecret = resolveFreshsalesOauthClientSecret();
-  const refreshToken = cleanValue(process.env.FRESHSALES_REFRESH_TOKEN);
+  const clientId = resolveFreshsalesOauthClientId(kind);
+  const clientSecret = resolveFreshsalesOauthClientSecret(kind);
+  const refreshToken = cleanValue(process.env[resolveRefreshTokenEnvKey(kind)]);
   const supabaseUrl = cleanValue(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
   const redirectUri =
     cleanValue(process.env.FRESHSALES_REDIRECT_URI) ||
@@ -50,16 +52,17 @@ async function main() {
   const expiresIn = Number(payload.expires_in || 1799);
   const expiryEpochMs = Date.now() + expiresIn * 1000;
   persistEnvUpdates({
-    FRESHSALES_ACCESS_TOKEN: payload.access_token,
-    FRESHSALES_REFRESH_TOKEN: nextRefreshToken,
-    FRESHSALES_EXPIRES_IN: String(expiresIn),
-    FRESHSALES_TOKEN_EXPIRY: String(expiryEpochMs),
-    FRESHSALES_TOKEN_TYPE: cleanValue(payload.token_type) || 'Bearer',
+    [resolveAccessTokenEnvKey(kind)]: payload.access_token,
+    [resolveRefreshTokenEnvKey(kind)]: nextRefreshToken,
+    [resolveExpiresInEnvKey(kind)]: String(expiresIn),
+    [resolveTokenExpiryEnvKey(kind)]: String(expiryEpochMs),
+    [resolveTokenTypeEnvKey(kind)]: cleanValue(payload.token_type) || 'Bearer',
     FRESHSALES_ORG_DOMAIN: orgDomain,
   });
 
   console.log(JSON.stringify({
     ok: true,
+    kind,
     org_domain: orgDomain,
     expires_in: expiresIn,
     token_type: cleanValue(payload.token_type) || 'Bearer',
@@ -67,25 +70,35 @@ async function main() {
   }, null, 2));
 }
 
-function loadLocalEnv() {
-  if (!fs.existsSync(ENV_PATH)) return;
-  const lines = fs.readFileSync(ENV_PATH, 'utf8').split(/\r?\n/);
-  for (const line of lines) {
-    if (!line || line.trim().startsWith('#')) continue;
-    const idx = line.indexOf('=');
-    if (idx === -1) continue;
-    const key = line.slice(0, idx).trim();
-    const value = line.slice(idx + 1);
-    if (key && process.env[key] === undefined) process.env[key] = value;
-  }
-}
-
 function cleanValue(value) {
   const text = String(value || '').trim();
   return text || null;
 }
 
-function resolveFreshsalesOauthClientId() {
+function resolveKind(args) {
+  const joined = args.join(' ').toLowerCase();
+  if (joined.includes('products')) return 'products';
+  if (joined.includes('contacts')) return 'contacts';
+  return 'deals';
+}
+
+function resolveFreshsalesOauthClientId(kind) {
+  if (kind === 'products') {
+    return (
+      cleanValue(process.env.FRESHSALES_OAUTH_PRODUCTS_CLIENT_ID) ||
+      cleanValue(process.env.FRESHSALES_PRODUCT_OAUTH_CLIENT_ID) ||
+      cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
+      cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_ID) ||
+      cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID)
+    );
+  }
+  if (kind === 'contacts') {
+    return (
+      cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID) ||
+      cleanValue(process.env.FRESHSALES_CONTACT_OAUTH_CLIENT_ID) ||
+      cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID)
+    );
+  }
   return (
     cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
     cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_ID) ||
@@ -93,12 +106,58 @@ function resolveFreshsalesOauthClientId() {
   );
 }
 
-function resolveFreshsalesOauthClientSecret() {
+function resolveFreshsalesOauthClientSecret(kind) {
+  if (kind === 'products') {
+    return (
+      cleanValue(process.env.FRESHSALES_OAUTH_PRODUCTS_CLIENT_SECRET) ||
+      cleanValue(process.env.FRESHSALES_PRODUCT_OAUTH_CLIENT_SECRET) ||
+      cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
+      cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_SECRET) ||
+      cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET)
+    );
+  }
+  if (kind === 'contacts') {
+    return (
+      cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET) ||
+      cleanValue(process.env.FRESHSALES_CONTACT_OAUTH_CLIENT_SECRET) ||
+      cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET)
+    );
+  }
   return (
     cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
     cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_SECRET) ||
     cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET)
   );
+}
+
+function resolveAccessTokenEnvKey(kind) {
+  if (kind === 'products') return 'FRESHSALES_PRODUCTS_ACCESS_TOKEN';
+  if (kind === 'contacts') return 'FRESHSALES_CONTACTS_ACCESS_TOKEN';
+  return 'FRESHSALES_ACCESS_TOKEN';
+}
+
+function resolveRefreshTokenEnvKey(kind) {
+  if (kind === 'products') return 'FRESHSALES_PRODUCTS_REFRESH_TOKEN';
+  if (kind === 'contacts') return 'FRESHSALES_CONTACTS_REFRESH_TOKEN';
+  return 'FRESHSALES_REFRESH_TOKEN';
+}
+
+function resolveExpiresInEnvKey(kind) {
+  if (kind === 'products') return 'FRESHSALES_PRODUCTS_EXPIRES_IN';
+  if (kind === 'contacts') return 'FRESHSALES_CONTACTS_EXPIRES_IN';
+  return 'FRESHSALES_EXPIRES_IN';
+}
+
+function resolveTokenExpiryEnvKey(kind) {
+  if (kind === 'products') return 'FRESHSALES_PRODUCTS_TOKEN_EXPIRY';
+  if (kind === 'contacts') return 'FRESHSALES_CONTACTS_TOKEN_EXPIRY';
+  return 'FRESHSALES_TOKEN_EXPIRY';
+}
+
+function resolveTokenTypeEnvKey(kind) {
+  if (kind === 'products') return 'FRESHSALES_PRODUCTS_TOKEN_TYPE';
+  if (kind === 'contacts') return 'FRESHSALES_CONTACTS_TOKEN_TYPE';
+  return 'FRESHSALES_TOKEN_TYPE';
 }
 
 function resolveOrgDomain() {

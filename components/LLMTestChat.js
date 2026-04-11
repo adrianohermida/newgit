@@ -20,6 +20,12 @@ import {
 } from "../lib/lawdesk/llm-test-console";
 
 const DEFAULT_PROMPT = "Resuma em PT-BR, em 3 bullets, como voce pretende me ajudar neste ambiente.";
+const FALLBACK_PROVIDER_CATALOG = [
+  { id: "gpt", label: "Nuvem principal", available: true, configured: true, transport: "http_execute" },
+  { id: "local", label: "LLM local", available: false, configured: false, transport: "local_llm_api" },
+  { id: "cloudflare", label: "Cloudflare Workers AI", available: false, configured: false, transport: "workers_ai_direct" },
+  { id: "custom", label: "Endpoint custom", available: false, configured: false, transport: "custom_llm_api" },
+];
 
 function nowIso() {
   return new Date().toISOString();
@@ -49,6 +55,16 @@ function formatJson(value) {
   } catch {
     return String(value);
   }
+}
+
+function extractAdminErrorDetails(error, fallbackMessage) {
+  const payload = error?.payload && typeof error.payload === "object" ? error.payload : null;
+  return {
+    message: payload?.error || error?.message || fallbackMessage,
+    errorType: payload?.errorType || null,
+    details: payload?.details || null,
+    status: Number(error?.status) || null,
+  };
 }
 
 function flattenProviderDiagnostics(diagnostics, prefix = "") {
@@ -116,6 +132,35 @@ function ProviderMatrixCard({ item, onRun }) {
             <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Rota sondada</p>
             <p className="mt-1 break-all text-sm text-[#F5F1E8]">{item.executeProbeRoute || "sem sucesso"}</p>
           </div>
+        </div>
+      ) : null}
+      {item.details?.config ? (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="rounded-[16px] border border-[#22342F] px-3 py-2">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Host resolvido</p>
+            <p className="mt-1 break-all text-sm text-[#F5F1E8]">{item.details.config.host || item.details.config.baseUrl || "n/a"}</p>
+          </div>
+          <div className="rounded-[16px] border border-[#22342F] px-3 py-2">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Source da base</p>
+            <p className="mt-1 text-sm text-[#F5F1E8]">{item.details.config.baseUrlSource || "n/a"}</p>
+          </div>
+        </div>
+      ) : null}
+      {item.id === "gpt" && item.details?.health?.routes?.length ? (
+        <div className="mt-3 rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Rotas anunciadas pelo backend</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {item.details.health.routes.slice(0, 6).map((entry) => (
+              <span key={`${item.id}_route_${entry}`} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                {entry}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {item.id === "gpt" && item.details?.health?.auth_configured != null ? (
+        <div className="mt-3 rounded-[14px] border border-[#22342F] px-3 py-2 text-xs leading-6 text-[#9BAEA8]">
+          Autenticacao remota: {item.details.health.auth_configured ? "secret configurado no worker" : "worker sem secret configurado"}.
         </div>
       ) : null}
       <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
@@ -446,13 +491,30 @@ export default function LLMTestChat() {
         if (!active) return;
         const providers = Array.isArray(payload?.data?.providers) ? payload.data.providers : [];
         const defaultProvider = typeof payload?.data?.defaultProvider === "string" ? payload.data.defaultProvider : "gpt";
-        setProvidersHealth(payload?.data?.health || null);
-        setProviderCatalog(providers);
+        setProvidersHealth(payload?.data?.health || { loaded: true, status: "failed", providers: [], summary: { total: providers.length, operational: 0, configured: 0, failed: providers.length } });
+        setProviderCatalog(providers.length ? providers : FALLBACK_PROVIDER_CATALOG);
         setProvider((current) => current || defaultProvider || providers.find((item) => item.available)?.id || "gpt");
       })
       .catch((fetchError) => {
         if (!active) return;
-        setError(fetchError?.message || "Falha ao carregar catalogo de providers.");
+        const fetchFailure = extractAdminErrorDetails(fetchError, "Falha ao carregar catalogo de providers.");
+        setProviderCatalog(FALLBACK_PROVIDER_CATALOG);
+        setProvidersHealth({
+          loaded: false,
+          status: "failed",
+          error: fetchFailure.message,
+          errorType: fetchFailure.errorType,
+          details: fetchFailure.details,
+          httpStatus: fetchFailure.status,
+          providers: [],
+          summary: {
+            total: FALLBACK_PROVIDER_CATALOG.length,
+            operational: 0,
+            configured: 0,
+            failed: FALLBACK_PROVIDER_CATALOG.length,
+          },
+        });
+        setError(fetchFailure.message);
       });
     return () => {
       active = false;
@@ -466,11 +528,15 @@ export default function LLMTestChat() {
         if (!active) return;
         setRagHealth(payload || null);
       })
-      .catch(() => {
+      .catch((fetchError) => {
         if (!active) return;
+        const fetchFailure = extractAdminErrorDetails(fetchError, "Falha ao carregar health do RAG.");
         setRagHealth({
           status: "failed",
-          error: "Falha ao carregar health do RAG.",
+          error: fetchFailure.message,
+          errorType: fetchFailure.errorType,
+          details: fetchFailure.details,
+          httpStatus: fetchFailure.status,
         });
       });
     return () => {
@@ -697,8 +763,17 @@ export default function LLMTestChat() {
             {
               label: "health_snapshot",
               value: {
-                providers: providersHealth?.status || null,
-                rag: ragHealth?.status || null,
+                providers: {
+                  status: providersHealth?.status || null,
+                  loaded: providersHealth?.loaded ?? null,
+                  errorType: providersHealth?.errorType || null,
+                  httpStatus: providersHealth?.httpStatus || null,
+                },
+                rag: {
+                  status: ragHealth?.status || null,
+                  errorType: ragHealth?.errorType || null,
+                  httpStatus: ragHealth?.httpStatus || null,
+                },
               },
             },
           ],
@@ -727,8 +802,17 @@ export default function LLMTestChat() {
             {
               label: "health_snapshot",
               value: {
-                providers: providersHealth?.status || null,
-                rag: ragHealth?.status || null,
+                providers: {
+                  status: providersHealth?.status || null,
+                  loaded: providersHealth?.loaded ?? null,
+                  errorType: providersHealth?.errorType || null,
+                  httpStatus: providersHealth?.httpStatus || null,
+                },
+                rag: {
+                  status: ragHealth?.status || null,
+                  errorType: ragHealth?.errorType || null,
+                  httpStatus: ragHealth?.httpStatus || null,
+                },
               },
             },
           ],
@@ -847,6 +931,12 @@ export default function LLMTestChat() {
                   ? `${providersHealth.summary.operational} operacionais de ${providersHealth.summary.total || providerDebugMatrix.length || 0}`
                   : "Catalogo e probes do servidor."}
               </p>
+              {providersHealth?.error ? (
+                <p className="mt-2 text-xs leading-6 text-[#D9B46A]">
+                  {providersHealth.errorType ? `[${providersHealth.errorType}] ` : ""}
+                  {providersHealth.error}
+                </p>
+              ) : null}
           </div>
           <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-4">
             <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Health RAG</p>
@@ -854,6 +944,11 @@ export default function LLMTestChat() {
             <p className="mt-1 text-sm text-[#8FA39C]">
               {ragHealth?.report?.supabaseEmbedding?.error || ragHealth?.error || "Embedding, retrieval e fallback."}
             </p>
+            {ragHealth?.error && ragHealth?.errorType ? (
+              <p className="mt-2 text-xs leading-6 text-[#D9B46A]">
+                [{ragHealth.errorType}] {ragHealth.error}
+              </p>
+            ) : null}
           </div>
           <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-4">
             <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Diagnostico rapido</p>

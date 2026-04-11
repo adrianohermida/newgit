@@ -35,7 +35,11 @@ function isFreshsalesPayloadError(error) {
 export async function onRequestGet(context) {
   const auth = await requireAdminAccess(context.request, context.env);
   if (!auth.ok) {
-    return jsonError(new Error(auth.error), auth.status);
+    return jsonError({
+      message: auth.error || "Nao autorizado.",
+      errorType: auth.errorType || "authentication",
+      details: auth.details || null,
+    }, auth.status);
   }
 
   try {
@@ -49,7 +53,11 @@ export async function onRequestGet(context) {
 export async function onRequestPost(context) {
   const auth = await requireAdminAccess(context.request, context.env);
   if (!auth.ok) {
-    return jsonError(new Error(auth.error), auth.status);
+    return jsonError({
+      message: auth.error || "Nao autorizado.",
+      errorType: auth.errorType || "authentication",
+      details: auth.details || null,
+    }, auth.status);
   }
 
   let body = {};

@@ -10,33 +10,67 @@ function parseBoolean(value, defaultValue = false) {
 }
 
 export default async function handler(req, res) {
-  if (req.method === "OPTIONS") {
-    res.status(204).end();
-    return;
-  }
+  try {
+    if (req.method === "OPTIONS") {
+      res.status(204).end();
+      return;
+    }
 
-  if (req.method !== "GET") {
-    res.setHeader("Allow", "GET, OPTIONS");
-    res.status(405).json({ ok: false, error: "Metodo nao permitido." });
-    return;
-  }
+    if (req.method !== "GET") {
+      res.setHeader("Allow", "GET, OPTIONS");
+      res.status(405).json({ ok: false, error: "Metodo nao permitido." });
+      return;
+    }
 
-  const auth = await requireAdminNode(req);
-  if (!auth.ok) {
-    res.status(auth.status || 401).json({ ok: false, error: auth.error || "Nao autorizado." });
-    return;
-  }
+    const auth = await requireAdminNode(req);
+    if (!auth.ok) {
+      res.status(auth.status || 401).json({
+        ok: false,
+        error: auth.error || "Nao autorizado.",
+        errorType: auth.errorType || "authentication",
+        details: auth.details || null,
+      });
+      return;
+    }
 
-  const includeHealth = parseBoolean(req.query?.include_health, false);
-  const providers = listLawdeskProviders(process.env);
-  const defaultProvider = getDefaultLawdeskProvider(process.env);
-  const health = includeHealth ? await runLawdeskProvidersHealth(process.env).catch(() => null) : null;
-  res.status(200).json({
-    ok: true,
-    data: {
-      providers: health?.providers || providers,
-      health,
-      defaultProvider,
-    },
-  });
+    const includeHealth = parseBoolean(req.query?.include_health, false);
+    const providers = listLawdeskProviders(process.env);
+    const defaultProvider = getDefaultLawdeskProvider(process.env);
+
+    let health = null;
+    if (includeHealth) {
+      try {
+        health = await runLawdeskProvidersHealth(process.env);
+      } catch (error) {
+        health = {
+          ok: false,
+          loaded: false,
+          status: "failed",
+          error: error?.message || "Falha ao executar health dos providers.",
+          providers,
+          summary: {
+            total: providers.length,
+            operational: 0,
+            configured: providers.filter((item) => item?.configured).length,
+            failed: providers.length,
+            defaultProvider,
+          },
+        };
+      }
+    }
+
+    res.status(200).json({
+      ok: true,
+      data: {
+        providers: health?.providers || providers,
+        health,
+        defaultProvider,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error?.message || "Falha ao carregar admin-lawdesk-providers.",
+    });
+  }
 }

@@ -10,6 +10,16 @@ function getBearerToken(request) {
   return header.slice("Bearer ".length).trim();
 }
 
+function buildAdminAuthFailure(status, error, errorType, details = null) {
+  return {
+    ok: false,
+    status,
+    error,
+    errorType,
+    details: details || null,
+  };
+}
+
 async function getSupabaseUser(env, accessToken) {
   const baseUrl = getSupabaseBaseUrl(env);
   const apiKey = getSupabaseApiKey(env);
@@ -54,19 +64,41 @@ export async function requireAdminAccess(request, env) {
   const serverKey = getSupabaseServerKey(env);
 
   if (!accessToken) {
-    return { ok: false, status: 401, error: "Token administrativo ausente." };
+    return buildAdminAuthFailure(401, "Token administrativo ausente.", "missing_token");
   }
 
   if (!serverKey) {
-    return { ok: false, status: 500, error: "SUPABASE_SERVICE_ROLE_KEY ausente no ambiente." };
+    return buildAdminAuthFailure(500, "SUPABASE_SERVICE_ROLE_KEY ausente no ambiente.", "server_key_missing");
   }
 
-  const user = await getSupabaseUser(env, accessToken);
+  let user = null;
+  try {
+    user = await getSupabaseUser(env, accessToken);
+  } catch (error) {
+    return buildAdminAuthFailure(
+      503,
+      error?.message || "Falha ao validar sessao administrativa.",
+      "auth_provider_unavailable",
+      { stage: "supabase_user" }
+    );
+  }
+
   if (!user?.id) {
-    return { ok: false, status: 401, error: "Sessao administrativa invalida ou expirada." };
+    return buildAdminAuthFailure(401, "Sessao administrativa invalida ou expirada.", "invalid_session");
   }
 
-  const profile = await getAdminProfile(env, user.id);
+  let profile = null;
+  try {
+    profile = await getAdminProfile(env, user.id);
+  } catch (error) {
+    return buildAdminAuthFailure(
+      503,
+      error?.message || "Falha ao carregar perfil administrativo.",
+      "admin_profile_unavailable",
+      { stage: "admin_profile" }
+    );
+  }
+
   if ((!profile || !profile.is_active) && isFallbackSuperadminIdentity(user)) {
     return {
       ok: true,
@@ -76,7 +108,7 @@ export async function requireAdminAccess(request, env) {
   }
 
   if (!profile || !profile.is_active) {
-    return { ok: false, status: 403, error: "Usuario autenticado sem perfil administrativo ativo." };
+    return buildAdminAuthFailure(403, "Usuario autenticado sem perfil administrativo ativo.", "inactive_profile");
   }
 
   return {

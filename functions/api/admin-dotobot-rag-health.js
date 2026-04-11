@@ -15,7 +15,12 @@ async function onRequestGet(context) {
   const { request, env } = context;
   const auth = await requireAdminAccess(request, env);
   if (!auth.ok) {
-    return new Response(JSON.stringify({ ok: false, error: auth.error }), {
+    return new Response(JSON.stringify({
+      ok: false,
+      error: auth.error,
+      errorType: auth.errorType || "authentication",
+      details: auth.details || null,
+    }), {
       status: auth.status,
       headers: JSON_HEADERS,
     });
@@ -48,4 +53,3 @@ async function onRequestGet(context) {
 }
 
 export default { onRequestGet };
-

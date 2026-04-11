@@ -47,6 +47,7 @@ const NAV_ITEMS = [
   { href: "/interno/contacts", label: "Contatos" },
   { href: "/interno/agentlab", label: "AgentLab" },
   { href: "/interno/integration-kit", label: "Integration Kit" },
+  { href: "/interno/setup-integracao", label: "Setup Inicial" },
   { href: "/llm-test", label: "LLM Test" },
   { href: "/interno/posts", label: "Conteudo" },
   { href: "/interno/agendamentos", label: "Agenda" },
@@ -854,14 +855,7 @@ function getBulkGuardrail(logPane, paneRisk, paneSla, paneEntries = []) {
 }
 
 function getConsoleHeightLimits() {
-  if (typeof window === "undefined") {
-    return { min: 160, max: 320, preferred: 220 };
-  }
-  const viewportHeight = window.innerHeight || 900;
-  const min = 160;
-  const max = Math.max(220, Math.min(360, Math.round(viewportHeight * 0.34)));
-  const preferred = Math.max(min, Math.min(max, Math.round(viewportHeight * 0.24)));
-  return { min, max, preferred };
+  return { min: 180, max: 260, preferred: 220 };
 }
 
 export default function InternoLayout({

@@ -2,8 +2,9 @@
 
 const fs = require('fs');
 const path = require('path');
+const { loadRuntimeEnv, resolveFieldMap } = require('../lib/integration-kit/runtime');
 
-loadLocalEnv();
+const runtime = loadRuntimeEnv(process.cwd(), process.env);
 
 async function main() {
   const limit = sanitizePositiveInt(process.argv[2], 50);
@@ -103,20 +104,6 @@ function sanitizeReceivableId(value) {
     return text;
   }
   return null;
-}
-
-function loadLocalEnv() {
-  const envPath = path.join(process.cwd(), '.dev.vars');
-  if (!fs.existsSync(envPath)) return;
-  const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
-  for (const line of lines) {
-    if (!line || line.trim().startsWith('#')) continue;
-    const idx = line.indexOf('=');
-    if (idx === -1) continue;
-    const key = line.slice(0, idx).trim();
-    const value = line.slice(idx + 1);
-    if (key && process.env[key] === undefined) process.env[key] = value;
-  }
 }
 
 function resolveFreshsalesBases() {
@@ -644,7 +631,7 @@ function buildDealName(row, contract, product) {
 }
 
 function buildExternalReference(row) {
-  return `hmadv-receivable-${row.id}`;
+  return `${process.env.INTEGRATION_WORKSPACE_SLUG || 'workspace'}-receivable-${row.id}`;
 }
 
 function normalizeFreshsalesDealId(value) {
@@ -795,6 +782,7 @@ function currentDateIso() {
 }
 
 function getBillingConfig() {
+  const bundleFieldMap = resolveFieldMap(runtime);
   return {
     ownerId: cleanValue(process.env.FRESHSALES_OWNER_ID),
     defaultDealPipelineId: cleanValue(process.env.FRESHSALES_DEFAULT_DEAL_PIPELINE_ID) || '31000060365',
@@ -809,7 +797,7 @@ function getBillingConfig() {
       cancelado: '31000423217',
     }),
     dealTypeIdMap: parseJsonEnv(process.env.FRESHSALES_BILLING_DEAL_TYPE_ID_MAP, {}),
-    dealFieldMap: parseJsonEnv(process.env.FRESHSALES_BILLING_DEAL_FIELD_MAP, {
+    dealFieldMap: Object.keys(bundleFieldMap || {}).length ? bundleFieldMap : parseJsonEnv(process.env.FRESHSALES_BILLING_DEAL_FIELD_MAP, {
       external_reference: 'cf_hmadv_external_reference',
       invoice_number: 'cf_hmadv_invoice_number',
       receivable_status: 'cf_hmadv_receivable_status',

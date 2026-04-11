@@ -1,0 +1,156 @@
+param(
+  [string]$BaseUrl = "https://ai.hermidamaia.adv.br",
+  [string]$SharedSecret = ""
+)
+
+$ErrorActionPreference = "Stop"
+
+function Invoke-JsonRequest {
+  param(
+    [string]$Uri,
+    [string]$Method = "GET",
+    [hashtable]$Headers = @{},
+    [object]$Body = $null
+  )
+
+  $requestParams = @{
+    Uri = $Uri
+    Method = $Method
+    Headers = $Headers
+    TimeoutSec = 30
+    UseBasicParsing = $true
+  }
+
+  if ($Body -ne $null) {
+    $requestParams.ContentType = "application/json"
+    $requestParams.Body = ($Body | ConvertTo-Json -Depth 8)
+  }
+
+  try {
+    $response = Invoke-WebRequest @requestParams
+    return @{
+      ok = $true
+      status = [int]$response.StatusCode
+      data = ($response.Content | ConvertFrom-Json)
+      raw = $response.Content
+    }
+  } catch {
+    $status = $null
+    $raw = ""
+    if ($_.Exception.Response) {
+      $status = [int]$_.Exception.Response.StatusCode
+      $stream = $_.Exception.Response.GetResponseStream()
+      if ($stream) {
+        $reader = New-Object System.IO.StreamReader($stream)
+        $raw = $reader.ReadToEnd()
+      }
+    }
+
+    $parsed = $null
+    if ($raw) {
+      try {
+        $parsed = $raw | ConvertFrom-Json
+      } catch {
+        $parsed = $null
+      }
+    }
+
+    return @{
+      ok = $false
+      status = $status
+      data = $parsed
+      raw = $raw
+      error = $_.Exception.Message
+    }
+  }
+}
+
+function Get-Headers {
+  $headers = @{}
+  if (-not [string]::IsNullOrWhiteSpace($SharedSecret)) {
+    $headers["x-shared-secret"] = $SharedSecret
+  }
+  return $headers
+}
+
+$base = $BaseUrl.Trim().TrimEnd("/")
+$headers = Get-Headers
+
+$health = Invoke-JsonRequest -Uri "$base/health" -Headers $headers
+$executeBody = @{
+  query = "diagnostico smoke"
+  context = @{
+    route = "/diagnose-hmadv-process-ai"
+    assistant = @{
+      role = "diagnostics"
+      mode = "analysis"
+    }
+  }
+}
+$execute = Invoke-JsonRequest -Uri "$base/execute" -Method "POST" -Headers $headers -Body $executeBody
+$executeV1 = Invoke-JsonRequest -Uri "$base/v1/execute" -Method "POST" -Headers $headers -Body $executeBody
+
+$healthData = $health.data
+$routes = @()
+if ($healthData -and $healthData.routes) {
+  $routes = @($healthData.routes)
+}
+
+$report = [ordered]@{
+  baseUrl = $base
+  health = [ordered]@{
+    ok = $health.ok
+    status = $health.status
+    service = $healthData.service
+    now = $healthData.now
+    routes = $routes
+    authConfigured = $healthData.auth_configured
+    vectorize = $healthData.vectorize
+    d1 = $healthData.d1
+    kv = $healthData.kv
+    r2 = $healthData.r2
+    raw = if ($health.ok) { $healthData } else { $health.raw }
+  }
+  execute = [ordered]@{
+    ok = $execute.ok
+    status = $execute.status
+    error = if ($execute.data.error) { $execute.data.error } else { $execute.error }
+    resultTextPreview = if ($execute.data.resultText) { [string]$execute.data.resultText.Substring(0, [Math]::Min(160, $execute.data.resultText.Length)) } else { $null }
+    raw = if ($execute.ok) { $execute.data } else { $execute.raw }
+  }
+  executeV1 = [ordered]@{
+    ok = $executeV1.ok
+    status = $executeV1.status
+    error = if ($executeV1.data.error) { $executeV1.data.error } else { $executeV1.error }
+    resultTextPreview = if ($executeV1.data.resultText) { [string]$executeV1.data.resultText.Substring(0, [Math]::Min(160, $executeV1.data.resultText.Length)) } else { $null }
+    raw = if ($executeV1.ok) { $executeV1.data } else { $executeV1.raw }
+  }
+  diagnosis = @()
+}
+
+if (-not $health.ok) {
+  $report.diagnosis += "Health falhou. Prioridade total em disponibilidade do worker."
+}
+if ($execute.ok -and $executeV1.ok) {
+  $report.diagnosis += "As rotas /execute e /v1/execute responderam com sucesso."
+}
+if ($execute.ok -and -not $executeV1.ok) {
+  $report.diagnosis += "A rota /execute respondeu, mas /v1/execute falhou. Ha divergencia de runtime ou deploy parcial."
+}
+if (-not $execute.ok -and $executeV1.ok) {
+  $report.diagnosis += "A rota /v1/execute respondeu, mas /execute falhou. Ha divergencia de runtime ou deploy parcial."
+}
+if (-not $execute.ok -and -not $executeV1.ok) {
+  $report.diagnosis += "As rotas /execute e /v1/execute falharam. A camada de execucao do worker nao esta estavel."
+}
+if ($health.ok -and (-not $routes -or $routes.Count -eq 0)) {
+  $report.diagnosis += "O health nao anuncia rotas suportadas. Isso sugere deploy antigo do payload de health ou build remoto ainda sem fingerprint novo."
+}
+if ($health.ok -and $execute.ok -and $executeV1.ok) {
+  $report.diagnosis += "Se o provider gpt segue falhando na aplicacao, revise PROCESS_AI_BASE/LAWDESK_AI_BASE_URL, cache de build e secrets do app, nao o worker."
+}
+if ($health.ok -and $healthData.auth_configured -eq $false) {
+  $report.diagnosis += "O worker publico esta sem secret configurado; isso merece endurecimento antes de producao."
+}
+
+$report | ConvertTo-Json -Depth 8

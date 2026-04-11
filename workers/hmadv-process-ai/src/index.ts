@@ -881,10 +881,13 @@ export default {
 
     const url = new URL(req.url);
     if (req.method === 'GET' && url.pathname === '/health') {
+      const sharedSecretConfigured = Boolean(getSharedSecret(env));
       return json({
         ok: true,
         service: 'hmadv-process-ai',
         now: new Date().toISOString(),
+        routes: ['/health', '/execute', '/v1/execute', '/analyze/activity', '/analyze/process', '/cron/reconcile', '/reconcile/process'],
+        auth_configured: sharedSecretConfigured,
         vectorize: Boolean(env.VECTORIZE),
         analytics_engine: Boolean(env.ANALYTICS_ENGINE),
         kv: Boolean(env.CLOUDFLARE_KV_NAMESPACE),

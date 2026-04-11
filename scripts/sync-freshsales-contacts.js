@@ -2,11 +2,12 @@
 
 const fs = require('fs');
 const path = require('path');
+const { loadRuntimeEnv, resolveWorkspaceId } = require('../lib/integration-kit/runtime');
 
-loadLocalEnv();
+const runtime = loadRuntimeEnv(process.cwd(), process.env);
 
 async function main() {
-  const workspaceId = process.argv[2] || process.env.HMADV_WORKSPACE_ID || null;
+  const workspaceId = process.argv[2] || resolveWorkspaceId(runtime) || null;
   let snapshots = await safeLoadSnapshots(
     "freshsales_sync_snapshots?entity=eq.contacts&select=source_id,display_name,emails,phones,custom_attributes,raw_payload,synced_at"
   );
@@ -484,20 +485,6 @@ async function fetchFreshsalesContactsLive() {
   }
 
   throw new Error(attemptErrors.join(' | ') || 'Freshsales contacts request failed');
-}
-
-function loadLocalEnv() {
-  const envPath = path.join(process.cwd(), '.dev.vars');
-  if (!fs.existsSync(envPath)) return;
-  const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
-  for (const line of lines) {
-    if (!line || line.trim().startsWith('#')) continue;
-    const idx = line.indexOf('=');
-    if (idx === -1) continue;
-    const key = line.slice(0, idx).trim();
-    const value = line.slice(idx + 1);
-    if (key && process.env[key] === undefined) process.env[key] = value;
-  }
 }
 
 function asArray(value) {

@@ -114,6 +114,98 @@ registerTest("runLawdeskProvidersHealth marks gpt degraded when health is ok but
     assert.equal(gpt.status, "degraded");
     assert.match(gpt.reason, /execute/i);
     assert.equal(gpt.details.executeProbe.ok, false);
+    assert.equal(gpt.details.executeProbe.failedRoutes.length, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+registerTest("runLawdeskProvidersHealth marks gpt degraded when execute routes diverge", async () => {
+  const providers = await loadProvidersModule();
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url) => {
+    if (String(url) === "https://ai.example.test/health") {
+      return new Response(JSON.stringify({ ok: true, service: "hmadv-process-ai" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (String(url) === "https://ai.example.test/execute") {
+      return new Response(JSON.stringify({ ok: true, status: "ok", resultText: "pong" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (String(url) === "https://ai.example.test/v1/execute") {
+      return new Response(JSON.stringify({ error: "not_found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    throw new Error(`Unexpected fetch in gpt route divergence test: ${url}`);
+  };
+
+  try {
+    const health = await providers.runLawdeskProvidersHealth({
+      PROCESS_AI_BASE: "https://ai.example.test",
+    });
+    const gpt = health.providers.find((item) => item.id === "gpt");
+
+    assert.equal(gpt.status, "degraded");
+    assert.match(gpt.reason, /divergencia/i);
+    assert.equal(gpt.details.executeProbe.ok, false);
+    assert.equal(gpt.details.executeProbe.partiallyOk, true);
+    assert.deepEqual(gpt.details.executeProbe.successfulRoutes, ["https://ai.example.test/execute"]);
+    assert.deepEqual(gpt.details.executeProbe.failedRoutes, ["https://ai.example.test/v1/execute"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+registerTest("runLawdeskProvidersHealth exposes resolved primary backend config metadata", async () => {
+  const providers = await loadProvidersModule();
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url) => {
+    if (String(url) === "https://ai.hermidamaia.adv.br/health") {
+      return new Response(JSON.stringify({
+        ok: true,
+        service: "hmadv-process-ai",
+        routes: ["/health", "/execute", "/v1/execute"],
+        auth_configured: true,
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (String(url) === "https://ai.hermidamaia.adv.br/execute") {
+      return new Response(JSON.stringify({ ok: true, status: "ok", resultText: "pong" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (String(url) === "https://ai.hermidamaia.adv.br/v1/execute") {
+      return new Response(JSON.stringify({ ok: true, status: "ok", resultText: "pong" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    throw new Error(`Unexpected fetch in primary backend metadata test: ${url}`);
+  };
+
+  try {
+    const health = await providers.runLawdeskProvidersHealth({
+      PROCESS_AI_BASE: "https://ai.hermidamaia.adv.br/",
+      HMDAV_AI_SHARED_SECRET: "secret-value",
+    });
+    const gpt = health.providers.find((item) => item.id === "gpt");
+
+    assert.equal(gpt.status, "operational");
+    assert.equal(gpt.details.config.baseUrl, "https://ai.hermidamaia.adv.br");
+    assert.equal(gpt.details.config.host, "ai.hermidamaia.adv.br");
+    assert.equal(gpt.details.config.baseUrlSource, "PROCESS_AI_BASE");
+    assert.equal(gpt.details.health.auth_configured, true);
   } finally {
     globalThis.fetch = originalFetch;
   }

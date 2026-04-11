@@ -24,6 +24,13 @@ function sendError(res, message, status = 500, extra = {}) {
   );
 }
 
+function sendAdminAuthError(res, auth) {
+  sendError(res, auth?.error || "Nao autorizado.", auth?.status || 401, {
+    errorType: auth?.errorType || "authentication",
+    details: auth?.details || null,
+  });
+}
+
 async function handleTaskRunAction(action, body) {
   const features = buildFeatureFlags(process.env);
 
@@ -72,7 +79,7 @@ export default async function handler(req, res) {
 
   const auth = await requireAdminNode(req);
   if (!auth.ok) {
-    sendError(res, auth.error, auth.status);
+    sendAdminAuthError(res, auth);
     return;
   }
 

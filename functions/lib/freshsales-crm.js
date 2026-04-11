@@ -68,6 +68,13 @@ function tokenNeedsFreshsalesGeneralScopeRefresh(token) {
   return requiredScopes.some((scope) => !scopes.includes(scope));
 }
 
+function isOauthAuthFailure(error) {
+  const status = Number(error?.status || 0);
+  const message = String(error?.message || "");
+  const payloadText = JSON.stringify(error?.payload || {});
+  return status === 401 && /invalid signature|token has expired|login failed|invalid scopes/i.test(`${message} ${payloadText}`);
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -466,83 +473,110 @@ async function getAuthHeaders(env) {
   return headers;
 }
 
-export async function freshsalesRequest(env, path, init = {}) {
-  const candidates = buildCandidates(env);
-  const authHeaders = await getAuthHeaders(env);
-  if (!candidates.length || !authHeaders.length) {
-    throw new Error("Credenciais do Freshsales ausentes no ambiente.");
+async function forceRefreshFreshsalesOauthToken(env) {
+  let row = await getStoredOauthRow(env);
+  if (!row) {
+    const seeded = await seedOauthRowFromEnv(env);
+    if (seeded) row = await getStoredOauthRow(env);
   }
+  const refreshToken = getCleanEnvValue(row?.refresh_token) || getCleanEnvValue(env.FRESHSALES_REFRESH_TOKEN);
+  if (!refreshToken) return null;
+  const refreshed = await refreshOauthRow(env, refreshToken);
+  if (refreshed) env.FRESHSALES_ACCESS_TOKEN = refreshed;
+  return refreshed;
+}
 
+export async function freshsalesRequest(env, path, init = {}) {
+  let refreshedAfter401 = false;
   let lastError = null;
   const attemptedAuthModes = [];
-  for (const base of candidates) {
-    for (const authEntry of authHeaders) {
-      const authHeader = authEntry?.header || {};
-      const authName = String(authEntry?.name || "unknown");
-      if (!attemptedAuthModes.includes(authName)) attemptedAuthModes.push(authName);
-      for (let attempt = 0; attempt < 4; attempt += 1) {
-        const response = await fetchWithTimeout(`${base}${path}`, {
-          ...init,
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-            ...authHeader,
-            ...(init.headers || {}),
-          },
-        }).catch((error) => {
-          lastError = error;
-          return null;
-        });
 
-        if (!response) continue;
+  for (let cycle = 0; cycle < 2; cycle += 1) {
+    const candidates = buildCandidates(env);
+    const authHeaders = await getAuthHeaders(env);
+    if (!candidates.length || !authHeaders.length) {
+      throw new Error("Credenciais do Freshsales ausentes no ambiente.");
+    }
 
-        const payload = await response.json().catch(() => ({}));
-        if (response.status === 429 && attempt < 3) {
-          const retryMs = parseRetryAfterMs(response) ?? (1500 * (attempt + 1));
-          await sleep(retryMs);
-          continue;
+    lastError = null;
+    for (const base of candidates) {
+      for (const authEntry of authHeaders) {
+        const authHeader = authEntry?.header || {};
+        const authName = String(authEntry?.name || "unknown");
+        if (!attemptedAuthModes.includes(authName)) attemptedAuthModes.push(authName);
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+          const response = await fetchWithTimeout(`${base}${path}`, {
+            ...init,
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+              ...authHeader,
+              ...(init.headers || {}),
+            },
+          }).catch((error) => {
+            lastError = error;
+            return null;
+          });
+
+          if (!response) continue;
+
+          const payload = await response.json().catch(() => ({}));
+          if (response.status === 429 && attempt < 3) {
+            const retryMs = parseRetryAfterMs(response) ?? (1500 * (attempt + 1));
+            await sleep(retryMs);
+            continue;
+          }
+          if (!response.ok) {
+            const err = new Error(
+              payload.message ||
+                payload.error ||
+                `Freshsales request failed with status ${response.status} (${base}${path})`
+            );
+            err.status = response.status;
+            err.payload = payload;
+            err.base = base;
+            err.path = path;
+            lastError = err;
+            break;
+          }
+
+          const method = String(init?.method || "GET").toUpperCase();
+          const expectsEntityPayload =
+            method === "GET" &&
+            (/^\/contacts(\/|$)/.test(String(path || "")) ||
+              /^\/sales_accounts(\/|$)/.test(String(path || "")) ||
+              /^\/deals(\/|$)/.test(String(path || "")));
+          const expectsCatalogPayload =
+            method === "GET" &&
+            (/^\/selector\//.test(String(path || "")) ||
+              /^\/settings\//.test(String(path || "")));
+          const emptyPayload =
+            payload &&
+            !Array.isArray(payload) &&
+            typeof payload === "object" &&
+            !Object.keys(payload).length;
+          const baseLooksGenericApi = /\/api$/i.test(String(base || "")) && !/\/crm\/sales\/api$/i.test(String(base || ""));
+          if ((expectsEntityPayload || expectsCatalogPayload) && emptyPayload && baseLooksGenericApi) {
+            lastError = new Error(`Freshsales retornou payload vazio em base generica (${base}${path}); tentando proxima base.`);
+            continue;
+          }
+
+          return {
+            payload,
+            base,
+          };
         }
-        if (!response.ok) {
-          const err = new Error(
-            payload.message ||
-              payload.error ||
-              `Freshsales request failed with status ${response.status} (${base}${path})`
-          );
-          err.status = response.status;
-          err.payload = payload;
-          err.base = base;
-          err.path = path;
-          lastError = err;
-          break;
-        }
-
-        const method = String(init?.method || "GET").toUpperCase();
-        const expectsEntityPayload =
-          method === "GET" &&
-          (/^\/contacts(\/|$)/.test(String(path || "")) ||
-            /^\/sales_accounts(\/|$)/.test(String(path || "")) ||
-            /^\/deals(\/|$)/.test(String(path || "")));
-        const expectsCatalogPayload =
-          method === "GET" &&
-          (/^\/selector\//.test(String(path || "")) ||
-            /^\/settings\//.test(String(path || "")));
-        const emptyPayload =
-          payload &&
-          !Array.isArray(payload) &&
-          typeof payload === "object" &&
-          !Object.keys(payload).length;
-        const baseLooksGenericApi = /\/api$/i.test(String(base || "")) && !/\/crm\/sales\/api$/i.test(String(base || ""));
-        if ((expectsEntityPayload || expectsCatalogPayload) && emptyPayload && baseLooksGenericApi) {
-          lastError = new Error(`Freshsales retornou payload vazio em base generica (${base}${path}); tentando proxima base.`);
-          continue;
-        }
-
-        return {
-          payload,
-          base,
-        };
       }
     }
+
+    if (!refreshedAfter401 && isOauthAuthFailure(lastError)) {
+      const refreshed = await forceRefreshFreshsalesOauthToken(env);
+      if (refreshed) {
+        refreshedAfter401 = true;
+        continue;
+      }
+    }
+    break;
   }
 
   if (Number(lastError?.status) === 401) {

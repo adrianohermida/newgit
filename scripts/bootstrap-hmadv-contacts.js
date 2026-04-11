@@ -2,8 +2,9 @@
 
 const fs = require('fs');
 const path = require('path');
+const { loadRuntimeEnv } = require('../lib/integration-kit/runtime');
 
-loadLocalEnv();
+loadRuntimeEnv(process.cwd(), process.env);
 
 async function main() {
   const limit = Number(process.argv[2] || '100');
@@ -98,20 +99,6 @@ async function main() {
   }, null, 2));
 }
 
-function loadLocalEnv() {
-  const envPath = path.join(process.cwd(), '.dev.vars');
-  if (!fs.existsSync(envPath)) return;
-  const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
-  for (const line of lines) {
-    if (!line || line.trim().startsWith('#')) continue;
-    const idx = line.indexOf('=');
-    if (idx === -1) continue;
-    const key = line.slice(0, idx).trim();
-    const value = line.slice(idx + 1);
-    if (key && process.env[key] === undefined) process.env[key] = value;
-  }
-}
-
 function buildContactUpsertPayload(row) {
   const { first_name, last_name } = splitName(row.person_name);
   return {
@@ -188,8 +175,9 @@ function buildContactPayloadVariants(row) {
 
 function splitName(fullName) {
   const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return { first_name: 'Cliente', last_name: 'HMADV' };
-  if (parts.length === 1) return { first_name: parts[0], last_name: 'HMADV' };
+  const fallbackLastName = process.env.INTEGRATION_WORKSPACE_SLUG || 'Workspace';
+  if (!parts.length) return { first_name: 'Cliente', last_name: fallbackLastName };
+  if (parts.length === 1) return { first_name: parts[0], last_name: fallbackLastName };
   return { first_name: parts[0], last_name: parts.slice(1).join(' ') };
 }
 
@@ -237,7 +225,7 @@ function freshsalesHeaderCandidates() {
     candidates.push({
       Accept: 'application/json',
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Authtoken=${accessToken}`,
     });
   }
   if (!candidates.length) throw new Error('Credenciais do Freshsales ausentes');

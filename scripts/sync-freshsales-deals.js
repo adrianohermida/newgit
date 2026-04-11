@@ -2,8 +2,9 @@
 
 const fs = require('fs');
 const path = require('path');
+const { loadRuntimeEnv, resolveFieldMap, resolveFreshsalesStageMap } = require('../lib/integration-kit/runtime');
 
-loadLocalEnv();
+const runtime = loadRuntimeEnv(process.cwd(), process.env);
 
 async function main() {
   const args = process.argv.slice(2);
@@ -11,7 +12,7 @@ async function main() {
   const filteredArgs = args.filter((item) => item !== '--apply-status');
   const limit = sanitizePositiveInt(filteredArgs[0], 200);
   const specificDealId = sanitizeNumericId(filteredArgs[1]);
-  const outputPath = filteredArgs[2] || path.join(process.cwd(), 'out', `freshsales-deals-sync-${Date.now()}.json`);
+  const outputPath = filteredArgs[2] || path.join(process.cwd(), 'setup', 'integration-kit', 'generated', runtime.workspaceSlug || 'workspace-template', `freshsales-deals-sync-${Date.now()}.json`);
 
   const liveDeals = await loadFreshsalesDeals(limit, specificDealId);
   if (!liveDeals.length) {
@@ -94,20 +95,6 @@ function sanitizeNumericId(value) {
   return /^\d+$/.test(text) ? text : null;
 }
 
-function loadLocalEnv() {
-  const envPath = path.join(process.cwd(), '.dev.vars');
-  if (!fs.existsSync(envPath)) return;
-  const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
-  for (const line of lines) {
-    if (!line || line.trim().startsWith('#')) continue;
-    const idx = line.indexOf('=');
-    if (idx === -1) continue;
-    const key = line.slice(0, idx).trim();
-    const value = line.slice(idx + 1);
-    if (key && process.env[key] === undefined) process.env[key] = value;
-  }
-}
-
 function ensureParentDir(filePath) {
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -164,15 +151,17 @@ function buildExternalReference(receivableId) {
 }
 
 function getBillingConfig() {
+  const bundleFieldMap = resolveFieldMap(runtime);
+  const bundleStageMap = resolveFreshsalesStageMap(runtime);
   return {
-    fieldMap: parseJsonEnv(process.env.FRESHSALES_BILLING_DEAL_FIELD_MAP, {
+    fieldMap: Object.keys(bundleFieldMap || {}).length ? bundleFieldMap : parseJsonEnv(process.env.FRESHSALES_BILLING_DEAL_FIELD_MAP, {
       external_reference: 'cf_hmadv_external_reference',
       invoice_number: 'cf_hmadv_invoice_number',
       receivable_status: 'cf_hmadv_receivable_status',
       billing_type: 'cf_hmadv_billing_type',
       process_reference: 'cf_hmadv_process_reference',
     }),
-    stageIdMap: parseJsonEnv(process.env.FRESHSALES_BILLING_DEAL_STAGE_ID_MAP, {}),
+    stageIdMap: Object.keys(bundleStageMap || {}).length ? bundleStageMap : parseJsonEnv(process.env.FRESHSALES_BILLING_DEAL_STAGE_ID_MAP, {}),
   };
 }
 

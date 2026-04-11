@@ -162,7 +162,12 @@ async function runNodeScript(scriptName, args = [], envOverrides = {}) {
 export default async function handler(req, res) {
   const auth = await requireAdminNode(req);
   if (!auth.ok) {
-    return res.status(auth.status).json({ ok: false, error: auth.error });
+    return res.status(auth.status).json({
+      ok: false,
+      error: auth.error,
+      errorType: auth.errorType || "authentication",
+      details: auth.details || null,
+    });
   }
 
   try {

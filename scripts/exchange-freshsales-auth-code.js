@@ -10,7 +10,7 @@ loadLocalEnv();
 async function main() {
   const args = process.argv.slice(2);
   const kind = resolveKind(args);
-  const code = cleanValue(args.find((arg) => !String(arg).startsWith('--') && arg !== 'deals' && arg !== 'contacts'));
+  const code = cleanValue(args.find((arg) => !String(arg).startsWith('--') && arg !== 'deals' && arg !== 'contacts' && arg !== 'products'));
   const orgDomain = resolveOrgDomain();
   const clientId = resolveOauthClientId(kind);
   const clientSecret = resolveOauthClientSecret(kind);
@@ -51,11 +51,11 @@ async function main() {
   const expiresIn = Number(payload.expires_in || 1799);
   const expiryEpochMs = Date.now() + expiresIn * 1000;
   persistEnvUpdates({
-    FRESHSALES_ACCESS_TOKEN: payload.access_token,
-    FRESHSALES_REFRESH_TOKEN: cleanValue(payload.refresh_token) || '',
-    FRESHSALES_EXPIRES_IN: String(expiresIn),
-    FRESHSALES_TOKEN_EXPIRY: String(expiryEpochMs),
-    FRESHSALES_TOKEN_TYPE: cleanValue(payload.token_type) || 'Bearer',
+    [resolveAccessTokenEnvKey(kind)]: payload.access_token,
+    [resolveRefreshTokenEnvKey(kind)]: cleanValue(payload.refresh_token) || '',
+    [resolveExpiresInEnvKey(kind)]: String(expiresIn),
+    [resolveTokenExpiryEnvKey(kind)]: String(expiryEpochMs),
+    [resolveTokenTypeEnvKey(kind)]: cleanValue(payload.token_type) || 'Bearer',
     FRESHSALES_ORG_DOMAIN: orgDomain,
   });
 
@@ -90,10 +90,21 @@ function cleanValue(value) {
 
 function resolveKind(args) {
   const joined = args.join(' ').toLowerCase();
-  return joined.includes('contacts') ? 'contacts' : 'deals';
+  if (joined.includes('products')) return 'products';
+  if (joined.includes('contacts')) return 'contacts';
+  return 'deals';
 }
 
 function resolveOauthClientId(kind) {
+  if (kind === 'products') {
+    return (
+      cleanValue(process.env.FRESHSALES_OAUTH_PRODUCTS_CLIENT_ID) ||
+      cleanValue(process.env.FRESHSALES_PRODUCT_OAUTH_CLIENT_ID) ||
+      cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
+      cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_ID) ||
+      cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID)
+    );
+  }
   if (kind === 'contacts') {
     return (
       cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID) ||
@@ -109,6 +120,15 @@ function resolveOauthClientId(kind) {
 }
 
 function resolveOauthClientSecret(kind) {
+  if (kind === 'products') {
+    return (
+      cleanValue(process.env.FRESHSALES_OAUTH_PRODUCTS_CLIENT_SECRET) ||
+      cleanValue(process.env.FRESHSALES_PRODUCT_OAUTH_CLIENT_SECRET) ||
+      cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
+      cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_SECRET) ||
+      cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET)
+    );
+  }
   if (kind === 'contacts') {
     return (
       cleanValue(process.env.FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET) ||
@@ -121,6 +141,36 @@ function resolveOauthClientSecret(kind) {
     cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_SECRET) ||
     cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET)
   );
+}
+
+function resolveAccessTokenEnvKey(kind) {
+  if (kind === 'products') return 'FRESHSALES_PRODUCTS_ACCESS_TOKEN';
+  if (kind === 'contacts') return 'FRESHSALES_CONTACTS_ACCESS_TOKEN';
+  return 'FRESHSALES_ACCESS_TOKEN';
+}
+
+function resolveRefreshTokenEnvKey(kind) {
+  if (kind === 'products') return 'FRESHSALES_PRODUCTS_REFRESH_TOKEN';
+  if (kind === 'contacts') return 'FRESHSALES_CONTACTS_REFRESH_TOKEN';
+  return 'FRESHSALES_REFRESH_TOKEN';
+}
+
+function resolveExpiresInEnvKey(kind) {
+  if (kind === 'products') return 'FRESHSALES_PRODUCTS_EXPIRES_IN';
+  if (kind === 'contacts') return 'FRESHSALES_CONTACTS_EXPIRES_IN';
+  return 'FRESHSALES_EXPIRES_IN';
+}
+
+function resolveTokenExpiryEnvKey(kind) {
+  if (kind === 'products') return 'FRESHSALES_PRODUCTS_TOKEN_EXPIRY';
+  if (kind === 'contacts') return 'FRESHSALES_CONTACTS_TOKEN_EXPIRY';
+  return 'FRESHSALES_TOKEN_EXPIRY';
+}
+
+function resolveTokenTypeEnvKey(kind) {
+  if (kind === 'products') return 'FRESHSALES_PRODUCTS_TOKEN_TYPE';
+  if (kind === 'contacts') return 'FRESHSALES_CONTACTS_TOKEN_TYPE';
+  return 'FRESHSALES_TOKEN_TYPE';
 }
 
 function resolveOrgDomain() {

@@ -3,8 +3,9 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { loadRuntimeEnv, resolveWorkspaceId } = require('../lib/integration-kit/runtime');
 
-loadLocalEnv();
+const runtime = loadRuntimeEnv(process.cwd(), process.env);
 
 async function main() {
   const args = process.argv.slice(2);
@@ -14,7 +15,7 @@ async function main() {
   const importLimit = sanitizePositiveInt(filteredArgs[0], 200);
   const publishLimit = sanitizePositiveInt(filteredArgs[1], 200);
   const crmLimit = sanitizePositiveInt(filteredArgs[2], 200);
-  const workspaceId = cleanValue(filteredArgs[3]) || cleanValue(process.env.HMADV_WORKSPACE_ID);
+  const workspaceId = cleanValue(filteredArgs[3]) || cleanValue(resolveWorkspaceId(runtime));
 
   const steps = [
     {
@@ -132,20 +133,6 @@ function runStep(command) {
 function isSkippableContactsAuthFailure(step) {
   const combined = `${step?.stdout || ''}\n${step?.stderr || ''}`;
   return step?.label === 'Sincronizar contatos do Freshsales' && /contacts request failed: 401|contacts request returned 403|Seguindo sem sync direto de contacts/i.test(combined);
-}
-
-function loadLocalEnv() {
-  const envPath = path.join(process.cwd(), '.dev.vars');
-  if (!fs.existsSync(envPath)) return;
-  const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
-  for (const line of lines) {
-    if (!line || line.trim().startsWith('#')) continue;
-    const idx = line.indexOf('=');
-    if (idx === -1) continue;
-    const key = line.slice(0, idx).trim();
-    const value = line.slice(idx + 1);
-    if (key && process.env[key] === undefined) process.env[key] = value;
-  }
 }
 
 main().catch((error) => {

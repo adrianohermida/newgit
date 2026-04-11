@@ -2,8 +2,9 @@
 
 const fs = require('fs');
 const path = require('path');
+const { loadRuntimeEnv, resolveWorkspaceId } = require('../lib/integration-kit/runtime');
 
-loadLocalEnv();
+const runtime = loadRuntimeEnv(process.cwd(), process.env);
 
 const DEFAULT_PRODUCTS = [
   {
@@ -81,7 +82,7 @@ const DEFAULT_PRODUCTS = [
 ];
 
 async function main() {
-  const workspaceId = process.argv[2] || process.env.HMADV_WORKSPACE_ID || null;
+  const workspaceId = process.argv[2] || resolveWorkspaceId(runtime) || null;
   const seededRows = DEFAULT_PRODUCTS.map((item) => ({ ...item, workspace_id: workspaceId }));
   await upsertProductsByName(seededRows);
 
@@ -129,20 +130,6 @@ async function main() {
     synced: syncedRows.length,
     source,
   }, null, 2));
-}
-
-function loadLocalEnv() {
-  const envPath = path.join(process.cwd(), '.dev.vars');
-  if (!fs.existsSync(envPath)) return;
-  const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
-  for (const line of lines) {
-    if (!line || line.trim().startsWith('#')) continue;
-    const idx = line.indexOf('=');
-    if (idx === -1) continue;
-    const key = line.slice(0, idx).trim();
-    const value = line.slice(idx + 1);
-    if (key && process.env[key] === undefined) process.env[key] = value;
-  }
 }
 
 function cleanValue(value) {
@@ -348,16 +335,130 @@ function resolveOrgDomain() {
 }
 
 async function getStoredOauthRow() {
-  const result = await supabaseRestRequest('freshsales_oauth_tokens?provider=eq.freshsales&select=access_token&limit=1');
+  const result = await supabaseRestRequest('freshsales_oauth_tokens?provider=eq.freshsales&select=provider,access_token,refresh_token,expires_at,token_type,scope,updated_at&limit=1');
   if (!result?.response?.ok) return null;
   return Array.isArray(result.payload) ? result.payload[0] || null : result.payload || null;
+}
+
+async function upsertStoredOauthRow(row) {
+  const result = await supabaseRestRequest('freshsales_oauth_tokens?on_conflict=provider', {
+    method: 'POST',
+    headers: {
+      Prefer: 'resolution=merge-duplicates,return=minimal',
+    },
+    body: JSON.stringify(row),
+  });
+  return Boolean(result?.response?.ok);
+}
+
+async function seedOauthRowFromEnv() {
+  const accessToken = cleanValue(process.env.FRESHSALES_PRODUCTS_ACCESS_TOKEN) || cleanValue(process.env.FRESHSALES_ACCESS_TOKEN);
+  const refreshToken = cleanValue(process.env.FRESHSALES_PRODUCTS_REFRESH_TOKEN) || cleanValue(process.env.FRESHSALES_REFRESH_TOKEN);
+  if (!accessToken || !refreshToken) return false;
+
+  const expiryTs = Number(cleanValue(process.env.FRESHSALES_TOKEN_EXPIRY) || '0');
+  const fallbackExpiresIn = Number(cleanValue(process.env.FRESHSALES_EXPIRES_IN) || '1799');
+  const expiresInSeconds = expiryTs > Date.now()
+    ? Math.max(30, Math.round((expiryTs - Date.now()) / 1000))
+    : fallbackExpiresIn;
+
+  return upsertStoredOauthRow({
+    provider: 'freshsales',
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expires_at: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),
+    token_type: cleanValue(process.env.FRESHSALES_PRODUCTS_TOKEN_TYPE) || cleanValue(process.env.FRESHSALES_TOKEN_TYPE) || 'Bearer',
+    scope: cleanValue(process.env.FRESHSALES_PRODUCTS_SCOPES) || cleanValue(process.env.FRESHSALES_DEALS_SCOPES) || cleanValue(process.env.FRESHSALES_DEAL_SCOPES) || cleanValue(process.env.FRESHSALES_SCOPES) || null,
+    updated_at: new Date().toISOString(),
+  });
+}
+
+function resolveRedirectUri() {
+  const supabaseUrl = cleanValue(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
+  return (
+    cleanValue(process.env.FRESHSALES_REDIRECT_URI) ||
+    cleanValue(process.env.REDIRECT_URI) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_CALLBACK_URL) ||
+    cleanValue(process.env.OAUTH_CALLBACK_URL) ||
+    (supabaseUrl ? `${supabaseUrl}/functions/v1/oauth` : null)
+  );
+}
+
+async function refreshOauthRow(refreshToken) {
+  const clientId =
+    cleanValue(process.env.FRESHSALES_OAUTH_PRODUCTS_CLIENT_ID) ||
+    cleanValue(process.env.FRESHSALES_PRODUCT_OAUTH_CLIENT_ID) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
+    cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_ID) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_ID);
+  const clientSecret =
+    cleanValue(process.env.FRESHSALES_OAUTH_PRODUCTS_CLIENT_SECRET) ||
+    cleanValue(process.env.FRESHSALES_PRODUCT_OAUTH_CLIENT_SECRET) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
+    cleanValue(process.env.FRESHSALES_DEAL_OAUTH_CLIENT_SECRET) ||
+    cleanValue(process.env.FRESHSALES_OAUTH_CLIENT_SECRET);
+  const orgDomain = resolveOrgDomain();
+  const redirectUri = resolveRedirectUri();
+  if (!clientId || !clientSecret || !orgDomain || !redirectUri || !refreshToken) return null;
+
+  const body = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+    redirect_uri: redirectUri,
+  });
+  const basicAuth = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`;
+
+  const response = await fetch(`https://${orgDomain}/org/oauth/v2/token`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: basicAuth,
+    },
+    body,
+  }).catch(() => null);
+
+  if (!response?.ok) return null;
+  const payload = await response.json().catch(() => ({}));
+  if (!payload?.access_token) return null;
+
+  await upsertStoredOauthRow({
+    provider: 'freshsales',
+    access_token: payload.access_token,
+    refresh_token: payload.refresh_token || refreshToken,
+    expires_at: new Date(Date.now() + Number(payload.expires_in || 1799) * 1000).toISOString(),
+    token_type: payload.token_type || 'Bearer',
+    scope: payload.scope || cleanValue(process.env.FRESHSALES_PRODUCTS_SCOPES) || cleanValue(process.env.FRESHSALES_DEALS_SCOPES) || cleanValue(process.env.FRESHSALES_DEAL_SCOPES) || cleanValue(process.env.FRESHSALES_SCOPES) || null,
+    updated_at: new Date().toISOString(),
+  });
+
+  process.env.FRESHSALES_PRODUCTS_ACCESS_TOKEN = payload.access_token;
+  return payload.access_token;
+}
+
+async function getSupabaseOauthAccessToken() {
+  let row = await getStoredOauthRow().catch(() => null);
+  if (!row) {
+    const seeded = await seedOauthRowFromEnv();
+    if (seeded) row = await getStoredOauthRow().catch(() => null);
+  }
+  if (!row?.access_token) return null;
+
+  const expiresAt = new Date(row.expires_at || 0).getTime();
+  const shouldRefresh = row.refresh_token && (!expiresAt || Date.now() >= expiresAt - 60_000);
+  if (shouldRefresh) {
+    const refreshed = await refreshOauthRow(row.refresh_token);
+    if (refreshed) return refreshed;
+    row = await getStoredOauthRow().catch(() => row);
+  }
+  return cleanValue(row?.access_token) || null;
 }
 
 async function freshsalesHeaderCandidates() {
   const apiKey = cleanValue(process.env.FRESHSALES_API_KEY);
   const basicAuth = cleanValue(process.env.FRESHSALES_BASIC_AUTH);
-  const accessToken = cleanValue(process.env.FRESHSALES_ACCESS_TOKEN);
-  const storedToken = cleanValue((await getStoredOauthRow())?.access_token);
+  const accessToken = cleanValue(process.env.FRESHSALES_PRODUCTS_ACCESS_TOKEN) || cleanValue(process.env.FRESHSALES_ACCESS_TOKEN);
+  const storedToken = await getSupabaseOauthAccessToken();
   const candidates = [];
 
   if (apiKey) {
@@ -391,29 +492,45 @@ async function freshsalesHeaderCandidates() {
   return candidates;
 }
 
+function isOauthAuthFailure(message) {
+  return /401:.*invalid scopes|401:.*invalid signature|401:.*token has expired|login\":\"failed\"/i.test(String(message || ''));
+}
+
 async function fetchFreshsalesProductsLive() {
   const attemptErrors = [];
-  for (const base of resolveFreshsalesBases()) {
-    for (const headers of await freshsalesHeaderCandidates()) {
-      for (const endpoint of ['/products/view/1?page=1&per_page=100', '/products']) {
-        const url = `${base}${endpoint}`;
-        const response = await fetch(url, { headers }).catch((error) => {
-          attemptErrors.push(`${url}: ${String(error.message || error)}`);
-          return null;
-        });
-        if (!response) continue;
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          attemptErrors.push(`${url} -> ${response.status}: ${payload.message || payload.error || JSON.stringify(payload).slice(0, 300)}`);
-          continue;
+  for (let cycle = 0; cycle < 2; cycle += 1) {
+    let sawOauthAuthFailure = false;
+    for (const base of resolveFreshsalesBases()) {
+      for (const headers of await freshsalesHeaderCandidates()) {
+        for (const endpoint of ['/products/view/1?page=1&per_page=100', '/products']) {
+          const url = `${base}${endpoint}`;
+          const response = await fetch(url, { headers }).catch((error) => {
+            attemptErrors.push(`${url}: ${String(error.message || error)}`);
+            return null;
+          });
+          if (!response) continue;
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            const message = `${url} -> ${response.status}: ${payload.message || payload.error || JSON.stringify(payload).slice(0, 300)}`;
+            attemptErrors.push(message);
+            if (isOauthAuthFailure(message)) sawOauthAuthFailure = true;
+            continue;
+          }
+          const products =
+            (Array.isArray(payload?.products) && payload.products) ||
+            (Array.isArray(payload) && payload) ||
+            [];
+          if (products.length) return products;
         }
-        const products =
-          (Array.isArray(payload?.products) && payload.products) ||
-          (Array.isArray(payload) && payload) ||
-          [];
-        if (products.length) return products;
       }
     }
+
+    if (cycle === 0 && sawOauthAuthFailure) {
+      const row = await getStoredOauthRow().catch(() => null);
+      const refreshed = await refreshOauthRow(cleanValue(row?.refresh_token) || cleanValue(process.env.FRESHSALES_REFRESH_TOKEN));
+      if (refreshed) continue;
+    }
+    break;
   }
 
   const scopeFailures = attemptErrors.length > 0 && attemptErrors.every((item) => /401:.*invalid scopes/i.test(item) || /401:.*invalid signature/i.test(item));

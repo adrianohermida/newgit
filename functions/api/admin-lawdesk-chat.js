@@ -26,6 +26,13 @@ function jsonError(message, status = 500, extra = {}) {
   );
 }
 
+function jsonAdminAuthError(auth) {
+  return jsonError(auth?.error || "Nao autorizado.", auth?.status || 401, {
+    errorType: auth?.errorType || "authentication",
+    details: auth?.details || null,
+  });
+}
+
 async function handleTaskRunAction(env, action, body) {
   const features = buildFeatureFlags(env);
 
@@ -71,7 +78,7 @@ export async function onRequest(context) {
 
   const auth = await requireAdminAccess(context.request, context.env);
   if (!auth.ok) {
-    return jsonError(auth.error, auth.status);
+    return jsonAdminAuthError(auth);
   }
 
   try {

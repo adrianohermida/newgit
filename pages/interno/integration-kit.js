@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import InternoLayout from "../../components/interno/InternoLayout";
-import RequireAdmin from "../../components/interno/RequireAdmin";
+import OptionalAdminAccess from "../../components/interno/OptionalAdminAccess";
 import { adminFetch } from "../../lib/admin/api";
+const {
+  ENV_DEFINITIONS,
+  buildPortableIntegrationBundle,
+  buildRequiredChecks,
+  formatEnvFile,
+} = require("../../lib/integration-kit/portable-preview");
 
 function Panel({ title, children }) {
   return (
@@ -22,6 +29,16 @@ function downloadText(filename, content, contentType = "application/json;charset
   URL.revokeObjectURL(url);
 }
 
+function buildLocalExportPayload() {
+  return {
+    ok: true,
+    bundle: buildPortableIntegrationBundle({}),
+    envTemplate: formatEnvFile(ENV_DEFINITIONS, {}),
+    requiredChecks: buildRequiredChecks({}),
+    sourceMode: "static-safe",
+  };
+}
+
 export default function IntegrationKitPage() {
   const [state, setState] = useState({ loading: true, error: "", data: null });
   const [activeFile, setActiveFile] = useState("integration.config.json");
@@ -30,14 +47,30 @@ export default function IntegrationKitPage() {
     let cancelled = false;
 
     async function load() {
+      const localPayload = buildLocalExportPayload();
+      if (!cancelled) {
+        setState({ loading: false, error: "", data: localPayload });
+      }
+
       try {
         const payload = await adminFetch("/api/admin-integration-kit-export", { method: "GET" }, { timeoutMs: 45_000, maxRetries: 1 });
         if (!cancelled) {
-          setState({ loading: false, error: "", data: payload });
+          setState({
+            loading: false,
+            error: "",
+            data: {
+              ...payload,
+              sourceMode: "admin-runtime",
+            },
+          });
         }
-      } catch (error) {
+      } catch {
         if (!cancelled) {
-          setState({ loading: false, error: error.message || "Falha ao carregar o integration kit.", data: null });
+          setState({
+            loading: false,
+            error: "",
+            data: localPayload,
+          });
         }
       }
     }
@@ -61,30 +94,56 @@ export default function IntegrationKitPage() {
   const activeContent = files[activeFile] || "";
   const requiredChecks = state.data?.requiredChecks || [];
   const checklist = state.data?.bundle?.setupChecklist || [];
+  const sourceMode = state.data?.sourceMode || "static-safe";
 
   return (
-    <RequireAdmin>
-      {(profile) => (
+    <OptionalAdminAccess>
+      {({ profile, accessMode }) => (
         <InternoLayout
           profile={profile}
           title="Integration Kit"
-          description="Bundle portatil para replicar a integração Supabase + Freshsales + Freshdesk em novos projetos."
+          description="Bundle portatil para replicar a integracao Supabase + Freshsales + Freshdesk em novos projetos."
         >
           <div className="space-y-8">
             <Panel title="Objetivo">
               <p>
-                Esta área monta um bundle reutilizável do que já foi desenvolvido aqui, separando configuração, mappings e checklist de setup
-                para reaplicar a integração em qualquer novo repositório, novo Supabase e nova conta Freshworks.
+                Esta area monta um bundle reutilizavel do que ja foi desenvolvido aqui, separando configuracao, mappings e checklist de setup
+                para reaplicar a integracao em qualquer novo repositorio, novo Supabase e nova conta Freshworks.
               </p>
               <p>
-                O export não inclui segredos reais. Ele preserva valores seguros e placeholders para que o próximo projeto faça onboarding sem
-                duplicar código por cliente.
+                O export nao inclui segredos reais. Ele preserva valores seguros e placeholders para que o proximo projeto faca onboarding sem
+                duplicar codigo por cliente.
+              </p>
+              <p>
+                <Link href="/interno/setup-integracao" className="text-[#D4B06A] transition hover:text-[#F0D99B]">
+                  Abrir wizard de setup inicial
+                </Link>
               </p>
             </Panel>
 
+            <div className={`border px-5 py-4 text-sm leading-7 ${
+              sourceMode === "admin-runtime"
+                ? "border-[#245440] bg-[rgba(36,84,64,0.18)] text-[#CFEBDC]"
+                : "border-[#6F5830] bg-[rgba(111,88,48,0.18)] text-[#F0DEC0]"
+            }`}>
+              <p className="text-[11px] uppercase tracking-[0.22em]">
+                {sourceMode === "admin-runtime" ? "Export enriquecido por runtime admin" : "Export local em modo static-safe"}
+              </p>
+              <p className="mt-2">
+                {sourceMode === "admin-runtime"
+                  ? "O runtime atual respondeu com o bundle exportavel baseado no ambiente do projeto."
+                  : "A pagina continua funcional sem backend e sem sessao admin, usando placeholders seguros e estrutura portatil no navegador."}
+              </p>
+              <p className="mt-2">
+                {accessMode === "admin"
+                  ? "Sessao administrativa detectada."
+                  : "Sem sessao admin: o kit continua disponivel para download e documentacao."}
+              </p>
+            </div>
+
             {state.loading ? (
               <Panel title="Carregando bundle">
-                <p>Montando o pacote exportável e validando as variáveis do ambiente atual.</p>
+                <p>Montando o pacote exportavel e validando as variaveis do ambiente atual.</p>
               </Panel>
             ) : null}
 
@@ -97,13 +156,13 @@ export default function IntegrationKitPage() {
             {!state.loading && !state.error ? (
               <>
                 <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-                  <Panel title="Checklist de replicação">
+                  <Panel title="Checklist de replicacao">
                     {checklist.map((item) => (
                       <p key={item}>- {item}</p>
                     ))}
                   </Panel>
 
-                  <Panel title="Pré-requisitos">
+                  <Panel title="Pre-requisitos">
                     {requiredChecks.map((item) => (
                       <p key={item.key}>
                         <span className={item.present ? "text-emerald-400" : "text-amber-300"}>
@@ -118,7 +177,7 @@ export default function IntegrationKitPage() {
                   </Panel>
                 </div>
 
-                <Panel title="Arquivos exportáveis">
+                <Panel title="Arquivos exportaveis">
                   <div className="flex flex-wrap gap-2">
                     {Object.keys(files).map((name) => (
                       <button
@@ -158,11 +217,11 @@ export default function IntegrationKitPage() {
                   </pre>
                 </Panel>
 
-                <Panel title="Próximos passos recomendados">
-                  <p>`npm run integration:doctor` para validar variáveis e URLs derivadas.</p>
+                <Panel title="Proximos passos recomendados">
+                  <p>`npm run integration:doctor` para validar variaveis e URLs derivadas.</p>
                   <p>`npm run integration:authorize-url` para gerar a URL OAuth da nova conta Freshworks.</p>
                   <p>`npm run integration:export-config` para materializar os arquivos em `artifacts/integration-kit`.</p>
-                  <p>`npm run integration:init` para revisar migrations e sequência mínima de bootstrap.</p>
+                  <p>`npm run integration:init` para revisar migrations e sequencia minima de bootstrap.</p>
                   <p>
                     Runbook:
                     {" "}
@@ -174,6 +233,6 @@ export default function IntegrationKitPage() {
           </div>
         </InternoLayout>
       )}
-    </RequireAdmin>
+    </OptionalAdminAccess>
   );
 }
