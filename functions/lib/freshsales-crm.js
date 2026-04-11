@@ -15,6 +15,22 @@ function splitName(fullName) {
   };
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseRetryAfterMs(response) {
+  const retryAfter = response?.headers?.get?.("retry-after");
+  if (!retryAfter) return null;
+  const seconds = Number(retryAfter);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+  const dateMs = Date.parse(retryAfter);
+  if (Number.isFinite(dateMs)) {
+    return Math.max(0, dateMs - Date.now());
+  }
+  return null;
+}
+
 function buildCandidates(env) {
   const raw = resolveFreshsalesBase(env);
   const orgDomain = resolveOauthOrgDomain(env);
@@ -352,22 +368,28 @@ export async function freshsalesRequest(env, path, init = {}) {
   let lastError = null;
   for (const base of candidates) {
     for (const authHeader of authHeaders) {
-      const response = await fetch(`${base}${path}`, {
-        ...init,
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          ...authHeader,
-          ...(init.headers || {}),
-        },
-      }).catch((error) => {
-        lastError = error;
-        return null;
-      });
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        const response = await fetch(`${base}${path}`, {
+          ...init,
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            ...authHeader,
+            ...(init.headers || {}),
+          },
+        }).catch((error) => {
+          lastError = error;
+          return null;
+        });
 
-      if (!response) continue;
+        if (!response) continue;
 
         const payload = await response.json().catch(() => ({}));
+        if (response.status === 429 && attempt < 3) {
+          const retryMs = parseRetryAfterMs(response) ?? (1500 * (attempt + 1));
+          await sleep(retryMs);
+          continue;
+        }
         if (!response.ok) {
           const err = new Error(
             payload.message ||
@@ -379,13 +401,14 @@ export async function freshsalesRequest(env, path, init = {}) {
           err.base = base;
           err.path = path;
           lastError = err;
-          continue;
+          break;
         }
 
-      return {
-        payload,
-        base,
-      };
+        return {
+          payload,
+          base,
+        };
+      }
     }
   }
 

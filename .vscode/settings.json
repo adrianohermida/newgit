@@ -1,3 +1,20 @@
 {
-    "freddy.freddyApiKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJkcF9kZXZlbG9wZXJfY29waWxvdCIsImFjY291bnRfaWQiOiI3NTUyODQiLCJ1c2VyX2lkIjozMTAwMDE0Nzk0NCwiYWNjb3VudF9kb21haW4iOiJobWFkdi1vcmcubXlmcmVzaHdvcmtzLmNvbSIsInByb2R1Y3QiOiJmcmVzaHdvcmtzX2NybSIsInVzZXJfcm9sZSI6ImRldmVsb3BlciIsInVzZXJfZW1haWwiOiJhZHJpYW5vaGVybWlkYUBnbWFpbC5jb20iLCJ1c2VyX25hbWUiOiJBZHJpYW5vIEhlcm1pZGEgTWFpYSIsIm9yZ2FuaXNhdGlvbl9pZCI6IjU1NTk1NDc2NTg4Njg0ODg0OCIsIm9yZ19kb21haW4iOiJobWFkdi1vcmcubXlmcmVzaHdvcmtzLmNvbSIsImZyZXNoaWRfYWNjb3VudF9pZCI6IjU1NTk1NDc4NTExNDQ5MjY5MyIsImZyZXNoaWRfdXNlcl9pZCI6IjU1NTk1NDc2NjI0MzM2NDY5NSIsInBvZCI6InBvZGV1Y2VudHJhbDEiLCJidW5kbGVfaWQiOiI1NTU5NTQ3NjYyMjY1ODc0NzciLCJ1dWlkIjoiOWJmNjU1NDItODIzNC00MjhjLWI5NWUtZmZlMjg1NTA5MGZjIiwiZGV2ZWxvcGVyX2FjY291bnRfaWQiOiIxNTQzNDkifQ.ZL92hfbkVQRA75F1ry4ljwkr2g6UBEYPPUF-dqQr2Qs"
+    "freddy.freddyApiKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJkcF9kZXZlbG9wZXJfY29waWxvdCIsImFjY291bnRfaWQiOiI3NTUyODQiLCJ1c2VyX2lkIjozMTAwMDE0Nzk0NCwiYWNjb3VudF9kb21haW4iOiJobWFkdi1vcmcubXlmcmVzaHdvcmtzLmNvbSIsInByb2R1Y3QiOiJmcmVzaHdvcmtzX2NybSIsInVzZXJfcm9sZSI6ImRldmVsb3BlciIsInVzZXJfZW1haWwiOiJhZHJpYW5vaGVybWlkYUBnbWFpbC5jb20iLCJ1c2VyX25hbWUiOiJBZHJpYW5vIEhlcm1pZGEgTWFpYSIsIm9yZ2FuaXNhdGlvbl9pZCI6IjU1NTk1NDc2NTg4Njg0ODg0OCIsIm9yZ19kb21haW4iOiJobWFkdi1vcmcubXlmcmVzaHdvcmtzLmNvbSIsImZyZXNoaWRfYWNjb3VudF9pZCI6IjU1NTk1NDc4NTExNDQ5MjY5MyIsImZyZXNoaWRfdXNlcl9pZCI6IjU1NTk1NDc2NjI0MzM2NDY5NSIsInBvZCI6InBvZGV1Y2VudHJhbDEiLCJidW5kbGVfaWQiOiI1NTU5NTQ3NjYyMjY1ODc0NzciLCJ1dWlkIjoiOWJmNjU1NDItODIzNC00MjhjLWI5NWUtZmZlMjg1NTA5MGZjIiwiZGV2ZWxvcGVyX2FjY291bnRfaWQiOiIxNTQzNDkifQ.ZL92hfbkVQRA75F1ry4ljwkr2g6UBEYPPUF-dqQr2Qs",
+
+    "git.autorefresh": true,
+    "git.autoRepositoryDetection": "openEditors",
+    "git.detectSubmodules": false,
+    "git.enableStatusBarSync": true,
+    "git.decorations.enabled": true,
+    "git.untrackedChanges": "mixed",
+
+    "files.watcherExclude": {
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "**/node_modules/**": true,
+        "**/.next/**": true,
+        "**/out/**": true,
+        "**/__pycache__/**": true,
+        "**/ai-core/.pytest_cache/**": true
+    }
 }
