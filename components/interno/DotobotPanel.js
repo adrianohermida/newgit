@@ -10,7 +10,7 @@ import { useRouter } from "next/router";
 import { adminFetch } from "../../lib/admin/api";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import { pollTaskRun, startTaskRun } from "./dotobotTaskRun";
-import { appendActivityLog } from "../../lib/admin/activity-log";
+import { appendActivityLog, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
 import {
   CHAT_STORAGE_PREFIX,
   CONVERSATIONS_STORAGE_PREFIX,
@@ -220,6 +220,29 @@ function TaskStatusChip({ status }) {
   return <span>{mapping[status] || String(status || "Indefinido")}</span>;
 }
 
+function stringifyDiagnostic(value, limit = 12000) {
+  if (value === undefined || value === null) return "";
+  let text = "";
+  try {
+    text = JSON.stringify(value, null, 2);
+  } catch {
+    text = String(value);
+  }
+  return text.length > limit ? `${text.slice(0, limit)}...` : text;
+}
+
+function buildDiagnosticReport({ title, summary = "", sections = [] }) {
+  return [
+    title ? `# ${title}` : "",
+    summary ? String(summary).trim() : "",
+    ...sections
+      .filter((section) => section?.value !== undefined && section?.value !== null && section?.value !== "")
+      .map((section) => `${section.label}:\n${stringifyDiagnostic(section.value)}`),
+  ]
+    .filter(Boolean)
+    .join("\n\n---\n\n");
+}
+
 function DotobotModal({
   open,
   title,
@@ -340,6 +363,24 @@ export default function DotobotCopilot({
   const [loading, setLoading] = useState(false);
   const [uiState, setUiState] = useState("idle");
   const [error, setError] = useState(null);
+
+  function logDotobotUi(label, action, payload = {}, patch = {}) {
+    appendActivityLog({
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      module: "dotobot",
+      component: patch.component || "DotobotPanel",
+      label,
+      action,
+      method: patch.method || "UI",
+      path: routePath || "/interno",
+      page: routePath || "/interno",
+      status: patch.status || "success",
+      expectation: patch.expectation || label,
+      request: patch.request || "",
+      response: stringifyDiagnostic(payload),
+      error: patch.error || "",
+    });
+  }
 
   function handleCopilotDebug() {
     appendActivityLog({
@@ -465,6 +506,63 @@ export default function DotobotCopilot({
     );
   }, [mode, provider, contextEnabled, workspaceOpen, activeConversationId, prefStorageKey]);
 
+  useEffect(() => {
+    const activeConversation = conversations.find((item) => item.id === activeConversationId) || null;
+    const activeTask = getLastTask(taskHistory);
+    setModuleHistory("dotobot", {
+      routePath: routePath || "/interno",
+      extensionReady,
+      lastExtensionResponse: lastResponse || null,
+      uiState,
+      loading,
+      error: error || null,
+      mode,
+      provider,
+      contextEnabled,
+      workspaceOpen,
+      isCollapsed,
+      activeConversationId,
+      activeConversation: activeConversation
+        ? {
+            id: activeConversation.id,
+            title: activeConversation.title || "",
+            updatedAt: activeConversation.updatedAt || activeConversation.updated_at || null,
+            archived: Boolean(activeConversation.archived),
+          }
+        : null,
+      messages: messages.slice(-20),
+      taskHistory: taskHistory.slice(0, 20),
+      activeTask,
+      attachments,
+      conversationCount: conversations.length,
+      filters: {
+        conversationSearch,
+        conversationSort,
+        showArchived,
+      },
+    });
+  }, [
+    activeConversationId,
+    attachments,
+    contextEnabled,
+    conversationSearch,
+    conversationSort,
+    conversations,
+    error,
+    extensionReady,
+    isCollapsed,
+    lastResponse,
+    loading,
+    messages,
+    mode,
+    provider,
+    routePath,
+    showArchived,
+    taskHistory,
+    uiState,
+    workspaceOpen,
+  ]);
+
   // Copilot sempre disponÃ­vel, apenas colapsa visualmente
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -560,6 +658,12 @@ export default function DotobotCopilot({
         });
         if (data?.ok && data?.result?.id) {
           const runId = data.result.id;
+          logDotobotUi("Dotobot task run iniciado", "dotobot_task_started", {
+            runId,
+            query: trimmedQuestion,
+            mode: nextMode,
+            provider: nextProvider,
+          }, { component: "DotobotTaskRun" });
           await pollTaskRun(runId, {
             onUpdate: (result) => {
               setTaskHistory((tasks) =>
@@ -578,10 +682,36 @@ export default function DotobotCopilot({
             },
           });
         } else {
-          setError(data?.error || "Falha ao iniciar TaskRun.");
+          const taskError = data?.error || "Falha ao iniciar TaskRun.";
+          setError(taskError);
+          logDotobotUi("Dotobot task run rejeitado", "dotobot_task_rejected", data || {}, {
+            component: "DotobotTaskRun",
+            status: "error",
+            error: buildDiagnosticReport({
+              title: "Falha ao iniciar TaskRun",
+              summary: taskError,
+              sections: [
+                { label: "request", value: { query: trimmedQuestion, mode: nextMode, provider: nextProvider } },
+                { label: "response", value: data || null },
+              ],
+            }),
+          });
         }
       } catch (err) {
-        setError(err.message || "Erro ao executar TaskRun.");
+        const message = err.message || "Erro ao executar TaskRun.";
+        setError(message);
+        logDotobotUi("Dotobot task run falhou", "dotobot_task_error", null, {
+          component: "DotobotTaskRun",
+          status: "error",
+          error: buildDiagnosticReport({
+            title: "Erro ao executar TaskRun",
+            summary: message,
+            sections: [
+              { label: "request", value: { query: trimmedQuestion, mode: nextMode, provider: nextProvider, contextEnabled: nextContextEnabled } },
+              { label: "error", value: err?.payload || err?.stack || err },
+            ],
+          }),
+        });
       }
       setLoading(false);
       setUiState("idle");
@@ -590,6 +720,32 @@ export default function DotobotCopilot({
 
     // Chat normal (streaming)
     try {
+      const chatLogId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const chatStartedAt = Date.now();
+      appendActivityLog({
+        id: chatLogId,
+        module: "dotobot",
+        component: "DotobotChat",
+        label: "Dotobot: enviar mensagem",
+        action: "dotobot_chat_submit",
+        method: "POST",
+        path: "/functions/api/admin-lawdesk-chat",
+        expectation: "Enviar pergunta ao backend conversacional",
+        request: buildDiagnosticReport({
+          title: "Dotobot chat",
+          summary: trimmedQuestion,
+          sections: [
+            { label: "query", value: trimmedQuestion },
+            { label: "mode", value: nextMode },
+            { label: "provider", value: nextProvider },
+            { label: "contextEnabled", value: nextContextEnabled },
+            { label: "attachments", value: nextAttachments },
+            { label: "context", value: globalContext },
+          ],
+        }),
+        status: "running",
+        startedAt: chatStartedAt,
+      });
       // PATCH 2.8/2.9: Streaming
       const response = await fetch("/functions/api/admin-lawdesk-chat", {
         method: "POST",
@@ -605,6 +761,16 @@ export default function DotobotCopilot({
       if (!response.body || !window.ReadableStream) {
         // Fallback para resposta normal
         const data = await response.json();
+        updateActivityLog(chatLogId, {
+          status: response.ok ? "success" : "error",
+          durationMs: Date.now() - chatStartedAt,
+          response: buildDiagnosticReport({
+            title: "Dotobot chat response",
+            summary: response.ok ? "Resposta concluida sem stream" : "Falha sem stream",
+            sections: [{ label: "payload", value: data }],
+          }),
+          error: response.ok ? "" : stringifyDiagnostic(data),
+        });
         setMessages((msgs) => [
           ...msgs,
           {
@@ -643,10 +809,38 @@ export default function DotobotCopilot({
           setUiState(done ? "idle" : "running");
         }
       }
+      updateActivityLog(chatLogId, {
+        status: response.ok ? "success" : "error",
+        durationMs: Date.now() - chatStartedAt,
+        response: buildDiagnosticReport({
+          title: "Dotobot chat stream",
+          summary: response.ok ? "Stream finalizado" : "Stream com erro HTTP",
+          sections: [
+            { label: "status", value: { ok: response.ok, status: response.status } },
+            { label: "responseText", value: fullText },
+          ],
+        }),
+        error: response.ok ? "" : `HTTP ${response.status}`,
+      });
       setLoading(false);
       setUiState("idle");
     } catch (err) {
-      setError(err.message || "Erro ao conectar ao backend.");
+      const message = err.message || "Erro ao conectar ao backend.";
+      setError(message);
+      logDotobotUi("Dotobot chat falhou", "dotobot_chat_error", null, {
+        component: "DotobotChat",
+        status: "error",
+        error: buildDiagnosticReport({
+          title: "Erro ao conectar ao backend do Dotobot",
+          summary: message,
+          sections: [
+            { label: "query", value: trimmedQuestion },
+            { label: "mode", value: nextMode },
+            { label: "provider", value: nextProvider },
+            { label: "error", value: err?.stack || err },
+          ],
+        }),
+      });
       setLoading(false);
       setUiState("idle");
     }
@@ -1001,6 +1195,9 @@ export default function DotobotCopilot({
     const Recognition = getVoiceRecognition();
     if (!Recognition) {
       setError("Transcricao por voz nao suportada neste navegador.");
+      logDotobotUi("Voz nao suportada", "dotobot_voice_not_supported", {
+        browser: typeof navigator !== "undefined" ? navigator.userAgent : "",
+      }, { component: "DotobotVoice", status: "error", error: "Transcricao por voz nao suportada neste navegador." });
       return;
     }
 
@@ -1040,6 +1237,10 @@ export default function DotobotCopilot({
     setContextEnabled(task.contextEnabled ?? contextEnabled);
     if (task.attachments?.length) {
       setError("Reenvio com anexos locais nao e suportado automaticamente. Reanexe os arquivos se necessario.");
+      logDotobotUi("Reenvio com anexo bloqueado", "dotobot_retrigger_requires_attachments", {
+        taskId: task?.id || null,
+        attachments: task.attachments,
+      }, { component: "DotobotReplay", status: "error", error: "Reenvio com anexos locais nao e suportado automaticamente." });
     }
     setWorkspaceOpen(true);
   }

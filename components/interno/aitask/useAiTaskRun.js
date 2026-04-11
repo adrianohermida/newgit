@@ -360,6 +360,7 @@ export function useAiTaskRun({
     }
 
     try {
+      const startStartedAt = Date.now();
       const startLogId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       pushLog({
         type: "api",
@@ -396,7 +397,7 @@ export function useAiTaskRun({
           ],
         }),
         status: "running",
-        startedAt: Date.now(),
+        startedAt: startStartedAt,
       });
 
       const payload = await adminFetch("/functions/api/admin-lawdesk-chat", {
@@ -427,7 +428,7 @@ export function useAiTaskRun({
       const normalized = normalizeTaskRunPayload(payload);
       updateActivityLog(startLogId, {
         status: normalized?.status === "failed" ? "error" : "success",
-        durationMs: Date.now() - Date.now() + 0,
+        durationMs: Date.now() - startStartedAt,
         response: buildAiTaskDiagnostic({
           title: "AI Task start result",
           summary: normalized?.status || "run_started",

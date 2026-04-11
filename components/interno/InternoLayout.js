@@ -221,6 +221,22 @@ export default function InternoLayout({
     }
   }
 
+  async function handleCopyDotobotHistory() {
+    const payload = moduleHistory?.dotobot || {};
+    const text = JSON.stringify(payload, null, 2);
+    if (text && navigator?.clipboard) {
+      await navigator.clipboard.writeText(text);
+    }
+  }
+
+  async function handleCopyAiTaskHistory() {
+    const payload = moduleHistory?.["ai-task"] || {};
+    const text = JSON.stringify(payload, null, 2);
+    if (text && navigator?.clipboard) {
+      await navigator.clipboard.writeText(text);
+    }
+  }
+
   function handleArchive(reason) {
     archiveActivityLog(reason);
   }
@@ -280,6 +296,8 @@ export default function InternoLayout({
   const publicacoesHistory = moduleHistory?.publicacoes || null;
   const publicacoesLocalHistory = publicacoesHistory?.executionHistory || [];
   const publicacoesRemoteHistory = publicacoesHistory?.remoteHistory || [];
+  const dotobotHistory = moduleHistory?.dotobot || null;
+  const aiTaskHistory = moduleHistory?.["ai-task"] || null;
 
   const filteredLog = useMemo(() => {
     const normalizedSearch = logSearch.trim().toLowerCase();
@@ -709,6 +727,74 @@ export default function InternoLayout({
                         </div>
                       ) : (
                         <div className="mt-2 text-[11px] opacity-60">Sem historico local registrado.</div>
+                      )}
+                    </div>
+                    <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Dotobot</p>
+                          <p className="mt-1 text-[11px] text-[#9BAEA8]">Snapshot do copilot, chat e task runs locais.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleCopyDotobotHistory}
+                          className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                        >
+                          Copiar snapshot
+                        </button>
+                      </div>
+                      {dotobotHistory ? (
+                        <div className="mt-3 space-y-2 text-[11px]">
+                          <div className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold">Estado</span>
+                              <span className={dotobotHistory.error ? "text-red-200" : "text-[#11D473]"}>
+                                {dotobotHistory.uiState || "idle"}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-[10px] text-[#7E918B]">
+                              modo {dotobotHistory.mode || "n/a"} · provider {dotobotHistory.provider || "n/a"} · conversas {dotobotHistory.conversationCount || 0}
+                            </div>
+                            {dotobotHistory.activeTask ? <div className="mt-1 text-[#C7D0CA]">Task ativa: {dotobotHistory.activeTask.query || dotobotHistory.activeTask.id}</div> : null}
+                            {dotobotHistory.error ? <div className="mt-1 text-red-200">Erro: {dotobotHistory.error}</div> : null}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-[11px] opacity-60">Sem snapshot do Dotobot.</div>
+                      )}
+                    </div>
+                    <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">AI Task</p>
+                          <p className="mt-1 text-[11px] text-[#9BAEA8]">Run ativa, trilha de logs e contexto persistido do orquestrador.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleCopyAiTaskHistory}
+                          className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                        >
+                          Copiar snapshot
+                        </button>
+                      </div>
+                      {aiTaskHistory ? (
+                        <div className="mt-3 space-y-2 text-[11px]">
+                          <div className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold">Automacao</span>
+                              <span className={aiTaskHistory.error ? "text-red-200" : "text-[#11D473]"}>
+                                {aiTaskHistory.automation || "idle"}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-[10px] text-[#7E918B]">
+                              modo {aiTaskHistory.mode || "n/a"} · provider {aiTaskHistory.provider || "n/a"} · eventos {aiTaskHistory.eventsTotal || 0}
+                            </div>
+                            {aiTaskHistory.activeRun?.id ? <div className="mt-1 text-[#C7D0CA]">Run: {aiTaskHistory.activeRun.id}</div> : null}
+                            {aiTaskHistory.error ? <div className="mt-1 text-red-200">Erro: {aiTaskHistory.error}</div> : null}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-[11px] opacity-60">Sem snapshot do AI Task.</div>
                       )}
                     </div>
                     <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">

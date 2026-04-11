@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch as adminFetchRaw } from "../../lib/admin/api";
@@ -14,7 +14,7 @@ const ACTION_LABELS = {
   criar_processos_publicacoes: "Criar processos das publicacoes",
   backfill_partes: "Extracao retroativa de partes",
   sincronizar_partes: "Salvar partes + atualizar polos + corrigir CRM",
-  run_sync_worker: "Rodar sync-worker",
+  run_sync_worker: "Rodar sync-worker (activities/CRM)",
   run_pending_jobs: "Drenar fila HMADV",
 };
 const ASYNC_PUBLICACOES_ACTIONS = new Set([
@@ -24,6 +24,9 @@ const ASYNC_PUBLICACOES_ACTIONS = new Set([
 ]);
 const QUEUE_ERROR_TTL_MS = 1000 * 60 * 3;
 const GLOBAL_ERROR_TTL_MS = 1000 * 60 * 2;
+const PROCESS_QUEUE_REFRESH_TTL_MS = 1000 * 8;
+const PARTES_QUEUE_REFRESH_TTL_MS = 1000 * 45;
+const PARTES_QUEUE_RESOURCE_ERROR_TTL_MS = 1000 * 90;
 const MODULE_LIMITS = {
   maxCreateProcess: 15,
   maxBackfillPartes: 50,
@@ -84,12 +87,16 @@ function getPublicacoesActionLabel(action) {
 function buildHistoryPreview(result) {
   if (!result) return "";
   if (result.erro) return String(result.erro);
+  if (result.uiHint) return String(result.uiHint);
   if (typeof result.processosCriados === "number") return `Processos criados: ${result.processosCriados}`;
   if (typeof result.partesInseridas === "number") return `Partes inseridas: ${result.partesInseridas}`;
   if (typeof result.processosAtualizados === "number") return `Processos atualizados: ${result.processosAtualizados}`;
   if (typeof result.accountsReparadas === "number") return `Accounts reparadas: ${result.accountsReparadas}`;
   if (typeof result.publicacoes === "number") return `Publicacoes processadas: ${result.publicacoes}`;
   if (typeof result.total === "number") return `Total: ${result.total}`;
+  if (typeof result.affected_count === "number" || typeof result.requested_count === "number") {
+    return `Sync-worker: ${Number(result.affected_count || 0)} afetado(s) de ${Number(result.requested_count || 0)} solicitado(s)`;
+  }
   if (typeof result.items?.length === "number") return `Itens retornados: ${result.items.length}`;
   if (typeof result.sample?.length === "number") return `Amostra: ${result.sample.length}`;
   return "Execucao concluida";
@@ -111,6 +118,11 @@ function buildDrainPreview(result) {
   if (result.completedAll) return `Fila drenada em ${processed} rodada(s)`;
   if (result.job) return `Fila avancou ${processed} rodada(s): ${buildJobPreview(result.job)}`;
   return `Fila avancou ${processed} rodada(s)`;
+}
+
+function isResourceLimitError(error) {
+  const text = String(error?.payload || error?.message || error || "").toLowerCase();
+  return text.includes("worker exceeded resource limits");
 }
 
 function loadHistoryEntries() {
@@ -327,11 +339,11 @@ function deriveSuggestedPublicacoesBatch(summary, bands) {
   return { size: 20, reason: "A fila parece sob controle para uma rodada operacional padrao." };
 }
 function deriveSuggestedPublicacoesActions(summary, bands) {
-  if (bands.critical > 0 || summary.manual > 0) return ["Extracao retroativa de partes", "Salvar partes + atualizar polos + corrigir CRM", "Rodar sync-worker"];
+  if (bands.critical > 0 || summary.manual > 0) return ["Extracao retroativa de partes", "Salvar partes + atualizar polos + corrigir CRM", "Auditar publicacoes reincidentes"];
   if (summary.advise > 0) return ["Criar processos das publicacoes", "Extracao retroativa de partes", "Salvar partes + atualizar polos + corrigir CRM"];
-  if (summary.freshsales > 0) return ["Rodar sync-worker", "Salvar partes + atualizar polos + corrigir CRM"];
-  if (summary.stagnant > 0) return ["Extracao retroativa de partes", "Rodar sync-worker"];
-  return ["Salvar partes + atualizar polos + corrigir CRM", "Rodar sync-worker"];
+  if (summary.freshsales > 0) return ["Rodar sync-worker (activities/CRM)", "Salvar partes + atualizar polos + corrigir CRM"];
+  if (summary.stagnant > 0) return ["Extracao retroativa de partes", "Salvar partes + atualizar polos + corrigir CRM"];
+  return ["Salvar partes + atualizar polos + corrigir CRM", "Extracao retroativa de partes"];
 }
 function derivePrimaryPublicacoesAction(actions = []) {
   return actions[0] || "Salvar partes + atualizar polos + corrigir CRM";
@@ -353,7 +365,7 @@ function deriveSuggestedPublicacoesChecklist(summary, bands) {
   }
   if (summary.freshsales > 0) {
     return [
-      "Rode o sync-worker em lote curto.",
+      "Rode o sync-worker em lote curto apenas para pendencias de activity/CRM.",
       "Reaplique a consolidacao de partes e polos.",
       "Confirme que as activities passaram a refletir no CRM.",
     ];
@@ -652,6 +664,12 @@ function OperationResult({ result }) {
 
   return (
     <div className="space-y-4">
+      {result?.uiHint ? (
+        <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#FDE68A]">
+          <p className="font-semibold">Leitura operacional</p>
+          <p className="mt-2 opacity-90">{result.uiHint}</p>
+        </div>
+      ) : null}
       <div className="grid gap-3 md:grid-cols-6 text-sm">
         <QueueSummaryCard title="Processos criados" count={counters.processosCriados} helper="Publicacoes que viraram processo no HMADV." accent="text-[#B7F7C6]" />
         <QueueSummaryCard title="Partes detectadas" count={counters.detectadas} helper="Novas partes encontradas no lote." accent="text-[#FDE68A]" />
@@ -782,6 +800,8 @@ function PublicacoesContent() {
   const [partesPage, setPartesPage] = useState(1);
   const [selectedProcessKeys, setSelectedProcessKeys] = useState([]);
   const [selectedPartesKeys, setSelectedPartesKeys] = useState([]);
+  const processCandidatesRequestRef = useRef({ promise: null, page: null });
+  const partesCandidatesRequestRef = useRef({ promise: null, page: null });
 
   function logUiEvent(label, action, response, patch = {}) {
     appendActivityLog({
@@ -949,8 +969,9 @@ function PublicacoesContent() {
 
   useEffect(() => {
     if (!PUBLICACOES_QUEUE_VIEWS.has(view)) return;
+    if (activeJobId) return;
     loadPartesCandidates(partesPage);
-  }, [partesPage, view]);
+  }, [partesPage, view, activeJobId]);
   useEffect(() => {
     if (!jobs.length) return;
     const runningJob = jobs.find((item) => item.status === "running" || item.status === "pending");
@@ -1085,15 +1106,26 @@ function PublicacoesContent() {
     }
   }
 
-  async function loadProcessCandidates(page) {
+  async function loadProcessCandidates(page, options = {}) {
+    const { force = false } = options;
     const now = Date.now();
+    if (!force && processCandidatesRequestRef.current.promise && processCandidatesRequestRef.current.page === page) {
+      return processCandidatesRequestRef.current.promise;
+    }
+    if (!force && processCandidates?.updatedAt) {
+      const lastUpdatedAt = new Date(processCandidates.updatedAt).getTime();
+      if (!Number.isNaN(lastUpdatedAt) && now - lastUpdatedAt < PROCESS_QUEUE_REFRESH_TTL_MS) {
+        return processCandidates;
+      }
+    }
     setProcessCandidates((state) => {
       if (state?.errorUntil && now < state.errorUntil) {
         return { ...state, loading: false };
       }
       return { ...state, loading: true, error: null };
     });
-    try {
+    const request = (async () => {
+      try {
       const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=candidatos_processos&page=${page}&pageSize=20`, {}, {
         action: "candidatos_processos",
         component: "publicacoes-filas",
@@ -1102,7 +1134,7 @@ function PublicacoesContent() {
       });
       const payloadError = payload.data?.error || null;
       const nextErrorUntil = payloadError ? Date.now() + QUEUE_ERROR_TTL_MS : null;
-      setProcessCandidates({
+      const nextState = {
         loading: false,
         error: payloadError,
         items: (payload.data.items || []).map((item) => ({ ...item, key: item.numero_cnj || item.id })),
@@ -1112,34 +1144,54 @@ function PublicacoesContent() {
         updatedAt: new Date().toISOString(),
         limited: Boolean(payload.data.limited),
         errorUntil: nextErrorUntil,
-      });
+      };
+      setProcessCandidates(nextState);
       pushQueueRefresh("candidatos_processos");
+      return nextState;
     } catch (error) {
       const message = error.message || "Falha ao carregar candidatos.";
-      setProcessCandidates((state) => ({
+      const nextState = {
         loading: false,
         error: message,
-        items: state?.items || [],
-        totalRows: state?.totalRows || 0,
+        items: processCandidates?.items || [],
+        totalRows: processCandidates?.totalRows || 0,
         totalEstimated: false,
         pageSize: 20,
-        updatedAt: state?.updatedAt || new Date().toISOString(),
-        limited: Boolean(state?.limited),
+        updatedAt: processCandidates?.updatedAt || new Date().toISOString(),
+        limited: Boolean(processCandidates?.limited),
         errorUntil: Date.now() + QUEUE_ERROR_TTL_MS,
-      }));
+      };
+      setProcessCandidates(nextState);
       pushQueueRefresh("candidatos_processos");
+      return nextState;
+    } finally {
+      processCandidatesRequestRef.current = { promise: null, page: null };
     }
+    })();
+    processCandidatesRequestRef.current = { promise: request, page };
+    return request;
   }
 
-  async function loadPartesCandidates(page) {
+  async function loadPartesCandidates(page, options = {}) {
+    const { force = false } = options;
     const now = Date.now();
+    if (!force && partesCandidatesRequestRef.current.promise && partesCandidatesRequestRef.current.page === page) {
+      return partesCandidatesRequestRef.current.promise;
+    }
+    if (!force && partesCandidates?.updatedAt) {
+      const lastUpdatedAt = new Date(partesCandidates.updatedAt).getTime();
+      if (!Number.isNaN(lastUpdatedAt) && now - lastUpdatedAt < PARTES_QUEUE_REFRESH_TTL_MS) {
+        return partesCandidates;
+      }
+    }
     setPartesCandidates((state) => {
       if (state?.errorUntil && now < state.errorUntil) {
         return { ...state, loading: false };
       }
       return { ...state, loading: true, error: null };
     });
-    try {
+    const request = (async () => {
+      try {
       const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=candidatos_partes&page=${page}&pageSize=20`, {}, {
         action: "candidatos_partes",
         component: "publicacoes-filas",
@@ -1148,7 +1200,7 @@ function PublicacoesContent() {
       });
       const payloadError = payload.data?.error || null;
       const nextErrorUntil = payloadError ? Date.now() + QUEUE_ERROR_TTL_MS : null;
-      setPartesCandidates({
+      const nextState = {
         loading: false,
         error: payloadError,
         items: (payload.data.items || []).map((item) => ({ ...item, key: item.numero_cnj || item.id })),
@@ -1158,23 +1210,33 @@ function PublicacoesContent() {
         updatedAt: new Date().toISOString(),
         limited: Boolean(payload.data.limited),
         errorUntil: nextErrorUntil,
-      });
+      };
+      setPartesCandidates(nextState);
       pushQueueRefresh("candidatos_partes");
+      return nextState;
     } catch (error) {
       const message = error.message || "Falha ao carregar candidatos de partes.";
-      setPartesCandidates((state) => ({
+      const errorTtl = isResourceLimitError(error) ? PARTES_QUEUE_RESOURCE_ERROR_TTL_MS : QUEUE_ERROR_TTL_MS;
+      const nextState = {
         loading: false,
         error: message,
-        items: state?.items || [],
-        totalRows: state?.totalRows || 0,
+        items: partesCandidates?.items || [],
+        totalRows: partesCandidates?.totalRows || 0,
         totalEstimated: false,
         pageSize: 20,
-        updatedAt: state?.updatedAt || new Date().toISOString(),
-        limited: Boolean(state?.limited),
-        errorUntil: Date.now() + QUEUE_ERROR_TTL_MS,
-      }));
+        updatedAt: partesCandidates?.updatedAt || new Date().toISOString(),
+        limited: true,
+        errorUntil: Date.now() + errorTtl,
+      };
+      setPartesCandidates(nextState);
       pushQueueRefresh("candidatos_partes");
+      return nextState;
+    } finally {
+      partesCandidatesRequestRef.current = { promise: null, page: null };
     }
+    })();
+    partesCandidatesRequestRef.current = { promise: request, page };
+    return request;
   }
   async function loadRemoteHistory() {
     if (globalErrorUntil && Date.now() < globalErrorUntil) {
@@ -1214,11 +1276,14 @@ function PublicacoesContent() {
   }
 
   async function refreshOperationalContext(options = {}) {
-    const { forceAll = false } = options;
+    const { forceAll = false, forceQueues = false } = options;
     const shouldLoadQueues = forceAll || PUBLICACOES_QUEUE_VIEWS.has(view);
     const calls = [loadOverview(), loadRemoteHistory(), loadJobs()];
     if (shouldLoadQueues) {
-      calls.push(loadProcessCandidates(processPage), loadPartesCandidates(partesPage));
+      calls.push(loadProcessCandidates(processPage, { force: forceAll || forceQueues }));
+      if (!activeJobId || forceAll || forceQueues) {
+        calls.push(loadPartesCandidates(partesPage, { force: forceAll || forceQueues }));
+      }
     }
     await Promise.all(calls);
   }
@@ -1227,10 +1292,10 @@ function PublicacoesContent() {
     const calls = [loadOverview(), loadRemoteHistory(), loadJobs()];
     if (PUBLICACOES_QUEUE_VIEWS.has(view)) {
       if (action === "criar_processos_publicacoes") {
-        calls.push(loadProcessCandidates(processPage));
+        calls.push(loadProcessCandidates(processPage, { force: true }));
       }
-      if (action === "backfill_partes" || action === "sincronizar_partes") {
-        calls.push(loadPartesCandidates(partesPage));
+      if ((action === "backfill_partes" || action === "sincronizar_partes") && !activeJobId) {
+        calls.push(loadPartesCandidates(partesPage, { force: false }));
       }
     }
     await Promise.all(calls);
@@ -1271,6 +1336,8 @@ function PublicacoesContent() {
   const recurringPublicacoesActions = deriveSuggestedPublicacoesActions(recurringPublicacoesSummary, recurringPublicacoesBands);
   const recurringPublicacoesChecklist = deriveSuggestedPublicacoesChecklist(recurringPublicacoesSummary, recurringPublicacoesBands);
   const primaryPublicacoesAction = derivePrimaryPublicacoesAction(recurringPublicacoesActions);
+  const partesBacklogCount = Number(partesCandidates.totalRows || partesCandidates.items.length || 0);
+  const syncWorkerShouldFocusCrm = Number(data.publicacoesPendentesComAccount || 0) > 0;
 
   function selectVisibleRecurringPublicacoes() {
     const recurringKeys = new Set(recurringPublicacoes.map((item) => item.key));
@@ -1458,11 +1525,32 @@ function PublicacoesContent() {
         label: getPublicacoesActionLabel(action),
         expectation: `Executar ${getPublicacoesActionLabel(action)} com lote ${safeLimit}`,
       });
-      setActionState({ loading: false, error: null, result: payload.data });
+      const resultData = (() => {
+        if (action !== "run_sync_worker") return payload.data;
+        const hasNoProgress = Number(payload.data?.affected_count || 0) === 0;
+        if (!hasNoProgress) return payload.data;
+        if (partesBacklogCount > 0) {
+          return {
+            ...payload.data,
+            uiHint: `O sync-worker concluiu sem progresso e nao drena a fila de partes. Ha ${partesBacklogCount} processo(s) em candidatos_partes; use Extracao retroativa de partes ou Salvar partes + corrigir CRM para atuar nessa fila.`,
+          };
+        }
+        if (syncWorkerShouldFocusCrm) {
+          return {
+            ...payload.data,
+            uiHint: "O sync-worker concluiu sem progresso nesta rodada. Ele atua em pendencias de activity/CRM, nao em extracao retroativa de partes.",
+          };
+        }
+        return {
+          ...payload.data,
+          uiHint: "O sync-worker concluiu sem trabalho pendente nesta rodada.",
+        };
+      })();
+      setActionState({ loading: false, error: null, result: resultData });
       replaceHistoryEntry(historyId, {
         status: "success",
-        preview: buildHistoryPreview(payload.data),
-        result: payload.data,
+        preview: buildHistoryPreview(resultData),
+        result: resultData,
       });
       await refreshAfterAction(action);
     } catch (error) {
@@ -1565,6 +1653,13 @@ function PublicacoesContent() {
               Use a visao <strong>Filas</strong> para selecionar processos individualmente ou por pagina.
               Esta visao fica focada em disparar a operacao e acompanhar o lote.
             </p>
+            <div className="rounded-[20px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] p-4 text-sm opacity-80">
+              <p className="font-semibold">Sync-worker e fila de partes sao fluxos diferentes.</p>
+              <p className="mt-2">
+                Use <strong>Rodar sync-worker</strong> para activities e sincronizacao com CRM.
+                Para itens em <strong>candidatos_partes</strong>, use a trilha de extracao de partes abaixo.
+              </p>
+            </div>
             <label className="block">
               <span className="block text-xs font-semibold tracking-[0.15em] uppercase mb-2 opacity-50">CNJs para foco manual</span>
               <textarea
@@ -1608,7 +1703,7 @@ function PublicacoesContent() {
                 disabled={actionState.loading}
                 className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
               >
-                Rodar sync-worker
+                Rodar sync-worker (activities/CRM)
               </button>
               <button
                 type="button"
@@ -1639,6 +1734,14 @@ function PublicacoesContent() {
             <p className="text-sm opacity-70">
               A extracao sempre precisa enriquecer o Supabase primeiro. Selecione os processos na visao <strong>Filas</strong> e volte aqui para simular ou aplicar.
             </p>
+            {partesBacklogCount > 0 ? (
+              <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#FDE68A]">
+                <p className="font-semibold">Fila certa para o backlog atual</p>
+                <p className="mt-2">
+                  Existem {partesBacklogCount} processo(s) em <strong>candidatos_partes</strong>. Esse backlog nao e drenado pelo sync-worker; ele depende de <strong>Extracao retroativa de partes</strong> e, quando necessario, de <strong>Salvar + corrigir CRM</strong>.
+                </p>
+              </div>
+            ) : null}
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
