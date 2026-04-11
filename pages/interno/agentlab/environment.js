@@ -65,6 +65,33 @@ function getDotobotRagHealthStatus(health) {
   };
 }
 
+function getProvidersHealthStatus(health) {
+  if (health?.status === "operational") {
+    return {
+      tone: "text-emerald-400",
+      label: "Operacional",
+      headline: "OK",
+      summary: "Existe ao menos um provider LLM operacional e pronto para uso.",
+    };
+  }
+
+  if (health?.status === "degraded") {
+    return {
+      tone: "text-amber-300",
+      label: "Degradado",
+      headline: "Degradado",
+      summary: "Há providers configurados, mas nenhum deles está integralmente saudável.",
+    };
+  }
+
+  return {
+    tone: "text-rose-300",
+    label: "Falha",
+    headline: "Falha",
+    summary: "Nenhum provider LLM utilizável foi detectado.",
+  };
+}
+
 export default function AgentLabEnvironmentPage() {
   const state = useAgentLabData();
 
@@ -99,10 +126,12 @@ function EnvironmentContent({ state }) {
   const freshchatApi = environment.freshchatApi || {};
   const freshchatWeb = environment.freshchatWeb || {};
   const dotobotRagHealth = environment.dotobotRagHealth || {};
+  const lawdeskProvidersHealth = environment.lawdeskProvidersHealth || {};
   const dotobotRagReport = dotobotRagHealth.report || {};
   const dotobotSupabase = dotobotRagReport.supabase || {};
   const dotobotObsidian = dotobotRagReport.obsidian || {};
   const dotobotRagStatus = getDotobotRagHealthStatus(dotobotRagHealth);
+  const providersHealthStatus = getProvidersHealthStatus(lawdeskProvidersHealth);
   const dotobotSignals = dotobotRagHealth.signals || {};
   const widgetEventSummary = state.data?.conversations?.widgetEventSummary || {};
   const readyCount = schemaChecklist.filter((item) => item.status === "ready").length;
@@ -122,6 +151,7 @@ function EnvironmentContent({ state }) {
         warnings: warnings.length,
         widgetEvents: widgetEventSummary.total || 0,
         ragStatus: dotobotRagHealth.status || null,
+        providersStatus: lawdeskProvidersHealth.status || null,
         coverage: {
           routeTracked: true,
           consoleIntegrated: true,
@@ -132,6 +162,7 @@ function EnvironmentContent({ state }) {
   }, [
     dotobotRagHealth.status,
     environment.mode,
+    lawdeskProvidersHealth.status,
     missingCount,
     readyCount,
     state.error,
@@ -336,6 +367,45 @@ function EnvironmentContent({ state }) {
               <p>{dotobotRagReport.embedding?.error || dotobotRagReport.query?.error || dotobotRagReport.supabaseEmbedding?.error || dotobotRagReport.supabaseQuery?.error || dotobotRagReport.upsert?.error || dotobotRagReport.supabaseUpsert?.error}</p>
             </div>
           ) : null}
+        </div>
+      </Panel>
+
+      <Panel title={`Healthcheck Providers LLM: ${providersHealthStatus.headline}`}>
+        <div className="space-y-3 text-sm opacity-75">
+          <p>
+            Status:{" "}
+            <span className={providersHealthStatus.tone}>
+              {providersHealthStatus.label}
+            </span>
+          </p>
+          <p>{providersHealthStatus.summary}</p>
+          <p>Estado agregado: <span className={providersHealthStatus.tone}>{lawdeskProvidersHealth.status || "desconhecido"}</span></p>
+          <p>Providers operacionais: {lawdeskProvidersHealth.summary?.operational ?? 0}</p>
+          <p>Providers configurados: {lawdeskProvidersHealth.summary?.configured ?? 0}</p>
+          <p>Provider padrão: {lawdeskProvidersHealth.summary?.defaultProvider || "gpt"}</p>
+          {(lawdeskProvidersHealth.providers || []).length ? (
+            <div className="space-y-3 pt-2">
+              {lawdeskProvidersHealth.providers.map((provider) => (
+                <div key={provider.id} className="rounded-[18px] border border-[#2D2E2E] bg-[rgba(255,255,255,0.02)] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-white">{provider.label || provider.id}</p>
+                      <p className="text-xs text-white/60">{provider.transport || "n/a"}</p>
+                    </div>
+                    <span className={provider.status === "operational" ? "text-emerald-400" : provider.status === "degraded" ? "text-amber-300" : "text-rose-300"}>
+                      {provider.status || "unknown"}
+                    </span>
+                  </div>
+                  <p className="mt-2">Configurado: {provider.configured ? "sim" : "não"}</p>
+                  <p>Disponível: {provider.available ? "sim" : "não"}</p>
+                  <p>Modelo: {provider.model || "n/a"}</p>
+                  <p>Diagnóstico: {provider.reason || "Sem mensagem."}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p>Nenhum provider reportado.</p>
+          )}
         </div>
       </Panel>
 

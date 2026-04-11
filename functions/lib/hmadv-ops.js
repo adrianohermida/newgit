@@ -1,5 +1,6 @@
 import { fetchSupabaseAdmin } from "./supabase-rest.js";
 import { getCleanEnvValue, getSupabaseBaseUrl, getSupabaseServerKey } from "./env.js";
+import { pickNextDispatchableJob, sortAdminJobsForDispatch } from "./admin-job-control.js";
 import {
   createFreshsalesAppointmentForAudiencia,
   createFreshsalesAudienciaActivity,
@@ -540,17 +541,63 @@ async function patchOperationJob(env, id, body) {
   return rows?.[0] || null;
 }
 
-export async function listAdminJobs(env, { modulo, limit = 20 } = {}) {
-  const safeLimit = Math.max(1, Math.min(Number(limit || 20), 50));
-  const filters = [`limit=${safeLimit}`, "order=created_at.desc"];
+export async function listAdminJobs(env, { modulo, limit = 20, offset = 0, statuses = [] } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 20), 200));
+  const safeOffset = Math.max(0, Number(offset || 0));
+  const normalizedStatuses = Array.isArray(statuses)
+    ? statuses.map((item) => String(item || "").trim()).filter(Boolean)
+    : String(statuses || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+  const filters = [`limit=${safeLimit}`, `offset=${safeOffset}`, "order=created_at.desc"];
   if (modulo) filters.unshift(`modulo=eq.${encodeURIComponent(String(modulo))}`);
+  if (normalizedStatuses.length) {
+    filters.unshift(`status=in.(${normalizedStatuses.map((item) => encodeURIComponent(item)).join(",")})`);
+  }
   const items = await listTableSafe(
     env,
     `operacao_jobs?${filters.join("&")}&select=id,modulo,acao,status,payload,requested_count,processed_count,success_count,error_count,result_summary,last_error,created_at,started_at,updated_at,finished_at`,
     "judiciario",
     []
   );
-  return { items };
+  return { items, orderedForDispatch: sortAdminJobsForDispatch(items) };
+}
+
+export async function getAdminJob(env, id) {
+  return fetchOperationJobById(env, id);
+}
+
+export async function updateAdminJob(env, id, body = {}) {
+  if (!id) throw new Error("id obrigatorio para atualizar job.");
+  return patchOperationJob(env, id, body);
+}
+
+export async function createPortalAdminJob(env, { action, payload = {} } = {}) {
+  const normalizedControl = normalizeJobControlPayload(payload, {
+    defaultSource: "portal",
+    defaultPriority: 4,
+    defaultRateLimitKey: "portal_requests",
+    defaultVisibleToPortal: true,
+  });
+  return insertOperationJob(env, {
+    modulo: "portal",
+    acao: String(action || "").trim() || "portal_job",
+    status: "pending",
+    payload: {
+      ...payload,
+      jobControl: normalizedControl,
+    },
+    requested_count: 1,
+    processed_count: 0,
+    success_count: 0,
+    error_count: 0,
+    result_summary: {},
+    result_sample: [],
+    last_error: null,
+    started_at: null,
+    finished_at: null,
+  });
 }
 
 async function countTable(env, table, filters = "", schema = "judiciario") {
@@ -2084,7 +2131,7 @@ export async function listMonitoringProcesses(env, { page = 1, pageSize = 20, ac
     if (!schemaMessageMatches(error?.message, "monitoramento_ativo")) throw error;
     unsupported = true;
   }
-  if (active && !totalRows) {
+  if (active && (!totalRows || (!items.length && totalRows > 0))) {
     items = await listTableSafe(
       env,
       `processos?select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo&account_id_freshsales=not.is.null&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
@@ -2341,6 +2388,12 @@ export async function listProcessCoverage(env, { page = 1, pageSize = 20, query 
       if (processes.length || totalRows === 0 || !selectFailed) {
         break;
       }
+    }
+    if (!processes.length && totalRows > 0) {
+      processes = await listTableSafe(
+        env,
+        `processos?select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo${baseQuery ? `&${baseQuery}` : ""}&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`
+      );
     }
     const processIds = uniqueNonEmpty((processes || []).map((item) => item.id));
     if (!processIds.length) {
@@ -4121,12 +4174,47 @@ export async function repairFreshsalesAccounts(env, { processNumbers = [], limit
 }
 
 function normalizeProcessJobPayload(action, payload = {}) {
+  const normalizedControl = normalizeJobControlPayload(payload, {
+    defaultSource: "interno",
+    defaultPriority: action === "push_orfaos" ? 4 : action === "repair_freshsales_accounts" ? 4 : 3,
+    defaultRateLimitKey:
+      action === "enriquecer_datajud"
+        ? "datajud"
+        : action === "repair_freshsales_accounts" || action === "push_orfaos"
+          ? "freshsales_accounts"
+          : action === "sincronizar_movimentacoes_activity" || action === "sincronizar_publicacoes_activity"
+            ? "freshsales_activities"
+            : action === "reconciliar_partes_contatos"
+              ? "contacts_reconcile"
+              : "processos",
+    defaultVisibleToPortal: false,
+  });
   const config = getProcessActionLimitConfig(action);
   return {
     ...payload,
     action,
+    jobControl: normalizedControl,
     processNumbers: uniqueNonEmpty(payload.processNumbers || []),
     limit: Math.max(1, Math.min(Number(payload.limit || config.defaultLimit), config.maxLimit)),
+  };
+}
+
+function normalizeJobControlPayload(payload = {}, defaults = {}) {
+  const rawControl = payload?.jobControl && typeof payload.jobControl === "object" ? payload.jobControl : payload;
+  const rawSource = String(rawControl?.source || rawControl?.origem || defaults.defaultSource || "interno").trim().toLowerCase();
+  const source = rawSource === "portal" ? "portal" : "interno";
+  const priority = Math.max(1, Math.min(Number(rawControl?.priority || defaults.defaultPriority || 3), 5));
+  const rateLimitKey = String(rawControl?.rateLimitKey || rawControl?.rate_limit_key || defaults.defaultRateLimitKey || "default").trim() || "default";
+  const visibleToPortal = rawControl?.visibleToPortal !== undefined
+    ? Boolean(rawControl.visibleToPortal)
+    : rawControl?.visible_to_portal !== undefined
+      ? Boolean(rawControl.visible_to_portal)
+      : Boolean(defaults.defaultVisibleToPortal);
+  return {
+    source,
+    priority,
+    rateLimitKey,
+    visibleToPortal,
   };
 }
 
@@ -4272,6 +4360,24 @@ export async function processProcessAdminJob(env, id) {
 }
 
 function normalizePublicacoesJobPayload(action, payload = {}) {
+  const normalizedControl = normalizeJobControlPayload(payload, {
+    defaultSource: "interno",
+    defaultPriority:
+      action === "criar_processos_publicacoes"
+        ? 5
+        : action === "sincronizar_publicacoes_activity" || action === "sincronizar_partes"
+          ? 4
+          : 3,
+    defaultRateLimitKey:
+      action === "criar_processos_publicacoes"
+        ? "supabase_process_create"
+        : action === "sincronizar_publicacoes_activity"
+          ? "freshsales_publicacoes"
+          : action === "sincronizar_partes" || action === "reconciliar_partes_contatos"
+            ? "contacts_reconcile"
+            : "publicacoes",
+    defaultVisibleToPortal: false,
+  });
   const maxLimit =
     action === "backfill_partes"
       ? 2
@@ -4297,6 +4403,7 @@ function normalizePublicacoesJobPayload(action, payload = {}) {
   return {
     ...payload,
     action,
+    jobControl: normalizedControl,
     processNumbers: uniqueNonEmpty(payload.processNumbers || []),
     limit: Math.max(1, Math.min(Number(payload.limit || defaultLimit), maxLimit)),
     apply: payload.apply !== undefined ? Boolean(payload.apply) : true,

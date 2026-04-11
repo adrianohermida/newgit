@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/router";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch } from "../../lib/admin/api";
@@ -88,6 +89,13 @@ function toneForStatus(value) {
 }
 
 export default function InternoFinanceiroPage() {
+  const router = useRouter();
+  const routeFocus = {
+    dealId: typeof router.query.dealId === "string" ? router.query.dealId : "",
+    processAccountId: typeof router.query.processAccountId === "string" ? router.query.processAccountId : "",
+    clientId: typeof router.query.clientId === "string" ? router.query.clientId : "",
+  };
+
   return (
     <RequireAdmin>
       {(profile) => (
@@ -96,14 +104,14 @@ export default function InternoFinanceiroPage() {
           title="Financeiro"
           description="Leitura interna da base canônica de contratos, recebíveis, pendências de reconciliação e prontidão para publicação em Deals."
         >
-          <FinanceiroInternoContent />
+          <FinanceiroInternoContent routeFocus={routeFocus} />
         </InternoLayout>
       )}
     </RequireAdmin>
   );
 }
 
-function FinanceiroInternoContent() {
+function FinanceiroInternoContent({ routeFocus }) {
   const [state, setState] = useState({ loading: true, error: null, data: null });
   const [selectedPendingRows, setSelectedPendingRows] = useState([]);
   const [selectedPendingContactRows, setSelectedPendingContactRows] = useState([]);
@@ -461,6 +469,17 @@ function FinanceiroInternoContent() {
 
   return (
     <div className="space-y-8">
+      {routeFocus?.dealId || routeFocus?.processAccountId || routeFocus?.clientId ? (
+        <Panel title="Contexto vindo de Jobs" eyebrow="Handoff operacional">
+          <div className="flex flex-wrap gap-3 text-sm opacity-80">
+            {routeFocus.dealId ? <StatusBadge tone="accent">Deal {routeFocus.dealId}</StatusBadge> : null}
+            {routeFocus.processAccountId ? <StatusBadge tone="accent">Process account {routeFocus.processAccountId}</StatusBadge> : null}
+            {routeFocus.clientId ? <StatusBadge tone="neutral">Cliente {routeFocus.clientId}</StatusBadge> : null}
+          </div>
+          <p className="mt-4 text-sm opacity-70">Este modulo foi aberto a partir da mesa de jobs. Use os identificadores acima para reconciliar o pedido financeiro do portal com recebiveis, deals e pendencias internas.</p>
+        </Panel>
+      ) : null}
+
       <div className="flex justify-end">
         <button
           type="button"

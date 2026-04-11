@@ -4,7 +4,7 @@ import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
 import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
 import { buildModuleSnapshot } from "../../lib/admin/module-registry";
-import { clientFetch } from "../../lib/client/api";
+import { clientCreateJob, clientFetch } from "../../lib/client/api";
 
 const INITIAL_STATE = { loading: true, error: null, warning: null, items: [], summary: null };
 
@@ -41,6 +41,35 @@ export default function PortalDocumentosPage() {
 }
 
 function DocumentosContent({ state, setState }) {
+  const [jobState, setJobState] = useState({ loading: false, error: null, message: null });
+
+  async function handleDocumentJob(item = null) {
+    setJobState({ loading: true, error: null, message: null });
+    try {
+      await clientCreateJob("request_document_review", {
+        documentId: item?.id || null,
+        documentName: item?.name || null,
+        processId: item?.process_id || null,
+        summary: item?.name
+          ? `Cliente pediu revisao ou apoio sobre o documento ${item.name}.`
+          : "Cliente pediu revisao documental pelo portal.",
+      }, {
+        priority: 3,
+        rateLimitKey: "portal_documentos",
+        visibleToPortal: true,
+      });
+      setJobState({
+        loading: false,
+        error: null,
+        message: item?.name
+          ? `Pedido sobre "${item.name}" enviado para a fila operacional.`
+          : "Pedido documental enviado para a fila operacional.",
+      });
+    } catch (error) {
+      setJobState({ loading: false, error: error.message || "Falha ao criar job documental.", message: null });
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -149,8 +178,19 @@ function DocumentosContent({ state, setState }) {
           <p className="mt-3 max-w-2xl text-sm leading-6 opacity-65">
             Quando os documentos do seu caso forem sincronizados, eles aparecerao aqui com categoria, status e acesso direto.
           </p>
+          <button
+            type="button"
+            onClick={() => handleDocumentJob()}
+            disabled={jobState.loading}
+            className="mt-5 rounded-2xl border border-[#20332D] px-4 py-3 text-sm transition hover:border-[#C49C56] disabled:opacity-60"
+          >
+            Pedir revisao documental
+          </button>
         </div>
       ) : null}
+
+      {jobState.error ? <div className="rounded-[24px] border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] p-4 text-sm">{jobState.error}</div> : null}
+      {jobState.message ? <div className="rounded-[24px] border border-[#24533D] bg-[rgba(19,72,49,0.22)] p-4 text-sm text-[#D7F5EC]">{jobState.message}</div> : null}
 
       {state.items.length ? (
         <section className="space-y-4">
@@ -193,6 +233,14 @@ function DocumentosContent({ state, setState }) {
                       Abrir documento
                     </a>
                   ) : null}
+                  <button
+                    type="button"
+                    onClick={() => handleDocumentJob(item)}
+                    disabled={jobState.loading}
+                    className="inline-flex rounded-2xl border border-[#20332D] px-4 py-3 text-sm transition hover:border-[#C49C56] hover:text-[#C49C56] disabled:opacity-60"
+                  >
+                    Pedir revisao
+                  </button>
                 </div>
               </article>
             ))}

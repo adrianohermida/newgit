@@ -7,8 +7,21 @@ import {
   updateClientAuthMetadata,
   upsertClientProfile,
 } from "../lib/client-profile-ops.js";
+import { listAdminJobs } from "../lib/hmadv-ops.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
+
+async function listPortalVisibleJobs(env, clientId, clientEmail) {
+  const jobs = await listAdminJobs(env, { modulo: "portal", limit: 30 });
+  return (jobs.items || []).filter((item) => {
+    const payload = item?.payload && typeof item.payload === "object" ? item.payload : {};
+    const control = payload?.jobControl && typeof payload.jobControl === "object" ? payload.jobControl : payload;
+    if (!Boolean(control?.visibleToPortal || control?.visible_to_portal)) return false;
+    const sameClientId = String(payload?.clientId || "") === String(clientId || "");
+    const sameClientEmail = String(payload?.clientEmail || "").toLowerCase() === String(clientEmail || "").toLowerCase();
+    return sameClientId || sameClientEmail;
+  });
+}
 
 function isProfileBootstrapRequired(profile) {
   return !profile?.full_name || !profile?.whatsapp || !profile?.cpf;
@@ -34,6 +47,7 @@ export async function onRequestGet(context) {
       clientId: auth.user.id,
       limit: 10,
     });
+    const operationalJobs = await listPortalVisibleJobs(env, auth.user.id, auth.user.email).catch(() => []);
 
     return new Response(
       JSON.stringify({
@@ -44,6 +58,7 @@ export async function onRequestGet(context) {
         },
         profile: buildResponseProfile(auth.user, auth.profile),
         requests,
+        operational_jobs: operationalJobs,
         pending_request: requests.find((item) => item.status === "pending") || null,
       }),
       {

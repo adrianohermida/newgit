@@ -1,5 +1,6 @@
 import { fetchSupabaseAdmin } from "./supabase-rest.js";
 import { getSupabaseBaseUrl, getSupabaseServerKey } from "./env.js";
+import { createPortalAdminJob } from "./hmadv-ops.js";
 
 function safeJsonParse(value, fallback = {}) {
   if (!value) return fallback;
@@ -197,7 +198,28 @@ export async function createClientProfileChangeRequest(env, { user, profile, req
       },
       body: JSON.stringify(row),
     });
-    return Array.isArray(rows) ? rows[0] || row : row;
+    const requestRow = Array.isArray(rows) ? rows[0] || row : row;
+    const portalJob = await createPortalAdminJob(env, {
+      action: "review_profile_change_request",
+      payload: {
+        requestId: requestRow.id || null,
+        clientId: user.id,
+        clientEmail: user.email,
+        requestedPayload,
+        currentSnapshot,
+        summary: "Solicitacao cadastral enviada pelo portal e aguardando triagem interna.",
+        jobControl: {
+          source: "portal",
+          priority: 4,
+          rateLimitKey: "portal_profile_requests",
+          visibleToPortal: true,
+        },
+      },
+    }).catch(() => null);
+    return {
+      ...requestRow,
+      operational_job_id: portalJob?.id || null,
+    };
   } catch (error) {
     if (isMissingTableError(error, "client_profile_change_requests")) {
       throw new Error("A fila de solicitacoes cadastrais ainda nao foi criada no Supabase. Aplique a migration 022.");

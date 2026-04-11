@@ -75,14 +75,15 @@ const MODE_OPTIONS = [
 ];
 
 const PROVIDER_OPTIONS = [
-  { value: "gpt", label: "GPT" },
-  { value: "local", label: "Modelo local" },
-  { value: "custom", label: "Provedor custom" },
+  { value: "gpt", label: "Nuvem principal", disabled: false },
+  { value: "local", label: "LLM local", disabled: false },
+  { value: "cloudflare", label: "Cloudflare Workers AI", disabled: false },
+  { value: "custom", label: "Endpoint custom", disabled: false },
 ];
 
 const LEGAL_ACTIONS = [
   { label: "Gerar peticao", prompt: "/peticao Estruture a peticao com fatos, fundamentos e pedidos." },
-  { label: "Analisar processo", prompt: "/analise FaÃ§a uma leitura juridica do processo e destaque riscos." },
+  { label: "Analisar processo", prompt: "/analise Faca uma leitura juridica do processo e destaque riscos." },
   { label: "Criar plano", prompt: "/plano Monte um plano de pagamento ou de negociacao em etapas." },
   { label: "Resumir docs", prompt: "/resumo Resuma os documentos e indique pontos sensiveis." },
 ];
@@ -107,6 +108,14 @@ function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function parseProviderPresentation(value) {
+  const segments = String(value || "").split("·").map((item) => item.trim()).filter(Boolean);
+  const name = segments[0] || String(value || "Provider");
+  const meta = segments.slice(1);
+  const status = meta.find((item) => ["operational", "degraded", "failed"].includes(String(item).toLowerCase())) || null;
+  return { name, meta, status };
 }
 
 function detectAttachmentKind(file) {
@@ -479,6 +488,7 @@ export default function DotobotCopilot({
   const [workspaceOpen, setWorkspaceOpen] = useState(initialWorkspaceOpen);
   const [mode, setMode] = useState("task");
   const [provider, setProvider] = useState("gpt");
+  const [providerCatalog, setProviderCatalog] = useState(PROVIDER_OPTIONS);
   const [contextEnabled, setContextEnabled] = useState(true);
   const [rightPanelTab, setRightPanelTab] = useState("tasks");
   const [attachments, setAttachments] = useState([]);
@@ -512,6 +522,29 @@ export default function DotobotCopilot({
     if (typeof persistedState.prefs.contextEnabled === "boolean") setContextEnabled(persistedState.prefs.contextEnabled);
     setWorkspaceOpen(persistedState.prefs.workspaceOpen);
   }, [chatStorageKey, taskStorageKey, prefStorageKey, conversationStorageKey, initialWorkspaceOpen]);
+
+  useEffect(() => {
+    let active = true;
+    adminFetch("/api/admin-lawdesk-providers?include_health=1", { method: "GET" })
+      .then((payload) => {
+        if (!active) return;
+        const providers = Array.isArray(payload?.data?.providers) ? payload.data.providers : [];
+        const defaultProvider = typeof payload?.data?.defaultProvider === "string" ? payload.data.defaultProvider : "gpt";
+        if (!providers.length) return;
+        setProviderCatalog(
+          providers.map((item) => ({
+            value: item.id,
+            label: `${item.label}${item.model ? ` · ${item.model}` : ""}${item.status ? ` · ${item.status}` : ""}`,
+            disabled: !item.available,
+          }))
+        );
+        setProvider((current) => (current === "gpt" ? defaultProvider : current));
+      })
+      .catch(() => null);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1001,145 +1034,8 @@ export default function DotobotCopilot({
       thinking: "Pensando...",
       typing: "Digitando...",
       executing: "Executando...",
-      waiting: "Aguardando aprovaÃ§Ã£o...",
+      waiting: "Aguardando aprovacao...",
     }[uiState] || "Pronto";
-
-    // Modal de detalhes da Task
-    const [showTaskModal, setShowTaskModal] = useState(false);
-    const activeTask = getLastTask(taskHistory);
-
-    // Filtros e exportaÃ§Ã£o
-    const [taskFilter, setTaskFilter] = useState("");
-    const [statusFilter, setStatusFilter] = useState("");
-    const filteredTasks = taskHistory.filter(task =>
-      (!taskFilter || (task.query && task.query.toLowerCase().includes(taskFilter.toLowerCase()))) &&
-      (!statusFilter || task.status === statusFilter)
-    );
-    function exportTasks() {
-      const data = JSON.stringify(filteredTasks, null, 2);
-      const blob = new Blob([data], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `dotobot-tasks-${Date.now()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, 100);
-    }
-    const TaskModal = () => (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-        <div className="w-full max-w-2xl rounded-2xl bg-[#181B19] p-6 shadow-2xl border border-[#22342F] relative">
-          <button className="absolute right-4 top-4 text-[#C5A059] text-xl" onClick={() => setShowTaskModal(false)} title="Fechar">Ã—</button>
-          <h2 className="mb-4 text-lg font-bold text-[#F5F1E8]">Detalhes da ExecuÃ§Ã£o</h2>
-          <div className="flex flex-wrap gap-2 mb-4">
-            <input
-              className="rounded border border-[#22342F] bg-[#232823] px-2 py-1 text-xs text-[#EAE3D6]"
-              placeholder="Buscar por texto..."
-              value={taskFilter}
-              onChange={e => setTaskFilter(e.target.value)}
-              style={{ minWidth: 140 }}
-            />
-            <select
-              className="rounded border border-[#22342F] bg-[#232823] px-2 py-1 text-xs text-[#EAE3D6]"
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              style={{ minWidth: 120 }}
-            >
-              <option value="">Todos status</option>
-              <option value="queued">Na fila</option>
-              <option value="executing">Executando</option>
-              <option value="running">Executando</option>
-              <option value="paused">Pausado</option>
-              <option value="canceled">Cancelado</option>
-              <option value="error">Erro</option>
-              <option value="ok">Concluido</option>
-            </select>
-            <button
-              className="rounded border border-[#C5A059] bg-[#232823] px-3 py-1 text-xs text-[#C5A059] hover:bg-[#C5A059] hover:text-[#181B19]"
-              onClick={exportTasks}
-              title="Exportar tarefas filtradas"
-            >
-              <span className="material-icons align-middle mr-1" style={{ fontSize: 16 }}>download</span>
-              Exportar
-            </button>
-          </div>
-          {filteredTasks.length > 0 ? (
-            <div className="space-y-6 max-h-[50vh] overflow-y-auto pr-1">
-              {filteredTasks.map((task, idx) => (
-                <div key={task.id || idx} className="p-3 rounded-lg border border-[#22342F] bg-[#232823]">
-                  <div className="flex items-center gap-2 text-sm mb-1">
-                    <span className="font-semibold">Status:</span>
-                    <TaskStatusChip status={task.status} />
-                  </div>
-                  <div className="text-xs text-[#C5A059] mb-1">{task.query}</div>
-                  <div>
-                    <h3 className="font-semibold text-[#D9B46A] mb-1">Logs</h3>
-                    <div className="max-h-24 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
-                      {(task.logs || []).map((log, lidx) => (
-                        <div key={lidx} className="mb-1">{log}</div>
-                      ))}
-                    </div>
-                  </div>
-                  {task.debug && (
-                    <div className="mt-2">
-                      <h3 className="font-semibold text-[#D9B46A] mb-1">Debug & Trace</h3>
-                      <div className="max-h-24 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
-                        <pre className="whitespace-pre-wrap break-all">{JSON.stringify(task.debug, null, 2)}</pre>
-                      </div>
-                    </div>
-                  )}
-                  {task.request && (
-                    <div className="mt-2">
-                      <h3 className="font-semibold text-[#D9B46A] mb-1">Chamada (Request)</h3>
-                      <div className="max-h-24 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
-                        <pre className="whitespace-pre-wrap break-all">{JSON.stringify(task.request, null, 2)}</pre>
-                      </div>
-                    </div>
-                  )}
-                  {task.response && (
-                    <div className="mt-2">
-                      <h3 className="font-semibold text-[#D9B46A] mb-1">Resposta Obtida</h3>
-                      <div className="max-h-24 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
-                        <pre className="whitespace-pre-wrap break-all">{JSON.stringify(task.response, null, 2)}</pre>
-                      </div>
-                    </div>
-                  )}
-                  {task.expected && (
-                    <div className="mt-2">
-                      <h3 className="font-semibold text-[#D9B46A] mb-1">O que se esperava obter</h3>
-                      <div className="max-h-24 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
-                        <pre className="whitespace-pre-wrap break-all">{JSON.stringify(task.expected, null, 2)}</pre>
-                      </div>
-                    </div>
-                  )}
-                  {task.route && (
-                    <div className="mt-2">
-                      <h3 className="font-semibold text-[#D9B46A] mb-1">Rota chamada</h3>
-                      <div className="max-h-24 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
-                        <pre className="whitespace-pre-wrap break-all">{task.route}</pre>
-                      </div>
-                    </div>
-                  )}
-                  {task.error && (
-                    <div className="mt-2">
-                      <h3 className="font-semibold text-[#D9B46A] mb-1">Erro Detalhado</h3>
-                      <div className="max-h-24 overflow-y-auto rounded bg-[#232823] p-2 text-xs text-[#EAE3D6]">
-                        <pre className="whitespace-pre-wrap break-all">{JSON.stringify(task.error, null, 2)}</pre>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-[#9BAEA8]">Nenhuma execuÃ§Ã£o encontrada.</div>
-          )}
-        </div>
-      </div>
-    );
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -1384,6 +1280,14 @@ export default function DotobotCopilot({
     composerRef.current?.focus();
   }
 
+  function openLlmTest(nextProvider = provider, nextPrompt = input) {
+    const query = { provider: nextProvider };
+    if (String(nextPrompt || "").trim()) {
+      query.prompt = String(nextPrompt).trim().slice(0, 300);
+    }
+    router.push({ pathname: "/llm-test", query });
+  }
+
   function toggleVoiceInput() {
     const Recognition = getVoiceRecognition();
     if (!Recognition) {
@@ -1479,7 +1383,8 @@ export default function DotobotCopilot({
           ? "Executando"
           : "Idle";
   const activeMode = MODE_OPTIONS.find((item) => item.value === mode) || MODE_OPTIONS[0];
-  const activeProviderLabel = PROVIDER_OPTIONS.find((item) => item.value === provider)?.label || "GPT";
+  const activeProviderLabel = providerCatalog.find((item) => item.value === provider)?.label || "Nuvem principal";
+  const activeProviderPresentation = parseProviderPresentation(activeProviderLabel);
   const isWorkspaceShell = workspaceOpen;
   const railCollapsed = compactRail ? true : isCollapsed;
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
@@ -1571,6 +1476,16 @@ export default function DotobotCopilot({
               <p className="mt-2 max-w-md text-xs leading-6 text-[#8FA19B]">
                 {isCompactViewport ? "Chat para execucao e handoff com AI Task." : "Chat focado em execucao, contexto e handoff com AI Task."}
               </p>
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#D8DEDA]">
+                  Provider: {activeProviderPresentation.name}
+                </span>
+                {activeProviderPresentation.meta.map((item) => (
+                  <span key={item} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#9BAEA8]">
+                    {item}
+                  </span>
+                ))}
+              </div>
             </div>
             <div className="flex flex-row flex-wrap items-start justify-end gap-2 sm:flex-col sm:items-end">
               <button
@@ -1595,6 +1510,13 @@ export default function DotobotCopilot({
                     className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                   >
                     AI Task
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openLlmTest(provider, input)}
+                    className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                  >
+                    LLM Test
                   </button>
                 </div>
               ) : (
@@ -1806,6 +1728,16 @@ export default function DotobotCopilot({
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-[#9BAEA8]">
                     {activeConversation?.title || "Nova conversa"} · conversa principal ao centro, historico e contexto como apoio.
                   </p>
+                  <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                    <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#D8DEDA]">
+                      Provider: {activeProviderPresentation.name}
+                    </span>
+                    {activeProviderPresentation.meta.map((item) => (
+                      <span key={item} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#9BAEA8]">
+                        {item}
+                      </span>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -1828,8 +1760,8 @@ export default function DotobotCopilot({
                     onChange={(event) => setProvider(event.target.value)}
                     className="h-10 rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-xs text-[#D8DEDA] outline-none transition focus:border-[#C5A059]"
                   >
-                    {PROVIDER_OPTIONS.map((item) => (
-                      <option key={item.value} value={item.value}>
+                    {providerCatalog.map((item) => (
+                      <option key={item.value} value={item.value} disabled={item.disabled}>
                         {item.label}
                       </option>
                     ))}
@@ -1851,6 +1783,13 @@ export default function DotobotCopilot({
                     className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                   >
                     Abrir no AI Task
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openLlmTest(provider, input)}
+                    className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                  >
+                    Testar provider
                   </button>
                   <button
                     type="button"
@@ -1895,7 +1834,7 @@ export default function DotobotCopilot({
                         >
                           <option value="recent">Mais recentes</option>
                           <option value="oldest">Mais antigas</option>
-                          <option value="title">TÃ­tulo (A-Z)</option>
+                      <option value="title">Título (A-Z)</option>
                         </select>
                         <label className="flex items-center gap-1 text-xs text-[#C5A059] cursor-pointer">
                           <input
@@ -2171,6 +2110,9 @@ export default function DotobotCopilot({
                           <button type="button" onClick={() => router.push("/interno/ai-task")} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
                             AI Task
                           </button>
+                          <button type="button" onClick={() => openLlmTest(provider, input)} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                            LLM Test
+                          </button>
                         </div>
                         <button type="submit" disabled={loading || !input.trim()} className="rounded-2xl border border-[#C5A059] bg-[rgba(197,160,89,0.08)] px-4 py-2 text-sm font-semibold text-[#F1D39A] transition disabled:opacity-40 hover:bg-[rgba(197,160,89,0.14)]">
                           Enviar
@@ -2225,7 +2167,7 @@ export default function DotobotCopilot({
                                 </span>
                               </div>
                               <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[#9BAEA8]">
-                                <span className="rounded-full border border-[#22342F] px-2.5 py-1">{task.provider || "gpt"}</span>
+                                <span className="rounded-full border border-[#22342F] px-2.5 py-1">{parseProviderPresentation(task.provider || "gpt").name}</span>
                                 <span className="rounded-full border border-[#22342F] px-2.5 py-1">{task.steps?.length || 0} etapas</span>
                                 {task.rag?.retrieval?.enabled ? <span className="rounded-full border border-[#22342F] px-2.5 py-1">RAG {task.rag.retrieval.matches?.length || 0}</span> : null}
                               </div>

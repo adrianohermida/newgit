@@ -445,6 +445,7 @@ export async function onRequestPost(context) {
             payload: {
               processNumbers: parseProcessNumbers(body.processNumbers),
               limit: Number(body.limit || 0),
+              jobControl: body.jobControl || null,
             },
           });
         return jsonOk({ data });

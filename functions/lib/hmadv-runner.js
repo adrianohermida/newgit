@@ -25,6 +25,7 @@ import {
   reconcilePartesContacts,
   syncFreshsalesContactsMirror,
 } from "./hmadv-contacts.js";
+import { pickNextDispatchableJob, sortAdminJobsForDispatch } from "./admin-job-control.js";
 
 function getSupabaseBaseUrl(env) {
   return String(env?.SUPABASE_URL || env?.NEXT_PUBLIC_SUPABASE_URL || "").trim().replace(/\/$/, "");
@@ -353,7 +354,11 @@ async function drainModuleJobs(env, modulo, processor, maxChunks = 6) {
 
   while (chunks < safeChunks) {
     const listed = await listAdminJobs(env, { modulo, limit: 20 });
-    const job = (listed.items || []).find((item) => ["pending", "running"].includes(String(item.status || ""))) || null;
+    const activeRateLimitKeys = (listed.items || [])
+      .filter((item) => String(item?.status || "") === "running")
+      .map((item) => String(item?.payload?.jobControl?.rateLimitKey || "").trim())
+      .filter(Boolean);
+    const job = pickNextDispatchableJob(listed.items || [], { activeRateLimitKeys });
     if (!job?.id) {
       completedAll = true;
       break;
@@ -366,7 +371,7 @@ async function drainModuleJobs(env, modulo, processor, maxChunks = 6) {
   }
 
   const listed = await listAdminJobs(env, { modulo, limit: 20 });
-  const pending = (listed.items || []).filter((item) => ["pending", "running"].includes(String(item.status || "")));
+  const pending = sortAdminJobsForDispatch((listed.items || []).filter((item) => ["pending", "running", "retry_wait"].includes(String(item.status || ""))));
 
   return {
     modulo,

@@ -233,6 +233,7 @@ export async function onRequestPost(context) {
           intervalMs: Number(body.intervalMs || 1200),
           scheduledFor: body.scheduledFor || null,
           limit: Number(body.limit || 25),
+          jobControl: body.jobControl || null,
         },
       });
       return jsonOk({ data });

@@ -1,5 +1,6 @@
 import { detectRelevantModulesForMission } from "../../../lib/admin/module-registry.js";
 import { normalizeTaskRunPayload } from "../../../lib/admin/task-runner-shared.js";
+import { formatLawdeskProviderLabel } from "../../../lib/lawdesk/providers.js";
 
 export function detectModules(mission) {
   if (!mission) return ["dashboard"];
@@ -18,8 +19,7 @@ export function normalizeMission(value) {
 }
 
 export function formatExecutionSourceLabel(source) {
-  const labels = { openai: "OpenAI", cloudflare: "Cloudflare AI", local: "Modelo local", custom: "Custom" };
-  return labels[source] || source || "n/a";
+  return formatLawdeskProviderLabel(source);
 }
 
 export function extractTaskRunResultText(...sources) {

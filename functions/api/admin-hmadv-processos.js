@@ -72,6 +72,12 @@ function isQueueOverloadError(error) {
   return message.includes("Too many subrequests") || message.includes("subrequests");
 }
 
+function isHmadvUnauthorizedError(error) {
+  const status = Number(error?.status || 0);
+  const message = String(error?.message || "");
+  return status === 401 || status === 403 || message.toLowerCase().includes("unauthorized");
+}
+
 function buildQueueFallback({ page, pageSize, error }) {
   return {
     page,
@@ -524,6 +530,7 @@ export async function onRequestPost(context) {
               processNumbers: parseProcessNumbers(body.processNumbers),
               limit: Number(body.limit || 0),
               intent: String(body.intent || ""),
+              jobControl: body.jobControl || null,
             },
           });
         return jsonOk({ data });
@@ -669,14 +676,31 @@ export async function onRequestPost(context) {
       }));
     }
     if (action === "executar_integracao_total_hmadv") {
-      return runLogged(async () => runFullIntegrationCron(context.env, {
-        scanLimit: Number(body.scanLimit || 50),
-        monitorLimit: Number(body.monitorLimit || 100),
-        movementLimit: Number(body.movementLimit || 120),
-        advisePages: Number(body.advisePages || 2),
-        advisePerPage: Number(body.advisePerPage || 50),
-        publicacoesBatch: Number(body.publicacoesBatch || 20),
-      }));
+      return runLogged(async () => {
+        const integrationPayload = {
+          scanLimit: Number(body.scanLimit || 50),
+          monitorLimit: Number(body.monitorLimit || 100),
+          movementLimit: Number(body.movementLimit || 120),
+          advisePages: Number(body.advisePages || 2),
+          advisePerPage: Number(body.advisePerPage || 50),
+          publicacoesBatch: Number(body.publicacoesBatch || 20),
+        };
+        try {
+          return await runFullIntegrationCron(context.env, integrationPayload);
+        } catch (error) {
+          if (!isHmadvUnauthorizedError(error)) throw error;
+          const drain = await drainHmadvQueues(context.env, {
+            maxChunks: Number(body.maxChunks || 2),
+          });
+          return {
+            ok: true,
+            fallbackReason: "edge_function_unauthorized",
+            warning: error.message || "Edge function principal recusou a chamada.",
+            integration: null,
+            drain,
+          };
+        }
+      });
     }
     if (action === "auditoria_sync") {
       return runLogged(async () => runProcessAudit(context.env));

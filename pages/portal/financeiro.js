@@ -4,7 +4,7 @@ import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
 import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
 import { buildModuleSnapshot } from "../../lib/admin/module-registry";
-import { clientFetch } from "../../lib/client/api";
+import { clientCreateJob, clientFetch } from "../../lib/client/api";
 import { sanitizePortalCopy } from "../../lib/client/portal-copy";
 
 const INITIAL_STATE = {
@@ -86,6 +86,7 @@ export default function PortalFinanceiroPage() {
 
 function FinanceiroContent({ profile, state, setState }) {
   const [activeFilter, setActiveFilter] = useState("all");
+  const [jobState, setJobState] = useState({ loading: false, error: null, message: null });
   const [visibleCounts, setVisibleCounts] = useState({
     invoices: SECTION_PAGE_SIZE,
     subscriptions: SECTION_PAGE_SIZE,
@@ -93,6 +94,34 @@ function FinanceiroContent({ profile, state, setState }) {
     others: SECTION_PAGE_SIZE,
     filtered: SECTION_PAGE_SIZE,
   });
+
+  async function handleFinanceiroJob(item = null) {
+    setJobState({ loading: true, error: null, message: null });
+    try {
+      await clientCreateJob("request_financeiro_review", {
+        itemId: item?.id || null,
+        itemTitle: item?.title || null,
+        dealId: item?.freshsales_deal_id || null,
+        processAccountId: item?.process_account?.id || null,
+        summary: item?.title
+          ? `Cliente pediu conferencia financeira sobre ${item.title}.`
+          : "Cliente pediu conferencia financeira pelo portal.",
+      }, {
+        priority: 3,
+        rateLimitKey: "portal_financeiro",
+        visibleToPortal: true,
+      });
+      setJobState({
+        loading: false,
+        error: null,
+        message: item?.title
+          ? `Pedido financeiro sobre "${item.title}" enviado para a fila operacional.`
+          : "Pedido financeiro enviado para a fila operacional.",
+      });
+    } catch (error) {
+      setJobState({ loading: false, error: error.message || "Falha ao criar job financeiro.", message: null });
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -230,6 +259,9 @@ function FinanceiroContent({ profile, state, setState }) {
         <div className="rounded-[28px] border border-[#6E5630] bg-[rgba(76,57,26,0.22)] p-6 text-sm leading-7">{sanitizePortalCopy(state.warning)}</div>
       ) : null}
 
+      {jobState.error ? <div className="rounded-[24px] border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] p-4 text-sm">{jobState.error}</div> : null}
+      {jobState.message ? <div className="rounded-[24px] border border-[#24533D] bg-[rgba(19,72,49,0.22)] p-4 text-sm text-[#D7F5EC]">{jobState.message}</div> : null}
+
       {isDevObserver ? (
         <section className="rounded-[28px] border border-[#35554B] bg-[rgba(11,24,21,0.72)] p-6">
           <div className="max-w-3xl">
@@ -284,6 +316,16 @@ function FinanceiroContent({ profile, state, setState }) {
           })}
         </div>
         <p className="mt-3 text-sm opacity-62">Exibindo {Math.min(filteredDeals.length, visibleCounts.filtered)} de {filteredDeals.length} item(ns) no filtro atual.</p>
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => handleFinanceiroJob()}
+            disabled={jobState.loading}
+            className="rounded-2xl border border-[#20332D] px-4 py-3 text-sm transition hover:border-[#C49C56] disabled:opacity-60"
+          >
+            Solicitar conferencia financeira
+          </button>
+        </div>
       </section>
 
       <FinanceSection
@@ -293,6 +335,7 @@ function FinanceiroContent({ profile, state, setState }) {
         emptyMessage="Nenhum item encontrado para o filtro atual."
         visibleCount={visibleCounts.filtered}
         onLoadMore={() => setVisibleCounts((current) => ({ ...current, filtered: current.filtered + SECTION_PAGE_SIZE }))}
+        onRequestReview={handleFinanceiroJob}
       />
 
       {!state.items.length ? (
@@ -331,6 +374,7 @@ function FinanceiroContent({ profile, state, setState }) {
         emptyMessage="Nenhuma fatura vinculada apareceu para este contato."
         visibleCount={visibleCounts.invoices}
         onLoadMore={() => setVisibleCounts((current) => ({ ...current, invoices: current.invoices + SECTION_PAGE_SIZE }))}
+        onRequestReview={handleFinanceiroJob}
       />
 
       <FinanceSection
@@ -340,6 +384,7 @@ function FinanceiroContent({ profile, state, setState }) {
         emptyMessage="Nenhuma assinatura ativa foi identificada para este contato."
         visibleCount={visibleCounts.subscriptions}
         onLoadMore={() => setVisibleCounts((current) => ({ ...current, subscriptions: current.subscriptions + SECTION_PAGE_SIZE }))}
+        onRequestReview={handleFinanceiroJob}
       />
 
       {(state.summary?.refunds || 0) > 0 ? (
@@ -350,6 +395,7 @@ function FinanceiroContent({ profile, state, setState }) {
           emptyMessage=""
           visibleCount={visibleCounts.refunds}
           onLoadMore={() => setVisibleCounts((current) => ({ ...current, refunds: current.refunds + SECTION_PAGE_SIZE }))}
+          onRequestReview={handleFinanceiroJob}
         />
       ) : null}
 
@@ -361,6 +407,7 @@ function FinanceiroContent({ profile, state, setState }) {
           emptyMessage=""
           visibleCount={visibleCounts.others}
           onLoadMore={() => setVisibleCounts((current) => ({ ...current, others: current.others + SECTION_PAGE_SIZE }))}
+          onRequestReview={handleFinanceiroJob}
         />
       ) : null}
 
@@ -368,7 +415,7 @@ function FinanceiroContent({ profile, state, setState }) {
   );
 }
 
-function FinanceSection({ title, description, items, emptyMessage, visibleCount = SECTION_PAGE_SIZE, onLoadMore }) {
+function FinanceSection({ title, description, items, emptyMessage, visibleCount = SECTION_PAGE_SIZE, onLoadMore, onRequestReview }) {
   const visibleItems = items.slice(0, visibleCount);
   const hasMore = visibleItems.length < items.length;
 
@@ -428,6 +475,17 @@ function FinanceSection({ title, description, items, emptyMessage, visibleCount 
                   >
                     Ver area de processos
                   </Link>
+                </div>
+              ) : null}
+              {onRequestReview ? (
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => onRequestReview(item)}
+                    className="rounded-2xl border border-[#20332D] px-4 py-3 text-sm transition hover:border-[#C49C56] hover:text-[#C49C56]"
+                  >
+                    Pedir conferencia deste item
+                  </button>
                 </div>
               ) : null}
             </article>

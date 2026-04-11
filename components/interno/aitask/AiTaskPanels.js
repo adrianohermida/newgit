@@ -151,6 +151,8 @@ export function WorkspaceHeader({
   stateLabel,
   activeModeLabel,
   provider,
+  providerOptions = [],
+  onProviderChange,
   executionSource,
   executionModel,
   eventsTotal,
@@ -158,9 +160,22 @@ export function WorkspaceHeader({
   handleStop,
   handleContinueLastRun,
   handleApprove,
+  handleOpenLlmTest,
   paused,
   formatExecutionSourceLabel,
 }) {
+  const activeProvider = providerOptions.find((item) => item.value === provider) || null;
+  const providerLabel = activeProvider?.label || provider;
+  const providerSegments = String(providerLabel).split("·").map((item) => item.trim()).filter(Boolean);
+  const providerName = providerSegments[0] || providerLabel;
+  const providerMeta = providerSegments.slice(1);
+  const providerStatus = providerMeta.find((item) => ["operational", "degraded", "failed"].includes(String(item).toLowerCase())) || null;
+  const providerTone =
+    String(providerStatus || "").toLowerCase() === "operational"
+      ? "success"
+      : String(providerStatus || "").toLowerCase() === "failed"
+        ? "danger"
+        : "accent";
   return (
     <section className="rounded-[28px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(11,15,14,0.98),rgba(7,10,9,0.98))] px-5 py-4 shadow-[0_18px_54px_rgba(0,0,0,0.24)]">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -174,15 +189,34 @@ export function WorkspaceHeader({
         <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[520px] xl:grid-cols-4">
           <MetricPill label="Status" value={stateLabel} tone={stateLabel === "Falhou" ? "danger" : stateLabel === "Concluído" ? "success" : "accent"} />
           <MetricPill label="Modo" value={activeModeLabel} />
-          <MetricPill label="Modelo" value={provider} />
+          <MetricPill label="Provider" value={providerName} tone={providerTone} />
           <MetricPill label="Eventos" value={eventsTotal} />
         </div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#1A2622] pt-4">
+        <label className="flex items-center gap-2 rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+          <span className="uppercase tracking-[0.16em] text-[#7F928C]">Provider</span>
+          <select
+            value={provider}
+            onChange={(event) => onProviderChange?.(event.target.value)}
+            className="min-w-[180px] bg-transparent text-[11px] text-[#F5F1E8] outline-none"
+          >
+            {providerOptions.map((item) => (
+              <option key={item.value} value={item.value} disabled={item.disabled}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
           Execução: {`${formatExecutionSourceLabel(executionSource)}${executionModel ? ` / ${executionModel}` : ""}`}
         </span>
+        {providerMeta.map((item) => (
+          <span key={item} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#9BAEA8]">
+            {item}
+          </span>
+        ))}
         <button type="button" onClick={handlePause} className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
           {paused ? "Retomar fluxo" : "Pausar fluxo"}
         </button>
@@ -194,6 +228,9 @@ export function WorkspaceHeader({
         </button>
         <button type="button" onClick={handleApprove} className="rounded-full border border-[#234034] px-4 py-2 text-xs text-[#8FCFA9] transition hover:border-[#8FCFA9]">
           Aprovar ação
+        </button>
+        <button type="button" onClick={handleOpenLlmTest} className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+          Testar provider
         </button>
       </div>
     </section>

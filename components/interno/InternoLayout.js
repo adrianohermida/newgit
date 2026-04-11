@@ -41,10 +41,12 @@ const NAV_ITEMS = [
   { href: "/interno/ai-task", label: "AI Task" },
   { href: "/interno/aprovacoes", label: "Aprovacoes" },
   { href: "/interno/financeiro", label: "Financeiro" },
+  { href: "/interno/jobs", label: "Jobs" },
   { href: "/interno/processos", label: "Processos" },
   { href: "/interno/publicacoes", label: "Publicacoes" },
   { href: "/interno/contacts", label: "Contatos" },
   { href: "/interno/agentlab", label: "AgentLab" },
+  { href: "/llm-test", label: "LLM Test" },
   { href: "/interno/posts", label: "Conteudo" },
   { href: "/interno/agendamentos", label: "Agenda" },
   { href: "/interno/leads", label: "Leads" },
@@ -2350,9 +2352,9 @@ export default function InternoLayout({
               <DotobotCopilot
                 profile={profile}
                 routePath={router.pathname}
-                initialWorkspaceOpen={rightRailFullscreen ? true : initialWorkspaceOpen}
+                initialWorkspaceOpen={rightRailFullscreen ? true : false}
                 defaultCollapsed={false}
-                compactRail={false}
+                compactRail={!rightRailFullscreen}
                 showCollapsedTrigger={false}
               />
             ) : (

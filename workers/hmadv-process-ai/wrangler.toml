@@ -39,4 +39,10 @@ CLOUDFLARE_WORKERS_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
 CLOUDFLARE_R2_ACCOUNT_ID = "b32bcc487dfca3a70fe57a75fa5ac482"
 CLOUDFLARE_KV_NAMESPACE_ID = "1e0740f44693445cbc798c0fe6e45a98"
 # CLOUDFLARE_S3_API is intentionally left as a runtime secret or dashboard variable.
+# Runtime secrets esperados no worker HMADV IA:
+# - HMDAV_AI_SHARED_SECRET (ou HMADV_AI_SHARED_SECRET / LAWDESK_AI_SHARED_SECRET)
+# - SUPABASE_URL
+# - SUPABASE_SERVICE_ROLE_KEY
+# - FRESHSALES_API_BASE
+# - FRESHSALES_API_KEY
 

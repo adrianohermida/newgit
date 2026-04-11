@@ -3,7 +3,7 @@ import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
 import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
 import { buildModuleSnapshot } from "../../lib/admin/module-registry";
-import { clientFetch } from "../../lib/client/api";
+import { clientCreateJob, clientFetch } from "../../lib/client/api";
 
 function formatDateLabel(value) {
   if (!value) return "Sem data";
@@ -95,6 +95,37 @@ export default function PortalConsultasPage() {
 }
 
 function ConsultasContent({ state, setState }) {
+  const [jobState, setJobState] = useState({ loading: false, error: null, message: null });
+
+  async function handleConsultaJob(action, item = null) {
+    setJobState({ loading: true, error: null, message: null });
+    try {
+      await clientCreateJob(action, {
+        consultaId: item?.id || state.nextConsulta?.id || null,
+        consultaStatus: item?.status || state.nextConsulta?.status || null,
+        consultaDate: item?.datetime_iso || state.nextConsulta?.datetime_iso || null,
+        summary:
+          action === "request_consulta_change"
+            ? "Cliente pediu ajuste ou remarcacao de consulta pelo portal."
+            : "Cliente pediu apoio operacional ligado a consulta pelo portal.",
+      }, {
+        priority: action === "request_consulta_change" ? 4 : 3,
+        rateLimitKey: "portal_consultas",
+        visibleToPortal: true,
+      });
+      setJobState({
+        loading: false,
+        error: null,
+        message:
+          action === "request_consulta_change"
+            ? "Pedido de ajuste de consulta enviado para a fila operacional."
+            : "Pedido de apoio enviado para a fila operacional.",
+      });
+    } catch (error) {
+      setJobState({ loading: false, error: error.message || "Falha ao abrir job da consulta.", message: null });
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -209,6 +240,24 @@ function ConsultasContent({ state, setState }) {
               <p className="text-sm leading-6 opacity-62">
                 Quando houver um novo agendamento confirmado para o seu e-mail, ele aparece em destaque aqui.
               </p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleConsultaJob("request_consulta_change", state.nextConsulta)}
+                  disabled={jobState.loading}
+                  className="rounded-2xl border border-[#20332D] px-4 py-3 text-sm transition hover:border-[#C49C56] disabled:opacity-60"
+                >
+                  Pedir ajuste pela fila
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleConsultaJob("request_consulta_support", state.nextConsulta)}
+                  disabled={jobState.loading}
+                  className="rounded-2xl border border-[#20332D] px-4 py-3 text-sm transition hover:border-[#C49C56] disabled:opacity-60"
+                >
+                  Pedir apoio operacional
+                </button>
+              </div>
             </div>
           ) : (
             <div className="mt-4">
@@ -270,6 +319,9 @@ function ConsultasContent({ state, setState }) {
         ))}
       </section>
 
+      {jobState.error ? <div className="rounded-[24px] border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] p-4 text-sm">{jobState.error}</div> : null}
+      {jobState.message ? <div className="rounded-[24px] border border-[#24533D] bg-[rgba(19,72,49,0.22)] p-4 text-sm text-[#D7F5EC]">{jobState.message}</div> : null}
+
       <section className="rounded-[32px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">
         <div className="flex flex-col gap-3 border-b border-[#20332D] pb-5 md:flex-row md:items-end md:justify-between">
           <div>
@@ -305,6 +357,14 @@ function ConsultasContent({ state, setState }) {
                   >
                     Pedir apoio
                   </a>
+                  <button
+                    type="button"
+                    onClick={() => handleConsultaJob("request_consulta_change", item)}
+                    disabled={jobState.loading}
+                    className="rounded-2xl border border-[#20332D] px-4 py-3 text-center text-sm transition hover:border-[#C49C56] disabled:opacity-60"
+                  >
+                    Entrar na fila
+                  </button>
                   <a
                     href="/agendamento"
                     className="rounded-2xl border border-[#20332D] px-4 py-3 text-center text-sm transition hover:border-[#C49C56]"

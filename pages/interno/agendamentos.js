@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import Link from "next/link";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
@@ -34,12 +35,17 @@ function SummaryCard({ label, value }) {
 }
 
 export default function InternoAgendamentosPage() {
+  const router = useRouter();
   const [filters, setFilters] = useState({
     status: "",
     dateFrom: "",
     dateTo: "",
   });
   const [state, setState] = useState({ loading: true, error: null, items: [] });
+  const routeFocus = {
+    id: typeof router.query.id === "string" ? router.query.id : "",
+    clientId: typeof router.query.clientId === "string" ? router.query.clientId : "",
+  };
 
   return (
     <RequireAdmin>
@@ -54,6 +60,7 @@ export default function InternoAgendamentosPage() {
             setFilters={setFilters}
             state={state}
             setState={setState}
+            routeFocus={routeFocus}
           />
         </InternoLayout>
       )}
@@ -61,7 +68,7 @@ export default function InternoAgendamentosPage() {
   );
 }
 
-function AgendamentosContent({ filters, setFilters, state, setState }) {
+function AgendamentosContent({ filters, setFilters, state, setState, routeFocus }) {
   useEffect(() => {
     let cancelled = false;
 
@@ -110,6 +117,11 @@ function AgendamentosContent({ filters, setFilters, state, setState }) {
   const pendentes = countByStatus(state.items, "pendente");
   const confirmados = countByStatus(state.items, "confirmado");
   const cancelados = countByStatus(state.items, "cancelado");
+  const orderedItems = [...state.items].sort((left, right) => {
+    const leftFocused = routeFocus?.id && String(left.id) === String(routeFocus.id) ? 1 : 0;
+    const rightFocused = routeFocus?.id && String(right.id) === String(routeFocus.id) ? 1 : 0;
+    return rightFocused - leftFocused;
+  });
 
   useEffect(() => {
     setModuleHistory(
@@ -142,6 +154,28 @@ function AgendamentosContent({ filters, setFilters, state, setState }) {
 
   return (
     <div>
+      {routeFocus?.id || routeFocus?.clientId ? (
+        <div className="border border-[#6F5826] bg-[rgba(111,88,38,0.12)] p-5 mb-6">
+          <p className="text-xs font-semibold tracking-[0.15em] uppercase" style={{ color: "#C5A059" }}>
+            Contexto vindo de Jobs
+          </p>
+          <div className="mt-3 flex flex-wrap gap-3 text-sm opacity-80">
+            {routeFocus.id ? <span>Agendamento: {routeFocus.id}</span> : null}
+            {routeFocus.clientId ? <span>Cliente: {routeFocus.clientId}</span> : null}
+          </div>
+          {routeFocus.id ? (
+            <div className="mt-4">
+              <Link
+                href={`/interno/agendamentos/detalhe?id=${routeFocus.id}`}
+                className="inline-flex border border-[#C5A059] px-4 py-2 text-sm hover:border-[#E7C98C]"
+              >
+                Abrir detalhe do agendamento focado
+              </Link>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-4 mb-6">
         <SummaryCard label="Total" value={total} />
         <SummaryCard label="Pendentes" value={pendentes} />
@@ -216,13 +250,16 @@ function AgendamentosContent({ filters, setFilters, state, setState }) {
 
       {!state.loading && !state.error ? (
         <div className="space-y-4">
-          {state.items.map((item) => (
-            <article key={item.id} className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-5">
+          {orderedItems.map((item) => {
+            const isFocused = routeFocus?.id && String(item.id) === String(routeFocus.id);
+            return (
+            <article key={item.id} className={`border p-5 ${isFocused ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
               <div className="flex flex-wrap items-center gap-3 mb-3">
                 <span className="text-[10px] font-semibold tracking-[0.2em]" style={{ color: "#C5A059" }}>
                   {item.area}
                 </span>
                 <span className="text-[10px] uppercase tracking-[0.15em] opacity-45">{item.status}</span>
+                {isFocused ? <span className="text-[10px] uppercase tracking-[0.15em] text-[#C5A059]">Foco de jobs</span> : null}
               </div>
               <h3 className="font-serif text-2xl mb-2">{item.nome}</h3>
               <div className="grid gap-2 text-sm opacity-70 md:grid-cols-2">
@@ -241,7 +278,7 @@ function AgendamentosContent({ filters, setFilters, state, setState }) {
                 </Link>
               </div>
             </article>
-          ))}
+          )})}
         </div>
       ) : null}
     </div>

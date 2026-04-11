@@ -167,6 +167,11 @@ function getPublicacaoSelectionValue(row) {
   return String(row?.numero_cnj || row?.publicacao_id || row?.id || row?.key || "").trim();
 }
 
+function matchesPublicacaoSelection(row, selectedValues = []) {
+  const selectionValue = getPublicacaoSelectionValue(row);
+  return Boolean(selectionValue) && selectedValues.includes(selectionValue);
+}
+
 function loadValidationState() {
   if (typeof window === "undefined") return {};
   try {
@@ -1911,7 +1916,7 @@ function PublicacoesContent() {
   }
 
   function togglePageSelection(setter, current, rows, nextState) {
-    const keys = rows.map((item) => item.key);
+    const keys = rows.map((item) => getPublicacaoSelectionValue(item)).filter(Boolean);
     if (nextState) {
       setter([...new Set([...current, ...keys])]);
       return;
@@ -2149,11 +2154,11 @@ function PublicacoesContent() {
   }
 
   const selectedProcessNumbers = useMemo(
-    () => processCandidates.items.filter((item) => selectedProcessKeys.includes(item.key)).map((item) => item.numero_cnj),
+    () => processCandidates.items.filter((item) => matchesPublicacaoSelection(item, selectedProcessKeys)).map((item) => item.numero_cnj).filter(Boolean),
     [processCandidates.items, selectedProcessKeys]
   );
   const selectedPartesNumbers = useMemo(
-    () => partesCandidates.items.filter((item) => selectedPartesKeys.includes(item.key)).map((item) => item.numero_cnj),
+    () => partesCandidates.items.filter((item) => matchesPublicacaoSelection(item, selectedPartesKeys)).map((item) => item.numero_cnj).filter(Boolean),
     [partesCandidates.items, selectedPartesKeys]
   );
   const data = overview.data || {};
@@ -2206,8 +2211,8 @@ function PublicacoesContent() {
 
   function selectVisibleRecurringPublicacoes() {
     const recurringKeys = new Set(recurringPublicacoes.map((item) => item.key));
-    setSelectedProcessKeys(processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
-    setSelectedPartesKeys(partesCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
+    setSelectedProcessKeys(processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getPublicacaoSelectionValue(item)).filter(Boolean));
+    setSelectedPartesKeys(partesCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getPublicacaoSelectionValue(item)).filter(Boolean));
     setSelectedIntegratedNumbers(filteredIntegratedRows.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.numero_cnj).filter(Boolean));
     logUiEvent("Selecionar reincidentes visiveis", "selecionar_reincidentes_publicacoes", {
       selectedProcessos: processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).length,
@@ -2218,8 +2223,8 @@ function PublicacoesContent() {
   }
   function selectVisibleSevereRecurringPublicacoes() {
     const recurringKeys = new Set(recurringPublicacoes.filter((item) => item.hits >= 3).map((item) => item.key));
-    setSelectedProcessKeys(processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
-    setSelectedPartesKeys(partesCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
+    setSelectedProcessKeys(processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getPublicacaoSelectionValue(item)).filter(Boolean));
+    setSelectedPartesKeys(partesCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getPublicacaoSelectionValue(item)).filter(Boolean));
     setSelectedIntegratedNumbers(filteredIntegratedRows.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.numero_cnj).filter(Boolean));
     logUiEvent("Selecionar reincidentes severos", "selecionar_reincidentes_severos_publicacoes", {
       selectedProcessos: processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).length,
@@ -2255,7 +2260,7 @@ function PublicacoesContent() {
   const selectedVisibleSevereRecurringCount = [...processCandidates.items, ...partesCandidates.items]
     .filter((item, index, array) => array.findIndex((other) => (other.numero_cnj || other.key) === (item.numero_cnj || item.key)) === index)
     .filter((item) => recurringPublicacoes.some((recurring) => recurring.key === (item.numero_cnj || item.key) && recurring.hits >= 3))
-    .filter((item) => selectedProcessKeys.includes(item.key) || selectedPartesKeys.includes(item.key))
+    .filter((item) => matchesPublicacaoSelection(item, selectedProcessKeys) || matchesPublicacaoSelection(item, selectedPartesKeys))
     .length;
   const priorityBatchReady = visibleSevereRecurringCount > 0 && selectedVisibleSevereRecurringCount >= visibleSevereRecurringCount && limit === recurringPublicacoesBatch.size;
 

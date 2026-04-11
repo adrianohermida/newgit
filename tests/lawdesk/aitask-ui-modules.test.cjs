@@ -195,7 +195,7 @@ registerTest("adapter helpers classify mission intent and approval risk", async 
   assert.deepEqual(adapters.detectModules("Atualizar contato do cliente"), ["clientes"]);
   assert.equal(adapters.requiresApproval("Excluir registro antigo"), true);
   assert.equal(adapters.normalizeMission("  revisar caso  "), "revisar caso");
-  assert.equal(adapters.formatExecutionSourceLabel("cloudflare"), "Cloudflare AI");
+  assert.equal(adapters.formatExecutionSourceLabel("cloudflare"), "Cloudflare Workers AI");
   assert.equal(adapters.extractTaskRunResultText({ result: { message: "OK" } }), "OK");
 });
 

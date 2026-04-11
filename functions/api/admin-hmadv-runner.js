@@ -5,6 +5,12 @@ import {
   requireHmadvRunnerAccess,
 } from "../lib/hmadv-runner.js";
 
+function isHmadvUnauthorizedError(error) {
+  const status = Number(error?.status || 0);
+  const message = String(error?.message || "");
+  return status === 401 || status === 403 || message.toLowerCase().includes("unauthorized");
+}
+
 export async function onRequestGet(context) {
   const auth = requireHmadvRunnerAccess(context.request, context.env);
   if (!auth.ok) {
@@ -43,6 +49,14 @@ export async function onRequestPost(context) {
             publicacoesBatch: Number(body.publicacoesBatch || 20),
           };
           return runFullIntegrationCron(context.env, integrationPayload)
+            .catch(async (error) => {
+              if (!isHmadvUnauthorizedError(error)) throw error;
+              return {
+                ok: true,
+                fallbackReason: "edge_function_unauthorized",
+                warning: error.message || "Edge function principal recusou a chamada.",
+              };
+            })
             .then(async (integration) => {
               const drain = await drainHmadvQueues(context.env, {
                 maxChunks: Number(body.maxChunks || 2),

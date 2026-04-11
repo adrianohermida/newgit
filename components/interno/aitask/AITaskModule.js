@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { adminFetch } from "../../../lib/admin/api";
+import { useRouter } from "next/router";
 import { getModuleHistory, setModuleHistory } from "../../../lib/admin/activity-log";
 import {
   Bubble,
@@ -62,6 +64,13 @@ const MODE_OPTIONS = [
   { value: "assisted", label: "Assistido" },
   { value: "auto", label: "Automático" },
   { value: "manual", label: "Manual" },
+];
+
+const FALLBACK_PROVIDER_OPTIONS = [
+  { value: "gpt", label: "Nuvem principal", disabled: false },
+  { value: "local", label: "LLM local", disabled: false },
+  { value: "cloudflare", label: "Cloudflare Workers AI", disabled: false },
+  { value: "custom", label: "Endpoint custom", disabled: false },
 ];
 
 function buildBlueprint(normalizedMission, profile, mode, provider) {
@@ -178,9 +187,11 @@ function buildBlueprint(normalizedMission, profile, mode, provider) {
 }
 
 export default function AITaskModule({ profile, routePath }) {
+  const router = useRouter();
   const missionInputRef = useRef(null);
   const chatViewportRef = useRef(null);
   const [stopModalOpen, setStopModalOpen] = useState(false);
+  const [providerCatalog, setProviderCatalog] = useState(FALLBACK_PROVIDER_OPTIONS);
   const {
     activeRun,
     approved,
@@ -248,6 +259,29 @@ export default function AITaskModule({ profile, routePath }) {
     profile,
   });
 
+  useEffect(() => {
+    let active = true;
+    adminFetch("/api/admin-lawdesk-providers?include_health=1", { method: "GET" })
+      .then((payload) => {
+        if (!active) return;
+        const providers = Array.isArray(payload?.data?.providers) ? payload.data.providers : [];
+        const defaultProvider = typeof payload?.data?.defaultProvider === "string" ? payload.data.defaultProvider : "gpt";
+        if (!providers.length) return;
+        setProviderCatalog(
+          providers.map((item) => ({
+            value: item.id,
+            label: `${item.label}${item.model ? ` · ${item.model}` : ""}${item.status ? ` · ${item.status}` : ""}`,
+            disabled: !item.available,
+          }))
+        );
+        setProvider((current) => (current === "gpt" ? defaultProvider : current));
+      })
+      .catch(() => null);
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const { executeMission, handleContinueLastRun, handlePause, handleStart, handleStop } = useAiTaskRun({
     mission,
     mode,
@@ -294,6 +328,16 @@ export default function AITaskModule({ profile, routePath }) {
     if (automation === "waiting_approval") {
       executeMission(mission);
     }
+  }
+
+  function handleOpenLlmTest() {
+    const query = {
+      provider,
+    };
+    if (mission) {
+      query.prompt = mission.slice(0, 300);
+    }
+    router.push({ pathname: "/llm-test", query });
   }
 
   const taskColumns = useMemo(() => buildTaskColumns(tasks), [tasks]);
@@ -403,6 +447,8 @@ export default function AITaskModule({ profile, routePath }) {
       <WorkspaceHeader
         stateLabel={stateLabel}
         provider={provider}
+        providerOptions={providerCatalog}
+        onProviderChange={setProvider}
         activeModeLabel={activeMode.label}
         executionSource={executionSource}
         executionModel={executionModel}
@@ -412,6 +458,7 @@ export default function AITaskModule({ profile, routePath }) {
         handleStop={() => setStopModalOpen(true)}
         handleContinueLastRun={handleContinueLastRun}
         handleApprove={handleApprove}
+        handleOpenLlmTest={handleOpenLlmTest}
         formatExecutionSourceLabel={formatExecutionSourceLabel}
       />
 

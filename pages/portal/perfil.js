@@ -62,6 +62,7 @@ export default function PortalPerfilPage() {
     message: null,
     profile: null,
     requests: [],
+    operationalJobs: [],
     form: buildForm(null),
   });
 
@@ -104,6 +105,7 @@ function PerfilContent({ state, setState }) {
       error: null,
       profile: payload.profile,
       requests: payload.requests || [],
+      operationalJobs: payload.operational_jobs || [],
       form: buildForm(payload.profile),
     }));
   }
@@ -133,6 +135,7 @@ function PerfilContent({ state, setState }) {
             error: null,
             profile: payload.profile,
             requests: payload.requests || [],
+            operationalJobs: payload.operational_jobs || [],
             form: buildForm(payload.profile),
           }));
         }
@@ -275,6 +278,7 @@ function PerfilContent({ state, setState }) {
 
   const locks = useMemo(() => state.profile?.metadata?.personal_data_locks || {}, [state.profile]);
   const pendingRequest = useMemo(() => (state.requests || []).find((item) => item.status === "pending") || null, [state.requests]);
+  const latestOperationalJob = useMemo(() => (state.operationalJobs || [])[0] || null, [state.operationalJobs]);
   const contactsCount = state.form.contacts?.length || 0;
   const addressesCount = state.form.addresses?.length || 0;
 
@@ -292,6 +296,7 @@ function PerfilContent({ state, setState }) {
           communicationConsent: state.form.communication_consent === true,
         },
         requestsCount: state.requests.length,
+        operationalJobsCount: state.operationalJobs.length,
         pendingRequest: pendingRequest
           ? {
               id: pendingRequest.id,
@@ -302,12 +307,13 @@ function PerfilContent({ state, setState }) {
         coverage: {
           hasProfile: Boolean(state.profile),
           hasPendingRequest: Boolean(pendingRequest),
+          hasOperationalJob: Boolean(latestOperationalJob),
           hasContacts: contactsCount > 0,
           hasAddresses: addressesCount > 0,
         },
       })
     );
-  }, [addressesCount, contactsCount, locks.cpf_verified, locks.full_name_verified, pendingRequest, state.error, state.form.communication_consent, state.loading, state.profile, state.requests.length]);
+  }, [addressesCount, contactsCount, latestOperationalJob, locks.cpf_verified, locks.full_name_verified, pendingRequest, state.error, state.form.communication_consent, state.loading, state.operationalJobs.length, state.profile, state.requests.length]);
 
   if (state.loading) {
     return <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">Carregando perfil...</div>;
@@ -326,6 +332,16 @@ function PerfilContent({ state, setState }) {
           <p className="mt-3 text-sm leading-7 opacity-75">
             A equipe interna precisa validar a solicitacao antes de efetivar os dados no seu perfil operacional.
           </p>
+          {latestOperationalJob ? (
+            <div className="mt-4 rounded-2xl border border-[#20332D] bg-black/10 p-4 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-semibold">Fila operacional</span>
+                <JobStatusBadge status={latestOperationalJob.status} />
+              </div>
+              <p className="mt-2 opacity-70">{latestOperationalJob.acao}</p>
+              <p className="mt-2 text-xs opacity-55">Atualizado em {formatDateTime(latestOperationalJob.updated_at || latestOperationalJob.created_at)}</p>
+            </div>
+          ) : null}
         </section>
       ) : null}
 
@@ -455,6 +471,7 @@ function PerfilContent({ state, setState }) {
             <SummaryRow label="Nome verificado" value={locks.full_name_verified ? "Sim" : "Nao"} />
             <SummaryRow label="CPF validado" value={locks.cpf_verified ? "Sim" : "Nao"} />
             <SummaryRow label="Solicitacao pendente" value={pendingRequest ? "Sim" : "Nao"} />
+            <SummaryRow label="Job operacional" value={latestOperationalJob ? mapJobStatusLabel(latestOperationalJob.status) : "Nao"} />
           </Panel>
 
           <Panel title="Consentimentos" helper="O consentimento operacional continua ativo no portal.">
@@ -480,6 +497,21 @@ function PerfilContent({ state, setState }) {
                 </div>
               ))}
               {!state.requests?.length ? <p className="text-sm opacity-60">Nenhuma solicitacao registrada ainda.</p> : null}
+            </div>
+          </Panel>
+
+          <Panel title="Jobs do portal" helper="Pedidos operacionais criados a partir do seu portal e encaminhados para a equipe interna.">
+            <div className="space-y-3">
+              {(state.operationalJobs || []).slice(0, 5).map((job) => (
+                <div key={job.id} className="rounded-2xl border border-[#20332D] bg-black/10 px-4 py-3 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <span className="font-semibold">{job.acao}</span>
+                    <JobStatusBadge status={job.status} />
+                  </div>
+                  <p className="mt-2 text-xs opacity-55">{formatDateTime(job.updated_at || job.created_at)}</p>
+                </div>
+              ))}
+              {!state.operationalJobs?.length ? <p className="text-sm opacity-60">Nenhum job operacional vinculado ao seu portal ainda.</p> : null}
             </div>
           </Panel>
         </div>
@@ -540,6 +572,30 @@ function SummaryRow({ label, value }) {
       <span className="text-right text-sm font-medium">{value}</span>
     </div>
   );
+}
+
+function mapJobStatusLabel(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "pending") return "Pendente";
+  if (normalized === "running") return "Em execucao";
+  if (normalized === "paused") return "Pausado";
+  if (normalized === "completed") return "Concluido";
+  if (normalized === "error") return "Falhou";
+  if (normalized === "cancelled") return "Cancelado";
+  return normalized || "Nao";
+}
+
+function JobStatusBadge({ status }) {
+  const normalized = String(status || "").trim().toLowerCase();
+  const tone =
+    normalized === "completed"
+      ? "border-[#2E5744] bg-[rgba(46,87,68,0.16)] text-[#C7F1D7]"
+      : normalized === "running"
+        ? "border-[#6F5826] bg-[rgba(111,88,38,0.16)] text-[#F7E4A7]"
+        : normalized === "error" || normalized === "cancelled"
+          ? "border-[#5C2A2A] bg-[rgba(92,42,42,0.16)] text-[#F4C1C1]"
+          : "border-[#20332D] bg-[rgba(255,255,255,0.04)] text-[#D6E1DC]";
+  return <span className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.14em] ${tone}`}>{mapJobStatusLabel(status)}</span>;
 }
 
 function mapRequestStatusLabel(value) {

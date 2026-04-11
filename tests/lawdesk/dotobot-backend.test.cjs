@@ -93,8 +93,10 @@ async function loadLawdeskModules() {
   const chatModule = await evaluateModule(await loadEsmModule("D:/Github/newgit/lib/lawdesk/chat.js"));
   const ragModule = await evaluateModule(await loadEsmModule("D:/Github/newgit/lib/lawdesk/rag.js"));
   const obsidianModule = await evaluateModule(await loadEsmModule("D:/Github/newgit/lib/lawdesk/obsidian.js"));
+  const providersModule = await evaluateModule(await loadEsmModule("D:/Github/newgit/lib/lawdesk/providers.js"));
   return {
     runLawdeskChat: chatModule.namespace.runLawdeskChat,
+    runLawdeskProvidersHealth: providersModule.namespace.runLawdeskProvidersHealth,
     persistDotobotMemory: ragModule.namespace.persistDotobotMemory,
     retrieveDotobotRagContext: ragModule.namespace.retrieveDotobotRagContext,
     runDotobotRagHealth: ragModule.namespace.runDotobotRagHealth,
@@ -228,6 +230,131 @@ registerTest("runLawdeskChat retries transient primary backend failures", async 
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+registerTest("runLawdeskChat uses local provider when LLM_BASE_URL is configured", async () => {
+  const { runLawdeskChat } = await loadLawdeskModules();
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    return new Response(
+      JSON.stringify({
+        id: "msg_local_1",
+        type: "message",
+        role: "assistant",
+        model: "hermida-local-14b",
+        content: [{ type: "text", text: "Resposta da LLM local." }],
+        usage: { input_tokens: 12, output_tokens: 18 },
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  };
+
+  try {
+    const result = await runLawdeskChat(
+      {
+        LLM_BASE_URL: "http://127.0.0.1:8000",
+        LLM_API_KEY: "local-secret",
+        LLM_MODEL: "hermida-local-14b",
+      },
+      {
+        query: "Resuma a estratégia",
+        provider: "local",
+        context: { route: "/interno/ai-task" },
+      }
+    );
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "http://127.0.0.1:8000/v1/messages");
+    assert.equal(result.status, "ok");
+    assert.equal(result.result.message, "Resposta da LLM local.");
+    assert.equal(result._metadata.source, "local_llm_api");
+    assert.equal(result._metadata.model, "hermida-local-14b");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+registerTest("runLawdeskChat honors explicit cloudflare provider", async () => {
+  const { runLawdeskChat } = await loadLawdeskModules();
+  let calls = 0;
+  const env = {
+    AI: {
+      async run(model, payload) {
+        calls += 1;
+        assert.equal(model, "@cf/meta/llama-3.1-8b-instruct");
+        assert.equal(payload.messages[0].role, "system");
+        return { response: "Resposta Cloudflare explícita." };
+      },
+    },
+  };
+
+  const result = await runLawdeskChat(env, {
+    query: "Liste os próximos passos",
+    provider: "cloudflare",
+    context: { route: "/interno/dotobot" },
+  });
+
+  assert.equal(calls, 1);
+  assert.equal(result.result.message, "Resposta Cloudflare explícita.");
+  assert.equal(result._metadata.source, "workers_ai_direct");
+});
+
+registerTest("runLawdeskProvidersHealth reports local provider operational when compatible endpoint responds", async () => {
+  const { runLawdeskProvidersHealth } = await loadLawdeskModules();
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url) => {
+    if (String(url) === "http://127.0.0.1:8000/v1/messages") {
+      return new Response(
+        JSON.stringify({
+          id: "msg_1",
+          type: "message",
+          role: "assistant",
+          model: "hermida-local-14b",
+          content: [{ type: "text", text: "pong" }],
+          usage: { input_tokens: 1, output_tokens: 1 },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    return new Response(JSON.stringify({ ok: true, model: "gpt-4.1" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  try {
+    const result = await runLawdeskProvidersHealth({
+      LLM_BASE_URL: "http://127.0.0.1:8000",
+      LLM_MODEL: "hermida-local-14b",
+    });
+    const local = result.providers.find((item) => item.id === "local");
+    assert.equal(local.status, "operational");
+    assert.equal(local.available, true);
+    assert.equal(local.model, "hermida-local-14b");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+registerTest("runLawdeskProvidersHealth reports cloudflare operational when AI binding exists", async () => {
+  const { runLawdeskProvidersHealth } = await loadLawdeskModules();
+  const result = await runLawdeskProvidersHealth({
+    AI: {
+      async run() {
+        return { response: "ok" };
+      },
+    },
+  });
+  const cloudflare = result.providers.find((item) => item.id === "cloudflare");
+  assert.equal(cloudflare.status, "operational");
+  assert.equal(cloudflare.available, true);
 });
 
 registerTest("queryObsidianMemory respects configured index limit", async () => {

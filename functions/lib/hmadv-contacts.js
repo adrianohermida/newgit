@@ -1,6 +1,7 @@
 import { fetchSupabaseAdmin } from "./supabase-rest.js";
 import { freshsalesRequest, listFreshsalesSalesAccountContacts, listFreshsalesSalesAccountsFromViews, viewFreshsalesContact } from "./freshsales-crm.js";
 import { getSupabaseBaseUrl, getSupabaseServerKey } from "./env.js";
+import { pickNextDispatchableJob, sortAdminJobsForDispatch } from "./admin-job-control.js";
 
 function cleanValue(value) {
   const text = String(value || "").trim();
@@ -1056,9 +1057,16 @@ async function patchOperationJob(env, id, body) {
 }
 
 function normalizeContactsJobPayload(action, payload = {}) {
+  const normalizedControl = normalizeContactsJobControl(payload, {
+    defaultSource: "interno",
+    defaultPriority: action === "bulk_create_contacts" ? 3 : 4,
+    defaultRateLimitKey: action === "bulk_create_contacts" ? "freshsales_contacts_write" : "freshsales_contacts_validate",
+    defaultVisibleToPortal: false,
+  });
   if (action === "bulk_create_contacts") {
     return {
       action,
+      jobControl: normalizedControl,
       type: cleanValue(payload.type) || "Cliente",
       intervalMs: Math.max(500, Number(payload.intervalMs || 1200)),
       dryRun: Boolean(payload.dryRun),
@@ -1070,6 +1078,7 @@ function normalizeContactsJobPayload(action, payload = {}) {
   if (action === "validate_contacts") {
     return {
       action,
+      jobControl: normalizedControl,
       apply: Boolean(payload.apply),
       query: cleanValue(payload.query) || "",
       type: cleanValue(payload.type) || "",
@@ -1079,6 +1088,25 @@ function normalizeContactsJobPayload(action, payload = {}) {
     };
   }
   throw new Error(`Acao de contatos nao suportada para job: ${action}`);
+}
+
+function normalizeContactsJobControl(payload = {}, defaults = {}) {
+  const rawControl = payload?.jobControl && typeof payload.jobControl === "object" ? payload.jobControl : payload;
+  const rawSource = String(rawControl?.source || rawControl?.origem || defaults.defaultSource || "interno").trim().toLowerCase();
+  const source = rawSource === "portal" ? "portal" : "interno";
+  const priority = Math.max(1, Math.min(Number(rawControl?.priority || defaults.defaultPriority || 3), 5));
+  const rateLimitKey = String(rawControl?.rateLimitKey || rawControl?.rate_limit_key || defaults.defaultRateLimitKey || "freshsales_contacts").trim() || "freshsales_contacts";
+  const visibleToPortal = rawControl?.visibleToPortal !== undefined
+    ? Boolean(rawControl.visibleToPortal)
+    : rawControl?.visible_to_portal !== undefined
+      ? Boolean(rawControl.visible_to_portal)
+      : Boolean(defaults.defaultVisibleToPortal);
+  return {
+    source,
+    priority,
+    rateLimitKey,
+    visibleToPortal,
+  };
 }
 
 function isScheduledForFuture(isoString) {
@@ -1232,7 +1260,11 @@ export async function drainContactAdminJobs(env, { maxChunks = 3 } = {}) {
       {},
       "judiciario"
     ).catch(() => []);
-    const dueJob = (jobs || []).find((item) => !isScheduledForFuture(item?.payload?.scheduledFor));
+    const activeRateLimitKeys = (jobs || [])
+      .filter((item) => String(item?.status || "") === "running")
+      .map((item) => String(item?.payload?.jobControl?.rateLimitKey || "").trim())
+      .filter(Boolean);
+    const dueJob = pickNextDispatchableJob(jobs || [], { activeRateLimitKeys });
     if (!dueJob?.id) break;
     latestJob = await processContactAdminJob(env, dueJob.id);
     chunksProcessed += 1;
@@ -1249,7 +1281,7 @@ export async function drainContactAdminJobs(env, { maxChunks = 3 } = {}) {
   return {
     chunksProcessed,
     pendingCount: Array.isArray(pending) ? pending.length : 0,
-    activeJob: latestJob,
+    activeJob: sortAdminJobsForDispatch(Array.isArray(pending) ? pending : [latestJob].filter(Boolean))[0] || latestJob,
     completedAll: !Array.isArray(pending) || pending.filter((item) => !isScheduledForFuture(item?.payload?.scheduledFor)).length === 0,
   };
 }

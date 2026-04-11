@@ -81,7 +81,7 @@ function PlaceholderDepartment({ title, description, stats }) {
   );
 }
 
-function CadastroDepartment({ state, load, handleReview, handleCpfLock, handleNameLock }) {
+function CadastroDepartment({ state, load, handleReview, handleCpfLock, handleNameLock, focusContext }) {
   if (state.loading) {
     return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando fila cadastral...</div>;
   }
@@ -125,14 +125,18 @@ function CadastroDepartment({ state, load, handleReview, handleCpfLock, handleNa
         const currentSnapshot = item.current_snapshot || {};
         const profile = item.profile || {};
         const currentLocks = profile?.metadata?.personal_data_locks || currentSnapshot?.metadata?.personal_data_locks || {};
+        const isFocused =
+          (focusContext?.requestId && String(item.id) === String(focusContext.requestId)) ||
+          (focusContext?.clientId && String(item.client_id) === String(focusContext.clientId));
 
         return (
-          <section key={item.id} className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
+          <section key={item.id} className={`border p-6 ${isFocused ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.16em] opacity-45">Cliente</p>
                 <h3 className="mt-2 font-serif text-3xl">{profile.full_name || currentSnapshot.full_name || item.client_email}</h3>
                 <p className="mt-2 text-sm opacity-65">{item.client_email}</p>
+                {isFocused ? <p className="mt-2 text-xs uppercase tracking-[0.16em] text-[#C5A059]">Foco trazido da mesa de jobs</p> : null}
               </div>
               <StatusBadge status={item.status} />
             </div>
@@ -204,8 +208,8 @@ function CadastroDepartment({ state, load, handleReview, handleCpfLock, handleNa
   );
 }
 
-export default function AprovacoesModule() {
-  const [activeDepartment, setActiveDepartment] = useState("cadastro");
+export default function AprovacoesModule({ initialDepartment = "cadastro", focusContext = null }) {
+  const [activeDepartment, setActiveDepartment] = useState(initialDepartment);
   const [state, setState] = useState({
     loading: true,
     error: null,
@@ -232,6 +236,10 @@ export default function AprovacoesModule() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    setActiveDepartment(initialDepartment);
+  }, [initialDepartment]);
 
   async function handleReview(id, action) {
     setState((current) => ({ ...current, actingId: id, error: null, message: null }));
@@ -427,6 +435,7 @@ export default function AprovacoesModule() {
           handleReview={handleReview}
           handleCpfLock={handleCpfLock}
           handleNameLock={handleNameLock}
+          focusContext={focusContext}
         />
       ) : null}
 

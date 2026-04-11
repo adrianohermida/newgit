@@ -61,6 +61,8 @@ export interface Env {
   CLOUDFLARE_R2_ACCOUNT_ID?: string;
   CLOUDFLARE_S3_API?: string;
   HMDAV_AI_SHARED_SECRET?: string;
+  HMADV_AI_SHARED_SECRET?: string;
+  LAWDESK_AI_SHARED_SECRET?: string;
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   FRESHSALES_API_BASE?: string;
@@ -82,13 +84,24 @@ function bearer(req: Request) {
   return raw.startsWith('Bearer ') ? raw.slice(7) : '';
 }
 
+function getSharedSecret(env: Env) {
+  return (
+    env.HMDAV_AI_SHARED_SECRET?.trim() ||
+    env.HMADV_AI_SHARED_SECRET?.trim() ||
+    env.LAWDESK_AI_SHARED_SECRET?.trim() ||
+    ''
+  );
+}
+
 function assertSecret(req: Request, env: Env) {
-  if (!env.HMDAV_AI_SHARED_SECRET) return null;
+  const expectedSecret = getSharedSecret(env);
+  if (!expectedSecret) return null;
   const sharedSecret =
+    req.headers.get('x-hmadv-secret')?.trim() ||
     req.headers.get('x-shared-secret')?.trim() ||
     req.headers.get('x-dotobot-embed-secret')?.trim() ||
     bearer(req);
-  return sharedSecret === env.HMDAV_AI_SHARED_SECRET
+  return sharedSecret === expectedSecret
     ? null
     : json({ ok: false, error: 'unauthorized' }, 401);
 }
@@ -913,4 +926,3 @@ export default {
     await reconcile(env, 20);
   },
 };
-
