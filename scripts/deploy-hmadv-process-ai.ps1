@@ -1,17 +1,68 @@
 param(
-  [string]$AccountId = $env:CLOUDFLARE_WORKER_ACCOUNT_ID,
-  [string]$ApiToken = $env:CLOUDFLARE_WORKER_API_TOKEN
+  [string]$AccountId,
+  [string]$ApiToken
 )
 
-if (-not $AccountId) { throw 'Defina CLOUDFLARE_WORKER_ACCOUNT_ID.' }
-if (-not $ApiToken) { throw 'Defina CLOUDFLARE_WORKER_API_TOKEN.' }
+$ErrorActionPreference = 'Stop'
+$UsedExplicitCloudflareArgs = $PSBoundParameters.ContainsKey('AccountId') -or $PSBoundParameters.ContainsKey('ApiToken')
 
-$env:CLOUDFLARE_ACCOUNT_ID = $AccountId
-$env:CLOUDFLARE_API_TOKEN = $ApiToken
+function Import-LocalEnvFile([string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path)) { return }
+  Get-Content -LiteralPath $Path | ForEach-Object {
+    $line = $_.Trim()
+    if (-not $line -or $line.StartsWith('#')) { return }
+    $parts = $line.Split('=', 2)
+    if ($parts.Count -ne 2) { return }
+    $name = $parts[0].Trim()
+    $value = $parts[1]
+    if (-not $name) { return }
+    if ([string]::IsNullOrWhiteSpace((Get-Item "Env:$name" -ErrorAction SilentlyContinue).Value)) {
+      Set-Item -Path "Env:$name" -Value $value
+    }
+  }
+}
+
+function Invoke-WranglerDeployWithFallback([string]$ResolvedAccountId, [string]$ResolvedApiToken) {
+  if (-not [string]::IsNullOrWhiteSpace($ResolvedAccountId)) {
+    $env:CLOUDFLARE_ACCOUNT_ID = $ResolvedAccountId
+  }
+  if (-not [string]::IsNullOrWhiteSpace($ResolvedApiToken)) {
+    $env:CLOUDFLARE_API_TOKEN = $ResolvedApiToken
+  }
+
+  npx wrangler deploy --config workers/hmadv-process-ai/wrangler.toml
+  if ($LASTEXITCODE -ne 0) {
+    if ($script:UsedExplicitCloudflareArgs) {
+      throw "Wrangler deploy falhou com as credenciais Cloudflare informadas (exit code $LASTEXITCODE)."
+    }
+    Write-Warning 'Falha com CLOUDFLARE_WORKER_* configurado. Tentando novamente com a sessao OAuth local do Wrangler.'
+    Remove-Item Env:CLOUDFLARE_API_TOKEN -ErrorAction SilentlyContinue
+    Remove-Item Env:CLOUDFLARE_ACCOUNT_ID -ErrorAction SilentlyContinue
+    npx wrangler deploy --config workers/hmadv-process-ai/wrangler.toml
+    if ($LASTEXITCODE -ne 0) {
+      throw "Wrangler deploy falhou tambem com a sessao OAuth local (exit code $LASTEXITCODE)."
+    }
+  }
+}
+
+Import-LocalEnvFile (Join-Path $PSScriptRoot '..\.dev.vars')
+
+if ([string]::IsNullOrWhiteSpace($AccountId)) {
+  $AccountId = $env:CLOUDFLARE_WORKER_ACCOUNT_ID
+}
+if ([string]::IsNullOrWhiteSpace($AccountId)) {
+  $AccountId = $env:CLOUDFLARE_ACCOUNT_ID
+}
+if ([string]::IsNullOrWhiteSpace($ApiToken)) {
+  $ApiToken = $env:CLOUDFLARE_WORKER_API_TOKEN
+}
+if ([string]::IsNullOrWhiteSpace($ApiToken)) {
+  $ApiToken = $env:CLOUDFLARE_API_TOKEN
+}
 
 Push-Location 'D:\Github\newgit'
 try {
-  npx wrangler deploy --config workers/hmadv-process-ai/wrangler.toml
+  Invoke-WranglerDeployWithFallback $AccountId $ApiToken
 } finally {
   Pop-Location
 }

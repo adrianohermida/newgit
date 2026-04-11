@@ -1,6 +1,6 @@
 param(
-  [string]$CloudflareAccountId = $env:CLOUDFLARE_WORKER_ACCOUNT_ID,
-  [string]$CloudflareApiToken = $env:CLOUDFLARE_WORKER_API_TOKEN,
+  [string]$CloudflareAccountId,
+  [string]$CloudflareApiToken,
   [string]$SupabaseProjectRef = 'sspvizogbcyigquqycsz',
   [string]$SupabaseUrl = $env:SUPABASE_URL,
   [string]$SupabaseServiceRoleKey = $env:SUPABASE_SERVICE_ROLE_KEY,
@@ -17,6 +17,23 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$UsedExplicitCloudflareArgs = $PSBoundParameters.ContainsKey('CloudflareAccountId') -or $PSBoundParameters.ContainsKey('CloudflareApiToken')
+
+function Import-LocalEnvFile([string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path)) { return }
+  Get-Content -LiteralPath $Path | ForEach-Object {
+    $line = $_.Trim()
+    if (-not $line -or $line.StartsWith('#')) { return }
+    $parts = $line.Split('=', 2)
+    if ($parts.Count -ne 2) { return }
+    $name = $parts[0].Trim()
+    $value = $parts[1]
+    if (-not $name) { return }
+    if ([string]::IsNullOrWhiteSpace((Get-Item "Env:$name" -ErrorAction SilentlyContinue).Value)) {
+      Set-Item -Path "Env:$name" -Value $value
+    }
+  }
+}
 
 function Require-Value([string]$Name, [string]$Value) {
   if ([string]::IsNullOrWhiteSpace($Value)) {
@@ -30,10 +47,53 @@ function Mask-Value([string]$Value) {
   return $Value.Substring(0, 4) + ('*' * ($Value.Length - 8)) + $Value.Substring($Value.Length - 4)
 }
 
+Import-LocalEnvFile (Join-Path $PSScriptRoot '..\.dev.vars')
+
+if ([string]::IsNullOrWhiteSpace($CloudflareAccountId)) {
+  $CloudflareAccountId = $env:CLOUDFLARE_WORKER_ACCOUNT_ID
+}
+if ([string]::IsNullOrWhiteSpace($CloudflareAccountId)) {
+  $CloudflareAccountId = $env:CLOUDFLARE_ACCOUNT_ID
+}
+if ([string]::IsNullOrWhiteSpace($CloudflareApiToken)) {
+  $CloudflareApiToken = $env:CLOUDFLARE_WORKER_API_TOKEN
+}
+if ([string]::IsNullOrWhiteSpace($CloudflareApiToken)) {
+  $CloudflareApiToken = $env:CLOUDFLARE_API_TOKEN
+}
+
 function Put-WranglerSecret([string]$Name, [string]$Value) {
   if ([string]::IsNullOrWhiteSpace($Value)) { return }
   Write-Host "Gravando secret no Worker: $Name"
   $Value | npx wrangler secret put $Name --config workers/hmadv-process-ai/wrangler.toml
+  if ($LASTEXITCODE -ne 0) {
+    if ($script:UsedExplicitCloudflareArgs) {
+      throw "Wrangler secret put falhou para $Name com as credenciais Cloudflare informadas (exit code $LASTEXITCODE)."
+    }
+    Write-Warning "Falha ao gravar $Name com CLOUDFLARE_WORKER_*. Tentando novamente com a sessao OAuth local do Wrangler."
+    Remove-Item Env:CLOUDFLARE_API_TOKEN -ErrorAction SilentlyContinue
+    Remove-Item Env:CLOUDFLARE_ACCOUNT_ID -ErrorAction SilentlyContinue
+    $Value | npx wrangler secret put $Name --config workers/hmadv-process-ai/wrangler.toml
+    if ($LASTEXITCODE -ne 0) {
+      throw "Wrangler secret put falhou para $Name tambem com a sessao OAuth local (exit code $LASTEXITCODE)."
+    }
+  }
+}
+
+function Invoke-WranglerCommand([scriptblock]$Action) {
+  & $Action
+  if ($LASTEXITCODE -ne 0) {
+    if ($script:UsedExplicitCloudflareArgs) {
+      throw "Wrangler command falhou com as credenciais Cloudflare informadas (exit code $LASTEXITCODE)."
+    }
+    Write-Warning 'Falha com CLOUDFLARE_WORKER_* configurado. Tentando novamente com a sessao OAuth local do Wrangler.'
+    Remove-Item Env:CLOUDFLARE_API_TOKEN -ErrorAction SilentlyContinue
+    Remove-Item Env:CLOUDFLARE_ACCOUNT_ID -ErrorAction SilentlyContinue
+    & $Action
+    if ($LASTEXITCODE -ne 0) {
+      throw "Wrangler command falhou tambem com a sessao OAuth local (exit code $LASTEXITCODE)."
+    }
+  }
 }
 
 if ([string]::IsNullOrWhiteSpace($SharedSecret)) {
@@ -43,8 +103,6 @@ if ([string]::IsNullOrWhiteSpace($SharedSecret)) {
   Write-Host "HMDAV_AI_SHARED_SECRET gerado automaticamente."
 }
 
-Require-Value 'CLOUDFLARE_WORKER_ACCOUNT_ID' $CloudflareAccountId
-Require-Value 'CLOUDFLARE_WORKER_API_TOKEN' $CloudflareApiToken
 Require-Value 'SUPABASE_URL' $SupabaseUrl
 Require-Value 'SUPABASE_SERVICE_ROLE_KEY' $SupabaseServiceRoleKey
 Require-Value 'FRESHSALES_API_BASE' $FreshsalesApiBase
@@ -64,7 +122,7 @@ Push-Location 'D:\Github\newgit'
 try {
   if (-not $SkipDeploy) {
     Write-Host 'Publicando worker Cloudflare AI...'
-    npx wrangler deploy --config workers/hmadv-process-ai/wrangler.toml
+    Invoke-WranglerCommand { npx wrangler deploy --config workers/hmadv-process-ai/wrangler.toml }
     Write-Host ''
     Write-Host 'Se o wrangler exibiu a URL final do worker, use-a em PROCESS_AI_BASE.'
   }
