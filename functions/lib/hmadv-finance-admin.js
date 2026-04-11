@@ -125,13 +125,14 @@ function buildFreshsalesAuthSnapshot(env) {
   const dealsClientSecret = getFreshsalesDealsOauthClientSecret(env);
   const contactsClientId = getCleanEnvValue(env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID) || null;
   const contactsClientSecret = getCleanEnvValue(env.FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET) || null;
-  const preferredAuthMode = apiKey ? "api_key" : accessToken ? "access_token" : "missing";
+  const oauthOperational = Boolean(dealsClientId && dealsClientSecret && (accessToken || refreshToken));
+  const preferredAuthMode = oauthOperational ? "oauth" : apiKey ? "api_key" : accessToken ? "access_token" : "missing";
   const oauthConfigured = Boolean(
     dealsClientId &&
     dealsClientSecret &&
     (accessToken || refreshToken)
   );
-  const operational = Boolean(apiKey || accessToken);
+  const operational = Boolean(apiKey || accessToken || oauthConfigured);
 
   return {
     has_api_base: Boolean(apiBase),
@@ -152,9 +153,11 @@ function buildFreshsalesAuthSnapshot(env) {
     auth_summary: operational
       ? preferredAuthMode === "api_key"
         ? "Operando por API key"
-        : "Operando por token OAuth"
+        : preferredAuthMode === "oauth"
+          ? "OAuth configurado para operacao"
+          : "Operando por token OAuth"
       : "Sem credencial operacional",
-    oauth_required_for_operation: !apiKey,
+    oauth_required_for_operation: !apiKey || oauthOperational,
     api_base: apiBase,
     org_domain: resolveFreshsalesOrgDomain(env),
     token_expiry: expiryDate,

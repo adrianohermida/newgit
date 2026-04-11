@@ -423,6 +423,17 @@ async function getAuthHeaders(env) {
       const rightRank = right.name === "supabase_oauth" ? 0 : right.name === "access_token" ? 1 : 2;
       return leftRank - rightRank;
     });
+  } else if (!explicitMode && (supabaseOauthToken || accessToken)) {
+    headers.sort((left, right) => {
+      const rank = (name) => {
+        if (name === "supabase_oauth") return 0;
+        if (name === "access_token") return 1;
+        if (name === "api_key") return 2;
+        if (name === "basic_auth") return 3;
+        return 4;
+      };
+      return rank(left.name) - rank(right.name);
+    });
   } else if (explicitMode) {
     headers.sort((left, right) => (left.name === explicitMode ? -1 : right.name === explicitMode ? 1 : 0));
   }
