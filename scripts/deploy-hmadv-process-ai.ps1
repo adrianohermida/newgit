@@ -55,6 +55,22 @@ function Test-CloudflareApiToken([string]$Value) {
   }
 }
 
+function Invoke-WranglerDeployCommand() {
+  $stdinPath = [System.IO.Path]::GetTempFileName()
+  try {
+    Set-Content -LiteralPath $stdinPath -Value "y`r`n" -NoNewline
+    $process = Start-Process -FilePath 'npx.cmd' `
+      -ArgumentList @('wrangler', 'deploy', '--config', 'workers/hmadv-process-ai/wrangler.toml') `
+      -NoNewWindow `
+      -Wait `
+      -PassThru `
+      -RedirectStandardInput $stdinPath
+    return $process.ExitCode
+  } finally {
+    Remove-Item -LiteralPath $stdinPath -ErrorAction SilentlyContinue
+  }
+}
+
 function Invoke-WranglerDeployWithFallback([string]$ResolvedAccountId, [string]$ResolvedApiToken) {
   if (-not [string]::IsNullOrWhiteSpace($ResolvedAccountId)) {
     $env:CLOUDFLARE_ACCOUNT_ID = $ResolvedAccountId
@@ -68,17 +84,17 @@ function Invoke-WranglerDeployWithFallback([string]$ResolvedAccountId, [string]$
     $env:CLOUDFLARE_API_TOKEN = $ResolvedApiToken
   }
 
-  npx wrangler deploy --config workers/hmadv-process-ai/wrangler.toml
-  if ($LASTEXITCODE -ne 0) {
+  $deployExitCode = Invoke-WranglerDeployCommand
+  if ($deployExitCode -ne 0) {
     if ($script:UsedExplicitCloudflareArgs) {
-      throw "Wrangler deploy falhou com as credenciais Cloudflare informadas (exit code $LASTEXITCODE)."
+      throw "Wrangler deploy falhou com as credenciais Cloudflare informadas (exit code $deployExitCode)."
     }
     Write-Warning 'Falha com CLOUDFLARE_WORKER_* configurado. Tentando novamente com a sessao OAuth local do Wrangler.'
     Remove-Item Env:CLOUDFLARE_API_TOKEN -ErrorAction SilentlyContinue
     Remove-Item Env:CLOUDFLARE_ACCOUNT_ID -ErrorAction SilentlyContinue
-    npx wrangler deploy --config workers/hmadv-process-ai/wrangler.toml
-    if ($LASTEXITCODE -ne 0) {
-      throw "Wrangler deploy falhou tambem com a sessao OAuth local (exit code $LASTEXITCODE)."
+    $deployExitCode = Invoke-WranglerDeployCommand
+    if ($deployExitCode -ne 0) {
+      throw "Wrangler deploy falhou tambem com a sessao OAuth local (exit code $deployExitCode)."
     }
   }
 }
