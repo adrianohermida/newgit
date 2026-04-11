@@ -1416,7 +1416,7 @@ const [contextEnabled, setContextEnabled] = useState(true);
   }
 
   const runningCount = taskHistory.filter((item) => item.status === "running").length;
-  // const activeTask = getLastTask(taskHistory); // Removido: duplicado
+  const activeTask = getLastTask(taskHistory);
   const ragSummary = buildRagSummary(activeTask?.rag);
   const activeStatus = loading || runningCount || uiState !== "idle" ? "processing" : "online";
   const uiStateLabel =

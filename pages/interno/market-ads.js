@@ -49,6 +49,11 @@ function money(value) {
   return Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+function toNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 export default function InternoMarketAdsPage() {
   return (
     <RequireAdmin>
@@ -76,6 +81,39 @@ function MarketAdsContent() {
   });
   const [previewState, setPreviewState] = useState({ loading: false, error: null, result: null });
   const [draftState, setDraftState] = useState({ loading: false, error: null, result: null });
+  const [campaignForm, setCampaignForm] = useState({
+    name: "Campanha juridica | Google Ads",
+    platform: "Google Ads",
+    objective: "Captacao",
+    status: "Draft",
+    legalArea: "Superendividamento",
+    audience: "Pessoa fisica",
+    location: "Sao Paulo",
+    budget: "2500",
+    roi: "0",
+    ctr: "0",
+    cpc: "0",
+    cpa: "0",
+    conversionRate: "0",
+    complianceStatus: "revisao",
+    landingPage: "/servicos/superendividamento",
+  });
+  const [campaignState, setCampaignState] = useState({ loading: false, error: null, result: null });
+  const [editingCampaignId, setEditingCampaignId] = useState("");
+  const [adForm, setAdForm] = useState({
+    campaignId: "",
+    name: "Anuncio juridico | Search",
+    platform: "Google Ads",
+    status: "draft",
+    headline: "Entenda seus direitos em superendividamento",
+    description: "Conteudo informativo com orientacao juridica e linguagem discreta.",
+    cta: "Saiba como funciona",
+    creativeHint: "Criativo limpo com foco na dor juridica e chamada informativa.",
+    audience: "Pessoa fisica",
+    keywordSuggestions: "superendividamento advogado, superendividamento direitos",
+  });
+  const [adState, setAdState] = useState({ loading: false, error: null, result: null });
+  const [editingAdId, setEditingAdId] = useState("");
   const [complianceInput, setComplianceInput] = useState({
     headline: "Conheca seus direitos em casos de superendividamento",
     description: "Explicacao juridica clara sobre reorganizacao financeira e avaliacao tecnica do caso.",
@@ -146,6 +184,136 @@ function MarketAdsContent() {
     }
   }
 
+  async function saveCampaign() {
+    setCampaignState({ loading: true, error: null, result: null });
+    try {
+      const action = editingCampaignId ? "update_campaign" : "save_campaign";
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          campaignId: editingCampaignId || null,
+          input: {
+            ...campaignForm,
+            budget: toNumber(campaignForm.budget),
+            roi: toNumber(campaignForm.roi),
+            ctr: toNumber(campaignForm.ctr),
+            cpc: toNumber(campaignForm.cpc),
+            cpa: toNumber(campaignForm.cpa),
+            conversionRate: toNumber(campaignForm.conversionRate),
+          },
+        }),
+      });
+      setCampaignState({ loading: false, error: null, result: payload.data || null });
+      setEditingCampaignId("");
+      await load();
+    } catch (error) {
+      setCampaignState({ loading: false, error: error.message || "Falha ao salvar campanha.", result: null });
+    }
+  }
+
+  function beginEditCampaign(campaign) {
+    setEditingCampaignId(campaign.id || "");
+    setCampaignForm({
+      name: campaign.name || "",
+      platform: campaign.platform || "Google Ads",
+      objective: campaign.objective || "Captacao",
+      status: campaign.status || "Draft",
+      legalArea: campaign.legalArea || campaign.area || "",
+      audience: campaign.audience || "",
+      location: campaign.location || "",
+      budget: String(campaign.budget ?? 0),
+      roi: String(campaign.roi ?? 0),
+      ctr: String(campaign.ctr ?? 0),
+      cpc: String(campaign.cpc ?? 0),
+      cpa: String(campaign.cpa ?? 0),
+      conversionRate: String(campaign.conversionRate ?? 0),
+      complianceStatus: campaign.complianceStatus || "revisao",
+      landingPage: campaign.landingPage || "",
+    });
+  }
+
+  function resetCampaignForm() {
+    setEditingCampaignId("");
+    setCampaignForm({
+      name: "Campanha juridica | Google Ads",
+      platform: "Google Ads",
+      objective: "Captacao",
+      status: "Draft",
+      legalArea: "Superendividamento",
+      audience: "Pessoa fisica",
+      location: "Sao Paulo",
+      budget: "2500",
+      roi: "0",
+      ctr: "0",
+      cpc: "0",
+      cpa: "0",
+      conversionRate: "0",
+      complianceStatus: "revisao",
+      landingPage: "/servicos/superendividamento",
+    });
+  }
+
+  async function saveAdItem() {
+    setAdState({ loading: true, error: null, result: null });
+    try {
+      const action = editingAdId ? "update_ad_item" : "save_ad_item";
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          itemId: editingAdId || null,
+          input: {
+            ...adForm,
+            keywordSuggestions: String(adForm.keywordSuggestions || "")
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean),
+          },
+        }),
+      });
+      setAdState({ loading: false, error: null, result: payload.data || null });
+      setEditingAdId("");
+      await load();
+    } catch (error) {
+      setAdState({ loading: false, error: error.message || "Falha ao salvar anuncio.", result: null });
+    }
+  }
+
+  function beginEditAd(item) {
+    setEditingAdId(item.id || "");
+    setAdForm({
+      campaignId: item.campaignId || "",
+      name: item.name || "",
+      platform: item.platform || "Google Ads",
+      status: item.status || "draft",
+      headline: item.headline || "",
+      description: item.description || "",
+      cta: item.cta || "",
+      creativeHint: item.creativeHint || "",
+      audience: item.audience || "",
+      keywordSuggestions: Array.isArray(item.keywordSuggestions) ? item.keywordSuggestions.join(", ") : "",
+    });
+  }
+
+  function resetAdForm() {
+    setEditingAdId("");
+    setAdForm({
+      campaignId: "",
+      name: "Anuncio juridico | Search",
+      platform: "Google Ads",
+      status: "draft",
+      headline: "Entenda seus direitos em superendividamento",
+      description: "Conteudo informativo com orientacao juridica e linguagem discreta.",
+      cta: "Saiba como funciona",
+      creativeHint: "Criativo limpo com foco na dor juridica e chamada informativa.",
+      audience: "Pessoa fisica",
+      keywordSuggestions: "superendividamento advogado, superendividamento direitos",
+    });
+  }
+
   useEffect(() => {
     load();
   }, []);
@@ -159,6 +327,7 @@ function MarketAdsContent() {
     loading: state.loading,
     error: state.error,
     activeCampaigns: data?.campaigns?.length || 0,
+    adItemsCount: data?.adItems?.length || 0,
     benchmarkCount: data?.competitorAds?.length || 0,
     queueCount: data?.queue?.length || 0,
     complianceScore: complianceResult?.score || null,
@@ -169,7 +338,7 @@ function MarketAdsContent() {
       filtersTracked: true,
       actionsTracked: true,
     },
-  }), [complianceResult?.approved, complianceResult?.score, data?.campaigns?.length, data?.competitorAds?.length, data?.queue?.length, state.error, state.loading]);
+  }), [complianceResult?.approved, complianceResult?.score, data?.adItems?.length, data?.campaigns?.length, data?.competitorAds?.length, data?.queue?.length, state.error, state.loading]);
 
   useEffect(() => {
     setModuleHistory("market-ads", snapshot);
@@ -224,6 +393,95 @@ function MarketAdsContent() {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+            <Panel eyebrow="Gestao de campanhas" title="Cadastrar ou editar campanha" helper="Use este bloco para montar a campanha operacional que vai alimentar verba, status, landing page e performance.">
+              <div className="grid gap-4 md:grid-cols-2">
+                <input value={campaignForm.name} onChange={(event) => setCampaignForm({ ...campaignForm, name: event.target.value })} className="md:col-span-2 rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Nome da campanha" />
+                <select value={campaignForm.platform} onChange={(event) => setCampaignForm({ ...campaignForm, platform: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
+                  <option>Google Ads</option>
+                  <option>Meta Ads</option>
+                  <option>Instagram Ads</option>
+                </select>
+                <select value={campaignForm.objective} onChange={(event) => setCampaignForm({ ...campaignForm, objective: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
+                  <option>Captacao</option>
+                  <option>Autoridade</option>
+                  <option>Remarketing</option>
+                </select>
+                <select value={campaignForm.status} onChange={(event) => setCampaignForm({ ...campaignForm, status: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
+                  <option>Draft</option>
+                  <option>Ativa</option>
+                  <option>Em otimizacao</option>
+                  <option>Alerta</option>
+                  <option>Pausada</option>
+                </select>
+                <input value={campaignForm.legalArea} onChange={(event) => setCampaignForm({ ...campaignForm, legalArea: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Area juridica" />
+                <input value={campaignForm.audience} onChange={(event) => setCampaignForm({ ...campaignForm, audience: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Publico" />
+                <input value={campaignForm.location} onChange={(event) => setCampaignForm({ ...campaignForm, location: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Localizacao" />
+                <input value={campaignForm.landingPage} onChange={(event) => setCampaignForm({ ...campaignForm, landingPage: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Landing page" />
+                <input value={campaignForm.budget} onChange={(event) => setCampaignForm({ ...campaignForm, budget: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Budget" />
+                <input value={campaignForm.roi} onChange={(event) => setCampaignForm({ ...campaignForm, roi: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="ROI" />
+                <input value={campaignForm.ctr} onChange={(event) => setCampaignForm({ ...campaignForm, ctr: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="CTR" />
+                <input value={campaignForm.cpc} onChange={(event) => setCampaignForm({ ...campaignForm, cpc: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="CPC" />
+                <input value={campaignForm.cpa} onChange={(event) => setCampaignForm({ ...campaignForm, cpa: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="CPA" />
+                <input value={campaignForm.conversionRate} onChange={(event) => setCampaignForm({ ...campaignForm, conversionRate: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Taxa de conversao" />
+                <select value={campaignForm.complianceStatus} onChange={(event) => setCampaignForm({ ...campaignForm, complianceStatus: event.target.value })} className="md:col-span-2 rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
+                  <option value="aprovada">aprovada</option>
+                  <option value="revisao">revisao</option>
+                  <option value="bloqueada">bloqueada</option>
+                </select>
+              </div>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button type="button" onClick={saveCampaign} disabled={campaignState.loading} className="rounded-full border border-[#C5A059] bg-[#C5A059] px-5 py-3 text-sm font-semibold text-[#07110E] disabled:opacity-50">
+                  {campaignState.loading ? "Salvando..." : editingCampaignId ? "Atualizar campanha" : "Criar campanha"}
+                </button>
+                <button type="button" onClick={resetCampaignForm} className="rounded-full border border-[#22342F] px-5 py-3 text-sm text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                  Limpar formulario
+                </button>
+              </div>
+              {campaignState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{campaignState.error}</p> : null}
+              {campaignState.result?.campaign?.id ? <p className="mt-3 text-sm text-[#B7F7C6]">Campanha preparada: {campaignState.result.campaign.name}.</p> : null}
+              {campaignState.result?.warning ? <p className="mt-2 text-sm text-[#FDE68A]">{campaignState.result.warning}</p> : null}
+            </Panel>
+
+            <Panel eyebrow="CRUD de anuncios" title="Cadastrar ou editar anuncio" helper="Controle cada peca com headline, descricao, CTA, campanha vinculada e score de compliance individual.">
+              <div className="grid gap-4 md:grid-cols-2">
+                <select value={adForm.campaignId} onChange={(event) => setAdForm({ ...adForm, campaignId: event.target.value })} className="md:col-span-2 rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
+                  <option value="">Selecionar campanha</option>
+                  {(data.campaigns || []).map((campaign) => (
+                    <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
+                  ))}
+                </select>
+                <input value={adForm.name} onChange={(event) => setAdForm({ ...adForm, name: event.target.value })} className="md:col-span-2 rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Nome do anuncio" />
+                <select value={adForm.platform} onChange={(event) => setAdForm({ ...adForm, platform: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
+                  <option>Google Ads</option>
+                  <option>Meta Ads</option>
+                  <option>Instagram Ads</option>
+                </select>
+                <select value={adForm.status} onChange={(event) => setAdForm({ ...adForm, status: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
+                  <option value="draft">draft</option>
+                  <option value="ativa">ativa</option>
+                  <option value="teste">teste</option>
+                  <option value="pausada">pausada</option>
+                </select>
+                <input value={adForm.headline} onChange={(event) => setAdForm({ ...adForm, headline: event.target.value })} className="md:col-span-2 rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Headline" />
+                <textarea value={adForm.description} onChange={(event) => setAdForm({ ...adForm, description: event.target.value })} rows={4} className="md:col-span-2 rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Descricao" />
+                <input value={adForm.cta} onChange={(event) => setAdForm({ ...adForm, cta: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="CTA" />
+                <input value={adForm.audience} onChange={(event) => setAdForm({ ...adForm, audience: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Publico" />
+                <textarea value={adForm.creativeHint} onChange={(event) => setAdForm({ ...adForm, creativeHint: event.target.value })} rows={3} className="md:col-span-2 rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Sugestao de criativo" />
+                <input value={adForm.keywordSuggestions} onChange={(event) => setAdForm({ ...adForm, keywordSuggestions: event.target.value })} className="md:col-span-2 rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Keywords separadas por virgula" />
+              </div>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button type="button" onClick={saveAdItem} disabled={adState.loading} className="rounded-full border border-[#C5A059] bg-[#C5A059] px-5 py-3 text-sm font-semibold text-[#07110E] disabled:opacity-50">
+                  {adState.loading ? "Salvando..." : editingAdId ? "Atualizar anuncio" : "Criar anuncio"}
+                </button>
+                <button type="button" onClick={resetAdForm} className="rounded-full border border-[#22342F] px-5 py-3 text-sm text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                  Limpar anuncio
+                </button>
+              </div>
+              {adState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{adState.error}</p> : null}
+              {adState.result?.adItem?.id ? <p className="mt-3 text-sm text-[#B7F7C6]">Anuncio preparado: {adState.result.adItem.name}.</p> : null}
+              {adState.result?.warning ? <p className="mt-2 text-sm text-[#FDE68A]">{adState.result.warning}</p> : null}
+            </Panel>
+
             <Panel eyebrow="Gerador com IA" title="Criar anuncio juridico" helper="Gera headlines, descricoes, CTA, criativo e keywords com revisao automatica inicial.">
               <div className="grid gap-4 md:grid-cols-2">
                 <input value={generator.area} onChange={(event) => setGenerator({ ...generator, area: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Area juridica" />
@@ -361,12 +619,27 @@ function MarketAdsContent() {
                 {data.campaigns.map((campaign) => (
                   <article key={campaign.id} className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-semibold text-[#F7F2E8]">{campaign.name}</p>
-                      <Tag tone={toneFor(campaign.status)}>{campaign.status}</Tag>
+                      <div>
+                        <p className="font-semibold text-[#F7F2E8]">{campaign.name}</p>
+                        <p className="mt-1 text-xs text-[#8FA29B]">{campaign.platform} · {campaign.objective}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Tag tone={toneFor(campaign.status)}>{campaign.status}</Tag>
+                        <Tag tone={toneFor(campaign.complianceStatus)}>{campaign.complianceStatus}</Tag>
+                      </div>
                     </div>
                     <div className="mt-3 grid gap-2 md:grid-cols-2">
                       <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">Budget {money(campaign.budget)}</div>
                       <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">CPA {money(campaign.cpa)}</div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => beginEditCampaign(campaign)}
+                        className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                      >
+                        Editar campanha
+                      </button>
                     </div>
                   </article>
                 ))}
@@ -408,6 +681,34 @@ function MarketAdsContent() {
                         <p className="mt-1 text-[#8FA29B]">{item.headline || "Validacao sem headline"}</p>
                       </div>
                     )) : <p className="text-sm text-[#8FA29B]">Nenhum log persistido ainda.</p>}
+                  </div>
+                </div>
+                <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                  <p className="font-semibold text-[#F7F2E8]">Anuncios salvos</p>
+                  <div className="mt-3 space-y-2">
+                    {(data.adItems || []).length ? data.adItems.map((item) => (
+                      <div key={item.id} className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p>{item.name}</p>
+                            <p className="mt-1 text-[#8FA29B]">{item.headline}</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Tag tone={toneFor(item.status)}>{item.status}</Tag>
+                            <Tag tone={toneFor(item.complianceStatus)}>{item.complianceStatus}</Tag>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-3">
+                          <button
+                            type="button"
+                            onClick={() => beginEditAd(item)}
+                            className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                          >
+                            Editar anuncio
+                          </button>
+                        </div>
+                      </div>
+                    )) : <p className="text-sm text-[#8FA29B]">Nenhum anuncio persistido ainda.</p>}
                   </div>
                 </div>
               </div>

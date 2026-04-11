@@ -48,6 +48,12 @@ O provider `local` espera um endpoint compativel com:
 
 Formato esperado: semelhante ao runtime em `ai-core/runtime/crates/api`.
 
+Objetivo recomendado:
+
+- usar um backend rodando na sua propria maquina
+- aproveitar seu hardware local como origem da inferencia
+- manter o mesmo contrato HTTP para `AI Task`, `Dotobot` e `/llm-test`
+
 Envs:
 
 ```env
@@ -65,6 +71,29 @@ Aliases suportados:
 - `LLM_AUTH_TOKEN`
 - `LLM_MODEL`
 - `LLM_MAX_TOKENS`
+- `AICORE_API_BASE_URL`
+- `DOTOBOT_PYTHON_API_BASE`
+
+Observacoes importantes:
+
+- hoje o produto ja sabe consumir um endpoint local em `http://127.0.0.1:8000/v1/messages`
+- isso nao exige mudar o frontend depois; basta apontar o provider `local` para o endpoint da sua maquina
+- o backend local pode ser:
+  - um bridge proprio da AetherLab
+  - um runtime OpenAI-compatible exposto na sua rede local
+  - um gateway que use Ollama ou outro motor local por baixo
+
+Diagnostico rapido:
+
+```powershell
+npm run diagnose:local-llm
+```
+
+Se quiser validar outra URL:
+
+```powershell
+npm run diagnose:local-llm -- -BaseUrl http://127.0.0.1:8000 -Model aetherlab-local-v1
+```
 
 ## 4. Cloudflare Workers AI (`cloudflare`)
 

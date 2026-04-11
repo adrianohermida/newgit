@@ -3,7 +3,11 @@ import {
   generateLegalAdVariant,
   getMarketAdsDashboardData,
   persistComplianceValidation,
+  saveMarketAdsCampaign,
   saveMarketAdsDraft,
+  saveMarketAdsItem,
+  updateMarketAdsCampaign,
+  updateMarketAdsItem,
 } from "../../lib/admin/market-ads.js";
 
 export default async function handler(req, res) {
@@ -33,6 +37,26 @@ export default async function handler(req, res) {
 
     if (action === "save_draft") {
       const data = await saveMarketAdsDraft(req.body?.input || {}, auth.user?.id || null);
+      return res.status(200).json({ ok: true, data });
+    }
+
+    if (action === "save_campaign") {
+      const data = await saveMarketAdsCampaign(req.body?.input || {}, auth.user?.id || null);
+      return res.status(200).json({ ok: true, data });
+    }
+
+    if (action === "update_campaign") {
+      const data = await updateMarketAdsCampaign(req.body?.campaignId || null, req.body?.input || {});
+      return res.status(200).json({ ok: true, data });
+    }
+
+    if (action === "save_ad_item") {
+      const data = await saveMarketAdsItem(req.body?.input || {}, auth.user?.id || null);
+      return res.status(200).json({ ok: true, data });
+    }
+
+    if (action === "update_ad_item") {
+      const data = await updateMarketAdsItem(req.body?.itemId || null, req.body?.input || {});
       return res.status(200).json({ ok: true, data });
     }
 
