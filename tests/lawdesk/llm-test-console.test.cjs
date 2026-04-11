@@ -137,6 +137,29 @@ registerTest("buildTechnicalDebugger includes recommendations and subsystem sect
   assert.match(report, /security_and_persistence/);
 });
 
+registerTest("buildProviderDebugMatrix combines catalog health and latest result", async () => {
+  const utils = await loadConsoleModule();
+  const matrix = utils.buildProviderDebugMatrix({
+    providerCatalog: [
+      { id: "local", label: "LLM local", available: false, configured: false, model: "local-model" },
+    ],
+    providersHealth: {
+      providers: [
+        { id: "local", status: "failed", reason: "Base URL ausente." },
+      ],
+    },
+    results: [
+      { provider: "local", status: "error", error: "O provider selecionado (LLM local) nao esta configurado no servidor.", errorType: "configuration" },
+    ],
+  });
+
+  assert.equal(matrix.length, 1);
+  assert.equal(matrix[0].id, "local");
+  assert.equal(matrix[0].healthStatus, "failed");
+  assert.equal(matrix[0].errorType, "configuration");
+  assert.match(matrix[0].failureReason, /nao esta configurado/i);
+});
+
 (async () => {
   let failures = 0;
   for (const test of tests) {

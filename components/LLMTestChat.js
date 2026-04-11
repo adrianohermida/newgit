@@ -11,6 +11,7 @@ import { formatLawdeskProviderLabel } from "../lib/lawdesk/providers";
 import {
   applyLlmTestConsoleFilters,
   buildDiagnosticReport,
+  buildProviderDebugMatrix,
   buildTechnicalDebugger,
   buildLlmTestResultRecord,
   buildLlmTestTimeline,
@@ -48,6 +49,64 @@ function formatJson(value) {
   } catch {
     return String(value);
   }
+}
+
+function ProviderMatrixCard({ item, onRun }) {
+  return (
+    <article className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">{item.transport || "transport"}</p>
+          <h3 className="mt-1 text-base font-semibold text-[#F5F1E8]">{item.label}</h3>
+        </div>
+        <span className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em] ${formatStatusTone(item.healthStatus || item.latestResultStatus || "failed")}`}>
+          {item.healthStatus || "unknown"}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div className="rounded-[16px] border border-[#22342F] px-3 py-2">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Modelo</p>
+          <p className="mt-1 text-sm text-[#F5F1E8]">{item.model || "n/a"}</p>
+        </div>
+        <div className="rounded-[16px] border border-[#22342F] px-3 py-2">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Último teste</p>
+          <p className="mt-1 text-sm text-[#F5F1E8]">{item.latestResultStatus || "sem teste"}</p>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+        <span className={`rounded-full border px-2.5 py-1 ${item.configured ? "border-[#234034] text-[#8FCFA9]" : "border-[#5b2d2d] text-[#f2b2b2]"}`}>
+          {item.configured ? "Configurado" : "Nao configurado"}
+        </span>
+        {item.errorType ? (
+          <span className="rounded-full border border-[#3C3320] px-2.5 py-1 text-[#E7C987]">
+            causa: {item.errorType}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-3 rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.72)] p-3">
+        <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Leitura rápida</p>
+        <p className="mt-2 text-xs leading-6 text-[#D8DEDA]">{item.failureReason || "Sem falha registrada. Provider pronto para validação comparativa."}</p>
+      </div>
+      {item.recommendations?.length ? (
+        <div className="mt-3 space-y-2">
+          {item.recommendations.slice(0, 2).map((rec) => (
+            <p key={rec} className="rounded-[14px] border border-[#22342F] px-3 py-2 text-xs leading-6 text-[#9BAEA8]">
+              {rec}
+            </p>
+          ))}
+        </div>
+      ) : null}
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={() => onRun(item.id)}
+          className="rounded-full border border-[#C5A059] px-3 py-1.5 text-[11px] font-semibold text-[#C5A059] transition hover:bg-[rgba(197,160,89,0.12)]"
+        >
+          Testar este provider
+        </button>
+      </div>
+    </article>
+  );
 }
 
 function ResultCard({ result, onSelect }) {
@@ -400,6 +459,10 @@ export default function LLMTestChat() {
     () => buildLlmTestTimeline(selectedResult || {}),
     [selectedResult]
   );
+  const providerDebugMatrix = useMemo(
+    () => buildProviderDebugMatrix({ providerCatalog, providersHealth, results }),
+    [providerCatalog, providersHealth, results]
+  );
 
   function handleConsoleFilterChange(key, value) {
     setConsoleFilters((current) => ({ ...current, [key]: value }));
@@ -709,6 +772,20 @@ export default function LLMTestChat() {
                   ? "Providers sem saude operacional suficiente."
                   : "Ambiente pronto para smoke tests comparativos."}
             </p>
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Debug matrix</p>
+              <h3 className="mt-1 text-lg font-semibold text-[#F5F1E8]">Comparativo técnico dos providers</h3>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 xl:grid-cols-4">
+            {providerDebugMatrix.map((item) => (
+              <ProviderMatrixCard key={item.id} item={item} onRun={runSmokeTest} />
+            ))}
           </div>
         </div>
       </section>

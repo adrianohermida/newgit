@@ -493,13 +493,17 @@ export async function freshsalesRequest(env, path, init = {}) {
           (/^\/contacts(\/|$)/.test(String(path || "")) ||
             /^\/sales_accounts(\/|$)/.test(String(path || "")) ||
             /^\/deals(\/|$)/.test(String(path || "")));
+        const expectsCatalogPayload =
+          method === "GET" &&
+          (/^\/selector\//.test(String(path || "")) ||
+            /^\/settings\//.test(String(path || "")));
         const emptyPayload =
           payload &&
           !Array.isArray(payload) &&
           typeof payload === "object" &&
           !Object.keys(payload).length;
         const baseLooksGenericApi = /\/api$/i.test(String(base || "")) && !/\/crm\/sales\/api$/i.test(String(base || ""));
-        if (expectsEntityPayload && emptyPayload && baseLooksGenericApi) {
+        if ((expectsEntityPayload || expectsCatalogPayload) && emptyPayload && baseLooksGenericApi) {
           lastError = new Error(`Freshsales retornou payload vazio em base generica (${base}${path}); tentando proxima base.`);
           continue;
         }
@@ -663,6 +667,8 @@ async function resolveFreshsalesActivityType(env, {
   envKeys = [],
   eventKeys = [],
   labelCandidates = [],
+  staticFallbackId = null,
+  staticFallbackDetail = null,
 } = {}) {
   const directId = resolveFreshsalesActivityTypeId(env, envKeys);
   if (directId) {
@@ -726,6 +732,14 @@ async function resolveFreshsalesActivityType(env, {
       id: String(fallbackId),
       source: "default_env",
       detail: "FRESHSALES_DEFAULT_ACTIVITY_TYPE_ID",
+    };
+  }
+
+  if (staticFallbackId) {
+    return {
+      id: String(staticFallbackId),
+      source: "static_fallback",
+      detail: staticFallbackDetail || null,
     };
   }
 
@@ -1015,6 +1029,7 @@ export async function createFreshsalesPublicationActivity(env, {
       "FRESHSALES_ACTIVITY_TYPE_INTIMACAO",
       "FRESHSALES_ACTIVITY_TYPE_INTIMACAO_PROCESSUAL",
       "FRESHSALES_DEFAULT_ACTIVITY_TYPE_ID",
+      "FS_ACTIVITY_TYPE_ID",
     ],
     eventKeys: ["publicacao", "publicacoes", "publication", "publicacao_judicial", "intimacao"],
     labelCandidates: [
@@ -1026,6 +1041,8 @@ export async function createFreshsalesPublicationActivity(env, {
       "Nota processual",
       "Andamento processual",
     ],
+    staticFallbackId: "31001147751",
+    staticFallbackDetail: "rollout_default_nota_processual",
   });
   if (!activityType?.id) {
     throw new Error("Tipo de activity de publicacao nao configurado nem encontrado automaticamente no catalogo do Freshsales.");
