@@ -57,9 +57,13 @@ async function main() {
       stderr: cleanOutput(result.stderr),
     });
 
-    if (result.status !== 0) {
+    const currentStep = summary.steps[summary.steps.length - 1];
+    if (result.status !== 0 && !isSkippableContactsAuthFailure(currentStep)) {
       summary.ok = false;
       break;
+    }
+    if (result.status !== 0 && isSkippableContactsAuthFailure(currentStep)) {
+      currentStep.warning = 'sync_contacts_skipped_auth';
     }
   }
 
@@ -77,6 +81,11 @@ function sanitizePositiveInt(value, fallback) {
 function cleanOutput(value) {
   const text = String(value || '').trim();
   return text || null;
+}
+
+function isSkippableContactsAuthFailure(step) {
+  const combined = `${step?.stdout || ''}\n${step?.stderr || ''}`;
+  return step?.label === 'Sincronizar contatos do Freshsales' && /contacts request failed: 401|contacts request returned 403|Seguindo sem sync direto de contacts/i.test(combined);
 }
 
 function loadLocalEnv() {

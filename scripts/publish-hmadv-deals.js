@@ -18,6 +18,7 @@ async function main() {
   let created = 0;
   let updated = 0;
   let failed = 0;
+  let publishedWithoutProductLink = 0;
   const failureDetails = [];
 
   for (const row of receivables) {
@@ -25,6 +26,7 @@ async function main() {
       const result = await publishDeal(row);
       if (result.mode === 'created') created += 1;
       if (result.mode === 'updated') updated += 1;
+      if (result.withoutProductLink) publishedWithoutProductLink += 1;
     } catch (error) {
       failed += 1;
       const message = String(error.message || error);
@@ -51,6 +53,7 @@ async function main() {
     created,
     updated,
     failed,
+    published_without_product_link: publishedWithoutProductLink,
     failure_details: failureDetails,
     failure_summary_by_reason: failureSummaryByReason,
     failure_summary_by_product: failureSummaryByProduct,
@@ -521,11 +524,9 @@ async function publishDeal(row) {
   const contract = firstRelation(row.contracts);
   const product = firstRelation(row.products);
   const registry = firstRelation(row.registry);
-  if (!toFreshsalesNumericId(product?.freshsales_product_id)) {
-    throw new Error(`Produto Freshsales nao sincronizado para o receivable (${product?.name || row.product_id || 'sem_produto'}).`);
-  }
   const dealPayload = buildDealPayload(row, contract, product);
   const externalReference = buildExternalReference(row);
+  const withoutProductLink = !toFreshsalesNumericId(product?.freshsales_product_id);
 
   let responsePayload;
   let dealId = normalizeFreshsalesDealId(registry?.freshsales_deal_id || row.freshsales_deal_id || null);
@@ -566,13 +567,15 @@ async function publishDeal(row) {
     payload_last_sent: {
       ...dealPayload,
       external_reference: externalReference,
+      product_name: product?.name || null,
+      product_link_skipped: withoutProductLink,
     },
     last_sync_status: 'ok',
     last_sync_error: null,
     last_synced_at: new Date().toISOString(),
   });
 
-  return { mode, dealId };
+  return { mode, dealId, withoutProductLink };
 }
 
 function buildDealPayload(row, contract, product) {
@@ -593,7 +596,7 @@ function buildDealPayload(row, contract, product) {
   const { coreFields, customFields } = splitMappedFields(billingConfig.dealFieldMap, rawValues, billingConfig);
 
   return {
-    deal: {
+    deal: cleanObject({
       name: buildDealName(row, contract, product),
       amount: row.balance_due_corrected || row.balance_due || row.amount_original || 0,
       currency: row.currency || 'BRL',
@@ -607,7 +610,7 @@ function buildDealPayload(row, contract, product) {
       ...coreFields,
       contacts_added_list: contract.freshsales_contact_id ? [Number(contract.freshsales_contact_id)] : undefined,
       custom_field: cleanObject(customFields),
-    },
+    }),
   };
 }
 

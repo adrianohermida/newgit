@@ -28,6 +28,7 @@ async function main() {
     receivables_updated: 0,
     registry_updated: 0,
     statuses_updated: 0,
+    products_reconciled: 0,
     details: [],
     unmatched_details: [],
   };
@@ -35,6 +36,7 @@ async function main() {
   for (const deal of liveDeals) {
     const normalized = normalizeFreshsalesDeal(deal);
     await syncDealContacts(normalized);
+    summary.products_reconciled += await syncDealProducts(normalized, context.productIndex);
     const match = resolveReceivableMatch(normalized, context);
 
     if (!match) {
@@ -284,13 +286,16 @@ async function loadFreshsalesDeals(limit, specificDealId = null) {
 }
 
 async function loadLocalContext() {
-  const [receivables, registry] = await Promise.all([
+  const [receivables, registry, products] = await Promise.all([
     supabaseRequestAll(
       'billing_receivables?select=id,contract_id,invoice_number,status,balance_due,balance_due_corrected,amount_original,freshsales_deal_id,freshsales_account_id,contracts:billing_contracts(id,workspace_id,title,external_reference,freshsales_contact_id,freshsales_account_id,process_reference)&order=created_at.asc'
     ),
     supabaseRequestAll(
       'freshsales_deals_registry?select=id,billing_receivable_id,freshsales_deal_id,last_sync_status,payload_last_sent'
     ),
+    supabaseRequestAll(
+      'freshsales_products?select=id,name,billing_type,freshsales_product_id,status,last_synced_at'
+    ).catch(() => []),
   ]);
 
   const byReceivableId = new Map();
@@ -348,7 +353,15 @@ async function loadLocalContext() {
     if (externalRef && row) byExternalRef.set(externalRef, row);
   }
 
-  return { byReceivableId, byDealId, byExternalRef, byInvoice, byContactId, byContactAmount };
+  return {
+    byReceivableId,
+    byDealId,
+    byExternalRef,
+    byInvoice,
+    byContactId,
+    byContactAmount,
+    productIndex: buildProductIndex(products),
+  };
 }
 
 function resolveReceivableMatch(deal, context) {
@@ -417,6 +430,122 @@ function mapFreshsalesContactToRow(contact) {
     raw_payload: contact,
     last_synced_at: new Date().toISOString(),
   };
+}
+
+function buildProductIndex(products = []) {
+  const byId = new Map();
+  const byFreshsalesId = new Map();
+  const byName = new Map();
+
+  for (const item of products || []) {
+    const id = cleanValue(item?.id);
+    const freshsalesProductId = cleanValue(item?.freshsales_product_id);
+    const normalizedName = normalizeText(item?.name);
+    if (id) byId.set(id, item);
+    if (freshsalesProductId) byFreshsalesId.set(freshsalesProductId, item);
+    if (normalizedName && !byName.has(normalizedName)) byName.set(normalizedName, item);
+  }
+
+  return { byId, byFreshsalesId, byName };
+}
+
+function inferProductCategory(name) {
+  const normalized = normalizeText(name);
+  if (normalized.includes('honor')) return 'honorarios';
+  if (normalized.includes('parcela')) return 'parcelamento';
+  if (normalized.includes('despesa')) return 'despesa';
+  if (normalized.includes('encargo') || normalized.includes('juros') || normalized.includes('multa')) return 'encargos';
+  if (normalized.includes('assinatura') || normalized.includes('mensal')) return 'assinatura';
+  return 'fatura';
+}
+
+function inferProductBillingType(name, fallback = null) {
+  const normalized = `${normalizeText(name)} ${normalizeText(fallback)}`;
+  if (normalized.includes('recorr') || normalized.includes('mensal') || normalized.includes('assinatura')) return 'recorrente';
+  if (normalized.includes('parcela') || normalized.includes('parcel')) return 'parcelado';
+  if (normalized.includes('despesa') || normalized.includes('reembolso')) return 'reembolso';
+  if (normalized.includes('encargo') || normalized.includes('juros') || normalized.includes('multa')) return 'encargo';
+  return 'unitario';
+}
+
+function mapDealProductToRow(product) {
+  const freshsalesProductId = cleanValue(product?.product_id || product?.id);
+  const name = firstNonEmpty(product?.name, product?.display_name, product?.product_name, product?.title);
+  if (!freshsalesProductId && !name) return null;
+
+  const category = inferProductCategory(name);
+  return {
+    freshsales_product_id: freshsalesProductId,
+    name: name || `Produto ${freshsalesProductId}`,
+    category,
+    billing_type: inferProductBillingType(name, category),
+    currency: cleanValue(product?.currency) || 'BRL',
+    status: 'active',
+    metadata: {
+      source: 'freshsales_deal_import',
+      live_product: product,
+    },
+    last_synced_at: new Date().toISOString(),
+  };
+}
+
+async function patchProductById(productId, patch) {
+  await supabaseRequest(`freshsales_products?id=eq.${encodeURIComponent(String(productId))}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify(patch),
+  });
+}
+
+async function syncDealProducts(deal, productIndex) {
+  if (!Array.isArray(deal.products) || !deal.products.length || !productIndex) return 0;
+
+  let changes = 0;
+  for (const rawProduct of deal.products) {
+    const nextRow = mapDealProductToRow(rawProduct);
+    if (!nextRow) continue;
+
+    const normalizedName = normalizeText(nextRow.name);
+    const freshsalesProductId = cleanValue(nextRow.freshsales_product_id);
+    const currentByFreshsalesId = freshsalesProductId ? productIndex.byFreshsalesId.get(freshsalesProductId) || null : null;
+    const currentByName = normalizedName ? productIndex.byName.get(normalizedName) || null : null;
+
+    if (currentByFreshsalesId) {
+      productIndex.byName.set(normalizedName, currentByFreshsalesId);
+      continue;
+    }
+
+    if (currentByName?.id) {
+      await patchProductById(currentByName.id, {
+        freshsales_product_id: freshsalesProductId,
+        status: currentByName.status || nextRow.status,
+        last_synced_at: nextRow.last_synced_at,
+        metadata: nextRow.metadata,
+      });
+      const merged = { ...currentByName, ...nextRow };
+      if (freshsalesProductId) productIndex.byFreshsalesId.set(freshsalesProductId, merged);
+      productIndex.byName.set(normalizedName, merged);
+      if (currentByName.id) productIndex.byId.set(String(currentByName.id), merged);
+      changes += 1;
+      continue;
+    }
+
+    if (freshsalesProductId) {
+      await upsertByConflictFallback('freshsales_products', 'freshsales_product_id', freshsalesProductId, nextRow);
+    } else {
+      await supabaseRequest('freshsales_products', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify(nextRow),
+      }).catch(() => null);
+    }
+    const inserted = { ...nextRow };
+    if (freshsalesProductId) productIndex.byFreshsalesId.set(freshsalesProductId, inserted);
+    if (normalizedName) productIndex.byName.set(normalizedName, inserted);
+    changes += 1;
+  }
+
+  return changes;
 }
 
 async function syncDealContacts(deal) {
