@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getAdminAccessToken } from "../lib/admin/api";
 
 export default function LLMTestChat() {
   const [input, setInput] = useState("");
@@ -11,9 +12,13 @@ export default function LLMTestChat() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("/functions/api/admin-lawdesk-chat", {
+      const accessToken = await getAdminAccessToken();
+      const res = await fetch("/api/admin-lawdesk-chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({ query: input }),
       });
       if (!res.ok) {

@@ -724,7 +724,11 @@ function FinanceiroInternoContent() {
           <MetricCard label="API key" value={freshsalesAuth.has_api_key ? "OK" : "Ausente"} helper="Melhor rota para operar a migração sem depender de OAuth." />
           <MetricCard label="Access token" value={freshsalesAuth.has_access_token ? "OK" : "Ausente"} helper="Token atual para leitura/escrita." />
           <MetricCard label="Refresh token" value={freshsalesAuth.has_refresh_token ? "OK" : "Ausente"} helper="Necessário para renovar o acesso." />
-          <MetricCard label="OAuth client" value={freshsalesAuth.has_client_id && freshsalesAuth.has_client_secret ? "OK" : "Faltando"} helper="Client ID e secret do app Freshsales." />
+          <MetricCard
+            label="OAuth client"
+            value={freshsalesAuth.has_client_id && freshsalesAuth.has_client_secret ? "OK" : freshsalesAuth.has_api_key ? "Opcional" : "Faltando"}
+            helper={freshsalesAuth.has_api_key ? "No modo API key, OAuth fica opcional para a migracao." : "Client ID e secret do app Freshsales."}
+          />
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <StatusBadge tone={freshsalesAuth.has_api_key ? "success" : "warn"}>
@@ -735,6 +739,9 @@ function FinanceiroInternoContent() {
           </StatusBadge>
           <StatusBadge tone={freshsalesAuth.has_refresh_token ? "success" : "warn"}>
             {freshsalesAuth.has_refresh_token ? "Refresh configurado" : "Sem refresh"}
+          </StatusBadge>
+          <StatusBadge tone={freshsalesAuth.auth_operational ? "success" : "danger"}>
+            {freshsalesAuth.auth_summary || "Sem credencial operacional"}
           </StatusBadge>
         </div>
         {freshsalesAuth.preferred_auth_mode ? <p className="mt-4 text-sm opacity-65">Modo preferido: {freshsalesAuth.preferred_auth_mode}</p> : null}
@@ -752,6 +759,8 @@ function FinanceiroInternoContent() {
               Reautorizar Freshsales
             </a>
           </p>
+        ) : freshsalesAuth.has_api_key ? (
+          <p className="mt-4 text-sm opacity-65">OAuth nao e obrigatorio neste ambiente enquanto a operacao estiver usando API key.</p>
         ) : (
           <p className="mt-4 text-sm opacity-65">Preencha as variáveis OAuth para gerar a URL de autorização.</p>
         )}

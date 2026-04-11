@@ -1,4 +1,4 @@
-const OFFICIAL_ROUTE = "/functions/api/admin-lawdesk-chat";
+const OFFICIAL_ROUTE = "/api/admin-lawdesk-chat";
 
 export default async function handler(_req, res) {
   res.setHeader("Allow", "POST");

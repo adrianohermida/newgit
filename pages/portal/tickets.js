@@ -4,6 +4,8 @@ import TicketModal from "../../components/portal/TicketModal";
 import { useRouter } from "next/router";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
+import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../lib/admin/module-registry";
 import { clientFetch } from "../../lib/client/api";
 
 function formatDateTime(value) {
@@ -121,6 +123,18 @@ function TicketsContent({ router, state, setState, form, setForm, submitting, se
 
   async function loadTickets() {
     const payload = await clientFetch("/api/client-tickets");
+    appendActivityLog({
+      type: "ui",
+      action: "portal_tickets_refresh",
+      label: "Tickets atualizados",
+      module: "portal-tickets",
+      status: "success",
+      path: "/portal/tickets",
+      response: `itens=${payload.items?.length || 0}`,
+      consolePane: "jobs",
+      domain: "portal",
+      system: "tickets",
+    });
     setState({
       loading: false,
       error: null,
@@ -136,6 +150,18 @@ function TicketsContent({ router, state, setState, form, setForm, submitting, se
       try {
         const payload = await clientFetch("/api/client-tickets");
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_tickets_load",
+            label: "Tickets carregados",
+            module: "portal-tickets",
+            status: "success",
+            path: "/portal/tickets",
+            response: `itens=${payload.items?.length || 0}`,
+            consolePane: "routes",
+            domain: "portal",
+            system: "tickets",
+          });
           setState({
             loading: false,
             error: null,
@@ -146,6 +172,18 @@ function TicketsContent({ router, state, setState, form, setForm, submitting, se
         }
       } catch (error) {
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_tickets_load",
+            label: "Falha ao carregar tickets",
+            module: "portal-tickets",
+            status: "error",
+            path: "/portal/tickets",
+            error: error.message,
+            consolePane: "routes",
+            domain: "portal",
+            system: "tickets",
+          });
           setState({ loading: false, error: error.message, warning: null, items: [], urls: null });
         }
       }
@@ -171,6 +209,18 @@ function TicketsContent({ router, state, setState, form, setForm, submitting, se
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
+      appendActivityLog({
+        type: "ui",
+        action: "portal_ticket_create",
+        label: "Solicitacao criada",
+        module: "portal-tickets",
+        status: "success",
+        path: "/portal/tickets",
+        response: `subject=${form.subject || ""}`,
+        consolePane: ["crm", "jobs"],
+        domain: "portal",
+        system: "tickets",
+      });
 
       setForm({ subject: "", description: "" });
       setToast({
@@ -181,6 +231,18 @@ function TicketsContent({ router, state, setState, form, setForm, submitting, se
       });
       await loadTickets();
     } catch (error) {
+      appendActivityLog({
+        type: "ui",
+        action: "portal_ticket_create",
+        label: "Falha ao criar solicitacao",
+        module: "portal-tickets",
+        status: "error",
+        path: "/portal/tickets",
+        error: error.message,
+        consolePane: ["crm", "jobs"],
+        domain: "portal",
+        system: "tickets",
+      });
       setToast({ type: "error", message: error.message });
     } finally {
       setSubmitting(false);
@@ -193,6 +255,32 @@ function TicketsContent({ router, state, setState, form, setForm, submitting, se
     const resolved = state.items.filter((item) => ["Resolvido", "Fechado"].includes(item.status)).length;
     return { total, open, resolved };
   }, [state.items]);
+
+  useEffect(() => {
+    setModuleHistory(
+      "portal-tickets",
+      buildModuleSnapshot("portal-tickets", {
+        routePath: "/portal/tickets",
+        status: state.error ? "error" : state.loading ? "loading" : "ready",
+        filters: {
+          status: statusFilter || "todos",
+          priority: priorityFilter || "todas",
+          page,
+        },
+        counts: {
+          ...counts,
+          filtered: filteredItems.length,
+          visible: paginatedItems.length,
+        },
+        warning: state.warning || null,
+        coverage: {
+          hasItems: state.items.length > 0,
+          hasWarning: Boolean(state.warning),
+          hasOpenTickets: counts.open > 0,
+        },
+      })
+    );
+  }, [counts, filteredItems.length, page, paginatedItems.length, priorityFilter, state.error, state.items.length, state.loading, state.warning, statusFilter]);
 
   return (
     <div className="space-y-8">

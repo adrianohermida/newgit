@@ -39,7 +39,8 @@
     "gh-pages": "GITHUB_PAGES=true next build && rm -rf docs && mkdir docs && cp -r out/* docs/ && touch docs/.nojekyll",
     "test:integration": "node scripts/test-integration.js",
     "test:dotobot": "node --experimental-vm-modules tests/lawdesk/dotobot-backend.test.cjs",
-    "test:aitask-ui": "node --experimental-vm-modules tests/lawdesk/aitask-ui-modules.test.cjs"
+    "test:aitask-ui": "node --experimental-vm-modules tests/lawdesk/aitask-ui-modules.test.cjs",
+    "test:console-log": "node --experimental-vm-modules tests/lawdesk/console-log-utils.test.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.0",

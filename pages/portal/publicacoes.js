@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
+import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../lib/admin/module-registry";
 import { clientFetch } from "../../lib/client/api";
 import { sanitizePortalCopy } from "../../lib/client/portal-copy";
 
@@ -52,6 +54,18 @@ function PublicacoesContent({ state, setState }) {
       try {
         const payload = await clientFetch(`/api/client-publicacoes?page=1&pageSize=${PAGE_SIZE}`);
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_publicacoes_load",
+            label: "Publicacoes carregadas",
+            module: "portal-publicacoes",
+            status: "success",
+            path: "/portal/publicacoes",
+            response: `itens=${payload.items?.length || 0}`,
+            consolePane: "routes",
+            domain: "portal",
+            system: "publicacoes",
+          });
           setState({
             loading: false,
             loadingMore: false,
@@ -63,6 +77,18 @@ function PublicacoesContent({ state, setState }) {
         }
       } catch (error) {
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_publicacoes_load",
+            label: "Falha ao carregar publicacoes",
+            module: "portal-publicacoes",
+            status: "error",
+            path: "/portal/publicacoes",
+            error: error.message,
+            consolePane: "routes",
+            domain: "portal",
+            system: "publicacoes",
+          });
           setState({
             loading: false,
             loadingMore: false,
@@ -88,6 +114,18 @@ function PublicacoesContent({ state, setState }) {
     try {
       const nextPage = (state.pagination?.page || 1) + 1;
       const payload = await clientFetch(`/api/client-publicacoes?page=${nextPage}&pageSize=${state.pagination?.pageSize || PAGE_SIZE}`);
+      appendActivityLog({
+        type: "ui",
+        action: "portal_publicacoes_load_more",
+        label: "Mais publicacoes carregadas",
+        module: "portal-publicacoes",
+        status: "success",
+        path: "/portal/publicacoes",
+        response: `pagina=${nextPage}, itens=${payload.items?.length || 0}`,
+        consolePane: "jobs",
+        domain: "portal",
+        system: "publicacoes",
+      });
       setState((current) => ({
         ...current,
         loading: false,
@@ -98,9 +136,47 @@ function PublicacoesContent({ state, setState }) {
         pagination: payload.pagination || current.pagination,
       }));
     } catch (error) {
+      appendActivityLog({
+        type: "ui",
+        action: "portal_publicacoes_load_more",
+        label: "Falha ao carregar mais publicacoes",
+        module: "portal-publicacoes",
+        status: "error",
+        path: "/portal/publicacoes",
+        error: error.message,
+        consolePane: "jobs",
+        domain: "portal",
+        system: "publicacoes",
+      });
       setState((current) => ({ ...current, loadingMore: false, error: error.message }));
     }
   }
+
+  useEffect(() => {
+    if (state.loading) return;
+    setModuleHistory(
+      "portal-publicacoes",
+      buildModuleSnapshot("portal-publicacoes", {
+        routePath: "/portal/publicacoes",
+        status: state.error ? "error" : "ready",
+        totalItems: state.items.length,
+        pagination: state.pagination,
+        warning: state.warning || null,
+        latestPublication: state.items[0]
+          ? {
+              id: state.items[0].id,
+              title: state.items[0].title,
+              processId: state.items[0].process_id || null,
+            }
+          : null,
+        coverage: {
+          hasItems: state.items.length > 0,
+          hasWarning: Boolean(state.warning),
+          hasMore: Boolean(state.pagination?.hasMore),
+        },
+      })
+    );
+  }, [state.error, state.items, state.loading, state.pagination, state.warning]);
 
   if (state.loading) return <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">Carregando publicacoes...</div>;
   if (state.error) return <div className="rounded-[28px] border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] p-6 text-sm">{state.error}</div>;

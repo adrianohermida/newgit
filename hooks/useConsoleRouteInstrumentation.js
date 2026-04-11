@@ -44,6 +44,9 @@ export default function useConsoleRouteInstrumentation(router) {
         path: url,
         status: "running",
         response: `Iniciando navegacao para ${url}`,
+        consolePane: "routes",
+        domain: "navigation",
+        channel: "app-shell",
         tags: ["navigation", "app-shell"],
       });
     }
@@ -59,6 +62,9 @@ export default function useConsoleRouteInstrumentation(router) {
         status: "success",
         durationMs: Date.now() - startedAt,
         response: `Rota ativa: ${url}`,
+        consolePane: "routes",
+        domain: "navigation",
+        channel: "app-shell",
         tags: ["navigation", "app-shell"],
       });
       setModuleHistory("app-shell", {
@@ -79,6 +85,9 @@ export default function useConsoleRouteInstrumentation(router) {
         path: url,
         status: "error",
         error: error?.message || String(error || "Falha desconhecida na navegacao."),
+        consolePane: "routes",
+        domain: "navigation",
+        channel: "app-shell",
         tags: ["navigation", "app-shell"],
       });
     }
@@ -107,6 +116,9 @@ export default function useConsoleRouteInstrumentation(router) {
         status: "error",
         component: "runtime",
         error: event?.error?.stack || event?.message || "Erro de runtime sem detalhes.",
+        consolePane: ["frontend", "debug-ui"],
+        domain: "runtime",
+        channel: "app-shell",
         tags: ["runtime", "frontend", "app-shell"],
       });
     }
@@ -122,6 +134,9 @@ export default function useConsoleRouteInstrumentation(router) {
         status: "error",
         component: "runtime",
         error: reason?.stack || reason?.message || String(reason || "Unhandled rejection"),
+        consolePane: ["frontend", "debug-ui"],
+        domain: "runtime",
+        channel: "app-shell",
         tags: ["runtime", "frontend", "app-shell"],
       });
     }

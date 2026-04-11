@@ -354,8 +354,8 @@ async function getAuthHeaders(env) {
   const headers = [
     apiKey ? { name: "api_key", header: { Authorization: `Token token=${apiKey}` } } : null,
     basicAuth ? { name: "basic_auth", header: /^Basic\s+/i.test(basicAuth) ? { Authorization: basicAuth } : { Authorization: `Basic ${basicAuth}` } } : null,
-    supabaseOauthToken ? { name: "supabase_oauth", header: { Authorization: `Token token=${supabaseOauthToken}` } } : null,
-    accessToken ? { name: "access_token", header: { Authorization: `Token token=${accessToken}` } } : null,
+    supabaseOauthToken ? { name: "supabase_oauth", header: { Authorization: `Bearer ${supabaseOauthToken}` } } : null,
+    accessToken ? { name: "access_token", header: { Authorization: `Bearer ${accessToken}` } } : null,
   ].filter(Boolean);
 
   if (explicitMode === "oauth") {
@@ -415,6 +415,23 @@ export async function freshsalesRequest(env, path, init = {}) {
           err.path = path;
           lastError = err;
           break;
+        }
+
+        const method = String(init?.method || "GET").toUpperCase();
+        const expectsEntityPayload =
+          method === "GET" &&
+          (/^\/contacts(\/|$)/.test(String(path || "")) ||
+            /^\/sales_accounts(\/|$)/.test(String(path || "")) ||
+            /^\/deals(\/|$)/.test(String(path || "")));
+        const emptyPayload =
+          payload &&
+          !Array.isArray(payload) &&
+          typeof payload === "object" &&
+          !Object.keys(payload).length;
+        const baseLooksGenericApi = /\/api$/i.test(String(base || "")) && !/\/crm\/sales\/api$/i.test(String(base || ""));
+        if (expectsEntityPayload && emptyPayload && baseLooksGenericApi) {
+          lastError = new Error(`Freshsales retornou payload vazio em base generica (${base}${path}); tentando proxima base.`);
+          continue;
         }
 
         return {

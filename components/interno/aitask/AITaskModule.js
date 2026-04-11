@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { setModuleHistory } from "../../../lib/admin/activity-log";
+import { getModuleHistory, setModuleHistory } from "../../../lib/admin/activity-log";
 import {
   Bubble,
   ConfirmModal,
@@ -192,6 +192,7 @@ export default function AITaskModule({ profile, routePath }) {
     executionModel,
     executionSource,
     latestResult,
+    lastQuickAction,
     logs,
     mission,
     missionHistory,
@@ -208,9 +209,11 @@ export default function AITaskModule({ profile, routePath }) {
     thinking,
     handleAttachmentChange,
     handleAttachmentDrop,
+    handleModuleAction,
     handleMissionChange,
     handleQuickMission,
     handleReplay,
+    handleSendToDotobot,
     handleSelectRun,
     patchThinking,
     pushLog,
@@ -305,6 +308,38 @@ export default function AITaskModule({ profile, routePath }) {
       : detectModules(mission || "");
     return resolveModuleEntries(moduleKeys);
   }, [contextSnapshot?.module, mission]);
+  const moduleDrivenQuickMissions = useMemo(() => {
+    const suggestions = contextModuleEntries.flatMap((entry) => [
+      ...(entry?.quickMissions || []),
+      ...((entry?.quickActions || []).map((action) => action.mission)),
+    ]);
+    return Array.from(new Set([...QUICK_MISSIONS, ...suggestions].filter(Boolean))).slice(0, 10);
+  }, [contextModuleEntries]);
+
+  useEffect(() => {
+    if (contextSnapshot?.selectedAction || mission) return;
+    const aiTaskHistory = getModuleHistory("ai-task");
+    const handoff = aiTaskHistory?.handoffFromDotobot || null;
+    if (!handoff?.mission) return;
+    setMission(handoff.mission);
+    setMode(handoff.mode || "task");
+    setProvider(handoff.provider || "gpt");
+    setShowContext(true);
+    setContextSnapshot((current) => ({
+      ...(current || {}),
+      module: handoff.moduleKey || current?.module || "dotobot",
+      moduleLabel: handoff.moduleLabel || "Dotobot",
+      route: handoff.routePath || "/interno/ai-task",
+      routePath: handoff.routePath || "/interno/ai-task",
+      consoleTags: handoff.tags || ["ai-task", "dotobot"],
+      selectedAction: {
+        id: handoff.id || "dotobot_handoff",
+        label: handoff.label || "Handoff do Dotobot",
+        mission: handoff.mission,
+        moduleLabel: handoff.moduleLabel || "Dotobot",
+      },
+    }));
+  }, [contextSnapshot?.selectedAction, mission, setContextSnapshot, setMission, setMode, setProvider, setShowContext]);
 
   useEffect(() => {
     setModuleHistory("ai-task", {
@@ -322,6 +357,7 @@ export default function AITaskModule({ profile, routePath }) {
       executionModel,
       eventsTotal,
       contextSnapshot,
+      lastQuickAction,
       recentHistory: recentHistory.slice(0, 10),
       tasks: tasks.slice(0, 20),
       thinking: thinking.slice(0, 12),
@@ -446,7 +482,7 @@ export default function AITaskModule({ profile, routePath }) {
             handleAttachmentDrop={handleAttachmentDrop}
             attachments={attachments}
             error={error}
-            quickMissions={QUICK_MISSIONS}
+            quickMissions={moduleDrivenQuickMissions}
             handleQuickMission={handleQuickMission}
           />
         </section>
@@ -469,9 +505,11 @@ export default function AITaskModule({ profile, routePath }) {
             mission={mission}
             routePath={routePath}
             approved={approved}
-            quickMissions={QUICK_MISSIONS}
+            quickMissions={moduleDrivenQuickMissions}
+            handleModuleAction={handleModuleAction}
             handleQuickMission={handleQuickMission}
             selectedTask={selectedTask}
+            handleSendToDotobot={handleSendToDotobot}
             handleReplay={handleReplay}
             detectModules={detectModules}
           />

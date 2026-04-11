@@ -109,6 +109,13 @@ function buildFreshsalesAuthSnapshot(env) {
   const refreshToken = getCleanEnvValue(env.FRESHSALES_REFRESH_TOKEN);
   const tokenExpiry = getCleanEnvValue(env.FRESHSALES_TOKEN_EXPIRY);
   const expiryDate = tokenExpiry && !Number.isNaN(Number(tokenExpiry)) ? new Date(Number(tokenExpiry)).toISOString() : null;
+  const preferredAuthMode = apiKey ? "api_key" : accessToken ? "access_token" : "missing";
+  const oauthConfigured = Boolean(
+    getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_ID) &&
+    getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_SECRET) &&
+    (accessToken || refreshToken)
+  );
+  const operational = Boolean(apiKey || accessToken);
 
   return {
     has_api_base: Boolean(apiBase),
@@ -119,11 +126,19 @@ function buildFreshsalesAuthSnapshot(env) {
     has_client_secret: Boolean(getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_SECRET)),
     has_org_domain: Boolean(resolveFreshsalesOrgDomain(env)),
     has_redirect_uri: Boolean(getCleanEnvValue(env.FRESHSALES_REDIRECT_URI) || getCleanEnvValue(env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL)),
-    preferred_auth_mode: apiKey ? "api_key" : accessToken ? "access_token" : "missing",
+    preferred_auth_mode: preferredAuthMode,
+    oauth_configured: oauthConfigured,
+    auth_operational: operational,
+    auth_summary: operational
+      ? preferredAuthMode === "api_key"
+        ? "Operando por API key"
+        : "Operando por token OAuth"
+      : "Sem credencial operacional",
+    oauth_required_for_operation: !apiKey,
     api_base: apiBase,
     org_domain: resolveFreshsalesOrgDomain(env),
     token_expiry: expiryDate,
-    authorization_url: buildFreshsalesAuthorizationUrl(env),
+    authorization_url: apiKey ? null : buildFreshsalesAuthorizationUrl(env),
   };
 }
 

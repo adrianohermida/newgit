@@ -309,8 +309,10 @@ export function ContextRail({
   routePath,
   approved,
   quickMissions,
+  handleModuleAction,
   handleQuickMission,
   selectedTask,
+  handleSendToDotobot,
   handleReplay,
   detectModules,
 }) {
@@ -341,6 +343,23 @@ export function ContextRail({
               <MetricPill label="Aprovação" value={approved ? "concedida" : "pendente"} tone={approved ? "success" : "accent"} />
             </div>
 
+            {contextSnapshot?.selectedAction ? (
+              <div className="rounded-[18px] border border-[#3C3320] bg-[rgba(40,32,19,0.18)] p-3">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[#D9B46A]">Playbook armado</p>
+                <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{contextSnapshot.selectedAction.label}</p>
+                <p className="mt-1 text-xs leading-6 text-[#C6D1CC]">{contextSnapshot.selectedAction.moduleLabel || contextSnapshot.moduleLabel || "Modulo atual"}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSendToDotobot(contextSnapshot.selectedAction, routePath)}
+                    className="rounded-full border border-[#35554B] px-3 py-1 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                  >
+                    Enviar ao Dotobot
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             {contextModuleEntries?.length ? (
               <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Capacidades por módulo</p>
@@ -356,6 +375,15 @@ export function ContextRail({
                           </span>
                         ))}
                       </div>
+                      {(entry.consoleTags || []).length ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {entry.consoleTags.slice(0, 4).map((tag) => (
+                            <span key={`${entry.key}_${tag}`} className="rounded-full border border-[#3C3320] px-2.5 py-1 text-[10px] text-[#E7C987]">
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
                       {(entry.quickMissions || []).length ? (
                         <div className="mt-3 flex flex-wrap gap-2">
                           {entry.quickMissions.slice(0, 2).map((value) => (
@@ -368,6 +396,23 @@ export function ContextRail({
                               {value}
                             </button>
                           ))}
+                        </div>
+                      ) : null}
+                      {(entry.quickActions || []).length ? (
+                        <div className="mt-3">
+                          <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Playbooks do console</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {entry.quickActions.slice(0, 3).map((action) => (
+                              <button
+                                key={action.id}
+                                type="button"
+                                onClick={() => handleModuleAction(action, entry, routePath)}
+                                className="rounded-full border border-[#C5A059] px-3 py-1 text-[11px] text-[#F1D39A] transition hover:bg-[rgba(197,160,89,0.1)]"
+                              >
+                                {action.label}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       ) : null}
                     </div>

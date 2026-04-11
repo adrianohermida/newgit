@@ -18,11 +18,22 @@ import {
   getActivityLogResponseText,
   getActivityLogFilters,
   getFrontendIssues,
+  getFingerprintStates,
   getSchemaIssues,
   setModuleHistory as persistModuleHistory,
+  setFingerprintState,
   subscribeActivityLog,
   setActivityLogFilters,
 } from "../../lib/admin/activity-log";
+import {
+  SPECIAL_LOG_PANES,
+  TAG_LOG_PANES,
+  normalizeConsoleFilters,
+  entryMatchesConsoleFilters,
+  buildTagScopedLogs,
+  countHistorySnapshots,
+  countUnclassifiedEntries,
+} from "../../lib/admin/console-log-utils.js";
 import { inferModuleKeyFromPathname, listModuleRegistryEntries } from "../../lib/admin/module-registry.js";
 
 const NAV_ITEMS = [
@@ -165,7 +176,7 @@ function getModuleIntegrationGuide(pathname = "") {
         {
           label: "Painel interno",
           helper: "O modulo usa o backend administrativo do AI Task para execucao e captura de contexto.",
-          endpoint: "functions/api/admin-lawdesk-chat.js",
+          endpoint: "/api/admin-lawdesk-chat",
           trigger: "Use para runs assistidas, automacao e investigacao de falhas da IA.",
         },
         {
@@ -226,6 +237,121 @@ const LOG_PANES = [
   { key: "notes", label: "Notas" },
 ];
 
+function getSeverityTone(severity) {
+  if (severity === "error") return "border-[#5B2D2D] text-[#FECACA]";
+  if (severity === "warn") return "border-[#6E5630] text-[#FDE68A]";
+  return "border-[#30543A] text-[#B7F7C6]";
+}
+
+function getFingerprintStatusTone(status) {
+  if (status === "resolvido") return "border-[#30543A] text-[#B7F7C6]";
+  if (status === "acompanhando") return "border-[#6E5630] text-[#FDE68A]";
+  return "border-[#5B2D2D] text-[#FECACA]";
+}
+
+function summarizeFingerprints(entries = [], fingerprintStates = {}) {
+  const map = new Map();
+  for (const entry of entries) {
+    const key = entry?.fingerprint;
+    if (!key) continue;
+    const triage = fingerprintStates?.[key] || null;
+    const current = map.get(key) || {
+      fingerprint: key,
+      count: 0,
+      severity: entry?.severity || "info",
+      label: entry?.label || entry?.action || "Evento",
+      recommendedAction: entry?.recommendedAction || "",
+      status: triage?.status || "aberto",
+      note: triage?.note || "",
+      updatedAt: triage?.updatedAt || null,
+      lastEntryId: triage?.lastEntryId || entry?.id || null,
+    };
+    current.count += 1;
+    if (entry?.severity === "error") current.severity = "error";
+    else if (entry?.severity === "warn" && current.severity !== "error") current.severity = "warn";
+    map.set(key, current);
+  }
+  return Array.from(map.values()).filter((item) => item.count > 1).sort((a, b) => b.count - a.count).slice(0, 4);
+}
+
+function summarizeRecommendations(entries = []) {
+  const map = new Map();
+  for (const entry of entries) {
+    const key = String(entry?.recommendedAction || "").trim();
+    if (!key) continue;
+    const current = map.get(key) || { action: key, count: 0, severity: entry?.severity || "info" };
+    current.count += 1;
+    if (entry?.severity === "error") current.severity = "error";
+    else if (entry?.severity === "warn" && current.severity !== "error") current.severity = "warn";
+    map.set(key, current);
+  }
+  return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 3);
+}
+
+function calculateRiskScore(entries = [], recurring = []) {
+  const errors = entries.filter((entry) => entry?.severity === "error").length;
+  const warnings = entries.filter((entry) => entry?.severity === "warn").length;
+  const unresolvedRecurring = recurring.filter((item) => item.status !== "resolvido").length;
+  const score = Math.min(100, (errors * 18) + (warnings * 7) + (unresolvedRecurring * 12));
+  const tone = score >= 70 ? "error" : score >= 35 ? "warn" : "info";
+  const label = score >= 70 ? "alto" : score >= 35 ? "medio" : "baixo";
+  return { score, tone, label };
+}
+
+function summarizeTimeline(entries = []) {
+  const map = new Map();
+  for (const entry of entries) {
+    const hints = Array.isArray(entry?.traceHints) ? entry.traceHints : [];
+    for (const hint of hints) {
+      const key = `${hint.type}:${hint.value}`;
+      const current = map.get(key) || {
+        key,
+        label: hint.label || key,
+        count: 0,
+        severity: entry?.severity || "info",
+        lastAt: entry?.createdAt || entry?.startedAt || null,
+      };
+      current.count += 1;
+      if (entry?.severity === "error") current.severity = "error";
+      else if (entry?.severity === "warn" && current.severity !== "error") current.severity = "warn";
+      const candidateDate = entry?.createdAt || entry?.startedAt || null;
+      if (candidateDate && (!current.lastAt || new Date(candidateDate).getTime() > new Date(current.lastAt).getTime())) {
+        current.lastAt = candidateDate;
+      }
+      map.set(key, current);
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 5);
+}
+
+function getAgeBucket(createdAt) {
+  const time = createdAt ? new Date(createdAt).getTime() : 0;
+  if (!time || Number.isNaN(time)) return "sem_data";
+  const diffHours = (Date.now() - time) / (1000 * 60 * 60);
+  if (diffHours <= 4) return "ate_4h";
+  if (diffHours <= 24) return "ate_24h";
+  if (diffHours <= 72) return "ate_72h";
+  return "acima_72h";
+}
+
+function summarizeSla(entries = [], recurring = [], fingerprintStates = {}) {
+  const errors = entries.filter((entry) => entry?.severity === "error");
+  const openRecurring = recurring.filter((item) => item.status === "aberto").length;
+  const watchingRecurring = recurring.filter((item) => item.status === "acompanhando").length;
+  const resolvedRecurring = recurring.filter((item) => item.status === "resolvido").length;
+  const buckets = { ate_4h: 0, ate_24h: 0, ate_72h: 0, acima_72h: 0, sem_data: 0 };
+
+  for (const entry of errors) {
+    const state = entry?.fingerprint ? fingerprintStates?.[entry.fingerprint] : null;
+    if (state?.status === "resolvido") continue;
+    buckets[getAgeBucket(entry?.createdAt || entry?.startedAt)] += 1;
+  }
+
+  const overdue = buckets.acima_72h + buckets.sem_data;
+  const tone = overdue > 0 || openRecurring >= 3 ? "error" : openRecurring > 0 || watchingRecurring > 0 ? "warn" : "info";
+  return { tone, openRecurring, watchingRecurring, resolvedRecurring, buckets, overdue };
+}
+
 function inferSnapshotTone(snapshot) {
   if (!snapshot) return "muted";
   if (snapshot.error) return "danger";
@@ -277,6 +403,8 @@ function buildCoverageCards(moduleHistory = {}) {
         tone: snapshot ? inferSnapshotTone(snapshot) : "muted",
         summary: snapshot ? inferSnapshotSummary(key, snapshot) : "Cobertura ainda nao publicada neste modulo.",
         capabilities: snapshot?.capabilities || registered?.capabilities || [],
+        quickActions: snapshot?.quickActions || registered?.quickActions || [],
+        consoleTags: snapshot?.consoleTags || registered?.consoleTags || ["ai-task", key].filter(Boolean),
         snapshot,
       };
     })
@@ -312,6 +440,7 @@ export default function InternoLayout({
   const [archivedLogs, setArchivedLogs] = useState([]);
   const [operationalNotes, setOperationalNotes] = useState([]);
   const [frontendIssues, setFrontendIssues] = useState(() => getFrontendIssues());
+  const [fingerprintStates, setFingerprintStates] = useState(() => getFingerprintStates());
   const [schemaIssues, setSchemaIssues] = useState(() => getSchemaIssues());
   const [moduleHistory, setModuleHistory] = useState({});
   const [consoleHeight, setConsoleHeight] = useState(260);
@@ -335,18 +464,17 @@ export default function InternoLayout({
   const dragStateRef = useRef({ dragging: false, startY: 0, startHeight: 260 });
 
   useEffect(() => {
-    return subscribeActivityLog((entries, archives, notes, filters, frontendItems, schemaItems, moduleSnapshot) => {
+    return subscribeActivityLog((entries, archives, notes, filters, frontendItems, schemaItems, moduleSnapshot, fingerprintSnapshot) => {
       setActivityLog(entries);
       setArchivedLogs(archives || []);
       setOperationalNotes(notes || []);
       setFrontendIssues(frontendItems || []);
       setSchemaIssues(schemaItems || []);
+      setFingerprintStates(fingerprintSnapshot && typeof fingerprintSnapshot === "object" ? fingerprintSnapshot : {});
       if (moduleSnapshot && typeof moduleSnapshot === "object") {
         setModuleHistory(moduleSnapshot);
       }
-      if (filters && Object.keys(filters).length) {
-        setLogFilters(filters);
-      }
+      setLogFilters(filters && typeof filters === "object" ? filters : {});
     });
   }, []);
 
@@ -543,6 +671,68 @@ export default function InternoLayout({
     setNoteInput("");
   }
 
+  function handleFingerprintStateChange(entryOrFingerprint, status, note = "") {
+    const fingerprint = typeof entryOrFingerprint === "string" ? entryOrFingerprint : entryOrFingerprint?.fingerprint;
+    if (!fingerprint) return;
+    const entry = typeof entryOrFingerprint === "string"
+      ? activityLog.find((item) => item.fingerprint === fingerprint)
+      : entryOrFingerprint;
+    setFingerprintState(fingerprint, {
+      status,
+      note,
+      lastEntryId: entry?.id || null,
+      lastLabel: entry?.label || entry?.action || "Evento",
+      source: "console",
+    });
+  }
+
+  function handleFingerprintNote(entryOrFingerprint) {
+    const fingerprint = typeof entryOrFingerprint === "string" ? entryOrFingerprint : entryOrFingerprint?.fingerprint;
+    if (!fingerprint) return;
+    const current = fingerprintStates?.[fingerprint] || {};
+    const entry = typeof entryOrFingerprint === "string"
+      ? activityLog.find((item) => item.fingerprint === fingerprint)
+      : entryOrFingerprint;
+    const note = window.prompt("Registrar observacao para este fingerprint:", current.note || "");
+    if (note === null) return;
+    handleFingerprintStateChange(entry || fingerprint, current.status || "acompanhando", note);
+    if (String(note || "").trim()) {
+      appendOperationalNote({
+        type: "fingerprint",
+        text: `${entry?.label || entry?.action || fingerprint}: ${String(note).trim()}`,
+        meta: { fingerprint, status: current.status || "acompanhando" },
+      });
+    }
+  }
+
+  function handleBulkFingerprintStateChange(status) {
+    if (!paneFingerprintSummary.length) return;
+    const targets = paneFingerprintSummary.filter((item) => item.status !== status);
+    if (!targets.length) return;
+    for (const item of targets) {
+      handleFingerprintStateChange(item.fingerprint, status, item.note || "");
+    }
+    appendOperationalNote({
+      type: "bulk_triage",
+      text: `Trilha ${logPane}: ${targets.length} fingerprint(s) marcados como ${status}.`,
+      meta: { logPane, status, total: targets.length },
+    });
+  }
+
+  function handleBulkFingerprintReset() {
+    if (!paneFingerprintSummary.length) return;
+    const targets = paneFingerprintSummary.filter((item) => item.status !== "aberto");
+    if (!targets.length) return;
+    for (const item of targets) {
+      handleFingerprintStateChange(item.fingerprint, "aberto", item.note || "");
+    }
+    appendOperationalNote({
+      type: "bulk_triage",
+      text: `Trilha ${logPane}: ${targets.length} fingerprint(s) reabertos.`,
+      meta: { logPane, status: "aberto", total: targets.length },
+    });
+  }
+
   function handleAddFrontendIssue() {
     if (!frontendForm.detail.trim()) return;
     appendFrontendIssue({
@@ -560,6 +750,9 @@ export default function InternoLayout({
       page: frontendForm.page || router.pathname,
       component: frontendForm.component || "Frontend UX",
       response: frontendForm.detail,
+      consolePane: "frontend",
+      domain: "ux",
+      channel: "manual",
       tags: ["frontend", "ux", "manual"],
     });
     setFrontendForm({ page: "", component: "", detail: "", status: "aberto" });
@@ -587,14 +780,18 @@ export default function InternoLayout({
       component: "Schema",
       response: JSON.stringify(issuePayload, null, 2),
       schemaIssue: issuePayload,
+      consolePane: "schema",
+      domain: "database",
+      channel: "manual",
       tags: ["schema", "manual"],
     });
     setSchemaForm({ type: "", table: "", column: "", code: "", detail: "" });
   }
 
   function updateFilters(next) {
-    setLogFilters(next);
-    setActivityLogFilters(next);
+    const normalized = normalizeConsoleFilters(next);
+    setLogFilters(normalized);
+    setActivityLogFilters(normalized);
   }
 
   function handlePageDebug() {
@@ -607,6 +804,9 @@ export default function InternoLayout({
       page: router.pathname,
       component: title || "Pagina interna",
       response: `Debug manual iniciado em ${router.pathname}`,
+      consolePane: "debug-ui",
+      domain: "runtime",
+      channel: "manual",
       tags: ["debug-ui", "manual"],
     });
   }
@@ -633,65 +833,41 @@ export default function InternoLayout({
   const integrationGuide = useMemo(() => getModuleIntegrationGuide(router.pathname), [router.pathname]);
 
   const filteredLog = useMemo(() => {
-    const normalizedSearch = logSearch.trim().toLowerCase();
-    return activityLog.filter((entry) => {
-      if (logFilters.module && String(entry.module || "").toLowerCase() !== logFilters.module.toLowerCase()) {
-        return false;
-      }
-      if (logFilters.page && String(entry.page || "").toLowerCase().indexOf(logFilters.page.toLowerCase()) === -1) {
-        return false;
-      }
-      if (logFilters.component && String(entry.component || "").toLowerCase().indexOf(logFilters.component.toLowerCase()) === -1) {
-        return false;
-      }
-      if (logFilters.status && String(entry.status || "").toLowerCase() !== logFilters.status.toLowerCase()) {
-        return false;
-      }
-      if (logFilters.tag && !(Array.isArray(entry.tags) ? entry.tags : []).some((tag) => String(tag).toLowerCase().includes(logFilters.tag.toLowerCase()))) {
-        return false;
-      }
-      if (normalizedSearch) {
-        const haystack = [
-          entry.label,
-          entry.action,
-          entry.path,
-          entry.method,
-          entry.page,
-          entry.component,
-          entry.module,
-          entry.request,
-          entry.response,
-          entry.error,
-          (entry.tags || []).join(" "),
-          entry.schemaIssue ? JSON.stringify(entry.schemaIssue) : "",
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        if (!haystack.includes(normalizedSearch)) return false;
-      }
-      return true;
-    });
+    return activityLog.filter((entry) => entryMatchesConsoleFilters(entry, logFilters, logSearch));
   }, [activityLog, logFilters, logSearch]);
   const debugLog = useMemo(() => filteredLog.filter((entry) => entry.action === "debug_ui" || (entry.tags || []).includes("debug-ui")), [filteredLog]);
   const activityOnlyLog = useMemo(() => filteredLog.filter((entry) => !["debug_ui", "frontend_issue", "schema_issue"].includes(String(entry.action || "")) && !(entry.tags || []).includes("debug-ui")), [filteredLog]);
-  const tagScopedLogs = useMemo(() => ({
-    security: filteredLog.filter((entry) => (entry.tags || []).includes("security")),
-    functions: filteredLog.filter((entry) => (entry.tags || []).includes("functions")),
-    routes: filteredLog.filter((entry) => (entry.tags || []).includes("routes")),
-    jobs: filteredLog.filter((entry) => (entry.tags || []).includes("jobs")),
-    webhook: filteredLog.filter((entry) => (entry.tags || []).includes("webhook")),
-    crm: filteredLog.filter((entry) => (entry.tags || []).includes("crm")),
-    supabase: filteredLog.filter((entry) => (entry.tags || []).includes("supabase")),
-    dotobot: filteredLog.filter((entry) => (entry.tags || []).includes("dotobot")),
-    "ai-task": filteredLog.filter((entry) => (entry.tags || []).includes("ai-task")),
-    "data-quality": filteredLog.filter((entry) => (entry.tags || []).includes("data-quality")),
-  }), [filteredLog]);
+  const tagScopedLogs = useMemo(() => buildTagScopedLogs(filteredLog), [filteredLog]);
+  const historyPaneCount = useMemo(() => countHistorySnapshots(moduleHistory), [moduleHistory]);
+  const unclassifiedTagEntriesCount = useMemo(() => countUnclassifiedEntries(activityOnlyLog), [activityOnlyLog]);
   const paneEntries = useMemo(() => {
     if (logPane === "activity") return activityOnlyLog;
     if (logPane === "debug") return debugLog;
     return tagScopedLogs[logPane] || [];
   }, [activityOnlyLog, debugLog, logPane, tagScopedLogs]);
+  const paneCounts = useMemo(() => ({
+    activity: activityOnlyLog.length,
+    debug: debugLog.length,
+    history: historyPaneCount,
+    frontend: frontendIssues.length,
+    schema: schemaIssues.length,
+    notes: operationalNotes.length,
+    security: tagScopedLogs.security.length,
+    functions: tagScopedLogs.functions.length,
+    routes: tagScopedLogs.routes.length,
+    jobs: tagScopedLogs.jobs.length,
+    webhook: tagScopedLogs.webhook.length,
+    crm: tagScopedLogs.crm.length,
+    supabase: tagScopedLogs.supabase.length,
+    dotobot: tagScopedLogs.dotobot.length,
+    "ai-task": tagScopedLogs["ai-task"].length,
+    "data-quality": tagScopedLogs["data-quality"].length,
+  }), [activityOnlyLog.length, debugLog.length, frontendIssues.length, historyPaneCount, operationalNotes.length, schemaIssues.length, tagScopedLogs]);
+  const paneFingerprintSummary = useMemo(() => summarizeFingerprints(paneEntries, fingerprintStates), [fingerprintStates, paneEntries]);
+  const paneRecommendationSummary = useMemo(() => summarizeRecommendations(paneEntries), [paneEntries]);
+  const paneRisk = useMemo(() => calculateRiskScore(paneEntries, paneFingerprintSummary), [paneEntries, paneFingerprintSummary]);
+  const paneTimeline = useMemo(() => summarizeTimeline(paneEntries), [paneEntries]);
+  const paneSla = useMemo(() => summarizeSla(paneEntries, paneFingerprintSummary, fingerprintStates), [fingerprintStates, paneEntries, paneFingerprintSummary]);
   useEffect(() => {
     setLogExpanded(null);
   }, [logPane]);
@@ -879,7 +1055,7 @@ export default function InternoLayout({
                       onClick={() => setLogPane(pane.key)}
                       className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === pane.key ? "border-[#C5A059] text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8]"}`}
                     >
-                      {pane.label}
+                      {pane.label} {paneCounts[pane.key] ? `(${paneCounts[pane.key]})` : ""}
                     </button>)}
                   </div>
                 ) : null}
@@ -960,6 +1136,24 @@ export default function InternoLayout({
                               ))}
                             </div>
                           ) : null}
+                          {item.consoleTags?.length ? (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {item.consoleTags.slice(0, 4).map((tag) => (
+                                <span key={`${item.key}_${tag}`} className="rounded-full border border-[#3C3320] px-2 py-0.5 text-[10px] text-[#E7C987]">
+                                  #{tag}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                          {item.quickActions?.length ? (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {item.quickActions.slice(0, 2).map((action) => (
+                                <span key={`${item.key}_${action.id}`} className="rounded-full border border-[#35554B] px-2 py-0.5 text-[10px] text-[#B7D5CB]">
+                                  {action.label}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
                         </div>
                       )) : (
                         <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.55)] p-3 text-[11px] text-[#9BAEA8]">
@@ -1006,7 +1200,7 @@ export default function InternoLayout({
                         {formattedArchiveHint}
                       </span>
                     </div>
-                    {!["history", "frontend", "schema", "notes"].includes(logPane) ? <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 text-[10px] uppercase tracking-[0.14em] text-[#7F928C]">
+                    {!SPECIAL_LOG_PANES.has(logPane) ? <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 text-[10px] uppercase tracking-[0.14em] text-[#7F928C]">
                       <span>Filtros</span>
                       <input
                         value={logFilters.module || ""}
@@ -1046,6 +1240,20 @@ export default function InternoLayout({
                       />
                       <button
                         type="button"
+                        onClick={() => updateFilters({ ...logFilters, tag: "severity:error" })}
+                        className="rounded-full border border-[#5B2D2D] px-3 py-1 text-[10px] text-[#FECACA] transition hover:border-[#FCA5A5]"
+                      >
+                        So erro
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateFilters({ ...logFilters, tag: "severity:warn" })}
+                        className="rounded-full border border-[#6E5630] px-3 py-1 text-[10px] text-[#FDE68A] transition hover:border-[#FDE68A]"
+                      >
+                        So warn
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => {
                           setLogSearch("");
                           updateFilters({});
@@ -1055,8 +1263,153 @@ export default function InternoLayout({
                         Limpar filtros
                       </button>
                     </div> : null}
-                    {!["activity", "debug", "history", "frontend", "schema", "notes"].includes(logPane) ? <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 text-[11px] text-[#9BAEA8]">
-                      Trilha automatica por tag: <span className="text-[#F4E7C2]">{LOG_PANES.find((pane) => pane.key === logPane)?.label || logPane}</span>. Os eventos entram aqui conforme heuristica de coleta do console.
+                    {TAG_LOG_PANES.has(logPane) ? <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 text-[11px] text-[#9BAEA8]">
+                      Trilha automatica por tag: <span className="text-[#F4E7C2]">{LOG_PANES.find((pane) => pane.key === logPane)?.label || logPane}</span>. Os eventos entram aqui pela taxonomia do console.
+                      {!paneEntries.length && unclassifiedTagEntriesCount ? (
+                        <span className="block mt-2 text-[#C7D0CA]">
+                          Nenhuma entrada classificada nesta trilha. Existem {unclassifiedTagEntriesCount} evento(s) ainda sem tag automatica compativel.
+                        </span>
+                      ) : null}
+                    </div> : null}
+                    {!SPECIAL_LOG_PANES.has(logPane) && paneEntries.length ? <div className="grid gap-3 xl:grid-cols-2">
+                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 xl:col-span-2">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Risco da trilha</p>
+                            <p className="mt-1 text-[11px] text-[#9BAEA8]">Score baseado em erros, warnings e recorrencia recente.</p>
+                          </div>
+                          <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(paneRisk.tone)}`}>
+                            risco {paneRisk.label} · {paneRisk.score}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 xl:col-span-2">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">SLA e idade dos erros</p>
+                            <p className="mt-1 text-[11px] text-[#9BAEA8]">Envelhecimento dos erros ainda nao resolvidos nesta trilha.</p>
+                          </div>
+                          <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(paneSla.tone)}`}>
+                            aberto {paneSla.openRecurring} · acompanhando {paneSla.watchingRecurring} · resolvido {paneSla.resolvedRecurring}
+                          </span>
+                        </div>
+                        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+                          <div className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2 text-[11px]">
+                            <div className="text-[#7F928C]">até 4h</div>
+                            <div className="mt-1 font-semibold text-[#F4F1EA]">{paneSla.buckets.ate_4h}</div>
+                          </div>
+                          <div className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2 text-[11px]">
+                            <div className="text-[#7F928C]">4h - 24h</div>
+                            <div className="mt-1 font-semibold text-[#F4F1EA]">{paneSla.buckets.ate_24h}</div>
+                          </div>
+                          <div className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2 text-[11px]">
+                            <div className="text-[#7F928C]">24h - 72h</div>
+                            <div className="mt-1 font-semibold text-[#F4F1EA]">{paneSla.buckets.ate_72h}</div>
+                          </div>
+                          <div className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2 text-[11px]">
+                            <div className="text-[#7F928C]">acima de 72h</div>
+                            <div className={`mt-1 font-semibold ${paneSla.buckets.acima_72h ? "text-[#FECACA]" : "text-[#F4F1EA]"}`}>{paneSla.buckets.acima_72h}</div>
+                          </div>
+                          <div className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2 text-[11px]">
+                            <div className="text-[#7F928C]">sem data</div>
+                            <div className={`mt-1 font-semibold ${paneSla.buckets.sem_data ? "text-[#FDE68A]" : "text-[#F4F1EA]"}`}>{paneSla.buckets.sem_data}</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Recorrencia</p>
+                          {paneFingerprintSummary.length ? <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleBulkFingerprintStateChange("acompanhando")}
+                              className="rounded-full border border-[#6E5630] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#FDE68A]"
+                            >
+                              Acompanhar todos
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleBulkFingerprintStateChange("resolvido")}
+                              className="rounded-full border border-[#30543A] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#B7F7C6]"
+                            >
+                              Resolver todos
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleBulkFingerprintReset}
+                              className="rounded-full border border-[#5B2D2D] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#FECACA]"
+                            >
+                              Reabrir
+                            </button>
+                          </div> : null}
+                        </div>
+                        {!paneFingerprintSummary.length ? <p className="mt-2 text-[11px] opacity-60">Nenhum fingerprint recorrente nesta trilha.</p> : <div className="mt-2 space-y-2">
+                          {paneFingerprintSummary.map((item) => <div key={item.fingerprint} className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2 text-[11px]">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-semibold">{item.label}</span>
+                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${getFingerprintStatusTone(item.status)}`}>{item.status}</span>
+                                <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(item.severity)}`}>{item.count}x</span>
+                              </div>
+                            </div>
+                            <div className="mt-1 text-[#7F928C]">{item.fingerprint}</div>
+                            {item.note ? <div className="mt-2 text-[#C7D0CA]">{item.note}</div> : null}
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleFingerprintStateChange(item.fingerprint, "aberto", item.note || "")}
+                                className="rounded-full border border-[#5B2D2D] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#FECACA]"
+                              >
+                                Aberto
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleFingerprintStateChange(item.fingerprint, "acompanhando", item.note || "")}
+                                className="rounded-full border border-[#6E5630] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#FDE68A]"
+                              >
+                                Acompanhar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleFingerprintStateChange(item.fingerprint, "resolvido", item.note || "")}
+                                className="rounded-full border border-[#30543A] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#B7F7C6]"
+                              >
+                                Resolver
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleFingerprintNote(item.fingerprint)}
+                                className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8]"
+                              >
+                                Nota
+                              </button>
+                            </div>
+                          </div>)}
+                        </div>}
+                      </div>
+                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3">
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Acao recomendada</p>
+                        {!paneRecommendationSummary.length ? <p className="mt-2 text-[11px] opacity-60">Sem recomendacoes consolidadas ainda.</p> : <div className="mt-2 space-y-2">
+                          {paneRecommendationSummary.map((item) => <div key={item.action} className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2 text-[11px]">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-semibold">{item.action}</span>
+                              <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(item.severity)}`}>{item.count}</span>
+                            </div>
+                          </div>)}
+                        </div>}
+                      </div>
+                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 xl:col-span-2">
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Timeline operacional</p>
+                        {!paneTimeline.length ? <p className="mt-2 text-[11px] opacity-60">Sem jobId/runId/contactId/processoId identificados nesta trilha.</p> : <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                          {paneTimeline.map((item) => <div key={item.key} className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2 text-[11px]">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-semibold">{item.label}</span>
+                              <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(item.severity)}`}>{item.count}</span>
+                            </div>
+                            <div className="mt-1 text-[#7F928C]">{item.lastAt ? new Date(item.lastAt).toLocaleString("pt-BR") : "sem data"}</div>
+                          </div>)}
+                        </div>}
+                      </div>
                     </div> : null}
                     {logPane === "history" ? <div className="space-y-3">
                       <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 text-[11px] text-[#9BAEA8]">
@@ -1436,18 +1789,45 @@ export default function InternoLayout({
                       <div className="space-y-2">
                         {paneEntries.slice(0, 30).map((entry) => (
                           <div key={entry.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(8,10,9,0.6)] px-3 py-2 text-[11px]">
+                            {entry.fingerprint ? <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex flex-wrap gap-2">
+                                <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${getFingerprintStatusTone(fingerprintStates?.[entry.fingerprint]?.status || "aberto")}`}>
+                                  {fingerprintStates?.[entry.fingerprint]?.status || "aberto"}
+                                </span>
+                                {fingerprintStates?.[entry.fingerprint]?.updatedAt ? <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8]">
+                                  {new Date(fingerprintStates[entry.fingerprint].updatedAt).toLocaleString("pt-BR")}
+                                </span> : null}
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleFingerprintStateChange(entry, "acompanhando", fingerprintStates?.[entry.fingerprint]?.note || "")}
+                                  className="rounded-full border border-[#6E5630] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#FDE68A]"
+                                >
+                                  Acompanhar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleFingerprintStateChange(entry, "resolvido", fingerprintStates?.[entry.fingerprint]?.note || "")}
+                                  className="rounded-full border border-[#30543A] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#B7F7C6]"
+                                >
+                                  Resolver
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleFingerprintNote(entry)}
+                                  className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8]"
+                                >
+                                  Nota
+                                </button>
+                              </div>
+                            </div> : null}
                             <div className="flex items-center justify-between">
                               <span className="font-semibold">{entry.label || entry.action}</span>
                               <span
-                                className={
-                                  entry.status === "error"
-                                    ? "text-red-200"
-                                    : entry.status === "success"
-                                      ? "text-[#11D473]"
-                                      : "text-[#C5A059]"
-                                }
+                                className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(entry.severity || (entry.status === "error" ? "error" : entry.status === "running" ? "warn" : "info"))}`}
                               >
-                                {entry.status}
+                                {entry.severity || entry.status}
                               </span>
                             </div>
                             <div className="opacity-60">
@@ -1458,8 +1838,15 @@ export default function InternoLayout({
                               {entry.page ? <span className="rounded-full border border-[#22342F] px-2 py-1">{entry.page}</span> : null}
                               {entry.component ? <span className="rounded-full border border-[#22342F] px-2 py-1">{entry.component}</span> : null}
                               {entry.durationMs !== undefined ? <span className="rounded-full border border-[#22342F] px-2 py-1">{entry.durationMs}ms</span> : null}
+                              {entry.fingerprint ? <span className="rounded-full border border-[#22342F] px-2 py-1">{entry.fingerprint}</span> : null}
                               {(entry.tags || []).length ? <span className="rounded-full border border-[#22342F] px-2 py-1">tags: {(entry.tags || []).join(", ")}</span> : null}
                             </div>
+                            {entry.recommendedAction ? <div className="mt-2 rounded-lg border border-[#22342F] bg-[rgba(10,12,11,0.45)] px-3 py-2 text-[11px] text-[#C7D0CA]">
+                              <span className="text-[#D9B46A]">Proxima acao:</span> {entry.recommendedAction}
+                            </div> : null}
+                            {entry.fingerprint && fingerprintStates?.[entry.fingerprint]?.note ? <div className="mt-2 rounded-lg border border-[#22342F] bg-[rgba(10,12,11,0.45)] px-3 py-2 text-[11px] text-[#C7D0CA]">
+                              <span className="text-[#D9B46A]">Observacao:</span> {fingerprintStates[entry.fingerprint].note}
+                            </div> : null}
                             <div className="mt-2">
                               <button
                                 type="button"
@@ -1500,7 +1887,7 @@ export default function InternoLayout({
                           </div>
                         ))}
                       </div>
-                    ) : !["history", "frontend", "schema", "notes"].includes(logPane) ? (
+                    ) : !SPECIAL_LOG_PANES.has(logPane) ? (
                       <div className="text-[11px] opacity-60">
                         {logPane === "debug" ? "Nenhum debug UI registrado." : `Nenhuma entrada classificada em ${LOG_PANES.find((pane) => pane.key === logPane)?.label || logPane}.`}
                       </div>

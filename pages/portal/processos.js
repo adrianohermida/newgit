@@ -3,6 +3,8 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
+import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../lib/admin/module-registry";
 import { clientFetch } from "../../lib/client/api";
 import { sanitizePortalCopy } from "../../lib/client/portal-copy";
 
@@ -112,6 +114,18 @@ function ProcessosContent({ state, setState, router }) {
         const incomingItems = Array.isArray(payload.items) ? payload.items : [];
         const safeItems = incomingItems.filter((item) => matchesStatusFilter(item, normalizedStatus));
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_processos_load",
+            label: "Carteira processual carregada",
+            module: "portal-processos",
+            status: "success",
+            path: "/portal/processos",
+            response: `itens=${safeItems.length}, filtro=${normalizedStatus || "todos"}`,
+            consolePane: "routes",
+            domain: "portal",
+            system: "processos",
+          });
           setState({
             loading: false,
             loadingMore: false,
@@ -123,6 +137,18 @@ function ProcessosContent({ state, setState, router }) {
         }
       } catch (error) {
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_processos_load",
+            label: "Falha ao carregar carteira processual",
+            module: "portal-processos",
+            status: "error",
+            path: "/portal/processos",
+            error: error.message,
+            consolePane: "routes",
+            domain: "portal",
+            system: "processos",
+          });
           setState({
             loading: false,
             loadingMore: false,
@@ -152,6 +178,18 @@ function ProcessosContent({ state, setState, router }) {
       const payload = await clientFetch(`/api/client-processos?page=${nextPage}&pageSize=${state.pagination?.pageSize || PAGE_SIZE}${statusParam}`);
       const incomingItems = Array.isArray(payload.items) ? payload.items : [];
       const safeItems = incomingItems.filter((item) => matchesStatusFilter(item, normalizedStatus));
+      appendActivityLog({
+        type: "ui",
+        action: "portal_processos_load_more",
+        label: "Mais processos carregados",
+        module: "portal-processos",
+        status: "success",
+        path: "/portal/processos",
+        response: `pagina=${nextPage}, itens=${safeItems.length}`,
+        consolePane: "jobs",
+        domain: "portal",
+        system: "processos",
+      });
       setState((current) => ({
         ...current,
         loading: false,
@@ -162,6 +200,18 @@ function ProcessosContent({ state, setState, router }) {
         pagination: payload.pagination || current.pagination,
       }));
     } catch (error) {
+      appendActivityLog({
+        type: "ui",
+        action: "portal_processos_load_more",
+        label: "Falha ao carregar mais processos",
+        module: "portal-processos",
+        status: "error",
+        path: "/portal/processos",
+        error: error.message,
+        consolePane: "jobs",
+        domain: "portal",
+        system: "processos",
+      });
       setState((current) => ({ ...current, loadingMore: false, error: error.message }));
     }
   }
@@ -180,6 +230,18 @@ function ProcessosContent({ state, setState, router }) {
 
   function handleStatusChange(nextStatus) {
     const normalizedStatus = normalizeStatusFilterValue(nextStatus);
+    appendActivityLog({
+      type: "ui",
+      action: "portal_processos_filter_change",
+      label: "Filtro de processos alterado",
+      module: "portal-processos",
+      status: "success",
+      path: "/portal/processos",
+      response: `status=${normalizedStatus || "todos"}`,
+      consolePane: "activity",
+      domain: "portal",
+      system: "processos",
+    });
     setSelectedStatus(normalizedStatus);
     const nextQuery = { ...router.query };
     if (normalizedStatus) {
@@ -189,6 +251,27 @@ function ProcessosContent({ state, setState, router }) {
     }
     router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
   }
+
+  useEffect(() => {
+    if (state.loading) return;
+    setModuleHistory(
+      "portal-processos",
+      buildModuleSnapshot("portal-processos", {
+        routePath: "/portal/processos",
+        status: state.error ? "error" : "ready",
+        selectedStatus: selectedStatus || "todos",
+        stats,
+        visibleItems: state.items.length,
+        pagination: state.pagination,
+        warning: state.warning || null,
+        coverage: {
+          hasItems: state.items.length > 0,
+          hasWarning: Boolean(state.warning),
+          hasMore: Boolean(state.pagination?.hasMore),
+        },
+      })
+    );
+  }, [selectedStatus, state.error, state.items.length, state.loading, state.pagination, state.warning, stats]);
 
   if (state.loading) return <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">Carregando modulo...</div>;
   if (state.error) return <div className="rounded-[28px] border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] p-6 text-sm">{state.error}</div>;

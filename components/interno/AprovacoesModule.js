@@ -254,6 +254,9 @@ export default function AprovacoesModule() {
         page: "/interno/aprovacoes",
         status: "success",
         response: `Acao ${action} aplicada para a solicitacao ${id}.`,
+        consolePane: "security",
+        domain: "approval",
+        system: "cadastro",
         tags: ["approval", "manual"],
       });
       await load();
@@ -266,6 +269,9 @@ export default function AprovacoesModule() {
         page: "/interno/aprovacoes",
         status: "error",
         error: error.message || "Falha ao processar aprovacao.",
+        consolePane: "security",
+        domain: "approval",
+        system: "cadastro",
         tags: ["approval", "manual"],
       });
       setState((current) => ({ ...current, actingId: null, error: error.message }));
@@ -293,11 +299,27 @@ export default function AprovacoesModule() {
         page: "/interno/aprovacoes",
         status: "success",
         response: `Cliente ${clientId} teve o lock de CPF alternado.`,
+        consolePane: ["security", "data-quality"],
+        domain: "approval",
+        system: "cadastro",
         tags: ["approval", "manual"],
       });
       setState((current) => ({ ...current, actingId: null, message: "Bloqueio de CPF atualizado." }));
       await load();
     } catch (error) {
+      appendActivityLog({
+        label: "Falha ao atualizar lock de CPF",
+        action: "approval_lock_cpf",
+        method: "UI",
+        module: "aprovacoes",
+        page: "/interno/aprovacoes",
+        status: "error",
+        error: error.message || "Falha ao atualizar lock de CPF.",
+        consolePane: ["security", "data-quality"],
+        domain: "approval",
+        system: "cadastro",
+        tags: ["approval", "manual"],
+      });
       setState((current) => ({ ...current, actingId: null, error: error.message }));
     }
   }
@@ -323,11 +345,27 @@ export default function AprovacoesModule() {
         page: "/interno/aprovacoes",
         status: "success",
         response: `Cliente ${clientId} teve o lock de nome alternado.`,
+        consolePane: ["security", "data-quality"],
+        domain: "approval",
+        system: "cadastro",
         tags: ["approval", "manual"],
       });
       setState((current) => ({ ...current, actingId: null, message: "Bloqueio do nome atualizado." }));
       await load();
     } catch (error) {
+      appendActivityLog({
+        label: "Falha ao atualizar lock de nome",
+        action: "approval_lock_name",
+        method: "UI",
+        module: "aprovacoes",
+        page: "/interno/aprovacoes",
+        status: "error",
+        error: error.message || "Falha ao atualizar lock de nome.",
+        consolePane: ["security", "data-quality"],
+        domain: "approval",
+        system: "cadastro",
+        tags: ["approval", "manual"],
+      });
       setState((current) => ({ ...current, actingId: null, error: error.message }));
     }
   }

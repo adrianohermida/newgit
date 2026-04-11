@@ -84,11 +84,15 @@ function getCustomField(rawPayload, key) {
 }
 
 function mapMirrorRow(row) {
+  const originalName = row.name || row.raw_payload?.display_name || row.raw_payload?.name || null;
   return {
     id: row.id,
     freshsales_contact_id: row.freshsales_contact_id,
     external_id: cleanValue(row?.raw_payload?.external_id),
-    name: sanitizeContactName(row.name || row.raw_payload?.display_name || row.raw_payload?.name) || "Contato sem nome",
+    original_name: cleanValue(originalName),
+    original_email: cleanValue(row.email),
+    original_phone: cleanValue(row.phone),
+    name: sanitizeContactName(originalName) || "Contato sem nome",
     email: normalizeEmail(row.email) || null,
     phone: row.phone || null,
     type: getCustomField(row.raw_payload, "cf_tipo") || cleanValue(row?.raw_payload?.type) || "Nao classificado",
@@ -804,9 +808,9 @@ export async function validateContacts(env, { contactIds = [], query = "", type 
   for (const contact of contacts) {
     const nextPayload = buildValidatedContactPayload(contact, type || "Cliente");
     const hasChanges =
-      nextPayload.name !== cleanValue(contact.name) ||
-      nextPayload.email !== cleanValue(contact.email) ||
-      nextPayload.phone !== cleanValue(contact.phone) ||
+      nextPayload.name !== cleanValue(contact.original_name || contact.name) ||
+      nextPayload.email !== cleanValue(contact.original_email || contact.email) ||
+      nextPayload.phone !== cleanValue(contact.original_phone || contact.phone) ||
       nextPayload.cpf !== cleanValue(contact.cpf) ||
       nextPayload.cnpj !== cleanValue(contact.cnpj) ||
       nextPayload.cep !== cleanValue(contact.cep);
@@ -820,9 +824,9 @@ export async function validateContacts(env, { contactIds = [], query = "", type 
       sample.push({
         freshsales_contact_id: contact.freshsales_contact_id,
         before: {
-          name: contact.name,
-          email: contact.email,
-          phone: contact.phone,
+          name: contact.original_name || contact.name,
+          email: contact.original_email || contact.email,
+          phone: contact.original_phone || contact.phone,
           cpf: contact.cpf,
           cnpj: contact.cnpj,
           cep: contact.cep,

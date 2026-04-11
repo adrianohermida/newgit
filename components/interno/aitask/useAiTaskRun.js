@@ -2,6 +2,12 @@ import { useEffect, useRef } from "react";
 import { adminFetch } from "../../../lib/admin/api";
 import { appendActivityLog, updateActivityLog } from "../../../lib/admin/activity-log";
 
+const AI_TASK_CONSOLE_META = {
+  consolePane: ["ai-task", "functions", "jobs"],
+  domain: "orchestration",
+  system: "task-run",
+};
+
 function stringifyDiagnostic(value, limit = 12000) {
   if (value === undefined || value === null) return "";
   let text = "";
@@ -99,7 +105,7 @@ export function useAiTaskRun({
           label: "AI Task: consultar run",
           action: "ai_task_run_poll",
           method: "POST",
-          path: "/functions/api/admin-lawdesk-chat",
+          path: "/api/admin-lawdesk-chat",
           expectation: "Consultar novos eventos e status da execução",
           request: stringifyDiagnostic({
             action: "task_run_get",
@@ -107,10 +113,11 @@ export function useAiTaskRun({
             sinceEventId: lastEventCursorRef.current || null,
             sinceSequence: lastEventSequenceRef.current || null,
           }),
+          ...AI_TASK_CONSOLE_META,
           status: "running",
           startedAt: Date.now(),
         });
-        const payload = await adminFetch("/functions/api/admin-lawdesk-chat", {
+        const payload = await adminFetch("/api/admin-lawdesk-chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -188,13 +195,14 @@ export function useAiTaskRun({
         }
 
         if (normalized.rag) {
-          setContextSnapshot({
+          setContextSnapshot((current) => ({
+            ...(current || {}),
             module: detectModules(run?.mission || mission).join(", "),
             memory: extractTaskRunMemoryMatches(normalized.rag),
             documents: normalized.rag?.documents || [],
             ragEnabled: Boolean(normalized.rag?.retrieval?.enabled || normalized.rag?.documents?.length),
             route: routePath || "/interno/ai-task",
-          });
+          }));
         }
 
         if (runStatus === "completed" || runStatus === "failed" || runStatus === "canceled") {
@@ -244,7 +252,8 @@ export function useAiTaskRun({
             label: "AI Task: falha ao consultar run",
             action: "ai_task_run_poll_error",
             method: "POST",
-            path: "/functions/api/admin-lawdesk-chat",
+            path: "/api/admin-lawdesk-chat",
+            ...AI_TASK_CONSOLE_META,
             status: "error",
             startedAt: Date.now(),
             error: buildAiTaskDiagnostic({
@@ -365,7 +374,7 @@ export function useAiTaskRun({
       pushLog({
         type: "api",
         action: "Iniciando TaskRun",
-        result: "POST /functions/api/admin-lawdesk-chat (action=task_run_start)",
+            result: "POST /api/admin-lawdesk-chat (action=task_run_start)",
       });
       appendActivityLog({
         id: startLogId,
@@ -374,8 +383,9 @@ export function useAiTaskRun({
         label: "AI Task: iniciar run",
         action: "ai_task_run_start",
         method: "POST",
-        path: "/functions/api/admin-lawdesk-chat",
+        path: "/api/admin-lawdesk-chat",
         expectation: "Criar uma nova run da missão no backend",
+        ...AI_TASK_CONSOLE_META,
         request: buildAiTaskDiagnostic({
           title: "AI Task start",
           summary: normalizedMission,
@@ -400,7 +410,7 @@ export function useAiTaskRun({
         startedAt: startStartedAt,
       });
 
-      const payload = await adminFetch("/functions/api/admin-lawdesk-chat", {
+      const payload = await adminFetch("/api/admin-lawdesk-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -588,7 +598,8 @@ export function useAiTaskRun({
         label: "AI Task: falha na execução",
         action: "ai_task_run_error",
         method: "POST",
-        path: "/functions/api/admin-lawdesk-chat",
+        path: "/api/admin-lawdesk-chat",
+        ...AI_TASK_CONSOLE_META,
         status: "error",
         startedAt: Date.now(),
         error: buildAiTaskDiagnostic({
@@ -649,13 +660,14 @@ export function useAiTaskRun({
           label: "AI Task: cancelar run",
           action: "ai_task_run_cancel",
           method: "POST",
-          path: "/functions/api/admin-lawdesk-chat",
+          path: "/api/admin-lawdesk-chat",
           expectation: "Cancelar a execução ativa",
+          ...AI_TASK_CONSOLE_META,
           request: stringifyDiagnostic({ action: "task_run_cancel", runId }),
           status: "running",
           startedAt: cancelStartedAt,
         });
-        const payload = await adminFetch("/functions/api/admin-lawdesk-chat", {
+        const payload = await adminFetch("/api/admin-lawdesk-chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "task_run_cancel", runId }),
@@ -681,7 +693,8 @@ export function useAiTaskRun({
           label: "AI Task: falha ao cancelar",
           action: "ai_task_run_cancel_error",
           method: "POST",
-          path: "/functions/api/admin-lawdesk-chat",
+          path: "/api/admin-lawdesk-chat",
+          ...AI_TASK_CONSOLE_META,
           status: "error",
           startedAt: Date.now(),
           error: buildAiTaskDiagnostic({
@@ -737,8 +750,9 @@ export function useAiTaskRun({
         label: "AI Task: retomar run",
         action: "ai_task_run_continue",
         method: "POST",
-        path: "/functions/api/admin-lawdesk-chat",
+        path: "/api/admin-lawdesk-chat",
         expectation: "Retomar uma run falhada ou parada",
+        ...AI_TASK_CONSOLE_META,
         request: stringifyDiagnostic({
           action: "task_run_continue",
           runId: lastRecoverable.id,
@@ -749,7 +763,7 @@ export function useAiTaskRun({
         status: "running",
         startedAt: continueStartedAt,
       });
-      const payload = await adminFetch("/functions/api/admin-lawdesk-chat", {
+      const payload = await adminFetch("/api/admin-lawdesk-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -815,7 +829,8 @@ export function useAiTaskRun({
         label: "AI Task: falha ao retomar",
         action: "ai_task_run_continue_error",
         method: "POST",
-        path: "/functions/api/admin-lawdesk-chat",
+        path: "/api/admin-lawdesk-chat",
+        ...AI_TASK_CONSOLE_META,
         status: "error",
         startedAt: Date.now(),
         error: buildAiTaskDiagnostic({

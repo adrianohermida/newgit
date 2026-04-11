@@ -7,10 +7,10 @@ import { FixedSizeList as VirtualList } from "react-window";
 import { detectIntent } from "../../lib/ai/intent_router";
 import { getCurrentContext } from "../../lib/ai/context_engine";
 import { useRouter } from "next/router";
-import { adminFetch } from "../../lib/admin/api";
+import { adminFetch, getAdminAccessToken } from "../../lib/admin/api";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import { cancelTaskRun, createPendingTaskRun, pollTaskRun, startTaskRun } from "./dotobotTaskRun";
-import { appendActivityLog, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
+import { appendActivityLog, getModuleHistory, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
 import {
   CHAT_STORAGE_PREFIX,
   CONVERSATIONS_STORAGE_PREFIX,
@@ -246,6 +246,18 @@ function buildDiagnosticReport({ title, summary = "", sections = [] }) {
     .join("\n\n---\n\n");
 }
 
+const DOTOBOT_CONSOLE_META = {
+  consolePane: "dotobot",
+  domain: "copilot",
+  system: "chat",
+};
+
+const DOTOBOT_TASK_CONSOLE_META = {
+  consolePane: ["dotobot", "functions", "jobs"],
+  domain: "copilot-task",
+  system: "task-run",
+};
+
 function DotobotModal({
   open,
   title,
@@ -377,6 +389,9 @@ export default function DotobotCopilot({
       method: patch.method || "UI",
       path: routePath || "/interno",
       page: routePath || "/interno",
+      consolePane: patch.consolePane || DOTOBOT_CONSOLE_META.consolePane,
+      domain: patch.domain || DOTOBOT_CONSOLE_META.domain,
+      system: patch.system || DOTOBOT_CONSOLE_META.system,
       status: patch.status || "success",
       expectation: patch.expectation || label,
       request: patch.request || "",
@@ -396,6 +411,9 @@ export default function DotobotCopilot({
       module: "dotobot",
       component: "DotobotPanel",
       response: `Debug manual do copilot em ${routePath || "rota interna"}`,
+      consolePane: "debug-ui",
+      domain: "runtime",
+      system: "copilot",
     });
   }
 
@@ -427,6 +445,7 @@ export default function DotobotCopilot({
   const [showSlashCommands, setShowSlashCommands] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [pendingRetrigger, setPendingRetrigger] = useState(null);
+  const [lastConsumedAiTaskHandoffId, setLastConsumedAiTaskHandoffId] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
   const [renameModal, setRenameModal] = useState({ open: false, conversationId: null, value: "" });
   const scrollRef = useRef(null);
@@ -596,6 +615,24 @@ export default function DotobotCopilot({
     composerRef.current?.focus();
   }, [pendingRetrigger]);
 
+  useEffect(() => {
+    const dotobotHistory = getModuleHistory("dotobot");
+    const handoff = dotobotHistory?.handoffFromAiTask || null;
+    if (!handoff?.mission) return;
+    if (handoff.id && handoff.id === lastConsumedAiTaskHandoffId) return;
+    if (input && input.trim()) return;
+    setLastConsumedAiTaskHandoffId(handoff.id || null);
+    setWorkspaceOpen(true);
+    setMode("task");
+    if (handoff.routePath) {
+      logDotobotUi("Dotobot: handoff recebido do AI Task", "dotobot_handoff_received", handoff, {
+        component: "DotobotHandoff",
+      });
+    }
+    setInput(handoff.mission);
+    setTimeout(() => composerRef.current?.focus(), 50);
+  }, [input, lastConsumedAiTaskHandoffId]);
+
   function syncTaskHistory(taskId, updater) {
     setTaskHistory((current) => current.map((task) => (task.id === taskId ? updater(task) : task)));
   }
@@ -641,6 +678,45 @@ export default function DotobotCopilot({
     if (isTaskCommand(trimmedQuestion)) {
       // Dispara TaskRun
       setUiState("executing");
+      const dotobotHandoff = {
+        id: `${Date.now()}_dotobot_handoff`,
+        label: "Tarefa criada no Dotobot",
+        mission: trimmedQuestion,
+        moduleKey: "dotobot",
+        moduleLabel: "Dotobot",
+        routePath: routePath || "/interno",
+        mode: nextMode,
+        provider: nextProvider,
+        tags: ["ai-task", "dotobot", "task"],
+        createdAt: nowIso(),
+        conversationId: activeConversationId || null,
+      };
+      setModuleHistory("ai-task", {
+        routePath: "/interno/ai-task",
+        handoffFromDotobot: dotobotHandoff,
+        consoleTags: dotobotHandoff.tags,
+      });
+      appendActivityLog({
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        module: "ai-task",
+        component: "DotobotTaskRun",
+        label: "Dotobot: handoff para AI Task",
+        action: "dotobot_to_ai_task_handoff",
+        method: "UI",
+        path: "/interno/ai-task",
+        consolePane: ["dotobot", "ai-task"],
+        domain: "handoff",
+        system: "copilot",
+        status: "success",
+        tags: dotobotHandoff.tags,
+        response: buildDiagnosticReport({
+          title: "Handoff Dotobot -> AI Task",
+          summary: trimmedQuestion,
+          sections: [
+            { label: "handoff", value: dotobotHandoff },
+          ],
+        }),
+      });
       const pendingTask = createPendingTaskRun(trimmedQuestion, {
         mode: nextMode,
         provider: nextProvider,
@@ -765,7 +841,8 @@ export default function DotobotCopilot({
         label: "Dotobot: enviar mensagem",
         action: "dotobot_chat_submit",
         method: "POST",
-        path: "/functions/api/admin-lawdesk-chat",
+        path: "/api/admin-lawdesk-chat",
+        ...DOTOBOT_TASK_CONSOLE_META,
         expectation: "Enviar pergunta ao backend conversacional",
         request: buildDiagnosticReport({
           title: "Dotobot chat",
@@ -783,9 +860,13 @@ export default function DotobotCopilot({
         startedAt: chatStartedAt,
       });
       // PATCH 2.8/2.9: Streaming
-      const response = await fetch("/functions/api/admin-lawdesk-chat", {
+      const accessToken = await getAdminAccessToken();
+      const response = await fetch("/api/admin-lawdesk-chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           query: trimmedQuestion,
           mode: nextMode,

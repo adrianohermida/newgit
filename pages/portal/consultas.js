@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
+import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../lib/admin/module-registry";
 import { clientFetch } from "../../lib/client/api";
 
 function formatDateLabel(value) {
@@ -99,6 +101,18 @@ function ConsultasContent({ state, setState }) {
       try {
         const payload = await clientFetch("/api/client-consultas");
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_consultas_load",
+            label: "Consultas carregadas",
+            module: "portal-consultas",
+            status: "success",
+            path: "/portal/consultas",
+            response: `itens=${payload.items?.length || 0}, proximas=${payload.summary?.proximas || 0}`,
+            consolePane: "routes",
+            domain: "portal",
+            system: "consultas",
+          });
           setState({
             loading: false,
             error: null,
@@ -109,6 +123,18 @@ function ConsultasContent({ state, setState }) {
         }
       } catch (error) {
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_consultas_load",
+            label: "Falha ao carregar consultas",
+            module: "portal-consultas",
+            status: "error",
+            path: "/portal/consultas",
+            error: error.message,
+            consolePane: "routes",
+            domain: "portal",
+            system: "consultas",
+          });
           setState({
             loading: false,
             error: error.message,
@@ -136,6 +162,34 @@ function ConsultasContent({ state, setState }) {
   const summary = state.summary || { total: 0, agendadas: 0, realizadas: 0, canceladas: 0, proximas: 0 };
   const upcomingItems = sortByDateTimeAsc(state.items.filter((item) => item.is_upcoming));
   const historyItems = sortByDateTimeDesc(state.items.filter((item) => !item.is_upcoming));
+
+  useEffect(() => {
+    if (state.loading) return;
+    setModuleHistory(
+      "portal-consultas",
+      buildModuleSnapshot("portal-consultas", {
+        routePath: "/portal/consultas",
+        status: state.error ? "error" : "ready",
+        summary,
+        nextConsulta: state.nextConsulta
+          ? {
+              id: state.nextConsulta.id,
+              status: state.nextConsulta.status,
+              datetime: state.nextConsulta.datetime_iso || null,
+            }
+          : null,
+        counts: {
+          upcoming: upcomingItems.length,
+          history: historyItems.length,
+        },
+        coverage: {
+          hasItems: state.items.length > 0,
+          hasNextConsulta: Boolean(state.nextConsulta),
+          hasUpcoming: upcomingItems.length > 0,
+        },
+      })
+    );
+  }, [historyItems.length, state.error, state.items.length, state.loading, state.nextConsulta, summary, upcomingItems.length]);
 
   return (
     <div className="space-y-8">

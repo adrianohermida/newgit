@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
+import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../lib/admin/module-registry";
 import { clientFetch } from "../../lib/client/api";
 import { sanitizePortalList } from "../../lib/client/portal-copy";
 
@@ -53,6 +55,15 @@ function OverviewContent({ state, setState }) {
       try {
         const payload = await clientFetch("/api/client-summary");
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_summary_load",
+            label: "Portal carregado",
+            module: "portal-home",
+            status: "success",
+            path: "/portal",
+            response: `summary=${payload.summary?.processos || 0} processos, ${payload.summary?.tickets || 0} tickets`,
+          });
           setState({
             loading: false,
             summary: payload.summary,
@@ -65,6 +76,15 @@ function OverviewContent({ state, setState }) {
         }
       } catch (error) {
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_summary_load",
+            label: "Falha ao carregar portal",
+            module: "portal-home",
+            status: "error",
+            path: "/portal",
+            error: error.message,
+          });
           setState({ loading: false, summary: null, coverage: null, warnings: [], recentActivity: [], attentionItems: [], error: error.message });
         }
       }
@@ -94,6 +114,27 @@ function OverviewContent({ state, setState }) {
     baseCoverageRate: 0,
     crmCoverageRate: 0,
   };
+
+  useEffect(() => {
+    if (state.loading) return;
+    setModuleHistory(
+      "portal-home",
+      buildModuleSnapshot("portal-home", {
+        routePath: "/portal",
+        status: state.error ? "error" : "ready",
+        summary,
+        coverageOverview: coverage,
+        warningsCount: state.warnings.length,
+        recentActivityCount: state.recentActivity.length,
+        attentionItemsCount: state.attentionItems.length,
+        coverage: {
+          hasWarnings: state.warnings.length > 0,
+          hasRecentActivity: state.recentActivity.length > 0,
+          hasAttentionItems: state.attentionItems.length > 0,
+        },
+      })
+    );
+  }, [coverage, state.attentionItems.length, state.error, state.loading, state.recentActivity.length, state.warnings.length, summary]);
 
   return (
     <div className="space-y-6">

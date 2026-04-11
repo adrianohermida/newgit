@@ -3,6 +3,8 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import PortalLayout from "../../../components/portal/PortalLayout";
 import RequireClient from "../../../components/portal/RequireClient";
+import { appendActivityLog, setModuleHistory } from "../../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../../lib/admin/module-registry";
 import { clientFetch } from "../../../lib/client/api";
 
 function formatDate(value, withTime = false) {
@@ -67,6 +69,18 @@ export default function PortalProcessDetailPage() {
 function ProcessDetailContent({ processId, state, setState }) {
   useEffect(() => {
     if (!processId) {
+      appendActivityLog({
+        type: "ui",
+        action: "portal_processo_detail_load",
+        label: "Detalhe do processo sem identificador",
+        module: "portal-processo-detalhe",
+        status: "error",
+        path: "/portal/processos/detalhe",
+        error: "Informe o identificador do processo.",
+        consolePane: "routes",
+        domain: "portal",
+        system: "processos",
+      });
       setState((current) => ({ ...current, loading: false, error: "Informe o identificador do processo." }));
       return;
     }
@@ -76,6 +90,18 @@ function ProcessDetailContent({ processId, state, setState }) {
       try {
         const payload = await clientFetch(`/api/client-processo?id=${encodeURIComponent(processId)}`);
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_processo_detail_load",
+            label: "Detalhe do processo carregado",
+            module: "portal-processo-detalhe",
+            status: "success",
+            path: "/portal/processos/detalhe",
+            response: `processo=${processId}, movimentos=${payload.movements?.length || 0}, publicacoes=${payload.publications?.length || 0}`,
+            consolePane: "routes",
+            domain: "portal",
+            system: "processos",
+          });
           setState({
             loading: false,
             error: null,
@@ -91,6 +117,18 @@ function ProcessDetailContent({ processId, state, setState }) {
         }
       } catch (error) {
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_processo_detail_load",
+            label: "Falha ao carregar detalhe do processo",
+            module: "portal-processo-detalhe",
+            status: "error",
+            path: "/portal/processos/detalhe",
+            error: error.message,
+            consolePane: "routes",
+            domain: "portal",
+            system: "processos",
+          });
           setState({
             loading: false,
             error: error.message,
@@ -132,6 +170,30 @@ function ProcessDetailContent({ processId, state, setState }) {
     coverageRate: 0,
     pendingLabels: [],
   };
+
+  useEffect(() => {
+    if (state.loading) return;
+    setModuleHistory(
+      "portal-processo-detalhe",
+      buildModuleSnapshot("portal-processo-detalhe", {
+        routePath: "/portal/processos/detalhe",
+        status: state.error ? "error" : "ready",
+        processId,
+        processNumber: state.process?.number || null,
+        processTitle: state.process?.title || null,
+        summary,
+        coverageOverview: coverage,
+        warningsCount: state.warnings.length,
+        coverage: {
+          hasProcess: Boolean(state.process),
+          hasWarnings: state.warnings.length > 0,
+          hasDocuments: summary.documents > 0,
+          hasMovements: summary.movements > 0,
+          hasPublications: summary.publications > 0,
+        },
+      })
+    );
+  }, [coverage, processId, state.error, state.loading, state.process, state.warnings.length, summary]);
 
   if (state.loading) return <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">Carregando detalhe do processo...</div>;
   if (state.error) return <div className="rounded-[28px] border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] p-6 text-sm">{state.error}</div>;

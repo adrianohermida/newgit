@@ -140,13 +140,13 @@ async function resolveAuthModes() {
   if (supabaseOauthToken) {
     modes.push({
       name: 'supabase_oauth',
-      headers: { Authorization: `Token token=${supabaseOauthToken}` },
+      headers: { Authorization: `Bearer ${supabaseOauthToken}` },
     });
   }
   if (accessToken) {
     modes.push({
       name: 'access_token',
-      headers: { Authorization: `Token token=${accessToken}` },
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
   }
   if (explicitMode === 'oauth') {

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
+import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../lib/admin/module-registry";
 import { clientFetch } from "../../lib/client/api";
 import { sanitizePortalCopy } from "../../lib/client/portal-copy";
 
@@ -98,6 +100,18 @@ function FinanceiroContent({ profile, state, setState }) {
       try {
         const payload = await clientFetch("/api/client-financeiro");
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_financeiro_load",
+            label: "Financeiro do portal carregado",
+            module: "portal-financeiro",
+            status: "success",
+            path: "/portal/financeiro",
+            response: `itens=${payload.items?.length || 0}, invoices=${payload.invoices?.length || 0}`,
+            consolePane: ["routes", "crm"],
+            domain: "portal",
+            system: "financeiro",
+          });
           setState({
             loading: false,
             error: null,
@@ -115,6 +129,18 @@ function FinanceiroContent({ profile, state, setState }) {
         }
       } catch (error) {
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_financeiro_load",
+            label: "Falha ao carregar financeiro do portal",
+            module: "portal-financeiro",
+            status: "error",
+            path: "/portal/financeiro",
+            error: error.message,
+            consolePane: ["routes", "crm"],
+            domain: "portal",
+            system: "financeiro",
+          });
           setState({ ...INITIAL_STATE, loading: false, error: error.message });
         }
       }
@@ -144,6 +170,34 @@ function FinanceiroContent({ profile, state, setState }) {
   }, [activeFilter, state.items]);
 
   const isDevObserver = String(profile?.email || "").trim().toLowerCase() === "adrianohermida@gmail.com";
+
+  useEffect(() => {
+    if (state.loading) return;
+    setModuleHistory(
+      "portal-financeiro",
+      buildModuleSnapshot("portal-financeiro", {
+        routePath: "/portal/financeiro",
+        status: state.error ? "error" : "ready",
+        activeFilter,
+        summary: state.summary,
+        diagnostics: state.diagnostics,
+        counts: {
+          totalItems: state.items.length,
+          invoices: state.invoices.length,
+          subscriptions: state.subscriptions.length,
+          others: state.others.length,
+          filteredDeals: filteredDeals.length,
+          linkedAccounts: state.linkedAccounts.length,
+        },
+        coverage: {
+          hasItems: state.items.length > 0,
+          hasWarning: Boolean(state.warning),
+          hasDiagnostics: Boolean(state.diagnostics),
+          hasLinkedAccounts: state.linkedAccounts.length > 0,
+        },
+      })
+    );
+  }, [activeFilter, filteredDeals.length, state.diagnostics, state.error, state.invoices.length, state.items.length, state.linkedAccounts.length, state.loading, state.others.length, state.subscriptions.length, state.summary, state.warning]);
 
   if (state.loading) {
     return <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">Carregando financeiro...</div>;

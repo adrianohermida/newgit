@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
+import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../lib/admin/module-registry";
 import { clientFetch } from "../../lib/client/api";
 
 const INITIAL_STATE = { loading: true, error: null, warning: null, items: [], summary: null };
@@ -45,6 +47,18 @@ function DocumentosContent({ state, setState }) {
       try {
         const payload = await clientFetch("/api/client-documentos");
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_documentos_load",
+            label: "Documentos carregados",
+            module: "portal-documentos",
+            status: "success",
+            path: "/portal/documentos",
+            response: `itens=${payload.items?.length || 0}`,
+            consolePane: "routes",
+            domain: "portal",
+            system: "documentos",
+          });
           setState({
             loading: false,
             error: null,
@@ -55,6 +69,18 @@ function DocumentosContent({ state, setState }) {
         }
       } catch (error) {
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_documentos_load",
+            label: "Falha ao carregar documentos",
+            module: "portal-documentos",
+            status: "error",
+            path: "/portal/documentos",
+            error: error.message,
+            consolePane: "routes",
+            domain: "portal",
+            system: "documentos",
+          });
           setState({ ...INITIAL_STATE, loading: false, error: error.message });
         }
       }
@@ -69,6 +95,26 @@ function DocumentosContent({ state, setState }) {
     const source = state.summary?.categorias || {};
     return Object.entries(source).sort((left, right) => right[1] - left[1]);
   }, [state.summary]);
+
+  useEffect(() => {
+    if (state.loading) return;
+    setModuleHistory(
+      "portal-documentos",
+      buildModuleSnapshot("portal-documentos", {
+        routePath: "/portal/documentos",
+        status: state.error ? "error" : "ready",
+        summary: state.summary,
+        totalItems: state.items.length,
+        categories: categories.slice(0, 6),
+        warning: state.warning || null,
+        coverage: {
+          hasItems: state.items.length > 0,
+          hasWarning: Boolean(state.warning),
+          hasCategories: categories.length > 0,
+        },
+      })
+    );
+  }, [categories, state.error, state.items.length, state.loading, state.summary, state.warning]);
 
   if (state.loading) return <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">Carregando documentos...</div>;
   if (state.error) return <div className="rounded-[28px] border border-[#7f1d1d] bg-[rgba(127,29,29,0.18)] p-6 text-sm">{state.error}</div>;

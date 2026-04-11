@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
+import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../lib/admin/module-registry";
 import { clientFetch } from "../../lib/client/api";
 import { useSupabaseBrowser } from "../../lib/supabase";
 
@@ -83,6 +85,18 @@ function PerfilContent({ state, setState }) {
 
   async function loadProfile() {
     const payload = await clientFetch("/api/client-profile");
+    appendActivityLog({
+      type: "ui",
+      action: "portal_profile_refresh",
+      label: "Perfil atualizado",
+      module: "portal-perfil",
+      status: "success",
+      path: "/portal/perfil",
+      response: `requests=${payload.requests?.length || 0}`,
+      consolePane: "routes",
+      domain: "portal",
+      system: "perfil",
+    });
     setState((current) => ({
       ...current,
       loading: false,
@@ -100,6 +114,18 @@ function PerfilContent({ state, setState }) {
       try {
         const payload = await clientFetch("/api/client-profile");
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_profile_load",
+            label: "Perfil carregado",
+            module: "portal-perfil",
+            status: "success",
+            path: "/portal/perfil",
+            response: `requests=${payload.requests?.length || 0}`,
+            consolePane: "routes",
+            domain: "portal",
+            system: "perfil",
+          });
           setState((current) => ({
             ...current,
             loading: false,
@@ -112,6 +138,18 @@ function PerfilContent({ state, setState }) {
         }
       } catch (error) {
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_profile_load",
+            label: "Falha ao carregar perfil",
+            module: "portal-perfil",
+            status: "error",
+            path: "/portal/perfil",
+            error: error.message,
+            consolePane: "routes",
+            domain: "portal",
+            system: "perfil",
+          });
           setState((current) => ({
             ...current,
             loading: false,
@@ -193,6 +231,18 @@ function PerfilContent({ state, setState }) {
           addresses: state.form.addresses,
         }),
       });
+      appendActivityLog({
+        type: "ui",
+        action: "portal_profile_update",
+        label: "Solicitacao cadastral enviada",
+        module: "portal-perfil",
+        status: "success",
+        path: "/portal/perfil",
+        response: payload.message || "Solicitacao enviada",
+        consolePane: ["crm", "jobs"],
+        domain: "portal",
+        system: "perfil",
+      });
 
       if (supabase) {
         await supabase.auth.refreshSession();
@@ -207,12 +257,57 @@ function PerfilContent({ state, setState }) {
         message: payload.message || "Solicitacao enviada com sucesso.",
       }));
     } catch (error) {
+      appendActivityLog({
+        type: "ui",
+        action: "portal_profile_update",
+        label: "Falha ao enviar solicitacao cadastral",
+        module: "portal-perfil",
+        status: "error",
+        path: "/portal/perfil",
+        error: error.message,
+        consolePane: ["crm", "jobs"],
+        domain: "portal",
+        system: "perfil",
+      });
       setState((current) => ({ ...current, saving: false, error: error.message, message: null }));
     }
   }
 
   const locks = useMemo(() => state.profile?.metadata?.personal_data_locks || {}, [state.profile]);
   const pendingRequest = useMemo(() => (state.requests || []).find((item) => item.status === "pending") || null, [state.requests]);
+  const contactsCount = state.form.contacts?.length || 0;
+  const addressesCount = state.form.addresses?.length || 0;
+
+  useEffect(() => {
+    if (state.loading) return;
+    setModuleHistory(
+      "portal-perfil",
+      buildModuleSnapshot("portal-perfil", {
+        routePath: "/portal/perfil",
+        status: state.error ? "error" : "ready",
+        profileSummary: {
+          hasProfile: Boolean(state.profile),
+          fullNameLocked: locks.full_name_verified === true,
+          cpfLocked: locks.cpf_verified === true,
+          communicationConsent: state.form.communication_consent === true,
+        },
+        requestsCount: state.requests.length,
+        pendingRequest: pendingRequest
+          ? {
+              id: pendingRequest.id,
+              status: pendingRequest.status,
+              createdAt: pendingRequest.created_at,
+            }
+          : null,
+        coverage: {
+          hasProfile: Boolean(state.profile),
+          hasPendingRequest: Boolean(pendingRequest),
+          hasContacts: contactsCount > 0,
+          hasAddresses: addressesCount > 0,
+        },
+      })
+    );
+  }, [addressesCount, contactsCount, locks.cpf_verified, locks.full_name_verified, pendingRequest, state.error, state.form.communication_consent, state.loading, state.profile, state.requests.length]);
 
   if (state.loading) {
     return <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">Carregando perfil...</div>;

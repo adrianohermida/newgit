@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import PortalLayout from "../../components/portal/PortalLayout";
 import RequireClient from "../../components/portal/RequireClient";
+import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../lib/admin/module-registry";
 import { clientFetch } from "../../lib/client/api";
 import { useClientSession } from "../../lib/client/useClientSession";
 import { useSupabaseBrowser } from "../../lib/supabase";
@@ -103,6 +105,18 @@ function OnboardingContent({ state, setState }) {
       try {
         const payload = await clientFetch("/api/client-profile");
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_onboarding_load",
+            label: "Onboarding carregado",
+            module: "portal-onboarding",
+            status: "success",
+            path: "/portal/onboarding",
+            response: `profile=${payload.profile?.email || "sem-email"}`,
+            consolePane: "routes",
+            domain: "portal",
+            system: "onboarding",
+          });
           setState((current) => ({
             ...current,
             loading: false,
@@ -114,6 +128,18 @@ function OnboardingContent({ state, setState }) {
         }
       } catch (error) {
         if (!cancelled) {
+          appendActivityLog({
+            type: "ui",
+            action: "portal_onboarding_load",
+            label: "Falha ao carregar onboarding",
+            module: "portal-onboarding",
+            status: "error",
+            path: "/portal/onboarding",
+            error: error.message,
+            consolePane: "routes",
+            domain: "portal",
+            system: "onboarding",
+          });
           setState((current) => ({
             ...current,
             loading: false,
@@ -145,11 +171,35 @@ function OnboardingContent({ state, setState }) {
     event.preventDefault();
     const validationError = validateStep(state.step, state.form);
     if (validationError) {
+      appendActivityLog({
+        type: "ui",
+        action: "portal_onboarding_validate",
+        label: "Validacao do onboarding falhou",
+        module: "portal-onboarding",
+        status: "error",
+        path: "/portal/onboarding",
+        error: validationError,
+        consolePane: ["crm", "data-quality"],
+        domain: "portal",
+        system: "onboarding",
+      });
       setState((current) => ({ ...current, error: validationError }));
       return;
     }
 
     if (state.step < STEPS.length - 1) {
+      appendActivityLog({
+        type: "ui",
+        action: "portal_onboarding_step_advance",
+        label: "Etapa do onboarding concluida",
+        module: "portal-onboarding",
+        status: "success",
+        path: "/portal/onboarding",
+        response: `step=${STEPS[state.step]?.id || state.step}`,
+        consolePane: "activity",
+        domain: "portal",
+        system: "onboarding",
+      });
       setState((current) => ({ ...current, step: current.step + 1, error: null }));
       return;
     }
@@ -168,6 +218,18 @@ function OnboardingContent({ state, setState }) {
           communication_consent: state.form.communication_consent,
         }),
       });
+      appendActivityLog({
+        type: "ui",
+        action: "portal_onboarding_complete",
+        label: "Onboarding concluido",
+        module: "portal-onboarding",
+        status: "success",
+        path: "/portal/onboarding",
+        response: "completion=100",
+        consolePane: ["crm", "jobs"],
+        domain: "portal",
+        system: "onboarding",
+      });
 
       if (supabase) {
         await supabase.auth.refreshSession();
@@ -175,6 +237,18 @@ function OnboardingContent({ state, setState }) {
 
       router.replace("/portal");
     } catch (error) {
+      appendActivityLog({
+        type: "ui",
+        action: "portal_onboarding_complete",
+        label: "Falha ao concluir onboarding",
+        module: "portal-onboarding",
+        status: "error",
+        path: "/portal/onboarding",
+        error: error.message,
+        consolePane: ["crm", "jobs"],
+        domain: "portal",
+        system: "onboarding",
+      });
       setState((current) => ({ ...current, saving: false, error: error.message }));
     }
   }
@@ -188,6 +262,30 @@ function OnboardingContent({ state, setState }) {
     ];
     return Math.round((checks.filter(Boolean).length / checks.length) * 100);
   }, [state.form]);
+
+  useEffect(() => {
+    if (state.loading) return;
+    setModuleHistory(
+      "portal-onboarding",
+      buildModuleSnapshot("portal-onboarding", {
+        routePath: "/portal/onboarding",
+        status: state.error ? "error" : "ready",
+        step: {
+          index: state.step,
+          id: STEPS[state.step]?.id || null,
+          label: STEPS[state.step]?.label || null,
+        },
+        completion,
+        profileReady: Boolean(state.profile),
+        coverage: {
+          hasProfile: Boolean(state.profile),
+          hasWhatsapp: digitsOnly(state.form.whatsapp).length >= 10,
+          hasCpf: digitsOnly(state.form.cpf).length === 11,
+          hasConsent: state.form.consent_lgpd === true,
+        },
+      })
+    );
+  }, [completion, state.error, state.form.cpf, state.form.consent_lgpd, state.form.whatsapp, state.loading, state.profile, state.step]);
 
   if (state.loading) {
     return <div className="rounded-[28px] border border-[#20332D] bg-[rgba(255,255,255,0.02)] p-6">Carregando onboarding...</div>;
