@@ -218,6 +218,35 @@ function persistHistoryEntries(entries) {
   } catch {}
 }
 
+function CompactHistoryPanel({ localHistory, remoteHistory }) {
+  const latestLocal = localHistory[0];
+  const latestRemote = remoteHistory[0];
+  return (
+    <div className="rounded-[28px] border border-[#2D2E2E] bg-[linear-gradient(180deg,rgba(13,15,14,0.96),rgba(7,9,8,0.96))] p-5 shadow-[0_12px_36px_rgba(0,0,0,0.22)]">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Historico (compacto)</p>
+      <div className="mt-3 space-y-3 text-sm">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.16em] opacity-60">Ultimo local</p>
+          {latestLocal ? (
+            <p className="mt-1">{latestLocal.label || latestLocal.action} • {latestLocal.status}</p>
+          ) : (
+            <p className="mt-1 opacity-60">Sem registros locais.</p>
+          )}
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.16em] opacity-60">Ultimo HMADV</p>
+          {latestRemote ? (
+            <p className="mt-1">{getProcessActionLabel(latestRemote.acao, latestRemote.payload || {})} • {latestRemote.status}</p>
+          ) : (
+            <p className="mt-1 opacity-60">Sem registros remotos.</p>
+          )}
+        </div>
+        <p className="text-xs opacity-60">Detalhes completos no Console &gt; Log.</p>
+      </div>
+    </div>
+  );
+}
+
 function loadUiState() {
   if (typeof window === "undefined") return null;
   try {
@@ -2337,6 +2366,7 @@ function InternoProcessosContent() {
 
     {view === "resultado" ? <div id="resultado" className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
       <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">{actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}{actionState.error ? <p className="rounded-2xl border border-[#4B2222] bg-[rgba(127,29,29,0.18)] p-4 text-sm text-red-200">{actionState.error}</p> : null}{!actionState.loading && actionState.result?.drain ? <div className="mb-4 rounded-[20px] border border-[#30543A] bg-[rgba(48,84,58,0.12)] p-4 text-sm"><p className="font-semibold">Drenagem de fila</p><p className="mt-2 opacity-75">{buildDrainPreview(actionState.result.drain)}</p></div> : null}{jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}{!actionState.loading && !actionState.error && actionState.result ? <OperationResult result={actionState.result} /> : null}{!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p> : null}</Panel>
+      <CompactHistoryPanel localHistory={executionHistory} remoteHistory={remoteHistory} />
     </div> : null}
   </div>;
 }

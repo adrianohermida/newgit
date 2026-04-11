@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch as adminFetchRaw } from "../../lib/admin/api";
-import { appendActivityLog, updateActivityLog } from "../../lib/admin/activity-log";
+import { appendActivityLog, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
 
 const PUBLICACOES_VIEW_ITEMS = [
   { key: "operacao", label: "Operacao" },
@@ -126,6 +126,39 @@ function persistHistoryEntries(entries) {
   try {
     window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(entries.slice(0, 40)));
   } catch {}
+}
+
+function getPublicacaoSelectionValue(row) {
+  return String(row?.numero_cnj || row?.publicacao_id || row?.id || row?.key || "").trim();
+}
+
+function CompactHistoryPanel({ localHistory, remoteHistory }) {
+  const latestLocal = localHistory[0];
+  const latestRemote = remoteHistory[0];
+  return (
+    <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4">
+      <p className="text-xs font-semibold tracking-[0.15em] uppercase mb-2 opacity-50">Historico (compacto)</p>
+      <div className="space-y-3 text-sm">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.16em] opacity-60">Ultimo local</p>
+          {latestLocal ? (
+            <p className="mt-1">{latestLocal.label || latestLocal.action} • {latestLocal.status}</p>
+          ) : (
+            <p className="mt-1 opacity-60">Sem registros locais.</p>
+          )}
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.16em] opacity-60">Ultimo HMADV</p>
+          {latestRemote ? (
+            <p className="mt-1">{latestRemote.acao} • {latestRemote.status}</p>
+          ) : (
+            <p className="mt-1 opacity-60">Sem registros remotos.</p>
+          )}
+        </div>
+        <p className="text-xs opacity-60">Detalhes completos no Console &gt; Log.</p>
+      </div>
+    </div>
+  );
 }
 
 function MetricCard({ label, value, helper }) {
@@ -414,7 +447,7 @@ function QueueList({
   limited = false,
   errorMessage = "",
 }) {
-  const allSelected = rows.length > 0 && rows.every((row) => selected.includes(row.key));
+  const allSelected = rows.length > 0 && rows.every((row) => selected.includes(getPublicacaoSelectionValue(row)));
   const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / Math.max(1, pageSize)));
   function freshsalesUrl(accountId) {
     return accountId ? `https://hmadv-org.myfreshworks.com/crm/sales/accounts/${accountId}` : null;
@@ -461,13 +494,15 @@ function QueueList({
       {loading ? <p className="text-sm opacity-60">Carregando fila...</p> : null}
       {!loading && !rows.length ? <p className="text-sm opacity-60">Nenhum item encontrado nesta pagina.</p> : null}
       <div className="space-y-3">
-        {rows.map((row) => (
-          <label key={row.key} className="block border border-[#2D2E2E] p-4 cursor-pointer">
+        {rows.map((row) => {
+          const selectionValue = getPublicacaoSelectionValue(row);
+          return (
+          <label key={selectionValue || row.key} className="block border border-[#2D2E2E] p-4 cursor-pointer">
             <div className="flex gap-3">
               <input
                 type="checkbox"
-                checked={selected.includes(row.key)}
-                onChange={() => onToggle(row.key)}
+                checked={selected.includes(selectionValue)}
+                onChange={() => onToggle(selectionValue)}
                 className="mt-1"
               />
               <div className="min-w-0 flex-1 space-y-1 text-sm">
@@ -504,7 +539,7 @@ function QueueList({
               </div>
             </div>
           </label>
-        ))}
+        )})}
       </div>
     </div>
   );
@@ -822,6 +857,9 @@ function PublicacoesContent() {
     };
   }, []);
   useEffect(() => { setExecutionHistory(loadHistoryEntries()); }, []);
+  useEffect(() => {
+    setModuleHistory("publicacoes", { executionHistory, remoteHistory });
+  }, [executionHistory, remoteHistory]);
   useEffect(() => { loadRemoteHistory(); }, []);
   useEffect(() => { loadJobs(); }, []);
 
@@ -1637,14 +1675,7 @@ function PublicacoesContent() {
           {!actionState.loading && !actionState.error && actionState.result ? <OperationResult result={actionState.result} /> : null}
           {!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p> : null}
         </Panel>
-        <Panel title="Historico de execucao" eyebrow="Memoria local da operacao">
-          <div className="mb-4 flex flex-wrap gap-3">
-            <button type="button" onClick={() => updateView("operacao")} className="border border-[#2D2E2E] px-4 py-2 text-sm hover:border-[#C5A059] hover:text-[#C5A059]">Voltar para operacao</button>
-            <button type="button" onClick={clearHistory} className="border border-[#2D2E2E] px-4 py-2 text-sm hover:border-[#C5A059] hover:text-[#C5A059]">Limpar historico</button>
-          </div>
-          {remoteHistory.length ? <div className="mb-5 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Historico persistido no HMADV</p>{remoteHistory.map((entry) => <div key={entry.id} className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold">{entry.acao}</p><p className="text-xs opacity-60">{new Date(entry.created_at).toLocaleString("pt-BR")}</p></div><span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${entry.status === "error" ? "border-[#4B2222] text-red-200" : "border-[#2D2E2E] opacity-70"}`}>{entry.status}</span></div>{entry.resumo ? <p className="mt-3 opacity-70">{entry.resumo}</p> : null}<div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60"><span>Solicitados: {entry.requested_count || 0}</span><span>Afetados: {entry.affected_count || 0}</span></div></div>)}</div> : null}
-          {!executionHistory.length ? <p className="text-sm opacity-65">Nenhuma solicitacao registrada ainda neste navegador.</p> : <div className="space-y-3">{executionHistory.map((entry) => <HistoryCard key={entry.id} entry={entry} onReuse={reuseHistoryEntry} />)}</div>}
-        </Panel>
+        <CompactHistoryPanel localHistory={executionHistory} remoteHistory={remoteHistory} />
       </div> : null}
     </div>
   );
