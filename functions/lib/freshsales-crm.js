@@ -19,6 +19,19 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function fetchWithTimeout(url, init = {}, timeoutMs = 20000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function parseRetryAfterMs(response) {
   const retryAfter = response?.headers?.get?.("retry-after");
   if (!retryAfter) return null;
@@ -369,7 +382,7 @@ export async function freshsalesRequest(env, path, init = {}) {
   for (const base of candidates) {
     for (const authHeader of authHeaders) {
       for (let attempt = 0; attempt < 4; attempt += 1) {
-        const response = await fetch(`${base}${path}`, {
+        const response = await fetchWithTimeout(`${base}${path}`, {
           ...init,
           headers: {
             Accept: "application/json",
@@ -731,6 +744,84 @@ export async function createFreshsalesPublicationActivity(env, {
         : `Publicacao judicial - conta ${normalizedAccountId}`,
       note: noteLines.join("\n\n"),
       activity_date: publicationDate,
+      owner_id: getCleanEnvValue(env.FRESHSALES_OWNER_ID) || null,
+      targetable_type: "SalesAccount",
+      targetable_id: normalizedAccountId,
+      sales_activity_type_id: activityTypeId,
+    },
+  };
+
+  const { payload, base } = await freshsalesRequest(env, "/sales_activities", {
+    method: "POST",
+    body: JSON.stringify(activityPayload),
+  });
+
+  return {
+    base,
+    activity: payload.sales_activity || payload,
+    requestPayload: activityPayload,
+  };
+}
+
+export async function createFreshsalesMovementActivity(env, {
+  accountId,
+  movement,
+  process = {},
+} = {}) {
+  const normalizedAccountId = String(accountId || process?.account_id_freshsales || "").trim();
+  if (!normalizedAccountId) {
+    throw new Error("Sales Account ausente para criar activity de movimentacao.");
+  }
+
+  const activityTypeId = resolveFreshsalesActivityTypeId(env, [
+    "FRESHSALES_MOVIMENTACAO_ACTIVITY_TYPE_ID",
+    "FRESHSALES_MOVIMENTACOES_ACTIVITY_TYPE_ID",
+    "FRESHSALES_ACTIVITY_TYPE_MOVIMENTACAO_ID",
+    "FRESHSALES_SALES_ACTIVITY_TYPE_MOVIMENTACAO_ID",
+    "FRESHSALES_ACTIVITY_TYPE_NOTA_PROCESSUAL",
+    "FRESHSALES_DEFAULT_ACTIVITY_TYPE_ID",
+  ]);
+  if (!activityTypeId) {
+    throw new Error("Tipo de activity de movimentacao nao configurado no ambiente do Freshsales.");
+  }
+
+  const processNumber = String(process?.numero_cnj || movement?.numero_cnj || "").trim();
+  const processTitle = String(process?.titulo || "").trim();
+  const movementTitle = String(
+    movement?.tipo ||
+    movement?.descricao ||
+    movement?.movimento ||
+    "Movimentacao processual"
+  ).trim();
+  const movementBody = String(
+    movement?.texto ||
+    movement?.complemento ||
+    movement?.descricao_completa ||
+    movement?.conteudo ||
+    movement?.resumo ||
+    ""
+  ).trim().slice(0, 4000);
+  const movementDate = movement?.data_movimentacao
+    ? new Date(movement.data_movimentacao).toISOString()
+    : new Date().toISOString();
+
+  const noteLines = [
+    processNumber ? `Processo: ${processNumber}` : null,
+    processTitle ? `Titulo: ${processTitle}` : null,
+    movement?.fonte ? `Fonte: ${movement.fonte}` : null,
+    movement?.data_movimentacao ? `Data da movimentacao: ${movement.data_movimentacao}` : null,
+    movement?.id ? `Movimentacao HMADV: ${movement.id}` : null,
+    movementTitle ? `Resumo: ${movementTitle}` : null,
+    movementBody ? `Conteudo:\n${movementBody}` : null,
+  ].filter(Boolean);
+
+  const activityPayload = {
+    sales_activity: {
+      subject: processNumber
+        ? `Movimentacao processual - ${processNumber}`
+        : `Movimentacao processual - conta ${normalizedAccountId}`,
+      note: noteLines.join("\n\n"),
+      activity_date: movementDate,
       owner_id: getCleanEnvValue(env.FRESHSALES_OWNER_ID) || null,
       targetable_type: "SalesAccount",
       targetable_id: normalizedAccountId,

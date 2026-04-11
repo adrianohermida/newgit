@@ -209,6 +209,17 @@ export default function InternoLayout({
     }
   }
 
+  async function handleCopyPublicacoesHistory() {
+    const payload = {
+      local: publicacoesLocalHistory,
+      remote: publicacoesRemoteHistory,
+    };
+    const text = JSON.stringify(payload, null, 2);
+    if (text && navigator?.clipboard) {
+      await navigator.clipboard.writeText(text);
+    }
+  }
+
   function handleArchive(reason) {
     archiveActivityLog(reason);
   }
@@ -265,6 +276,9 @@ export default function InternoLayout({
   const processosHistory = moduleHistory?.processos || null;
   const processosLocalHistory = processosHistory?.executionHistory || [];
   const processosRemoteHistory = processosHistory?.remoteHistory || [];
+  const publicacoesHistory = moduleHistory?.publicacoes || null;
+  const publicacoesLocalHistory = publicacoesHistory?.executionHistory || [];
+  const publicacoesRemoteHistory = publicacoesHistory?.remoteHistory || [];
 
   const filteredLog = useMemo(() => {
     const normalizedSearch = logSearch.trim().toLowerCase();
@@ -623,6 +637,62 @@ export default function InternoLayout({
                           <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Memoria local</p>
                           <div className="mt-2 space-y-2">
                             {processosLocalHistory.slice(0, 6).map((entry) => (
+                              <div key={entry.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2 text-[11px]">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-semibold">{entry.label || entry.action}</span>
+                                  <span className="text-[#9BAEA8]">{entry.status || "status"}</span>
+                                </div>
+                                <div className="mt-1 text-[10px] text-[#7E918B]">
+                                  {entry.startedAt ? new Date(entry.startedAt).toLocaleString("pt-BR") : "sem data"}
+                                </div>
+                                {entry.preview ? <div className="mt-1 text-[#C7D0CA]">{entry.preview}</div> : null}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-[11px] opacity-60">Sem historico local registrado.</div>
+                      )}
+                    </div>
+                    <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Historico de publicacoes</p>
+                          <p className="mt-1 text-[11px] text-[#9BAEA8]">Consolidado do modulo Publicacoes no console.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleCopyPublicacoesHistory}
+                          className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                        >
+                          Copiar historico
+                        </button>
+                      </div>
+                      {publicacoesRemoteHistory.length ? (
+                        <div className="mt-3 space-y-2">
+                          {publicacoesRemoteHistory.slice(0, 6).map((entry) => (
+                            <div key={entry.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2 text-[11px]">
+                              <div className="flex items-center justify-between">
+                                <span className="font-semibold">{entry.acao || "acao"}</span>
+                                <span className={entry.status === "error" ? "text-red-200" : "text-[#11D473]"}>
+                                  {entry.status}
+                                </span>
+                              </div>
+                              <div className="mt-1 text-[10px] text-[#7E918B]">
+                                {entry.created_at ? new Date(entry.created_at).toLocaleString("pt-BR") : "sem data"}
+                              </div>
+                              {entry.resumo ? <div className="mt-1 text-[#C7D0CA]">{entry.resumo}</div> : null}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-[11px] opacity-60">Sem historico remoto disponível.</div>
+                      )}
+                      {publicacoesLocalHistory.length ? (
+                        <div className="mt-3">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Memoria local</p>
+                          <div className="mt-2 space-y-2">
+                            {publicacoesLocalHistory.slice(0, 6).map((entry) => (
                               <div key={entry.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2 text-[11px]">
                                 <div className="flex items-center justify-between">
                                   <span className="font-semibold">{entry.label || entry.action}</span>

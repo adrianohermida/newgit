@@ -10,6 +10,7 @@ import {
   getPublicacoesOverview,
   listAdminJobs,
   listAdminOperations,
+  parseHmadvFunctionResponse,
   persistProcessCoverageSnapshot,
   processProcessAdminJob,
   processPublicacoesAdminJob,
@@ -66,11 +67,8 @@ async function callHmadvFunction(env, name, query = {}, init = {}) {
     },
     body: init.body ? JSON.stringify(init.body) : undefined,
   });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload?.error || payload?.message || `Falha na edge function ${name} (${response.status}).`);
-  }
-  return payload;
+  const parsed = await parseHmadvFunctionResponse(response, name);
+  return parsed.payload;
 }
 
 function getRunnerToken(request) {

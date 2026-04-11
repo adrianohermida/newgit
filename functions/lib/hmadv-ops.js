@@ -3,6 +3,7 @@ import { getCleanEnvValue, getSupabaseBaseUrl, getSupabaseServerKey } from "./en
 import {
   createFreshsalesAppointmentForAudiencia,
   createFreshsalesAudienciaActivity,
+  createFreshsalesMovementActivity,
   createFreshsalesPublicationActivity,
   freshsalesRequest,
 } from "./freshsales-crm.js";
@@ -79,6 +80,61 @@ function hmadvHeaders(env, schema = "judiciario", extra = {}) {
   };
 }
 
+function summarizeRawBody(body, limit = 240) {
+  const text = String(body || "").trim();
+  if (!text) return "";
+  return text.length > limit ? `${text.slice(0, limit)}...` : text;
+}
+
+export async function parseHmadvFunctionResponse(response, name) {
+  const status = Number(response?.status || 0);
+  const contentType = String(response?.headers?.get?.("content-type") || "").trim();
+  const text = await response.text().catch(() => "");
+  const rawBody = summarizeRawBody(text);
+
+  let payload = null;
+  let parseError = null;
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch (error) {
+      parseError = error;
+    }
+  }
+
+  if (!response.ok) {
+    const message =
+      payload?.error ||
+      payload?.message ||
+      `HMADV function ${name} falhou com status ${status}.`;
+    const error = new Error(message);
+    error.status = status;
+    error.functionName = name;
+    error.contentType = contentType || null;
+    error.rawBody = rawBody || null;
+    error.parseError = parseError || null;
+    throw error;
+  }
+
+  if (!text || parseError || payload == null) {
+    const bodyState = !text ? "corpo vazio" : "JSON invalido";
+    const error = new Error(`HMADV function ${name} retornou ${bodyState}.`);
+    error.status = status;
+    error.functionName = name;
+    error.contentType = contentType || null;
+    error.rawBody = rawBody || null;
+    error.parseError = parseError || null;
+    throw error;
+  }
+
+  return {
+    payload,
+    status,
+    contentType: contentType || null,
+    rawBody: rawBody || null,
+  };
+}
+
 async function hmadvFunction(env, name, query = {}, init = {}) {
   const baseUrl = getSupabaseBaseUrl(env);
   const serviceKey = getSupabaseServerKey(env);
@@ -123,12 +179,8 @@ async function hmadvFunction(env, name, query = {}, init = {}) {
       body: init.body ? JSON.stringify(init.body) : undefined,
     }
   );
-  const text = await response.text().catch(() => "");
-  const payload = text ? JSON.parse(text) : null;
-  if (!response.ok) {
-    throw new Error((payload && (payload.error || payload.message)) || text || `HMADV function failed: ${response.status}`);
-  }
-  return payload;
+  const parsed = await parseHmadvFunctionResponse(response, name);
+  return parsed.payload;
 }
 
 async function hmadvRest(env, path, init = {}, schema = "judiciario") {
@@ -736,7 +788,7 @@ async function collectAudienciaBackfillCandidateRows(env) {
   while (scans < maxScans) {
     const rows = await listTableSafe(
       env,
-      `publicacoes?select=id,processo_id,conteudo&processo_id=not.is.null&conteudo=ilike.${encodeURIComponent("*audien*")}&order=data_publicacao.desc.nullslast&limit=${pageSize}&offset=${offset}`
+      `publicacoes?select=id,processo_id,conteudo&processo_id=not.is.null&conteudo=ilike.${encodeURIComponent("*audi*")}&order=data_publicacao.desc.nullslast&limit=${pageSize}&offset=${offset}`
     );
     if (!rows.length) break;
     for (const row of rows) {
@@ -906,6 +958,18 @@ async function loadPendingPublicacoesByProcessIds(env, processIds, limitPerProce
     const rows = await hmadvRest(
       env,
       `publicacoes?${buildInFilter("processo_id", chunk)}&freshsales_activity_id=is.null&select=id,processo_id,conteudo,data_publicacao,fonte,numero_processo_api,freshsales_activity_id&order=data_publicacao.desc.nullslast&limit=${Math.max(chunk.length * limitPerProcess, chunk.length)}`
+    );
+    output.push(...rows);
+  }
+  return output;
+}
+
+async function loadPendingMovementsByProcessIds(env, processIds, limitPerProcess = 50) {
+  const output = [];
+  for (const chunk of splitIntoChunks(processIds, 25)) {
+    const rows = await hmadvRest(
+      env,
+      `movimentacoes?${buildInFilter("processo_id", chunk)}&freshsales_activity_id=is.null&select=id,processo_id,numero_cnj,conteudo,texto,descricao,descricao_completa,resumo,tipo,movimento,data_movimentacao,fonte,freshsales_activity_id&order=data_movimentacao.desc.nullslast&limit=${Math.max(chunk.length * limitPerProcess, chunk.length)}`
     );
     output.push(...rows);
   }
@@ -1390,6 +1454,26 @@ async function patchPublicacaoFreshsalesActivityId(env, publicationId, activityI
   return rows?.[0] || null;
 }
 
+async function patchMovementFreshsalesActivityId(env, movementId, activityId) {
+  const rows = await hmadvRest(
+    env,
+    `movimentacoes?id=eq.${encodeURIComponent(String(movementId || ""))}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Profile": "judiciario",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({
+        freshsales_activity_id: activityId ? String(activityId) : null,
+      }),
+    },
+    "judiciario"
+  );
+  return rows?.[0] || null;
+}
+
 async function patchAudienciaFreshsalesSync(env, audienciaId, { activityId = null, appointmentId = null } = {}) {
   const normalizedId = String(audienciaId || "").trim();
   if (!normalizedId) return null;
@@ -1419,6 +1503,7 @@ async function patchAudienciaFreshsalesSync(env, audienciaId, { activityId = nul
 
 export async function syncPublicationActivities(env, { processNumbers = [], limit = 5 } = {}) {
   const safeLimit = Math.max(1, Math.min(Number(limit || 5), 10));
+  let upstreamWarning = null;
   if (!processNumbers.length) {
     try {
       const remote = await hmadvFunction(
@@ -1440,6 +1525,13 @@ export async function syncPublicationActivities(env, { processNumbers = [], limi
         remote,
       };
     } catch (error) {
+      upstreamWarning = {
+        functionName: "publicacoes-freshsales",
+        message: error?.message || "Falha ao consultar edge function de publicacoes.",
+        status: Number(error?.status || 0) || null,
+        contentType: error?.contentType || null,
+        rawBody: error?.rawBody || null,
+      };
       // Fallback local keeps the panel usable even when the HMADV edge function is unavailable.
     }
   }
@@ -1542,6 +1634,8 @@ export async function syncPublicationActivities(env, { processNumbers = [], limi
   return {
     checkedAt: new Date().toISOString(),
     source: "local_worker_fallback",
+    fallbackReason: upstreamWarning ? "edge_function_unavailable" : "local_backlog_path",
+    upstreamWarning,
     processosLidos: processesRead,
     publicacoes: publicacoesUpdated,
     activitiesCriadas: activitiesCreated,
@@ -1556,6 +1650,7 @@ export async function getPublicationActivityTypes(env) {
 
 export async function syncMovementActivities(env, { processNumbers = [], limit = 10 } = {}) {
   const safeLimit = Math.max(1, Math.min(Number(limit || 10), 25));
+  let upstreamWarning = null;
   if (processNumbers.length) {
     try {
       const remote = await hmadvFunction(
@@ -1581,27 +1676,65 @@ export async function syncMovementActivities(env, { processNumbers = [], limit =
         sample: Array.isArray(remote?.detalhes) ? remote.detalhes.slice(0, 10) : [],
         remote,
       };
-    } catch {
-      // fall through to backlog diagnostics if the scoped edge function is unavailable
+    } catch (error) {
+      upstreamWarning = {
+        functionName: "fs-exec",
+        action: "sync_andamentos_scoped",
+        message: error?.message || "Falha ao consultar edge function de movimentacoes.",
+        status: Number(error?.status || 0) || null,
+        contentType: error?.contentType || null,
+        rawBody: error?.rawBody || null,
+      };
     }
   }
 
   if (!processNumbers.length) {
     try {
       const remote = await hmadvFunction(env, "fs-exec", { action: "sync_andamentos", limite: safeLimit });
-      return {
-        checkedAt: new Date().toISOString(),
-        source: "edge_function_fs_exec",
-        processosLidos: Number(remote?.total || 0),
-        movimentacoes: Number(remote?.enviados || 0),
-        activitiesCriadas: Number(remote?.enviados || 0),
-        movimentacoesAtualizadas: Number(remote?.enviados || 0),
-        semAccount: Number(remote?.sem_account || 0),
-        errors: Number(remote?.erros || 0),
-        sample: Array.isArray(remote?.detalhes) ? remote.detalhes.slice(0, 10) : [],
-        remote,
+      const remoteTotal = Number(remote?.total || 0);
+      const remoteSent = Number(remote?.enviados || 0);
+      if (remoteTotal <= 0 && remoteSent <= 0) {
+        const backlog = await listMovementActivityBacklog(env, { page: 1, pageSize: safeLimit });
+        const backlogNumbers = uniqueNonEmpty((backlog.items || []).map((item) => item.numero_cnj));
+        if (backlogNumbers.length) {
+          processNumbers = backlogNumbers.slice(0, safeLimit);
+        } else {
+          return {
+            checkedAt: new Date().toISOString(),
+            source: "edge_function_fs_exec",
+            processosLidos: remoteTotal,
+            movimentacoes: remoteSent,
+            activitiesCriadas: remoteSent,
+            movimentacoesAtualizadas: remoteSent,
+            semAccount: Number(remote?.sem_account || 0),
+            errors: Number(remote?.erros || 0),
+            sample: Array.isArray(remote?.detalhes) ? remote.detalhes.slice(0, 10) : [],
+            remote,
+          };
+        }
+      } else {
+        return {
+          checkedAt: new Date().toISOString(),
+          source: "edge_function_fs_exec",
+          processosLidos: remoteTotal,
+          movimentacoes: remoteSent,
+          activitiesCriadas: remoteSent,
+          movimentacoesAtualizadas: remoteSent,
+          semAccount: Number(remote?.sem_account || 0),
+          errors: Number(remote?.erros || 0),
+          sample: Array.isArray(remote?.detalhes) ? remote.detalhes.slice(0, 10) : [],
+          remote,
+        };
+      }
+    } catch (error) {
+      upstreamWarning = {
+        functionName: "fs-exec",
+        action: "sync_andamentos",
+        message: error?.message || "Falha ao consultar edge function de movimentacoes.",
+        status: Number(error?.status || 0) || null,
+        contentType: error?.contentType || null,
+        rawBody: error?.rawBody || null,
       };
-    } catch {
       try {
         const remote = await hmadvFunction(env, "sync-worker", { action: "run" }, { method: "POST", body: {} });
         return {
@@ -1636,20 +1769,93 @@ export async function syncMovementActivities(env, { processNumbers = [], limit =
           : [];
       });
 
+  const scopedProcesses = processes.slice(0, safeLimit);
+  const processIds = scopedProcesses.map((item) => item.id);
+  const pendingMovements = processIds.length
+    ? await loadPendingMovementsByProcessIds(env, processIds, 25)
+    : [];
+
+  let processesRead = 0;
+  let activitiesCreated = 0;
+  let movementsUpdated = 0;
+  const sample = [];
+
+  for (const process of scopedProcesses) {
+    const processMovements = pendingMovements
+      .filter((item) => item.processo_id === process.id)
+      .slice(0, 25);
+    const row = {
+      processo_id: process.id,
+      numero_cnj: process.numero_cnj,
+      titulo: process.titulo || null,
+      account_id_freshsales: process.account_id_freshsales || null,
+      movimentacoes_pendentes: processMovements.length,
+      activities_criadas: 0,
+      movimentacoes_atualizadas: 0,
+      status: "sem_movimentacoes_pendentes",
+      details: [],
+    };
+
+    if (!process.account_id_freshsales) {
+      row.status = "sem_sales_account";
+      sample.push(row);
+      continue;
+    }
+
+    processesRead += 1;
+    if (!processMovements.length) {
+      sample.push(row);
+      continue;
+    }
+
+    row.status = "sincronizado";
+    for (const movement of processMovements) {
+      try {
+        const activityResult = await createFreshsalesMovementActivity(env, {
+          accountId: process.account_id_freshsales,
+          movement,
+          process,
+        });
+        const activityId = activityResult?.activity?.id ? String(activityResult.activity.id) : null;
+        if (!activityId) {
+          throw new Error("Freshsales nao retornou o id da activity de movimentacao.");
+        }
+        await patchMovementFreshsalesActivityId(env, movement.id, activityId);
+        activitiesCreated += 1;
+        movementsUpdated += 1;
+        row.activities_criadas += 1;
+        row.movimentacoes_atualizadas += 1;
+        if (row.details.length < 5) {
+          row.details.push({
+            movimentacao_id: movement.id,
+            freshsales_activity_id: activityId,
+            data_movimentacao: movement.data_movimentacao || null,
+            tipo: movement.tipo || movement.descricao || movement.movimento || null,
+          });
+        }
+      } catch (error) {
+        row.status = "error";
+        if (row.details.length < 5) {
+          row.details.push({
+            movimentacao_id: movement.id,
+            error: error?.message || "Falha ao criar activity de movimentacao.",
+          });
+        }
+      }
+    }
+    sample.push(row);
+  }
+
   return {
     checkedAt: new Date().toISOString(),
-    source: "backlog_only",
-    processosLidos: processes.length,
-    movimentacoes: 0,
-    activitiesCriadas: 0,
-    movimentacoesAtualizadas: 0,
-    sample: processes.slice(0, safeLimit).map((proc) => ({
-      processo_id: proc.id,
-      numero_cnj: proc.numero_cnj,
-      titulo: proc.titulo || null,
-      account_id_freshsales: proc.account_id_freshsales || null,
-      status: proc.account_id_freshsales ? "pendente_edge_function" : "sem_sales_account",
-    })),
+    source: "local_worker_fallback",
+    fallbackReason: upstreamWarning ? "edge_function_unavailable_or_empty" : "local_backlog_path",
+    upstreamWarning,
+    processosLidos: processesRead,
+    movimentacoes: movementsUpdated,
+    activitiesCriadas: activitiesCreated,
+    movimentacoesAtualizadas: movementsUpdated,
+    sample,
   };
 }
 
@@ -2701,7 +2907,7 @@ export async function backfillAudiencias(env, { processNumbers = [], limit = 100
     pendingCandidates = await collectAudienciaBackfillTargets(env);
     processes = pendingCandidates.length
       ? await loadProcessesByNumbers(env, pendingCandidates.slice(0, safeLimit))
-      : await hmadvRest(env, `processos?select=id,numero_cnj,titulo&limit=${safeLimit}`);
+      : [];
   }
   const processIds = processes.map((item) => item.id);
   const [allPublicacoes, allExistentes] = await Promise.all([
@@ -3052,15 +3258,24 @@ export async function runSyncWorker(env) {
   return hmadvFunction(env, "sync-worker", { action: "run" }, { method: "POST", body: {} });
 }
 
-export async function enrichProcessesViaDatajud(env, { processNumbers = [], limit = 10 } = {}) {
+export async function enrichProcessesViaDatajud(env, { processNumbers = [], limit = 10, intent = "" } = {}) {
   const config = getProcessActionLimitConfig("enriquecer_datajud");
   const safeLimit = Math.max(1, Math.min(Number(limit || config.defaultLimit), config.maxLimit));
-  const processes = processNumbers.length
-    ? await loadProcessesByNumbers(env, processNumbers)
-    : await listTableSafe(
-        env,
-        `processos?select=id,numero_cnj,titulo,quantidade_movimentacoes,account_id_freshsales&or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0)&limit=${safeLimit}`
-      );
+  let processes = [];
+  if (processNumbers.length) {
+    processes = await loadProcessesByNumbers(env, processNumbers);
+  } else if (intent === "sincronizar_monitorados") {
+    const data = await listMonitoringProcesses(env, { page: 1, pageSize: safeLimit, active: true });
+    processes = data.items || [];
+  } else if (intent === "reenriquecer_gaps") {
+    const data = await listFieldGapProcesses(env, { page: 1, pageSize: safeLimit });
+    processes = data.items || [];
+  } else {
+    processes = await listTableSafe(
+      env,
+      `processos?select=id,numero_cnj,titulo,quantidade_movimentacoes,account_id_freshsales&or=(quantidade_movimentacoes.is.null,quantidade_movimentacoes.eq.0)&limit=${safeLimit}`
+    );
+  }
   const scopedProcesses = processes.slice(0, safeLimit);
   const beforeMap = new Map();
   const resultMap = new Map();
@@ -3614,7 +3829,7 @@ async function runProcessJobAction(env, action, processNumbers, limit, intent = 
     return pushOrphanAccounts(env, { processNumbers, limit });
   }
   if (action === "enriquecer_datajud") {
-    return enrichProcessesViaDatajud(env, { processNumbers, limit });
+    return enrichProcessesViaDatajud(env, { processNumbers, limit, intent });
   }
   if (action === "repair_freshsales_accounts") {
     return repairFreshsalesAccounts(env, { processNumbers, limit });

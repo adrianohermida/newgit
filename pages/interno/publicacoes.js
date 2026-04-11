@@ -1157,6 +1157,21 @@ function PublicacoesContent() {
     () => partesCandidates.items.filter((item) => selectedPartesKeys.includes(item.key)).map((item) => item.numero_cnj),
     [partesCandidates.items, selectedPartesKeys]
   );
+  const data = overview.data || {};
+  const latestHistory = executionHistory[0] || null;
+  const latestRemoteRun = remoteHistory[0] || null;
+  const latestJob = jobs[0] || null;
+  const remoteHealth = deriveRemoteHealth(remoteHistory);
+  const recurringPublicacoes = deriveRecurringPublicacoes(remoteHistory);
+  const recurringPublicacoesSummary = summarizeRecurringPublicacoes(recurringPublicacoes);
+  const recurringPublicacoesBands = summarizeRecurrenceBands(recurringPublicacoes);
+  const recurringPublicacoesGroups = groupRecurringPublicacoes(recurringPublicacoes);
+  const recurringPublicacoesFocus = deriveRecurringPublicacoesFocus(recurringPublicacoesSummary, recurringPublicacoesBands);
+  const recurringPublicacoesBatch = deriveSuggestedPublicacoesBatch(recurringPublicacoesSummary, recurringPublicacoesBands);
+  const recurringPublicacoesActions = deriveSuggestedPublicacoesActions(recurringPublicacoesSummary, recurringPublicacoesBands);
+  const recurringPublicacoesChecklist = deriveSuggestedPublicacoesChecklist(recurringPublicacoesSummary, recurringPublicacoesBands);
+  const primaryPublicacoesAction = derivePrimaryPublicacoesAction(recurringPublicacoesActions);
+
   function selectVisibleRecurringPublicacoes() {
     const recurringKeys = new Set(recurringPublicacoes.map((item) => item.key));
     setSelectedProcessKeys(processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.key));
@@ -1188,6 +1203,7 @@ function PublicacoesContent() {
     .filter((item) => recurringPublicacoes.some((recurring) => recurring.key === (item.numero_cnj || item.key) && recurring.hits >= 3))
     .filter((item) => selectedProcessKeys.includes(item.key) || selectedPartesKeys.includes(item.key))
     .length;
+  const priorityBatchReady = visibleSevereRecurringCount > 0 && selectedVisibleSevereRecurringCount >= visibleSevereRecurringCount && limit === recurringPublicacoesBatch.size;
 
   function updateView(nextView) {
     setView(nextView);
@@ -1335,22 +1351,6 @@ function PublicacoesContent() {
     setExecutionHistory([]);
     persistHistoryEntries([]);
   }
-
-  const data = overview.data || {};
-  const latestHistory = executionHistory[0] || null;
-  const latestRemoteRun = remoteHistory[0] || null;
-  const latestJob = jobs[0] || null;
-  const remoteHealth = deriveRemoteHealth(remoteHistory);
-  const recurringPublicacoes = deriveRecurringPublicacoes(remoteHistory);
-  const recurringPublicacoesSummary = summarizeRecurringPublicacoes(recurringPublicacoes);
-  const recurringPublicacoesBands = summarizeRecurrenceBands(recurringPublicacoes);
-  const recurringPublicacoesGroups = groupRecurringPublicacoes(recurringPublicacoes);
-  const recurringPublicacoesFocus = deriveRecurringPublicacoesFocus(recurringPublicacoesSummary, recurringPublicacoesBands);
-  const recurringPublicacoesBatch = deriveSuggestedPublicacoesBatch(recurringPublicacoesSummary, recurringPublicacoesBands);
-  const recurringPublicacoesActions = deriveSuggestedPublicacoesActions(recurringPublicacoesSummary, recurringPublicacoesBands);
-  const recurringPublicacoesChecklist = deriveSuggestedPublicacoesChecklist(recurringPublicacoesSummary, recurringPublicacoesBands);
-  const primaryPublicacoesAction = derivePrimaryPublicacoesAction(recurringPublicacoesActions);
-  const priorityBatchReady = visibleSevereRecurringCount > 0 && selectedVisibleSevereRecurringCount >= visibleSevereRecurringCount && limit === recurringPublicacoesBatch.size;
 
   return (
     <div className="space-y-8">

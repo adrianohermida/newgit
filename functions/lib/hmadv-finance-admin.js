@@ -585,7 +585,12 @@ export async function backfillHmadvFinanceAccounts(env, { limit = 50 } = {}) {
     };
   }
 
-  const accounts = await listFreshsalesSalesAccountsFromViews(env, { maxPages: 8, perPage: 100 });
+  let accounts = [];
+  try {
+    accounts = await listFreshsalesSalesAccountsFromViews(env, { maxPages: 2, perPage: 100 });
+  } catch {
+    accounts = [];
+  }
   const byReference = mapSalesAccountByReference(accounts);
 
   const items = [];

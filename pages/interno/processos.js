@@ -1754,7 +1754,7 @@ function InternoProcessosContent() {
   function toggleSelection(setter, current, key) { setter(current.includes(key) ? current.filter((item) => item !== key) : [...current, key]); }
   function togglePageSelection(setter, current, rows, nextState) { const keys = rows.map((item) => getProcessSelectionValue(item)).filter(Boolean); if (nextState) { setter([...new Set([...current, ...keys])]); return; } setter(current.filter((item) => !keys.includes(item))); }
   function getSelectedNumbers(rows, selected) {
-    const visible = rows.map((item) => item.numero_cnj).filter(Boolean);
+    const visible = rows.map((item) => getProcessSelectionValue(item)).filter(Boolean);
     const selectedSet = new Set(selected.map((item) => String(item || "").trim()).filter(Boolean));
     return [...new Set([...visible.filter((item) => selectedSet.has(item)), ...selectedSet])];
   }

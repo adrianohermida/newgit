@@ -174,7 +174,11 @@ async function runInlineProcessAction(env, action, body) {
     return repairFreshsalesAccounts(env, { processNumbers, limit: requestedLimit || 2 });
   }
   if (action === "enriquecer_datajud") {
-    return enrichProcessesViaDatajud(env, { processNumbers, limit: requestedLimit || 2 });
+    return enrichProcessesViaDatajud(env, {
+      processNumbers,
+      limit: requestedLimit || 2,
+      intent: String(body.intent || ""),
+    });
   }
   if (action === "sync_supabase_crm") {
     return syncProcessesSupabaseCrm(env, {
@@ -482,12 +486,13 @@ export async function onRequestPost(context) {
     const body = await context.request.json();
     const action = String(body.action || "");
     async function runLogged(fn) {
+      const loggedAction = buildProcessActionLogName(action, body);
       try {
         const data = await fn();
-        await logAdminOperation(context.env, { modulo: "processos", acao: action, status: "success", payload: body, result: data });
+        await logAdminOperation(context.env, { modulo: "processos", acao: loggedAction, status: "success", payload: body, result: data });
         return jsonOk({ data });
       } catch (error) {
-        await logAdminOperation(context.env, { modulo: "processos", acao: action, status: "error", payload: body, error: error.message || "Falha operacional." });
+        await logAdminOperation(context.env, { modulo: "processos", acao: loggedAction, status: "error", payload: body, error: error.message || "Falha operacional." });
         return jsonError(error, 500);
       }
     }
@@ -601,6 +606,7 @@ export async function onRequestPost(context) {
       return runLogged(async () => enrichProcessesViaDatajud(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 2),
+        intent: String(body.intent || ""),
       }));
     }
     if (action === "sync_supabase_crm") {
