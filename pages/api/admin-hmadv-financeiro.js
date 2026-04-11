@@ -90,12 +90,19 @@ function buildScriptArgs(operation, settings = {}, body = {}) {
     return args;
   }
 
+  if (operation === "import_existing_deals_to_staging") {
+    const args = [String(body.limit || settings.publish_limit || 50)];
+    pushIfPresent(args, body.workspace_id || settings.materialize_workspace_id);
+    return args;
+  }
+
   if (operation === "sync_bidirectional_deals") {
     const args = [
       String(body.import_limit || body.limit || settings.publish_limit || 50),
       String(body.publish_limit || body.limit || settings.publish_limit || 50),
       String(body.crm_limit || body.limit || settings.crm_events_limit || 50),
     ];
+    pushIfPresent(args, body.workspace_id || settings.materialize_workspace_id);
     if (body.apply_status === true) args.push("--apply-status");
     return args;
   }
