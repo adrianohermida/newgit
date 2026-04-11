@@ -1470,7 +1470,7 @@ export default function InternoLayout({
       <div className="flex h-full min-h-0 flex-1">
         {/* CONTEÚDO PRINCIPAL */}
         <div
-          className="relative flex min-h-0 flex-1 min-w-0 flex-col overflow-hidden"
+          className="relative flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden"
           style={{ "--interno-console-height": consoleOpen ? `${consoleHeight}px` : "44px" }}
         >
           <div className="shrink-0 flex items-center justify-between gap-4 border-b border-[#1E2E29] px-6 py-4">

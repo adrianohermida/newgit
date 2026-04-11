@@ -62,6 +62,7 @@
     "test:integration": "node scripts/test-integration.js",
     "test:dotobot": "node --experimental-vm-modules tests/lawdesk/dotobot-backend.test.cjs",
     "test:admin-lawdesk-chat-route": "node --experimental-vm-modules tests/lawdesk/admin-lawdesk-chat-route.test.cjs",
+    "test:functions-admin-rag-route": "node --experimental-vm-modules tests/lawdesk/functions-admin-dotobot-rag-health-route.test.cjs",
     "test:functions-admin-providers-route": "node --experimental-vm-modules tests/lawdesk/functions-admin-lawdesk-providers-route.test.cjs",
     "test:providers-health": "node --experimental-vm-modules tests/lawdesk/providers-health.test.cjs",
     "test:admin-providers-route": "node --experimental-vm-modules tests/lawdesk/admin-lawdesk-providers-route.test.cjs",

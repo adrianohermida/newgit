@@ -45,7 +45,7 @@ function New-Check {
 }
 
 $checks = @(
-  (New-Check -Id "pages_process_ai_base" -Scope "pages" -Keys @("PROCESS_AI_BASE", "LAWDESK_AI_BASE_URL") -Description "Base URL do worker HMADV IA usada pelo provider gpt no Pages."),
+  (New-Check -Id "pages_process_ai_base" -Scope "pages" -Keys @("PROCESS_AI_BASE", "LAWDESK_AI_BASE_URL", "HMADV_RUNNER_URL") -Description "Base URL do worker HMADV IA usada pelo provider gpt no Pages."),
   (New-Check -Id "pages_shared_secret" -Scope "pages" -Keys @("HMDAV_AI_SHARED_SECRET", "HMADV_AI_SHARED_SECRET", "LAWDESK_AI_SHARED_SECRET") -Description "Secret compartilhado entre Pages e worker HMADV IA."),
   (New-Check -Id "pages_supabase_url" -Scope "pages" -Keys @("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL") -Description "URL do Supabase usada por auth e rotas administrativas."),
   (New-Check -Id "pages_supabase_service_role" -Scope "pages" -Keys @("SUPABASE_SERVICE_ROLE_KEY") -Description "Credencial administrativa do Supabase para runtime protegido."),
@@ -66,7 +66,7 @@ if ($missingRequired.Count -gt 0) {
   $diagnosis.Add("Existem variaveis obrigatorias ausentes para Pages/worker.")
 }
 if (($checks | Where-Object { $_.id -eq "pages_process_ai_base" -and -not $_.configured }).Count -gt 0) {
-  $diagnosis.Add("O Pages nao encontrara o worker HMADV IA sem PROCESS_AI_BASE ou LAWDESK_AI_BASE_URL.")
+  $diagnosis.Add("O Pages nao encontrara o worker HMADV IA sem PROCESS_AI_BASE, LAWDESK_AI_BASE_URL ou HMADV_RUNNER_URL.")
 }
 if (($checks | Where-Object { $_.id -eq "admin_token" -and -not $_.configured }).Count -gt 0) {
   $diagnosis.Add("Sem token admin, o gate nao valida as rotas protegidas do Pages.")

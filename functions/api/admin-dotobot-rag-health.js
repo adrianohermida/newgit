@@ -52,4 +52,8 @@ async function onRequestGet(context) {
   }
 }
 
-export default { onRequestGet };
+export async function onRequestOptions() {
+  return new Response("", { status: 204, headers: JSON_HEADERS });
+}
+
+export { onRequestGet };

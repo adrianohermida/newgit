@@ -211,6 +211,18 @@ registerTest("runLawdeskProvidersHealth exposes resolved primary backend config 
   }
 });
 
+registerTest("getPrimaryBackendConfig accepts HMADV_RUNNER_URL as fallback", async () => {
+  const providers = await loadProvidersModule();
+  const config = providers.getPrimaryBackendConfig({
+    HMADV_RUNNER_URL: "https://ai.hermidamaia.adv.br",
+    HMDAV_AI_SHARED_SECRET: "secret-value",
+  });
+
+  assert.equal(config.baseUrl, "https://ai.hermidamaia.adv.br");
+  assert.equal(config.baseUrlSource, "HMADV_RUNNER_URL");
+  assert.equal(config.diagnostics.baseUrl.configuredFrom, "HMADV_RUNNER_URL");
+});
+
 async function run() {
   let failures = 0;
   for (const entry of tests) {
