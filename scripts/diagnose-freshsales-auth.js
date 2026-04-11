@@ -72,29 +72,32 @@ function resolveFreshsalesBases() {
   const bases = [];
   if (raw) {
     const base = raw.startsWith('http') ? raw.replace(/\/+$/, '') : `https://${raw.replace(/\/+$/, '')}`;
-    if (base.includes('/crm/sales/api') || base.includes('/api')) {
+    if (base.includes('/crm/sales/api')) {
       const host = base.replace(/^https?:\/\//i, '').replace(/\/(crm\/sales\/api|api)\/?$/i, '');
       const myfreshworksHost = host.includes('myfreshworks.com') ? host : host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
       bases.push(
         base,
-        `https://${host}/api`,
         `https://${host}/crm/sales/api`,
-        `https://${myfreshworksHost}/api`,
+        `https://${myfreshworksHost}/crm/sales/api`,
+      );
+    } else if (base.includes('/api')) {
+      const host = base.replace(/^https?:\/\//i, '').replace(/\/api\/?$/i, '');
+      const myfreshworksHost = host.includes('myfreshworks.com') ? host : host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
+      bases.push(
+        `https://${host}/crm/sales/api`,
         `https://${myfreshworksHost}/crm/sales/api`,
       );
     } else {
       const host = base.replace(/^https?:\/\//i, '');
       const myfreshworksHost = host.includes('myfreshworks.com') ? host : host.replace(/\.freshsales\.io$/i, '.myfreshworks.com');
       bases.push(
-        `${base}/api`,
         `${base}/crm/sales/api`,
-        `https://${myfreshworksHost}/api`,
         `https://${myfreshworksHost}/crm/sales/api`,
       );
     }
   }
   if (orgDomain) {
-    bases.push(`https://${orgDomain}/api`, `https://${orgDomain}/crm/sales/api`);
+    bases.push(`https://${orgDomain}/crm/sales/api`);
   }
   return Array.from(new Set(bases));
 }

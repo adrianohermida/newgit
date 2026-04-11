@@ -6,8 +6,8 @@ const path = require('path');
 loadLocalEnv();
 
 async function main() {
-  const limit = Number(process.argv[2] || '50');
-  const specificReceivableId = process.argv[3] || null;
+  const limit = sanitizePositiveInt(process.argv[2], 50);
+  const specificReceivableId = sanitizeReceivableId(process.argv[3]);
   const receivables = await loadReceivables(limit, specificReceivableId);
 
   if (!receivables.length) {
@@ -35,6 +35,22 @@ async function main() {
   }
 
   console.log(JSON.stringify({ total: receivables.length, created, updated, failed }, null, 2));
+}
+
+function sanitizePositiveInt(value, fallback) {
+  const text = String(value || '').trim();
+  if (!/^\d+$/.test(text)) return fallback;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function sanitizeReceivableId(value) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)) {
+    return text;
+  }
+  return null;
 }
 
 function loadLocalEnv() {
@@ -338,7 +354,7 @@ async function freshsalesHeaderCandidates() {
       __mode: 'supabase_oauth',
       Accept: 'application/json',
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${supabaseOauthToken}`,
+      Authorization: `Token token=${supabaseOauthToken}`,
     });
   }
   if (accessToken) {
@@ -346,7 +362,7 @@ async function freshsalesHeaderCandidates() {
       __mode: 'access_token',
       Accept: 'application/json',
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Token token=${accessToken}`,
     });
   }
   if (!candidates.length) throw new Error('Credenciais do Freshsales ausentes');
