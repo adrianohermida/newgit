@@ -42,6 +42,7 @@
     "test:integration": "node scripts/test-integration.js",
     "test:dotobot": "node --experimental-vm-modules tests/lawdesk/dotobot-backend.test.cjs",
     "test:aitask-ui": "node --experimental-vm-modules tests/lawdesk/aitask-ui-modules.test.cjs",
+    "test:task-runs": "node --experimental-vm-modules tests/lawdesk/task-runs-backend.test.cjs",
     "test:console-log": "node --experimental-vm-modules tests/lawdesk/console-log-utils.test.cjs"
   },
   "dependencies": {

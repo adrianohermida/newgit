@@ -14,6 +14,14 @@ Por isso, o script antigo [sync-freshsales-contacts.js](/D:/Github/newgit/script
 
 `Freshsales API -> public.freshsales_contacts -> reconciliador HMADV`
 
+Com o fluxo atual do modulo `interno/contatos`, o caminho operacional completo passou a ser:
+
+`Freshsales Contacts -> public.freshsales_contacts -> client_profiles (portal) -> interno/contatos`
+
+e no sentido inverso:
+
+`portal/perfil -> client_profiles -> Freshsales Contacts -> public.freshsales_contacts`
+
 No tenant HMADV, a base preferencial deve ser:
 
 - `https://hmadv-7b725ea101eff55.freshsales.io/api`
@@ -67,6 +75,31 @@ powershell -ExecutionPolicy Bypass -File "D:\Github\newgit\docs\hmadv_sync_fresh
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `FRESHSALES_API_BASE` ou `FRESHSALES_BASE_URL` ou `FRESHSALES_DOMAIN`
 - `FRESHSALES_API_KEY` ou `FRESHSALES_ACCESS_TOKEN`
+- `FRESHSALES_OAUTH_CONTACTS_CLIENT_ID`
+- `FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET`
+- `FRESHSALES_CONTACTS_SCOPES`
+- `FRESHSALES_ORG_DOMAIN`
+- `FRESHSALES_REDIRECT_URI`
+
+## Webhook de contacts
+
+Para refletir alteracoes do CRM sem depender apenas do runner, o app de `contacts` no Freshsales deve disparar webhook para `fs-webhook` com `contact.id`.
+
+Payload minimo recomendado:
+
+```json
+{
+  "contact_id": "{{contact.id}}",
+  "account_id": "{{contact.sales_account_id}}",
+  "email": "{{contact.email}}"
+}
+```
+
+Esse webhook agora enfileira um job `sync_contacts` no modulo `contacts`, que:
+
+1. consulta o contato no Freshsales por id
+2. atualiza o espelho local em `public.freshsales_contacts`
+3. tenta refletir o dado no portal quando houver match de cliente
 
 ## Proximo passo
 

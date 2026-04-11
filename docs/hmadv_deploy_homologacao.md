@@ -53,6 +53,11 @@ npx supabase functions deploy tpu-sync `
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `FRESHSALES_API_KEY`
 - `FRESHSALES_DOMAIN`
+- `FRESHSALES_OAUTH_CONTACTS_CLIENT_ID`
+- `FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET`
+- `FRESHSALES_CONTACTS_SCOPES`
+- `FRESHSALES_ORG_DOMAIN`
+- `FRESHSALES_REDIRECT_URI`
 - `FS_OWNER_ID`
 - `FRESHSALES_ACTIVITY_TYPE_CONSULTA`
 - `FRESHSALES_ACTIVITY_TYPE_AUDIENCIA`
@@ -78,6 +83,42 @@ Esperado:
 
 - activity em `Consulta`:
   - `Sincronização com o CNJ solicitada - <CNJ>`
+
+### 1.1 Webhook de contacts
+
+Para o app separado de `contacts`, o webhook do Freshsales deve apontar para o mesmo `fs-webhook`, mas enviando o identificador do contato.
+
+Payload mínimo recomendado:
+
+```json
+{
+  "contact_id": "{{contact.id}}",
+  "account_id": "{{contact.sales_account_id}}",
+  "email": "{{contact.email}}"
+}
+```
+
+Payload alternativo aceito:
+
+```json
+{
+  "contact": {
+    "id": "{{contact.id}}",
+    "sales_account_id": "{{contact.sales_account_id}}",
+    "email": "{{contact.email}}"
+  }
+}
+```
+
+Esperado:
+
+- o `fs-webhook` responde `200`
+- cria um job em `judiciario.operacao_jobs` com:
+  - `modulo = contacts`
+  - `acao = sync_contacts`
+- o job atualiza:
+  - espelho `public.freshsales_contacts`
+  - reconciliação `CRM -> portal` quando houver correspondência
 
 ### 2. Sincronização concluída
 

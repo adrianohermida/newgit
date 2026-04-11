@@ -2788,7 +2788,7 @@ function InternoProcessosContent() {
             </div>
             <p className="mt-2">{backendHealth.message || "Sem historico recente."}</p>
           </div>
-          <div className="rounded-[26px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.55)] p-4 text-sm">
+          {!isResultView ? <div className="rounded-[26px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.55)] p-4 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-60">Ciclo completo</p>
@@ -2815,8 +2815,8 @@ function InternoProcessosContent() {
             <p><strong>Tag datajud:</strong> {Number(runnerTagged?.tagged_fullyCovered || 0)} completos</p>
           </div>
           {runnerAction?.datajud_action_manualActionRequired ? <p className="mt-2 text-xs text-[#FECACA]">A prioridade atual ainda depende de acao manual no Freshsales.</p> : null}
-        </div>
-        {queueRefreshLog.length ? (
+        </div> : null}
+        {!isResultView && queueRefreshLog.length ? (
           <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] p-4 text-xs">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-60">Ultimas filas atualizadas</p>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -2828,12 +2828,12 @@ function InternoProcessosContent() {
             </div>
           </div>
         ) : null}
-        {latestRemoteRun ? <RemoteRunSummary entry={latestRemoteRun} /> : null}
-        {remoteHealth.length ? <div className="flex flex-wrap gap-2">{remoteHealth.map((item) => <StatusBadge key={item.label} tone={item.tone}>{item.label}</StatusBadge>)}</div> : null}
+        {!isResultView && latestRemoteRun ? <RemoteRunSummary entry={latestRemoteRun} /> : null}
+        {!isResultView && remoteHealth.length ? <div className="flex flex-wrap gap-2">{remoteHealth.map((item) => <StatusBadge key={item.label} tone={item.tone}>{item.label}</StatusBadge>)}</div> : null}
       </div>
     </section>
 
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{quickStats.map((card) => <MetricCard key={card.label} label={card.label} value={card.value} helper={card.helper} />)}</div>
+    {!isResultView ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{quickStats.map((card) => <MetricCard key={card.label} label={card.label} value={card.value} helper={card.helper} />)}</div> : null}
 
     {view === "operacao" ? <div id="operacao" className="grid gap-6 xl:grid-cols-2">
       <Panel title="Fila operacional" eyebrow="Sincronismo Freshsales + Supabase">

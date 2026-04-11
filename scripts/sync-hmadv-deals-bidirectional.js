@@ -17,6 +17,10 @@ async function main() {
 
   const steps = [
     {
+      label: 'Sincronizar contatos do Freshsales',
+      command: ['node', 'scripts/sync-freshsales-contacts.js'],
+    },
+    {
       label: 'Importar deals existentes do Freshsales',
       command: ['node', 'scripts/sync-freshsales-deals.js', String(importLimit), ...(applyStatus ? ['--apply-status'] : [])],
     },
