@@ -118,6 +118,30 @@ function parseProviderPresentation(value) {
   return { name, meta, status };
 }
 
+function buildRagAlert(health) {
+  if (!health || health.status === "operational") return null;
+  const signals = health.signals || {};
+  if (signals.supabaseAuthMismatch) {
+    return {
+      tone: "danger",
+      title: "RAG com falha de autenticacao no Supabase",
+      body: "O embed do Supabase recusou a autenticacao. Confira o DOTOBOT_SUPABASE_EMBED_SECRET no app e na function dotobot-embed.",
+    };
+  }
+  if (signals.appEmbedSecretMissing) {
+    return {
+      tone: "warning",
+      title: "Segredo do embed ausente",
+      body: "O dashboard nao encontrou DOTOBOT_SUPABASE_EMBED_SECRET. Embedding e consulta vetorial podem falhar ou operar de forma superficial.",
+    };
+  }
+  return {
+    tone: "warning",
+    title: "Memoria RAG degradada",
+    body: health.error || "Embedding, consulta vetorial ou persistencia de memoria precisam de revisao.",
+  };
+}
+
 function detectAttachmentKind(file) {
   if (file.type.startsWith("image/")) return "image";
   if (file.type.startsWith("audio/")) return "audio";
@@ -485,11 +509,12 @@ export default function DotobotCopilot({
   }, []);
 
 
-  const [workspaceOpen, setWorkspaceOpen] = useState(initialWorkspaceOpen);
-  const [mode, setMode] = useState("task");
-  const [provider, setProvider] = useState("gpt");
-  const [providerCatalog, setProviderCatalog] = useState(PROVIDER_OPTIONS);
-  const [contextEnabled, setContextEnabled] = useState(true);
+const [workspaceOpen, setWorkspaceOpen] = useState(initialWorkspaceOpen);
+const [mode, setMode] = useState("task");
+const [provider, setProvider] = useState("gpt");
+const [providerCatalog, setProviderCatalog] = useState(PROVIDER_OPTIONS);
+const [ragHealth, setRagHealth] = useState(null);
+const [contextEnabled, setContextEnabled] = useState(true);
   const [rightPanelTab, setRightPanelTab] = useState("tasks");
   const [attachments, setAttachments] = useState([]);
   const [showSlashCommands, setShowSlashCommands] = useState(false);
@@ -541,6 +566,26 @@ export default function DotobotCopilot({
         setProvider((current) => (current === "gpt" ? defaultProvider : current));
       })
       .catch(() => null);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    adminFetch("/api/admin-dotobot-rag-health?include_upsert=0", { method: "GET" })
+      .then((payload) => {
+        if (!active) return;
+        setRagHealth(payload || null);
+      })
+      .catch((fetchError) => {
+        if (!active) return;
+        setRagHealth({
+          status: "failed",
+          error: fetchError?.message || "Falha no healthcheck RAG.",
+          signals: {},
+        });
+      });
     return () => {
       active = false;
     };
@@ -1385,6 +1430,7 @@ export default function DotobotCopilot({
   const activeMode = MODE_OPTIONS.find((item) => item.value === mode) || MODE_OPTIONS[0];
   const activeProviderLabel = providerCatalog.find((item) => item.value === provider)?.label || "Nuvem principal";
   const activeProviderPresentation = parseProviderPresentation(activeProviderLabel);
+  const ragAlert = buildRagAlert(ragHealth);
   const isWorkspaceShell = workspaceOpen;
   const railCollapsed = compactRail ? true : isCollapsed;
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
@@ -1548,6 +1594,26 @@ export default function DotobotCopilot({
               <p className="mt-2 text-sm leading-6 text-[#9BAEA8]">
                 Conversa recente, prompts rapidos e entrada imediata. Use a tela cheia para trilha completa de tasks e contexto.
               </p>
+              {ragAlert ? (
+                  <div className={`mt-4 rounded-[18px] border px-3 py-3 text-sm ${
+                    ragAlert.tone === "danger"
+                      ? "border-[#5b2d2d] bg-[rgba(91,45,45,0.22)] text-[#f2d0d0]"
+                      : "border-[#6f5a2d] bg-[rgba(98,79,34,0.2)] text-[#f1dfb5]"
+                  }`}>
+                    <p className="text-[10px] uppercase tracking-[0.16em] opacity-80">Diagnóstico RAG</p>
+                    <p className="mt-2 font-medium text-[#F5F1E8]">{ragAlert.title}</p>
+                    <p className="mt-1 leading-6">{ragAlert.body}</p>
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={() => router.push("/interno/agentlab/environment")}
+                        className="rounded-full border border-current px-3 py-1.5 text-[11px] font-semibold transition hover:bg-[rgba(255,255,255,0.06)]"
+                      >
+                        Abrir diagnóstico
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -1738,6 +1804,26 @@ export default function DotobotCopilot({
                       </span>
                     ))}
                   </div>
+                  {ragAlert ? (
+                    <div className={`mt-4 max-w-3xl rounded-[20px] border px-4 py-3 text-sm ${
+                      ragAlert.tone === "danger"
+                        ? "border-[#5b2d2d] bg-[rgba(91,45,45,0.22)] text-[#f2d0d0]"
+                        : "border-[#6f5a2d] bg-[rgba(98,79,34,0.2)] text-[#f1dfb5]"
+                    }`}>
+                      <p className="text-[10px] uppercase tracking-[0.18em] opacity-80">Diagnóstico RAG</p>
+                      <p className="mt-2 font-medium text-[#F5F1E8]">{ragAlert.title}</p>
+                      <p className="mt-1 leading-6">{ragAlert.body}</p>
+                      <div className="mt-3">
+                        <button
+                          type="button"
+                          onClick={() => router.push("/interno/agentlab/environment")}
+                          className="rounded-full border border-current px-3 py-1.5 text-[11px] font-semibold transition hover:bg-[rgba(255,255,255,0.06)]"
+                        >
+                          Abrir diagnóstico
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">

@@ -73,6 +73,30 @@ const FALLBACK_PROVIDER_OPTIONS = [
   { value: "custom", label: "Endpoint custom", disabled: false },
 ];
 
+function buildRagAlert(health) {
+  if (!health || health.status === "operational") return null;
+  const signals = health.signals || {};
+  if (signals.supabaseAuthMismatch) {
+    return {
+      tone: "danger",
+      title: "Embedding RAG bloqueado por autenticacao",
+      body: "O Supabase respondeu com falha de autenticacao. Revise o DOTOBOT_SUPABASE_EMBED_SECRET no app e na function dotobot-embed.",
+    };
+  }
+  if (signals.appEmbedSecretMissing) {
+    return {
+      tone: "warning",
+      title: "Segredo do embed ausente no app",
+      body: "O dashboard esta sem DOTOBOT_SUPABASE_EMBED_SECRET, entao embedding e consulta vetorial podem falhar ou ficar superficiais.",
+    };
+  }
+  return {
+    tone: "warning",
+    title: "RAG degradado no momento",
+    body: health.error || "Embedding, consulta vetorial ou persistencia de memoria nao estao integros. Abra o diagnostico para revisar secrets e backends.",
+  };
+}
+
 function buildBlueprint(normalizedMission, profile, mode, provider) {
   const modules = detectModules(normalizedMission);
   const critical = requiresApproval(normalizedMission);
@@ -192,6 +216,7 @@ export default function AITaskModule({ profile, routePath }) {
   const chatViewportRef = useRef(null);
   const [stopModalOpen, setStopModalOpen] = useState(false);
   const [providerCatalog, setProviderCatalog] = useState(FALLBACK_PROVIDER_OPTIONS);
+  const [ragHealth, setRagHealth] = useState(null);
   const {
     activeRun,
     approved,
@@ -282,6 +307,26 @@ export default function AITaskModule({ profile, routePath }) {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    adminFetch("/api/admin-dotobot-rag-health?include_upsert=0", { method: "GET" })
+      .then((payload) => {
+        if (!active) return;
+        setRagHealth(payload || null);
+      })
+      .catch((fetchError) => {
+        if (!active) return;
+        setRagHealth({
+          status: "failed",
+          error: fetchError?.message || "Falha no healthcheck RAG.",
+          signals: {},
+        });
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const { executeMission, handleContinueLastRun, handlePause, handleStart, handleStop } = useAiTaskRun({
     mission,
     mode,
@@ -340,10 +385,15 @@ export default function AITaskModule({ profile, routePath }) {
     router.push({ pathname: "/llm-test", query });
   }
 
+  function handleOpenDiagnostics() {
+    router.push("/interno/agentlab/environment");
+  }
+
   const taskColumns = useMemo(() => buildTaskColumns(tasks), [tasks]);
   const visibleLogs = useMemo(() => filterLogsByType(logs, selectedLogFilter), [logs, selectedLogFilter]);
   const compactLogs = useMemo(() => filterLogsBySearch(visibleLogs, search), [visibleLogs, search]);
   const selectedTask = useMemo(() => findSelectedTask(tasks, selectedTaskId), [tasks, selectedTaskId]);
+  const ragAlert = useMemo(() => buildRagAlert(ragHealth), [ragHealth]);
   const activeMode = MODE_OPTIONS.find((item) => item.value === mode) || MODE_OPTIONS[1];
   const stateLabel = resolveAutomationLabel(automation);
   const contextModuleEntries = useMemo(() => {
@@ -444,23 +494,25 @@ export default function AITaskModule({ profile, routePath }) {
 
   return (
     <div className="space-y-4">
-      <WorkspaceHeader
-        stateLabel={stateLabel}
-        provider={provider}
-        providerOptions={providerCatalog}
-        onProviderChange={setProvider}
-        activeModeLabel={activeMode.label}
+        <WorkspaceHeader
+          stateLabel={stateLabel}
+          provider={provider}
+          providerOptions={providerCatalog}
+          ragAlert={ragAlert}
+          onProviderChange={setProvider}
+          activeModeLabel={activeMode.label}
         executionSource={executionSource}
         executionModel={executionModel}
         eventsTotal={eventsTotal}
         paused={paused}
         handlePause={handlePause}
         handleStop={() => setStopModalOpen(true)}
-        handleContinueLastRun={handleContinueLastRun}
-        handleApprove={handleApprove}
-        handleOpenLlmTest={handleOpenLlmTest}
-        formatExecutionSourceLabel={formatExecutionSourceLabel}
-      />
+          handleContinueLastRun={handleContinueLastRun}
+          handleApprove={handleApprove}
+          handleOpenLlmTest={handleOpenLlmTest}
+          handleOpenDiagnostics={handleOpenDiagnostics}
+          formatExecutionSourceLabel={formatExecutionSourceLabel}
+        />
 
       <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_340px]">
         <RunsPane

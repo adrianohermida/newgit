@@ -1,71 +1,162 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import useDotobotExtensionBridge from "./DotobotExtensionBridge";
 
-/**
- * Componente DotobotExtensionManager
- * Permite ao usuário instalar, ativar e conceder permissões à extensão Universal LLM Assistant
- * Exibe status, instruções e consentimento de permissões
- */
+function getStatusPresentation({ extensionReady, checking, consentGranted, error }) {
+  if (error) {
+    return {
+      code: "error",
+      label: "Erro",
+      tone: "border-[#5b2d2d] bg-[rgba(91,45,45,0.18)] text-[#f2d0d0]",
+      summary: error,
+    };
+  }
+
+  if (checking) {
+    return {
+      code: "checking",
+      label: "Verificando",
+      tone: "border-[#6f5a2d] bg-[rgba(98,79,34,0.16)] text-[#f1dfb5]",
+      summary: "Buscando resposta da extensão no navegador atual.",
+    };
+  }
+
+  if (extensionReady && consentGranted) {
+    return {
+      code: "active",
+      label: "Ativa",
+      tone: "border-[#234034] bg-[rgba(35,64,52,0.18)] text-[#bde7c9]",
+      summary: "A extensão está conectada e liberada para comandos assistidos.",
+    };
+  }
+
+  if (extensionReady) {
+    return {
+      code: "connected",
+      label: "Conectada",
+      tone: "border-[#35554B] bg-[rgba(53,85,75,0.16)] text-[#c7dfd5]",
+      summary: "A extensão respondeu ao bridge, mas ainda falta confirmar o consentimento operacional.",
+    };
+  }
+
+  return {
+    code: "missing",
+    label: "Não detectada",
+    tone: "border-[#6f5a2d] bg-[rgba(98,79,34,0.16)] text-[#f1dfb5]",
+    summary: "Nenhuma resposta da Universal LLM Assistant neste navegador.",
+  };
+}
+
 export default function DotobotExtensionManager() {
-  const [status, setStatus] = useState("not-installed"); // not-installed | installed | active | error
+  const { extensionReady, lastResponse, probeExtension } = useDotobotExtensionBridge();
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
+  const [consentGranted, setConsentGranted] = useState(false);
 
-  // Simulação de instalação
-  const handleInstall = () => {
-    // Aqui, abriria o link da Chrome Web Store ou baixaria o ZIP
-    window.open("https://github.com/adrianohermida/universal-llm-assistant/releases/latest", "_blank");
-    setStatus("installed");
-  };
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("dotobot_extension_consent");
+    setConsentGranted(stored === "granted");
+  }, []);
 
-  // Simulação de ativação
-  const handleActivate = () => {
-    // Aqui, tentaria detectar a extensão via window.postMessage ou chrome.runtime
-    setStatus("active");
-  };
+  async function handleCheckConnection() {
+    setChecking(true);
+    setError("");
+    try {
+      const response = await probeExtension();
+      if (!response) {
+        setError("A extensão não respondeu ao handshake. Verifique se está instalada, ativa e com a página recarregada.");
+      }
+    } catch (probeError) {
+      setError(probeError?.message || "Falha ao verificar a extensão.");
+    } finally {
+      setChecking(false);
+    }
+  }
 
-  // Simulação de consentimento
-  const handleConsent = () => {
-    alert("Permissões concedidas! A extensão poderá acessar recursos locais e web conforme solicitado.");
-  };
+  function handleInstall() {
+    window.open("https://github.com/adrianohermida/universal-llm-assistant/releases/latest", "_blank", "noopener,noreferrer");
+  }
+
+  function handleConsent() {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("dotobot_extension_consent", "granted");
+    setConsentGranted(true);
+    setError("");
+  }
+
+  function handleRevokeConsent() {
+    if (typeof window === "undefined") return;
+    window.localStorage.removeItem("dotobot_extension_consent");
+    setConsentGranted(false);
+  }
+
+  const status = useMemo(
+    () => getStatusPresentation({ extensionReady, checking, consentGranted, error }),
+    [checking, consentGranted, error, extensionReady],
+  );
 
   return (
-    <section className="rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.03)] p-6 mt-6">
-      <h2 className="text-xl font-bold mb-2 text-[#C5A059]">Extensão Universal LLM Assistant</h2>
-      <p className="mb-4 text-[#F4F1EA]">Permite que o Dotobot acesse arquivos locais, navegue na web e execute ações avançadas com sua permissão.</p>
-      <div className="mb-4">
-        <span className="inline-block rounded-full px-3 py-1 text-xs font-semibold border border-[#C5A059] text-[#C5A059] bg-[rgba(197,160,89,0.08)]">
-          Status: {status === "not-installed" ? "Não instalada" : status === "installed" ? "Instalada" : status === "active" ? "Ativa" : "Erro"}
-        </span>
+    <section className="mt-6 rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.03)] p-6">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#C5A059]">Universal LLM Assistant</p>
+          <h2 className="mt-2 text-xl font-semibold text-[#F4F1EA]">Extensão do navegador</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-7 text-[#C7D0CA]">
+            Integra navegação web, leitura local assistida e ações operacionais avançadas ao Dotobot, com validação humana e branding do escritório.
+          </p>
+        </div>
+        <div className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${status.tone}`}>
+          Status: {status.label}
+        </div>
       </div>
-      {status === "not-installed" && (
+
+      <div className="mt-4 rounded-[18px] border border-[#22342F] bg-[rgba(7,9,8,0.72)] p-4">
+        <p className="text-sm leading-7 text-[#E8E0D2]">{status.summary}</p>
+        {lastResponse ? (
+          <div className="mt-3 grid gap-2 text-xs text-[#9BAEA8] md:grid-cols-3">
+            <p>Última resposta: {lastResponse.type || "n/a"}</p>
+            <p>Request ID: {lastResponse.requestId || "n/a"}</p>
+            <p>Source: {lastResponse.source || "n/a"}</p>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
         <button
-          className="rounded-2xl bg-[#D9B46A] px-6 py-3 text-sm font-bold text-[#1A1A1A] transition hover:bg-[#C5A059] mb-2"
+          type="button"
           onClick={handleInstall}
+          className="rounded-2xl border border-[#C5A059] px-4 py-2 text-sm font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#1A1A1A]"
         >
-          Instalar extensão
+          Instalar / atualizar
         </button>
-      )}
-      {status === "installed" && (
         <button
-          className="rounded-2xl bg-[#C5A059] px-6 py-3 text-sm font-bold text-[#1A1A1A] transition hover:bg-[#D9B46A] mb-2"
-          onClick={handleActivate}
+          type="button"
+          onClick={handleCheckConnection}
+          className="rounded-2xl border border-[#22342F] px-4 py-2 text-sm text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
         >
-          Ativar extensão
+          {checking ? "Verificando..." : "Verificar conexão"}
         </button>
-      )}
-      {status === "active" && (
         <button
-          className="rounded-2xl bg-[#8FCFA9] px-6 py-3 text-sm font-bold text-[#1A1A1A] transition hover:bg-[#6BBF8A] mb-2"
+          type="button"
           onClick={handleConsent}
+          disabled={!extensionReady}
+          className="rounded-2xl border border-[#234034] px-4 py-2 text-sm text-[#8FCFA9] transition disabled:opacity-40 hover:border-[#8FCFA9]"
         >
-          Conceder permissões
+          Autorizar uso interno
         </button>
-      )}
-      {error && <p className="text-red-500 mt-2">{error}</p>}
-      <ul className="mt-4 text-[#C5A059] text-xs list-disc pl-5">
-        <li>Você controla quando ativar/desativar a extensão.</li>
-        <li>Permissões só são solicitadas quando necessárias.</li>
-        <li>Nenhum dado sensível é enviado sem seu consentimento.</li>
-        <li>Você pode revogar o acesso a qualquer momento.</li>
+        <button
+          type="button"
+          onClick={handleRevokeConsent}
+          className="rounded-2xl border border-[#22342F] px-4 py-2 text-sm text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+        >
+          Revogar
+        </button>
+      </div>
+
+      <ul className="mt-4 space-y-2 text-xs leading-6 text-[#C5A059]">
+        <li>O Dotobot só deve acionar a extensão em fluxos que exigem web search ou acesso local explícito.</li>
+        <li>O consentimento fica persistido no navegador atual e pode ser revogado a qualquer momento.</li>
+        <li>Sem resposta do bridge, o módulo continua funcionando apenas com providers web, Cloudflare Workers AI e LLM local HTTP.</li>
       </ul>
     </section>
   );

@@ -152,6 +152,7 @@ export function WorkspaceHeader({
   activeModeLabel,
   provider,
   providerOptions = [],
+  ragAlert = null,
   onProviderChange,
   executionSource,
   executionModel,
@@ -161,6 +162,7 @@ export function WorkspaceHeader({
   handleContinueLastRun,
   handleApprove,
   handleOpenLlmTest,
+  handleOpenDiagnostics,
   paused,
   formatExecutionSourceLabel,
 }) {
@@ -233,6 +235,26 @@ export function WorkspaceHeader({
           Testar provider
         </button>
       </div>
+      {ragAlert ? (
+        <div className={`mt-4 rounded-[20px] border px-4 py-3 text-sm ${
+          ragAlert.tone === "danger"
+            ? "border-[#5b2d2d] bg-[rgba(91,45,45,0.22)] text-[#f2d0d0]"
+            : "border-[#6f5a2d] bg-[rgba(98,79,34,0.2)] text-[#f1dfb5]"
+        }`}>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] opacity-80">Diagnóstico RAG</p>
+          <p className="mt-2 font-medium text-[#F5F1E8]">{ragAlert.title}</p>
+          <p className="mt-1 leading-6">{ragAlert.body}</p>
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={handleOpenDiagnostics}
+              className="rounded-full border border-current px-3 py-1.5 text-[11px] font-semibold transition hover:bg-[rgba(255,255,255,0.06)]"
+            >
+              Abrir diagnóstico
+            </button>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

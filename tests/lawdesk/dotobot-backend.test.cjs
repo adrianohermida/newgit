@@ -160,6 +160,37 @@ registerTest("runDotobotRagHealth reports degraded when only Obsidian fallback i
   }
 });
 
+registerTest("runDotobotRagHealth exposes Supabase auth mismatch signals and recommendations", async () => {
+  const { runDotobotRagHealth } = await loadLawdeskModules();
+  const originalFetch = globalThis.fetch;
+  const env = {
+    SUPABASE_URL: "https://supabase.example.test",
+    SUPABASE_SERVICE_ROLE_KEY: "service-role-secret",
+  };
+
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("/functions/v1/")) {
+      return new Response(JSON.stringify({ error: "Authentication error" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    throw new Error(`Unexpected fetch call during auth mismatch test: ${url}`);
+  };
+
+  try {
+    const result = await runDotobotRagHealth(env, { includeUpsert: true, query: "validar auth" });
+    assert.equal(result.status, "failed");
+    assert.equal(result.signals.appEmbedSecretMissing, true);
+    assert.equal(result.signals.supabaseAuthMismatch, true);
+    assert.match(result.report.supabaseEmbedding.error, /DOTOBOT_SUPABASE_EMBED_SECRET/i);
+    assert.ok(result.recommendations.some((item) => /DOTOBOT_SUPABASE_EMBED_SECRET/i.test(item)));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 registerTest("runLawdeskChat falls back to Workers AI direct execution", async () => {
   const { runLawdeskChat } = await loadLawdeskModules();
   const env = {
