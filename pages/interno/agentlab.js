@@ -1,8 +1,10 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../components/interno/agentlab/AgentLabModuleNav";
 import { useAgentLabData } from "../../lib/agentlab/useAgentLabData";
+import { setModuleHistory } from "../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../lib/admin/module-registry";
 
 function Metric({ label, value, helper }) {
   return (
@@ -97,6 +99,75 @@ function AgentLabContent({ state }) {
       .sort((a, b) => b.value - a.value)
       .slice(0, 6);
   }, [automationRuns]);
+
+  useEffect(() => {
+    setModuleHistory(
+      "agentlab",
+      buildModuleSnapshot("agentlab", {
+        routePath: "/interno/agentlab",
+        loading: state.loading,
+        error: state.error,
+        degradedMode: environment.mode === "degraded",
+        warnings,
+        overview,
+        environment: {
+          mode: environment.mode || "unknown",
+          message: environment.message || null,
+          missingSources: environment.missingSources || [],
+          schemaChecklistSize: environment.schemaChecklist?.length || 0,
+        },
+        intelligence: {
+          mappedAgents: overview.mappedAgents || 0,
+          importedConversations: overview.importedConversations || 0,
+          openIncidents: overview.openIncidents || 0,
+          trainingAverageScore: overview.trainingAverageScore || 0,
+        },
+        crm: {
+          actionQueueSummary,
+          dispatchSummary,
+          automationByEvent,
+        },
+        messageSummary: {
+          total: messageSummary.total || 0,
+          customerMessages: messageSummary.customerMessages || 0,
+          agentMessages: messageSummary.agentMessages || 0,
+          qualityEvents: messageSummary.qualityEvents || 0,
+        },
+        rollout: {
+          providerMatrix: providerMatrix.length,
+          evaluationRubric: evaluationRubric.length,
+          debateModes: debateModes.length,
+          learningLoop: learningLoop.length,
+          ethicsGuardrails: ethicsGuardrails.length,
+          experimentTracks: experimentTracks.length,
+        },
+        coverage: {
+          routeTracked: true,
+          consoleIntegrated: true,
+          diagnosticsTracked: true,
+        },
+      }),
+    );
+  }, [
+    actionQueueSummary,
+    automationByEvent,
+    debateModes.length,
+    dispatchSummary,
+    environment.message,
+    environment.missingSources,
+    environment.mode,
+    environment.schemaChecklist,
+    ethicsGuardrails.length,
+    evaluationRubric.length,
+    experimentTracks.length,
+    learningLoop.length,
+    messageSummary,
+    overview,
+    providerMatrix.length,
+    state.error,
+    state.loading,
+    warnings,
+  ]);
 
   return (
     <div className="space-y-8">

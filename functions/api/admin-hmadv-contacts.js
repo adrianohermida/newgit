@@ -1,12 +1,16 @@
 import { requireAdminAccess } from "../lib/admin-auth.js";
+import { listAdminJobs } from "../lib/hmadv-ops.js";
 import {
   bulkCreateContacts,
+  createContactAdminJob,
   createContact,
   createOrUpdateContactByNameOnly,
   deleteContactsBulk,
   deleteContact,
+  drainContactAdminJobs,
   enrichContactViaCep,
   enrichContactViaDirectData,
+  getContactAdminJob,
   getContactDetail,
   getContactsOverview,
   linkPartesToExistingContact,
@@ -83,6 +87,19 @@ export async function onRequestGet(context) {
       const data = await listContactIds(context.env, {
         query: String(url.searchParams.get("query") || ""),
         type: String(url.searchParams.get("type") || ""),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "job_detail") {
+      const jobId = String(url.searchParams.get("jobId") || "");
+      if (!jobId) return jsonError(new Error("jobId obrigatorio."), 400);
+      const data = await getContactAdminJob(context.env, jobId);
+      return jsonOk({ data });
+    }
+    if (action === "jobs") {
+      const data = await listAdminJobs(context.env, {
+        modulo: "contacts",
+        limit: Number(url.searchParams.get("limit") || 20),
       });
       return jsonOk({ data });
     }
@@ -188,6 +205,41 @@ export async function onRequestPost(context) {
         type: body.type || "Cliente",
         intervalMs: Number(body.intervalMs || 1200),
         dryRun: Boolean(body.dryRun),
+      });
+      return jsonOk({ data });
+    }
+    if (action === "schedule_contact_job") {
+      const names = Array.isArray(body.names)
+        ? body.names
+        : String(body.names || "")
+            .split(/\r?\n|,|;/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+      const contactIds = Array.isArray(body.contactIds)
+        ? body.contactIds
+        : String(body.contactIds || "")
+            .split(/\r?\n|,|;/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+      const data = await createContactAdminJob(context.env, {
+        action: String(body.jobAction || ""),
+        payload: {
+          names,
+          contactIds,
+          type: body.type || "",
+          query: body.query || "",
+          apply: Boolean(body.apply),
+          dryRun: Boolean(body.dryRun),
+          intervalMs: Number(body.intervalMs || 1200),
+          scheduledFor: body.scheduledFor || null,
+          limit: Number(body.limit || 25),
+        },
+      });
+      return jsonOk({ data });
+    }
+    if (action === "drain_contact_jobs") {
+      const data = await drainContactAdminJobs(context.env, {
+        maxChunks: Number(body.maxChunks || 3),
       });
       return jsonOk({ data });
     }

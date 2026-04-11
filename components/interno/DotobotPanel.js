@@ -1294,7 +1294,10 @@ export default function DotobotCopilot({
       title: "Cancelar execução",
       body: "Deseja cancelar esta execução do Dotobot?",
       confirmLabel: "Cancelar execução",
-      onConfirm: () => {
+      onConfirm: async () => {
+        try {
+          await cancelTaskRun(task.id);
+        } catch {}
         syncTaskHistory(task.id, (current) => ({
           ...current,
           status: "canceled",

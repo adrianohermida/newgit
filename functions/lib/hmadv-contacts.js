@@ -75,6 +75,10 @@ async function hmadvCount(env, table, filters = "", schema = "public") {
   return match ? Number(match[1]) : 0;
 }
 
+function uniqueNonEmpty(values = []) {
+  return [...new Set((Array.isArray(values) ? values : []).map((item) => String(item || "").trim()).filter(Boolean))];
+}
+
 function getCustomField(rawPayload, key) {
   return cleanValue(rawPayload?.custom_field?.[key]) || cleanValue(rawPayload?.custom_fields?.[key]) || cleanValue(rawPayload?.[key]) || null;
 }
@@ -899,5 +903,248 @@ export async function deleteContactsBulk(env, { contactIds = [] } = {}) {
     totalRows: ids.length,
     deleted: ids.length,
     sample,
+  };
+}
+
+async function fetchOperationJob(env, id) {
+  const rows = await hmadvRest(env, `operacao_jobs?id=eq.${encodeURIComponent(String(id || ""))}&select=*`, {}, "judiciario");
+  return rows?.[0] || null;
+}
+
+async function insertOperationJob(env, body) {
+  const rows = await hmadvRest(
+    env,
+    "operacao_jobs",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Profile": "judiciario",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify(body),
+    },
+    "judiciario"
+  );
+  return rows?.[0] || null;
+}
+
+async function patchOperationJob(env, id, body) {
+  const rows = await hmadvRest(
+    env,
+    `operacao_jobs?id=eq.${encodeURIComponent(String(id || ""))}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Profile": "judiciario",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({
+        ...body,
+        updated_at: new Date().toISOString(),
+      }),
+    },
+    "judiciario"
+  );
+  return rows?.[0] || null;
+}
+
+function normalizeContactsJobPayload(action, payload = {}) {
+  if (action === "bulk_create_contacts") {
+    return {
+      action,
+      type: cleanValue(payload.type) || "Cliente",
+      intervalMs: Math.max(500, Number(payload.intervalMs || 1200)),
+      dryRun: Boolean(payload.dryRun),
+      names: uniqueNonEmpty(payload.names || []),
+      scheduledFor: cleanValue(payload.scheduledFor),
+      limit: Math.max(1, Math.min(Number(payload.limit || 25), 200)),
+    };
+  }
+  if (action === "validate_contacts") {
+    return {
+      action,
+      apply: Boolean(payload.apply),
+      query: cleanValue(payload.query) || "",
+      type: cleanValue(payload.type) || "",
+      scheduledFor: cleanValue(payload.scheduledFor),
+      contactIds: uniqueNonEmpty(payload.contactIds || []),
+      limit: Math.max(1, Math.min(Number(payload.limit || 50), 200)),
+    };
+  }
+  throw new Error(`Acao de contatos nao suportada para job: ${action}`);
+}
+
+function isScheduledForFuture(isoString) {
+  if (!isoString) return false;
+  const parsed = Date.parse(String(isoString));
+  return Number.isFinite(parsed) && parsed > Date.now();
+}
+
+export async function createContactAdminJob(env, { action, payload = {} } = {}) {
+  const normalized = normalizeContactsJobPayload(action, payload);
+  const requestedCount = action === "bulk_create_contacts"
+    ? normalized.names.length
+    : normalized.contactIds.length || normalized.limit;
+  return insertOperationJob(env, {
+    modulo: "contacts",
+    acao: action,
+    status: requestedCount ? "pending" : "completed",
+    payload: normalized,
+    requested_count: requestedCount,
+    processed_count: 0,
+    success_count: 0,
+    error_count: 0,
+    result_summary: requestedCount ? {} : { requested_count: 0 },
+    result_sample: [],
+    last_error: null,
+    started_at: null,
+    finished_at: requestedCount ? null : new Date().toISOString(),
+  });
+}
+
+export async function getContactAdminJob(env, id) {
+  return fetchOperationJob(env, id);
+}
+
+async function runContactJobAction(env, job, chunkPayload) {
+  if (job.acao === "bulk_create_contacts") {
+    return bulkCreateContacts(env, {
+      names: chunkPayload.names || [],
+      type: chunkPayload.type,
+      intervalMs: chunkPayload.intervalMs,
+      dryRun: chunkPayload.dryRun,
+    });
+  }
+  if (job.acao === "validate_contacts") {
+    return validateContacts(env, {
+      contactIds: chunkPayload.contactIds || [],
+      query: chunkPayload.query || "",
+      type: chunkPayload.type || "",
+      apply: chunkPayload.apply,
+      limit: chunkPayload.limit,
+    });
+  }
+  throw new Error(`Acao de job de contatos nao suportada: ${job.acao}`);
+}
+
+export async function processContactAdminJob(env, id) {
+  const job = await fetchOperationJob(env, id);
+  if (!job) throw new Error("Job de contatos nao encontrado.");
+  if (["completed", "error", "cancelled"].includes(String(job.status || ""))) return job;
+  const payload = normalizeContactsJobPayload(job.acao, job.payload || {});
+  if (isScheduledForFuture(payload.scheduledFor)) {
+    return job;
+  }
+
+  const now = new Date().toISOString();
+  if (!job.started_at) {
+    await patchOperationJob(env, job.id, { status: "running", started_at: now });
+  } else if (job.status !== "running") {
+    await patchOperationJob(env, job.id, { status: "running" });
+  }
+
+  try {
+    if (job.acao === "bulk_create_contacts") {
+      const names = uniqueNonEmpty(payload.names || []);
+      const offset = Math.max(0, Number(job.processed_count || 0));
+      const chunk = names.slice(offset, offset + payload.limit);
+      if (!chunk.length) {
+        return patchOperationJob(env, job.id, {
+          status: "completed",
+          finished_at: new Date().toISOString(),
+        });
+      }
+      const result = await runContactJobAction(env, job, {
+        names: chunk,
+        type: payload.type,
+        intervalMs: payload.intervalMs,
+        dryRun: payload.dryRun,
+      });
+      const nextProcessed = offset + chunk.length;
+      return patchOperationJob(env, job.id, {
+        status: nextProcessed >= names.length ? "completed" : "running",
+        processed_count: nextProcessed,
+        success_count: Number(job.success_count || 0) + Number(result?.created || 0),
+        error_count: Number(job.error_count || 0),
+        result_summary: {
+          ...(job.result_summary || {}),
+          totalRows: Number(result?.totalRows || names.length),
+          created: Number((job.result_summary || {}).created || 0) + Number(result?.created || 0),
+          skipped: Number((job.result_summary || {}).skipped || 0) + Number(result?.skipped || 0),
+        },
+        result_sample: Array.isArray(result?.sample) ? result.sample.slice(0, 50) : [],
+        last_error: null,
+        finished_at: nextProcessed >= names.length ? new Date().toISOString() : null,
+      });
+    }
+
+    const explicitIds = uniqueNonEmpty(payload.contactIds || []);
+    const totalPlanned = explicitIds.length || Number(payload.limit || 50);
+    const offset = Math.max(0, Number(job.processed_count || 0));
+    const chunkIds = explicitIds.length ? explicitIds.slice(offset, offset + payload.limit) : [];
+    const result = await runContactJobAction(env, job, {
+      contactIds: chunkIds,
+      query: payload.query,
+      type: payload.type,
+      apply: payload.apply,
+      limit: explicitIds.length ? chunkIds.length : payload.limit,
+    });
+    const processedNow = explicitIds.length ? chunkIds.length : Number(result?.totalRows || 0);
+    const nextProcessed = explicitIds.length ? offset + processedNow : totalPlanned;
+    return patchOperationJob(env, job.id, {
+      status: nextProcessed >= totalPlanned ? "completed" : "running",
+      processed_count: nextProcessed,
+      success_count: Number(job.success_count || 0) + Number(result?.changed || 0),
+      error_count: Number(job.error_count || 0),
+      result_summary: {
+        ...(job.result_summary || {}),
+        totalRows: Number((job.result_summary || {}).totalRows || 0) + Number(result?.totalRows || 0),
+        changed: Number((job.result_summary || {}).changed || 0) + Number(result?.changed || 0),
+      },
+      result_sample: Array.isArray(result?.sample) ? result.sample.slice(0, 50) : [],
+      last_error: null,
+      finished_at: nextProcessed >= totalPlanned ? new Date().toISOString() : null,
+    });
+  } catch (error) {
+    return patchOperationJob(env, job.id, {
+      status: "error",
+      last_error: error.message || "Falha ao processar job de contatos.",
+      finished_at: new Date().toISOString(),
+    });
+  }
+}
+
+export async function drainContactAdminJobs(env, { maxChunks = 3 } = {}) {
+  const safeChunks = Math.max(1, Math.min(Number(maxChunks || 3), 20));
+  let chunksProcessed = 0;
+  let latestJob = null;
+  while (chunksProcessed < safeChunks) {
+    const jobs = await hmadvRest(
+      env,
+      "operacao_jobs?modulo=eq.contacts&status=in.(pending,running)&order=created_at.asc&limit=20&select=id,status,payload,processed_count",
+      {},
+      "judiciario"
+    ).catch(() => []);
+    const dueJob = (jobs || []).find((item) => !isScheduledForFuture(item?.payload?.scheduledFor));
+    if (!dueJob?.id) break;
+    latestJob = await processContactAdminJob(env, dueJob.id);
+    chunksProcessed += 1;
+    if (!latestJob || !["pending", "running"].includes(String(latestJob.status || ""))) {
+      continue;
+    }
+  }
+  const pending = await hmadvRest(
+    env,
+    "operacao_jobs?modulo=eq.contacts&status=in.(pending,running)&order=created_at.asc&limit=20&select=id,status,payload,processed_count,requested_count",
+    {},
+    "judiciario"
+  ).catch(() => []);
+  return {
+    chunksProcessed,
+    pendingCount: Array.isArray(pending) ? pending.length : 0,
+    activeJob: latestJob,
+    completedAll: !Array.isArray(pending) || pending.filter((item) => !isScheduledForFuture(item?.payload?.scheduledFor)).length === 0,
   };
 }

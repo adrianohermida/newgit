@@ -53,6 +53,11 @@ function statusStyle(status) {
   return "border-[#6E5630] bg-[rgba(76,57,26,0.22)] text-[#FDE68A]";
 }
 
+function syncStatusStyle(status) {
+  if (status === "freshsales_synced") return "border-[#2E5744] bg-[rgba(46,87,68,0.16)] text-[#C7F1D7]";
+  return "border-[#6F5826] bg-[rgba(111,88,38,0.18)] text-[#F7E4A7]";
+}
+
 export default function PortalFinanceiroPage() {
   const [state, setState] = useState(INITIAL_STATE);
 
@@ -185,6 +190,8 @@ function FinanceiroContent({ profile, state, setState }) {
             <Metric label="Contacts encontrados" value={state.diagnostics?.contacts_found ?? 0} />
             <Metric label="Accounts ligados" value={state.diagnostics?.linked_accounts ?? 0} />
             <Metric label="Itens relacionados" value={state.diagnostics?.related_deals ?? 0} />
+            <Metric label="Deals sincronizados" value={state.diagnostics?.freshsales_synced ?? 0} />
+            <Metric label="Somente canonicos" value={state.diagnostics?.canonical_only ?? 0} />
           </div>
           <div className="mt-5 flex flex-wrap gap-3 text-sm">
             <Link
@@ -334,9 +341,14 @@ function FinanceSection({ title, description, items, emptyMessage, visibleCount 
                   <p className="text-[11px] uppercase tracking-[0.18em] opacity-45">{item.kind_label}</p>
                   <h4 className="mt-3 font-serif text-2xl">{item.title}</h4>
                 </div>
-                <span className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.14em] ${statusStyle(item.status)}`}>
-                  {item.status_label}
-                </span>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <span className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.14em] ${statusStyle(item.status)}`}>
+                    {item.status_label}
+                  </span>
+                  <span className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.14em] ${syncStatusStyle(item.sync_status)}`}>
+                    {item.sync_status_label}
+                  </span>
+                </div>
               </div>
 
               <div className="mt-5 grid gap-4 md:grid-cols-3">
@@ -344,6 +356,11 @@ function FinanceSection({ title, description, items, emptyMessage, visibleCount 
                 <Metric label="Data-base" value={formatDate(item.due_date)} />
                 <Metric label="Estagio" value={item.stage || "A definir"} />
               </div>
+              {item.freshsales_deal_id ? (
+                <div className="mt-4 rounded-[20px] border border-[#20332D] bg-[rgba(6,10,9,0.45)] p-4 text-sm opacity-75">
+                  Deal Freshsales: {item.freshsales_deal_id}
+                </div>
+              ) : null}
 
               {item.process_account ? (
                 <div className="mt-5 rounded-[24px] border border-[#20332D] bg-[rgba(6,10,9,0.45)] p-5">

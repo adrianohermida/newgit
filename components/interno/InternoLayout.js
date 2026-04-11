@@ -23,6 +23,7 @@ import {
   subscribeActivityLog,
   setActivityLogFilters,
 } from "../../lib/admin/activity-log";
+import { inferModuleKeyFromPathname, listModuleRegistryEntries } from "../../lib/admin/module-registry.js";
 
 const NAV_ITEMS = [
   { href: "/interno", label: "Visao geral" },
@@ -262,16 +263,24 @@ function inferSnapshotSummary(key, snapshot) {
 }
 
 function buildCoverageCards(moduleHistory = {}) {
-  return Object.entries(moduleHistory)
-    .map(([key, snapshot]) => ({
-      key,
-      routePath: snapshot?.routePath || snapshot?.asPath || null,
-      updatedAt: snapshot?.updatedAt || snapshot?.lastNavigationAt || null,
-      tone: inferSnapshotTone(snapshot),
-      summary: inferSnapshotSummary(key, snapshot),
-      snapshot,
-    }))
+  const registry = new Map(listModuleRegistryEntries().map((entry) => [entry.key, entry]));
+  const keys = new Set([...registry.keys(), ...Object.keys(moduleHistory || {})]);
+  return Array.from(keys)
+    .map((key) => {
+      const registered = registry.get(key) || null;
+      const snapshot = moduleHistory?.[key] || null;
+      return {
+        key,
+        label: registered?.label || key,
+        routePath: snapshot?.routePath || snapshot?.asPath || registered?.routePath || null,
+        updatedAt: snapshot?.updatedAt || snapshot?.lastNavigationAt || null,
+        tone: snapshot ? inferSnapshotTone(snapshot) : "muted",
+        summary: snapshot ? inferSnapshotSummary(key, snapshot) : "Cobertura ainda nao publicada neste modulo.",
+        snapshot,
+      };
+    })
     .sort((a, b) => {
+      if (Boolean(a.snapshot) !== Boolean(b.snapshot)) return a.snapshot ? -1 : 1;
       const left = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
       const right = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
       return right - left;
@@ -366,6 +375,7 @@ export default function InternoLayout({
     return `Ultimo arquivo: ${date.toLocaleString("pt-BR")}`;
   }, [lastArchiveAt]);
   const coverageCards = useMemo(() => buildCoverageCards(moduleHistory), [moduleHistory]);
+  const currentModuleKey = useMemo(() => inferModuleKeyFromPathname(router.pathname), [router.pathname]);
   const coverageRouteCount = useMemo(() => {
     return new Set(coverageCards.map((item) => item.routePath).filter(Boolean)).size;
   }, [coverageCards]);
@@ -401,6 +411,35 @@ export default function InternoLayout({
     logPane,
     router.pathname,
     schemaIssues.length,
+    title,
+  ]);
+
+  useEffect(() => {
+    if (!currentModuleKey) return;
+    persistModuleHistory(currentModuleKey, {
+      routePath: router.pathname,
+      title,
+      description,
+      shell: "interno-page",
+      consoleOpen,
+      consoleTab,
+      logPane,
+      copilotOpen,
+      coverage: {
+        routeTracked: true,
+        consoleIntegrated: true,
+        rightRailEnabled: shouldRenderDotobotRail,
+      },
+    });
+  }, [
+    consoleOpen,
+    consoleTab,
+    copilotOpen,
+    currentModuleKey,
+    description,
+    logPane,
+    router.pathname,
+    shouldRenderDotobotRail,
     title,
   ]);
 

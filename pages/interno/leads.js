@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch } from "../../lib/admin/api";
+import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../lib/admin/module-registry";
 
 function SummaryCard({ label, value }) {
   return (
@@ -60,10 +62,30 @@ function LeadsContent({ filters, setFilters, state, setState }) {
 
         const payload = await adminFetch(`/api/admin-leads?${params.toString()}`);
         if (!cancelled) {
+          appendActivityLog({
+            label: "Leitura de leads",
+            action: "leads_load",
+            method: "UI",
+            module: "leads",
+            page: "/interno/leads",
+            status: "success",
+            response: `Filtro email=${filters.email || "vazio"}, itens=${payload.items?.length || 0}.`,
+            tags: ["leads", "manual", "crm"],
+          });
           setState({ loading: false, error: null, warning: payload.warning || null, items: payload.items || [] });
         }
       } catch (error) {
         if (!cancelled) {
+          appendActivityLog({
+            label: "Falha na leitura de leads",
+            action: "leads_load",
+            method: "UI",
+            module: "leads",
+            page: "/interno/leads",
+            status: "error",
+            error: error.message || "Falha ao carregar leads.",
+            tags: ["leads", "manual", "crm"],
+          });
           setState({ loading: false, error: error.message, warning: null, items: [] });
         }
       }
@@ -79,6 +101,36 @@ function LeadsContent({ filters, setFilters, state, setState }) {
   const abertos = useMemo(() => countByStatus(state.items, 2), [state.items]);
   const pendentes = useMemo(() => countByStatus(state.items, 3), [state.items]);
   const resolvidos = useMemo(() => countByStatus(state.items, 4), [state.items]);
+
+  useEffect(() => {
+    setModuleHistory(
+      "leads",
+      buildModuleSnapshot("leads", {
+        routePath: "/interno/leads",
+        loading: state.loading,
+        error: state.error,
+        warning: state.warning,
+        filters,
+        total,
+        abertos,
+        pendentes,
+        resolvidos,
+        recentTickets: state.items.slice(0, 8).map((item) => ({
+          id: item.id,
+          status: item.status,
+          priority: item.priority,
+          subject: item.subject,
+          email: item.email,
+          updated_at: item.updated_at,
+        })),
+        coverage: {
+          routeTracked: true,
+          consoleIntegrated: true,
+          filtersTracked: true,
+        },
+      }),
+    );
+  }, [abertos, filters, pendentes, resolvidos, state, total]);
 
   return (
     <div>

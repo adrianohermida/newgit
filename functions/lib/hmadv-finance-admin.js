@@ -181,6 +181,7 @@ function buildImportSourceCounts(rows, runsById) {
 function formatRecentReceivable(row, contractsById, contactsById) {
   const contract = contractsById.get(String(row.contract_id || "").trim()) || null;
   const contact = contactsById.get(String(row.contact_id || "").trim()) || null;
+  const syncStatus = row.freshsales_deal_id ? "freshsales_synced" : "canonical_only";
   return {
     id: row.id,
     title: contract?.title || row.description || row.invoice_number || "Recebivel",
@@ -193,6 +194,8 @@ function formatRecentReceivable(row, contractsById, contactsById) {
     process_reference: contract?.process_reference || null,
     freshsales_account_id: row.freshsales_account_id || contract?.freshsales_account_id || null,
     freshsales_deal_id: row.freshsales_deal_id || null,
+    sync_status: syncStatus,
+    sync_status_label: syncStatus === "freshsales_synced" ? "Sincronizado no Freshsales" : "Base canonica pendente de Deal",
     contact_name: contact?.name || null,
     contact_email: contact?.email || null,
     created_at: row.created_at || null,

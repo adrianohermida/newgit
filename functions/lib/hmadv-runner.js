@@ -20,6 +20,7 @@ import {
   syncPublicationActivities,
 } from "./hmadv-ops.js";
 import {
+  drainContactAdminJobs,
   getContactsOverview,
   reconcilePartesContacts,
   syncFreshsalesContactsMirror,
@@ -1211,6 +1212,7 @@ export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
   const datajudActionRepair = await runTaggedDatajudActionPlanPipeline(env);
   const coverage = await runFreshsalesCoveragePipeline(env);
   const contacts = await runContactsCoveragePipeline(env);
+  const contactJobs = await drainContactAdminJobs(env, { maxChunks: Math.max(1, Math.min(Number(maxChunks || 2), 4)) });
   const gapRepair = await runCoverageGapRepairPipeline(env);
   const coverageSnapshot = await runCoverageSnapshotPipeline(env);
   const coverageOverview = await getPersistedCoverageOverview(env).catch(() => null);
@@ -1230,6 +1232,7 @@ export async function drainHmadvQueues(env, { maxChunks = 2 } = {}) {
     datajudMetrics,
     coverage,
     contacts,
+    contactJobs,
     gapRepair,
     coverageSnapshot,
     coverageMetrics: buildCoverageMetrics(coverageSnapshot, coverageOverview),

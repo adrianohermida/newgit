@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch } from "../../lib/admin/api";
+import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../lib/admin/module-registry";
 
 function MetricCard({ label, value, helper }) {
   return (
@@ -173,9 +175,29 @@ function FinanceiroInternoContent() {
         }),
       });
       setResolutionState({ loading: false, error: null, result: payload.data || null });
+      appendActivityLog({
+        label: "Resolucao manual aplicada",
+        action: "financeiro_resolve_account_rows",
+        method: "UI",
+        module: "financeiro",
+        page: "/interno/financeiro",
+        status: "success",
+        response: `Linhas ${selectedPendingRows.join(", ")} vinculadas ao processo ${candidate?.id || "n/d"}.`,
+        tags: ["financeiro", "manual", "crm"],
+      });
       setSelectedPendingRows([]);
       await load();
     } catch (error) {
+      appendActivityLog({
+        label: "Falha na resolucao manual",
+        action: "financeiro_resolve_account_rows",
+        method: "UI",
+        module: "financeiro",
+        page: "/interno/financeiro",
+        status: "error",
+        error: error.message || "Falha ao aplicar reconciliacao manual.",
+        tags: ["financeiro", "manual", "crm"],
+      });
       setResolutionState({ loading: false, error: error.message || "Falha ao aplicar reconciliacao manual.", result: null });
     }
   }
@@ -192,8 +214,28 @@ function FinanceiroInternoContent() {
         }),
       });
       setTextualBackfillState({ loading: false, error: null, result: payload.data || null });
+      appendActivityLog({
+        label: "Backfill textual executado",
+        action: "financeiro_backfill_textual_accounts",
+        method: "UI",
+        module: "financeiro",
+        page: "/interno/financeiro",
+        status: "success",
+        response: `Limite ${textualBackfillLimit}. Contratos atualizados ${payload.data?.updated_contracts || 0}.`,
+        tags: ["financeiro", "manual", "jobs"],
+      });
       await load();
     } catch (error) {
+      appendActivityLog({
+        label: "Falha no backfill textual",
+        action: "financeiro_backfill_textual_accounts",
+        method: "UI",
+        module: "financeiro",
+        page: "/interno/financeiro",
+        status: "error",
+        error: error.message || "Falha ao criar/vincular accounts textuais.",
+        tags: ["financeiro", "manual", "jobs"],
+      });
       setTextualBackfillState({ loading: false, error: error.message || "Falha ao criar/vincular accounts textuais.", result: null });
     }
   }
@@ -210,8 +252,28 @@ function FinanceiroInternoContent() {
         }),
       }, { timeoutMs: 180000, maxRetries: 0 });
       setOperationState({ loading: null, error: null, result: payload.data || null });
+      appendActivityLog({
+        label: "Runner financeiro executado",
+        action: "financeiro_run_operation",
+        method: "UI",
+        module: "financeiro",
+        page: "/interno/financeiro",
+        status: "success",
+        response: `Operacao ${operation} finalizada com exit ${payload.data?.code ?? "n/d"}.`,
+        tags: ["financeiro", "manual", "jobs"],
+      });
       await load();
     } catch (error) {
+      appendActivityLog({
+        label: "Falha no runner financeiro",
+        action: "financeiro_run_operation",
+        method: "UI",
+        module: "financeiro",
+        page: "/interno/financeiro",
+        status: "error",
+        error: error.message || "Falha ao executar operacao administrativa.",
+        tags: ["financeiro", "manual", "jobs"],
+      });
       setOperationState({ loading: null, error: error.message || "Falha ao executar operacao administrativa.", result: null });
     }
   }
@@ -228,8 +290,28 @@ function FinanceiroInternoContent() {
         }),
       });
       setConfigState({ loading: false, error: null, result: payload.data || null });
+      appendActivityLog({
+        label: "Configuracao financeira salva",
+        action: "financeiro_update_config",
+        method: "UI",
+        module: "financeiro",
+        page: "/interno/financeiro",
+        status: "success",
+        response: "Configuracao operacional persistida com sucesso.",
+        tags: ["financeiro", "manual"],
+      });
       await load();
     } catch (error) {
+      appendActivityLog({
+        label: "Falha ao salvar configuracao financeira",
+        action: "financeiro_update_config",
+        method: "UI",
+        module: "financeiro",
+        page: "/interno/financeiro",
+        status: "error",
+        error: error.message || "Falha ao salvar configuracao operacional.",
+        tags: ["financeiro", "manual"],
+      });
       setConfigState({ loading: false, error: error.message || "Falha ao salvar configuracao operacional.", result: null });
     }
   }
@@ -243,6 +325,50 @@ function FinanceiroInternoContent() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    const data = state.data || {};
+    setModuleHistory(
+      "financeiro",
+      buildModuleSnapshot("financeiro", {
+        routePath: "/interno/financeiro",
+        loading: state.loading,
+        error: state.error,
+        overview: data.overview || null,
+        resolution: data.resolution || null,
+        diagnostics: data.diagnostics || null,
+        selectedPendingRows: selectedPendingRows.length,
+        processSearchCount: processSearch.items.length,
+        processSearchLoading: processSearch.loading,
+        operationLoading: operationState.loading,
+        configLoading: configState.loading,
+        textualBackfillLoading: textualBackfillState.loading,
+        guidance: operationState.result?.guidance || null,
+        freshsalesAuth: data.freshsales_auth || null,
+        recentImportRuns: Array.isArray(data.recent_import_runs) ? data.recent_import_runs.slice(0, 6) : [],
+        recentReceivables: Array.isArray(data.recent_receivables) ? data.recent_receivables.slice(0, 6) : [],
+        pendingAccountRows: Number(data.pending_account_rows?.length || 0),
+        pendingContactRows: Number(data.pending_contact_rows?.length || 0),
+        dealFailures: Number(data.deal_failures?.length || 0),
+        crmQueueBacklog: Number(data.crm_queue_backlog?.length || 0),
+        coverage: {
+          routeTracked: true,
+          consoleIntegrated: true,
+          actionsTracked: true,
+          filtersTracked: true,
+        },
+      }),
+    );
+  }, [
+    configState.loading,
+    operationState.loading,
+    operationState.result,
+    processSearch.items,
+    processSearch.loading,
+    selectedPendingRows.length,
+    state,
+    textualBackfillState.loading,
+  ]);
 
   const cards = useMemo(() => {
     const overview = state.data?.overview || {};
@@ -567,12 +693,16 @@ function FinanceiroInternoContent() {
                   <p className="font-semibold">{item.title}</p>
                   <StatusBadge tone={toneForStatus(item.status)}>{item.status || "sem_status"}</StatusBadge>
                   {item.freshsales_account_id ? <StatusBadge tone="success">account resolvido</StatusBadge> : <StatusBadge tone="warn">textual_only</StatusBadge>}
+                  <StatusBadge tone={item.sync_status === "freshsales_synced" ? "success" : "accent"}>
+                    {item.sync_status_label || item.sync_status}
+                  </StatusBadge>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 opacity-70">
                   <span>Contato: {item.contact_name || item.contact_email || "sem contato"}</span>
                   <span>Vencimento: {item.due_date || "n/d"}</span>
                   <span>Saldo: {formatMoney(item.balance_due || 0)}</span>
                 </div>
+                {item.freshsales_deal_id ? <p className="mt-2 opacity-55">Deal Freshsales: {item.freshsales_deal_id}</p> : null}
                 {item.process_reference ? <p className="mt-2 opacity-55">Processo: {item.process_reference}</p> : null}
               </article>
             ))}

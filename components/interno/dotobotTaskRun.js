@@ -3,7 +3,7 @@ import {
   startAdminTaskRun,
   pollAdminTaskRun,
   cancelAdminTaskRun,
-} from "../../lib/admin/task-runner";
+} from "../../lib/admin/task-runner.js";
 
 export function createPendingTaskRun(query, extra = {}) {
   return createPendingTaskRunRecord(query, extra);

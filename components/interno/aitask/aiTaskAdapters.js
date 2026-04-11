@@ -1,7 +1,11 @@
-import { detectRelevantModulesForMission } from "../../../lib/admin/module-registry";
-import { normalizeTaskRunPayload } from "../../../lib/admin/task-runner";
+import { detectRelevantModulesForMission } from "../../../lib/admin/module-registry.js";
+import { normalizeTaskRunPayload } from "../../../lib/admin/task-runner-shared.js";
 
 export function detectModules(mission) {
+  if (!mission) return ["dashboard"];
+  if (/peticao|recurso|contestacao|acao|agravo/i.test(mission)) return ["documentos-juridicos"];
+  if (/audiencia|processo|cnj/i.test(mission)) return ["processos"];
+  if (/cliente|contato|cobranca/i.test(mission)) return ["clientes"];
   return detectRelevantModulesForMission(mission);
 }
 

@@ -18,6 +18,20 @@ const ACTION_LABELS = {
   run_sync_worker: "Rodar sync-worker (activities/CRM)",
   run_pending_jobs: "Drenar fila HMADV",
 };
+const CONTACT_TYPE_OPTIONS = [
+  "Cliente",
+  "Parte Adversa",
+  "Advogado Adverso",
+  "Correspondente",
+  "Terceiro Interessado",
+  "Prestador de Servico",
+  "Fornecedor",
+  "Perito",
+  "Juiz",
+  "Promotor",
+  "Desembargador",
+  "Testemunha",
+];
 const ASYNC_PUBLICACOES_ACTIONS = new Set([
   "criar_processos_publicacoes",
   "backfill_partes",
@@ -676,6 +690,18 @@ function PublicacaoDetailPanel({
   detailState,
   detailEditForm,
   setDetailEditForm,
+  detailLinkType,
+  setDetailLinkType,
+  selectedPendingParteIds,
+  selectedLinkedParteIds,
+  onTogglePendingParte,
+  onToggleLinkedParte,
+  onTogglePendingPage,
+  onToggleLinkedPage,
+  onLinkPendingPartes,
+  onMoveLinkedPartes,
+  onReclassifyLinkedPartes,
+  onUnlinkLinkedPartes,
   onRefresh,
   onSaveContact,
   onApplyValidation,
@@ -686,6 +712,8 @@ function PublicacaoDetailPanel({
   const linkedItems = data?.linkedPartes?.items || [];
   const pendingItems = data?.pendingPartes?.items || [];
   const firstLinkedContact = linkedItems.find((item) => item?.contact?.freshsales_contact_id)?.contact || data?.contactDetail?.contact || null;
+  const allPendingSelected = pendingItems.length > 0 && pendingItems.every((item) => selectedPendingParteIds.includes(item.id));
+  const allLinkedSelected = linkedItems.length > 0 && linkedItems.every((item) => selectedLinkedParteIds.includes(item.id));
   return (
     <div className="space-y-4">
       {!row ? <p className="text-sm opacity-60">Selecione um item da lista para abrir o detalhe integrado.</p> : null}
@@ -724,28 +752,78 @@ function PublicacaoDetailPanel({
       </div> : null}
       <div className="grid gap-4 md:grid-cols-2">
         <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
-          <p className="font-semibold">Partes vinculadas</p>
-          <p className="mt-1 text-xs opacity-60">{linkedItems.length} carregada(s)</p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold">Partes vinculadas</p>
+              <p className="mt-1 text-xs opacity-60">{linkedItems.length} carregada(s)</p>
+            </div>
+            <button type="button" onClick={() => onToggleLinkedPage(!allLinkedSelected)} disabled={!linkedItems.length} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-40">
+              {allLinkedSelected ? "Desmarcar lista" : "Selecionar lista"}
+            </button>
+          </div>
           <div className="mt-3 space-y-2">
-            {linkedItems.slice(0, 6).map((item) => <div key={item.id} className="border border-[#2D2E2E] p-3">
-              <p className="font-semibold">{item.nome}</p>
-              <p className="mt-1 text-xs opacity-60">{item.tipo_contato || "sem tipo"} {item.contact?.name ? `• ${item.contact.name}` : ""}</p>
-            </div>)}
+            {linkedItems.slice(0, 8).map((item) => <label key={item.id} className="block border border-[#2D2E2E] p-3 cursor-pointer">
+              <div className="flex gap-3">
+                <input type="checkbox" checked={selectedLinkedParteIds.includes(item.id)} onChange={() => onToggleLinkedParte(item.id)} className="mt-1" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold">{item.nome}</p>
+                  <p className="mt-1 text-xs opacity-60">{item.tipo_contato || "sem tipo"} {item.contact?.name ? `• ${item.contact.name}` : ""}</p>
+                </div>
+              </div>
+            </label>)}
             {!linkedItems.length ? <p className="text-xs opacity-60">Nenhuma parte vinculada carregada.</p> : null}
           </div>
         </div>
         <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
-          <p className="font-semibold">Partes pendentes</p>
-          <p className="mt-1 text-xs opacity-60">{pendingItems.length} carregada(s)</p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold">Partes pendentes</p>
+              <p className="mt-1 text-xs opacity-60">{pendingItems.length} carregada(s)</p>
+            </div>
+            <button type="button" onClick={() => onTogglePendingPage(!allPendingSelected)} disabled={!pendingItems.length} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-40">
+              {allPendingSelected ? "Desmarcar lista" : "Selecionar lista"}
+            </button>
+          </div>
           <div className="mt-3 space-y-2">
-            {pendingItems.slice(0, 6).map((item) => <div key={item.id} className="border border-[#2D2E2E] p-3">
-              <p className="font-semibold">{item.nome}</p>
-              <p className="mt-1 text-xs opacity-60">{item.polo || "sem polo"} {item.tipo_pessoa ? `• ${item.tipo_pessoa}` : ""}</p>
-            </div>)}
+            {pendingItems.slice(0, 8).map((item) => <label key={item.id} className="block border border-[#2D2E2E] p-3 cursor-pointer">
+              <div className="flex gap-3">
+                <input type="checkbox" checked={selectedPendingParteIds.includes(item.id)} onChange={() => onTogglePendingParte(item.id)} className="mt-1" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold">{item.nome}</p>
+                  <p className="mt-1 text-xs opacity-60">{item.polo || "sem polo"} {item.tipo_pessoa ? `• ${item.tipo_pessoa}` : ""}</p>
+                </div>
+              </div>
+            </label>)}
             {!pendingItems.length ? <p className="text-xs opacity-60">Nenhuma parte pendente carregada.</p> : null}
           </div>
         </div>
       </div>
+      {(linkedItems.length || pendingItems.length) ? <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
+        <div className="grid gap-3 md:grid-cols-[240px_auto_auto_auto_auto]">
+          <label className="text-xs uppercase tracking-[0.14em] opacity-60">Tipo alvo
+            <select value={detailLinkType} onChange={(event) => setDetailLinkType(event.target.value)} className="mt-2 w-full border border-[#2D2E2E] bg-[#050706] px-3 py-2 text-sm text-[#F4F1EA]">
+              {CONTACT_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+          </label>
+          <button type="button" onClick={onLinkPendingPartes} disabled={actionLoading || !selectedPendingParteIds.length || !firstLinkedContact?.freshsales_contact_id} className="self-end border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-40">
+            Vincular pendentes
+          </button>
+          <button type="button" onClick={onMoveLinkedPartes} disabled={actionLoading || !selectedLinkedParteIds.length || !firstLinkedContact?.freshsales_contact_id} className="self-end border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-40">
+            Mover vinculadas
+          </button>
+          <button type="button" onClick={onReclassifyLinkedPartes} disabled={actionLoading || !selectedLinkedParteIds.length} className="self-end border border-[#6E5630] px-3 py-2 text-xs text-[#F8E7B5] disabled:opacity-40">
+            Reclassificar
+          </button>
+          <button type="button" onClick={onUnlinkLinkedPartes} disabled={actionLoading || !selectedLinkedParteIds.length} className="self-end border border-[#5B2D2D] px-3 py-2 text-xs text-[#FECACA] disabled:opacity-40">
+            Desvincular
+          </button>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-3 text-xs opacity-65">
+          <span>Pendentes marcadas: {selectedPendingParteIds.length}</span>
+          <span>Vinculadas marcadas: {selectedLinkedParteIds.length}</span>
+          <span>Tipo alvo: {detailLinkType}</span>
+        </div>
+      </div> : null}
       {firstLinkedContact ? <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -1024,6 +1102,9 @@ function PublicacoesContent() {
   const [selectedIntegratedNumbers, setSelectedIntegratedNumbers] = useState([]);
   const [detailState, setDetailState] = useState({ loading: false, error: null, row: null, data: null });
   const [detailEditForm, setDetailEditForm] = useState({ name: "", email: "", phone: "", note: "" });
+  const [detailLinkType, setDetailLinkType] = useState("Cliente");
+  const [selectedDetailPendingPartes, setSelectedDetailPendingPartes] = useState([]);
+  const [selectedDetailLinkedPartes, setSelectedDetailLinkedPartes] = useState([]);
   const [bulkValidationStatus, setBulkValidationStatus] = useState("validado");
   const [bulkValidationNote, setBulkValidationNote] = useState("");
   const processCandidatesRequestRef = useRef({ promise: null, page: null });
@@ -1220,6 +1301,10 @@ function PublicacoesContent() {
       row: { ...state.row, validation: nextValidation },
     } : state);
   }, [detailState?.row?.numero_cnj, validationMap]);
+  useEffect(() => {
+    setSelectedDetailPendingPartes([]);
+    setSelectedDetailLinkedPartes([]);
+  }, [detailState?.row?.numero_cnj]);
   useEffect(() => {
     if (!jobs.length) return;
     const runningJob = jobs.find((item) => item.status === "running" || item.status === "pending");
@@ -1754,6 +1839,93 @@ function PublicacoesContent() {
     } catch (error) {
       setActionState({ loading: false, error: error.message || "Falha ao reconciliar partes e contatos.", result: null });
     }
+  }
+
+  function toggleDetailPendingParte(id) {
+    setSelectedDetailPendingPartes((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+
+  function toggleDetailLinkedParte(id) {
+    setSelectedDetailLinkedPartes((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+
+  function toggleDetailPendingPage(nextState) {
+    const ids = (detailState?.data?.pendingPartes?.items || []).map((item) => item.id).filter(Boolean);
+    if (nextState) {
+      setSelectedDetailPendingPartes(ids);
+      return;
+    }
+    setSelectedDetailPendingPartes([]);
+  }
+
+  function toggleDetailLinkedPage(nextState) {
+    const ids = (detailState?.data?.linkedPartes?.items || []).map((item) => item.id).filter(Boolean);
+    if (nextState) {
+      setSelectedDetailLinkedPartes(ids);
+      return;
+    }
+    setSelectedDetailLinkedPartes([]);
+  }
+
+  async function runDetailParteAction(action, payload, successMessage) {
+    setActionState({ loading: true, error: null, result: null });
+    try {
+      const response = await adminFetch("/api/admin-hmadv-contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ...payload }),
+      }, {
+        action,
+        component: "publicacoes-integrated-detail",
+        label: successMessage,
+        expectation: successMessage,
+      });
+      if (detailState?.row) {
+        await loadIntegratedDetail(detailState.row);
+      }
+      setActionState({ loading: false, error: null, result: response.data || { ok: true } });
+    } catch (error) {
+      setActionState({ loading: false, error: error.message || "Falha ao atualizar partes do detalhe.", result: null });
+    }
+  }
+
+  async function linkPendingDetailPartes() {
+    const contactId = detailState?.data?.contactDetail?.contact?.freshsales_contact_id || detailState?.data?.linkedPartes?.items?.find((item) => item?.contact?.freshsales_contact_id)?.contact?.freshsales_contact_id;
+    if (!contactId || !selectedDetailPendingPartes.length) return;
+    await runDetailParteAction("vincular_partes", {
+      parteIds: selectedDetailPendingPartes,
+      contactId,
+      type: detailLinkType,
+    }, "Vincular partes pendentes ao contato do detalhe");
+    setSelectedDetailPendingPartes([]);
+  }
+
+  async function moveLinkedDetailPartes() {
+    const contactId = detailState?.data?.contactDetail?.contact?.freshsales_contact_id || detailState?.data?.linkedPartes?.items?.find((item) => item?.contact?.freshsales_contact_id)?.contact?.freshsales_contact_id;
+    if (!contactId || !selectedDetailLinkedPartes.length) return;
+    await runDetailParteAction("vincular_partes", {
+      parteIds: selectedDetailLinkedPartes,
+      contactId,
+      type: detailLinkType,
+    }, "Mover partes vinculadas para o contato em foco");
+    setSelectedDetailLinkedPartes([]);
+  }
+
+  async function reclassifyLinkedDetailPartes() {
+    if (!selectedDetailLinkedPartes.length) return;
+    await runDetailParteAction("reclassificar_partes", {
+      parteIds: selectedDetailLinkedPartes,
+      type: detailLinkType,
+    }, "Reclassificar tipo de contato das partes vinculadas");
+    setSelectedDetailLinkedPartes([]);
+  }
+
+  async function unlinkLinkedDetailPartes() {
+    if (!selectedDetailLinkedPartes.length) return;
+    await runDetailParteAction("desvincular_partes", {
+      parteIds: selectedDetailLinkedPartes,
+    }, "Desvincular partes do contato atual");
+    setSelectedDetailLinkedPartes([]);
   }
 
   const selectedProcessNumbers = useMemo(
@@ -2455,6 +2627,18 @@ function PublicacoesContent() {
               detailState={detailState}
               detailEditForm={detailEditForm}
               setDetailEditForm={setDetailEditForm}
+              detailLinkType={detailLinkType}
+              setDetailLinkType={setDetailLinkType}
+              selectedPendingParteIds={selectedDetailPendingPartes}
+              selectedLinkedParteIds={selectedDetailLinkedPartes}
+              onTogglePendingParte={toggleDetailPendingParte}
+              onToggleLinkedParte={toggleDetailLinkedParte}
+              onTogglePendingPage={toggleDetailPendingPage}
+              onToggleLinkedPage={toggleDetailLinkedPage}
+              onLinkPendingPartes={linkPendingDetailPartes}
+              onMoveLinkedPartes={moveLinkedDetailPartes}
+              onReclassifyLinkedPartes={reclassifyLinkedDetailPartes}
+              onUnlinkLinkedPartes={unlinkLinkedDetailPartes}
               onRefresh={() => detailState.row ? loadIntegratedDetail(detailState.row) : Promise.resolve()}
               onSaveContact={saveDetailContact}
               onApplyValidation={(status) => detailState.row?.numero_cnj ? applyValidationToNumbers([detailState.row.numero_cnj], status, detailEditForm.note || "") : null}

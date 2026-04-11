@@ -3,6 +3,8 @@ import Link from "next/link";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch } from "../../lib/admin/api";
+import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
+import { buildModuleSnapshot } from "../../lib/admin/module-registry";
 
 function formatDateLabel(value) {
   if (!value) return "Sem data";
@@ -69,10 +71,30 @@ function AgendamentosContent({ filters, setFilters, state, setState }) {
         const payload = await adminFetch(buildQuery(filters));
 
         if (!cancelled) {
+          appendActivityLog({
+            label: "Leitura de agendamentos",
+            action: "agendamentos_load",
+            method: "UI",
+            module: "agendamentos",
+            page: "/interno/agendamentos",
+            status: "success",
+            response: `Filtros carregados: status=${filters.status || "todos"}, periodo=${filters.dateFrom || "inicio"}..${filters.dateTo || "fim"}, itens=${payload.items?.length || 0}.`,
+            tags: ["agendamentos", "manual"],
+          });
           setState({ loading: false, error: null, items: payload.items || [] });
         }
       } catch (error) {
         if (!cancelled) {
+          appendActivityLog({
+            label: "Falha na leitura de agendamentos",
+            action: "agendamentos_load",
+            method: "UI",
+            module: "agendamentos",
+            page: "/interno/agendamentos",
+            status: "error",
+            error: error.message || "Falha ao carregar agendamentos.",
+            tags: ["agendamentos", "manual"],
+          });
           setState({ loading: false, error: error.message, items: [] });
         }
       }
@@ -88,6 +110,35 @@ function AgendamentosContent({ filters, setFilters, state, setState }) {
   const pendentes = countByStatus(state.items, "pendente");
   const confirmados = countByStatus(state.items, "confirmado");
   const cancelados = countByStatus(state.items, "cancelado");
+
+  useEffect(() => {
+    setModuleHistory(
+      "agendamentos",
+      buildModuleSnapshot("agendamentos", {
+        routePath: "/interno/agendamentos",
+        loading: state.loading,
+        error: state.error,
+        filters,
+        total,
+        pendentes,
+        confirmados,
+        cancelados,
+        upcomingItems: state.items.slice(0, 8).map((item) => ({
+          id: item.id,
+          area: item.area,
+          status: item.status,
+          nome: item.nome,
+          data: item.data,
+          hora: item.hora,
+        })),
+        coverage: {
+          routeTracked: true,
+          consoleIntegrated: true,
+          filtersTracked: true,
+        },
+      }),
+    );
+  }, [cancelados, confirmados, filters, pendentes, state, total]);
 
   return (
     <div>

@@ -2455,6 +2455,7 @@ function buildCanonicalFinanceItem(receivable, processRow = null) {
     contract?.process_reference ||
     receivable?.freshsales_account_id ||
     null;
+  const syncStatus = receivable?.freshsales_deal_id ? "freshsales_synced" : "canonical_only";
 
   return {
     id: receivable.id,
@@ -2469,6 +2470,9 @@ function buildCanonicalFinanceItem(receivable, processRow = null) {
     created_at: receivable.created_at || null,
     updated_at: receivable.updated_at || null,
     stage: receivable.status || null,
+    sync_status: syncStatus,
+    sync_status_label: syncStatus === "freshsales_synced" ? "Sincronizado no Freshsales" : "Base canonica pendente de Deal",
+    freshsales_deal_id: receivable?.freshsales_deal_id || null,
     process_account: processRow
       ? {
           id: processRow.account_id_freshsales || processRow.id || null,
@@ -2522,7 +2526,7 @@ async function listCanonicalClientFinanceiro(env, email) {
   const receivables = await safeResolve(
     () => fetchSupabaseAdmin(
       env,
-      `billing_receivables?select=id,contract_id,contact_id,process_id,freshsales_account_id,receivable_type,invoice_number,description,due_date,status,amount_original,balance_due,balance_due_corrected,created_at,updated_at,contracts:billing_contracts(id,title,process_reference,freshsales_contact_id,freshsales_account_id),products:freshsales_products(id,name,billing_type)&or=(${orFilters.join(",")})&order=due_date.desc&limit=500`
+      `billing_receivables?select=id,contract_id,contact_id,process_id,freshsales_account_id,freshsales_deal_id,receivable_type,invoice_number,description,due_date,status,amount_original,balance_due,balance_due_corrected,created_at,updated_at,contracts:billing_contracts(id,title,process_reference,freshsales_contact_id,freshsales_account_id),products:freshsales_products(id,name,billing_type)&or=(${orFilters.join(",")})&order=due_date.desc&limit=500`
     ),
     []
   );
@@ -2612,6 +2616,8 @@ async function listCanonicalClientFinanceiro(env, email) {
       contacts_found: contacts.length,
       linked_accounts: accountIds.length,
       related_deals: items.length,
+      freshsales_synced: items.filter((item) => item.sync_status === "freshsales_synced").length,
+      canonical_only: items.filter((item) => item.sync_status === "canonical_only").length,
       source: "supabase_billing_canonical",
     },
     warning: processPortfolio.warning || null,

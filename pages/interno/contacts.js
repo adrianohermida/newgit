@@ -176,6 +176,7 @@ function ContactsContent() {
   const [partesVinculadas, setPartesVinculadas] = useState({ loading: true, error: null, items: [], totalRows: 0 });
   const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
   const [executionHistory, setExecutionHistory] = useState([]);
+  const [jobsState, setJobsState] = useState({ loading: true, error: null, items: [] });
   const [page, setPage] = useState(1);
   const [duplicatesPage, setDuplicatesPage] = useState(1);
   const [partesPage, setPartesPage] = useState(1);
@@ -195,6 +196,7 @@ function ContactsContent() {
   const [createForm, setCreateForm] = useState({ name: "", type: "Cliente", email: "", phone: "", cpf: "", cnpj: "", cep: "", externalId: "" });
   const [bulkCreateText, setBulkCreateText] = useState("");
   const [bulkCreateIntervalMs, setBulkCreateIntervalMs] = useState(1200);
+  const [scheduleAt, setScheduleAt] = useState("");
   const [editForm, setEditForm] = useState(buildEditableForm(null));
   const [mergeTargetId, setMergeTargetId] = useState("");
   const [cep, setCep] = useState("");
@@ -254,6 +256,7 @@ function ContactsContent() {
   useEffect(() => { loadDuplicates(duplicatesPage); }, [duplicatesPage]);
   useEffect(() => { loadPartesPendentes(partesPage, partesQuery); }, [partesPage, partesQuery]);
   useEffect(() => { loadPartesVinculadas(linkedPage, linkedQuery, linkedType); }, [linkedPage, linkedQuery, linkedType]);
+  useEffect(() => { loadJobs(); }, []);
   useEffect(() => {
     if (!selectedContactId) {
       setDetailState({ loading: false, error: null, data: null });
@@ -315,12 +318,18 @@ function ContactsContent() {
         error: actionState.error,
         preview: buildActionPreview(actionState.result),
       },
+      jobs: {
+        loading: jobsState.loading,
+        error: jobsState.error,
+        total: jobsState.items.length,
+      },
       settings: {
         syncLimit: Number(syncLimit || 0),
         bulkCreateIntervalMs: Number(bulkCreateIntervalMs || 0),
         reconcileLimit: Number(reconcileLimit || 0),
         personType,
         linkType,
+        scheduleAt: scheduleAt || null,
       },
       executionHistory,
     });
@@ -334,6 +343,9 @@ function ContactsContent() {
     duplicatesState.loading,
     duplicatesState.totalRows,
     executionHistory,
+    jobsState.error,
+    jobsState.items.length,
+    jobsState.loading,
     linkedPage,
     linkedQuery,
     linkedType,
@@ -361,6 +373,7 @@ function ContactsContent() {
     selectedPartes.length,
     syncLimit,
     bulkCreateIntervalMs,
+    scheduleAt,
     type,
   ]);
 
@@ -374,6 +387,19 @@ function ContactsContent() {
       setOverview({ loading: false, error: null, data: payload.data });
     } catch (error) {
       setOverview({ loading: false, error: error.message || "Falha ao carregar overview.", data: null });
+    }
+  }
+
+  async function loadJobs() {
+    setJobsState((current) => ({ ...current, loading: true, error: null }));
+    try {
+      const payload = await adminFetch("/api/admin-hmadv-contacts?action=jobs&limit=12", {}, {
+        component: "contacts-jobs",
+        label: "Carregar jobs de contatos",
+      });
+      setJobsState({ loading: false, error: null, items: payload?.data?.items || [] });
+    } catch (error) {
+      setJobsState({ loading: false, error: error.message || "Falha ao carregar jobs de contatos.", items: [] });
     }
   }
 
@@ -482,6 +508,7 @@ function ContactsContent() {
         loadDuplicates(duplicatesPage),
         loadPartesPendentes(partesPage, partesQuery),
         loadPartesVinculadas(linkedPage, linkedQuery, linkedType),
+        loadJobs(),
         selectedContactId ? loadDetail(selectedContactId) : Promise.resolve(),
       ]);
       return response.data;
@@ -540,6 +567,12 @@ function ContactsContent() {
     setSelectedContactIds(ids);
   }
 
+  function buildScheduledIso() {
+    if (!scheduleAt) return null;
+    const iso = new Date(scheduleAt).toISOString();
+    return Number.isNaN(Date.parse(iso)) ? null : iso;
+  }
+
   const overviewData = overview.data || {};
   const typeOptions = useMemo(() => Object.entries(overviewData.tipos || {}).sort((a, b) => b[1] - a[1]), [overviewData.tipos]);
   const selectedParteNumbers = useMemo(() => {
@@ -596,6 +629,7 @@ function ContactsContent() {
             <ActionButton onClick={() => setSelectedContactIds([])} disabled={!selectedContactIds.length}>Limpar selecao</ActionButton>
             <ActionButton onClick={() => runAction("validate_contacts", { contactIds: selectedContactIds, query, type, limit: selectedContactIds.length || contactPageSize, apply: false })} disabled={actionState.loading || (!selectedContactIds.length && !listState.items.length)}>Validar selecao</ActionButton>
             <ActionButton tone="primary" onClick={() => runAction("validate_contacts", { contactIds: selectedContactIds, query, type, limit: selectedContactIds.length || contactPageSize, apply: true })} disabled={actionState.loading || (!selectedContactIds.length && !listState.items.length)}>Aplicar higienizacao</ActionButton>
+            <ActionButton onClick={() => runAction("schedule_contact_job", { jobAction: "validate_contacts", contactIds: selectedContactIds, query, type, limit: Math.max(selectedContactIds.length || contactPageSize, 1), apply: true, scheduledFor: buildScheduledIso() })} disabled={actionState.loading || (!selectedContactIds.length && !listState.items.length)}>Agendar higienizacao</ActionButton>
             <ActionButton tone="danger" onClick={() => runAction("delete_contacts_bulk", { contactIds: selectedContactIds })} disabled={actionState.loading || !selectedContactIds.length}>Excluir selecionados</ActionButton>
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60">
@@ -749,12 +783,17 @@ function ContactsContent() {
         <div className="mt-6 space-y-3 border-t border-[#2D2E2E] pt-5">
           <p className="text-xs uppercase tracking-[0.15em] opacity-50">Criacao em lote com protecao de rate limit</p>
           <textarea value={bulkCreateText} onChange={(event) => setBulkCreateText(event.target.value)} placeholder={"Um nome por linha\n, Maria da Silva\nJoao Pereira,\nEmpresa XPTO LTDA"} rows={8} className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
-          <div className="grid gap-3 md:grid-cols-[220px_auto_auto]">
+          <div className="grid gap-3 md:grid-cols-[220px_220px_auto_auto]">
             <input type="number" min="500" step="100" value={bulkCreateIntervalMs} onChange={(event) => setBulkCreateIntervalMs(Number(event.target.value || 1200))} className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
+            <input type="datetime-local" value={scheduleAt} onChange={(event) => setScheduleAt(event.target.value)} className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
             <ActionButton onClick={() => runAction("bulk_create_contacts", { names: bulkCreateNames, type: createForm.type, intervalMs: bulkCreateIntervalMs, dryRun: true })} disabled={actionState.loading || !bulkCreateNames.length}>Simular lote</ActionButton>
             <ActionButton tone="primary" onClick={() => runAction("bulk_create_contacts", { names: bulkCreateNames, type: createForm.type, intervalMs: bulkCreateIntervalMs, dryRun: false })} disabled={actionState.loading || !bulkCreateNames.length}>Criar em lote</ActionButton>
           </div>
-          <p className="text-xs opacity-60">{bulkCreateNames.length} nomes prontos para criacao. A higienizacao remove virgulas no inicio/fim e o backend respeita intervalo entre chamadas no Freshsales.</p>
+          <div className="flex flex-wrap gap-3">
+            <ActionButton onClick={() => runAction("schedule_contact_job", { jobAction: "bulk_create_contacts", names: bulkCreateNames, type: createForm.type, intervalMs: bulkCreateIntervalMs, dryRun: false, scheduledFor: buildScheduledIso(), limit: 25 })} disabled={actionState.loading || !bulkCreateNames.length}>Agendar lote</ActionButton>
+            <ActionButton onClick={() => runAction("drain_contact_jobs", { maxChunks: 4 })} disabled={actionState.loading}>Processar fila agora</ActionButton>
+          </div>
+          <p className="text-xs opacity-60">{bulkCreateNames.length} nomes prontos para criacao. A higienizacao remove virgulas no inicio/fim, o backend respeita intervalo entre chamadas no Freshsales e o agendamento usa a fila operacional de contatos.</p>
         </div>
       </Panel>
 
@@ -881,6 +920,34 @@ function ContactsContent() {
           </div>
           <p className="mt-1 text-xs opacity-60">{entry.startedAt ? new Date(entry.startedAt).toLocaleString("pt-BR") : "sem data"}</p>
           {entry.preview ? <p className="mt-2 opacity-75">{entry.preview}</p> : null}
+        </div>)}
+      </div> : null}
+    </Panel>
+
+    <Panel title="Fila de contatos" eyebrow="Jobs agendados">
+      <div className="flex flex-wrap gap-3">
+        <ActionButton onClick={() => loadJobs()} disabled={jobsState.loading}>Atualizar fila</ActionButton>
+        <ActionButton tone="primary" onClick={() => runAction("drain_contact_jobs", { maxChunks: 4 })} disabled={actionState.loading}>Rodar fila</ActionButton>
+      </div>
+      {jobsState.loading ? <p className="mt-4 text-sm opacity-60">Carregando jobs...</p> : null}
+      {jobsState.error ? <p className="mt-4 text-sm text-red-300">{jobsState.error}</p> : null}
+      {!jobsState.loading && !jobsState.items.length ? <p className="mt-4 text-sm opacity-60">Nenhum job de contatos registrado ainda.</p> : null}
+      {jobsState.items.length ? <div className="mt-4 space-y-3">
+        {jobsState.items.map((job) => <div key={job.id} className="border border-[#2D2E2E] p-4 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-semibold">{job.acao}</p>
+              <StatusBadge tone={job.status === "completed" ? "success" : job.status === "error" ? "danger" : job.status === "running" ? "warn" : "neutral"}>{job.status}</StatusBadge>
+            </div>
+            <span className="text-xs opacity-60">{job.created_at ? new Date(job.created_at).toLocaleString("pt-BR") : "sem data"}</span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-65">
+            <span>Processado: {job.processed_count || 0}/{job.requested_count || 0}</span>
+            <span>Sucesso: {job.success_count || 0}</span>
+            <span>Erros: {job.error_count || 0}</span>
+            {job.payload?.scheduledFor ? <span>Agendado para: {new Date(job.payload.scheduledFor).toLocaleString("pt-BR")}</span> : <span>Execucao imediata</span>}
+          </div>
+          {job.last_error ? <p className="mt-2 text-red-300">{job.last_error}</p> : null}
         </div>)}
       </div> : null}
     </Panel>
