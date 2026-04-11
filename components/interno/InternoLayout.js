@@ -10,7 +10,9 @@ import {
   clearActivityLog,
   formatActivityLogText,
   formatActivityLogMarkdown,
+  getActivityLogFilters,
   subscribeActivityLog,
+  setActivityLogFilters,
 } from "../../lib/admin/activity-log";
 
 const NAV_ITEMS = [
@@ -84,13 +86,19 @@ export default function InternoLayout({
   const [operationalNotes, setOperationalNotes] = useState([]);
   const [consoleHeight, setConsoleHeight] = useState(260);
   const [noteInput, setNoteInput] = useState("");
+  const [logFilters, setLogFilters] = useState(() => getActivityLogFilters());
+  const [logSearch, setLogSearch] = useState("");
+  const [logExpanded, setLogExpanded] = useState(null);
   const dragStateRef = useRef({ dragging: false, startY: 0, startHeight: 260 });
 
   useEffect(() => {
-    return subscribeActivityLog((entries, archives, notes) => {
+    return subscribeActivityLog((entries, archives, notes, filters) => {
       setActivityLog(entries);
       setArchivedLogs(archives || []);
       setOperationalNotes(notes || []);
+      if (filters && Object.keys(filters).length) {
+        setLogFilters(filters);
+      }
     });
   }, []);
 
@@ -158,6 +166,48 @@ export default function InternoLayout({
     appendOperationalNote({ text, type: "observacao" });
     setNoteInput("");
   }
+
+  function updateFilters(next) {
+    setLogFilters(next);
+    setActivityLogFilters(next);
+  }
+
+  const filteredLog = useMemo(() => {
+    const normalizedSearch = logSearch.trim().toLowerCase();
+    return activityLog.filter((entry) => {
+      if (logFilters.module && String(entry.module || "").toLowerCase() !== logFilters.module.toLowerCase()) {
+        return false;
+      }
+      if (logFilters.page && String(entry.page || "").toLowerCase().indexOf(logFilters.page.toLowerCase()) === -1) {
+        return false;
+      }
+      if (logFilters.component && String(entry.component || "").toLowerCase().indexOf(logFilters.component.toLowerCase()) === -1) {
+        return false;
+      }
+      if (logFilters.status && String(entry.status || "").toLowerCase() !== logFilters.status.toLowerCase()) {
+        return false;
+      }
+      if (normalizedSearch) {
+        const haystack = [
+          entry.label,
+          entry.action,
+          entry.path,
+          entry.method,
+          entry.page,
+          entry.component,
+          entry.module,
+          entry.request,
+          entry.response,
+          entry.error,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(normalizedSearch)) return false;
+      }
+      return true;
+    });
+  }, [activityLog, logFilters, logSearch]);
 
   async function handleSignOut() {
     if (supabase) {
@@ -378,9 +428,52 @@ export default function InternoLayout({
                         {formattedArchiveHint}
                       </span>
                     </div>
-                    {activityLog.length ? (
+                    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 text-[10px] uppercase tracking-[0.14em] text-[#7F928C]">
+                      <span>Filtros</span>
+                      <input
+                        value={logFilters.module || ""}
+                        onChange={(event) => updateFilters({ ...logFilters, module: event.target.value })}
+                        placeholder="Modulo"
+                        className="h-7 w-[110px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                      />
+                      <input
+                        value={logFilters.page || ""}
+                        onChange={(event) => updateFilters({ ...logFilters, page: event.target.value })}
+                        placeholder="Pagina"
+                        className="h-7 w-[140px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                      />
+                      <input
+                        value={logFilters.component || ""}
+                        onChange={(event) => updateFilters({ ...logFilters, component: event.target.value })}
+                        placeholder="Componente"
+                        className="h-7 w-[140px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                      />
+                      <input
+                        value={logFilters.status || ""}
+                        onChange={(event) => updateFilters({ ...logFilters, status: event.target.value })}
+                        placeholder="Status"
+                        className="h-7 w-[90px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                      />
+                      <input
+                        value={logSearch}
+                        onChange={(event) => setLogSearch(event.target.value)}
+                        placeholder="Buscar detalhes"
+                        className="h-7 flex-1 min-w-[160px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLogSearch("");
+                          updateFilters({});
+                        }}
+                        className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                      >
+                        Limpar filtros
+                      </button>
+                    </div>
+                    {filteredLog.length ? (
                       <div className="space-y-2">
-                        {activityLog.slice(0, 25).map((entry) => (
+                        {filteredLog.slice(0, 30).map((entry) => (
                           <div key={entry.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(8,10,9,0.6)] px-3 py-2 text-[11px]">
                             <div className="flex items-center justify-between">
                               <span className="font-semibold">{entry.label || entry.action}</span>
@@ -396,7 +489,46 @@ export default function InternoLayout({
                                 {entry.status}
                               </span>
                             </div>
-                            <div className="opacity-60">{entry.action || entry.path}</div>
+                            <div className="opacity-60">
+                              {(entry.method || "").toUpperCase()} {entry.action || entry.path || entry.page}
+                            </div>
+                            <div className="mt-1 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em] text-[#6F7E78]">
+                              {entry.module ? <span className="rounded-full border border-[#22342F] px-2 py-1">{entry.module}</span> : null}
+                              {entry.page ? <span className="rounded-full border border-[#22342F] px-2 py-1">{entry.page}</span> : null}
+                              {entry.component ? <span className="rounded-full border border-[#22342F] px-2 py-1">{entry.component}</span> : null}
+                              {entry.durationMs !== undefined ? <span className="rounded-full border border-[#22342F] px-2 py-1">{entry.durationMs}ms</span> : null}
+                            </div>
+                            <div className="mt-2">
+                              <button
+                                type="button"
+                                onClick={() => setLogExpanded((current) => (current === entry.id ? null : entry.id))}
+                                className="text-[10px] uppercase tracking-[0.14em] text-[#C5A059]"
+                              >
+                                {logExpanded === entry.id ? "Ocultar detalhes" : "Ver detalhes"}
+                              </button>
+                            </div>
+                            {logExpanded === entry.id ? (
+                              <div className="mt-2 space-y-2 text-[11px] text-[#C7D0CA]">
+                                {entry.request ? (
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-[0.14em] text-[#7F928C]">Request</p>
+                                    <pre className="mt-1 max-h-[160px] overflow-auto rounded-lg border border-[#1E2E29] bg-[rgba(9,12,11,0.6)] p-2 text-[10px] text-[#DADFD8]">{entry.request}</pre>
+                                  </div>
+                                ) : null}
+                                {entry.response ? (
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-[0.14em] text-[#7F928C]">Response</p>
+                                    <pre className="mt-1 max-h-[160px] overflow-auto rounded-lg border border-[#1E2E29] bg-[rgba(9,12,11,0.6)] p-2 text-[10px] text-[#DADFD8]">{entry.response}</pre>
+                                  </div>
+                                ) : null}
+                                {entry.error ? (
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-[0.14em] text-[#D18585]">Erro</p>
+                                    <pre className="mt-1 max-h-[160px] overflow-auto rounded-lg border border-[#3A1F22] bg-[rgba(34,12,14,0.6)] p-2 text-[10px] text-[#F2C7C7]">{entry.error}</pre>
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
                           </div>
                         ))}
                       </div>
