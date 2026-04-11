@@ -300,8 +300,10 @@ function EnvironmentContent({ state }) {
           </p>
           <p>
             Consulta vetorial Supabase:{" "}
-            <span className={dotobotRagReport.supabaseQuery?.ok ? "text-emerald-400" : "text-amber-300"}>
-              {dotobotRagReport.supabaseQuery?.ok
+            <span className={dotobotRagReport.supabaseQuery?.skipped ? "text-slate-300" : dotobotRagReport.supabaseQuery?.ok ? "text-emerald-400" : "text-amber-300"}>
+              {dotobotRagReport.supabaseQuery?.skipped
+                ? "ignorada"
+                : dotobotRagReport.supabaseQuery?.ok
                 ? `OK${typeof dotobotRagReport.supabaseQuery?.matches === "number" ? ` (${dotobotRagReport.supabaseQuery.matches} matches)` : ""}`
                 : "falhou"}
             </span>

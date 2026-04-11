@@ -163,6 +163,7 @@ export function WorkspaceHeader({
   handleApprove,
   handleOpenLlmTest,
   handleOpenDiagnostics,
+  handleOpenDotobot,
   paused,
   formatExecutionSourceLabel,
 }) {
@@ -234,6 +235,9 @@ export function WorkspaceHeader({
         <button type="button" onClick={handleOpenLlmTest} className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
           Testar provider
         </button>
+        <button type="button" onClick={handleOpenDotobot} className="rounded-full border border-[#35554B] px-4 py-2 text-xs text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]">
+          Abrir Dotobot
+        </button>
       </div>
       {ragAlert ? (
         <div className={`mt-4 rounded-[20px] border px-4 py-3 text-sm ${
@@ -299,11 +303,16 @@ export function ConfirmModal({
 
 export function RunsPane({
   recentHistory,
+  visibleHistory = recentHistory,
   activeRunId,
   formatHistoryStatus,
   formatExecutionSourceLabel,
   nowIso,
   onSelectRun,
+  historyPage = 1,
+  historyTotalPages = 1,
+  onPrevPage,
+  onNextPage,
 }) {
   return (
     <aside className="min-h-0 rounded-[28px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4 shadow-[0_16px_48px_rgba(0,0,0,0.2)]">
@@ -315,7 +324,7 @@ export function RunsPane({
         <span className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] text-[#9BAEA8]">{recentHistory.length}</span>
       </div>
       <div className="mt-4 space-y-3 overflow-y-auto pr-1">
-        {recentHistory.length ? recentHistory.map((item) => (
+        {visibleHistory.length ? visibleHistory.map((item) => (
           <RunHistoryCard
             key={`${item.id}_${item.updated_at || item.created_at || ""}`}
             item={item}
@@ -327,32 +336,167 @@ export function RunsPane({
           />
         )) : <p className="text-sm text-[#9BAEA8]">Nenhuma conversa registrada.</p>}
       </div>
+      {historyTotalPages > 1 ? (
+        <div className="mt-4 flex items-center justify-between gap-2 border-t border-[#1B2925] pt-4">
+          <button type="button" onClick={onPrevPage} disabled={historyPage <= 1} className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] text-[#D8DEDA] transition disabled:opacity-40">
+            Anterior
+          </button>
+          <span className="text-[11px] text-[#7F928C]">Página {historyPage} de {historyTotalPages}</span>
+          <button type="button" onClick={onNextPage} disabled={historyPage >= historyTotalPages} className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] text-[#D8DEDA] transition disabled:opacity-40">
+            Próxima
+          </button>
+        </div>
+      ) : null}
     </aside>
   );
 }
 
-export function TaskInspector({ tasks, selectedTaskId, onSelectTask, selectedTask, showTasks, setShowTasks }) {
+export function TaskInspector({
+  tasks,
+  visibleTasks = tasks,
+  selectedTaskId,
+  onSelectTask,
+  selectedTask,
+  showTasks,
+  setShowTasks,
+  taskViewMode = "kanban",
+  onTaskViewModeChange,
+  onTaskMove,
+  onDragTaskStart,
+  draggedTaskId,
+  hasMoreTasks = false,
+  onLoadMoreTasks,
+}) {
+  const taskColumns = {
+    pending: tasks.filter((task) => task.status !== "running" && task.status !== "done" && task.status !== "failed"),
+    running: tasks.filter((task) => task.status === "running"),
+    done: tasks.filter((task) => task.status === "done"),
+    failed: tasks.filter((task) => task.status === "failed"),
+  };
   return (
     <section className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Cards operacionais</p>
-          <p className="mt-1 text-sm text-[#9BAEA8]">Etapas, dependências e foco atual da execução.</p>
+          <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Orquestração</p>
+          <p className="mt-1 text-sm text-[#9BAEA8]">Kanban com drag and drop, lista paginada e foco atual da execução.</p>
         </div>
-        <button type="button" onClick={() => setShowTasks((value) => !value)} className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] text-[#D8DEDA]">
-          {showTasks ? "Ocultar" : "Mostrar"}
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="rounded-full border border-[#22342F] p-1">
+            <button type="button" onClick={() => onTaskViewModeChange?.("kanban")} className={`rounded-full px-3 py-1 text-[11px] transition ${taskViewMode === "kanban" ? "bg-[#C5A059] text-[#07110E]" : "text-[#D8DEDA]"}`}>
+              Kanban
+            </button>
+            <button type="button" onClick={() => onTaskViewModeChange?.("list")} className={`rounded-full px-3 py-1 text-[11px] transition ${taskViewMode === "list" ? "bg-[#C5A059] text-[#07110E]" : "text-[#D8DEDA]"}`}>
+              Lista
+            </button>
+          </div>
+          <button type="button" onClick={() => setShowTasks((value) => !value)} className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] text-[#D8DEDA]">
+            {showTasks ? "Ocultar" : "Mostrar"}
+          </button>
+        </div>
       </div>
       {selectedTask ? (
         <div className="mt-4 rounded-[20px] border border-[#C5A059] bg-[rgba(197,160,89,0.07)] p-4">
           <p className="text-[10px] uppercase tracking-[0.2em] text-[#D9B46A]">Em foco</p>
           <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{selectedTask.title}</p>
           <p className="mt-2 text-sm leading-6 text-[#C6D1CC]">{selectedTask.goal}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="rounded-full border border-[#3C3320] px-2.5 py-1 text-[10px] text-[#E7C987]">{selectedTask.assignedAgent}</span>
+            <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">{selectedTask.priority}</span>
+          </div>
         </div>
       ) : null}
       {showTasks ? (
-        <div className="mt-4 space-y-3 max-h-[46vh] overflow-y-auto pr-1">
-          {tasks.length ? tasks.map((task) => <TaskCard key={task.id} task={task} isSelected={selectedTaskId === task.id} onSelect={onSelectTask} />) : <p className="text-sm text-[#9BAEA8]">Nenhuma tarefa ainda.</p>}
+        <div className="mt-4 space-y-4">
+          <div className="grid gap-2 sm:grid-cols-4">
+            <MetricPill label="Running" value={taskColumns.running.length} tone="accent" />
+            <MetricPill label="Pending" value={taskColumns.pending.length} />
+            <MetricPill label="Done" value={taskColumns.done.length} tone="success" />
+            <MetricPill label="Failed" value={taskColumns.failed.length} tone="danger" />
+          </div>
+          {taskViewMode === "kanban" ? (
+            <div className="grid gap-3 xl:grid-cols-4">
+              {["pending", "running", "done", "failed"].map((status) => (
+                <div
+                  key={status}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const taskId = event.dataTransfer.getData("text/task-id") || draggedTaskId;
+                    if (taskId) onTaskMove?.(taskId, status);
+                  }}
+                  className="flex min-h-[320px] flex-col rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <div>
+                      <p className={`text-[10px] uppercase tracking-[0.18em] ${status === "running" ? "text-[#D9B46A]" : status === "done" ? "text-[#8FCFA9]" : status === "failed" ? "text-[#f2b2b2]" : "text-[#9BAEA8]"}`}>
+                        {status === "running" ? "Em execução" : status === "done" ? "Concluídas" : status === "failed" ? "Falhas" : "Pendentes"}
+                      </p>
+                      <p className="mt-1 text-xs text-[#7F928C]">{taskColumns[status].length} item(ns)</p>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    {taskColumns[status].length ? taskColumns[status].map((task) => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        compact
+                        draggable
+                        isSelected={selectedTaskId === task.id}
+                        onSelect={onSelectTask}
+                        onDragStart={(event) => {
+                          event.dataTransfer.setData("text/task-id", task.id);
+                          onDragTaskStart?.(task.id);
+                        }}
+                      />
+                    )) : (
+                      <div className="rounded-[18px] border border-dashed border-[#22342F] px-3 py-6 text-center text-sm text-[#7F928C]">
+                        Solte uma tarefa aqui.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="overflow-hidden rounded-[20px] border border-[#22342F]">
+                <div className="grid grid-cols-[minmax(0,1.5fr)_120px_120px_140px] gap-3 border-b border-[#1B2925] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">
+                  <span>Tarefa</span>
+                  <span>Status</span>
+                  <span>Prioridade</span>
+                  <span>Agente</span>
+                </div>
+                <div className="divide-y divide-[#1B2925]">
+                  {visibleTasks.length ? visibleTasks.map((task) => (
+                    <button
+                      key={task.id}
+                      type="button"
+                      onClick={() => onSelectTask(task.id)}
+                      className={`grid w-full grid-cols-[minmax(0,1.5fr)_120px_120px_140px] gap-3 px-4 py-3 text-left transition ${
+                        selectedTaskId === task.id ? "bg-[rgba(197,160,89,0.08)]" : "bg-[rgba(255,255,255,0.01)] hover:bg-[rgba(255,255,255,0.03)]"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[#F5F1E8]">{task.title}</p>
+                        <p className="mt-1 truncate text-xs text-[#8FA39C]">{task.description}</p>
+                      </div>
+                      <span className={`text-xs ${task.status === "running" ? "text-[#D9B46A]" : task.status === "done" ? "text-[#8FCFA9]" : task.status === "failed" ? "text-[#f2b2b2]" : "text-[#9BAEA8]"}`}>{task.status}</span>
+                      <span className="text-xs text-[#D8DEDA]">{task.priority}</span>
+                      <span className="text-xs text-[#D8DEDA]">{task.assignedAgent}</span>
+                    </button>
+                  )) : <p className="px-4 py-6 text-sm text-[#9BAEA8]">Nenhuma tarefa ainda.</p>}
+                </div>
+              </div>
+              {hasMoreTasks ? (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-[#7F928C]">Mostrando {visibleTasks.length} de {tasks.length} tarefas.</span>
+                  <button type="button" onClick={onLoadMoreTasks} className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                    Carregar mais
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          )}
         </div>
       ) : null}
     </section>
@@ -374,7 +518,17 @@ export function ContextRail({
   handleSendToDotobot,
   handleReplay,
   detectModules,
+  contact360Query,
+  onContact360QueryChange,
+  onLoadContact360,
+  contact360Loading,
+  contact360,
 }) {
+  const summary = contact360?.data?.summary || null;
+  const contactName = contact360?.data?.contact?.name || contact360?.data?.contact?.display_name || null;
+  const dealsCount = Array.isArray(contact360?.data?.deals) ? contact360.data.deals.length : 0;
+  const tasksCount = Array.isArray(contact360?.data?.tasks) ? contact360.data.tasks.length : 0;
+  const memoryMatches = Array.isArray(contact360?.data?.memory_matches) ? contact360.data.memory_matches.length : 0;
   return (
     <aside className="space-y-4">
       <section className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
@@ -400,6 +554,61 @@ export function ContextRail({
               <MetricPill label="Memórias" value={contextSnapshot?.memory?.length || 0} />
               <MetricPill label="Documentos" value={contextSnapshot?.documents?.length || 0} />
               <MetricPill label="Aprovação" value={approved ? "concedida" : "pendente"} tone={approved ? "success" : "accent"} />
+            </div>
+
+            <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Contexto 360</p>
+                  <p className="mt-1 text-xs leading-5 text-[#8FA39C]">Busque email ou identificador do cliente para enriquecer a missão.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onLoadContact360}
+                  className="rounded-full border border-[#35554B] px-3 py-1 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                >
+                  {contact360Loading ? "Buscando..." : "Buscar 360"}
+                </button>
+              </div>
+              <input
+                value={contact360Query}
+                onChange={(event) => onContact360QueryChange?.(event.target.value)}
+                placeholder="email@cliente.com"
+                className="mt-3 h-10 w-full rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.98)] px-3 text-sm text-[#F5F1E8] outline-none placeholder:text-[#60706A]"
+              />
+              {summary ? (
+                <div className="mt-3 rounded-[16px] border border-[#3C3320] bg-[rgba(40,32,19,0.18)] p-3">
+                  <p className="text-sm font-semibold text-[#F5F1E8]">{contactName || "Contato identificado"}</p>
+                  <p className="mt-2 text-xs leading-6 text-[#D9D4C7]">{summary}</p>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <MetricPill label="Deals" value={dealsCount} />
+                    <MetricPill label="Tasks" value={tasksCount} />
+                    <MetricPill label="Memória" value={memoryMatches} />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSendToDotobot({
+                        mission: `Usando o contexto 360 de ${contactName || contact360Query}, avance na missão: ${mission || selectedTask?.goal || ""}`.trim(),
+                        label: "Handoff com contexto 360",
+                        moduleKey: "contacts",
+                        moduleLabel: "Contato 360",
+                        tags: ["contacts", "crm", "dotobot", "ai-task"],
+                      }, routePath)}
+                      className="rounded-full border border-[#35554B] px-3 py-1 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                    >
+                      Enviar 360 ao Dotobot
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickMission(`Analise o contexto 360 de ${contactName || contact360Query} e proponha um plano operacional.`)}
+                      className="rounded-full border border-[#C5A059] px-3 py-1 text-[11px] text-[#F1D39A] transition hover:bg-[rgba(197,160,89,0.1)]"
+                    >
+                      Transformar em missão
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             {contextSnapshot?.selectedAction ? (

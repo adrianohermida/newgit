@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { adminFetch } from "../../../lib/admin/api";
 import { useRouter } from "next/router";
 import { getModuleHistory, setModuleHistory } from "../../../lib/admin/activity-log";
@@ -51,6 +51,11 @@ function formatHistoryStatus(status) {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function extractFirstEmail(value = "") {
+  const match = String(value || "").match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return match ? match[0] : "";
 }
 
 const MAX_THINKING = 20;
@@ -220,6 +225,13 @@ export default function AITaskModule({ profile, routePath }) {
   const [stopModalOpen, setStopModalOpen] = useState(false);
   const [providerCatalog, setProviderCatalog] = useState(FALLBACK_PROVIDER_OPTIONS);
   const [ragHealth, setRagHealth] = useState(null);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [taskViewMode, setTaskViewMode] = useState("kanban");
+  const [taskVisibleCount, setTaskVisibleCount] = useState(8);
+  const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const [contact360Query, setContact360Query] = useState("");
+  const [contact360Loading, setContact360Loading] = useState(false);
+  const [contact360, setContact360] = useState(null);
   const {
     activeRun,
     approved,
@@ -346,6 +358,9 @@ export default function AITaskModule({ profile, routePath }) {
     buildBlueprint,
     nowIso,
     normalizeTaskRunPayload,
+    normalizeTaskStepStatus,
+    classifyTaskAgent,
+    inferTaskPriority,
     extractTaskRunMemoryMatches,
     formatExecutionSourceLabel,
     pushLog,
@@ -392,13 +407,77 @@ export default function AITaskModule({ profile, routePath }) {
     router.push("/interno/agentlab/environment");
   }
 
+  function handleOpenDotobot() {
+    router.push("/interno");
+  }
+
+  async function handleLoadContact360() {
+    const email = String(contact360Query || "").trim();
+    if (!email) return;
+    setContact360Loading(true);
+    try {
+      const payload = await adminFetch("/api/freddy-get-contact-360", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      setContact360(payload || null);
+      pushLog({
+        type: "api",
+        action: "contact_360_loaded",
+        result: payload?.data?.summary || `Contexto 360 carregado para ${email}.`,
+      });
+    } catch (loadError) {
+      setContact360({
+        ok: false,
+        error: loadError?.message || "Falha ao consultar contexto 360.",
+      });
+      pushLog({
+        type: "error",
+        action: "contact_360_failed",
+        result: loadError?.message || "Falha ao consultar contexto 360.",
+      });
+    } finally {
+      setContact360Loading(false);
+    }
+  }
+
+  function handleTaskMove(taskId, nextStatus) {
+    setTasks((current) => {
+      const taskIndex = current.findIndex((task) => task.id === taskId);
+      if (taskIndex < 0) return current;
+      const task = current[taskIndex];
+      const updated = { ...task, status: nextStatus, updated_at: nowIso() };
+      const remaining = current.filter((item) => item.id !== taskId);
+      const insertionIndex = nextStatus === "running" ? 0 : remaining.length;
+      const next = [...remaining.slice(0, insertionIndex), updated, ...remaining.slice(insertionIndex)];
+      return next;
+    });
+    setDraggedTaskId(null);
+    pushLog({
+      type: "control",
+      action: "task_status_moved",
+      result: `Tarefa movida para ${nextStatus}.`,
+    });
+  }
+
   const taskColumns = useMemo(() => buildTaskColumns(tasks), [tasks]);
   const visibleLogs = useMemo(() => filterLogsByType(logs, selectedLogFilter), [logs, selectedLogFilter]);
-  const compactLogs = useMemo(() => filterLogsBySearch(visibleLogs, search), [visibleLogs, search]);
+  const deferredSearch = useDeferredValue(search);
+  const compactLogs = useMemo(() => filterLogsBySearch(visibleLogs, deferredSearch), [visibleLogs, deferredSearch]);
   const selectedTask = useMemo(() => findSelectedTask(tasks, selectedTaskId), [tasks, selectedTaskId]);
   const ragAlert = useMemo(() => buildRagAlert(ragHealth), [ragHealth]);
   const activeMode = MODE_OPTIONS.find((item) => item.value === mode) || MODE_OPTIONS[1];
   const stateLabel = resolveAutomationLabel(automation);
+  const historyPageSize = 6;
+  const historyTotalPages = Math.max(1, Math.ceil((recentHistory.length || 0) / historyPageSize));
+  const pagedHistory = useMemo(() => {
+    const safePage = Math.min(Math.max(historyPage, 1), historyTotalPages);
+    const start = (safePage - 1) * historyPageSize;
+    return recentHistory.slice(start, start + historyPageSize);
+  }, [historyPage, historyTotalPages, recentHistory]);
+  const visibleTasks = useMemo(() => tasks.slice(0, taskVisibleCount), [taskVisibleCount, tasks]);
+  const hasMoreTasks = visibleTasks.length < tasks.length;
   const contextModuleEntries = useMemo(() => {
     const moduleKeys = contextSnapshot?.module
       ? extractModuleKeysFromContext(contextSnapshot.module)
@@ -412,6 +491,26 @@ export default function AITaskModule({ profile, routePath }) {
     ]);
     return Array.from(new Set([...QUICK_MISSIONS, ...suggestions].filter(Boolean))).slice(0, 10);
   }, [contextModuleEntries]);
+
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [recentHistory.length]);
+
+  useEffect(() => {
+    if (taskViewMode !== "list") return;
+    if (taskVisibleCount < 8) setTaskVisibleCount(8);
+  }, [taskViewMode, taskVisibleCount]);
+
+  useEffect(() => {
+    if (contact360Query) return;
+    const seededEmail =
+      extractFirstEmail(mission) ||
+      extractFirstEmail(contextSnapshot?.selectedAction?.mission) ||
+      extractFirstEmail(contextSnapshot?.documents?.map((item) => item?.email).filter(Boolean).join(" "));
+    if (seededEmail) {
+      setContact360Query(seededEmail);
+    }
+  }, [contact360Query, contextSnapshot?.documents, contextSnapshot?.selectedAction?.mission, mission]);
 
   useEffect(() => {
     if (contextSnapshot?.selectedAction || mission) return;
@@ -460,12 +559,16 @@ export default function AITaskModule({ profile, routePath }) {
       thinking: thinking.slice(0, 12),
       logs: logs.slice(-40),
       attachments,
+      contact360,
       ui: {
         selectedLogFilter,
         search,
         showContext,
         showTasks,
         selectedTaskId,
+        taskViewMode,
+        historyPage,
+        taskVisibleCount,
       },
     });
   }, [
@@ -473,6 +576,7 @@ export default function AITaskModule({ profile, routePath }) {
     approved,
     attachments,
     automation,
+    contact360,
     contextSnapshot,
     error,
     eventsTotal,
@@ -491,7 +595,10 @@ export default function AITaskModule({ profile, routePath }) {
     selectedTaskId,
     showContext,
     showTasks,
+    historyPage,
     tasks,
+    taskViewMode,
+    taskVisibleCount,
     thinking,
   ]);
 
