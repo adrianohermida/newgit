@@ -14,11 +14,17 @@ async function main() {
   const importLimit = sanitizePositiveInt(filteredArgs[0], 200);
   const publishLimit = sanitizePositiveInt(filteredArgs[1], 200);
   const crmLimit = sanitizePositiveInt(filteredArgs[2], 200);
+  const workspaceId = cleanValue(filteredArgs[3]) || cleanValue(process.env.HMADV_WORKSPACE_ID);
 
   const steps = [
     {
       label: 'Sincronizar contatos do Freshsales',
       command: ['node', 'scripts/sync-freshsales-contacts.js'],
+    },
+    {
+      label: 'Importar deals legados para staging',
+      command: ['node', 'scripts/import-hmadv-freshsales-deals.js', String(importLimit), ...(workspaceId ? [workspaceId] : [])],
+      materializeImportedRun: true,
     },
     {
       label: 'Importar deals existentes do Freshsales',
@@ -41,14 +47,7 @@ async function main() {
   };
 
   for (const step of steps) {
-    const [bin, ...stepArgs] = step.command;
-    const result = spawnSync(bin, stepArgs, {
-      cwd: process.cwd(),
-      env: process.env,
-      encoding: 'utf8',
-      shell: false,
-    });
-
+    const result = runStep(step.command);
     summary.steps.push({
       label: step.label,
       command: step.command.join(' '),
@@ -65,6 +64,26 @@ async function main() {
     if (result.status !== 0 && isSkippableContactsAuthFailure(currentStep)) {
       currentStep.warning = 'sync_contacts_skipped_auth';
     }
+
+    if (step.materializeImportedRun) {
+      const payload = parseJsonOutput(result.stdout);
+      const importRunId = cleanValue(payload?.import_run_id);
+      if (importRunId) {
+        const materializeCommand = ['node', 'scripts/materialize-hmadv-billing.js', importRunId, ...(workspaceId ? [workspaceId] : [])];
+        const materializeResult = runStep(materializeCommand);
+        summary.steps.push({
+          label: 'Materializar deals legados importados',
+          command: materializeCommand.join(' '),
+          exit_code: materializeResult.status,
+          stdout: cleanOutput(materializeResult.stdout),
+          stderr: cleanOutput(materializeResult.stderr),
+        });
+        if (materializeResult.status !== 0) {
+          summary.ok = false;
+          break;
+        }
+      }
+    }
   }
 
   console.log(JSON.stringify(summary, null, 2));
@@ -78,9 +97,36 @@ function sanitizePositiveInt(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function cleanValue(value) {
+  const text = String(value || '').trim();
+  return text || null;
+}
+
 function cleanOutput(value) {
   const text = String(value || '').trim();
   return text || null;
+}
+
+function parseJsonOutput(value) {
+  const text = cleanOutput(value);
+  if (!text) return null;
+  const match = text.match(/\{[\s\S]*\}$/);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[0]);
+  } catch {
+    return null;
+  }
+}
+
+function runStep(command) {
+  const [bin, ...stepArgs] = command;
+  return spawnSync(bin, stepArgs, {
+    cwd: process.cwd(),
+    env: process.env,
+    encoding: 'utf8',
+    shell: false,
+  });
 }
 
 function isSkippableContactsAuthFailure(step) {
