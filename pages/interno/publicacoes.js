@@ -1028,10 +1028,13 @@ function renderSyncStatuses(row) {
 }
 
 function OperationResult({ result }) {
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    setPage(1);
+  }, [result]);
   if (result?.job) {
     return <JobCard job={result.job} active />;
   }
-  const [page, setPage] = useState(1);
   const pageSize = 10;
   const rows = Array.isArray(result?.sample)
     ? result.sample
