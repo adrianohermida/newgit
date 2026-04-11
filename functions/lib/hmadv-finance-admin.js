@@ -592,6 +592,15 @@ export async function getHmadvFinanceAdminConfig(env = {}) {
         },
       },
       {
+        key: "sync_products_catalog",
+        label: "Sincronizar catalogo de produtos",
+        helper: "Semeia os produtos canonicos locais e aplica mapeamentos manuais ou snapshots/live API quando disponiveis.",
+        endpoint: "/api/admin-hmadv-financeiro",
+        method: "POST",
+        action: "run_operation",
+        payload: {},
+      },
+      {
         key: "publish_deals",
         label: "Publicar deals no Freshsales",
         helper: "Tenta criar ou atualizar deals a partir dos recebiveis aptos.",

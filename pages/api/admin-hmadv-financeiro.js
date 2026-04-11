@@ -17,6 +17,7 @@ const SCRIPT_ACTIONS = {
   diagnose_freshsales_auth: { script: "diagnose-freshsales-auth.js", args: [] },
   materialize_latest_run: { script: "materialize-hmadv-billing.js", args: [] },
   reprocess_billing: { script: "reprocess-hmadv-billing.js", args: ["--limit", "3000"] },
+  sync_products_catalog: { script: "sync-freshsales-products.js", args: [] },
   publish_deals: { script: "publish-hmadv-deals.js", args: ["50"] },
   sync_existing_deals: { script: "sync-freshsales-deals.js", args: ["50"] },
   sync_bidirectional_deals: { script: "sync-hmadv-deals-bidirectional.js", args: ["50", "50", "50"] },

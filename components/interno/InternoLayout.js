@@ -408,6 +408,214 @@ function inferSnapshotSummary(key, snapshot) {
   return "Snapshot atualizado.";
 }
 
+function formatRelativeTime(value) {
+  if (!value) return "sem horario";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "sem horario";
+  const diffMs = Date.now() - parsed.getTime();
+  const diffMin = Math.max(0, Math.round(diffMs / (1000 * 60)));
+  if (diffMin < 1) return "agora";
+  if (diffMin < 60) return `${diffMin} min`;
+  const diffHours = Math.round(diffMin / 60);
+  if (diffHours < 24) return `${diffHours} h`;
+  const diffDays = Math.round(diffHours / 24);
+  return `${diffDays} d`;
+}
+
+function getJobStatusTone(status) {
+  const normalized = String(status || "").trim();
+  if (normalized === "completed") return "border-[#30543A] text-[#B7F7C6]";
+  if (normalized === "running") return "border-[#6E5630] text-[#FDE68A]";
+  if (normalized === "paused" || normalized === "retry_wait" || normalized === "scheduled") return "border-[#2D4D60] text-[#B8D9F0]";
+  if (normalized === "error" || normalized === "cancelled") return "border-[#5B2D2D] text-[#FECACA]";
+  return "border-[#22342F] text-[#D8DEDA]";
+}
+
+function formatQueueLabel(key) {
+  const labels = {
+    semMovimentacoes: "Sem movimentacoes",
+    movimentacoesPendentes: "Movimentacoes pendentes",
+    publicacoesPendentes: "Publicacoes pendentes",
+    partesSemContato: "Partes sem contato",
+    audienciasPendentes: "Audiencias pendentes",
+    camposOrfaos: "Campos orfaos",
+    orfaos: "Sem Sales Account",
+    candidatosProcessos: "Processos criaveis",
+    candidatosPartes: "Partes extraiveis",
+  };
+  return labels[key] || key;
+}
+
+function buildOperationalRailData(moduleKey, snapshot, entries = []) {
+  if (!moduleKey || !snapshot) return null;
+  const jobs = Array.isArray(snapshot?.jobs) ? snapshot.jobs : [];
+  const activeJobs = jobs.filter((item) => ["pending", "running", "paused", "retry_wait", "scheduled"].includes(String(item?.status || ""))).slice(0, 5);
+  const failedJobs = jobs.filter((item) => String(item?.status || "") === "error").slice(0, 3);
+  const queues = Object.entries(snapshot?.queues || {})
+    .map(([key, value]) => ({
+      key,
+      label: formatQueueLabel(key),
+      totalRows: Number(value?.totalRows || 0),
+      error: value?.error || null,
+      updatedAt: value?.updatedAt || null,
+      limited: Boolean(value?.limited),
+    }))
+    .filter((item) => item.totalRows > 0 || item.error)
+    .sort((left, right) => {
+      if (Boolean(left.error) !== Boolean(right.error)) return left.error ? -1 : 1;
+      return right.totalRows - left.totalRows;
+    })
+    .slice(0, 5);
+  const batchHints = Object.entries(snapshot?.queueBatchSizes || {})
+    .map(([key, value]) => ({ key, label: formatQueueLabel(key), value: Number(value || 0) }))
+    .filter((item) => item.value > 0)
+    .sort((left, right) => right.value - left.value)
+    .slice(0, 5);
+  const recentErrors = (entries || [])
+    .filter((entry) => entry?.module === moduleKey && entry?.severity === "error")
+    .slice(0, 4)
+    .map((entry) => ({
+      id: entry.id,
+      label: entry.label || entry.action || "Erro operacional",
+      message: entry.error || getActivityLogResponseText(entry) || entry.recommendedAction || "Falha sem detalhe.",
+      createdAt: entry.createdAt || null,
+      fingerprint: entry.fingerprint || "",
+    }));
+  const actionState = snapshot?.actionState || {};
+  const selectedCount = Object.entries(snapshot?.ui || {})
+    .filter(([key]) => key.startsWith("selected"))
+    .reduce((total, [, value]) => total + Number(value || 0), 0);
+  const moduleLabelMap = {
+    processos: "Processos",
+    publicacoes: "Publicacoes",
+    jobs: "Jobs",
+    financeiro: "Financeiro",
+  };
+  const shouldRender =
+    activeJobs.length ||
+    failedJobs.length ||
+    queues.length ||
+    batchHints.length ||
+    recentErrors.length ||
+    actionState?.loading ||
+    actionState?.error;
+  if (!shouldRender) return null;
+  return {
+    moduleKey,
+    moduleLabel: moduleLabelMap[moduleKey] || moduleKey,
+    activeJobs,
+    failedJobs,
+    queues,
+    batchHints,
+    recentErrors,
+    selectedCount,
+    actionState,
+    backendHealth: snapshot?.backendHealth || null,
+    operationalStatus: snapshot?.operationalStatus || null,
+    limit: Number(snapshot?.ui?.limit || 0) || null,
+    activeJobId: snapshot?.activeJobId || null,
+    drainInFlight: Boolean(snapshot?.drainInFlight),
+  };
+}
+
+function OperationalRightRail({ data, onOpenConsole, onOpenJobsLog }) {
+  if (!data) return null;
+  return (
+    <div className="space-y-4">
+      <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">Execucao em tempo real</p>
+            <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{data.moduleLabel}</p>
+            <p className="mt-2 text-xs leading-5 text-[#92A59F]">
+              Lotes protegidos, fila persistida, erros correlacionados com o console e prioridade para nao estourar rate limit.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <button type="button" onClick={onOpenConsole} className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] hover:border-[#C5A059] hover:text-[#C5A059]">
+              Console
+            </button>
+            <button type="button" onClick={onOpenJobsLog} className="rounded-full border border-[#6E5630] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#FDE68A] hover:border-[#C5A059]">
+              Jobs
+            </button>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em]">
+          {data.backendHealth?.status ? <span className={`rounded-full border px-2 py-1 ${getJobStatusTone(data.backendHealth.status)}`}>backend {data.backendHealth.status}</span> : null}
+          {data.operationalStatus?.mode ? <span className={`rounded-full border px-2 py-1 ${getJobStatusTone(data.operationalStatus.mode)}`}>operacao {data.operationalStatus.mode}</span> : null}
+          {data.limit ? <span className="rounded-full border border-[#22342F] px-2 py-1 text-[#D8DEDA]">lote base {data.limit}</span> : null}
+          {data.selectedCount ? <span className="rounded-full border border-[#22342F] px-2 py-1 text-[#D8DEDA]">{data.selectedCount} selecionados</span> : null}
+          {data.drainInFlight ? <span className="rounded-full border border-[#6E5630] px-2 py-1 text-[#FDE68A]">drenando fila</span> : null}
+          {data.actionState?.loading ? <span className="rounded-full border border-[#6E5630] px-2 py-1 text-[#FDE68A]">acao em execucao</span> : null}
+        </div>
+      </div>
+
+      {data.activeJobs.length ? <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">Jobs ativos</p>
+        <div className="mt-3 space-y-2">
+          {data.activeJobs.map((job) => {
+            const requested = Number(job?.requested_count || 0);
+            const processed = Number(job?.processed_count || 0);
+            const progress = requested ? Math.max(0, Math.min(100, Math.round((processed / requested) * 100))) : 0;
+            return (
+              <div key={job.id} className={`rounded-xl border p-3 ${job.id === data.activeJobId ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]" : "border-[#1E2E29] bg-[rgba(8,10,9,0.45)]"}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold text-[#F5F1E8]">{job.acao || "job"}</span>
+                  <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${getJobStatusTone(job.status)}`}>{job.status || "pending"}</span>
+                </div>
+                <p className="mt-2 text-[11px] text-[#9BAEA8]">{processed}/{requested || processed} processado(s) • atualizado ha {formatRelativeTime(job.updated_at || job.started_at || job.created_at)}</p>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-[rgba(255,255,255,0.06)]">
+                  <div className="h-full bg-[#C5A059]" style={{ width: `${progress}%` }} />
+                </div>
+                {job.last_error ? <p className="mt-2 text-[11px] text-[#FECACA]">{job.last_error}</p> : null}
+              </div>
+            );
+          })}
+        </div>
+      </div> : null}
+
+      {data.queues.length ? <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">Filas monitoradas</p>
+        <div className="mt-3 space-y-2">
+          {data.queues.map((queue) => (
+            <div key={queue.key} className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.45)] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-[#F5F1E8]">{queue.label}</span>
+                <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${queue.error ? "border-[#5B2D2D] text-[#FECACA]" : "border-[#22342F] text-[#D8DEDA]"}`}>{queue.totalRows} itens</span>
+              </div>
+              <p className="mt-2 text-[11px] text-[#9BAEA8]">Atualizada ha {formatRelativeTime(queue.updatedAt)}{queue.limited ? " • leitura limitada" : ""}</p>
+              {queue.error ? <p className="mt-2 text-[11px] text-[#FECACA]">{queue.error}</p> : null}
+            </div>
+          ))}
+        </div>
+      </div> : null}
+
+      {data.batchHints.length ? <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">Janela segura de lote</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {data.batchHints.map((item) => <span key={item.key} className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#D8DEDA]">{item.label}: {item.value}</span>)}
+        </div>
+      </div> : null}
+
+      {data.recentErrors.length || data.actionState?.error ? <div className="rounded-[20px] border border-[#5B2D2D] bg-[rgba(91,45,45,0.14)] p-4">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-[#E8B4B4]">Erros correlacionados</p>
+        <div className="mt-3 space-y-2 text-[11px]">
+          {data.actionState?.error ? <div className="rounded-xl border border-[#5B2D2D] bg-[rgba(34,12,14,0.45)] p-3 text-[#FECACA]">{data.actionState.error}</div> : null}
+          {data.recentErrors.map((item) => (
+            <div key={item.id} className="rounded-xl border border-[#5B2D2D] bg-[rgba(34,12,14,0.45)] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-[#F8D6D6]">{item.label}</span>
+                <span className="text-[#D9B46A]">{formatRelativeTime(item.createdAt)}</span>
+              </div>
+              <p className="mt-2 text-[#F1C3C3]">{item.message}</p>
+            </div>
+          ))}
+        </div>
+      </div> : null}
+    </div>
+  );
+}
+
 function buildCoverageCards(moduleHistory = {}) {
   const registry = new Map(listModuleRegistryEntries().map((entry) => [entry.key, entry]));
   const keys = new Set([...registry.keys(), ...Object.keys(moduleHistory || {})]);
@@ -1134,6 +1342,9 @@ export default function InternoLayout({
   const paneSla = useMemo(() => summarizeSla(paneEntries, paneFingerprintSummary, fingerprintStates), [fingerprintStates, paneEntries, paneFingerprintSummary]);
   const paneTagPlaybook = useMemo(() => getTagPlaybook(logPane), [logPane]);
   const paneBulkGuardrail = useMemo(() => getBulkGuardrail(logPane, paneRisk, paneSla, paneEntries), [logPane, paneEntries, paneRisk, paneSla]);
+  const currentOperationalRail = useMemo(() => {
+    return buildOperationalRailData(currentModuleKey, moduleHistory?.[currentModuleKey] || null, activityLog);
+  }, [activityLog, currentModuleKey, moduleHistory]);
   useEffect(() => {
     setLogExpanded(null);
   }, [logPane]);
@@ -1171,6 +1382,9 @@ export default function InternoLayout({
   }
 
   const showExtensionManager = router.pathname === "/interno/ai-task" || router.pathname === "/interno/agentlab";
+  const resolvedRightRail = typeof rightRail === "function"
+    ? rightRail({ moduleKey: currentModuleKey, moduleHistory, activityLog })
+    : rightRail;
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.24),transparent_30%),linear-gradient(180deg,#050706_0%,#070A09_100%)] text-[#F4F1EA]">
@@ -1227,7 +1441,7 @@ export default function InternoLayout({
       {/* MAIN + COPILOT */}
       <div className="flex h-full min-h-0 flex-1">
         {/* CONTEÚDO PRINCIPAL */}
-        <div className="flex min-h-0 flex-1 min-w-0 flex-col">
+        <div className="grid min-h-0 flex-1 min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
           <div className="shrink-0 flex items-center justify-between border-b border-[#1E2E29] px-6 py-4">
             <div className="text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">Workspace</div>
             <div className="flex-1 px-6">
@@ -1284,7 +1498,7 @@ export default function InternoLayout({
               </button>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div className="min-h-0 overflow-y-auto overflow-x-hidden">
           <header className="mb-6 shrink-0 border-b border-[#1E2E29] pb-5 px-6 pt-6">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
               <div className="min-w-0">
@@ -1301,7 +1515,7 @@ export default function InternoLayout({
           </div>
           </div>
           <div
-            className={`shrink-0 border-t border-[#1E2E29] bg-[rgba(6,8,7,0.92)] transition-all ${consoleOpen ? "" : "h-[44px]"}`}
+            className={`min-h-[44px] shrink-0 border-t border-[#1E2E29] bg-[rgba(6,8,7,0.92)] transition-all ${consoleOpen ? "" : "h-[44px]"}`}
             style={consoleOpen ? { height: `${consoleHeight}px` } : undefined}
           >
             {consoleOpen ? (
@@ -2349,21 +2563,43 @@ export default function InternoLayout({
           </div>
         </div>
         {shouldRenderDotobotRail && !rightCollapsed ? (
-          <div className="relative h-full w-[360px] min-w-[320px] max-w-[420px] border-l border-[#22342F] bg-[rgba(8,10,9,0.94)]">
-            {copilotOpen ? (
-              <DotobotCopilot
-                profile={profile}
-                routePath={router.pathname}
-                initialWorkspaceOpen={rightRailFullscreen ? true : false}
-                defaultCollapsed={false}
-                compactRail={!rightRailFullscreen}
-                showCollapsedTrigger={false}
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center text-sm text-[#9BAEA8]">
-                Painel direito fechado.
+          <div className="relative flex h-full w-[360px] min-w-[320px] max-w-[420px] flex-col border-l border-[#22342F] bg-[rgba(8,10,9,0.94)]">
+            {currentOperationalRail || resolvedRightRail ? (
+              <div className="max-h-[48%] shrink-0 overflow-auto border-b border-[#22342F] p-4">
+                {currentOperationalRail ? (
+                  <OperationalRightRail
+                    data={currentOperationalRail}
+                    onOpenConsole={() => {
+                      setConsoleOpen(true);
+                      setConsoleTab("console");
+                    }}
+                    onOpenJobsLog={() => {
+                      setConsoleOpen(true);
+                      setConsoleTab("log");
+                      setLogPane("jobs");
+                      updateFilters({ module: currentModuleKey, tag: "jobs" });
+                    }}
+                  />
+                ) : null}
+                {resolvedRightRail ? <div className={currentOperationalRail ? "mt-4" : ""}>{resolvedRightRail}</div> : null}
               </div>
-            )}
+            ) : null}
+            <div className="min-h-0 flex-1">
+              {copilotOpen ? (
+                <DotobotCopilot
+                  profile={profile}
+                  routePath={router.pathname}
+                  initialWorkspaceOpen={rightRailFullscreen ? true : false}
+                  defaultCollapsed={false}
+                  compactRail={!rightRailFullscreen}
+                  showCollapsedTrigger={false}
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-[#9BAEA8]">
+                  Painel direito fechado.
+                </div>
+              )}
+            </div>
           </div>
         ) : null}
         {shouldRenderDotobotRail ? (

@@ -19,7 +19,9 @@ import {
   filterLogsBySearch,
   filterLogsByType,
   findSelectedTask,
+  moveTaskToStatus,
   normalizeAttachmentsFromEvent,
+  paginateItems,
   resolveAutomationLabel,
   trimRecentHistory,
 } from "./aiTaskState";
@@ -56,6 +58,21 @@ function nowIso() {
 function extractFirstEmail(value = "") {
   const match = String(value || "").match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
   return match ? match[0] : "";
+}
+
+function buildAiTaskUiStorageKey(profile) {
+  const profileId = profile?.id || profile?.email || "anonymous";
+  return `hmadv_ai_task_ui_v2:${profileId}`;
+}
+
+function safeParseUiState(raw) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 const MAX_THINKING = 20;
@@ -232,6 +249,7 @@ export default function AITaskModule({ profile, routePath }) {
   const [contact360Query, setContact360Query] = useState("");
   const [contact360Loading, setContact360Loading] = useState(false);
   const [contact360, setContact360] = useState(null);
+  const uiStorageKey = useMemo(() => buildAiTaskUiStorageKey(profile), [profile]);
   const {
     activeRun,
     approved,
@@ -342,6 +360,28 @@ export default function AITaskModule({ profile, routePath }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const persisted = safeParseUiState(window.localStorage.getItem(uiStorageKey));
+    if (!persisted) return;
+    setHistoryPage(Number.isFinite(Number(persisted.historyPage)) ? Number(persisted.historyPage) : 1);
+    setTaskViewMode(typeof persisted.taskViewMode === "string" ? persisted.taskViewMode : "kanban");
+    setTaskVisibleCount(Number.isFinite(Number(persisted.taskVisibleCount)) ? Math.max(8, Number(persisted.taskVisibleCount)) : 8);
+    setContact360Query(typeof persisted.contact360Query === "string" ? persisted.contact360Query : "");
+    setContact360(persisted.contact360 && typeof persisted.contact360 === "object" ? persisted.contact360 : null);
+  }, [uiStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(uiStorageKey, JSON.stringify({
+      historyPage,
+      taskViewMode,
+      taskVisibleCount,
+      contact360Query,
+      contact360,
+    }));
+  }, [contact360, contact360Query, historyPage, taskViewMode, taskVisibleCount, uiStorageKey]);
+
   const { executeMission, handleContinueLastRun, handlePause, handleStart, handleStop } = useAiTaskRun({
     mission,
     mode,
@@ -443,16 +483,7 @@ export default function AITaskModule({ profile, routePath }) {
   }
 
   function handleTaskMove(taskId, nextStatus) {
-    setTasks((current) => {
-      const taskIndex = current.findIndex((task) => task.id === taskId);
-      if (taskIndex < 0) return current;
-      const task = current[taskIndex];
-      const updated = { ...task, status: nextStatus, updated_at: nowIso() };
-      const remaining = current.filter((item) => item.id !== taskId);
-      const insertionIndex = nextStatus === "running" ? 0 : remaining.length;
-      const next = [...remaining.slice(0, insertionIndex), updated, ...remaining.slice(insertionIndex)];
-      return next;
-    });
+    setTasks((current) => moveTaskToStatus(current, taskId, nextStatus, nowIso));
     setDraggedTaskId(null);
     pushLog({
       type: "control",
@@ -470,12 +501,9 @@ export default function AITaskModule({ profile, routePath }) {
   const activeMode = MODE_OPTIONS.find((item) => item.value === mode) || MODE_OPTIONS[1];
   const stateLabel = resolveAutomationLabel(automation);
   const historyPageSize = 6;
-  const historyTotalPages = Math.max(1, Math.ceil((recentHistory.length || 0) / historyPageSize));
-  const pagedHistory = useMemo(() => {
-    const safePage = Math.min(Math.max(historyPage, 1), historyTotalPages);
-    const start = (safePage - 1) * historyPageSize;
-    return recentHistory.slice(start, start + historyPageSize);
-  }, [historyPage, historyTotalPages, recentHistory]);
+  const pagedHistoryMeta = useMemo(() => paginateItems(recentHistory, historyPage, historyPageSize), [historyPage, recentHistory]);
+  const historyTotalPages = pagedHistoryMeta.totalPages;
+  const pagedHistory = pagedHistoryMeta.items;
   const visibleTasks = useMemo(() => tasks.slice(0, taskVisibleCount), [taskVisibleCount, tasks]);
   const hasMoreTasks = visibleTasks.length < tasks.length;
   const contextModuleEntries = useMemo(() => {
