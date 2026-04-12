@@ -1,4 +1,4 @@
-import { detectSkillFromQuery } from "../lawdesk/skill_registry.js";
+import { detectSkillFromQuery, resolveExplicitSkill } from "../lawdesk/skill_registry.js";
 
 function normalizeText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -115,11 +115,27 @@ export async function routeIntent(input: {
   }
 
   if (context?.forceIntent === "chat" || context?.forceIntent === "skill" || context?.forceIntent === "task") {
-    return { type: context.forceIntent, reason: "forced_by_context" };
+    const forcedSkill = resolveExplicitSkill(context);
+    return {
+      type: context.forceIntent,
+      reason: "forced_by_context",
+      skill: forcedSkill
+        ? { id: forcedSkill.id, name: forcedSkill.name, category: forcedSkill.category }
+        : null,
+    };
   }
 
   const skillDetectionEnabled = Boolean(features?.chat?.skillsDetection);
-  const detectedSkill = skillDetectionEnabled ? detectSkillFromQuery(query) : null;
+  const explicitSkill = resolveExplicitSkill(context);
+  const detectedSkill = explicitSkill || (skillDetectionEnabled ? detectSkillFromQuery(query) : null);
+
+  if (explicitSkill) {
+    return {
+      type: "skill",
+      reason: "context_selected_skill",
+      skill: { id: explicitSkill.id, name: explicitSkill.name, category: explicitSkill.category },
+    };
+  }
 
   const modeBias = resolveModeBiasIntent(context, query, detectedSkill);
   if (modeBias) {

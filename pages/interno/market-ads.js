@@ -276,6 +276,26 @@ function MarketAdsContent() {
     }
   }
 
+  async function toggleTemplateVisibility(template) {
+    if (!template?.id || String(template.id).startsWith("tpl-")) return;
+    setTemplateState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_template_visibility",
+          templateId: template.id,
+          visibility: template.visibility === "publico" ? "privado" : "publico",
+        }),
+      });
+      setTemplateState({ loading: false, error: null, result: payload.data || null });
+      await load();
+    } catch (error) {
+      setTemplateState({ loading: false, error: error.message || "Falha ao atualizar visibilidade do template.", result: null });
+    }
+  }
+
   async function validateCompliance() {
     setComplianceState({ loading: true, error: null, result: null });
     try {
@@ -1308,6 +1328,9 @@ function MarketAdsContent() {
                   </div>
                   {templateState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{templateState.error}</p> : null}
                   {templateState.result?.template?.id ? <p className="mt-3 text-sm text-[#B7F7C6]">Template atualizado na biblioteca persistida.</p> : null}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Tag tone="neutral">uso total {data.templateLibrary?.usage?.total || 0}</Tag>
+                  </div>
                   <div className="mt-4 space-y-4">
                     {(data.templateLibrary?.groups || []).map((group) => (
                       <div key={group.key} className="rounded-[16px] border border-[#1D2B27] px-3 py-3">
@@ -1323,9 +1346,13 @@ function MarketAdsContent() {
                                 <div className="flex flex-wrap gap-2">
                                   <Tag tone={item.source === "local" ? "success" : "accent"}>{item.source}</Tag>
                                   <Tag tone="neutral">score {item.score}</Tag>
+                                  <Tag tone="neutral">uso {item.usageCount || 0}</Tag>
+                                  {item.isFavorite ? <Tag tone="success">favorito</Tag> : null}
+                                  <Tag tone={item.visibility === "publico" ? "accent" : "neutral"}>{item.visibility || "privado"}</Tag>
                                 </div>
                               </div>
                               <p className="mt-2 text-[#8FA29B]">{item.headline}</p>
+                              {item.lastUsedAt ? <p className="mt-2 text-xs uppercase tracking-[0.16em] text-[#6F837C]">Ultimo uso: {new Date(item.lastUsedAt).toLocaleDateString("pt-BR")}</p> : null}
                               <div className="mt-3 flex flex-wrap gap-2">
                                 {(item.tags || []).slice(0, 4).map((tag) => <Tag key={`${item.id}-${tag}`}>{tag}</Tag>)}
                               </div>
@@ -1346,13 +1373,22 @@ function MarketAdsContent() {
                                     Salvar na base
                                   </button>
                                 ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleTemplateFavorite(item)}
-                                    className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-                                  >
-                                    {item.isFavorite ? "Desfavoritar" : "Favoritar"}
-                                  </button>
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleTemplateFavorite(item)}
+                                      className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                    >
+                                      {item.isFavorite ? "Desfavoritar" : "Favoritar"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleTemplateVisibility(item)}
+                                      className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                    >
+                                      {item.visibility === "publico" ? "Tornar privado" : "Tornar publico"}
+                                    </button>
+                                  </>
                                 )}
                               </div>
                             </div>
@@ -1360,6 +1396,82 @@ function MarketAdsContent() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                  {(data.templateLibrary?.usage?.recent || []).length ? (
+                    <div className="mt-4 rounded-[16px] border border-[#1D2B27] px-3 py-3">
+                      <p className="font-semibold text-[#F5F1E8]">Atividade recente</p>
+                      <div className="mt-3 space-y-2">
+                        {(data.templateLibrary.usage.recent || []).slice(0, 5).map((item) => (
+                          <div key={item.id} className="rounded-[12px] border border-[#22342F] px-3 py-2 text-sm text-[#C7D0CA]">
+                            <p>Template {item.templateId || "sem id"} · uso {item.usageType}</p>
+                            <p className="mt-1 text-[#8FA29B]">{new Date(item.createdAt).toLocaleString("pt-BR")}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="font-semibold text-[#F7F2E8]">Analytics da biblioteca</p>
+                    <Tag tone="accent">{data.templateAnalytics?.summary || "Sem analytics ainda"}</Tag>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-5">
+                    <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-[#7F928C]">Templates</p>
+                      <p className="mt-2 text-2xl font-semibold text-[#F5F1E8]">{data.templateAnalytics?.totals?.templates || 0}</p>
+                    </div>
+                    <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-[#7F928C]">Favoritos</p>
+                      <p className="mt-2 text-2xl font-semibold text-[#F5F1E8]">{data.templateAnalytics?.totals?.favorites || 0}</p>
+                    </div>
+                    <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-[#7F928C]">Usos</p>
+                      <p className="mt-2 text-2xl font-semibold text-[#F5F1E8]">{data.templateAnalytics?.totals?.usage || 0}</p>
+                    </div>
+                    <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-[#7F928C]">Publicos</p>
+                      <p className="mt-2 text-2xl font-semibold text-[#F5F1E8]">{data.templateAnalytics?.totals?.public || 0}</p>
+                    </div>
+                    <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-[#7F928C]">Privados</p>
+                      <p className="mt-2 text-2xl font-semibold text-[#F5F1E8]">{data.templateAnalytics?.totals?.private || 0}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-4 xl:grid-cols-3">
+                    <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3">
+                      <p className="font-semibold text-[#F5F1E8]">Mais usados</p>
+                      <div className="mt-3 space-y-2">
+                        {(data.templateAnalytics?.topUsed || []).map((item) => (
+                          <div key={item.id} className="rounded-[12px] border border-[#22342F] px-3 py-2 text-sm text-[#C7D0CA]">
+                            <p>{item.name}</p>
+                            <p className="mt-1 text-[#8FA29B]">uso {item.usageCount || 0} · score {item.score || 0}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3">
+                      <p className="font-semibold text-[#F5F1E8]">Por objetivo</p>
+                      <div className="mt-3 space-y-2">
+                        {(data.templateAnalytics?.byObjective || []).map((item) => (
+                          <div key={item.label} className="rounded-[12px] border border-[#22342F] px-3 py-2 text-sm text-[#C7D0CA]">
+                            <p>{item.label}</p>
+                            <p className="mt-1 text-[#8FA29B]">{item.value} template(s)</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3">
+                      <p className="font-semibold text-[#F5F1E8]">Por plataforma</p>
+                      <div className="mt-3 space-y-2">
+                        {(data.templateAnalytics?.byPlatform || []).map((item) => (
+                          <div key={item.label} className="rounded-[12px] border border-[#22342F] px-3 py-2 text-sm text-[#C7D0CA]">
+                            <p>{item.label}</p>
+                            <p className="mt-1 text-[#8FA29B]">{item.value} template(s)</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">

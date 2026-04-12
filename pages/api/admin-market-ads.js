@@ -18,7 +18,9 @@ import {
   saveMarketAdsTemplate,
   syncRemoteAdsCampaigns,
   syncRemoteAdsItems,
+  trackMarketAdsTemplateUsage,
   toggleMarketAdsTemplateFavorite,
+  updateMarketAdsTemplateVisibility,
   updateMarketAdsAbTest,
   updateMarketAdsCampaign,
   updateMarketAdsItem,
@@ -57,9 +59,22 @@ export default async function handler(req, res) {
     }
 
     if (action === "generate_from_template") {
+      const data = generateVariantFromTemplate(req.body?.input || {});
+      if (req.body?.input?.template?.id && !String(req.body.input.template.id).startsWith("tpl-")) {
+        await trackMarketAdsTemplateUsage({
+          templateId: req.body.input.template.id,
+          campaignId: req.body?.input?.campaignId || null,
+          usageType: "generator",
+          context: {
+            platform: req.body?.input?.platform || null,
+            objective: req.body?.input?.objective || null,
+            area: req.body?.input?.area || null,
+          },
+        }, auth.user?.id || null);
+      }
       return res.status(200).json({
         ok: true,
-        data: generateVariantFromTemplate(req.body?.input || {}),
+        data,
       });
     }
 
@@ -75,6 +90,16 @@ export default async function handler(req, res) {
 
     if (action === "toggle_template_favorite") {
       const data = await toggleMarketAdsTemplateFavorite(req.body?.templateId || null, req.body?.isFavorite !== false);
+      return res.status(200).json({ ok: true, data });
+    }
+
+    if (action === "update_template_visibility") {
+      const data = await updateMarketAdsTemplateVisibility(req.body?.templateId || null, req.body?.visibility || "privado");
+      return res.status(200).json({ ok: true, data });
+    }
+
+    if (action === "track_template_usage") {
+      const data = await trackMarketAdsTemplateUsage(req.body?.input || {}, auth.user?.id || null);
       return res.status(200).json({ ok: true, data });
     }
 

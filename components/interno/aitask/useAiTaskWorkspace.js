@@ -31,6 +31,7 @@ export function useAiTaskWorkspace({ missionInputRef, normalizeAttachmentsFromEv
   const [mission, setMission] = useState("");
   const [mode, setMode] = useState("assisted");
   const [provider, setProvider] = useState("gpt");
+  const [selectedSkillId, setSelectedSkillId] = useState("");
   const [automation, setAutomation] = useState("idle");
   const [approved, setApproved] = useState(false);
   const [tasks, setTasks] = useState([]);
@@ -62,6 +63,7 @@ export function useAiTaskWorkspace({ missionInputRef, normalizeAttachmentsFromEv
     setMission(typeof persisted.mission === "string" ? persisted.mission : "");
     setMode(normalizeWorkspaceMode(persisted.mode));
     setProvider(typeof persisted.provider === "string" ? persisted.provider : "gpt");
+    setSelectedSkillId(typeof persisted.selectedSkillId === "string" ? persisted.selectedSkillId : "");
     setAutomation(typeof persisted.automation === "string" ? persisted.automation : "idle");
     setApproved(Boolean(persisted.approved));
     setTasks(Array.isArray(persisted.tasks) ? persisted.tasks : []);
@@ -90,6 +92,7 @@ export function useAiTaskWorkspace({ missionInputRef, normalizeAttachmentsFromEv
       mission,
       mode,
       provider,
+      selectedSkillId,
       automation,
       approved,
       tasks,
@@ -205,6 +208,7 @@ export function useAiTaskWorkspace({ missionInputRef, normalizeAttachmentsFromEv
       selectedAction: nextQuickAction,
       quickActions: moduleEntry?.quickActions || current?.quickActions || [],
       capabilities: moduleEntry?.capabilities || current?.capabilities || [],
+      selectedSkillId: current?.selectedSkillId || "",
     }));
 
     appendActivityLog({
@@ -332,6 +336,7 @@ export function useAiTaskWorkspace({ missionInputRef, normalizeAttachmentsFromEv
     setMission(typeof item.mission === "string" ? item.mission : "");
     setMode(normalizeWorkspaceMode(item.mode));
     setProvider(typeof item.provider === "string" ? item.provider : "gpt");
+    setSelectedSkillId(typeof item.selectedSkillId === "string" ? item.selectedSkillId : "");
     setAutomation(typeof item.status === "string" ? item.status : "idle");
     setExecutionSource(typeof item.source === "string" ? item.source : null);
     setExecutionModel(typeof item.model === "string" ? item.model : null);
@@ -354,6 +359,7 @@ export function useAiTaskWorkspace({ missionInputRef, normalizeAttachmentsFromEv
     mode,
     paused,
     provider,
+    selectedSkillId,
     recentHistory,
     search,
     selectedLogFilter,
@@ -390,6 +396,7 @@ export function useAiTaskWorkspace({ missionInputRef, normalizeAttachmentsFromEv
     setMode,
     setPaused,
     setProvider,
+    setSelectedSkillId,
     setSearch,
     setSelectedLogFilter,
     setSelectedTaskId,

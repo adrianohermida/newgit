@@ -14,6 +14,7 @@ import {
   probeBrowserLocalStackSummary,
 } from "../../lib/lawdesk/browser-local-runtime";
 import { resolvePreferredLawdeskProvider } from "../../lib/lawdesk/providers.js";
+import { listSkills } from "../../lib/lawdesk/skill_registry.js";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import { cancelTaskRun, createPendingTaskRun, pollTaskRun, startTaskRun } from "./dotobotTaskRun";
 import { appendActivityLog, getModuleHistory, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
@@ -88,6 +89,12 @@ const PROVIDER_OPTIONS = [
   { value: "custom", label: "Endpoint custom", disabled: false },
 ];
 
+const SKILL_OPTIONS = listSkills().map((skill) => ({
+  value: skill.id,
+  label: `${skill.name} · ${skill.category}`,
+  disabled: false,
+}));
+
 const LEGAL_ACTIONS = [
   { label: "Gerar peticao", prompt: "/peticao Estruture a peticao com fatos, fundamentos e pedidos." },
   { label: "Analisar processo", prompt: "/analise Faca uma leitura juridica do processo e destaque riscos." },
@@ -102,10 +109,11 @@ const QUICK_PROMPTS = [
   "Resuma riscos, fatos e inferencias deste contexto.",
 ];
 
-function buildConversationRuntimeMetadata({ mode, provider, contextEnabled }) {
+function buildConversationRuntimeMetadata({ mode, provider, selectedSkillId, contextEnabled }) {
   return {
     mode,
     provider,
+    selectedSkillId: selectedSkillId || "",
     contextEnabled,
   };
 }
@@ -545,6 +553,8 @@ const [workspaceOpen, setWorkspaceOpen] = useState(initialWorkspaceOpen);
 const [mode, setMode] = useState("task");
 const [provider, setProvider] = useState("gpt");
 const [providerCatalog, setProviderCatalog] = useState(PROVIDER_OPTIONS);
+const [skillCatalog, setSkillCatalog] = useState(SKILL_OPTIONS);
+const [selectedSkillId, setSelectedSkillId] = useState("");
 const [ragHealth, setRagHealth] = useState(null);
 const [contextEnabled, setContextEnabled] = useState(true);
 const [localStackSummary, setLocalStackSummary] = useState(null);
@@ -578,6 +588,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
     setAttachments(persistedState.attachments);
     if (persistedState.prefs.mode) setMode(persistedState.prefs.mode);
     if (persistedState.prefs.provider) setProvider(persistedState.prefs.provider);
+    if (typeof persistedState.prefs.selectedSkillId === "string") setSelectedSkillId(persistedState.prefs.selectedSkillId);
     if (typeof persistedState.prefs.contextEnabled === "boolean") setContextEnabled(persistedState.prefs.contextEnabled);
     setWorkspaceOpen(persistedState.prefs.workspaceOpen);
   }, [chatStorageKey, taskStorageKey, prefStorageKey, conversationStorageKey, initialWorkspaceOpen]);
@@ -657,6 +668,20 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
     };
   }, [providerCatalog]);
 
+  useEffect(() => {
+    const runtimeSkills = Array.isArray(localStackSummary?.capabilities?.skillList)
+      ? localStackSummary.capabilities.skillList
+      : [];
+    if (!runtimeSkills.length) return;
+    setSkillCatalog(
+      runtimeSkills.map((skill) => ({
+        value: skill.id,
+        label: `${skill.name} · ${skill.category}${skill.offline_ready ? " · offline" : ""}`,
+        disabled: skill.available === false,
+      }))
+    );
+  }, [localStackSummary]);
+
   async function refreshLocalStackStatus() {
     setRefreshingLocalStack(true);
     try {
@@ -721,11 +746,11 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
       messages,
       taskHistory,
       attachments,
-      metadata: buildConversationRuntimeMetadata({ mode, provider, contextEnabled }),
+      metadata: buildConversationRuntimeMetadata({ mode, provider, selectedSkillId, contextEnabled }),
     });
     safeLocalSet(conversationStorageKey, JSON.stringify(next));
     setConversations(next);
-  }, [messages, taskHistory, attachments, activeConversationId, conversationStorageKey, mode, provider, contextEnabled]);
+  }, [messages, taskHistory, attachments, activeConversationId, conversationStorageKey, mode, provider, selectedSkillId, contextEnabled]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -734,12 +759,13 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
       JSON.stringify({
         mode,
         provider,
+        selectedSkillId,
         contextEnabled,
         workspaceOpen,
         activeConversationId,
       })
     );
-  }, [mode, provider, contextEnabled, workspaceOpen, activeConversationId, prefStorageKey]);
+  }, [mode, provider, selectedSkillId, contextEnabled, workspaceOpen, activeConversationId, prefStorageKey]);
 
   useEffect(() => {
     const activeConversation = conversations.find((item) => item.id === activeConversationId) || null;
@@ -753,6 +779,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
       error: error || null,
       mode,
       provider,
+      selectedSkillId,
       contextEnabled,
       workspaceOpen,
       isCollapsed,
@@ -791,6 +818,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
     messages,
     mode,
     provider,
+    selectedSkillId,
     routePath,
     showArchived,
     taskHistory,
@@ -881,6 +909,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
       profile,
       mode: nextMode,
       provider: nextProvider,
+      selectedSkillId,
       contextEnabled: nextContextEnabled,
       activeConversationId,
       messages,
@@ -945,6 +974,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
           mode: nextMode,
           provider: nextProvider,
           contextEnabled: nextContextEnabled,
+          selectedSkillId,
           context: globalContext,
         });
         const runId = data?.run?.id || null;
@@ -1067,6 +1097,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
             { label: "mode", value: nextMode },
             { label: "provider", value: nextProvider },
             { label: "contextEnabled", value: nextContextEnabled },
+            { label: "selectedSkillId", value: selectedSkillId || null },
             { label: "attachments", value: nextAttachments },
             { label: "context", value: globalContext },
           ],
@@ -1098,6 +1129,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
               mode: nextMode,
               provider: nextProvider,
               contextEnabled: nextContextEnabled,
+              selectedSkillId,
               context: globalContext,
             }),
           });
@@ -1284,7 +1316,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
       messages,
       taskHistory,
       attachments,
-      metadata: buildConversationRuntimeMetadata({ mode, provider, contextEnabled }),
+      metadata: buildConversationRuntimeMetadata({ mode, provider, selectedSkillId, contextEnabled }),
     });
     setConversations((current) => [nextConversation, ...current].slice(0, MAX_CONVERSATIONS));
     setActiveConversationId(nextConversation.id);
@@ -1299,6 +1331,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
     setAttachments(selectionState.attachments);
     if (selectionState.metadata?.mode) setMode(selectionState.metadata.mode);
     if (selectionState.metadata?.provider) setProvider(selectionState.metadata.provider);
+    if (typeof selectionState.metadata?.selectedSkillId === "string") setSelectedSkillId(selectionState.metadata.selectedSkillId);
     if (typeof selectionState.metadata?.contextEnabled === "boolean") {
       setContextEnabled(selectionState.metadata.contextEnabled);
     }
@@ -1336,7 +1369,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
         }
         const replacement = createEmptyConversation(
           "Nova conversa",
-          buildConversationRuntimeMetadata({ mode, provider, contextEnabled })
+          buildConversationRuntimeMetadata({ mode, provider, selectedSkillId, contextEnabled })
         );
         setConversations([replacement]);
         setActiveConversationId(replacement.id);
@@ -2105,6 +2138,19 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
                     className="h-10 rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-xs text-[#D8DEDA] outline-none transition focus:border-[#C5A059]"
                   >
                     {providerCatalog.map((item) => (
+                      <option key={item.value} value={item.value} disabled={item.disabled}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={selectedSkillId}
+                    onChange={(event) => setSelectedSkillId(event.target.value)}
+                    aria-label="Selecionar skill do Copilot"
+                    className="h-10 rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-xs text-[#D8DEDA] outline-none transition focus:border-[#C5A059]"
+                  >
+                    <option value="">Skill automática</option>
+                    {skillCatalog.map((item) => (
                       <option key={item.value} value={item.value} disabled={item.disabled}>
                         {item.label}
                       </option>

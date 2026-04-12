@@ -153,10 +153,13 @@ export function WorkspaceHeader({
   stateLabel,
   activeModeLabel,
   provider,
+  selectedSkillId = "",
+  skillOptions = [],
   providerOptions = [],
   localStackSummary = null,
   ragAlert = null,
   onProviderChange,
+  onSkillChange,
   executionSource,
   executionModel,
   eventsTotal,
@@ -201,7 +204,7 @@ export function WorkspaceHeader({
     browserExtensionProfiles?.profiles?.[browserExtensionProfiles?.active_profile] || null;
   return (
     <section className="rounded-[28px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(11,15,14,0.98),rgba(7,10,9,0.98))] px-5 py-4 shadow-[0_18px_54px_rgba(0,0,0,0.24)]">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+      <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C5A059]">Hermida Maia Advocacia</p>
           <h2 className="mt-2 text-[30px] font-semibold tracking-[-0.04em] text-[#F5F1E8]">AI Task Hermida Maia</h2>
@@ -209,7 +212,7 @@ export function WorkspaceHeader({
             Histórico na esquerda, conversa no centro e contexto operacional na direita para conduzir tarefas jurídicas com clareza.
           </p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[520px] xl:grid-cols-4">
+        <div className="grid gap-2 sm:grid-cols-2 2xl:min-w-[520px] 2xl:grid-cols-4">
           <MetricPill label="Status" value={stateLabel} tone={stateLabel === "Falhou" ? "danger" : stateLabel === "Concluído" ? "success" : "accent"} />
           <MetricPill label="Modo" value={activeModeLabel} />
           <MetricPill label="Provider" value={resolvedProviderName} tone={providerTone} />
@@ -226,6 +229,21 @@ export function WorkspaceHeader({
             className="min-w-[180px] bg-transparent text-[11px] text-[#F5F1E8] outline-none"
           >
             {providerOptions.map((item) => (
+              <option key={item.value} value={item.value} disabled={item.disabled}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+          <span className="uppercase tracking-[0.16em] text-[#7F928C]">Skill</span>
+          <select
+            value={selectedSkillId}
+            onChange={(event) => onSkillChange?.(event.target.value)}
+            className="min-w-[180px] bg-transparent text-[11px] text-[#F5F1E8] outline-none"
+          >
+            <option value="">Auto</option>
+            {skillOptions.map((item) => (
               <option key={item.value} value={item.value} disabled={item.disabled}>
                 {item.label}
               </option>
@@ -405,6 +423,7 @@ export function ConfirmModal({
 }
 
 export function RunsPane({
+  className = "",
   recentHistory,
   visibleHistory = recentHistory,
   activeRunId,
@@ -418,7 +437,7 @@ export function RunsPane({
   onNextPage,
 }) {
   return (
-    <aside className="min-h-0 rounded-[28px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4 shadow-[0_16px_48px_rgba(0,0,0,0.2)]">
+    <aside className={`min-h-0 rounded-[28px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4 shadow-[0_16px_48px_rgba(0,0,0,0.2)] ${className}`.trim()}>
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Histórico</p>
@@ -426,7 +445,7 @@ export function RunsPane({
         </div>
         <span className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] text-[#9BAEA8]">{recentHistory.length}</span>
       </div>
-      <div className="mt-4 space-y-3 overflow-y-auto pr-1">
+      <div className="mt-4 max-h-[34vh] space-y-3 overflow-y-auto pr-1 2xl:max-h-none">
         {visibleHistory.length ? visibleHistory.map((item) => (
           <RunHistoryCard
             key={`${item.id}_${item.updated_at || item.created_at || ""}`}
@@ -517,7 +536,7 @@ export function TaskInspector({
             <MetricPill label="Failed" value={taskColumns.failed.length} tone="danger" />
           </div>
           {taskViewMode === "kanban" ? (
-            <div className="grid gap-3 xl:grid-cols-4">
+            <div className="grid gap-3 2xl:grid-cols-4">
               {["pending", "running", "done", "failed"].map((status) => (
                 <div
                   key={status}
@@ -562,8 +581,8 @@ export function TaskInspector({
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="overflow-hidden rounded-[20px] border border-[#22342F]">
-                <div className="grid grid-cols-[minmax(0,1.5fr)_120px_120px_140px] gap-3 border-b border-[#1B2925] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">
+              <div className="overflow-x-auto rounded-[20px] border border-[#22342F]">
+                <div className="grid min-w-[640px] grid-cols-[minmax(0,1.5fr)_120px_120px_140px] gap-3 border-b border-[#1B2925] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">
                   <span>Tarefa</span>
                   <span>Status</span>
                   <span>Prioridade</span>
@@ -575,7 +594,7 @@ export function TaskInspector({
                       key={task.id}
                       type="button"
                       onClick={() => onSelectTask(task.id)}
-                      className={`grid w-full grid-cols-[minmax(0,1.5fr)_120px_120px_140px] gap-3 px-4 py-3 text-left transition ${
+                      className={`grid min-w-[640px] w-full grid-cols-[minmax(0,1.5fr)_120px_120px_140px] gap-3 px-4 py-3 text-left transition ${
                         selectedTaskId === task.id ? "bg-[rgba(197,160,89,0.08)]" : "bg-[rgba(255,255,255,0.01)] hover:bg-[rgba(255,255,255,0.03)]"
                       }`}
                     >

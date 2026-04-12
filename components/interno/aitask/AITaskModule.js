@@ -43,6 +43,7 @@ import { useAiTaskWorkspace } from "./useAiTaskWorkspace";
 import { extractModuleKeysFromContext, resolveModuleEntries } from "../../../lib/admin/module-registry.js";
 import { hydrateBrowserLocalProviderOptions, probeBrowserLocalStackSummary } from "../../../lib/lawdesk/browser-local-runtime";
 import { resolvePreferredLawdeskProvider } from "../../../lib/lawdesk/providers.js";
+import { listSkills } from "../../../lib/lawdesk/skill_registry.js";
 
 function formatHistoryStatus(status) {
   const labels = {
@@ -101,6 +102,12 @@ const FALLBACK_PROVIDER_OPTIONS = [
   { value: "cloudflare", label: "Cloudflare Workers AI", disabled: false },
   { value: "custom", label: "Endpoint custom", disabled: false },
 ];
+
+const FALLBACK_SKILL_OPTIONS = listSkills().map((skill) => ({
+  value: skill.id,
+  label: `${skill.name} · ${skill.category}`,
+  disabled: false,
+}));
 
 function buildRagAlert(health) {
   if (!health || health.status === "operational") return null;
@@ -245,6 +252,7 @@ export default function AITaskModule({ profile, routePath }) {
   const chatViewportRef = useRef(null);
   const [stopModalOpen, setStopModalOpen] = useState(false);
   const [providerCatalog, setProviderCatalog] = useState(FALLBACK_PROVIDER_OPTIONS);
+  const [skillCatalog, setSkillCatalog] = useState(FALLBACK_SKILL_OPTIONS);
   const [localStackSummary, setLocalStackSummary] = useState(null);
   const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
   const [ragHealth, setRagHealth] = useState(null);
@@ -275,6 +283,7 @@ export default function AITaskModule({ profile, routePath }) {
     mode,
     paused,
     provider,
+    selectedSkillId,
     recentHistory,
     search,
     selectedLogFilter,
@@ -307,6 +316,7 @@ export default function AITaskModule({ profile, routePath }) {
     setMode,
     setPaused,
     setProvider,
+    setSelectedSkillId,
     setSearch,
     setSelectedLogFilter,
     setSelectedTaskId,
@@ -401,6 +411,20 @@ export default function AITaskModule({ profile, routePath }) {
     };
   }, [providerCatalog]);
 
+  useEffect(() => {
+    const runtimeSkills = Array.isArray(localStackSummary?.capabilities?.skillList)
+      ? localStackSummary.capabilities.skillList
+      : [];
+    if (!runtimeSkills.length) return;
+    setSkillCatalog(
+      runtimeSkills.map((skill) => ({
+        value: skill.id,
+        label: `${skill.name} · ${skill.category}${skill.offline_ready ? " · offline" : ""}`,
+        disabled: skill.available === false,
+      }))
+    );
+  }, [localStackSummary]);
+
   const localStackReady = Boolean(localStackSummary?.ok && localStackSummary?.localProvider?.available);
 
   useEffect(() => {
@@ -477,6 +501,7 @@ export default function AITaskModule({ profile, routePath }) {
     mission,
     mode,
     provider,
+    selectedSkillId,
     approved,
     attachments,
     profile,
@@ -780,10 +805,13 @@ export default function AITaskModule({ profile, routePath }) {
         <WorkspaceHeader
           stateLabel={stateLabel}
           provider={provider}
+          selectedSkillId={selectedSkillId}
+          skillOptions={skillCatalog}
           providerOptions={providerCatalog}
           localStackSummary={localStackSummary}
           ragAlert={ragAlert}
           onProviderChange={setProvider}
+          onSkillChange={setSelectedSkillId}
           activeModeLabel={activeMode.label}
         executionSource={executionSource}
         executionModel={executionModel}
@@ -802,8 +830,9 @@ export default function AITaskModule({ profile, routePath }) {
           formatExecutionSourceLabel={formatExecutionSourceLabel}
         />
 
-      <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_340px]">
+      <div className="grid gap-4 2xl:grid-cols-[280px_minmax(0,1fr)_340px]">
         <RunsPane
+          className="order-2 2xl:order-1"
           recentHistory={recentHistory}
           visibleHistory={pagedHistory}
           activeRunId={activeRun?.id || null}
@@ -817,34 +846,36 @@ export default function AITaskModule({ profile, routePath }) {
           onNextPage={() => setHistoryPage((current) => Math.min(historyTotalPages, current + 1))}
         />
 
-        <section className="min-h-0 overflow-hidden rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] shadow-[0_16px_48px_rgba(0,0,0,0.2)]">
+        <section className="order-1 min-h-0 overflow-hidden rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] shadow-[0_16px_48px_rgba(0,0,0,0.2)] 2xl:order-2">
           <div className="border-b border-[#1B2925] px-4 py-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Conversa ativa</p>
                 <p className="mt-1 text-sm text-[#9BAEA8]">Missão, resposta, raciocínio e telemetria em uma trilha única.</p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row lg:flex-wrap lg:items-center">
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Filtrar eventos"
-                  className="h-10 w-40 rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none placeholder:text-[#60706A] focus:border-[#C5A059]"
+                  className="h-10 w-full rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none placeholder:text-[#60706A] focus:border-[#C5A059] lg:w-40"
                 />
-                {["all", "api", "backend", "planner", "reporter", "control", "error", "warning"].map((filterType) => (
-                  <button
-                    key={filterType}
-                    type="button"
-                    onClick={() => setSelectedLogFilter(filterType)}
-                    className={`rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] transition ${
-                      selectedLogFilter === filterType
-                        ? "border-[#C5A059] text-[#C5A059]"
-                        : "border-[#22342F] text-[#7F928C] hover:border-[#35554B] hover:text-[#9BAEA8]"
-                    }`}
-                  >
-                    {filterType === "all" ? "Todos" : filterType}
-                  </button>
-                ))}
+                <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0">
+                  {["all", "api", "backend", "planner", "reporter", "control", "error", "warning"].map((filterType) => (
+                    <button
+                      key={filterType}
+                      type="button"
+                      onClick={() => setSelectedLogFilter(filterType)}
+                      className={`shrink-0 rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] transition ${
+                        selectedLogFilter === filterType
+                          ? "border-[#C5A059] text-[#C5A059]"
+                          : "border-[#22342F] text-[#7F928C] hover:border-[#35554B] hover:text-[#9BAEA8]"
+                      }`}
+                    >
+                      {filterType === "all" ? "Todos" : filterType}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-4">
@@ -855,7 +886,7 @@ export default function AITaskModule({ profile, routePath }) {
             </div>
           </div>
 
-          <div ref={chatViewportRef} className="max-h-[62vh] space-y-3 overflow-y-auto px-4 py-4">
+          <div ref={chatViewportRef} className="max-h-[58vh] space-y-3 overflow-y-auto px-4 py-4 md:max-h-[62vh]">
             {mission ? <Bubble role="user" title="Missão" body={mission} time={activeRun?.startedAt || nowIso()} /> : null}
             {thinking.length ? thinking.map((block) => <ThinkingBlock key={block.id} block={block} />) : null}
             {latestResult ? <Bubble role="assistant" title="Hermida Maia IA" body={typeof latestResult === "string" ? latestResult : "Resultado estruturado entregue."} time={nowIso()} /> : null}
@@ -879,7 +910,7 @@ export default function AITaskModule({ profile, routePath }) {
           />
         </section>
 
-        <div className="space-y-4">
+        <div className="order-3 space-y-4">
           <TaskInspector
             tasks={tasks}
             visibleTasks={visibleTasks}

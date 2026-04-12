@@ -18,7 +18,7 @@ function isRepeatedAssistantResponse(conversation: any, newText: string, thresho
 }
 import { runLawdeskChat } from "../lawdesk/chat.js";
 import { buildDotobotRepositoryContext } from "../lawdesk/capabilities.js";
-import { canExecuteSkill, detectSkillFromQuery, enrichContextWithSkill } from "../lawdesk/skill_registry.js";
+import { canExecuteSkill, detectSkillFromQuery, enrichContextWithSkill, resolveExplicitSkill } from "../lawdesk/skill_registry.js";
 import { startTaskRun } from "../lawdesk/task_runs.js";
 import { routeIntent } from "./intent_router";
 
@@ -184,7 +184,7 @@ export async function processConversationTurn(
   }
 
   if (routedIntent.type === "skill") {
-    const detectedSkill = detectSkillFromQuery(query);
+    const detectedSkill = resolveExplicitSkill(sharedContext) || detectSkillFromQuery(query);
     if (!detectedSkill) {
       return toApiResponse(200, {
         conversationId,
@@ -216,6 +216,7 @@ export async function processConversationTurn(
       query,
       context: {
         ...sharedContext,
+        ...enhancedContext,
         repositoryContext: enhancedContext,
       },
     });

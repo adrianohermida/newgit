@@ -94,6 +94,7 @@ export function buildDotobotGlobalContext({
   profile,
   mode,
   provider,
+  selectedSkillId,
   contextEnabled,
   activeConversationId,
   messages,
@@ -104,6 +105,9 @@ export function buildDotobotGlobalContext({
     profile: profile || null,
     mode,
     provider,
+    selectedSkillId: selectedSkillId || "",
+    forceIntent: selectedSkillId ? "skill" : undefined,
+    selectedSkill: selectedSkillId ? { id: selectedSkillId } : undefined,
     contextEnabled,
     device: typeof window !== "undefined" && window.navigator ? window.navigator.userAgent : "server",
     time: nowIso(),
@@ -179,6 +183,7 @@ export function loadPersistedDotobotState({
     prefs: {
       mode: activeConversationMetadata.mode || savedPrefs.mode,
       provider: activeConversationMetadata.provider || savedPrefs.provider,
+      selectedSkillId: activeConversationMetadata.selectedSkillId || savedPrefs.selectedSkillId || "",
       contextEnabled:
         typeof activeConversationMetadata.contextEnabled === "boolean"
           ? activeConversationMetadata.contextEnabled
