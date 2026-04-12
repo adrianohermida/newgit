@@ -110,30 +110,37 @@ Isso melhora:
   - `fs-account-repair`
   - `processo-sync`
   - `sync-worker`
+- o lote complementar de integraÃ§Ã£o tambÃ©m jÃ¡ foi trazido para o `main`:
+  - `fs-webhook`
+  - `sync-advise-backfill`
+  - `sync-advise-publicacoes`
+  - `sync-advise-realtime`
+  - `publicacoes-freshsales`
+  - `tpu-sync`
 - migrations auxiliares deste lote tambÃ©m jÃ¡ foram versionadas:
   - `041_create_hmadv_sync_worker_status.sql`
   - `042_create_hmadv_advise_sync_and_divergencias.sql`
+  - `043_create_hmadv_monitoramento_queue.sql`
+  - `044_extend_hmadv_advise_sync_status.sql`
+  - `045_create_hmadv_tpu_core.sql`
+  - `046_extend_hmadv_tpu_gateway_fields.sql`
 - integraÃ§Ã£o `custom provider -> worker HMADV IA` validada, mas a validaÃ§Ã£o ponta a ponta do fluxo judicial operacional ainda depende de aplicar as migrations no banco e exercitar as funÃ§Ãµes em ambiente com `Supabase CLI`/deploy.
 
 ### Ainda pendente de portar do `_hmadv_review`
 
-- functions Supabase complementares:
-  - `fs-webhook`
-  - `publicacoes-freshsales`
-  - `sync-advise-backfill`
-  - `sync-advise-publicacoes`
-  - `sync-advise-realtime`
 - migrations HMADV operacionais complementares:
   - grants/complementos TPU
   - contatos/status
   - prazos
   - operaÃ§Ã£o execuÃ§Ãµes/jobs
   - cobertura/sync complementar
+- integraÃ§Ãµes externas/auxiliares ainda nÃ£o internalizadas:
+  - `extractPartiesFromProcess` segue como chamada externa tolerante a falha dentro de `publicacoes-freshsales`
 
 ### PrÃ³xima ordem recomendada
 
 1. aplicar as migrations HMADV novas no banco de destino e validar permissÃµes/relaÃ§Ãµes reais;
-2. executar validaÃ§Ã£o integrada das funÃ§Ãµes `datajud-worker`, `processo-sync`, `fs-account-repair` e `sync-worker`;
-3. portar o lote complementar de realtime/backfill do `Advise`;
+2. executar validaÃ§Ã£o integrada das funÃ§Ãµes `datajud-worker`, `processo-sync`, `fs-account-repair`, `sync-worker`, `publicacoes-freshsales` e `tpu-sync`;
+3. decidir se `extractPartiesFromProcess` serÃ¡ internalizado no repositÃ³rio ou mantido como integraÃ§Ã£o externa opcional;
 4. sÃ³ entÃ£o ligar a esteira completa em produÃ§Ã£o sem fallback manual.
 
