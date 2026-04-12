@@ -10,7 +10,7 @@ from typing import Any, Mapping
 from core.coordinator import Coordinator
 from core.command_graph import build_command_graph
 from core.commands import build_command_backlog, get_executable_commands
-from adapters.obsidian_adapter import search_obsidian_context
+from adapters.obsidian_adapter import get_local_embedding_config, search_obsidian_context
 
 
 _MAX_QUERY_LENGTH = 8_000
@@ -456,6 +456,7 @@ def capabilities_json(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
             'remote_disabled': offline_mode,
             'obsidian_expected': True,
             'supabase_optional': True,
+            'local_embedding': get_local_embedding_config(),
         },
         'orchestration': {
             **_ORCHESTRATION_CAPABILITIES,
@@ -846,6 +847,10 @@ def health(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
             'commands': capabilities_json(runtime_env)['commands'],
             'browser_extension_profile': build_extension_profiles(runtime_env)['active_profile'],
             'orchestration': dict(_ORCHESTRATION_CAPABILITIES),
+            'rag': {
+                'offline_primary': 'obsidian',
+                'local_embedding': get_local_embedding_config(),
+            },
         },
     }
 

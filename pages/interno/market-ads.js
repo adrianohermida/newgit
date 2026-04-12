@@ -58,6 +58,15 @@ function toNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function mergeById(items = [], nextItem, { prepend = false, limit = null } = {}) {
+  const list = Array.isArray(items) ? items : [];
+  if (!nextItem?.id) return list;
+
+  const filtered = list.filter((item) => item?.id !== nextItem.id);
+  const merged = prepend ? [nextItem, ...filtered] : [...filtered, nextItem];
+  return Number.isFinite(limit) ? merged.slice(0, limit) : merged;
+}
+
 export default function InternoMarketAdsPage() {
   return (
     <RequireAdmin>
@@ -165,11 +174,24 @@ function MarketAdsContent() {
   });
   const [complianceState, setComplianceState] = useState({ loading: false, error: null, result: null });
 
-  async function load() {
-    setState((current) => ({ ...current, loading: true, error: null }));
+  function patchDashboardData(updater) {
+    setState((current) => {
+      if (!current.data) return current;
+      const nextData = updater(current.data);
+      return nextData ? { ...current, data: nextData } : current;
+    });
+  }
+
+  async function load(options = {}) {
+    const silent = Boolean(options?.silent);
+    if (!silent) {
+      setState((current) => ({ ...current, loading: true, error: null }));
+    } else {
+      setState((current) => ({ ...current, error: null }));
+    }
     try {
       const payload = await adminFetch("/api/admin-market-ads");
-      setState({ loading: false, error: null, data: payload.data || null });
+      setState((current) => ({ ...current, loading: false, error: null, data: payload.data || null }));
       appendActivityLog({
         label: "Leitura HMADV Market Ads",
         action: "market_ads_load",
@@ -181,7 +203,12 @@ function MarketAdsContent() {
         tags: ["market-ads", "ads", "compliance"],
       });
     } catch (error) {
-      setState({ loading: false, error: error.message || "Falha ao carregar HMADV Market Ads.", data: null });
+      setState((current) => ({
+        ...current,
+        loading: false,
+        error: error.message || "Falha ao carregar HMADV Market Ads.",
+        data: silent ? current.data : null,
+      }));
     }
   }
 
@@ -267,7 +294,18 @@ function MarketAdsContent() {
         }),
       });
       setTemplateState({ loading: false, error: null, result: payload.data || null });
-      await load();
+      if (payload.data?.template) {
+        patchDashboardData((current) => ({
+          ...current,
+          templateLibrary: current.templateLibrary
+            ? {
+              ...current.templateLibrary,
+              templates: mergeById(current.templateLibrary.templates, payload.data.template, { prepend: true, limit: 24 }),
+            }
+            : current.templateLibrary,
+        }));
+      }
+      load({ silent: true });
     } catch (error) {
       setTemplateState({ loading: false, error: error.message || "Falha ao salvar template na biblioteca.", result: null });
     }
@@ -287,7 +325,18 @@ function MarketAdsContent() {
         }),
       });
       setTemplateState({ loading: false, error: null, result: payload.data || null });
-      await load();
+      if (payload.data?.template) {
+        patchDashboardData((current) => ({
+          ...current,
+          templateLibrary: current.templateLibrary
+            ? {
+              ...current.templateLibrary,
+              templates: mergeById(current.templateLibrary.templates, payload.data.template, { prepend: true, limit: 24 }),
+            }
+            : current.templateLibrary,
+        }));
+      }
+      load({ silent: true });
     } catch (error) {
       setTemplateState({ loading: false, error: error.message || "Falha ao atualizar favorito do template.", result: null });
     }
@@ -307,7 +356,18 @@ function MarketAdsContent() {
         }),
       });
       setTemplateState({ loading: false, error: null, result: payload.data || null });
-      await load();
+      if (payload.data?.template) {
+        patchDashboardData((current) => ({
+          ...current,
+          templateLibrary: current.templateLibrary
+            ? {
+              ...current.templateLibrary,
+              templates: mergeById(current.templateLibrary.templates, payload.data.template, { prepend: true, limit: 24 }),
+            }
+            : current.templateLibrary,
+        }));
+      }
+      load({ silent: true });
     } catch (error) {
       setTemplateState({ loading: false, error: error.message || "Falha ao atualizar visibilidade do template.", result: null });
     }
@@ -327,7 +387,18 @@ function MarketAdsContent() {
         }),
       });
       setTemplateState({ loading: false, error: null, result: payload.data || null });
-      await load();
+      if (payload.data?.template) {
+        patchDashboardData((current) => ({
+          ...current,
+          templateLibrary: current.templateLibrary
+            ? {
+              ...current.templateLibrary,
+              templates: mergeById(current.templateLibrary.templates, payload.data.template, { prepend: true, limit: 24 }),
+            }
+            : current.templateLibrary,
+        }));
+      }
+      load({ silent: true });
     } catch (error) {
       setTemplateState({ loading: false, error: error.message || "Falha ao atualizar escopo de edicao do template.", result: null });
     }
@@ -348,7 +419,13 @@ function MarketAdsContent() {
         }),
       });
       setAttributionState({ loading: false, error: null, result: payload.data || null });
-      await load();
+      if (payload.data?.attribution) {
+        patchDashboardData((current) => ({
+          ...current,
+          attributions: mergeById(current.attributions, payload.data.attribution, { prepend: true, limit: 50 }),
+        }));
+      }
+      load({ silent: true });
     } catch (error) {
       setAttributionState({ loading: false, error: error.message || "Falha ao registrar atribuicao.", result: null });
     }
@@ -377,7 +454,13 @@ function MarketAdsContent() {
         body: JSON.stringify({ action: "save_draft", input: generator }),
       });
       setDraftState({ loading: false, error: null, result: payload.data || null });
-      await load();
+      if (payload.data?.draft) {
+        patchDashboardData((current) => ({
+          ...current,
+          drafts: mergeById(current.drafts, payload.data.draft, { prepend: true, limit: 6 }),
+        }));
+      }
+      load({ silent: true });
     } catch (error) {
       setDraftState({ loading: false, error: error.message || "Falha ao salvar draft.", result: null });
     }
@@ -406,7 +489,13 @@ function MarketAdsContent() {
       });
       setCampaignState({ loading: false, error: null, result: payload.data || null });
       setEditingCampaignId("");
-      await load();
+      if (payload.data?.campaign) {
+        patchDashboardData((current) => ({
+          ...current,
+          campaigns: mergeById(current.campaigns, payload.data.campaign, { prepend: true, limit: 6 }),
+        }));
+      }
+      load({ silent: true });
     } catch (error) {
       setCampaignState({ loading: false, error: error.message || "Falha ao salvar campanha.", result: null });
     }
@@ -602,7 +691,13 @@ function MarketAdsContent() {
       });
       setAdState({ loading: false, error: null, result: payload.data || null });
       setEditingAdId("");
-      await load();
+      if (payload.data?.adItem) {
+        patchDashboardData((current) => ({
+          ...current,
+          adItems: mergeById(current.adItems, payload.data.adItem, { prepend: true, limit: 12 }),
+        }));
+      }
+      load({ silent: true });
     } catch (error) {
       setAdState({ loading: false, error: error.message || "Falha ao salvar anuncio.", result: null });
     }
@@ -658,7 +753,13 @@ function MarketAdsContent() {
       });
       setAbState({ loading: false, error: null, result: payload.data || null });
       setEditingAbId("");
-      await load();
+      if (payload.data?.abTest) {
+        patchDashboardData((current) => ({
+          ...current,
+          abTests: mergeById(current.abTests, payload.data.abTest, { prepend: true, limit: 12 }),
+        }));
+      }
+      load({ silent: true });
     } catch (error) {
       setAbState({ loading: false, error: error.message || "Falha ao salvar teste A/B.", result: null });
     }

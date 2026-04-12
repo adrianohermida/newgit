@@ -127,10 +127,10 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, data });
       }
 
-      if (action === "inspect_integrations") {
-        const data = await inspectAdsIntegrations();
-        return res.status(200).json({ ok: true, data });
-      }
+    if (action === "inspect_integrations") {
+      const data = await inspectAdsIntegrations({ force: true });
+      return res.status(200).json({ ok: true, data });
+    }
 
       if (action === "sync_remote_campaigns") {
         const data = await syncRemoteAdsCampaigns();

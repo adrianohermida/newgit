@@ -19,6 +19,7 @@ _OBSIDIAN_ENV_KEYS = (
 _TOKEN_PATTERN = re.compile(r"[a-z0-9_]+")
 _DEFAULT_MAX_INDEXED_NOTES = 256
 _INDEX_CACHE_MAX_SIZE = 16  # max distinct vault paths held in memory
+_DEFAULT_LOCAL_EMBEDDING_DIMENSIONS = 128
 
 
 @dataclass(frozen=True)
@@ -76,6 +77,8 @@ class ObsidianRagContext:
     memory_dir: str | None
     matches: tuple[ObsidianMatch, ...] = ()
     error: str | None = None
+    embedding_engine: str = "hashed_token_bow"
+    embedding_dimensions: int = _DEFAULT_LOCAL_EMBEDDING_DIMENSIONS
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -84,6 +87,8 @@ class ObsidianRagContext:
             "memory_dir": self.memory_dir,
             "matches": [match.to_dict() for match in self.matches],
             "error": self.error,
+            "embedding_engine": self.embedding_engine,
+            "embedding_dimensions": self.embedding_dimensions,
         }
 
 
@@ -128,6 +133,25 @@ def _embed_text(text: str, dimensions: int = 128) -> list[float]:
     if norm:
         vector = [value / norm for value in vector]
     return vector
+
+
+def get_local_embedding_dimensions() -> int:
+    raw = os.getenv("DOTOBOT_LOCAL_EMBEDDING_DIMENSIONS") or os.getenv("AICORE_LOCAL_EMBEDDING_DIMENSIONS")
+    if not raw:
+        return _DEFAULT_LOCAL_EMBEDDING_DIMENSIONS
+    try:
+        return max(32, int(raw))
+    except ValueError:
+        return _DEFAULT_LOCAL_EMBEDDING_DIMENSIONS
+
+
+def get_local_embedding_config() -> dict[str, Any]:
+    return {
+        "engine": "hashed_token_bow",
+        "dimensions": get_local_embedding_dimensions(),
+        "local_only": True,
+        "supports_network": False,
+    }
 
 
 def _cosine_similarity(left: list[float], right: list[float]) -> float:
@@ -235,6 +259,7 @@ def _get_cached_index(memory_dir: Path) -> dict[str, IndexedObsidianNote]:
     for path in stale_paths:
         cache.notes.pop(path, None)
 
+    embedding_dimensions = get_local_embedding_dimensions()
     for file_path in selected_files:
         resolved_path = str(file_path.resolve())
         stat = file_path.stat()
@@ -254,7 +279,7 @@ def _get_cached_index(memory_dir: Path) -> dict[str, IndexedObsidianNote]:
             title=title,
             excerpt=excerpt,
             lowered_content=content.lower(),
-            embedding=tuple(_embed_text(content)),
+            embedding=tuple(_embed_text(content, embedding_dimensions)),
             mtime_ns=stat.st_mtime_ns,
         )
     return dict(cache.notes)
@@ -299,18 +324,19 @@ def write_obsidian_memory_note(
 
 def search_obsidian_context(query: str, top_k: int = 5) -> ObsidianRagContext:
     vault_path = get_obsidian_vault_path()
+    embedding_dimensions = get_local_embedding_dimensions()
     if vault_path is None:
-        return ObsidianRagContext(enabled=False, vault_path=None, memory_dir=None)
+        return ObsidianRagContext(enabled=False, vault_path=None, memory_dir=None, embedding_dimensions=embedding_dimensions)
 
     memory_dir = build_obsidian_memory_dir(vault_path)
     if memory_dir is None:
-        return ObsidianRagContext(enabled=False, vault_path=str(vault_path), memory_dir=None)
+        return ObsidianRagContext(enabled=False, vault_path=str(vault_path), memory_dir=None, embedding_dimensions=embedding_dimensions)
 
     indexed_notes = _get_cached_index(memory_dir)
     if not indexed_notes:
-        return ObsidianRagContext(enabled=True, vault_path=str(vault_path), memory_dir=str(memory_dir))
+        return ObsidianRagContext(enabled=True, vault_path=str(vault_path), memory_dir=str(memory_dir), embedding_dimensions=embedding_dimensions)
 
-    query_embedding = _embed_text(query)
+    query_embedding = _embed_text(query, embedding_dimensions)
     query_tokens = set(_tokenize(query))
     matches: list[ObsidianMatch] = []
 
@@ -340,4 +366,5 @@ def search_obsidian_context(query: str, top_k: int = 5) -> ObsidianRagContext:
         vault_path=str(vault_path),
         memory_dir=str(memory_dir),
         matches=tuple(matches[:top_k]),
+        embedding_dimensions=embedding_dimensions,
     )

@@ -486,7 +486,7 @@ export default function AITaskModule({ profile, routePath }) {
   }
 
   async function handleCopySupabaseLocalEnvBlock() {
-    const { buildSupabaseLocalBootstrap } = await import("../../lib/lawdesk/supabase-local-bootstrap.js");
+    const { buildSupabaseLocalBootstrap } = await import("../../../lib/lawdesk/supabase-local-bootstrap.js");
     const envBlock = buildSupabaseLocalBootstrap({ localStackSummary, ragHealth }).envBlock;
     if (!envBlock) return;
     try {

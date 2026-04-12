@@ -160,6 +160,85 @@ registerTest("runDotobotRagHealth reports degraded when only Obsidian fallback i
   }
 });
 
+registerTest("retrieveDotobotRagContext offline ignores remote backends and uses Obsidian local only", async () => {
+  const { retrieveDotobotRagContext, writeObsidianMemory } = await loadLawdeskModules();
+  const tempDir = path.join("D:/Github/newgit", ".tmp-dotobot-offline-rag");
+  const originalFetch = globalThis.fetch;
+
+  await fs.rm(tempDir, { recursive: true, force: true });
+  globalThis.fetch = async (url) => {
+    throw new Error(`Offline mode should not call remote fetch: ${url}`);
+  };
+
+  try {
+    const env = {
+      AICORE_OFFLINE_MODE: "true",
+      DOTOBOT_OBSIDIAN_VAULT_PATH: tempDir,
+      CLOUDFLARE_WORKER_ACCOUNT_ID: "acct",
+      CLOUDFLARE_WORKER_API_TOKEN: "token",
+      SUPABASE_URL: "https://supabase.example.test",
+      SUPABASE_SERVICE_ROLE_KEY: "service-role",
+    };
+
+    await writeObsidianMemory(env, {
+      source_key: "offline-note",
+      query: "rotina offline",
+      responseText: "Memória local do vault para operação sem internet.",
+      created_at: "2026-04-12T00:00:00.000Z",
+      updated_at: "2026-04-12T00:00:00.000Z",
+    });
+
+    const result = await retrieveDotobotRagContext(env, { query: "operação sem internet", topK: 3 });
+    assert.equal(result.enabled, true);
+    assert.ok(result.matches.length >= 1);
+    assert.equal(result.providers.obsidian, "ok");
+    assert.equal(result.providers.cloudflare, undefined);
+    assert.equal(result.providers.supabase, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await fs.rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+registerTest("persistDotobotMemory offline stores in Obsidian without remote fetch", async () => {
+  const { persistDotobotMemory } = await loadLawdeskModules();
+  const tempDir = path.join("D:/Github/newgit", ".tmp-dotobot-offline-persist");
+  const originalFetch = globalThis.fetch;
+
+  await fs.rm(tempDir, { recursive: true, force: true });
+  globalThis.fetch = async (url) => {
+    throw new Error(`Offline mode should not call remote fetch: ${url}`);
+  };
+
+  try {
+    const env = {
+      AICORE_OFFLINE_MODE: "true",
+      DOTOBOT_OBSIDIAN_VAULT_PATH: tempDir,
+      CLOUDFLARE_WORKER_ACCOUNT_ID: "acct",
+      CLOUDFLARE_WORKER_API_TOKEN: "token",
+      SUPABASE_URL: "https://supabase.example.test",
+      SUPABASE_SERVICE_ROLE_KEY: "service-role",
+    };
+
+    const result = await persistDotobotMemory(env, {
+      sessionId: "offline-session",
+      query: "Executar missão local",
+      responseText: "Missão persistida apenas no vault local.",
+      context: { route: "/interno/ai-task" },
+      status: "ok",
+      steps: [],
+    });
+
+    assert.equal(result.stored, true);
+    assert.equal(result.result.obsidian.stored, true);
+    assert.equal(result.result.supabase.stored, false);
+    assert.equal(result.result.cloudflare.stored, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await fs.rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 registerTest("runDotobotRagHealth exposes Supabase auth mismatch signals and recommendations", async () => {
   const { runDotobotRagHealth } = await loadLawdeskModules();
   const originalFetch = globalThis.fetch;

@@ -199,7 +199,23 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(capabilities['browser_extension']['profiles']['active_profile'], 'offline')
         self.assertGreaterEqual(capabilities['commands']['total'], capabilities['commands']['executable'])
         self.assertIn('offline_primary', capabilities['rag'])
+        self.assertEqual(capabilities['rag']['local_embedding']['engine'], 'hashed_token_bow')
+        self.assertEqual(capabilities['rag']['local_embedding']['dimensions'], 128)
         self.assertTrue(capabilities['orchestration']['multi_agent'])
+
+    def test_local_embedding_dimensions_can_be_configured(self) -> None:
+        env = {
+            'AICORE_OFFLINE_MODE': 'true',
+            'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:8000',
+            'DOTOBOT_LOCAL_EMBEDDING_DIMENSIONS': '256',
+        }
+
+        capabilities = capabilities_json(env)
+        health_payload = health(env)
+
+        self.assertEqual(capabilities['rag']['local_embedding']['dimensions'], 256)
+        self.assertEqual(health_payload['capabilities']['rag']['local_embedding']['dimensions'], 256)
+        self.assertTrue(health_payload['capabilities']['rag']['local_embedding']['local_only'])
 
     def test_offline_mode_blocks_cloud_provider(self) -> None:
         env = {
