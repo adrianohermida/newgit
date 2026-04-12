@@ -37,7 +37,21 @@ $expectedMigrations = 40..54 | ForEach-Object {
 Write-Step "Checando CLI"
 $supabaseCmd = Get-Command supabase -ErrorAction SilentlyContinue
 if ($null -eq $supabaseCmd) {
-  Write-WarnLine "Supabase CLI nao encontrada no PATH."
+  $npxCmd = Get-Command npx -ErrorAction SilentlyContinue
+  if ($null -eq $npxCmd) {
+    Write-WarnLine "Supabase CLI nao encontrada no PATH e npx tambem nao esta disponivel."
+  } else {
+    try {
+      $version = & $npxCmd.Source supabase --version 2>$null
+      if ($LASTEXITCODE -eq 0 -and $version) {
+        Write-Ok "Supabase CLI disponivel via npx: $($version | Select-Object -First 1)"
+      } else {
+        Write-WarnLine "Supabase CLI nao encontrada no PATH; npx supabase tambem nao respondeu."
+      }
+    } catch {
+      Write-WarnLine "Supabase CLI nao encontrada no PATH; falha ao testar npx supabase."
+    }
+  }
 } else {
   Write-Ok "Supabase CLI encontrada: $($supabaseCmd.Source)"
 }

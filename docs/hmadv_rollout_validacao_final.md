@@ -2,17 +2,17 @@
 
 ## Objetivo
 
-Fechar a ativação operacional do stack HMADV já portado para o `main`, validando:
+Fechar a ativacao operacional do stack HMADV ja portado para o `main`, validando:
 
 - migrations do schema `judiciario`;
 - deploy das edge functions HMADV;
 - runner agendado;
 - fluxo ponta a ponta `DataJud -> Supabase -> Freshsales -> Activities`;
-- integração opcional `extractPartiesFromProcess`.
+- integracao opcional `extractPartiesFromProcess`.
 
-## Estado Atual do Repositório
+## Estado Atual do Repositorio
 
-Já portado para o `main`:
+Ja portado para o `main`:
 
 - `datajud-search`
 - `datajud-worker`
@@ -28,7 +28,7 @@ Já portado para o `main`:
 - `sync-worker`
 - `tpu-sync`
 
-Já versionado em migrations:
+Ja versionado em migrations:
 
 - `040_create_hmadv_processo_cobertura_sync.sql`
 - `041_create_hmadv_sync_worker_status.sql`
@@ -46,7 +46,7 @@ Já versionado em migrations:
 - `053_hmadv_audiencias_e_prazos_grants.sql`
 - `054_hmadv_sync_logs_status.sql`
 
-Mantidas fora do `main` por serem legadas/superseded:
+Mantidas fora do `main` por serem legadas ou superseded:
 
 - `fs-exec`
 - `fs-populate`
@@ -55,7 +55,7 @@ Mantidas fora do `main` por serem legadas/superseded:
 
 ## Secrets Esperadas
 
-Supabase / runtime:
+Supabase e runtime:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
@@ -82,20 +82,21 @@ HMADV runner:
 - `HMADV_RUNNER_URL`
 - `HMADV_RUNNER_TOKEN`
 
-Integrações auxiliares:
+Integracoes auxiliares:
 
 - `HMADV_AI_SHARED_SECRET`
 - `BASE44_WORKSPACE_ID` se o extractor externo continuar ativo
 
-## Ordem de Execução Recomendada
+## Ordem de Execucao Recomendada
 
-1. Rodar preflight local do repositório.
-2. Aplicar migrations no banco alvo.
-3. Fazer deploy das edge functions HMADV.
-4. Validar runner agendado no GitHub Actions.
-5. Executar smoke tests por função.
-6. Executar teste ponta a ponta com um processo controlado.
-7. Confirmar métricas operacionais no painel HMADV.
+1. Rodar preflight local do repositorio.
+2. Reconciliar o historico remoto de migrations.
+3. Aplicar migrations no banco alvo.
+4. Fazer deploy das edge functions HMADV.
+5. Validar runner agendado no GitHub Actions.
+6. Executar smoke tests por funcao.
+7. Executar teste ponta a ponta com um processo controlado.
+8. Confirmar metricas operacionais no painel HMADV.
 
 ## Preflight Local
 
@@ -105,105 +106,104 @@ No workspace:
 powershell -ExecutionPolicy Bypass -File scripts/hmadv-rollout-preflight.ps1
 ```
 
-Critérios de aceite:
+Criterios de aceite:
 
-- `supabase` CLI disponível;
+- `supabase` CLI disponivel globalmente ou via `npx supabase`;
 - `docs` e `functions` HMADV presentes;
-- migrations `040` até `054` detectadas;
+- migrations `040` ate `054` detectadas;
 - workflow [hmadv-runner.yml](D:\Github\newgit\.github\workflows\hmadv-runner.yml) presente.
 
-## Aplicação das Migrations
+## Aplicacao das Migrations
 
 Exemplo:
 
 ```powershell
-supabase db push
+npx supabase db push
 ```
 
 Depois validar no banco:
 
-- existência das tabelas `monitoramento_queue`, `sync_worker_status`, `advise_sync_status`, `advise_sync_log`, `datajud_sync_status`;
-- existência das tabelas TPU (`tpu_movimento`, `tpu_classe`, `tpu_assunto`, `tpu_documento`);
-- existência das tabelas de prazos (`prazo_regra`, `prazo_calculado`, `prazo_evento`);
+- existencia das tabelas `monitoramento_queue`, `sync_worker_status`, `advise_sync_status`, `advise_sync_log`, `datajud_sync_status`;
+- existencia das tabelas TPU `tpu_movimento`, `tpu_classe`, `tpu_assunto`, `tpu_documento`;
+- existencia das tabelas de prazos `prazo_regra`, `prazo_calculado`, `prazo_evento`;
 - grants esperados em `audiencias`, `operacao_execucoes`, `processo_evento_regra`.
 
 ## Deploy das Edge Functions
 
-Funções prioritárias:
+Funcoes prioritarias:
 
-```text
-datajud-search
-datajud-worker
-datajud-webhook
-advise-sync
-fs-webhook
-fs-account-repair
-processo-sync
-publicacoes-freshsales
-sync-advise-backfill
-sync-advise-publicacoes
-sync-advise-realtime
-sync-worker
-tpu-sync
-```
+- `datajud-search`
+- `datajud-worker`
+- `datajud-webhook`
+- `advise-sync`
+- `fs-webhook`
+- `fs-account-repair`
+- `processo-sync`
+- `publicacoes-freshsales`
+- `sync-advise-backfill`
+- `sync-advise-publicacoes`
+- `sync-advise-realtime`
+- `sync-worker`
+- `tpu-sync`
 
 Exemplo:
 
 ```powershell
-supabase functions deploy datajud-search
-supabase functions deploy datajud-worker
-supabase functions deploy datajud-webhook
-supabase functions deploy advise-sync
-supabase functions deploy fs-webhook
-supabase functions deploy fs-account-repair
-supabase functions deploy processo-sync
-supabase functions deploy publicacoes-freshsales
-supabase functions deploy sync-advise-backfill
-supabase functions deploy sync-advise-publicacoes
-supabase functions deploy sync-advise-realtime
-supabase functions deploy sync-worker
-supabase functions deploy tpu-sync
+npx supabase functions deploy datajud-search --use-api
+npx supabase functions deploy datajud-worker --use-api
+npx supabase functions deploy datajud-webhook --use-api
+npx supabase functions deploy advise-sync --use-api
+npx supabase functions deploy fs-webhook --use-api
+npx supabase functions deploy fs-account-repair --use-api
+npx supabase functions deploy processo-sync --use-api
+npx supabase functions deploy publicacoes-freshsales --use-api
+npx supabase functions deploy sync-advise-backfill --use-api
+npx supabase functions deploy sync-advise-publicacoes --use-api
+npx supabase functions deploy sync-advise-realtime --use-api
+npx supabase functions deploy sync-worker --use-api
+npx supabase functions deploy tpu-sync --use-api
 ```
 
 ## Smoke Tests
 
 ### `tpu-sync`
 
-- chamar status/base sync;
-- validar escrita em `tpu_sync_log`;
+- chamar `action=status`;
+- validar escrita em `tpu_sync_log` quando houver sync real;
 - validar update em `tpu_movimento`.
 
 ### `datajud-search`
 
 - enviar um CNJ conhecido;
-- validar persistência em `processos`, `movimentacoes` e `partes`.
+- validar persistencia em `processos`, `movimentacoes` e `partes`.
 
 ### `datajud-worker`
 
 - inserir item controlado em `monitoramento_queue`;
-- validar transição `pendente -> processando -> processado/concluido`.
+- validar transicao `pendente -> processando -> processado/concluido`.
 
 ### `publicacoes-freshsales`
 
-- usar publicação já vinculada a processo;
+- usar publicacao ja vinculada a processo;
 - validar update de `freshsales_activity_id`;
-- aceitar `warn` no extractor externo sem falha total da função.
+- aceitar `warn` no extractor externo sem falha total da funcao.
 
 ### `sync-worker`
 
-- chamar com lote pequeno;
-- validar atualização de `sync_worker_status`;
-- validar criação/atualização de activities no Freshsales.
+- chamar `action=status` e depois lote pequeno;
+- validar atualizacao de `sync_worker_status`;
+- validar criacao ou atualizacao de activities no Freshsales.
 
 ### `advise-sync`
 
+- chamar `action=status`;
 - rodar `sync_range` curto;
 - validar `advise_sync_log`;
-- validar avanço de cursor em `advise_sync_status`.
+- validar avanco de cursor em `advise_sync_status`.
 
 ## Teste Ponta a Ponta
 
-Cenário mínimo:
+Cenario minimo:
 
 1. escolher um processo com `account_id_freshsales`;
 2. rodar `datajud-search`;
@@ -213,31 +213,64 @@ Cenário mínimo:
 6. confirmar no Freshsales:
    - campos do Sales Account atualizados;
    - activities de andamentos;
-   - activities de publicações;
+   - activities de publicacoes;
    - eventual activity de consulta;
-   - ausência de duplicação imediata.
+   - ausencia de duplicacao imediata.
 
-## Pendência Residual Conhecida
+## Pendencia Residual Conhecida
 
-`extractPartiesFromProcess` não está internalizado no repositório atual.
+`extractPartiesFromProcess` nao esta internalizado no repositorio atual.
 
 Comportamento atual:
 
 - `publicacoes-freshsales` persiste partes localmente;
-- a chamada ao extractor externo é tolerante a falha;
-- uma falha no extractor não deve impedir o restante do fluxo.
+- a chamada ao extractor externo e tolerante a falha;
+- uma falha no extractor nao deve impedir o restante do fluxo.
 
-Decisão pendente:
+Decisao pendente:
 
-- internalizar a função no repositório; ou
-- mantê-la como integração externa opcional e monitorada.
+- internalizar a funcao no repositorio; ou
+- mante-la como integracao externa opcional e monitorada.
 
-## Critério de Conclusão
+## Criterio de Conclusao
 
-Considerar o projeto HMADV concluído no nível operacional quando:
+Considerar o projeto HMADV concluido no nivel operacional quando:
 
 - migrations aplicarem sem erro;
 - edge functions principais estiverem deployadas;
 - runner agendado executar com sucesso;
 - um processo de teste percorrer o fluxo completo sem fallback manual;
-- painel HMADV refletir filas, histórico e métricas coerentes.
+- painel HMADV refletir filas, historico e metricas coerentes.
+
+## Auditoria operacional em 2026-04-12
+
+### Ja confirmado
+
+- preflight local validado com `npx supabase`;
+- deploy remoto concluido para as 13 functions prioritarias do lote HMADV;
+- smoke test `tpu-sync?action=status` retornando `ok: true`.
+
+### Bloqueios reais remanescentes
+
+- `sync-worker?action=status` retornou modo degradado com `read: Invalid schema: judiciario`;
+- `advise-sync?action=status` confirmou `token_ok: false`;
+- `npx supabase db push --dry-run` falhou por divergencia entre historico remoto de migrations e diretorio local.
+
+### Leitura tecnica do momento
+
+O porte e o deploy das functions estao concluidos, mas a base remota ainda nao esta reconciliada com a trilha local de migrations HMADV.
+
+Antes de qualquer `db push` definitivo:
+
+1. rodar `npx supabase db pull`;
+2. revisar os arquivos timestampados trazidos do remoto;
+3. decidir entre `migration repair` ou rebase da trilha HMADV sobre o estado remoto;
+4. so entao aplicar as migrations `040` a `054` com seguranca.
+
+### Pendencia final para encerramento total
+
+O projeto so entra em estado realmente concluido quando os tres itens abaixo forem fechados juntos:
+
+- schema `judiciario` existente e compativel no remoto;
+- secret `ADVISE_TOKEN` configurada no runtime da function `advise-sync`;
+- teste ponta a ponta com processo real controlado executado sem fallback manual.
