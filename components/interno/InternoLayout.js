@@ -2623,9 +2623,9 @@ export default function InternoLayout({
           </div>
         </div>
         {shouldRenderDotobotRail && !rightCollapsed ? (
-          <div className="relative flex h-full w-[360px] min-w-[320px] max-w-[420px] flex-col border-l border-[#22342F] bg-[rgba(8,10,9,0.94)]">
+          <div className="fixed inset-y-0 right-0 z-40 flex w-[min(100vw,420px)] flex-col border-l border-[#22342F] bg-[rgba(8,10,9,0.98)] shadow-[-24px_0_48px_rgba(0,0,0,0.35)] xl:relative xl:z-auto xl:h-full xl:w-[360px] xl:min-w-[320px] xl:max-w-[420px] xl:bg-[rgba(8,10,9,0.94)] xl:shadow-none">
             {currentOperationalRail || resolvedRightRail ? (
-              <div className="max-h-[48%] shrink-0 overflow-auto border-b border-[#22342F] p-4">
+              <div className="max-h-[42%] shrink-0 overflow-auto border-b border-[#22342F] p-4 xl:max-h-[48%]">
                 {currentOperationalRail ? (
                   <OperationalRightRail
                     data={currentOperationalRail}
@@ -2666,7 +2666,7 @@ export default function InternoLayout({
           <button
             type="button"
             onClick={handleToggleCopilot}
-            className="group fixed bottom-28 right-3 z-[80] rounded-full border border-[#C5A059] bg-[#C5A059] px-3 py-3 text-[10px] uppercase tracking-[0.2em] text-[#07110E] shadow-[0_10px_30px_rgba(197,160,89,0.3)] md:right-0 md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-l-2xl md:rounded-r-none md:px-2 md:py-5 md:tracking-[0.32em]"
+            className="group fixed bottom-24 right-3 z-[80] rounded-full border border-[#C5A059] bg-[#C5A059] px-3 py-3 text-[10px] uppercase tracking-[0.2em] text-[#07110E] shadow-[0_10px_30px_rgba(197,160,89,0.3)] xl:right-0 xl:top-1/2 xl:bottom-auto xl:-translate-y-1/2 xl:rounded-l-2xl xl:rounded-r-none xl:px-2 xl:py-5 xl:tracking-[0.32em]"
             style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
           >
             <span className="group-hover:hidden">{copilotOpen && !rightCollapsed ? "Fechar" : "Copilot"}</span>

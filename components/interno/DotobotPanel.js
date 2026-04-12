@@ -1672,7 +1672,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
       />
       {showCollapsedTrigger ? <CollapsedTrigger /> : null}
       {!isCollapsed ? (
-      <section className={`border border-[#22342F] bg-[rgba(10,12,11,0.98)] backdrop-blur-sm ${compactRail ? "" : "mr-10 md:mr-0"}`}>
+      <section className={`min-h-0 overflow-hidden rounded-[28px] border border-[#22342F] bg-[rgba(10,12,11,0.98)] backdrop-blur-sm ${compactRail ? "" : "mr-10 md:mr-0"}`}>
         <header className="border-b border-[#22342F] px-4 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -1769,7 +1769,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
                 <p className="mt-2 max-w-2xl text-[11px] leading-6 text-[#7F928C]">{activeProviderPresentation.reason}</p>
               ) : null}
             </div>
-            <div className="flex flex-row flex-wrap items-start justify-end gap-2 sm:flex-col sm:items-end">
+            <div className="flex w-full flex-wrap items-start gap-2 lg:w-auto lg:justify-end">
               <button
                 type="button"
                 onClick={handleCopilotDebug}
@@ -1786,7 +1786,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
                 {refreshingLocalStack ? "Atualizando stack..." : "Atualizar stack local"}
               </button>
               {compactRail ? (
-                <div className="flex flex-col gap-2">
+                  <div className="flex w-full flex-col gap-2 sm:w-auto">
                   <button
                     type="button"
                     onClick={() => setWorkspaceOpen(true)}
@@ -1897,7 +1897,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
               </div>
             </div>
 
-            <div ref={scrollRef} className="max-h-[50vh] overflow-y-auto space-y-3 px-4 py-4 pr-3 sm:pr-4">
+            <div ref={scrollRef} className="max-h-[42vh] overflow-y-auto space-y-3 px-4 py-4 pr-3 sm:max-h-[50vh] sm:pr-4">
               {messages.length ? (
                 <div className="space-y-3">
                   {messages.map((message, index) => (
@@ -2026,7 +2026,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
           <div className="fixed inset-0 z-[70] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.16),transparent_28%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.96))] text-[#F4F1EA] backdrop-blur-xl">
           <div className="flex h-full flex-col">
             <header className="border-b border-[#22342F]/80 bg-[rgba(7,10,9,0.78)] px-4 py-4 backdrop-blur-xl md:px-5">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-3">
                     <h2 className="text-2xl font-semibold tracking-[-0.03em] text-[#F5F1E8] md:text-[28px]">Dotobot</h2>
@@ -2116,7 +2116,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
                   ) : null}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row lg:flex-wrap lg:items-center">
                   {MODE_OPTIONS.map((item) => (
                     <button
                       key={item.value}
@@ -2135,7 +2135,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
                     value={provider}
                     onChange={(event) => setProvider(event.target.value)}
                     aria-label="Selecionar LLM do Copilot"
-                    className="h-10 rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-xs text-[#D8DEDA] outline-none transition focus:border-[#C5A059]"
+                    className="h-10 w-full rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-xs text-[#D8DEDA] outline-none transition focus:border-[#C5A059] lg:w-auto"
                   >
                     {providerCatalog.map((item) => (
                       <option key={item.value} value={item.value} disabled={item.disabled}>
@@ -2147,7 +2147,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
                     value={selectedSkillId}
                     onChange={(event) => setSelectedSkillId(event.target.value)}
                     aria-label="Selecionar skill do Copilot"
-                    className="h-10 rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-xs text-[#D8DEDA] outline-none transition focus:border-[#C5A059]"
+                    className="h-10 w-full rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-xs text-[#D8DEDA] outline-none transition focus:border-[#C5A059] lg:w-auto"
                   >
                     <option value="">Skill automática</option>
                     {skillCatalog.map((item) => (
@@ -2192,8 +2192,8 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
               </div>
             </header>
 
-            <div className="flex-1 overflow-hidden p-4 md:p-5">
-              <div className="grid h-full gap-4 xl:grid-cols-[260px_minmax(0,1.35fr)_300px]">
+            <div className="flex-1 overflow-hidden p-3 md:p-5">
+              <div className="grid h-full min-h-0 gap-4 2xl:grid-cols-[260px_minmax(0,1.35fr)_300px]">
                 <aside className="flex min-h-0 flex-col overflow-hidden rounded-[24px] border border-[#1C2623] bg-[rgba(255,255,255,0.015)] shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
                   <div className="border-b border-[#22342F] px-4 py-4 md:px-5">
                     <div className="flex items-center justify-between gap-3">
