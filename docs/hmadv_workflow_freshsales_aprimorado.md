@@ -136,11 +136,17 @@ Isso melhora:
   - cobertura/sync complementar
 - integraÃ§Ãµes externas/auxiliares ainda nÃ£o internalizadas:
   - `extractPartiesFromProcess` segue como chamada externa tolerante a falha dentro de `publicacoes-freshsales`
+- funÃ§Ãµes legadas avaliadas como superseded no `main` atual:
+  - `fs-exec`
+  - `fs-populate`
+  - `fs-runner`
+  - `process-datajud-queue`
+  Essas rotas antigas foram mantidas fora do `main` porque duplicam responsabilidades hoje cobertas por `fs-webhook`, `fs-account-repair`, `processo-sync`, `publicacoes-freshsales`, `datajud-webhook` e `sync-worker`.
 
 ### PrÃ³xima ordem recomendada
 
 1. aplicar as migrations HMADV novas no banco de destino e validar permissÃµes/relaÃ§Ãµes reais;
-2. executar validaÃ§Ã£o integrada das funÃ§Ãµes `datajud-worker`, `processo-sync`, `fs-account-repair`, `sync-worker`, `publicacoes-freshsales` e `tpu-sync`;
+2. executar validaÃ§Ã£o integrada das funÃ§Ãµes `datajud-worker`, `processo-sync`, `fs-account-repair`, `sync-worker`, `publicacoes-freshsales`, `tpu-sync`, `datajud-webhook` e `advise-sync`;
 3. decidir se `extractPartiesFromProcess` serÃ¡ internalizado no repositÃ³rio ou mantido como integraÃ§Ã£o externa opcional;
 4. sÃ³ entÃ£o ligar a esteira completa em produÃ§Ã£o sem fallback manual.
 
