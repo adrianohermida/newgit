@@ -90,7 +90,7 @@ Integracoes auxiliares:
 ## Ordem de Execucao Recomendada
 
 1. Rodar preflight local do repositorio.
-2. Reconciliar o historico remoto de migrations.
+2. Auditar se o projeto alvo HMADV e o mesmo projeto atualmente linkado no workspace.
 3. Aplicar migrations no banco alvo.
 4. Fazer deploy das edge functions HMADV.
 5. Validar runner agendado no GitHub Actions.
@@ -113,6 +113,21 @@ Criterios de aceite:
 - migrations `040` ate `054` detectadas;
 - workflow [hmadv-runner.yml](D:\Github\newgit\.github\workflows\hmadv-runner.yml) presente.
 
+## Auditoria do Projeto Supabase Alvo
+
+Antes de publicar ou reconciliar migrations, confirmar se o alvo HMADV e realmente o projeto judicial ativo:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/hmadv-audit-supabase-target.ps1
+```
+
+No estado auditado em `2026-04-12`:
+
+- projeto HMADV operacional: `sspvizogbcyigquqycsz`
+- projeto atualmente linkado no workspace: `ampwhwqbtuwxpgnzsxau`
+
+Ou seja, o projeto linkado e o projeto HMADV ativo nao coincidem.
+
 ## Aplicacao das Migrations
 
 Exemplo:
@@ -120,6 +135,8 @@ Exemplo:
 ```powershell
 npx supabase db push
 ```
+
+Se o workspace continuar linkado em outro projeto, prefira operar HMADV com `--project-ref` explicito nos comandos e scripts dedicados.
 
 Depois validar no banco:
 
@@ -162,6 +179,12 @@ npx supabase functions deploy sync-advise-publicacoes --use-api
 npx supabase functions deploy sync-advise-realtime --use-api
 npx supabase functions deploy sync-worker --use-api
 npx supabase functions deploy tpu-sync --use-api
+```
+
+Para o projeto HMADV explicito:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/hmadv-deploy-supabase-functions.ps1 -ProjectRef sspvizogbcyigquqycsz -SmokeTest
 ```
 
 ## Smoke Tests
@@ -252,20 +275,22 @@ Considerar o projeto HMADV concluido no nivel operacional quando:
 
 ### Bloqueios reais remanescentes
 
-- `sync-worker?action=status` retornou modo degradado com `read: Invalid schema: judiciario`;
-- `advise-sync?action=status` confirmou `token_ok: false`;
+- o workspace estava ligado ao projeto `Lawdesk`, enquanto o HMADV ativo esta em `sspvizogbcyigquqycsz`;
+- no projeto `Lawdesk`, `sync-worker?action=status` retornou modo degradado com `read: Invalid schema: judiciario`;
+- no projeto `Lawdesk`, `advise-sync?action=status` confirmou `token_ok: false`;
 - `npx supabase db push --dry-run` falhou por divergencia entre historico remoto de migrations e diretorio local.
 
 ### Leitura tecnica do momento
 
-O porte e o deploy das functions estao concluidos, mas a base remota ainda nao esta reconciliada com a trilha local de migrations HMADV.
+O porte e o deploy das functions estao concluidos, mas a esteira HMADV precisa mirar explicitamente o projeto Supabase judicial correto. O projeto ativo `hmadv` ja responde com backlog e secrets coerentes, enquanto o projeto `Lawdesk` nao tem o schema judicial ativo.
 
 Antes de qualquer `db push` definitivo:
 
-1. rodar `npx supabase db pull`;
-2. revisar os arquivos timestampados trazidos do remoto;
-3. decidir entre `migration repair` ou rebase da trilha HMADV sobre o estado remoto;
-4. so entao aplicar as migrations `040` a `054` com seguranca.
+1. fixar o projeto alvo HMADV nos scripts por `--project-ref`;
+2. rodar `npx supabase db pull` mirando o projeto judicial correto, se necessario;
+3. revisar os arquivos timestampados trazidos do remoto;
+4. decidir entre `migration repair` ou rebase da trilha HMADV sobre o estado remoto;
+5. so entao aplicar as migrations `040` a `054` com seguranca.
 
 ### Pendencia final para encerramento total
 
