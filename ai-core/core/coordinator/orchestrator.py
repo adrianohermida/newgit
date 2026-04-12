@@ -73,6 +73,8 @@ class Coordinator:
             duration_ms=round((perf_counter() - plan_started_at) * 1000, 3),
             steps=len(state.plan.steps),
             tool_selection=[step.tool for step in state.plan.steps],
+            multi_agent=bool(state.plan.orchestration.get('multi_agent')) if getattr(state.plan, 'orchestration', None) else False,
+            subagents=[agent.get('role') for agent in state.plan.orchestration.get('subagents', [])] if getattr(state.plan, 'orchestration', None) else [],
         )
 
         execution_started_at = perf_counter()
@@ -149,6 +151,7 @@ class Coordinator:
             status=status,
             session_id=session_id,
             rag=rag_context,
+            orchestration=dict(state.plan.orchestration) if getattr(state.plan, 'orchestration', None) else {},
             errors=tuple(errors),
             telemetry=tuple(state.telemetry + [{
                 'event': 'orchestration_complete',

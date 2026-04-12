@@ -500,6 +500,7 @@ export function useAiTaskRun({
             documents: normalized.rag?.documents || [],
             ragEnabled: Boolean(normalized.rag?.retrieval?.enabled || normalized.rag?.documents?.length),
             route: routePath || "/interno/ai-task",
+            orchestration: normalized.orchestration || null,
           });
         }
 
@@ -508,10 +509,17 @@ export function useAiTaskRun({
             id: `${Date.now()}_local_response`,
             title: "Resposta operacional local",
             timestamp: nowIso(),
-            summary: "O ai-core local executou a trilha diretamente no navegador.",
+            summary: normalized.orchestration?.multi_agent
+              ? `O ai-core local distribuiu a missão entre ${normalized.orchestration?.subagents?.length || 0} subagentes.`
+              : "O ai-core local executou a trilha diretamente no navegador.",
             details: (backendSteps.length ? backendSteps : normalized.events || [])
               .slice(0, 6)
-              .map((item) => item?.action || item?.title || item?.type || JSON.stringify(item)),
+              .map((item) =>
+                item?.action ||
+                item?.title ||
+                item?.type ||
+                `${item?.agent_role || "Executor"} · ${item?.stage || "execution"}`
+              ),
             expanded: true,
           },
           ...current,
@@ -777,6 +785,7 @@ export function useAiTaskRun({
           documents: normalized.rag?.documents || [],
           ragEnabled: Boolean(normalized.rag?.retrieval?.enabled || normalized.rag?.documents?.length),
           route: routePath || "/interno/ai-task",
+          orchestration: normalized.orchestration || null,
         });
       }
 

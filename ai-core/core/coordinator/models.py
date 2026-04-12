@@ -41,6 +41,7 @@ class OrchestrationResult:
     status: ExecutionStatus
     session_id: str
     rag: ObsidianRagContext | None = None
+    orchestration: dict[str, Any] = field(default_factory=dict)
     errors: tuple[OrchestrationError, ...] = ()
     telemetry: tuple[dict[str, Any], ...] = ()
 
@@ -54,6 +55,8 @@ class OrchestrationResult:
         }
         if self.rag is not None:
             payload['rag'] = self.rag.to_dict()
+        if self.orchestration:
+            payload['orchestration'] = dict(self.orchestration)
         if self.errors:
             payload['errors'] = [error.to_dict() for error in self.errors]
         if self.telemetry:

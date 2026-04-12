@@ -27,6 +27,23 @@ class OrchestrationEngineTests(TempPathsMixin):
         planner = PlannerAgent()
         plan = planner.build_plan('Collect context and summarize findings and prepare final answer')
         self.assertGreaterEqual(len(plan.steps), 2)
+        self.assertIn('tasks', plan.orchestration)
+        self.assertGreaterEqual(len(plan.orchestration['tasks']), 2)
+
+    def test_planner_builds_multi_agent_orchestration_from_repository_modules(self) -> None:
+        planner = PlannerAgent()
+        plan = planner.build_plan(
+            'Planejar estrategia de processos e buscar contexto no agentlab antes de revisar a execucao',
+            context={
+                'modules': [
+                    {'key': 'interno_processos', 'label': 'Processos', 'route': '/interno/processos'},
+                    {'key': 'interno_agentlab', 'label': 'AgentLab', 'route': '/interno/agentlab'},
+                ]
+            },
+        )
+        self.assertTrue(plan.orchestration['multi_agent'])
+        self.assertTrue(any(task['module_keys'] for task in plan.orchestration['tasks']))
+        self.assertTrue(any(agent['role'] == 'Planner' for agent in plan.orchestration['subagents']))
 
     def test_critic_retry_path(self) -> None:
         class FailingExecutor(ExecutorAgent):
@@ -71,6 +88,7 @@ class OrchestrationEngineTests(TempPathsMixin):
         self.assertIn('result', payload)
         self.assertIn('steps', payload)
         self.assertIn('logs', payload)
+        self.assertIn('orchestration', payload)
         self.assertIn(payload['status'], {'ok', 'fail'})
 
     def test_executor_marks_missing_tool_as_unimplemented(self) -> None:

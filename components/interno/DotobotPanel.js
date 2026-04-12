@@ -20,6 +20,7 @@ import { resolvePreferredLawdeskProvider } from "../../lib/lawdesk/providers.js"
 import { listSkills } from "../../lib/lawdesk/skill_registry.js";
 import { buildOfflineHealthSnapshot } from "../../lib/lawdesk/offline-health.js";
 import { buildLocalBootstrapPlan } from "../../lib/lawdesk/local-bootstrap.js";
+import { buildSupabaseLocalBootstrap } from "../../lib/lawdesk/supabase-local-bootstrap.js";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import { cancelTaskRun, createPendingTaskRun, pollTaskRun, startTaskRun } from "./dotobotTaskRun";
 import { appendActivityLog, getModuleHistory, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
@@ -728,9 +729,29 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
     await refreshLocalStackStatus();
   }
 
+  async function handleCopySupabaseLocalEnvBlock() {
+    const envBlock = buildSupabaseLocalBootstrap({ localStackSummary, ragHealth }).envBlock;
+    if (!envBlock) return;
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(envBlock);
+      }
+      logDotobotUi(
+        "Dotobot: envs Supabase local copiadas",
+        "dotobot_supabase_local_env_copy",
+        { size: envBlock.length },
+        { component: "DotobotLocalPersistence" }
+      );
+    } catch {}
+  }
+
   function handleLocalStackAction(actionId) {
     if (actionId === "open_llm_test") {
       openLlmTest("local", input);
+      return;
+    }
+    if (actionId === "copiar_envs_supabase_local") {
+      handleCopySupabaseLocalEnvBlock();
       return;
     }
     if (actionId === "open_runtime_config") {
@@ -1638,6 +1659,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
   const ragAlert = buildRagAlert(ragHealth);
   const offlineHealthSnapshot = buildOfflineHealthSnapshot({ localStackSummary, ragHealth });
   const localBootstrapPlan = buildLocalBootstrapPlan({ localStackSummary, ragHealth });
+  const supabaseBootstrap = buildSupabaseLocalBootstrap({ localStackSummary, ragHealth });
   const isWorkspaceShell = workspaceOpen;
   const railCollapsed = compactRail ? true : isCollapsed;
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
@@ -1665,6 +1687,10 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
     activeConversation?.messages?.[activeConversation.messages.length - 1]?.text ||
     "Nova conversa pronta para receber contexto, tarefas e handoff.";
   const activeConversationTimestamp = activeConversation?.updatedAt || activeConversation?.createdAt || null;
+  const compactTaskHistory = taskHistory.slice(0, 3);
+  const activeTaskLabel = activeTask?.query || activeTask?.label || activeTask?.title || "Nenhuma missão em andamento";
+  const activeTaskStepCount = Array.isArray(activeTask?.steps) ? activeTask.steps.length : 0;
+  const activeTaskProviderLabel = activeTask?.provider ? parseProviderPresentation(activeTask.provider).name : activeProviderPresentation.name;
 
   useEffect(() => {
     if (!localStackReady && !localStackSummary?.offlineMode) return;
@@ -1801,6 +1827,51 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                     : "O runtime local ainda nao respondeu; suba o ai-core e a extensao local para habilitar o modo da sua maquina."}
                 </p>
               ) : null}
+              <div className="mt-4 grid gap-3">
+                <div className="rounded-[20px] border border-[#3C3320] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.14),transparent_60%),rgba(255,255,255,0.02)] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#D9B46A]">Cockpit ativo</p>
+                  <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeConversation?.title || "Nova conversa"}</p>
+                  <p className="mt-2 line-clamp-3 text-[12px] leading-6 text-[#C6D1CC]">{activeConversationPreview}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-[#4B3F22] px-3 py-1.5 text-[10px] text-[#F1D39A]">
+                      histórico {filteredConversations.length}
+                    </span>
+                    <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D8DEDA]">
+                      mensagens {messages.length}
+                    </span>
+                    <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D8DEDA]">
+                      tarefas {taskHistory.length}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Missão em foco</p>
+                      <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeTaskLabel}</p>
+                    </div>
+                    <span className={`rounded-full border px-2.5 py-1 text-[10px] ${
+                      runningCount ? "border-[#C5A059] text-[#F1D39A]" : "border-[#22342F] text-[#9BAEA8]"
+                    }`}>
+                      {runningCount ? `${runningCount} ativa(s)` : "sem execução"}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D8DEDA]">
+                      provider {activeTaskProviderLabel}
+                    </span>
+                    <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D8DEDA]">
+                      etapas {activeTaskStepCount}
+                    </span>
+                    {activeConversationTimestamp ? (
+                      <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#9BAEA8]">
+                        {new Date(activeConversationTimestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
               {offlineHealthSnapshot.items.length ? (
                 <div className="mt-3 flex max-w-3xl flex-wrap gap-2">
                   {offlineHealthSnapshot.items.map((item) => (
@@ -1869,6 +1940,83 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                   </div>
                 </div>
               ) : null}
+              <div className="mt-4 rounded-[20px] border border-[#22342F] bg-[rgba(7,9,8,0.7)] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Persistência local</p>
+                    <p className="mt-1 text-sm text-[#F5F1E8]">{supabaseBootstrap.label}</p>
+                  </div>
+                  <span className={`rounded-full border px-3 py-1.5 text-[11px] ${
+                    supabaseBootstrap.tone === "success"
+                      ? "border-[#234034] text-[#8FCFA9]"
+                      : supabaseBootstrap.tone === "danger"
+                        ? "border-[#5b2d2d] text-[#f2b2b2]"
+                        : "border-[#3B3523] text-[#D9C38A]"
+                  }`}>
+                    {supabaseBootstrap.baseUrlKind === "local"
+                      ? "Local"
+                      : supabaseBootstrap.baseUrlKind === "remote"
+                        ? "Remoto"
+                        : "Não verificado"}
+                  </span>
+                </div>
+                <p className="mt-2 text-[11px] leading-6 text-[#9BAEA8]">
+                  {supabaseBootstrap.detail}
+                  {supabaseBootstrap.baseUrlPreview ? ` Endpoint atual: ${supabaseBootstrap.baseUrlPreview}.` : ""}
+                </p>
+                <div className="mt-3 grid gap-3 xl:grid-cols-2">
+                  <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Envs sugeridas</p>
+                    <div className="mt-2 space-y-2">
+                      {supabaseBootstrap.envs.map((line) => (
+                        <p key={line} className="rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.75)] px-3 py-2 text-[11px] text-[#C6D1CC]">
+                          {line}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Bootstrap Supabase local</p>
+                    <div className="mt-2 space-y-2">
+                      {supabaseBootstrap.commands.map((line) => (
+                        <p key={line} className="rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.75)] px-3 py-2 text-[11px] text-[#C6D1CC]">
+                          {line}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Schema offline</p>
+                  <div className="mt-2 grid gap-2 xl:grid-cols-2">
+                    {supabaseBootstrap.schema.map((item) => (
+                      <div key={item.id} className="rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.75)] px-3 py-3">
+                        <p className="text-[11px] font-semibold text-[#F5F1E8]">{item.label}</p>
+                        <p className="mt-1 text-[11px] leading-6 text-[#9BAEA8]">{item.detail}</p>
+                        <p className="mt-2 text-[10px] text-[#7F928C]">{item.migration}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {supabaseBootstrap.actions.map((actionId) => (
+                    <button
+                      key={actionId}
+                      type="button"
+                      onClick={() => handleLocalStackAction(actionId)}
+                      className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                    >
+                      {actionId === "open_runtime_config"
+                        ? "Editar runtime local"
+                        : actionId === "copiar_envs_supabase_local"
+                          ? "Copiar envs local"
+                        : actionId === "testar_llm_local"
+                          ? "Testar runtime"
+                          : "Abrir diagnóstico"}
+                    </button>
+                  ))}
+                </div>
+              </div>
               {localRuntimeConfigOpen ? (
                 <div className="mt-4 rounded-[20px] border border-[#22342F] bg-[rgba(7,9,8,0.7)] p-4">
                   <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Configuração persistente do runtime local</p>
@@ -2128,6 +2276,38 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                 </div>
               </div>
             ) : null}
+            <div className="mt-4 rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Persistência</p>
+                <span className={`rounded-full border px-2 py-1 text-[10px] ${
+                  supabaseBootstrap.tone === "success"
+                    ? "border-[#234034] text-[#8FCFA9]"
+                    : supabaseBootstrap.tone === "danger"
+                      ? "border-[#5b2d2d] text-[#f2b2b2]"
+                      : "border-[#3B3523] text-[#D9C38A]"
+                }`}>
+                  {supabaseBootstrap.baseUrlKind === "local"
+                    ? "Local"
+                    : supabaseBootstrap.baseUrlKind === "remote"
+                      ? "Remoto"
+                      : "Pendente"}
+                </span>
+              </div>
+              <p className="mt-2 text-[12px] font-semibold text-[#F5F1E8]">{supabaseBootstrap.label}</p>
+              <p className="mt-1 text-[11px] leading-5 text-[#9BAEA8]">{supabaseBootstrap.detail}</p>
+              {supabaseBootstrap.baseUrlPreview ? (
+                <p className="mt-2 rounded-[18px] border border-[#22342F] px-3 py-2 text-[11px] text-[#C6D1CC]">
+                  {supabaseBootstrap.baseUrlPreview}
+                </p>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => handleLocalStackAction("copiar_envs_supabase_local")}
+                className="mt-3 w-full rounded-2xl border border-[#35554B] px-4 py-2 text-sm font-semibold text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+              >
+                Copiar envs local
+              </button>
+            </div>
             {localRuntimeConfigOpen ? (
               <div className="mt-4 rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Runtime local</p>
@@ -2226,6 +2406,24 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                   </button>
                 </div>
                 <div className="mt-3 max-h-[28vh] space-y-2 overflow-y-auto pr-1">
+                  {compactRecentConversations.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {compactRecentConversations.map((conversation) => (
+                        <button
+                          key={conversation.id}
+                          type="button"
+                          onClick={() => selectConversation(conversation)}
+                          className={`rounded-full border px-3 py-1.5 text-[10px] transition ${
+                            conversation.id === activeConversationId
+                              ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)] text-[#F1D39A]"
+                              : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"
+                          }`}
+                        >
+                          {conversation.title}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                   {compactTranscript.length ? (
                     compactTranscript.map((message, index) => (
                       <div
@@ -2259,6 +2457,25 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                   {loading ? (
                     <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3 text-[12px] text-[#9BAEA8]">
                       Dotobot está preparando a próxima resposta...
+                    </div>
+                  ) : null}
+                  {compactTaskHistory.length ? (
+                    <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Execuções recentes</p>
+                        <span className="text-[10px] text-[#60706A]">{taskHistory.length}</span>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {compactTaskHistory.map((task) => (
+                          <div key={task.id} className="rounded-[14px] border border-[#22342F] bg-[rgba(7,9,8,0.75)] px-3 py-2">
+                            <p className="line-clamp-2 text-[11px] text-[#F5F1E8]">{task.query || task.title || "Tarefa"}</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#9BAEA8]">{task.status || "n/a"}</span>
+                              <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#9BAEA8]">{task.steps?.length || 0} etapas</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ) : null}
                 </div>
@@ -2543,6 +2760,39 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                         : "Runtime local ainda nao confirmado nesta sessao. Use o bootstrap offline local ou suba manualmente o ai-core."}
                     </p>
                   ) : null}
+                  <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                    <div className="rounded-[20px] border border-[#3C3320] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.14),transparent_60%),rgba(255,255,255,0.02)] p-4">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#D9B46A]">Conversa operacional</p>
+                      <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{activeConversation?.title || "Nova conversa"}</p>
+                      <p className="mt-2 max-w-2xl line-clamp-3 text-sm leading-6 text-[#C6D1CC]">{activeConversationPreview}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="rounded-full border border-[#4B3F22] px-3 py-1.5 text-[11px] text-[#F1D39A]">
+                          histórico {filteredConversations.length}
+                        </span>
+                        <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+                          mensagens {messages.length}
+                        </span>
+                        <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+                          tarefas {taskHistory.length}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Missão em foco</p>
+                      <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeTaskLabel}</p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                        <span className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.72)] px-3 py-2 text-[11px] text-[#D8DEDA]">
+                          Provider {activeTaskProviderLabel}
+                        </span>
+                        <span className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.72)] px-3 py-2 text-[11px] text-[#D8DEDA]">
+                          Etapas {activeTaskStepCount}
+                        </span>
+                        <span className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.72)] px-3 py-2 text-[11px] text-[#D8DEDA]">
+                          Ativas {runningCount}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                   {localStackSummary?.recommendations?.length ? (
                     <div className="mt-2 flex max-w-3xl flex-wrap gap-2 text-[11px]">
                       {localStackSummary.recommendations.slice(0, 3).map((item) => (

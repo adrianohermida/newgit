@@ -485,6 +485,22 @@ export default function AITaskModule({ profile, routePath }) {
     await refreshLocalStackStatus();
   }
 
+  async function handleCopySupabaseLocalEnvBlock() {
+    const { buildSupabaseLocalBootstrap } = await import("../../lib/lawdesk/supabase-local-bootstrap.js");
+    const envBlock = buildSupabaseLocalBootstrap({ localStackSummary, ragHealth }).envBlock;
+    if (!envBlock) return;
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(envBlock);
+      }
+      pushLog({
+        type: "control",
+        action: "Env local copiado",
+        result: "Bloco de variáveis do Supabase local copiado para a área de transferência.",
+      });
+    } catch {}
+  }
+
   useEffect(() => {
     let active = true;
     adminFetch("/api/admin-dotobot-rag-health?include_upsert=0", { method: "GET" })
@@ -602,6 +618,10 @@ export default function AITaskModule({ profile, routePath }) {
   function handleLocalStackAction(actionId) {
     if (actionId === "open_llm_test") {
       handleOpenLlmTest();
+      return;
+    }
+    if (actionId === "copiar_envs_supabase_local") {
+      handleCopySupabaseLocalEnvBlock();
       return;
     }
     if (actionId === "open_runtime_config") {
@@ -849,6 +869,7 @@ export default function AITaskModule({ profile, routePath }) {
         <WorkspaceHeader
           stateLabel={stateLabel}
           provider={provider}
+          contextSnapshot={contextSnapshot}
           selectedSkillId={selectedSkillId}
           skillOptions={skillCatalog}
           providerOptions={providerCatalog}

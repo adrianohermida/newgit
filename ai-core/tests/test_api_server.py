@@ -199,6 +199,7 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(capabilities['browser_extension']['profiles']['active_profile'], 'offline')
         self.assertGreaterEqual(capabilities['commands']['total'], capabilities['commands']['executable'])
         self.assertIn('offline_primary', capabilities['rag'])
+        self.assertTrue(capabilities['orchestration']['multi_agent'])
 
     def test_offline_mode_blocks_cloud_provider(self) -> None:
         env = {

@@ -703,15 +703,25 @@ function MarketAdsContent() {
   const data = state.data;
   const preview = previewState.result || data?.generatedSeed || null;
   const complianceResult = complianceState.result || preview?.compliance || null;
+  const campaigns = useMemo(() => data?.campaigns || [], [data?.campaigns]);
+  const adItems = useMemo(() => data?.adItems || [], [data?.adItems]);
+  const strategyQueue = useMemo(() => data?.strategyQueue || [], [data?.strategyQueue]);
+  const optimizationRecommendations = useMemo(() => (optimizationState.result || data?.optimizationPlan)?.recommendations || [], [data?.optimizationPlan, optimizationState.result]);
+  const persistedTemplates = useMemo(
+    () => ((data?.templateLibrary?.templates) || []).filter((item) => !String(item.id).startsWith("tpl-")),
+    [data?.templateLibrary?.templates],
+  );
+  const funnelRecentLeads = useMemo(() => data?.funnel?.recentLeads || [], [data?.funnel?.recentLeads]);
+  const leadForecastQueue = useMemo(() => data?.leadForecast?.queue || [], [data?.leadForecast?.queue]);
 
   const snapshot = useMemo(() => buildModuleSnapshot("market-ads", {
     routePath: "/interno/market-ads",
     loading: state.loading,
     error: state.error,
-    activeCampaigns: data?.campaigns?.length || 0,
-    adItemsCount: data?.adItems?.length || 0,
+    activeCampaigns: campaigns.length,
+    adItemsCount: adItems.length,
     benchmarkCount: data?.competitorAds?.length || 0,
-    queueCount: data?.queue?.length || 0,
+    queueCount: strategyQueue.length,
     complianceScore: complianceResult?.score || null,
     complianceApproved: complianceResult?.approved || false,
     coverage: {
@@ -720,7 +730,7 @@ function MarketAdsContent() {
       filtersTracked: true,
       actionsTracked: true,
     },
-  }), [complianceResult?.approved, complianceResult?.score, data?.adItems?.length, data?.campaigns?.length, data?.competitorAds?.length, data?.queue?.length, state.error, state.loading]);
+  }), [adItems.length, campaigns.length, complianceResult?.approved, complianceResult?.score, data?.competitorAds?.length, state.error, state.loading, strategyQueue.length]);
 
   useEffect(() => {
     setModuleHistory("market-ads", snapshot);
@@ -999,7 +1009,7 @@ function MarketAdsContent() {
               <div className="grid gap-4 md:grid-cols-2">
                 <select value={adForm.campaignId} onChange={(event) => setAdForm({ ...adForm, campaignId: event.target.value })} className="md:col-span-2 rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
                   <option value="">Selecionar campanha</option>
-                  {(data.campaigns || []).map((campaign) => (
+                  {campaigns.map((campaign) => (
                     <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
                   ))}
                 </select>
@@ -1039,7 +1049,7 @@ function MarketAdsContent() {
               <div className="grid gap-4 md:grid-cols-2">
                 <select value={abForm.campaignId} onChange={(event) => setAbForm({ ...abForm, campaignId: event.target.value })} className="md:col-span-2 rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
                   <option value="">Selecionar campanha</option>
-                  {(data.campaigns || []).map((campaign) => (
+                  {campaigns.map((campaign) => (
                     <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
                   ))}
                 </select>
@@ -1288,7 +1298,7 @@ function MarketAdsContent() {
                     </div>
                   ) : null}
                   <div className="mt-3 space-y-3">
-                    {(data.strategyQueue || []).map((item) => (
+                    {strategyQueue.map((item) => (
                       <div key={item.id} className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="font-semibold text-[#F5F1E8]">{item.campaignName}</p>
@@ -1311,7 +1321,7 @@ function MarketAdsContent() {
                       <Tag tone="danger">revisar {(optimizationState.result || data.optimizationPlan)?.summary?.review || 0}</Tag>
                     </div>
                     <div className="mt-4 space-y-3">
-                      {((optimizationState.result || data.optimizationPlan)?.recommendations || []).map((item) => (
+                      {optimizationRecommendations.map((item) => (
                         <div key={`${item.campaignId}-${item.decision}`} className="rounded-[16px] border border-[#22342F] px-3 py-3 text-sm text-[#C7D0CA]">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="font-semibold text-[#F5F1E8]">{item.campaignName}</p>
@@ -1562,15 +1572,15 @@ function MarketAdsContent() {
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
                     <select value={attributionForm.campaignId} onChange={(event) => setAttributionForm({ ...attributionForm, campaignId: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
                       <option value="">Selecionar campanha</option>
-                      {(data.campaigns || []).map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
+                      {campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
                     </select>
                     <select value={attributionForm.adItemId} onChange={(event) => setAttributionForm({ ...attributionForm, adItemId: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
                       <option value="">Selecionar anuncio</option>
-                      {(data.adItems || []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                      {adItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                     </select>
                     <select value={attributionForm.templateId} onChange={(event) => setAttributionForm({ ...attributionForm, templateId: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
                       <option value="">Selecionar template</option>
-                      {((data.templateLibrary?.templates) || []).filter((item) => !String(item.id).startsWith("tpl-")).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                      {persistedTemplates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                     </select>
                     <select value={attributionForm.stage} onChange={(event) => setAttributionForm({ ...attributionForm, stage: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
                       <option value="lead">lead</option>
@@ -1659,9 +1669,9 @@ function MarketAdsContent() {
                       <p key={item} className="text-sm leading-6 text-[#8FA29B]">{item}</p>
                     ))}
                   </div>
-                  {(data.funnel?.recentLeads || []).length ? (
+                  {funnelRecentLeads.length ? (
                     <div className="mt-4 space-y-3">
-                      {(data.funnel.recentLeads || []).map((lead) => (
+                      {funnelRecentLeads.map((lead) => (
                         <div key={lead.id} className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="font-semibold text-[#F5F1E8]">{lead.name}</p>
@@ -1711,9 +1721,9 @@ function MarketAdsContent() {
                       ))}
                     </div>
                   ) : null}
-                  {(data.leadForecast?.queue || []).length ? (
+                  {leadForecastQueue.length ? (
                     <div className="mt-4 space-y-3">
-                      {(data.leadForecast.queue || []).map((lead) => (
+                      {leadForecastQueue.map((lead) => (
                         <div key={lead.id} className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="font-semibold text-[#F5F1E8]">{lead.leadName}</p>

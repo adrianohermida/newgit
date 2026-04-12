@@ -25,6 +25,11 @@ class PlanStep:
     action: str
     tool: str | None = None
     input: str | dict[str, Any] | None = None
+    agent_role: str = 'Executor'
+    stage: str = 'execution'
+    module_keys: tuple[str, ...] = ()
+    depends_on: tuple[int, ...] = ()
+    parallel_group: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -34,9 +39,14 @@ class PlanStep:
 class ExecutionPlan:
     goal: str
     steps: list[PlanStep] = field(default_factory=list)
+    orchestration: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        return {'goal': self.goal, 'steps': [step.to_dict() for step in self.steps]}
+        return {
+            'goal': self.goal,
+            'steps': [step.to_dict() for step in self.steps],
+            'orchestration': dict(self.orchestration),
+        }
 
 
 @dataclass(frozen=True)

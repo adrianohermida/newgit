@@ -101,6 +101,15 @@ _DOMAIN_SKILLS = (
     },
 )
 
+_ORCHESTRATION_CAPABILITIES = {
+    'planner': True,
+    'executor': True,
+    'critic': True,
+    'multi_agent': True,
+    'multi_task': True,
+    'repository_modules_context': True,
+}
+
 
 @dataclass(frozen=True)
 class ExecuteRequest:
@@ -447,6 +456,9 @@ def capabilities_json(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
             'remote_disabled': offline_mode,
             'obsidian_expected': True,
             'supabase_optional': True,
+        },
+        'orchestration': {
+            **_ORCHESTRATION_CAPABILITIES,
         },
     }
 
@@ -833,6 +845,7 @@ def health(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
             'skills': skills_json(runtime_env)['summary'],
             'commands': capabilities_json(runtime_env)['commands'],
             'browser_extension_profile': build_extension_profiles(runtime_env)['active_profile'],
+            'orchestration': dict(_ORCHESTRATION_CAPABILITIES),
         },
     }
 

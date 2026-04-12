@@ -1,5 +1,6 @@
 import { buildOfflineHealthSnapshot } from "../../../lib/lawdesk/offline-health.js";
 import { buildLocalBootstrapPlan } from "../../../lib/lawdesk/local-bootstrap.js";
+import { buildSupabaseLocalBootstrap } from "../../../lib/lawdesk/supabase-local-bootstrap.js";
 
 export function TaskCard({ task, isSelected, onSelect, compact = false, draggable = false, onDragStart = null }) {
   const statusTone = {
@@ -128,6 +129,23 @@ export function MetricPill({ label, value, tone = "default" }) {
   );
 }
 
+function summarizeOrchestration(orchestration) {
+  const subagents = Array.isArray(orchestration?.subagents) ? orchestration.subagents : [];
+  const tasks = Array.isArray(orchestration?.tasks) ? orchestration.tasks : [];
+  const availableModules = Array.isArray(orchestration?.available_modules) ? orchestration.available_modules : [];
+  const parallelGroups = new Set(tasks.map((task) => task?.parallel_group).filter(Boolean));
+  const stages = Array.from(new Set(tasks.map((task) => task?.stage).filter(Boolean)));
+  return {
+    enabled: Boolean(orchestration?.multi_agent || subagents.length || tasks.length),
+    multiAgent: Boolean(orchestration?.multi_agent),
+    subagents,
+    tasks,
+    availableModules,
+    parallelGroups,
+    stages,
+  };
+}
+
 export function RunHistoryCard({ item, isActive, onSelect, formatHistoryStatus, formatExecutionSourceLabel, nowIso }) {
   return (
     <button
@@ -156,6 +174,7 @@ export function WorkspaceHeader({
   stateLabel,
   activeModeLabel,
   provider,
+  contextSnapshot = null,
   selectedSkillId = "",
   skillOptions = [],
   providerOptions = [],
@@ -214,6 +233,10 @@ export function WorkspaceHeader({
     browserExtensionProfiles?.profiles?.[browserExtensionProfiles?.active_profile] || null;
   const offlineHealthSnapshot = buildOfflineHealthSnapshot({ localStackSummary, ragHealth });
   const localBootstrapPlan = buildLocalBootstrapPlan({ localStackSummary, ragHealth });
+  const supabaseBootstrap = buildSupabaseLocalBootstrap({ localStackSummary, ragHealth });
+  const orchestrationSummary = summarizeOrchestration(contextSnapshot?.orchestration);
+  const activeModuleLabel = contextSnapshot?.moduleLabel || contextSnapshot?.module || "Workspace geral";
+  const activeRouteLabel = contextSnapshot?.routePath || contextSnapshot?.route || "/interno/ai-task";
   return (
     <section className="rounded-[28px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(11,15,14,0.98),rgba(7,10,9,0.98))] px-5 py-4 shadow-[0_18px_54px_rgba(0,0,0,0.24)]">
       <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">
@@ -341,6 +364,87 @@ export function WorkspaceHeader({
           {localRuntimeConfigOpen ? "Fechar runtime local" : "Editar runtime local"}
         </button>
       </div>
+      <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <div className="rounded-[24px] border border-[#3C3320] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.16),transparent_55%),rgba(255,255,255,0.02)] p-4">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-[#D9B46A]">Faixa da missão</p>
+          <p className="mt-2 text-lg font-semibold tracking-[-0.03em] text-[#F5F1E8]">{activeModuleLabel}</p>
+          <p className="mt-2 text-sm leading-6 text-[#C6D1CC]">
+            O cockpit mantém provider, contexto e runtime alinhados na mesma trilha operacional.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="rounded-full border border-[#4B3F22] px-3 py-1.5 text-[11px] text-[#F1D39A]">
+              rota {activeRouteLabel}
+            </span>
+            <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+              skill {selectedSkillId || "auto"}
+            </span>
+            <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+              execução {formatExecutionSourceLabel(executionSource)}
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(15,19,18,0.92),rgba(7,10,9,0.92))] p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Orquestração</p>
+              <p className="mt-2 text-lg font-semibold tracking-[-0.03em] text-[#F5F1E8]">
+                {orchestrationSummary.enabled
+                  ? orchestrationSummary.multiAgent
+                    ? "Multiagente ativo"
+                    : "Fluxo guiado"
+                  : "Plano compacto"}
+              </p>
+            </div>
+            <span className={`rounded-full border px-3 py-1.5 text-[11px] ${
+              orchestrationSummary.enabled ? "border-[#234034] text-[#8FCFA9]" : "border-[#22342F] text-[#9BAEA8]"
+            }`}>
+              {orchestrationSummary.subagents.length || 1} agentes
+            </span>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <MetricPill label="Subagentes" value={orchestrationSummary.subagents.length || 1} tone={orchestrationSummary.multiAgent ? "accent" : "default"} />
+            <MetricPill label="Tarefas" value={orchestrationSummary.tasks.length || 0} />
+            <MetricPill label="Paralelo" value={orchestrationSummary.parallelGroups.size || 0} tone={orchestrationSummary.parallelGroups.size ? "success" : "default"} />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(orchestrationSummary.subagents.length
+              ? orchestrationSummary.subagents.map((agent) => agent?.role || agent?.label).filter(Boolean)
+              : ["coordinator"]).slice(0, 5).map((label) => (
+              <span key={label} className="rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+                {label}
+              </span>
+            ))}
+            {orchestrationSummary.stages.slice(0, 4).map((stage) => (
+              <span key={stage} className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB]">
+                etapa {stage}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Cobertura do stack</p>
+          <p className="mt-2 text-lg font-semibold tracking-[-0.03em] text-[#F5F1E8]">
+            {localStackReady ? "Pronto para operar" : "Setup em progresso"}
+          </p>
+          <p className="mt-2 text-sm leading-6 text-[#9BAEA8]">
+            Provider, runtime local, RAG e extensão ficam visíveis no topo para reduzir troca de contexto.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(orchestrationSummary.availableModules.length
+              ? orchestrationSummary.availableModules
+              : contextSnapshot?.module
+                ? [contextSnapshot.module]
+                : []
+            ).slice(0, 6).map((moduleKey) => (
+              <span key={moduleKey} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+                {moduleKey}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
       {localStackSummary ? (
         <p className="mt-3 text-[11px] leading-6 text-[#7F928C]">
           {localStackReady
@@ -416,6 +520,83 @@ export function WorkspaceHeader({
           </div>
         </div>
       ) : null}
+      <div className="mt-4 rounded-[20px] border border-[#22342F] bg-[rgba(7,9,8,0.7)] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Persistência local</p>
+            <p className="mt-1 text-sm text-[#F5F1E8]">{supabaseBootstrap.label}</p>
+          </div>
+          <span className={`rounded-full border px-3 py-1.5 text-[11px] ${
+            supabaseBootstrap.tone === "success"
+              ? "border-[#234034] text-[#8FCFA9]"
+              : supabaseBootstrap.tone === "danger"
+                ? "border-[#5b2d2d] text-[#f2b2b2]"
+                : "border-[#3B3523] text-[#D9C38A]"
+          }`}>
+            {supabaseBootstrap.baseUrlKind === "local"
+              ? "Local"
+              : supabaseBootstrap.baseUrlKind === "remote"
+                ? "Remoto"
+                : "Não verificado"}
+          </span>
+        </div>
+        <p className="mt-2 text-[11px] leading-6 text-[#9BAEA8]">
+          {supabaseBootstrap.detail}
+          {supabaseBootstrap.baseUrlPreview ? ` Endpoint atual: ${supabaseBootstrap.baseUrlPreview}.` : ""}
+        </p>
+        <div className="mt-3 grid gap-3 xl:grid-cols-2">
+          <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Envs sugeridas</p>
+            <div className="mt-2 space-y-2">
+              {supabaseBootstrap.envs.map((line) => (
+                <p key={line} className="rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.75)] px-3 py-2 text-[11px] text-[#C6D1CC]">
+                  {line}
+                </p>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Bootstrap Supabase local</p>
+            <div className="mt-2 space-y-2">
+              {supabaseBootstrap.commands.map((line) => (
+                <p key={line} className="rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.75)] px-3 py-2 text-[11px] text-[#C6D1CC]">
+                  {line}
+                </p>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Schema offline</p>
+          <div className="mt-2 grid gap-2 xl:grid-cols-2">
+            {supabaseBootstrap.schema.map((item) => (
+              <div key={item.id} className="rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.75)] px-3 py-3">
+                <p className="text-[11px] font-semibold text-[#F5F1E8]">{item.label}</p>
+                <p className="mt-1 text-[11px] leading-6 text-[#9BAEA8]">{item.detail}</p>
+                <p className="mt-2 text-[10px] text-[#7F928C]">{item.migration}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {supabaseBootstrap.actions.map((actionId) => (
+            <button
+              key={actionId}
+              type="button"
+              onClick={() => handleLocalStackAction?.(actionId)}
+              className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+            >
+              {actionId === "open_runtime_config"
+                ? "Editar runtime local"
+                : actionId === "copiar_envs_supabase_local"
+                  ? "Copiar envs local"
+                : actionId === "testar_llm_local"
+                  ? "Testar runtime"
+                  : "Abrir diagnóstico"}
+            </button>
+          ))}
+        </div>
+      </div>
       {localRuntimeConfigOpen ? (
         <div className="mt-4 rounded-[20px] border border-[#22342F] bg-[rgba(7,9,8,0.7)] p-4">
           <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Configuração persistente do runtime local</p>
@@ -608,6 +789,7 @@ export function RunsPane({
 export function TaskInspector({
   tasks,
   visibleTasks = tasks,
+  agentLanes = [],
   selectedTaskId,
   onSelectTask,
   selectedTask,
@@ -648,6 +830,26 @@ export function TaskInspector({
           </button>
         </div>
       </div>
+      {agentLanes.length ? (
+        <div className="mt-4 grid gap-3 xl:grid-cols-3">
+          {agentLanes.slice(0, 3).map((lane) => (
+            <div key={lane.agent} className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Agente</p>
+              <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{lane.agent}</p>
+              <p className="mt-1 text-xs leading-6 text-[#9BAEA8]">
+                {lane.tasks.length} tarefa(s) roteadas nesta faixa operacional.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {lane.tasks.slice(0, 3).map((task) => (
+                  <span key={task.id} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                    {task.title}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {selectedTask ? (
         <div className="mt-4 rounded-[20px] border border-[#C5A059] bg-[rgba(197,160,89,0.07)] p-4">
           <p className="text-[10px] uppercase tracking-[0.2em] text-[#D9B46A]">Em foco</p>
@@ -783,6 +985,7 @@ export function ContextRail({
   const dealsCount = Array.isArray(contact360?.data?.deals) ? contact360.data.deals.length : 0;
   const tasksCount = Array.isArray(contact360?.data?.tasks) ? contact360.data.tasks.length : 0;
   const memoryMatches = Array.isArray(contact360?.data?.memory_matches) ? contact360.data.memory_matches.length : 0;
+  const orchestrationSummary = summarizeOrchestration(contextSnapshot?.orchestration);
   return (
     <aside className="space-y-4">
       <section className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
@@ -809,6 +1012,34 @@ export function ContextRail({
               <MetricPill label="Documentos" value={contextSnapshot?.documents?.length || 0} />
               <MetricPill label="Aprovação" value={approved ? "concedida" : "pendente"} tone={approved ? "success" : "accent"} />
             </div>
+
+            {orchestrationSummary.enabled ? (
+              <div className="rounded-[18px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(12,17,16,0.96),rgba(7,9,8,0.78))] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Orquestração ativa</p>
+                    <p className="mt-1 text-sm font-semibold text-[#F5F1E8]">
+                      {orchestrationSummary.multiAgent ? "Subagentes coordenados" : "Execução encadeada"}
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-[#35554B] px-2.5 py-1 text-[10px] text-[#B7D5CB]">
+                    {orchestrationSummary.tasks.length} tarefas
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <MetricPill label="Agentes" value={orchestrationSummary.subagents.length || 1} tone="accent" />
+                  <MetricPill label="Etapas" value={orchestrationSummary.stages.length || 1} />
+                  <MetricPill label="Módulos" value={orchestrationSummary.availableModules.length || 0} tone="success" />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {orchestrationSummary.subagents.slice(0, 5).map((agent, index) => (
+                    <span key={`${agent?.role || agent?.label || "agent"}_${index}`} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                      {agent?.role || agent?.label || `agent-${index + 1}`}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
               <div className="flex items-center justify-between gap-2">
