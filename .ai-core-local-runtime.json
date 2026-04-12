@@ -1,0 +1,12 @@
+﻿{
+    "checkedAt":  "2026-04-12T12:23:15.5936631-03:00",
+    "AICORE_API_BASE_URL":  "http://127.0.0.1:8010",
+    "LOCAL_LLM_BASE_URL":  "http://127.0.0.1:11434",
+    "LLM_BASE_URL":  "http://127.0.0.1:11434",
+    "LOCAL_LLM_MODEL":  "aetherlab-legal-local-v1",
+    "LLM_MODEL":  "aetherlab-legal-local-v1",
+    "LAWDESK_OFFLINE_MODE":  "true",
+    "NEXT_PUBLIC_LAWDESK_OFFLINE_MODE":  "true",
+    "AICORE_OFFLINE_MODE":  "true",
+    "AI_CORE_DEFAULT_PROVIDER":  "local"
+}

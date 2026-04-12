@@ -14,6 +14,7 @@
     "diagnose:local-llm": "powershell -ExecutionPolicy Bypass -File scripts/diagnose-local-llm.ps1",
     "doctor:offline-local": "powershell -ExecutionPolicy Bypass -File scripts/doctor-local-offline-stack.ps1",
     "bootstrap:offline-local": "powershell -ExecutionPolicy Bypass -File scripts/bootstrap-offline-local.ps1",
+    "setup:ai-core-local": "powershell -ExecutionPolicy Bypass -Command \"Set-Location ai-core; python -m pip install -e .\"",
     "start:ai-core-local": "powershell -ExecutionPolicy Bypass -File scripts/start-ai-core-local.ps1",
     "start:universal-llm-extension": "powershell -ExecutionPolicy Bypass -File scripts/start-universal-llm-extension.ps1",
     "diagnose:pages-admin": "powershell -ExecutionPolicy Bypass -File scripts/diagnose-pages-admin-runtime.ps1",

@@ -7,7 +7,12 @@ import { detectIntent } from "../../lib/ai/intent_router";
 import { getCurrentContext } from "../../lib/ai/context_engine";
 import { useRouter } from "next/router";
 import { adminFetch } from "../../lib/admin/api";
-import { invokeBrowserLocalMessages, isBrowserLocalProvider } from "../../lib/lawdesk/browser-local-runtime";
+import {
+  hydrateBrowserLocalProviderOptions,
+  invokeBrowserLocalMessages,
+  isBrowserLocalProvider,
+  probeBrowserLocalStackSummary,
+} from "../../lib/lawdesk/browser-local-runtime";
 import { resolvePreferredLawdeskProvider } from "../../lib/lawdesk/providers.js";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import { cancelTaskRun, createPendingTaskRun, pollTaskRun, startTaskRun } from "./dotobotTaskRun";
@@ -542,6 +547,8 @@ const [provider, setProvider] = useState("gpt");
 const [providerCatalog, setProviderCatalog] = useState(PROVIDER_OPTIONS);
 const [ragHealth, setRagHealth] = useState(null);
 const [contextEnabled, setContextEnabled] = useState(true);
+const [localStackSummary, setLocalStackSummary] = useState(null);
+const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
   const [rightPanelTab, setRightPanelTab] = useState("tasks");
   const [attachments, setAttachments] = useState([]);
   const [showSlashCommands, setShowSlashCommands] = useState(false);
@@ -578,31 +585,33 @@ const [contextEnabled, setContextEnabled] = useState(true);
   useEffect(() => {
     let active = true;
     adminFetch("/api/admin-lawdesk-providers?include_health=1", { method: "GET" })
-      .then((payload) => {
+      .then(async (payload) => {
         if (!active) return;
         const providers = Array.isArray(payload?.data?.providers) ? payload.data.providers : [];
         const defaultProvider = typeof payload?.data?.defaultProvider === "string" ? payload.data.defaultProvider : "gpt";
         if (!providers.length) return;
-        setProviderCatalog(
-          providers.map((item) => ({
-            value: item.id,
-            label: `${item.label}${item.model ? ` · ${item.model}` : ""}${item.status ? ` · ${item.status}` : ""}`,
-            disabled: !item.available,
-            displayLabel: item.label,
-            model: item.model || null,
-            status: item.status || null,
-            transport: item.transport || null,
-            runtimeMode: item.details?.probe?.mode || null,
-            host: item.details?.config?.host || null,
-            endpoint: item.details?.probe?.endpoint || item.details?.config?.baseUrl || null,
-            reason: item.reason || null,
-          }))
-        );
+        const mappedProviders = providers.map((item) => ({
+          value: item.id,
+          label: `${item.label}${item.model ? ` · ${item.model}` : ""}${item.status ? ` · ${item.status}` : ""}`,
+          disabled: !item.available,
+          displayLabel: item.label,
+          model: item.model || null,
+          status: item.status || null,
+          transport: item.transport || null,
+          runtimeMode: item.details?.probe?.mode || null,
+          host: item.details?.config?.host || null,
+          endpoint: item.details?.probe?.endpoint || item.details?.config?.baseUrl || null,
+          reason: item.reason || null,
+          offlineMode: Boolean(payload?.data?.offlineMode),
+        }));
+        const hydratedProviders = await hydrateBrowserLocalProviderOptions(mappedProviders);
+        if (!active) return;
+        setProviderCatalog(hydratedProviders);
         setProvider((current) =>
           resolvePreferredLawdeskProvider({
             currentProvider: current,
             defaultProvider,
-            providers,
+            providers: hydratedProviders,
           })
         );
       })
@@ -631,6 +640,36 @@ const [contextEnabled, setContextEnabled] = useState(true);
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    probeBrowserLocalStackSummary()
+      .then((summary) => {
+        if (!active) return;
+        setLocalStackSummary(summary);
+      })
+      .catch(() => {
+        if (!active) return;
+        setLocalStackSummary(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [providerCatalog]);
+
+  async function refreshLocalStackStatus() {
+    setRefreshingLocalStack(true);
+    try {
+      const summary = await probeBrowserLocalStackSummary();
+      setLocalStackSummary(summary);
+      const hydratedCatalog = await hydrateBrowserLocalProviderOptions(providerCatalog);
+      setProviderCatalog(hydratedCatalog);
+    } catch {
+      setLocalStackSummary(null);
+    } finally {
+      setRefreshingLocalStack(false);
+    }
+  }
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1496,6 +1535,9 @@ const [contextEnabled, setContextEnabled] = useState(true);
   const activeMode = MODE_OPTIONS.find((item) => item.value === mode) || MODE_OPTIONS[0];
   const activeProviderOption = providerCatalog.find((item) => item.value === provider) || null;
   const activeProviderPresentation = parseProviderPresentation(activeProviderOption || "Nuvem principal");
+  const localStackReady = Boolean(localStackSummary?.ok && localStackSummary?.localProvider?.available);
+  const localStackTone = localStackReady ? "border-[#234034] text-[#80C7A1]" : "border-[#5b2d2d] text-[#f2b2b2]";
+  const localStackLabel = localStackReady ? "Stack local pronto" : "Stack local pendente";
   const ragAlert = buildRagAlert(ragHealth);
   const isWorkspaceShell = workspaceOpen;
   const railCollapsed = compactRail ? true : isCollapsed;
@@ -1592,17 +1634,41 @@ const [contextEnabled, setContextEnabled] = useState(true);
                 <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#D8DEDA]">
                   Provider: {activeProviderPresentation.name}
                 </span>
+                <span className={`rounded-full border px-3 py-1.5 ${localStackTone}`}>
+                  {localStackLabel}
+                </span>
                 {activeProviderPresentation.meta.map((item) => (
                   <span key={item} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#9BAEA8]">
                     {item}
                   </span>
                 ))}
+                {localStackSummary?.runtimeBaseUrl ? (
+                  <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
+                    runtime {localStackSummary.runtimeBaseUrl}
+                  </span>
+                ) : null}
                 {activeProviderPresentation.endpoint ? (
                   <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
                     {activeProviderPresentation.endpoint}
                   </span>
                 ) : null}
               </div>
+              {localStackSummary ? (
+                <p className="mt-2 max-w-2xl text-[11px] leading-6 text-[#7F928C]">
+                  {localStackReady
+                    ? `ai-core local ativo${localStackSummary.offlineMode ? " em modo offline" : ""} com modelo ${localStackSummary.localProvider?.model || "local"}.`
+                    : "O runtime local ainda nao respondeu; suba o ai-core e a extensao local para habilitar o modo da sua maquina."}
+                </p>
+              ) : null}
+              {localStackSummary?.recommendations?.length ? (
+                <div className="mt-2 flex max-w-3xl flex-wrap gap-2 text-[11px]">
+                  {localStackSummary.recommendations.slice(0, 3).map((item) => (
+                    <span key={item} className="rounded-full border border-[#3B3523] bg-[rgba(197,160,89,0.08)] px-3 py-1.5 text-[#D9C38A]">
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
               {activeProviderPresentation.reason ? (
                 <p className="mt-2 max-w-2xl text-[11px] leading-6 text-[#7F928C]">{activeProviderPresentation.reason}</p>
               ) : null}
@@ -1614,6 +1680,14 @@ const [contextEnabled, setContextEnabled] = useState(true);
                 className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
               >
                 Debug
+              </button>
+              <button
+                type="button"
+                onClick={refreshLocalStackStatus}
+                disabled={refreshingLocalStack}
+                className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:cursor-wait disabled:opacity-60"
+              >
+                {refreshingLocalStack ? "Atualizando stack..." : "Atualizar stack local"}
               </button>
               {compactRail ? (
                 <div className="flex flex-col gap-2">
@@ -1872,17 +1946,41 @@ const [contextEnabled, setContextEnabled] = useState(true);
                     <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#D8DEDA]">
                       Provider: {activeProviderPresentation.name}
                     </span>
+                    <span className={`rounded-full border px-3 py-1.5 ${localStackTone}`}>
+                      {localStackLabel}
+                    </span>
                     {activeProviderPresentation.meta.map((item) => (
                       <span key={item} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#9BAEA8]">
                         {item}
                       </span>
                     ))}
+                    {localStackSummary?.runtimeBaseUrl ? (
+                      <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
+                        runtime {localStackSummary.runtimeBaseUrl}
+                      </span>
+                    ) : null}
                     {activeProviderPresentation.endpoint ? (
                       <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
                         {activeProviderPresentation.endpoint}
                       </span>
                     ) : null}
                   </div>
+                  {localStackSummary ? (
+                    <p className="mt-2 max-w-3xl text-[11px] leading-6 text-[#7F928C]">
+                      {localStackReady
+                        ? `Runtime local pronto${localStackSummary.offlineMode ? " em offline" : ""}, servido por ${localStackSummary.localProvider?.model || "modelo local"}.`
+                        : "Runtime local ainda nao confirmado nesta sessao. Use o bootstrap offline local ou suba manualmente o ai-core."}
+                    </p>
+                  ) : null}
+                  {localStackSummary?.recommendations?.length ? (
+                    <div className="mt-2 flex max-w-3xl flex-wrap gap-2 text-[11px]">
+                      {localStackSummary.recommendations.slice(0, 3).map((item) => (
+                        <span key={item} className="rounded-full border border-[#3B3523] bg-[rgba(197,160,89,0.08)] px-3 py-1.5 text-[#D9C38A]">
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   {activeProviderPresentation.reason ? (
                     <p className="mt-2 max-w-3xl text-[11px] leading-6 text-[#7F928C]">{activeProviderPresentation.reason}</p>
                   ) : null}

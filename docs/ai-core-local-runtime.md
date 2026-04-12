@@ -45,8 +45,18 @@ UNIVERSAL_LLM_DEFAULT_BASE_PATH=D:\\Obsidian\\hermidamaia
 No diretório `ai-core`:
 
 ```powershell
-python -m uvicorn api.app:app --host 0.0.0.0 --port 8000 --reload
+python -m pip install -e .
+python -m uvicorn api.app:app --host 0.0.0.0 --port 8000
 ```
+
+Ou, a partir da raiz do repositório:
+
+```powershell
+npm run setup:ai-core-local
+npm run start:ai-core-local
+```
+
+Se a porta `8000` estiver ocupada, o script local tenta `8010` e depois `8020`, gravando o endpoint real em `.ai-core-local-runtime.json`.
 
 No diretório `universal-llm-extension`:
 
@@ -64,6 +74,8 @@ LOCAL_LLM_MODEL=aetherlab-legal-local-v1
 LOCAL_LLM_API_KEY=
 LOCAL_LLM_AUTH_TOKEN=
 ```
+
+Para Ollama e a maioria dos runtimes locais, `LOCAL_LLM_API_KEY` e `LOCAL_LLM_AUTH_TOKEN` podem ficar vazios.
 
 Assim, o Copilot e o AI Task continuam usando `/api/admin-lawdesk-chat`, mas quando o provider selecionado for `local` eles vão conversar com o `ai-core` local via `/v1/messages`.
 
@@ -98,6 +110,8 @@ Comandos suportados atualmente:
 - adicionar um endpoint local de modelo AetherLab próprio para substituir o fallback Ollama
 - plugar `task_run_start` do AI Task em ferramentas explícitas de browser/files quando a missão exigir navegação
 - consolidar observabilidade do `ai-core` e da extensão no mesmo painel técnico
+
+- subir `supabase start` quando quisermos persistÃªncia estruturada 100% offline
 
 ## Compatibilidade do provider local
 

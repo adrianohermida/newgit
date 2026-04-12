@@ -229,11 +229,11 @@ function persistHistoryEntries(entries) {
   } catch {}
 }
 
-function CompactHistoryPanel({ localHistory, remoteHistory }) {
+function CompactHistoryPanel({ localHistory, remoteHistory, className = "" }) {
   const latestLocal = localHistory[0];
   const latestRemote = remoteHistory[0];
   return (
-    <div className="rounded-[28px] border border-[#2D2E2E] bg-[linear-gradient(180deg,rgba(13,15,14,0.96),rgba(7,9,8,0.96))] p-5 shadow-[0_12px_36px_rgba(0,0,0,0.22)]">
+    <div className={`rounded-[28px] border border-[#2D2E2E] bg-[linear-gradient(180deg,rgba(13,15,14,0.96),rgba(7,9,8,0.96))] p-5 shadow-[0_12px_36px_rgba(0,0,0,0.22)] ${className}`.trim()}>
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Historico (compacto)</p>
       <div className="mt-3 space-y-3 text-sm">
         <div>
@@ -363,8 +363,8 @@ function getSuggestionSelectionValue(row) {
 function MetricCard({ label, value, helper }) {
   return <div className="rounded-[28px] border border-[#2D2E2E] bg-[linear-gradient(180deg,rgba(13,15,14,0.98),rgba(7,9,8,0.98))] p-5 shadow-[0_12px_36px_rgba(0,0,0,0.22)]"><p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">{label}</p><p className="mb-2 font-serif text-3xl">{value}</p>{helper ? <p className="text-sm leading-relaxed opacity-65">{helper}</p> : null}</div>;
 }
-function Panel({ title, eyebrow, children }) {
-  return <section className="rounded-[30px] border border-[#2D2E2E] bg-[linear-gradient(180deg,rgba(13,15,14,0.96),rgba(7,9,8,0.96))] p-6 shadow-[0_14px_48px_rgba(0,0,0,0.22)]">{eyebrow ? <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "#C5A059" }}>{eyebrow}</p> : null}<h3 className="mb-4 font-serif text-[1.9rem] leading-tight">{title}</h3>{children}</section>;
+function Panel({ title, eyebrow, children, className = "" }) {
+  return <section className={`rounded-[30px] border border-[#2D2E2E] bg-[linear-gradient(180deg,rgba(13,15,14,0.96),rgba(7,9,8,0.96))] p-6 shadow-[0_14px_48px_rgba(0,0,0,0.22)] ${className}`.trim()}>{eyebrow ? <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "#C5A059" }}>{eyebrow}</p> : null}<h3 className="mb-4 font-serif text-[1.9rem] leading-tight">{title}</h3>{children}</section>;
 }
 function Field({ label, value, onChange, placeholder }) {
   return <label className="block"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">{label}</span><input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full rounded-2xl border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" /></label>;
@@ -3215,9 +3215,9 @@ function InternoProcessosContent() {
       </Panel>
     </div> : null}
 
-    {view === "resultado" ? <div id="resultado" className="grid gap-6 2xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-      <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">{actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}{actionState.error ? <p className="rounded-2xl border border-[#4B2222] bg-[rgba(127,29,29,0.18)] p-4 text-sm text-red-200">{actionState.error}</p> : null}{!actionState.loading && actionState.result?.drain ? <div className="mb-4 rounded-[20px] border border-[#30543A] bg-[rgba(48,84,58,0.12)] p-4 text-sm"><p className="font-semibold">Drenagem de fila</p><p className="mt-2 opacity-75">{buildDrainPreview(actionState.result.drain)}</p></div> : null}{jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}{!actionState.loading && !actionState.error && actionState.result ? <OperationResult result={actionState.result} /> : null}{!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p> : null}</Panel>
-      <CompactHistoryPanel localHistory={executionHistory} remoteHistory={remoteHistory} />
+    {view === "resultado" ? <div id="resultado" className="grid min-h-[calc(100vh-24rem)] items-stretch gap-6 2xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+      <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional" className="flex h-full flex-col">{actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}{actionState.error ? <p className="rounded-2xl border border-[#4B2222] bg-[rgba(127,29,29,0.18)] p-4 text-sm text-red-200">{actionState.error}</p> : null}{!actionState.loading && actionState.result?.drain ? <div className="mb-4 rounded-[20px] border border-[#30543A] bg-[rgba(48,84,58,0.12)] p-4 text-sm"><p className="font-semibold">Drenagem de fila</p><p className="mt-2 opacity-75">{buildDrainPreview(actionState.result.drain)}</p></div> : null}{jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}{!actionState.loading && !actionState.error && actionState.result ? <OperationResult result={actionState.result} /> : null}{!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p> : null}<div className="mt-auto pt-6 text-xs text-[#7F928C]">Esta area agora ocupa a altura util do modulo para manter o console como dock do shell, sem deixar a composicao “quebrada”.</div></Panel>
+      <CompactHistoryPanel localHistory={executionHistory} remoteHistory={remoteHistory} className="flex h-full flex-col justify-between" />
     </div> : null}
   </div>;
 }

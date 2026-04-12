@@ -154,6 +154,7 @@ export function WorkspaceHeader({
   activeModeLabel,
   provider,
   providerOptions = [],
+  localStackSummary = null,
   ragAlert = null,
   onProviderChange,
   executionSource,
@@ -166,6 +167,8 @@ export function WorkspaceHeader({
   handleOpenLlmTest,
   handleOpenDiagnostics,
   handleOpenDotobot,
+  handleRefreshLocalStack,
+  refreshingLocalStack = false,
   paused,
   formatExecutionSourceLabel,
 }) {
@@ -189,6 +192,7 @@ export function WorkspaceHeader({
     activeProvider?.runtimeMode,
     activeProvider?.host ? `host:${activeProvider.host}` : null,
   ].filter(Boolean);
+  const localStackReady = Boolean(localStackSummary?.ok && localStackSummary?.localProvider?.available);
   return (
     <section className="rounded-[28px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(11,15,14,0.98),rgba(7,10,9,0.98))] px-5 py-4 shadow-[0_18px_54px_rgba(0,0,0,0.24)]">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -225,11 +229,23 @@ export function WorkspaceHeader({
         <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
           Execução: {`${formatExecutionSourceLabel(executionSource)}${executionModel ? ` / ${executionModel}` : ""}`}
         </span>
+        <span
+          className={`rounded-full border px-3 py-1.5 text-[11px] ${
+            localStackReady ? "border-[#234034] text-[#8FCFA9]" : "border-[#5b2d2d] text-[#f2b2b2]"
+          }`}
+        >
+          {localStackReady ? "Stack local pronto" : "Stack local pendente"}
+        </span>
         {resolvedProviderMeta.map((item) => (
           <span key={item} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#9BAEA8]">
             {item}
           </span>
         ))}
+        {localStackSummary?.runtimeBaseUrl ? (
+          <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB]">
+            runtime {localStackSummary.runtimeBaseUrl}
+          </span>
+        ) : null}
         {activeProvider?.endpoint ? (
           <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB]">
             {activeProvider.endpoint}
@@ -253,7 +269,31 @@ export function WorkspaceHeader({
         <button type="button" onClick={handleOpenDotobot} className="rounded-full border border-[#35554B] px-4 py-2 text-xs text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]">
           Abrir Dotobot
         </button>
+        <button
+          type="button"
+          onClick={handleRefreshLocalStack}
+          disabled={refreshingLocalStack}
+          className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:cursor-wait disabled:opacity-60"
+        >
+          {refreshingLocalStack ? "Atualizando stack..." : "Atualizar stack local"}
+        </button>
       </div>
+      {localStackSummary ? (
+        <p className="mt-3 text-[11px] leading-6 text-[#7F928C]">
+          {localStackReady
+            ? `ai-core local ativo${localStackSummary.offlineMode ? " em modo offline" : ""} com ${localStackSummary.localProvider?.model || "modelo local"}.`
+            : "O runtime local ainda nao respondeu nesta sessao. Suba o ai-core local, configure o vault e ligue a extensao para o modo da maquina."}
+        </p>
+      ) : null}
+      {localStackSummary?.recommendations?.length ? (
+        <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+          {localStackSummary.recommendations.slice(0, 3).map((item) => (
+            <span key={item} className="rounded-full border border-[#3B3523] bg-[rgba(197,160,89,0.08)] px-3 py-1.5 text-[#D9C38A]">
+              {item}
+            </span>
+          ))}
+        </div>
+      ) : null}
       {activeProvider?.reason ? (
         <p className="mt-3 text-[11px] leading-6 text-[#7F928C]">{activeProvider.reason}</p>
       ) : null}

@@ -366,13 +366,52 @@ if (-not $obsidianExists) {
   $diagnosis += "Crie a pasta Dotobot\\Memory dentro do vault do Obsidian para persistencia local."
 }
 
-$aiCoreHealth = Invoke-JsonRequest -Uri ($resolvedAiCoreBaseUrl.TrimEnd("/") + "/health") -Method "GET"
+$aiCoreCandidates = @(
+  $resolvedAiCoreBaseUrl,
+  "http://127.0.0.1:8000",
+  "http://127.0.0.1:8010"
+) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim().TrimEnd("/") } | Select-Object -Unique
+
+$aiCoreHealth = $null
+$resolvedAiCoreHealthBaseUrl = $resolvedAiCoreBaseUrl
+$aiCoreSuccessfulProbes = @()
+foreach ($candidate in $aiCoreCandidates) {
+  $probe = Invoke-JsonRequest -Uri ($candidate + "/health") -Method "GET"
+  if ($probe.ok) {
+    $probeOffline = $false
+    $probeLocalConfigured = $false
+    if ($probe.data -and $probe.data.offline_mode -ne $null) {
+      $probeOffline = [bool]$probe.data.offline_mode
+    }
+    if ($probe.data -and $probe.data.providers -and $probe.data.providers.local -and $probe.data.providers.local.configured -ne $null) {
+      $probeLocalConfigured = [bool]$probe.data.providers.local.configured
+    }
+    $aiCoreSuccessfulProbes += @{
+      candidate = $candidate
+      probe = $probe
+      isPreferred = $probeOffline -or $probeLocalConfigured
+    }
+  }
+  if ($null -eq $aiCoreHealth) {
+    $aiCoreHealth = $probe
+  }
+}
+if ($aiCoreSuccessfulProbes.Count -gt 0) {
+  $preferredProbe = $aiCoreSuccessfulProbes | Where-Object { $_.isPreferred } | Select-Object -First 1
+  if ($null -eq $preferredProbe) {
+    $preferredProbe = $aiCoreSuccessfulProbes | Select-Object -First 1
+  }
+  $aiCoreHealth = $preferredProbe.probe
+  $resolvedAiCoreHealthBaseUrl = $preferredProbe.candidate
+}
 $checks += Build-Check -Id "ai-core" -Label "ai-core local" -Ok $aiCoreHealth.ok -Status ($(if ($aiCoreHealth.ok) { "ok" } else { "error" })) -Details ([ordered]@{
-  baseUrl = $resolvedAiCoreBaseUrl
+  baseUrl = $resolvedAiCoreHealthBaseUrl
+  requestedBaseUrl = $resolvedAiCoreBaseUrl
   httpStatus = $aiCoreHealth.status
   offlineMode = if ($aiCoreHealth.data) { $aiCoreHealth.data.offline_mode } else { $null }
   raw = if ($aiCoreHealth.ok) { $aiCoreHealth.data } else { $aiCoreHealth.raw }
   error = $aiCoreHealth.error
+  candidates = $aiCoreCandidates
 })
 if (-not $aiCoreHealth.ok) {
   $diagnosis += "Suba o ai-core local com npm run start:ai-core-local."
@@ -392,7 +431,8 @@ $selectedLocalLlm = $localLlmRuntime.selected
 $localLlmOk = $null -ne $selectedLocalLlm -and $selectedLocalLlm.ok
 $localLlmDetails = [ordered]@{
   baseUrl = $resolvedLocalLlmBaseUrl
-  configured = -not [string]::IsNullOrWhiteSpace($resolvedLocalLlmBaseUrl)
+  configured = (-not [string]::IsNullOrWhiteSpace($resolvedLocalLlmBaseUrl)) -or $localLlmOk
+  autoDetected = [string]::IsNullOrWhiteSpace($resolvedLocalLlmBaseUrl) -and $localLlmOk
   requestedModel = $resolvedLocalLlmModel
   detectedRuntime = if ($selectedLocalLlm) { $selectedLocalLlm.runtime } else { $null }
   resolvedBaseUrl = if ($selectedLocalLlm) { $selectedLocalLlm.baseUrl } else { $null }

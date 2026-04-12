@@ -237,11 +237,11 @@ function formatUpstreamWarningText(upstreamWarning) {
   return parts.join(" - ");
 }
 
-function CompactHistoryPanel({ localHistory, remoteHistory }) {
+function CompactHistoryPanel({ localHistory, remoteHistory, className = "" }) {
   const latestLocal = localHistory[0];
   const latestRemote = remoteHistory[0];
   return (
-    <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4">
+    <div className={`border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 ${className}`.trim()}>
       <p className="text-xs font-semibold tracking-[0.15em] uppercase mb-2 opacity-50">Historico (compacto)</p>
       <div className="space-y-3 text-sm">
         <div>
@@ -537,9 +537,9 @@ function HealthBadge({ label, tone }) {
   return <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${classes[tone] || classes.default}`}>{label}</span>;
 }
 
-function Panel({ title, eyebrow, children }) {
+function Panel({ title, eyebrow, children, className = "" }) {
   return (
-    <section className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
+    <section className={`border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6 ${className}`.trim()}>
       {eyebrow ? (
         <p className="text-xs font-semibold tracking-[0.15em] uppercase mb-3" style={{ color: "#C5A059" }}>
           {eyebrow}
@@ -2942,16 +2942,17 @@ function PublicacoesContent() {
         </div>
       </div> : null}
 
-      {view === "resultado" ? <div id="resultado" className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">
+      {view === "resultado" ? <div id="resultado" className="grid min-h-[calc(100vh-24rem)] items-stretch gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional" className="flex h-full flex-col">
           {actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}
           {actionState.error ? <p className="text-sm text-red-300">{actionState.error}</p> : null}
           {!actionState.loading && actionState.result?.drain ? <div className="mb-4 rounded-[20px] border border-[#30543A] bg-[rgba(48,84,58,0.12)] p-4 text-sm"><p className="font-semibold">Drenagem de fila</p><p className="mt-2 opacity-75">{buildDrainPreview(actionState.result.drain)}</p></div> : null}
           {jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}
           {!actionState.loading && !actionState.error && actionState.result ? <OperationResult result={actionState.result} /> : null}
           {!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p> : null}
+          <div className="mt-auto pt-6 text-xs text-[#7F928C]">A composicao do modulo foi estendida para ocupar a altura util da tela e manter o console ancorado no shell.</div>
         </Panel>
-        <CompactHistoryPanel localHistory={executionHistory} remoteHistory={remoteHistory} />
+        <CompactHistoryPanel localHistory={executionHistory} remoteHistory={remoteHistory} className="flex h-full flex-col justify-between" />
       </div> : null}
     </div>
   );

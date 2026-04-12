@@ -41,6 +41,7 @@ import {
 import { useAiTaskRun } from "./useAiTaskRun";
 import { useAiTaskWorkspace } from "./useAiTaskWorkspace";
 import { extractModuleKeysFromContext, resolveModuleEntries } from "../../../lib/admin/module-registry.js";
+import { hydrateBrowserLocalProviderOptions, probeBrowserLocalStackSummary } from "../../../lib/lawdesk/browser-local-runtime";
 import { resolvePreferredLawdeskProvider } from "../../../lib/lawdesk/providers.js";
 
 function formatHistoryStatus(status) {
@@ -244,6 +245,8 @@ export default function AITaskModule({ profile, routePath }) {
   const chatViewportRef = useRef(null);
   const [stopModalOpen, setStopModalOpen] = useState(false);
   const [providerCatalog, setProviderCatalog] = useState(FALLBACK_PROVIDER_OPTIONS);
+  const [localStackSummary, setLocalStackSummary] = useState(null);
+  const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
   const [ragHealth, setRagHealth] = useState(null);
   const [historyPage, setHistoryPage] = useState(1);
   const [taskViewMode, setTaskViewMode] = useState("kanban");
@@ -324,7 +327,7 @@ export default function AITaskModule({ profile, routePath }) {
   useEffect(() => {
     let active = true;
     adminFetch("/api/admin-lawdesk-providers?include_health=1", { method: "GET" })
-      .then((payload) => {
+      .then(async (payload) => {
         if (!active) return;
         const providers = Array.isArray(payload?.data?.providers) ? payload.data.providers : [];
         const defaultProvider = typeof payload?.data?.defaultProvider === "string" ? payload.data.defaultProvider : "gpt";
@@ -357,6 +360,67 @@ export default function AITaskModule({ profile, routePath }) {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    hydrateBrowserLocalProviderOptions(providerCatalog)
+      .then((hydratedProviders) => {
+        if (!active || !Array.isArray(hydratedProviders) || !hydratedProviders.length) return;
+        const before = JSON.stringify(providerCatalog);
+        const after = JSON.stringify(hydratedProviders);
+        if (before !== after) {
+          setProviderCatalog(hydratedProviders);
+          setProvider((current) =>
+            resolvePreferredLawdeskProvider({
+              currentProvider: current,
+              defaultProvider: "gpt",
+              providers: hydratedProviders,
+            })
+          );
+        }
+      })
+      .catch(() => null);
+    return () => {
+      active = false;
+    };
+  }, [providerCatalog, setProvider]);
+
+  useEffect(() => {
+    let active = true;
+    probeBrowserLocalStackSummary()
+      .then((summary) => {
+        if (!active) return;
+        setLocalStackSummary(summary);
+      })
+      .catch(() => {
+        if (!active) return;
+        setLocalStackSummary(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [providerCatalog]);
+
+  async function refreshLocalStackStatus() {
+    setRefreshingLocalStack(true);
+    try {
+      const summary = await probeBrowserLocalStackSummary();
+      setLocalStackSummary(summary);
+      const hydratedProviders = await hydrateBrowserLocalProviderOptions(providerCatalog);
+      setProviderCatalog(hydratedProviders);
+      setProvider((current) =>
+        resolvePreferredLawdeskProvider({
+          currentProvider: current,
+          defaultProvider: "gpt",
+          providers: hydratedProviders,
+        })
+      );
+    } catch {
+      setLocalStackSummary(null);
+    } finally {
+      setRefreshingLocalStack(false);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -695,6 +759,7 @@ export default function AITaskModule({ profile, routePath }) {
           stateLabel={stateLabel}
           provider={provider}
           providerOptions={providerCatalog}
+          localStackSummary={localStackSummary}
           ragAlert={ragAlert}
           onProviderChange={setProvider}
           activeModeLabel={activeMode.label}
@@ -709,6 +774,8 @@ export default function AITaskModule({ profile, routePath }) {
           handleOpenLlmTest={handleOpenLlmTest}
           handleOpenDiagnostics={handleOpenDiagnostics}
           handleOpenDotobot={handleOpenDotobot}
+          handleRefreshLocalStack={refreshLocalStackStatus}
+          refreshingLocalStack={refreshingLocalStack}
           formatExecutionSourceLabel={formatExecutionSourceLabel}
         />
 

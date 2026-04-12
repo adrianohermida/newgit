@@ -42,9 +42,32 @@ function Resolve-LocalRuntimeBaseUrl {
   )
 }
 
+function Test-PortAvailable([int]$CandidatePort) {
+  try {
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $CandidatePort)
+    $listener.Start()
+    $listener.Stop()
+    return $true
+  } catch {
+    return $false
+  }
+}
+
+function Resolve-AiCorePort([int]$PreferredPort) {
+  $candidates = @($PreferredPort, 8010, 8020) | Select-Object -Unique
+  foreach ($candidate in $candidates) {
+    if (Test-PortAvailable -CandidatePort $candidate) {
+      return $candidate
+    }
+  }
+  throw "Nenhuma porta disponivel para o ai-core entre: $($candidates -join ', ')"
+}
+
 $resolvedVault = First-Value @($ObsidianVaultPath, $env:DOTOBOT_OBSIDIAN_VAULT_PATH)
 $resolvedExtensionPort = try { [int]$ExtensionPort } catch { 32123 }
-$resolvedAiCorePort = try { [int]$AiCorePort } catch { 8000 }
+$preferredAiCorePort = try { [int]$AiCorePort } catch { 8000 }
+$resolvedAiCorePort = Resolve-AiCorePort -PreferredPort $preferredAiCorePort
+$resolvedAiCoreBaseUrl = "http://127.0.0.1:$resolvedAiCorePort"
 $resolvedLocalLlmBaseUrl = Resolve-LocalRuntimeBaseUrl
 
 $sharedEnv = @(
@@ -52,7 +75,7 @@ $sharedEnv = @(
   '$env:NEXT_PUBLIC_LAWDESK_OFFLINE_MODE="true"',
   '$env:AICORE_OFFLINE_MODE="true"',
   '$env:AI_CORE_DEFAULT_PROVIDER="local"',
-  "`$env:AICORE_API_BASE_URL=`"$AiCoreBaseUrl`"",
+  "`$env:AICORE_API_BASE_URL=`"$resolvedAiCoreBaseUrl`"",
   "`$env:LOCAL_LLM_BASE_URL=`"$resolvedLocalLlmBaseUrl`"",
   "`$env:LOCAL_LLM_MODEL=`"$LocalLlmModel`"",
   "`$env:LLM_BASE_URL=`"$resolvedLocalLlmBaseUrl`"",
@@ -69,8 +92,7 @@ if (-not [string]::IsNullOrWhiteSpace($resolvedVault)) {
 $aiCoreCommand = @(
   $sharedEnv
   "`$env:PYTHONUTF8=`"1`""
-  "Set-Location `"$aiCoreDir`""
-  "python -m uvicorn api.app:app --host 0.0.0.0 --port $resolvedAiCorePort --reload"
+  "& `"$root\scripts\start-ai-core-local.ps1`" -Port $resolvedAiCorePort -LocalLlmBaseUrl `"$resolvedLocalLlmBaseUrl`" -LocalLlmModel `"$LocalLlmModel`""
 ) -join "; "
 
 $extensionCommand = @(
@@ -94,11 +116,17 @@ Start-Process -FilePath "powershell" -ArgumentList @(
 Start-Sleep -Seconds 3
 
 if ($RunDoctorAfterStart) {
-  & powershell -ExecutionPolicy Bypass -File (Join-Path $root "scripts\doctor-local-offline-stack.ps1") `
-    -AiCoreBaseUrl $AiCoreBaseUrl `
-    -LocalLlmBaseUrl $resolvedLocalLlmBaseUrl `
-    -ExtensionBaseUrl $ExtensionBaseUrl `
-    -ObsidianVaultPath $resolvedVault
+  $doctorArgs = @(
+    "-ExecutionPolicy", "Bypass",
+    "-File", (Join-Path $root "scripts\doctor-local-offline-stack.ps1"),
+    "-AiCoreBaseUrl", $resolvedAiCoreBaseUrl,
+    "-LocalLlmBaseUrl", $resolvedLocalLlmBaseUrl,
+    "-ExtensionBaseUrl", $ExtensionBaseUrl
+  )
+  if (-not [string]::IsNullOrWhiteSpace($resolvedVault)) {
+    $doctorArgs += @("-ObsidianVaultPath", $resolvedVault)
+  }
+  & powershell @doctorArgs
   exit $LASTEXITCODE
 }
 
@@ -111,7 +139,9 @@ if ($RunDoctorAfterStart) {
     "Se quiser persistencia estruturada offline, suba tambem o Supabase local."
   )
   config = [ordered]@{
-    aiCoreBaseUrl = $AiCoreBaseUrl
+    aiCoreBaseUrl = $resolvedAiCoreBaseUrl
+    aiCorePort = $resolvedAiCorePort
+    preferredAiCorePort = $preferredAiCorePort
     localLlmBaseUrl = $resolvedLocalLlmBaseUrl
     localLlmModel = $LocalLlmModel
     extensionBaseUrl = $ExtensionBaseUrl
