@@ -162,6 +162,7 @@ export function loadPersistedDotobotState({
   const activeConversationId = savedPrefs.activeConversationId || conversations[0]?.id || fallbackConversation.id;
   const activeConversation =
     conversations.find((item) => item.id === activeConversationId) || conversations[0] || fallbackConversation;
+  const activeConversationMetadata = activeConversation?.metadata || {};
 
   return {
     conversations,
@@ -176,9 +177,12 @@ export function loadPersistedDotobotState({
         : savedTasks,
     attachments: Array.isArray(activeConversation.attachments) ? activeConversation.attachments : [],
     prefs: {
-      mode: savedPrefs.mode,
-      provider: savedPrefs.provider,
-      contextEnabled: savedPrefs.contextEnabled,
+      mode: activeConversationMetadata.mode || savedPrefs.mode,
+      provider: activeConversationMetadata.provider || savedPrefs.provider,
+      contextEnabled:
+        typeof activeConversationMetadata.contextEnabled === "boolean"
+          ? activeConversationMetadata.contextEnabled
+          : savedPrefs.contextEnabled,
       workspaceOpen: Boolean(savedPrefs.workspaceOpen || initialWorkspaceOpen),
     },
   };
@@ -190,6 +194,7 @@ export function syncConversationSnapshots({
   messages,
   taskHistory,
   attachments,
+  metadata,
 }) {
   return conversations
     .map((conversation) => ({
@@ -201,6 +206,13 @@ export function syncConversationSnapshots({
         conversation.id === activeConversationId
           ? attachments.slice(0, MAX_ATTACHMENTS)
           : conversation.attachments || [],
+      metadata:
+        conversation.id === activeConversationId
+          ? {
+              ...(conversation.metadata || {}),
+              ...(metadata || {}),
+            }
+          : conversation.metadata || {},
       updatedAt: conversation.id === activeConversationId ? nowIso() : conversation.updatedAt || nowIso(),
       title: safeText(conversation.title, inferConversationTitle(conversation.messages || [])),
       preview:
@@ -224,26 +236,28 @@ export function updateConversationCollection(conversations, conversationId, upda
   });
 }
 
-export function createConversationSnapshot({ title, messages, taskHistory, attachments }) {
+export function createConversationSnapshot({ title, messages, taskHistory, attachments, metadata }) {
   return summarizeConversation({
     id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     title,
     messages: messages.slice(-MAX_HISTORY),
     taskHistory: taskHistory.slice(-MAX_TASKS),
     attachments: attachments.slice(0, MAX_ATTACHMENTS),
+    metadata: metadata || {},
     tags: [],
     createdAt: nowIso(),
     updatedAt: nowIso(),
   });
 }
 
-export function createEmptyConversation(title = "Nova conversa") {
+export function createEmptyConversation(title = "Nova conversa", metadata = {}) {
   return summarizeConversation({
     id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     title,
     messages: [],
     taskHistory: [],
     attachments: [],
+    metadata,
     tags: [],
     createdAt: nowIso(),
     updatedAt: nowIso(),
@@ -278,6 +292,7 @@ export function buildConversationSelectionState(conversation) {
       messages: [],
       taskHistory: [],
       attachments: [],
+      metadata: {},
     };
   }
 
@@ -286,6 +301,7 @@ export function buildConversationSelectionState(conversation) {
     messages: Array.isArray(conversation.messages) ? conversation.messages : [],
     taskHistory: Array.isArray(conversation.taskHistory) ? conversation.taskHistory : [],
     attachments: Array.isArray(conversation.attachments) ? conversation.attachments : [],
+    metadata: conversation.metadata || {},
   };
 }
 

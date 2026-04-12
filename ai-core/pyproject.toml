@@ -3,6 +3,10 @@ name = "ai-core"
 version = "0.1.0"
 description = "Python orchestration workspace for the Lawdesk rewrite effort."
 requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.116,<1",
+  "uvicorn>=0.35,<1",
+]
 
 [tool.ruff]
 line-length = 100

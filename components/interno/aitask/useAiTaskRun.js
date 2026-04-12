@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { adminFetch } from "../../../lib/admin/api";
 import { appendActivityLog, updateActivityLog } from "../../../lib/admin/activity-log";
+import { invokeBrowserLocalExecute, isBrowserLocalProvider, normalizeBrowserLocalTaskRun } from "../../../lib/lawdesk/browser-local-runtime";
 
 const AI_TASK_CONSOLE_META = {
   consolePane: ["ai-task", "functions", "jobs"],
@@ -333,7 +334,9 @@ export function useAiTaskRun({
     setExecutionModel(null);
     setPaused(false);
     pauseRef.current = false;
-    setActiveRun({ id: localRunId, startedAt: nowIso(), mission: normalizedMission });
+    if (!isBrowserLocalProvider(provider)) {
+      setActiveRun({ id: localRunId, startedAt: nowIso(), mission: normalizedMission });
+    }
     setMissionHistory((current) => [
       {
         id: localRunId,
@@ -372,6 +375,211 @@ export function useAiTaskRun({
           ? "A missão aciona critério sensível e requer confirmação humana."
           : "Modo assistido aguardando liberação para seguir com a execução.",
       });
+      return;
+    }
+
+    if (isBrowserLocalProvider(provider)) {
+      const localStartedAt = nowIso();
+      const startStartedAt = Date.now();
+      const startLogId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const localContext = {
+        route: routePath || "/interno/ai-task",
+        mission: normalizedMission,
+        mode,
+        provider,
+        approved,
+        attachments,
+        assistant: { surface: "ai-task", orchestration: "planner-executor-critic" },
+        profile: {
+          id: profile?.id || null,
+          email: profile?.email || null,
+          role: profile?.role || null,
+        },
+      };
+
+      pushLog({
+        type: "api",
+        action: "Iniciando AI Core local",
+        result: "POST browser://local-ai-core/execute",
+      });
+
+      appendActivityLog({
+        id: startLogId,
+        module: "ai-task",
+        component: "AITaskRun",
+        label: "AI Task: iniciar run local",
+        action: "ai_task_run_start_local",
+        method: "POST",
+        path: "browser://local-ai-core/execute",
+        expectation: "Criar uma execucao local no ai-core do navegador",
+        ...AI_TASK_CONSOLE_META,
+        request: buildAiTaskDiagnostic({
+          title: "AI Task local start",
+          summary: normalizedMission,
+          sections: [
+            { label: "mission", value: normalizedMission },
+            { label: "mode", value: mode },
+            { label: "provider", value: provider },
+            { label: "attachments", value: attachments },
+            { label: "context", value: localContext },
+          ],
+        }),
+        status: "running",
+        startedAt: startStartedAt,
+      });
+
+      try {
+        const rawLocalPayload = await invokeBrowserLocalExecute({
+          query: normalizedMission,
+          context: localContext,
+        });
+        const normalized = normalizeBrowserLocalTaskRun(rawLocalPayload, {
+          runId: localRunId,
+          mission: normalizedMission,
+          mode,
+          provider,
+          startedAt: localStartedAt,
+        });
+        const backendSteps = normalized.steps || [];
+
+        updateActivityLog(startLogId, {
+          status: normalized?.status === "failed" ? "error" : "success",
+          durationMs: Date.now() - startStartedAt,
+          response: buildAiTaskDiagnostic({
+            title: "AI Task local result",
+            summary: normalized?.status || "completed",
+            sections: [
+              { label: "run", value: normalized?.run || null },
+              { label: "events", value: normalized?.events || [] },
+              { label: "steps", value: backendSteps },
+              { label: "rag", value: normalized?.rag || null },
+            ],
+          }),
+        });
+
+        if (backendSteps.length) {
+          const mappedTasks = backendSteps.map((step, index) => ({
+            id: `${normalized.run?.id || localRunId}_step_${index + 1}`,
+            title: step?.action || step?.title || `Etapa ${index + 1}`,
+            goal: step?.action || step?.title || `Etapa ${index + 1}`,
+            description: step?.action || step?.title || "Execucao local do ai-core",
+            step,
+            steps: [step?.action || step?.title || "Execucao local do ai-core"],
+            status: normalizeTaskStepStatus(step?.status),
+            priority: inferTaskPriority(step),
+            assignedAgent: classifyTaskAgent(step),
+            created_at: localStartedAt,
+            updated_at: nowIso(),
+            logs: step?.error ? [step.error] : [],
+            dependencies: Array.isArray(step?.dependencies) ? step.dependencies : Array.isArray(step?.dependsOn) ? step.dependsOn : [],
+          }));
+          setTasks(mappedTasks);
+          setSelectedTaskId(mappedTasks[0]?.id || null);
+        }
+
+        if (normalized.source) setExecutionSource(normalized.source);
+        if (normalized.model) setExecutionModel(normalized.model);
+        if (normalized.eventsTotal != null) setEventsTotal(normalized.eventsTotal);
+        if (normalized.resultText) {
+          setLatestResult(normalized.resultText);
+          pushLog({
+            type: "reporter",
+            action: "Resposta local recebida",
+            result: `${normalized.resultText.slice(0, 160)}${normalized.model ? ` [${normalized.model}]` : ""}`,
+          });
+        }
+
+        if (normalized.rag) {
+          setContextSnapshot({
+            module: detectModules(normalizedMission).join(", "),
+            memory: extractTaskRunMemoryMatches(normalized.rag),
+            documents: normalized.rag?.documents || [],
+            ragEnabled: Boolean(normalized.rag?.retrieval?.enabled || normalized.rag?.documents?.length),
+            route: routePath || "/interno/ai-task",
+          });
+        }
+
+        patchThinking((current) => [
+          {
+            id: `${Date.now()}_local_response`,
+            title: "Resposta operacional local",
+            timestamp: nowIso(),
+            summary: "O ai-core local executou a trilha diretamente no navegador.",
+            details: (backendSteps.length ? backendSteps : normalized.events || [])
+              .slice(0, 6)
+              .map((item) => item?.action || item?.title || item?.type || JSON.stringify(item)),
+            expanded: true,
+          },
+          ...current,
+        ]);
+
+        setMissionHistory((current) =>
+          current.map((item) =>
+            item.id === localRunId
+              ? {
+                  ...item,
+                  id: normalized.run?.id || item.id,
+                  status: normalized.status === "completed" ? "done" : "failed",
+                  updated_at: nowIso(),
+                  result: normalized.run?.result?.status || normalized.status,
+                  source: normalized.source || null,
+                  model: normalized.model || null,
+                }
+              : item
+          )
+        );
+
+        setAutomation(normalized.status === "completed" ? "done" : "failed");
+        setActiveRun(null);
+        pushLog({
+          type: "critic",
+          action: "Validacao local",
+          result:
+            normalized.status === "completed"
+              ? "Execucao local concluida com sucesso."
+              : "Execucao local terminou com falhas rastreaveis no ai-core.",
+        });
+      } catch (missionError) {
+        const message = missionError?.message || "Falha ao executar a missao no ai-core local.";
+        appendActivityLog({
+          id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          module: "ai-task",
+          component: "AITaskRun",
+          label: "AI Task: falha na execucao local",
+          action: "ai_task_run_local_error",
+          method: "POST",
+          path: "browser://local-ai-core/execute",
+          ...AI_TASK_CONSOLE_META,
+          status: "error",
+          startedAt: Date.now(),
+          error: buildAiTaskDiagnostic({
+            title: "Falha na execucao local do AI Task",
+            summary: message,
+            sections: [
+              { label: "mission", value: normalizedMission },
+              { label: "mode", value: mode },
+              { label: "provider", value: provider },
+              { label: "error", value: missionError?.payload || missionError?.stack || missionError },
+            ],
+          }),
+        });
+        setError(message);
+        setAutomation("failed");
+        setMissionHistory((current) =>
+          current.map((item) => (item.id === localRunId ? { ...item, status: "failed", updated_at: nowIso(), error: message } : item))
+        );
+        setTasks((current) =>
+          current.map((task) =>
+            task.status === "running" || task.status === "pending"
+              ? { ...task, status: "failed", updated_at: nowIso(), logs: [...(task.logs || []), message] }
+              : task
+          )
+        );
+        setActiveRun(null);
+        pushLog({ type: "error", action: "Execucao local interrompida", result: message });
+      } finally {
+        abortRef.current = null;
+      }
       return;
     }
 

@@ -1,0 +1,114 @@
+from __future__ import annotations
+
+import unittest
+from unittest.mock import patch
+
+from api.server import (
+    browser_execute_json,
+    build_cloud_provider_config,
+    build_local_provider_config,
+    health,
+    messages_json,
+    providers_json,
+)
+
+
+class ApiServerTests(unittest.TestCase):
+    def test_build_local_provider_uses_aicore_aliases(self) -> None:
+        config = build_local_provider_config(
+            {
+                'AICORE_API_BASE_URL': 'http://127.0.0.1:8000',
+                'AICORE_LOCAL_LLM_MODEL': 'aetherlab-legal-local-v1',
+            }
+        )
+
+        self.assertEqual(config.base_url, 'http://127.0.0.1:8000')
+        self.assertEqual(config.model, 'aetherlab-legal-local-v1')
+        self.assertTrue(config.configured)
+
+    def test_build_cloud_provider_reuses_existing_remote_runtime(self) -> None:
+        config = build_cloud_provider_config(
+            {
+                'PROCESS_AI_BASE': 'https://ai.hermidamaia.adv.br',
+                'CUSTOM_LLM_AUTH_TOKEN': 'token',
+                'CUSTOM_LLM_MODEL': 'aetherlab-legal-v1',
+            }
+        )
+
+        self.assertEqual(config.base_url, 'https://ai.hermidamaia.adv.br')
+        self.assertEqual(config.auth_token, 'token')
+        self.assertEqual(config.model, 'aetherlab-legal-v1')
+
+    def test_messages_json_routes_to_local_provider_by_default(self) -> None:
+        with patch('api.server._json_request') as mocked_request:
+            mocked_request.return_value = {
+                'id': 'msg_1',
+                'type': 'message',
+                'role': 'assistant',
+                'model': 'aetherlab-legal-local-v1',
+                'content': [{'type': 'text', 'text': 'Resposta local'}],
+                'metadata': {'resolved_model': 'aetherlab-legal-local-v1'},
+            }
+
+            payload = messages_json(
+                {
+                    'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'Olá mundo'}]}],
+                    'model': 'aetherlab-legal-local-v1',
+                },
+                env={'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:8000'},
+            )
+
+        self.assertEqual(payload['metadata']['provider'], 'local')
+        self.assertEqual(payload['content'][0]['text'], 'Resposta local')
+        mocked_request.assert_called_once()
+
+    def test_messages_json_routes_to_cloud_provider_when_requested(self) -> None:
+        with patch('api.server._json_request') as mocked_request:
+            mocked_request.return_value = {
+                'id': 'msg_cloud',
+                'type': 'message',
+                'role': 'assistant',
+                'model': 'aetherlab-legal-v1',
+                'content': [{'type': 'text', 'text': 'Resposta cloud'}],
+                'metadata': {'resolved_model': '@cf/meta/llama-3.1-8b-instruct'},
+            }
+
+            payload = messages_json(
+                {
+                    'provider': 'cloud',
+                    'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'Olá cloud'}]}],
+                },
+                env={'CUSTOM_LLM_BASE_URL': 'https://ai.hermidamaia.adv.br'},
+            )
+
+        self.assertEqual(payload['metadata']['provider'], 'cloud')
+        self.assertEqual(payload['content'][0]['text'], 'Resposta cloud')
+
+    def test_browser_execute_uses_local_extension_endpoint(self) -> None:
+        with patch('api.server._json_request') as mocked_request:
+            mocked_request.return_value = {'ok': True, 'command': 'web_search'}
+            result = browser_execute_json(
+                {'command': 'web_search', 'payload': {'query': 'hermida maia'}},
+                env={'UNIVERSAL_LLM_EXTENSION_BASE_URL': 'http://127.0.0.1:32123'},
+            )
+
+        self.assertEqual(result['status'], 'ok')
+        self.assertEqual(result['command'], 'web_search')
+        mocked_request.assert_called_once()
+
+    def test_providers_and_health_expose_extension(self) -> None:
+        env = {
+            'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:8000',
+            'CUSTOM_LLM_BASE_URL': 'https://ai.hermidamaia.adv.br',
+            'UNIVERSAL_LLM_EXTENSION_BASE_URL': 'http://127.0.0.1:32123',
+        }
+        providers = providers_json(env)
+        health_payload = health(env)
+
+        self.assertEqual(providers['extension']['base_url'], 'http://127.0.0.1:32123')
+        self.assertEqual(health_payload['providers']['local']['base_url'], 'http://127.0.0.1:8000')
+        self.assertEqual(health_payload['providers']['cloud']['base_url'], 'https://ai.hermidamaia.adv.br')
+
+
+if __name__ == '__main__':
+    unittest.main()

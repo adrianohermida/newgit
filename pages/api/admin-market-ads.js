@@ -1,11 +1,18 @@
 import { requireAdminNode } from "../../lib/admin/node-auth.js";
 import {
   generateLegalAdVariant,
+  generateMarketAdsOptimizations,
   getMarketAdsDashboardData,
+  inspectAdsIntegrations,
+  importRemoteAdsCampaigns,
   persistComplianceValidation,
+  recommendLandingPage,
+  saveMarketAdsAbTest,
   saveMarketAdsCampaign,
   saveMarketAdsDraft,
   saveMarketAdsItem,
+  syncRemoteAdsCampaigns,
+  updateMarketAdsAbTest,
   updateMarketAdsCampaign,
   updateMarketAdsItem,
 } from "../../lib/admin/market-ads.js";
@@ -40,6 +47,31 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, data });
     }
 
+    if (action === "recommend_landing") {
+      const data = recommendLandingPage(req.body?.input || {});
+      return res.status(200).json({ ok: true, data });
+    }
+
+    if (action === "inspect_integrations") {
+      const data = await inspectAdsIntegrations();
+      return res.status(200).json({ ok: true, data });
+    }
+
+    if (action === "sync_remote_campaigns") {
+      const data = await syncRemoteAdsCampaigns();
+      return res.status(200).json({ ok: true, data });
+    }
+
+    if (action === "import_remote_campaigns") {
+      const data = await importRemoteAdsCampaigns(auth.user?.id || null);
+      return res.status(200).json({ ok: true, data });
+    }
+
+    if (action === "generate_optimizations") {
+      const data = await generateMarketAdsOptimizations();
+      return res.status(200).json({ ok: true, data });
+    }
+
     if (action === "save_campaign") {
       const data = await saveMarketAdsCampaign(req.body?.input || {}, auth.user?.id || null);
       return res.status(200).json({ ok: true, data });
@@ -57,6 +89,16 @@ export default async function handler(req, res) {
 
     if (action === "update_ad_item") {
       const data = await updateMarketAdsItem(req.body?.itemId || null, req.body?.input || {});
+      return res.status(200).json({ ok: true, data });
+    }
+
+    if (action === "save_ab_test") {
+      const data = await saveMarketAdsAbTest(req.body?.input || {}, auth.user?.id || null);
+      return res.status(200).json({ ok: true, data });
+    }
+
+    if (action === "update_ab_test") {
+      const data = await updateMarketAdsAbTest(req.body?.testId || null, req.body?.input || {});
       return res.status(200).json({ ok: true, data });
     }
 

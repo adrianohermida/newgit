@@ -12,6 +12,8 @@
     "deploy:hmadv-ai": "powershell -ExecutionPolicy Bypass -File scripts/deploy-hmadv-process-ai.ps1",
     "diagnose:hmadv-ai": "powershell -ExecutionPolicy Bypass -File scripts/diagnose-hmadv-process-ai.ps1",
     "diagnose:local-llm": "powershell -ExecutionPolicy Bypass -File scripts/diagnose-local-llm.ps1",
+    "start:ai-core-local": "powershell -ExecutionPolicy Bypass -File scripts/start-ai-core-local.ps1",
+    "start:universal-llm-extension": "powershell -ExecutionPolicy Bypass -File scripts/start-universal-llm-extension.ps1",
     "diagnose:pages-admin": "powershell -ExecutionPolicy Bypass -File scripts/diagnose-pages-admin-runtime.ps1",
     "audit:lawdesk-env": "powershell -ExecutionPolicy Bypass -File scripts/audit-lawdesk-runtime-env.ps1",
     "verify:lawdesk-stack": "powershell -ExecutionPolicy Bypass -File scripts/postdeploy-verify-lawdesk-stack.ps1",

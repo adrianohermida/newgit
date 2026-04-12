@@ -40,8 +40,12 @@ function Tag({ children, tone = "neutral" }) {
 function toneFor(value) {
   const normalized = String(value || "").toLowerCase();
   if (normalized.includes("aprov")) return "success";
+  if (normalized.includes("escalar") || normalized.includes("scale")) return "success";
   if (normalized.includes("crit") || normalized.includes("bloq")) return "danger";
   if (normalized.includes("revis") || normalized.includes("alert") || normalized.includes("atenc")) return "warn";
+  if (normalized.includes("otimiz")) return "accent";
+  if (normalized.includes("forte")) return "success";
+  if (normalized.includes("estavel") || normalized.includes("media")) return "accent";
   return "accent";
 }
 
@@ -100,6 +104,11 @@ function MarketAdsContent() {
   });
   const [campaignState, setCampaignState] = useState({ loading: false, error: null, result: null });
   const [editingCampaignId, setEditingCampaignId] = useState("");
+  const [landingState, setLandingState] = useState({ loading: false, error: null, result: null });
+  const [integrationState, setIntegrationState] = useState({ loading: false, error: null, result: null });
+  const [remoteSyncState, setRemoteSyncState] = useState({ loading: false, error: null, result: null });
+  const [remoteImportState, setRemoteImportState] = useState({ loading: false, error: null, result: null });
+  const [optimizationState, setOptimizationState] = useState({ loading: false, error: null, result: null });
   const [adForm, setAdForm] = useState({
     campaignId: "",
     name: "Anuncio juridico | Search",
@@ -114,6 +123,20 @@ function MarketAdsContent() {
   });
   const [adState, setAdState] = useState({ loading: false, error: null, result: null });
   const [editingAdId, setEditingAdId] = useState("");
+  const [abForm, setAbForm] = useState({
+    campaignId: "",
+    area: "Superendividamento",
+    hypothesis: "Headline mais objetiva gera CTR maior que headline com tom emocional.",
+    metric: "CTR",
+    variantALabel: "Variante A",
+    variantBLabel: "Variante B",
+    winner: "Variante B",
+    uplift: "18",
+    status: "running",
+    recommendation: "Escalar a variante vencedora e manter CTA informativo.",
+  });
+  const [abState, setAbState] = useState({ loading: false, error: null, result: null });
+  const [editingAbId, setEditingAbId] = useState("");
   const [complianceInput, setComplianceInput] = useState({
     headline: "Conheca seus direitos em casos de superendividamento",
     description: "Explicacao juridica clara sobre reorganizacao financeira e avaliacao tecnica do caso.",
@@ -211,6 +234,89 @@ function MarketAdsContent() {
     } catch (error) {
       setCampaignState({ loading: false, error: error.message || "Falha ao salvar campanha.", result: null });
     }
+  }
+
+  async function recommendLanding() {
+    setLandingState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "recommend_landing",
+          input: {
+            legalArea: campaignForm.legalArea,
+            objective: campaignForm.objective,
+          },
+        }),
+      });
+      setLandingState({ loading: false, error: null, result: payload.data || null });
+    } catch (error) {
+      setLandingState({ loading: false, error: error.message || "Falha ao recomendar landing page.", result: null });
+    }
+  }
+
+  async function inspectIntegrations() {
+    setIntegrationState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "inspect_integrations" }),
+      });
+      setIntegrationState({ loading: false, error: null, result: payload.data || null });
+    } catch (error) {
+      setIntegrationState({ loading: false, error: error.message || "Falha ao inspecionar integracoes.", result: null });
+    }
+  }
+
+  async function syncRemoteCampaigns() {
+    setRemoteSyncState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "sync_remote_campaigns" }),
+      });
+      setRemoteSyncState({ loading: false, error: null, result: payload.data || null });
+    } catch (error) {
+      setRemoteSyncState({ loading: false, error: error.message || "Falha ao sincronizar campanhas remotas.", result: null });
+    }
+  }
+
+  async function importRemoteCampaigns() {
+    setRemoteImportState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "import_remote_campaigns" }),
+      });
+      setRemoteImportState({ loading: false, error: null, result: payload.data || null });
+      await load();
+    } catch (error) {
+      setRemoteImportState({ loading: false, error: error.message || "Falha ao importar campanhas para a base local.", result: null });
+    }
+  }
+
+  async function generateOptimizations() {
+    setOptimizationState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "generate_optimizations" }),
+      });
+      setOptimizationState({ loading: false, error: null, result: payload.data || null });
+    } catch (error) {
+      setOptimizationState({ loading: false, error: error.message || "Falha ao gerar plano de otimizacao.", result: null });
+    }
+  }
+
+  function applyRecommendedLanding() {
+    const slug = landingState.result?.best?.slug;
+    if (!slug) return;
+    setCampaignForm((current) => ({ ...current, landingPage: slug }));
   }
 
   function beginEditCampaign(campaign) {
@@ -314,6 +420,62 @@ function MarketAdsContent() {
     });
   }
 
+  async function saveAbTest() {
+    setAbState({ loading: true, error: null, result: null });
+    try {
+      const action = editingAbId ? "update_ab_test" : "save_ab_test";
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          testId: editingAbId || null,
+          input: {
+            ...abForm,
+            uplift: toNumber(abForm.uplift),
+          },
+        }),
+      });
+      setAbState({ loading: false, error: null, result: payload.data || null });
+      setEditingAbId("");
+      await load();
+    } catch (error) {
+      setAbState({ loading: false, error: error.message || "Falha ao salvar teste A/B.", result: null });
+    }
+  }
+
+  function beginEditAbTest(item) {
+    setEditingAbId(item.id || "");
+    setAbForm({
+      campaignId: item.campaignId || "",
+      area: item.area || "",
+      hypothesis: item.hypothesis || "",
+      metric: item.metric || "CTR",
+      variantALabel: item.variantALabel || "Variante A",
+      variantBLabel: item.variantBLabel || "Variante B",
+      winner: item.winner || "",
+      uplift: String(item.uplift ?? 0),
+      status: item.status || "draft",
+      recommendation: item.recommendation || "",
+    });
+  }
+
+  function resetAbForm() {
+    setEditingAbId("");
+    setAbForm({
+      campaignId: "",
+      area: "Superendividamento",
+      hypothesis: "Headline mais objetiva gera CTR maior que headline com tom emocional.",
+      metric: "CTR",
+      variantALabel: "Variante A",
+      variantBLabel: "Variante B",
+      winner: "Variante B",
+      uplift: "18",
+      status: "running",
+      recommendation: "Escalar a variante vencedora e manter CTA informativo.",
+    });
+  }
+
   useEffect(() => {
     load();
   }, []);
@@ -392,6 +554,89 @@ function MarketAdsContent() {
             </Panel>
           </div>
 
+          <Panel eyebrow="Integracoes externas" title="Google Ads e Meta Ads" helper="Diagnostico de prontidao para leitura real das plataformas antes da sincronizacao operacional.">
+            <div className="flex flex-wrap gap-3">
+              <button type="button" onClick={inspectIntegrations} disabled={integrationState.loading} className="rounded-full border border-[#C5A059] px-5 py-3 text-sm font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E] disabled:opacity-50">
+                {integrationState.loading ? "Inspecionando..." : "Inspecionar integracoes"}
+              </button>
+              <button type="button" onClick={syncRemoteCampaigns} disabled={remoteSyncState.loading} className="rounded-full border border-[#22342F] px-5 py-3 text-sm text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">
+                {remoteSyncState.loading ? "Sincronizando campanhas..." : "Ler campanhas remotas"}
+              </button>
+              <button type="button" onClick={importRemoteCampaigns} disabled={remoteImportState.loading} className="rounded-full border border-[#22342F] px-5 py-3 text-sm text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">
+                {remoteImportState.loading ? "Importando para a base..." : "Importar para campanhas locais"}
+              </button>
+              <Tag tone="accent">{(integrationState.result || data.integrations)?.summary || "Sem leitura ainda"}</Tag>
+            </div>
+            {integrationState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{integrationState.error}</p> : null}
+            {remoteSyncState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{remoteSyncState.error}</p> : null}
+            {remoteImportState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{remoteImportState.error}</p> : null}
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              {((integrationState.result || data.integrations)?.providers || []).map((item) => (
+                <article key={item.provider} className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold text-[#F7F2E8]">{item.provider}</p>
+                    <Tag tone={toneFor(item.status)}>{item.status}</Tag>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-[#8FA29B]">{item.summary}</p>
+                  {item.missing?.length ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {item.missing.map((missing) => <Tag key={missing} tone="warn">{missing}</Tag>)}
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+            {remoteSyncState.result ? (
+              <div className="mt-5 rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="font-semibold text-[#F7F2E8]">Leitura remota</p>
+                  <Tag tone="accent">{remoteSyncState.result.summary}</Tag>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {(remoteSyncState.result.remoteCampaigns || []).map((item) => (
+                    <article key={item.id} className="rounded-[18px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold text-[#F5F1E8]">{item.name}</p>
+                        <Tag tone={toneFor(item.status)}>{item.provider}</Tag>
+                      </div>
+                      <p className="mt-1 text-[#8FA29B]">{item.objective}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Tag tone="neutral">{item.status}</Tag>
+                        <Tag tone="accent">budget {money(item.budget || 0)}</Tag>
+                        {item.cpc !== null && item.cpc !== undefined ? <Tag tone="neutral">cpc {money(item.cpc)}</Tag> : null}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {remoteImportState.result ? (
+              <div className="mt-5 rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="font-semibold text-[#F7F2E8]">Importacao conciliada</p>
+                  <Tag tone="accent">{remoteImportState.result.summary}</Tag>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Tag tone="success">criadas {remoteImportState.result.created || 0}</Tag>
+                  <Tag tone="warn">atualizadas {remoteImportState.result.updated || 0}</Tag>
+                  <Tag tone="neutral">lidas {(remoteImportState.result.remoteCampaigns || []).length}</Tag>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {(remoteImportState.result.imported || []).map((item, index) => (
+                    <article key={`${item.remote?.id || index}-${item.action}`} className="rounded-[18px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold text-[#F5F1E8]">{item.campaign?.name || item.remote?.name || "Campanha remota"}</p>
+                        <Tag tone={item.action === "created" ? "success" : item.action === "updated" ? "warn" : "danger"}>{item.action}</Tag>
+                      </div>
+                      <p className="mt-1 text-[#8FA29B]">{item.remote?.provider || "Ads"} · {item.remote?.objective || "sem objetivo"}</p>
+                      {item.error ? <p className="mt-3 text-[#F8C5C5]">{item.error}</p> : null}
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </Panel>
+
           <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
             <Panel eyebrow="Gestao de campanhas" title="Cadastrar ou editar campanha" helper="Use este bloco para montar a campanha operacional que vai alimentar verba, status, landing page e performance.">
               <div className="grid gap-4 md:grid-cols-2">
@@ -433,6 +678,9 @@ function MarketAdsContent() {
                 <button type="button" onClick={saveCampaign} disabled={campaignState.loading} className="rounded-full border border-[#C5A059] bg-[#C5A059] px-5 py-3 text-sm font-semibold text-[#07110E] disabled:opacity-50">
                   {campaignState.loading ? "Salvando..." : editingCampaignId ? "Atualizar campanha" : "Criar campanha"}
                 </button>
+                <button type="button" onClick={recommendLanding} disabled={landingState.loading} className="rounded-full border border-[#22342F] px-5 py-3 text-sm text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">
+                  {landingState.loading ? "Analisando destino..." : "Recomendar landing"}
+                </button>
                 <button type="button" onClick={resetCampaignForm} className="rounded-full border border-[#22342F] px-5 py-3 text-sm text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059]">
                   Limpar formulario
                 </button>
@@ -440,6 +688,28 @@ function MarketAdsContent() {
               {campaignState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{campaignState.error}</p> : null}
               {campaignState.result?.campaign?.id ? <p className="mt-3 text-sm text-[#B7F7C6]">Campanha preparada: {campaignState.result.campaign.name}.</p> : null}
               {campaignState.result?.warning ? <p className="mt-2 text-sm text-[#FDE68A]">{campaignState.result.warning}</p> : null}
+              {landingState.error ? <p className="mt-2 text-sm text-[#F8C5C5]">{landingState.error}</p> : null}
+              {landingState.result?.best ? (
+                <div className="mt-4 rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-[#F7F2E8]">Destino recomendado: {landingState.result.best.title}</p>
+                      <p className="mt-1 text-sm text-[#8FA29B]">{landingState.result.best.slug}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Tag tone="accent">fit {landingState.result.best.recommendedScore}</Tag>
+                      <button
+                        type="button"
+                        onClick={applyRecommendedLanding}
+                        className="rounded-full border border-[#C5A059] px-4 py-2 text-xs text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]"
+                      >
+                        Aplicar no formulario
+                      </button>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-[#8FA29B]">{landingState.result.rationale}</p>
+                </div>
+              ) : null}
             </Panel>
 
             <Panel eyebrow="CRUD de anuncios" title="Cadastrar ou editar anuncio" helper="Controle cada peca com headline, descricao, CTA, campanha vinculada e score de compliance individual.">
@@ -480,6 +750,46 @@ function MarketAdsContent() {
               {adState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{adState.error}</p> : null}
               {adState.result?.adItem?.id ? <p className="mt-3 text-sm text-[#B7F7C6]">Anuncio preparado: {adState.result.adItem.name}.</p> : null}
               {adState.result?.warning ? <p className="mt-2 text-sm text-[#FDE68A]">{adState.result.warning}</p> : null}
+            </Panel>
+
+            <Panel eyebrow="Testes A/B" title="Cadastrar ou editar teste" helper="Registre hipotese, campanha, vencedor e uplift para transformar aprendizado em historico operacional.">
+              <div className="grid gap-4 md:grid-cols-2">
+                <select value={abForm.campaignId} onChange={(event) => setAbForm({ ...abForm, campaignId: event.target.value })} className="md:col-span-2 rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
+                  <option value="">Selecionar campanha</option>
+                  {(data.campaigns || []).map((campaign) => (
+                    <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
+                  ))}
+                </select>
+                <input value={abForm.area} onChange={(event) => setAbForm({ ...abForm, area: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Area juridica" />
+                <select value={abForm.metric} onChange={(event) => setAbForm({ ...abForm, metric: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
+                  <option>CTR</option>
+                  <option>Conversao</option>
+                  <option>CPA</option>
+                  <option>ROI</option>
+                </select>
+                <textarea value={abForm.hypothesis} onChange={(event) => setAbForm({ ...abForm, hypothesis: event.target.value })} rows={4} className="md:col-span-2 rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Hipotese do teste" />
+                <input value={abForm.variantALabel} onChange={(event) => setAbForm({ ...abForm, variantALabel: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Variante A" />
+                <input value={abForm.variantBLabel} onChange={(event) => setAbForm({ ...abForm, variantBLabel: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Variante B" />
+                <input value={abForm.winner} onChange={(event) => setAbForm({ ...abForm, winner: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Vencedor" />
+                <input value={abForm.uplift} onChange={(event) => setAbForm({ ...abForm, uplift: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Uplift %" />
+                <select value={abForm.status} onChange={(event) => setAbForm({ ...abForm, status: event.target.value })} className="md:col-span-2 rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
+                  <option value="draft">draft</option>
+                  <option value="running">running</option>
+                  <option value="completed">completed</option>
+                </select>
+                <textarea value={abForm.recommendation} onChange={(event) => setAbForm({ ...abForm, recommendation: event.target.value })} rows={3} className="md:col-span-2 rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Recomendacao" />
+              </div>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button type="button" onClick={saveAbTest} disabled={abState.loading} className="rounded-full border border-[#C5A059] bg-[#C5A059] px-5 py-3 text-sm font-semibold text-[#07110E] disabled:opacity-50">
+                  {abState.loading ? "Salvando..." : editingAbId ? "Atualizar teste" : "Criar teste"}
+                </button>
+                <button type="button" onClick={resetAbForm} className="rounded-full border border-[#22342F] px-5 py-3 text-sm text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                  Limpar teste
+                </button>
+              </div>
+              {abState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{abState.error}</p> : null}
+              {abState.result?.abTest?.id ? <p className="mt-3 text-sm text-[#B7F7C6]">Teste A/B preparado: {abState.result.abTest.metric}.</p> : null}
+              {abState.result?.warning ? <p className="mt-2 text-sm text-[#FDE68A]">{abState.result.warning}</p> : null}
             </Panel>
 
             <Panel eyebrow="Gerador com IA" title="Criar anuncio juridico" helper="Gera headlines, descricoes, CTA, criativo e keywords com revisao automatica inicial.">
@@ -611,9 +921,21 @@ function MarketAdsContent() {
                   <article key={item.id} className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="font-semibold text-[#F7F2E8]">{item.area}</p>
-                      <Tag tone="success">{item.winner}</Tag>
+                      <div className="flex flex-wrap gap-2">
+                        <Tag tone="success">{item.winner}</Tag>
+                        {item.status ? <Tag tone={toneFor(item.status)}>{item.status}</Tag> : null}
+                      </div>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-[#8DA19A]">{item.recommendation}</p>
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => beginEditAbTest(item)}
+                        className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                      >
+                        Editar teste
+                      </button>
+                    </div>
                   </article>
                 ))}
                 {data.campaigns.map((campaign) => (
@@ -626,11 +948,18 @@ function MarketAdsContent() {
                       <div className="flex flex-wrap gap-2">
                         <Tag tone={toneFor(campaign.status)}>{campaign.status}</Tag>
                         <Tag tone={toneFor(campaign.complianceStatus)}>{campaign.complianceStatus}</Tag>
+                        <Tag tone={toneFor(campaign.healthBand)}>saude {campaign.healthBand}</Tag>
                       </div>
                     </div>
-                    <div className="mt-3 grid gap-2 md:grid-cols-2">
+                    <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                       <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">Budget {money(campaign.budget)}</div>
                       <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">CPA {money(campaign.cpa)}</div>
+                      <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">CTR {Number(campaign.ctr || 0).toFixed(1)}%</div>
+                      <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">Score {campaign.healthScore || 0}/100</div>
+                    </div>
+                    <div className="mt-3 rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                      <p className="font-semibold text-[#F7F2E8]">Proxima acao</p>
+                      <p className="mt-1 text-[#8FA29B]">{campaign.nextActions?.[0] || "Sem recomendacao no momento."}</p>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-3">
                       <button
@@ -644,10 +973,100 @@ function MarketAdsContent() {
                   </article>
                 ))}
                 <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                  <p className="font-semibold text-[#F7F2E8]">Assistente de estrategia</p>
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={generateOptimizations}
+                      disabled={optimizationState.loading}
+                      className="rounded-full border border-[#C5A059] px-4 py-2 text-xs font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E] disabled:opacity-50"
+                    >
+                      {optimizationState.loading ? "Rodando otimizacao..." : "Gerar rodada de otimizacao"}
+                    </button>
+                    <Tag tone="accent">{(optimizationState.result || data.optimizationPlan)?.narrative || "Sem rodada executada ainda"}</Tag>
+                  </div>
+                  {optimizationState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{optimizationState.error}</p> : null}
+                  <div className="mt-3 space-y-3">
+                    {(data.strategyQueue || []).map((item) => (
+                      <div key={item.id} className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-semibold text-[#F5F1E8]">{item.campaignName}</p>
+                          <div className="flex flex-wrap gap-2">
+                            <Tag tone={toneFor(item.priority)}>{item.priority}</Tag>
+                            <Tag tone="neutral">score {item.healthScore}</Tag>
+                          </div>
+                        </div>
+                        <p className="mt-2 text-[#8FA29B]">{item.action}</p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#6F837C]">Owner sugerido: {item.owner}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-5 rounded-[16px] border border-[#1D2B27] px-3 py-3">
+                    <div className="flex flex-wrap gap-2">
+                      <Tag tone="success">escala {(optimizationState.result || data.optimizationPlan)?.summary?.scale || 0}</Tag>
+                      <Tag tone="accent">otimizar {(optimizationState.result || data.optimizationPlan)?.summary?.optimize || 0}</Tag>
+                      <Tag tone="danger">revisar {(optimizationState.result || data.optimizationPlan)?.summary?.review || 0}</Tag>
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      {((optimizationState.result || data.optimizationPlan)?.recommendations || []).map((item) => (
+                        <div key={`${item.campaignId}-${item.decision}`} className="rounded-[16px] border border-[#22342F] px-3 py-3 text-sm text-[#C7D0CA]">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-semibold text-[#F5F1E8]">{item.campaignName}</p>
+                            <div className="flex flex-wrap gap-2">
+                              <Tag tone={toneFor(item.decision)}>{item.decision}</Tag>
+                              <Tag tone="neutral">{item.suggestedStatus}</Tag>
+                            </div>
+                          </div>
+                          <p className="mt-2 text-[#8FA29B]">{item.reason}</p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#6F837C]">{item.impact}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
                   <p className="font-semibold text-[#F7F2E8]">Landing pages</p>
                   <div className="mt-3 space-y-2">
                     {data.landingPages.map((item) => <p key={item.id} className="text-sm leading-6 text-[#C7D0CA]">{item.title} · {item.slug}</p>)}
                   </div>
+                </div>
+                <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="font-semibold text-[#F7F2E8]">Funil comercial</p>
+                    <Tag tone="accent">fonte {(data.funnel?.source || "estimated").replace("_", " ")}</Tag>
+                  </div>
+                  {data.funnel?.warning ? <p className="mt-3 text-sm text-[#FDE68A]">{data.funnel.warning}</p> : null}
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {(data.funnel?.stages || []).map((stage) => (
+                      <div key={stage.id} className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                        <p className="text-[11px] uppercase tracking-[0.16em] text-[#7F928C]">{stage.label}</p>
+                        <p className="mt-2 text-2xl font-semibold text-[#F5F1E8]">{stage.value}</p>
+                        <p className="mt-2 text-[#8FA29B]">{stage.helper}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {(data.funnel?.insights || []).map((item) => (
+                      <p key={item} className="text-sm leading-6 text-[#8FA29B]">{item}</p>
+                    ))}
+                  </div>
+                  {(data.funnel?.recentLeads || []).length ? (
+                    <div className="mt-4 space-y-3">
+                      {(data.funnel.recentLeads || []).map((lead) => (
+                        <div key={lead.id} className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-semibold text-[#F5F1E8]">{lead.name}</p>
+                            <div className="flex flex-wrap gap-2">
+                              <Tag tone="neutral">status {lead.status}</Tag>
+                              <Tag tone="accent">prioridade {lead.priority}</Tag>
+                            </div>
+                          </div>
+                          <p className="mt-1 text-[#8FA29B]">{lead.subject}</p>
+                          {lead.email ? <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#6F837C]">{lead.email}</p> : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
                   <p className="font-semibold text-[#F7F2E8]">Arquitetura tecnica</p>

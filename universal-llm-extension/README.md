@@ -1,44 +1,79 @@
 # Universal LLM Assistant Extension
 
-Permite ao Dotobot (ou outro LLM) acessar recursos do seu computador local com consentimento:
+Bridge local para o `ai-core`, Dotobot Copilot e AI Task.
 
-- Buscar arquivos em pastas/unidades selecionadas
-- Realizar buscas na internet via navegador local
-- Abrir URLs no navegador local
+## Capacidades atuais
 
-## Como usar
+- busca local de arquivos
+- busca web no navegador local
+- abertura de URLs no navegador local
+- endpoint unificado de comando (`POST /execute`)
+- healthcheck local (`GET /health`)
 
-1. Instale as dependências:
-   ```bash
-   npm install express cors open
-   ```
-2. Execute o servidor local:
-   ```bash
-   node server.js
-   ```
-3. O Dotobot pode fazer requisições HTTP para:
-   - `POST /search-files` `{ basePath, pattern }`
-   - `POST /web-search` `{ query }`
-   - `POST /open-url` `{ url }`
+## Subir o serviço
+
+```bash
+npm install express cors open
+node server.js
+```
+
+Ou, a partir da raiz do repositório:
+
+```powershell
+npm run start:universal-llm-extension
+```
+
+## Endpoints
+
+### `GET /health`
+
+Retorna status, porta e comandos suportados.
+
+### `POST /execute`
+
+Payload:
+
+```json
+{
+  "command": "web_search",
+  "payload": {
+    "query": "jurisprudencia atraso voo dano moral"
+  }
+}
+```
+
+Comandos suportados:
+
+- `health_check`
+- `search_files`
+- `web_search`
+- `open_url`
+
+## Integração com o ai-core
+
+Defina:
+
+```env
+UNIVERSAL_LLM_EXTENSION_BASE_URL=http://127.0.0.1:32123
+```
+
+Então o runtime local do `ai-core` pode acionar:
+
+```http
+POST /v1/browser/execute
+```
+
+## Integração com Copilot e AI Task
+
+Com o provider `local` apontando para o `ai-core`, o fluxo fica:
+
+1. Copilot ou AI Task envia conversa para `/api/admin-lawdesk-chat`
+2. o app usa o provider `local`
+3. o provider `local` chama `ai-core /v1/messages`
+4. o `ai-core` pode usar o bridge local do navegador em `/v1/browser/execute`
 
 ## Segurança
-- O usuário deve aprovar explicitamente o diretório/unidade a ser buscada.
-- O navegador só é aberto localmente, nunca remotamente.
-- O Dotobot só acessa o que for permitido via API local.
 
-## Integração
-- O Dotobot detecta a extensão rodando em `http://localhost:32123`.
-- Ao receber comandos como "buscar arquivo" ou "pesquisar na web", faz requisições para a API local.
-
----
-
-**Exemplo de chamada via fetch:**
-```js
-fetch('http://localhost:32123/search-files', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ basePath: 'C:/Users/SeuUsuario/Documents', pattern: '.*\\.pdf$' })
-})
-.then(res => res.json())
-.then(console.log);
-```
+- o serviço só roda localmente
+- a navegação acontece no navegador da máquina do operador
+- a busca de arquivos depende do caminho base autorizado

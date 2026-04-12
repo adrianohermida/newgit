@@ -7,6 +7,7 @@ import { detectIntent } from "../../lib/ai/intent_router";
 import { getCurrentContext } from "../../lib/ai/context_engine";
 import { useRouter } from "next/router";
 import { adminFetch } from "../../lib/admin/api";
+import { invokeBrowserLocalMessages, isBrowserLocalProvider } from "../../lib/lawdesk/browser-local-runtime";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import { cancelTaskRun, createPendingTaskRun, pollTaskRun, startTaskRun } from "./dotobotTaskRun";
 import { appendActivityLog, getModuleHistory, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
@@ -94,6 +95,14 @@ const QUICK_PROMPTS = [
   "Padronize a resposta deste bot em PT-BR.",
   "Resuma riscos, fatos e inferencias deste contexto.",
 ];
+
+function buildConversationRuntimeMetadata({ mode, provider, contextEnabled }) {
+  return {
+    mode,
+    provider,
+    contextEnabled,
+  };
+}
 
 const SLASH_COMMANDS = [
   { value: "/peticao", label: "Gerar peticao", hint: "Estrutura completa com fundamentos e pedidos." },
@@ -627,10 +636,11 @@ const [contextEnabled, setContextEnabled] = useState(true);
       messages,
       taskHistory,
       attachments,
+      metadata: buildConversationRuntimeMetadata({ mode, provider, contextEnabled }),
     });
     safeLocalSet(conversationStorageKey, JSON.stringify(next));
     setConversations(next);
-  }, [messages, taskHistory, attachments, activeConversationId, conversationStorageKey]);
+  }, [messages, taskHistory, attachments, activeConversationId, conversationStorageKey, mode, provider, contextEnabled]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -789,7 +799,7 @@ const [contextEnabled, setContextEnabled] = useState(true);
       contextEnabled: nextContextEnabled,
       activeConversationId,
       messages,
-      attachments,
+      attachments: nextAttachments,
     });
 
     // Detecta se Ã© comando de skill/task
@@ -950,6 +960,8 @@ const [contextEnabled, setContextEnabled] = useState(true);
 
     // Chat normal (streaming)
     try {
+      const localProvider = isBrowserLocalProvider(nextProvider);
+      const requestPath = localProvider ? "browser://local-ai-core/v1/messages" : "/api/admin-lawdesk-chat";
       const chatLogId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const chatStartedAt = Date.now();
       appendActivityLog({
@@ -959,7 +971,7 @@ const [contextEnabled, setContextEnabled] = useState(true);
         label: "Dotobot: enviar mensagem",
         action: "dotobot_chat_submit",
         method: "POST",
-        path: "/api/admin-lawdesk-chat",
+        path: requestPath,
         ...DOTOBOT_TASK_CONSOLE_META,
         expectation: "Enviar pergunta ao backend conversacional",
         request: buildDiagnosticReport({
@@ -983,19 +995,27 @@ const [contextEnabled, setContextEnabled] = useState(true);
       ]);
       setUiState("thinking");
 
-      const data = await adminFetch("/api/admin-lawdesk-chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          query: trimmedQuestion,
-          mode: nextMode,
-          provider: nextProvider,
-          contextEnabled: nextContextEnabled,
-          context: globalContext,
-        }),
-      });
+      const data = localProvider
+        ? await invokeBrowserLocalMessages({
+            query: trimmedQuestion,
+            mode: nextMode,
+            routePath,
+            contextEnabled: nextContextEnabled,
+            context: globalContext,
+          })
+        : await adminFetch("/api/admin-lawdesk-chat", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              query: trimmedQuestion,
+              mode: nextMode,
+              provider: nextProvider,
+              contextEnabled: nextContextEnabled,
+              context: globalContext,
+            }),
+          });
 
       const assistantText = extractAssistantResponseText(data);
       setMessages((msgs) => {
@@ -1013,7 +1033,7 @@ const [contextEnabled, setContextEnabled] = useState(true);
           title: "Dotobot chat response",
           summary: "Resposta concluida",
           sections: [
-            { label: "endpoint", value: "/api/admin-lawdesk-chat" },
+            { label: "endpoint", value: requestPath },
             { label: "payload", value: data },
           ],
         }),
@@ -1174,7 +1194,13 @@ const [contextEnabled, setContextEnabled] = useState(true);
 
   // ...existing code...
   function createConversationFromCurrentState(title = inferConversationTitle(messages)) {
-    const nextConversation = createConversationSnapshot({ title, messages, taskHistory, attachments });
+    const nextConversation = createConversationSnapshot({
+      title,
+      messages,
+      taskHistory,
+      attachments,
+      metadata: buildConversationRuntimeMetadata({ mode, provider, contextEnabled }),
+    });
     setConversations((current) => [nextConversation, ...current].slice(0, MAX_CONVERSATIONS));
     setActiveConversationId(nextConversation.id);
     return nextConversation;
@@ -1186,6 +1212,11 @@ const [contextEnabled, setContextEnabled] = useState(true);
     setMessages(selectionState.messages);
     setTaskHistory(selectionState.taskHistory);
     setAttachments(selectionState.attachments);
+    if (selectionState.metadata?.mode) setMode(selectionState.metadata.mode);
+    if (selectionState.metadata?.provider) setProvider(selectionState.metadata.provider);
+    if (typeof selectionState.metadata?.contextEnabled === "boolean") {
+      setContextEnabled(selectionState.metadata.contextEnabled);
+    }
     setError(null);
     setWorkspaceOpen(true);
   }
@@ -1218,7 +1249,10 @@ const [contextEnabled, setContextEnabled] = useState(true);
           setConfirmModal(null);
           return;
         }
-        const replacement = createEmptyConversation("Nova conversa");
+        const replacement = createEmptyConversation(
+          "Nova conversa",
+          buildConversationRuntimeMetadata({ mode, provider, contextEnabled })
+        );
         setConversations([replacement]);
         setActiveConversationId(replacement.id);
         setMessages([]);
@@ -1844,6 +1878,7 @@ const [contextEnabled, setContextEnabled] = useState(true);
                   <select
                     value={provider}
                     onChange={(event) => setProvider(event.target.value)}
+                    aria-label="Selecionar LLM do Copilot"
                     className="h-10 rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-xs text-[#D8DEDA] outline-none transition focus:border-[#C5A059]"
                   >
                     {providerCatalog.map((item) => (
