@@ -567,6 +567,46 @@ def _probe_provider_transport(config: CompatibleProviderConfig) -> ProviderTrans
     )
 
 
+def _runtime_family_from_transport(mode: str | None) -> str | None:
+    if mode == 'anthropic_messages':
+        return 'anthropic_compatible'
+    if mode == 'openai_chat_completions':
+        return 'openai_compatible'
+    if mode == 'ollama_chat':
+        return 'ollama'
+    return None
+
+
+def _provider_runtime_diagnostics(config: CompatibleProviderConfig) -> dict[str, Any]:
+    diagnostics: dict[str, Any] = {
+        'configured': config.configured,
+        'base_url': config.base_url,
+        'model': config.model,
+        'runtime_family': None,
+        'transport': None,
+        'transport_endpoint': None,
+        'reachable': False,
+        'error': None,
+    }
+    if not config.configured:
+        diagnostics['error'] = 'Provider is not configured.'
+        return diagnostics
+    try:
+        transport = _probe_provider_transport(config)
+        diagnostics.update(
+            {
+                'runtime_family': _runtime_family_from_transport(transport.mode),
+                'transport': transport.mode,
+                'transport_endpoint': transport.endpoint,
+                'reachable': True,
+                'resolved_model': transport.model or config.model,
+            }
+        )
+    except RuntimeError as exc:
+        diagnostics['error'] = str(exc)
+    return diagnostics
+
+
 def _extract_text_from_blocks(blocks: Any) -> str:
     if isinstance(blocks, str):
         return blocks
@@ -615,12 +655,17 @@ def providers_json(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
     cloud = build_cloud_provider_config(runtime_env)
     extension = build_extension_config(runtime_env)
     offline_mode = _is_offline_mode(runtime_env)
+    local_diagnostics = _provider_runtime_diagnostics(local)
     return {
         'status': 'ok',
         'default_provider': 'local' if offline_mode else _resolve_runtime_provider({}, runtime_env),
         'offline_mode': offline_mode,
         'providers': [
-            local.to_public_dict(),
+            {
+                **local.to_public_dict(),
+                'diagnostics': local_diagnostics,
+                'available': bool(local.configured and local_diagnostics.get('reachable')),
+            },
             {
                 **cloud.to_public_dict(),
                 'available': False if offline_mode else cloud.configured,
@@ -766,12 +811,17 @@ def health(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
     cloud = build_cloud_provider_config(runtime_env)
     extension = build_extension_config(runtime_env)
     offline_mode = _is_offline_mode(runtime_env)
+    local_diagnostics = _provider_runtime_diagnostics(local)
     return {
         'status': 'ok',
         'service': 'ai-core',
         'offline_mode': offline_mode,
         'providers': {
-            'local': local.to_public_dict(),
+            'local': {
+                **local.to_public_dict(),
+                'available': bool(local.configured and local_diagnostics.get('reachable')),
+                'diagnostics': local_diagnostics,
+            },
             'cloud': {
                 **cloud.to_public_dict(),
                 'available': False if offline_mode else cloud.configured,

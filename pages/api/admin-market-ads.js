@@ -12,6 +12,7 @@ import {
   persistComplianceValidation,
   recommendLandingPage,
   saveMarketAdsAbTest,
+  saveMarketAdsAttribution,
   saveMarketAdsCampaign,
   saveMarketAdsDraft,
   saveMarketAdsItem,
@@ -20,7 +21,9 @@ import {
   syncRemoteAdsItems,
   trackMarketAdsTemplateUsage,
   toggleMarketAdsTemplateFavorite,
+  updateMarketAdsTemplateEditScope,
   updateMarketAdsTemplateVisibility,
+  updateMarketAdsAttribution,
   updateMarketAdsAbTest,
   updateMarketAdsCampaign,
   updateMarketAdsItem,
@@ -88,13 +91,28 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, data });
     }
 
+    if (action === "save_attribution") {
+      const data = await saveMarketAdsAttribution(req.body?.input || {}, auth.user?.id || null);
+      return res.status(200).json({ ok: true, data });
+    }
+
+    if (action === "update_attribution") {
+      const data = await updateMarketAdsAttribution(req.body?.attributionId || null, req.body?.input || {});
+      return res.status(200).json({ ok: true, data });
+    }
+
     if (action === "toggle_template_favorite") {
-      const data = await toggleMarketAdsTemplateFavorite(req.body?.templateId || null, req.body?.isFavorite !== false);
+      const data = await toggleMarketAdsTemplateFavorite(req.body?.templateId || null, req.body?.isFavorite !== false, auth.user?.id || null);
       return res.status(200).json({ ok: true, data });
     }
 
     if (action === "update_template_visibility") {
-      const data = await updateMarketAdsTemplateVisibility(req.body?.templateId || null, req.body?.visibility || "privado");
+      const data = await updateMarketAdsTemplateVisibility(req.body?.templateId || null, req.body?.visibility || "privado", auth.user?.id || null);
+      return res.status(200).json({ ok: true, data });
+    }
+
+    if (action === "update_template_edit_scope") {
+      const data = await updateMarketAdsTemplateEditScope(req.body?.templateId || null, req.body?.editScope || "admins", auth.user?.id || null);
       return res.status(200).json({ ok: true, data });
     }
 

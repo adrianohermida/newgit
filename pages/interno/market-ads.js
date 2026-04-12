@@ -113,6 +113,23 @@ function MarketAdsContent() {
   const [optimizationState, setOptimizationState] = useState({ loading: false, error: null, result: null });
   const [applyOptimizationState, setApplyOptimizationState] = useState({ loading: false, error: null, result: null });
   const [templateState, setTemplateState] = useState({ loading: false, error: null, result: null });
+  const [attributionForm, setAttributionForm] = useState({
+    campaignId: "",
+    adItemId: "",
+    templateId: "",
+    leadName: "",
+    leadEmail: "",
+    leadPhone: "",
+    stage: "lead",
+    source: "google",
+    medium: "cpc",
+    campaignUtm: "",
+    contentUtm: "",
+    termUtm: "",
+    value: "0",
+    notes: "",
+  });
+  const [attributionState, setAttributionState] = useState({ loading: false, error: null, result: null });
   const [adForm, setAdForm] = useState({
     campaignId: "",
     name: "Anuncio juridico | Search",
@@ -293,6 +310,47 @@ function MarketAdsContent() {
       await load();
     } catch (error) {
       setTemplateState({ loading: false, error: error.message || "Falha ao atualizar visibilidade do template.", result: null });
+    }
+  }
+
+  async function toggleTemplateEditScope(template) {
+    if (!template?.id || String(template.id).startsWith("tpl-")) return;
+    setTemplateState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_template_edit_scope",
+          templateId: template.id,
+          editScope: template.editScope === "autor" ? "admins" : "autor",
+        }),
+      });
+      setTemplateState({ loading: false, error: null, result: payload.data || null });
+      await load();
+    } catch (error) {
+      setTemplateState({ loading: false, error: error.message || "Falha ao atualizar escopo de edicao do template.", result: null });
+    }
+  }
+
+  async function saveAttribution() {
+    setAttributionState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save_attribution",
+          input: {
+            ...attributionForm,
+            value: toNumber(attributionForm.value),
+          },
+        }),
+      });
+      setAttributionState({ loading: false, error: null, result: payload.data || null });
+      await load();
+    } catch (error) {
+      setAttributionState({ loading: false, error: error.message || "Falha ao registrar atribuicao.", result: null });
     }
   }
 
@@ -1349,6 +1407,7 @@ function MarketAdsContent() {
                                   <Tag tone="neutral">uso {item.usageCount || 0}</Tag>
                                   {item.isFavorite ? <Tag tone="success">favorito</Tag> : null}
                                   <Tag tone={item.visibility === "publico" ? "accent" : "neutral"}>{item.visibility || "privado"}</Tag>
+                                  <Tag tone="neutral">{item.editScope === "autor" ? "somente autor" : "admins"}</Tag>
                                 </div>
                               </div>
                               <p className="mt-2 text-[#8FA29B]">{item.headline}</p>
@@ -1387,6 +1446,13 @@ function MarketAdsContent() {
                                       className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                                     >
                                       {item.visibility === "publico" ? "Tornar privado" : "Tornar publico"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleTemplateEditScope(item)}
+                                      className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                    >
+                                      {item.editScope === "autor" ? "Liberar para admins" : "Restringir ao autor"}
                                     </button>
                                   </>
                                 )}
@@ -1437,6 +1503,10 @@ function MarketAdsContent() {
                       <p className="text-[11px] uppercase tracking-[0.16em] text-[#7F928C]">Privados</p>
                       <p className="mt-2 text-2xl font-semibold text-[#F5F1E8]">{data.templateAnalytics?.totals?.private || 0}</p>
                     </div>
+                    <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-[#7F928C]">Somente autor</p>
+                      <p className="mt-2 text-2xl font-semibold text-[#F5F1E8]">{data.templateAnalytics?.totals?.authorOnly || 0}</p>
+                    </div>
                   </div>
                   <div className="mt-4 grid gap-4 xl:grid-cols-3">
                     <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3">
@@ -1468,6 +1538,82 @@ function MarketAdsContent() {
                           <div key={item.label} className="rounded-[12px] border border-[#22342F] px-3 py-2 text-sm text-[#C7D0CA]">
                             <p>{item.label}</p>
                             <p className="mt-1 text-[#8FA29B]">{item.value} template(s)</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="font-semibold text-[#F7F2E8]">Atribuicao real de leads</p>
+                    <Tag tone="accent">{data.attributionAnalytics?.summary || "Sem atribuicoes ainda"}</Tag>
+                  </div>
+                  {attributionState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{attributionState.error}</p> : null}
+                  {attributionState.result?.attribution?.id ? <p className="mt-3 text-sm text-[#B7F7C6]">Atribuicao registrada com sucesso.</p> : null}
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <select value={attributionForm.campaignId} onChange={(event) => setAttributionForm({ ...attributionForm, campaignId: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
+                      <option value="">Selecionar campanha</option>
+                      {(data.campaigns || []).map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
+                    </select>
+                    <select value={attributionForm.adItemId} onChange={(event) => setAttributionForm({ ...attributionForm, adItemId: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
+                      <option value="">Selecionar anuncio</option>
+                      {(data.adItems || []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    </select>
+                    <select value={attributionForm.templateId} onChange={(event) => setAttributionForm({ ...attributionForm, templateId: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
+                      <option value="">Selecionar template</option>
+                      {((data.templateLibrary?.templates) || []).filter((item) => !String(item.id).startsWith("tpl-")).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    </select>
+                    <select value={attributionForm.stage} onChange={(event) => setAttributionForm({ ...attributionForm, stage: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]">
+                      <option value="lead">lead</option>
+                      <option value="qualificado">qualificado</option>
+                      <option value="atendimento">atendimento</option>
+                      <option value="cliente">cliente</option>
+                    </select>
+                    <input value={attributionForm.leadName} onChange={(event) => setAttributionForm({ ...attributionForm, leadName: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Nome do lead" />
+                    <input value={attributionForm.leadEmail} onChange={(event) => setAttributionForm({ ...attributionForm, leadEmail: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Email do lead" />
+                    <input value={attributionForm.leadPhone} onChange={(event) => setAttributionForm({ ...attributionForm, leadPhone: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Telefone" />
+                    <input value={attributionForm.value} onChange={(event) => setAttributionForm({ ...attributionForm, value: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Valor" />
+                    <input value={attributionForm.campaignUtm} onChange={(event) => setAttributionForm({ ...attributionForm, campaignUtm: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="utm_campaign" />
+                    <input value={attributionForm.contentUtm} onChange={(event) => setAttributionForm({ ...attributionForm, contentUtm: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="utm_content" />
+                    <input value={attributionForm.termUtm} onChange={(event) => setAttributionForm({ ...attributionForm, termUtm: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="utm_term" />
+                    <textarea value={attributionForm.notes} onChange={(event) => setAttributionForm({ ...attributionForm, notes: event.target.value })} rows={4} className="md:col-span-2 rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Observacoes da atribuicao" />
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <button type="button" onClick={saveAttribution} disabled={attributionState.loading} className="rounded-full border border-[#C5A059] bg-[#C5A059] px-5 py-3 text-sm font-semibold text-[#07110E] disabled:opacity-50">
+                      {attributionState.loading ? "Registrando..." : "Registrar atribuicao"}
+                    </button>
+                  </div>
+                  <div className="mt-4 grid gap-4 xl:grid-cols-3">
+                    <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3">
+                      <p className="font-semibold text-[#F5F1E8]">Por campanha</p>
+                      <div className="mt-3 space-y-2">
+                        {(data.attributionAnalytics?.byCampaign || []).map((item) => (
+                          <div key={item.id} className="rounded-[12px] border border-[#22342F] px-3 py-2 text-sm text-[#C7D0CA]">
+                            <p>{item.name}</p>
+                            <p className="mt-1 text-[#8FA29B]">leads {item.leads} · clientes {item.clients} · valor {money(item.value)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3">
+                      <p className="font-semibold text-[#F5F1E8]">Por anuncio</p>
+                      <div className="mt-3 space-y-2">
+                        {(data.attributionAnalytics?.byAdItem || []).map((item) => (
+                          <div key={item.id} className="rounded-[12px] border border-[#22342F] px-3 py-2 text-sm text-[#C7D0CA]">
+                            <p>{item.name}</p>
+                            <p className="mt-1 text-[#8FA29B]">leads {item.leads}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3">
+                      <p className="font-semibold text-[#F5F1E8]">Por template</p>
+                      <div className="mt-3 space-y-2">
+                        {(data.attributionAnalytics?.byTemplate || []).map((item) => (
+                          <div key={item.id} className="rounded-[12px] border border-[#22342F] px-3 py-2 text-sm text-[#C7D0CA]">
+                            <p>{item.name}</p>
+                            <p className="mt-1 text-[#8FA29B]">leads {item.leads}</p>
                           </div>
                         ))}
                       </div>

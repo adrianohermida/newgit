@@ -197,6 +197,7 @@ export function WorkspaceHeader({
     activeProvider?.host ? `host:${activeProvider.host}` : null,
   ].filter(Boolean);
   const localStackReady = Boolean(localStackSummary?.ok && localStackSummary?.localProvider?.available);
+  const localRuntimeLabel = localStackSummary?.localProvider?.runtimeLabel || "Runtime local";
   const capabilitiesSkills = localStackSummary?.capabilities?.skills || null;
   const capabilitiesCommands = localStackSummary?.capabilities?.commands || null;
   const browserExtensionProfiles = localStackSummary?.capabilities?.browserExtensionProfiles || null;
@@ -270,6 +271,11 @@ export function WorkspaceHeader({
             runtime {localStackSummary.runtimeBaseUrl}
           </span>
         ) : null}
+        {localStackSummary?.localProvider?.transport ? (
+          <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB]">
+            {localRuntimeLabel}
+          </span>
+        ) : null}
         {capabilitiesSkills?.total ? (
           <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#9BAEA8]">
             Skills {capabilitiesSkills.total}
@@ -320,7 +326,7 @@ export function WorkspaceHeader({
       {localStackSummary ? (
         <p className="mt-3 text-[11px] leading-6 text-[#7F928C]">
           {localStackReady
-            ? `ai-core local ativo${localStackSummary.offlineMode ? " em modo offline" : ""} com ${localStackSummary.localProvider?.model || "modelo local"}.`
+            ? `ai-core local ativo${localStackSummary.offlineMode ? " em modo offline" : ""} com ${localStackSummary.localProvider?.model || "modelo local"} via ${localRuntimeLabel}.`
             : "O runtime local ainda nao respondeu nesta sessao. Suba o ai-core local, configure o vault e ligue a extensao para o modo da maquina."}
         </p>
       ) : null}

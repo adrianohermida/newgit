@@ -8,6 +8,7 @@ import { getCurrentContext } from "../../lib/ai/context_engine";
 import { useRouter } from "next/router";
 import { adminFetch } from "../../lib/admin/api";
 import {
+  applyBrowserLocalOfflinePolicy,
   hydrateBrowserLocalProviderOptions,
   invokeBrowserLocalMessages,
   isBrowserLocalProvider,
@@ -664,6 +665,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
       .then((summary) => {
         if (!active) return;
         setLocalStackSummary(summary);
+        setProviderCatalog((current) => applyBrowserLocalOfflinePolicy(current, summary));
       })
       .catch(() => {
         if (!active) return;
@@ -694,7 +696,15 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
       const summary = await probeBrowserLocalStackSummary();
       setLocalStackSummary(summary);
       const hydratedCatalog = await hydrateBrowserLocalProviderOptions(providerCatalog);
-      setProviderCatalog(hydratedCatalog);
+      const governedCatalog = applyBrowserLocalOfflinePolicy(hydratedCatalog, summary);
+      setProviderCatalog(governedCatalog);
+      setProvider((current) =>
+        resolvePreferredLawdeskProvider({
+          currentProvider: current,
+          defaultProvider: summary?.offlineMode ? "local" : "gpt",
+          providers: governedCatalog,
+        })
+      );
     } catch {
       setLocalStackSummary(null);
     } finally {
@@ -1591,6 +1601,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
   const localStackReady = Boolean(localStackSummary?.ok && localStackSummary?.localProvider?.available);
   const localStackTone = localStackReady ? "border-[#234034] text-[#80C7A1]" : "border-[#5b2d2d] text-[#f2b2b2]";
   const localStackLabel = localStackReady ? "Stack local pronto" : "Stack local pendente";
+  const localRuntimeLabel = localStackSummary?.localProvider?.runtimeLabel || "Runtime local";
   const capabilitiesSkills = localStackSummary?.capabilities?.skills || null;
   const capabilitiesCommands = localStackSummary?.capabilities?.commands || null;
   const browserExtensionProfiles = localStackSummary?.capabilities?.browserExtensionProfiles || null;
@@ -1626,9 +1637,15 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
   const activeConversationTimestamp = activeConversation?.updatedAt || activeConversation?.createdAt || null;
 
   useEffect(() => {
-    if (!localStackReady) return;
-    setProvider((current) => (current === "gpt" || current === "cloudflare" ? "local" : current));
-  }, [localStackReady]);
+    if (!localStackReady && !localStackSummary?.offlineMode) return;
+    setProvider((current) => {
+      const currentOption = providerCatalog.find((item) => item.value === current);
+      if (localStackSummary?.offlineMode && current !== "local") return "local";
+      if (currentOption?.disabled) return "local";
+      if (current === "gpt" || current === "cloudflare") return "local";
+      return current;
+    });
+  }, [localStackReady, localStackSummary?.offlineMode, providerCatalog]);
 
   // Exemplo de fluxo de login Supabase
   async function handleLogin() {
@@ -1719,6 +1736,11 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
                 {localStackSummary?.runtimeBaseUrl ? (
                   <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
                     runtime {localStackSummary.runtimeBaseUrl}
+                  </span>
+                ) : null}
+                {localStackSummary?.localProvider?.transport ? (
+                  <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
+                    {localRuntimeLabel}
                   </span>
                 ) : null}
                 {capabilitiesSkills?.total ? (
@@ -1892,6 +1914,11 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
                 {activeConversationTimestamp ? (
                   <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[#7F928C]">
                     {new Date(activeConversationTimestamp).toLocaleDateString("pt-BR")}
+                  </span>
+                ) : null}
+                {localStackSummary?.localProvider?.transport ? (
+                  <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[#7F928C]">
+                    {localRuntimeLabel}
                   </span>
                 ) : null}
               </div>
@@ -2259,6 +2286,11 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
                     {localStackSummary?.runtimeBaseUrl ? (
                       <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
                         runtime {localStackSummary.runtimeBaseUrl}
+                      </span>
+                    ) : null}
+                    {localStackSummary?.localProvider?.transport ? (
+                      <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
+                        {localRuntimeLabel}
                       </span>
                     ) : null}
                     {activeProviderPresentation.endpoint ? (

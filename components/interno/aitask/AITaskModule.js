@@ -41,7 +41,7 @@ import {
 import { useAiTaskRun } from "./useAiTaskRun";
 import { useAiTaskWorkspace } from "./useAiTaskWorkspace";
 import { extractModuleKeysFromContext, resolveModuleEntries } from "../../../lib/admin/module-registry.js";
-import { hydrateBrowserLocalProviderOptions, probeBrowserLocalStackSummary } from "../../../lib/lawdesk/browser-local-runtime";
+import { applyBrowserLocalOfflinePolicy, hydrateBrowserLocalProviderOptions, probeBrowserLocalStackSummary } from "../../../lib/lawdesk/browser-local-runtime";
 import { resolvePreferredLawdeskProvider } from "../../../lib/lawdesk/providers.js";
 import { listSkills } from "../../../lib/lawdesk/skill_registry.js";
 
@@ -376,15 +376,16 @@ export default function AITaskModule({ profile, routePath }) {
     hydrateBrowserLocalProviderOptions(providerCatalog)
       .then((hydratedProviders) => {
         if (!active || !Array.isArray(hydratedProviders) || !hydratedProviders.length) return;
+        const governedProviders = applyBrowserLocalOfflinePolicy(hydratedProviders, localStackSummary);
         const before = JSON.stringify(providerCatalog);
-        const after = JSON.stringify(hydratedProviders);
+        const after = JSON.stringify(governedProviders);
         if (before !== after) {
-          setProviderCatalog(hydratedProviders);
+          setProviderCatalog(governedProviders);
           setProvider((current) =>
             resolvePreferredLawdeskProvider({
               currentProvider: current,
-              defaultProvider: "gpt",
-              providers: hydratedProviders,
+              defaultProvider: localStackSummary?.offlineMode ? "local" : "gpt",
+              providers: governedProviders,
             })
           );
         }
@@ -393,7 +394,7 @@ export default function AITaskModule({ profile, routePath }) {
     return () => {
       active = false;
     };
-  }, [providerCatalog, setProvider]);
+  }, [localStackSummary, providerCatalog, setProvider]);
 
   useEffect(() => {
     let active = true;
@@ -401,6 +402,7 @@ export default function AITaskModule({ profile, routePath }) {
       .then((summary) => {
         if (!active) return;
         setLocalStackSummary(summary);
+        setProviderCatalog((current) => applyBrowserLocalOfflinePolicy(current, summary));
       })
       .catch(() => {
         if (!active) return;
@@ -432,18 +434,30 @@ export default function AITaskModule({ profile, routePath }) {
     setProvider((current) => (current === "gpt" || current === "cloudflare" ? "local" : current));
   }, [localStackReady, setProvider]);
 
+  useEffect(() => {
+    if (!localStackSummary?.offlineMode) return;
+    setProvider((current) => (current === "local" ? current : "local"));
+  }, [localStackSummary?.offlineMode, setProvider]);
+
+  useEffect(() => {
+    const currentOption = providerCatalog.find((item) => item.value === provider);
+    if (!currentOption?.disabled) return;
+    setProvider("local");
+  }, [provider, providerCatalog, setProvider]);
+
   async function refreshLocalStackStatus() {
     setRefreshingLocalStack(true);
     try {
       const summary = await probeBrowserLocalStackSummary();
       setLocalStackSummary(summary);
       const hydratedProviders = await hydrateBrowserLocalProviderOptions(providerCatalog);
-      setProviderCatalog(hydratedProviders);
+      const governedProviders = applyBrowserLocalOfflinePolicy(hydratedProviders, summary);
+      setProviderCatalog(governedProviders);
       setProvider((current) =>
         resolvePreferredLawdeskProvider({
           currentProvider: current,
-          defaultProvider: "gpt",
-          providers: hydratedProviders,
+          defaultProvider: summary?.offlineMode ? "local" : "gpt",
+          providers: governedProviders,
         })
       );
     } catch {
