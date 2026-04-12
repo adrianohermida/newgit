@@ -23,6 +23,34 @@ function Test-LocalSupabaseCli {
   return Test-Path -LiteralPath $packagePath
 }
 
+function Get-LocalSupabaseStatusEnv {
+  if (-not (Test-LocalSupabaseCli)) {
+    return $null
+  }
+
+  try {
+    $raw = & npx supabase status -o env 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $raw) {
+      return $null
+    }
+
+    $result = @{}
+    foreach ($line in $raw) {
+      $trimmed = [string]$line
+      if ([string]::IsNullOrWhiteSpace($trimmed)) {
+        continue
+      }
+      if ($trimmed -match '^\s*([^=]+)=(.*)$') {
+        $result[$matches[1].Trim()] = $matches[2]
+      }
+    }
+
+    return $result
+  } catch {
+    return $null
+  }
+}
+
 function Build-ArtifactCheck {
   param(
     [string]$Id,
@@ -51,6 +79,23 @@ $artifactChecks = @(
 $dockerAvailable = Test-CommandExists "docker"
 $supabaseCliAvailable = Test-CommandExists "supabase"
 $localSupabaseCliAvailable = Test-LocalSupabaseCli
+$localSupabaseStatusEnv = Get-LocalSupabaseStatusEnv
+
+$resolvedSupabaseUrl = if ($localSupabaseStatusEnv -and $localSupabaseStatusEnv.ContainsKey("API_URL")) {
+  [string]$localSupabaseStatusEnv["API_URL"]
+} else {
+  $SupabaseUrl
+}
+$resolvedAnonKey = if ($localSupabaseStatusEnv -and $localSupabaseStatusEnv.ContainsKey("ANON_KEY")) {
+  [string]$localSupabaseStatusEnv["ANON_KEY"]
+} else {
+  "<anon-local>"
+}
+$resolvedServiceRoleKey = if ($localSupabaseStatusEnv -and $localSupabaseStatusEnv.ContainsKey("SERVICE_ROLE_KEY")) {
+  [string]$localSupabaseStatusEnv["SERVICE_ROLE_KEY"]
+} else {
+  "<service-role-local>"
+}
 
 $envLines = @()
 if ($IncludeOfflineFlags) {
@@ -58,10 +103,10 @@ if ($IncludeOfflineFlags) {
   $envLines += 'NEXT_PUBLIC_LAWDESK_OFFLINE_MODE=true'
   $envLines += 'AICORE_OFFLINE_MODE=true'
 }
-$envLines += 'SUPABASE_URL=http://127.0.0.1:54321'
-$envLines += 'NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321'
-$envLines += 'SUPABASE_SERVICE_ROLE_KEY=<service-role-local>'
-$envLines += 'NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-local>'
+$envLines += "SUPABASE_URL=$resolvedSupabaseUrl"
+$envLines += "NEXT_PUBLIC_SUPABASE_URL=$resolvedSupabaseUrl"
+$envLines += "SUPABASE_SERVICE_ROLE_KEY=$resolvedServiceRoleKey"
+$envLines += "NEXT_PUBLIC_SUPABASE_ANON_KEY=$resolvedAnonKey"
 $envLines += 'DOTOBOT_SUPABASE_EMBED_FUNCTION=dotobot-embed'
 $envLines += 'DOTOBOT_SUPABASE_MEMORY_TABLE=dotobot_memory_embeddings'
 $envLines += 'DOTOBOT_SUPABASE_EMBEDDING_MODEL=supabase/gte-small'
@@ -84,7 +129,7 @@ $missingArtifacts = @($artifactChecks | Where-Object { -not $_.exists })
 $nextSteps = @(
   "1. Confirme Docker Desktop ativo.",
   "2. Rode: npm run supabase:start-local",
-  "3. Exporte as envs locais no shell do app.",
+  "3. Carregue as envs no shell com: . .\scripts\load-local-env.ps1 -Path .local.supabase.env",
   "4. Rode: npm run diagnose:supabase-local",
   "5. Se o doctor acusar gaps, valide migrations 024/025/027 e a function dotobot-embed."
 )
@@ -104,10 +149,11 @@ if ($missingArtifacts.Count -gt 0) {
 [ordered]@{
   checkedAt = (Get-Date).ToString("o")
   ok = ($missingArtifacts.Count -eq 0)
-  supabaseUrl = $SupabaseUrl
+  supabaseUrl = $resolvedSupabaseUrl
   dockerAvailable = $dockerAvailable
   supabaseCliAvailable = $supabaseCliAvailable
   localSupabaseCliAvailable = $localSupabaseCliAvailable
+  localSupabaseRunning = [bool]$localSupabaseStatusEnv
   envBlock = $envBlock
   outputEnvFile = $resolvedOutputEnvFile
   artifacts = $artifactChecks

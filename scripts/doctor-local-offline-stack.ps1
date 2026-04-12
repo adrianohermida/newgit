@@ -563,7 +563,7 @@ if (-not [string]::IsNullOrWhiteSpace($resolvedSupabaseUrl)) {
 $checks += Build-Check -Id "supabase-local" -Label "Supabase local" -Ok $supabaseLocal -Status ($(if ($supabaseLocal) { "ok" } elseif ([string]::IsNullOrWhiteSpace($resolvedSupabaseUrl)) { "warning" } else { "error" })) -Details $supabaseDetails
 $checks += $supabaseSchemaChecks
 if (-not $supabaseLocal) {
-  $diagnosis += "Se quiser persistencia estruturada offline, suba o Supabase local com supabase start."
+  $diagnosis += "Se quiser persistencia estruturada offline, suba o Supabase local com npm run supabase:start-local."
 }
 if ($supabaseLocal -and $supabaseSchemaChecks.Count -gt 0) {
   $failedSupabaseChecks = @($supabaseSchemaChecks | Where-Object { -not $_.ok })

@@ -19,6 +19,7 @@
     "bootstrap:offline-local-full": "powershell -ExecutionPolicy Bypass -File scripts/bootstrap-offline-local.ps1 -IncludeSupabaseLocal",
     "setup:supabase-cli-local": "npm install --save-dev supabase",
     "supabase:start-local": "npx supabase start",
+    "env:load-local": "powershell -ExecutionPolicy Bypass -Command \". .\\scripts\\load-local-env.ps1 -Path .local.supabase.env\"",
     "setup:ai-core-local": "powershell -ExecutionPolicy Bypass -Command \"Set-Location ai-core; python -m pip install -e .\"",
     "start:ai-core-local": "powershell -ExecutionPolicy Bypass -File scripts/start-ai-core-local.ps1",
     "start:universal-llm-extension": "powershell -ExecutionPolicy Bypass -File scripts/start-universal-llm-extension.ps1",
@@ -98,10 +99,12 @@
   },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.0",
+    "@types/react": "19.2.14",
     "autoprefixer": "^10.4.0",
     "postcss": "^8.4.0",
     "supabase": "^2.89.1",
     "tailwindcss": "^3.0.0",
+    "typescript": "6.0.2",
     "wrangler": "^4.76.0"
   }
 }
