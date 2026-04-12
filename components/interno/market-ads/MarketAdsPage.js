@@ -775,26 +775,7 @@ function MarketAdsContent() {
 
   return (
     <div className="space-y-6">
-      <Panel
-        eyebrow="Publicidade juridica"
-        title="HMADV Market Ads"
-        helper="Modulo criado para unir inteligencia de mercado, criacao de anuncios, landing pages, operacao de campanhas e filtro etico obrigatorio."
-      >
-        <div className="grid gap-4 xl:grid-cols-5">
-          <Tile label="Campanhas ativas" value={data?.overview?.activeCampaigns || 0} helper="Google Ads e Meta Ads no mesmo cockpit." />
-          <Tile label="Verba mensal" value={data?.overview?.monthlyBudget || "R$ 0,00"} helper="Investimento consolidado das campanhas visiveis." />
-          <Tile label="ROI medio" value={data?.overview?.averageRoi || "0.0"} helper="Retorno medio das campanhas ativas." />
-          <Tile label="CTR medio" value={`${data?.overview?.averageCtr || "0.0"}%`} helper="Aderencia atual entre mensagem e publico." />
-          <Tile label="CPA medio" value={data?.overview?.averageCpa || "R$ 0,00"} helper="Custo medio de aquisicao no recorte atual." />
-        </div>
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <Tile label="Receita atribuida" value={data?.overview?.realRevenue || "R$ 0,00"} helper="Valor real registrado nas atribuicoes do modulo." />
-          <Tile label="ROI real" value={data?.overview?.realRoi || "0.00"} helper="Receita atribuida dividida pela verba consolidada." />
-        </div>
-      </Panel>
-
-      {state.loading ? <Panel title="Carregando modulo" helper="Buscando benchmarks, campanhas e compliance." /> : null}
-      {state.error ? <Panel title="Falha no modulo" helper={state.error} /> : null}
+      <SummarySection state={state} data={data} />
 
       {!state.loading && !state.error && data ? (
         <>

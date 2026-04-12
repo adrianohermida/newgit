@@ -18,6 +18,11 @@ function Test-CommandExists([string]$Name) {
   }
 }
 
+function Test-LocalSupabaseCli {
+  $packagePath = Join-Path $root "node_modules\supabase\package.json"
+  return Test-Path -LiteralPath $packagePath
+}
+
 function Build-ArtifactCheck {
   param(
     [string]$Id,
@@ -45,6 +50,7 @@ $artifactChecks = @(
 
 $dockerAvailable = Test-CommandExists "docker"
 $supabaseCliAvailable = Test-CommandExists "supabase"
+$localSupabaseCliAvailable = Test-LocalSupabaseCli
 
 $envLines = @()
 if ($IncludeOfflineFlags) {
@@ -77,7 +83,7 @@ $missingArtifacts = @($artifactChecks | Where-Object { -not $_.exists })
 
 $nextSteps = @(
   "1. Confirme Docker Desktop ativo.",
-  "2. Rode: supabase start",
+  "2. Rode: npm run supabase:start-local",
   "3. Exporte as envs locais no shell do app.",
   "4. Rode: npm run diagnose:supabase-local",
   "5. Se o doctor acusar gaps, valide migrations 024/025/027 e a function dotobot-embed."
@@ -87,8 +93,8 @@ if (-not $dockerAvailable) {
   $nextSteps = @("Instale ou ligue o Docker Desktop antes de subir o Supabase local.") + $nextSteps
 }
 
-if (-not $supabaseCliAvailable) {
-  $nextSteps = @("Instale a Supabase CLI com npm install -g supabase.") + $nextSteps
+if (-not $supabaseCliAvailable -and -not $localSupabaseCliAvailable) {
+  $nextSteps = @("Instale a Supabase CLI no projeto com npm run setup:supabase-cli-local.") + $nextSteps
 }
 
 if ($missingArtifacts.Count -gt 0) {
@@ -101,6 +107,7 @@ if ($missingArtifacts.Count -gt 0) {
   supabaseUrl = $SupabaseUrl
   dockerAvailable = $dockerAvailable
   supabaseCliAvailable = $supabaseCliAvailable
+  localSupabaseCliAvailable = $localSupabaseCliAvailable
   envBlock = $envBlock
   outputEnvFile = $resolvedOutputEnvFile
   artifacts = $artifactChecks
