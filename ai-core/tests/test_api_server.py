@@ -148,14 +148,40 @@ class ApiServerTests(unittest.TestCase):
             'CUSTOM_LLM_BASE_URL': 'https://ai.hermidamaia.adv.br',
             'UNIVERSAL_LLM_EXTENSION_BASE_URL': 'http://127.0.0.1:32123',
         }
-        providers = providers_json(env)
-        health_payload = health(env)
+        with patch('api.server._json_request') as mocked_request:
+            mocked_request.return_value = {
+                'id': 'probe_local',
+                'type': 'message',
+                'role': 'assistant',
+                'model': 'aetherlab-legal-local-v1',
+                'content': [{'type': 'text', 'text': 'ok'}],
+            }
+            providers = providers_json(env)
+            health_payload = health(env)
 
         self.assertEqual(providers['extension']['base_url'], 'http://127.0.0.1:32123')
         self.assertEqual(health_payload['providers']['local']['base_url'], 'http://127.0.0.1:8000')
         self.assertEqual(health_payload['providers']['cloud']['base_url'], 'https://ai.hermidamaia.adv.br')
         self.assertGreaterEqual(providers['skills_summary']['total'], 1)
         self.assertEqual(health_payload['capabilities']['browser_extension_profile'], 'online')
+        self.assertEqual(providers['providers'][0]['diagnostics']['transport'], 'anthropic_messages')
+        self.assertTrue(health_payload['providers']['local']['diagnostics']['reachable'])
+
+    def test_health_reports_openai_compatible_local_runtime(self) -> None:
+        env = {
+            'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:11434',
+            'LOCAL_LLM_MODEL': 'aetherlab-legal-local-v1',
+        }
+
+        with patch('api.server._json_request') as mocked_request, patch('api.server._json_get_request') as mocked_get:
+            mocked_request.side_effect = [RuntimeError('404')]
+            mocked_get.return_value = {'object': 'list', 'data': [{'id': 'llama3.1:latest'}]}
+
+            health_payload = health(env)
+
+        self.assertEqual(health_payload['providers']['local']['diagnostics']['runtime_family'], 'openai_compatible')
+        self.assertEqual(health_payload['providers']['local']['diagnostics']['transport'], 'openai_chat_completions')
+        self.assertEqual(health_payload['providers']['local']['diagnostics']['resolved_model'], 'llama3.1:latest')
 
     def test_skills_and_capabilities_expose_runtime_catalog(self) -> None:
         env = {
