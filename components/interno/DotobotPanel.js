@@ -671,6 +671,20 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
     }
   }
 
+  function handleLocalStackAction(actionId) {
+    if (actionId === "open_llm_test") {
+      openLlmTest("local", input);
+      return;
+    }
+    if (actionId === "open_environment") {
+      router.push("/interno/agentlab/environment");
+      return;
+    }
+    if (actionId === "open_ai_task") {
+      router.push("/interno/ai-task");
+    }
+  }
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     safeLocalSet(chatStorageKey, JSON.stringify(messages.slice(-MAX_HISTORY)));
@@ -1538,6 +1552,11 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
   const localStackReady = Boolean(localStackSummary?.ok && localStackSummary?.localProvider?.available);
   const localStackTone = localStackReady ? "border-[#234034] text-[#80C7A1]" : "border-[#5b2d2d] text-[#f2b2b2]";
   const localStackLabel = localStackReady ? "Stack local pronto" : "Stack local pendente";
+  const capabilitiesSkills = localStackSummary?.capabilities?.skills || null;
+  const capabilitiesCommands = localStackSummary?.capabilities?.commands || null;
+  const browserExtensionProfiles = localStackSummary?.capabilities?.browserExtensionProfiles || null;
+  const activeBrowserProfile =
+    browserExtensionProfiles?.profiles?.[browserExtensionProfiles?.active_profile] || null;
   const ragAlert = buildRagAlert(ragHealth);
   const isWorkspaceShell = workspaceOpen;
   const railCollapsed = compactRail ? true : isCollapsed;
@@ -1555,6 +1574,11 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
   } else if (conversationSort === "title") {
     filteredConversations = filteredConversations.slice().sort((a, b) => (a.title || "").localeCompare(b.title || ""));
   }
+
+  useEffect(() => {
+    if (!localStackReady) return;
+    setProvider((current) => (current === "gpt" || current === "cloudflare" ? "local" : current));
+  }, [localStackReady]);
 
   // Exemplo de fluxo de login Supabase
   async function handleLogin() {
@@ -1647,6 +1671,21 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
                     runtime {localStackSummary.runtimeBaseUrl}
                   </span>
                 ) : null}
+                {capabilitiesSkills?.total ? (
+                  <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#9BAEA8]">
+                    Skills {capabilitiesSkills.total}
+                  </span>
+                ) : null}
+                {capabilitiesCommands?.executable ? (
+                  <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#9BAEA8]">
+                    Comandos {capabilitiesCommands.executable}/{capabilitiesCommands.total}
+                  </span>
+                ) : null}
+                {activeBrowserProfile?.label ? (
+                  <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
+                    Extensao {activeBrowserProfile.label}
+                  </span>
+                ) : null}
                 {activeProviderPresentation.endpoint ? (
                   <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
                     {activeProviderPresentation.endpoint}
@@ -1660,12 +1699,36 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
                     : "O runtime local ainda nao respondeu; suba o ai-core e a extensao local para habilitar o modo da sua maquina."}
                 </p>
               ) : null}
+              {capabilitiesSkills?.total || capabilitiesCommands?.total ? (
+                <p className="mt-2 max-w-3xl text-[11px] leading-6 text-[#7F928C]">
+                  {[
+                    capabilitiesSkills?.total ? `${capabilitiesSkills.total} skills catalogadas` : null,
+                    capabilitiesSkills?.offline_ready ? `${capabilitiesSkills.offline_ready} prontas para offline` : null,
+                    capabilitiesCommands?.total ? `${capabilitiesCommands.total} comandos no catalogo local` : null,
+                    activeBrowserProfile?.web_search_enabled === false ? "extensao em perfil offline sem web search" : null,
+                  ].filter(Boolean).join(" · ")}
+                </p>
+              ) : null}
               {localStackSummary?.recommendations?.length ? (
                 <div className="mt-2 flex max-w-3xl flex-wrap gap-2 text-[11px]">
                   {localStackSummary.recommendations.slice(0, 3).map((item) => (
                     <span key={item} className="rounded-full border border-[#3B3523] bg-[rgba(197,160,89,0.08)] px-3 py-1.5 text-[#D9C38A]">
                       {item}
                     </span>
+                  ))}
+                </div>
+              ) : null}
+              {localStackSummary?.actions?.length ? (
+                <div className="mt-2 flex max-w-3xl flex-wrap gap-2">
+                  {localStackSummary.actions.slice(0, 3).map((action) => (
+                    <button
+                      key={action.id}
+                      type="button"
+                      onClick={() => handleLocalStackAction(action.id)}
+                      className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                    >
+                      {action.label}
+                    </button>
                   ))}
                 </div>
               ) : null}
@@ -1978,6 +2041,20 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
                         <span key={item} className="rounded-full border border-[#3B3523] bg-[rgba(197,160,89,0.08)] px-3 py-1.5 text-[#D9C38A]">
                           {item}
                         </span>
+                      ))}
+                    </div>
+                  ) : null}
+                  {localStackSummary?.actions?.length ? (
+                    <div className="mt-2 flex max-w-3xl flex-wrap gap-2">
+                      {localStackSummary.actions.slice(0, 3).map((action) => (
+                        <button
+                          key={action.id}
+                          type="button"
+                          onClick={() => handleLocalStackAction(action.id)}
+                          className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                        >
+                          {action.label}
+                        </button>
                       ))}
                     </div>
                   ) : null}

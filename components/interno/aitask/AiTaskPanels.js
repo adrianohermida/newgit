@@ -168,6 +168,7 @@ export function WorkspaceHeader({
   handleOpenDiagnostics,
   handleOpenDotobot,
   handleRefreshLocalStack,
+  handleLocalStackAction,
   refreshingLocalStack = false,
   paused,
   formatExecutionSourceLabel,
@@ -193,6 +194,11 @@ export function WorkspaceHeader({
     activeProvider?.host ? `host:${activeProvider.host}` : null,
   ].filter(Boolean);
   const localStackReady = Boolean(localStackSummary?.ok && localStackSummary?.localProvider?.available);
+  const capabilitiesSkills = localStackSummary?.capabilities?.skills || null;
+  const capabilitiesCommands = localStackSummary?.capabilities?.commands || null;
+  const browserExtensionProfiles = localStackSummary?.capabilities?.browserExtensionProfiles || null;
+  const activeBrowserProfile =
+    browserExtensionProfiles?.profiles?.[browserExtensionProfiles?.active_profile] || null;
   return (
     <section className="rounded-[28px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(11,15,14,0.98),rgba(7,10,9,0.98))] px-5 py-4 shadow-[0_18px_54px_rgba(0,0,0,0.24)]">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -246,6 +252,21 @@ export function WorkspaceHeader({
             runtime {localStackSummary.runtimeBaseUrl}
           </span>
         ) : null}
+        {capabilitiesSkills?.total ? (
+          <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#9BAEA8]">
+            Skills {capabilitiesSkills.total}
+          </span>
+        ) : null}
+        {capabilitiesCommands?.executable ? (
+          <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#9BAEA8]">
+            Comandos {capabilitiesCommands.executable}/{capabilitiesCommands.total}
+          </span>
+        ) : null}
+        {activeBrowserProfile?.label ? (
+          <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB]">
+            Extensao {activeBrowserProfile.label}
+          </span>
+        ) : null}
         {activeProvider?.endpoint ? (
           <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB]">
             {activeProvider.endpoint}
@@ -285,12 +306,36 @@ export function WorkspaceHeader({
             : "O runtime local ainda nao respondeu nesta sessao. Suba o ai-core local, configure o vault e ligue a extensao para o modo da maquina."}
         </p>
       ) : null}
+      {capabilitiesSkills?.total || capabilitiesCommands?.total ? (
+        <p className="mt-2 text-[11px] leading-6 text-[#7F928C]">
+          {[
+            capabilitiesSkills?.total ? `${capabilitiesSkills.total} skills catalogadas` : null,
+            capabilitiesSkills?.offline_ready ? `${capabilitiesSkills.offline_ready} prontas para offline` : null,
+            capabilitiesCommands?.total ? `${capabilitiesCommands.total} comandos no catalogo local` : null,
+            activeBrowserProfile?.web_search_enabled === false ? "extensao em perfil offline sem web search" : null,
+          ].filter(Boolean).join(" · ")}
+        </p>
+      ) : null}
       {localStackSummary?.recommendations?.length ? (
         <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
           {localStackSummary.recommendations.slice(0, 3).map((item) => (
             <span key={item} className="rounded-full border border-[#3B3523] bg-[rgba(197,160,89,0.08)] px-3 py-1.5 text-[#D9C38A]">
               {item}
             </span>
+          ))}
+        </div>
+      ) : null}
+      {localStackSummary?.actions?.length ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {localStackSummary.actions.slice(0, 3).map((action) => (
+            <button
+              key={action.id}
+              type="button"
+              onClick={() => handleLocalStackAction?.(action.id)}
+              className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+            >
+              {action.label}
+            </button>
           ))}
         </div>
       ) : null}

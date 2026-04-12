@@ -276,14 +276,21 @@ function ResultCard({ result, onSelect }) {
           <p className="mt-1 text-sm text-[#F5F1E8]">{result.source || "n/a"}</p>
         </div>
         <div className="rounded-[18px] border border-[#22342F] px-3 py-2">
-          <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Model</p>
-          <p className="mt-1 text-sm text-[#F5F1E8]">{result.model || "n/a"}</p>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Modelo solicitado</p>
+          <p className="mt-1 text-sm text-[#F5F1E8]">{result.requestedModel || result.model || "n/a"}</p>
         </div>
         <div className="rounded-[18px] border border-[#22342F] px-3 py-2">
           <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Duracao</p>
           <p className="mt-1 text-sm text-[#F5F1E8]">{formatDuration(result.durationMs)}</p>
         </div>
       </div>
+
+      {result.resolvedModel && result.resolvedModel !== (result.requestedModel || result.model) ? (
+        <div className="mt-3 rounded-[18px] border border-[#3B3523] bg-[rgba(197,160,89,0.08)] px-3 py-3">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[#D9B46A]">Engine real</p>
+          <p className="mt-1 text-sm text-[#F5F1E8]">{result.resolvedModel}</p>
+        </div>
+      ) : null}
 
       <div className="mt-4 rounded-[20px] border border-[#22342F] bg-[rgba(7,9,8,0.72)] p-4">
         <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Resposta</p>
@@ -994,14 +1001,18 @@ export default function LLMTestChat() {
 
             {selectedResult ? (
               <div className="mt-4 space-y-3">
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className="grid gap-3 md:grid-cols-4">
                   <div className="rounded-[18px] border border-[#22342F] px-3 py-3">
                     <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Source</p>
                     <p className="mt-1 text-sm text-[#F5F1E8]">{selectedResult.source || "n/a"}</p>
                   </div>
                   <div className="rounded-[18px] border border-[#22342F] px-3 py-3">
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Model</p>
-                    <p className="mt-1 text-sm text-[#F5F1E8]">{selectedResult.model || "n/a"}</p>
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Modelo solicitado</p>
+                    <p className="mt-1 text-sm text-[#F5F1E8]">{selectedResult.requestedModel || selectedResult.model || "n/a"}</p>
+                  </div>
+                  <div className="rounded-[18px] border border-[#22342F] px-3 py-3">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Engine real</p>
+                    <p className="mt-1 text-sm text-[#F5F1E8]">{selectedResult.resolvedModel || selectedResult.requestedModel || selectedResult.model || "n/a"}</p>
                   </div>
                   <div className="rounded-[18px] border border-[#22342F] px-3 py-3">
                     <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Executado em</p>

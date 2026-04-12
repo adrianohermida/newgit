@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping
 
 from core.coordinator import Coordinator
+from core.command_graph import build_command_graph
+from core.commands import build_command_backlog, get_executable_commands
 from adapters.obsidian_adapter import search_obsidian_context
 
 
@@ -15,6 +17,89 @@ _MAX_QUERY_LENGTH = 8_000
 _DEFAULT_TIMEOUT_SECONDS = 45
 _DEFAULT_LOCAL_MODEL = 'aetherlab-legal-local-v1'
 _DEFAULT_CLOUD_MODEL = 'aetherlab-legal-v1'
+_LOCAL_EXTENSION_DEFAULT_ALLOWLIST = (
+    'search_files',
+    'open_local_file',
+    'open_url',
+    'run_local_command',
+    'extract_page_content',
+)
+_OFFLINE_BLOCKED_EXTENSION_COMMANDS = frozenset(
+    {
+        'web_search',
+        'search_web',
+        'browse_web',
+        'remote_fetch',
+        'open_external_url',
+    }
+)
+_OFFLINE_URL_COMMANDS = frozenset({'open_url', 'navigate', 'navigate_url'})
+_DOMAIN_SKILLS = (
+    {
+        'id': 'legal_analysis',
+        'name': 'Analise Juridica',
+        'category': 'juridico',
+        'surface': ('copilot', 'ai-task'),
+        'offline_ready': True,
+        'rag_sources': ('obsidian', 'crm'),
+    },
+    {
+        'id': 'legal_document',
+        'name': 'Elaboracao de Pecas Juridicas',
+        'category': 'juridico',
+        'surface': ('copilot', 'ai-task'),
+        'offline_ready': True,
+        'rag_sources': ('obsidian', 'processos'),
+    },
+    {
+        'id': 'case_triage',
+        'name': 'Triagem de Casos',
+        'category': 'operacional',
+        'surface': ('copilot', 'ai-task'),
+        'offline_ready': True,
+        'rag_sources': ('obsidian', 'crm'),
+    },
+    {
+        'id': 'process_monitoring',
+        'name': 'Monitoramento de Processos',
+        'category': 'operacional',
+        'surface': ('copilot', 'ai-task'),
+        'offline_ready': False,
+        'rag_sources': ('obsidian', 'publicacoes'),
+    },
+    {
+        'id': 'data_organization',
+        'name': 'Organizacao de Informacoes',
+        'category': 'organizacao',
+        'surface': ('copilot', 'ai-task'),
+        'offline_ready': True,
+        'rag_sources': ('obsidian',),
+    },
+    {
+        'id': 'superendividamento',
+        'name': 'Superendividamento e Renegociacao',
+        'category': 'juridico',
+        'surface': ('copilot', 'ai-task'),
+        'offline_ready': True,
+        'rag_sources': ('obsidian', 'crm', 'processos'),
+    },
+    {
+        'id': 'client_summary',
+        'name': 'Resumo de Cliente',
+        'category': 'operacional',
+        'surface': ('copilot', 'ai-task'),
+        'offline_ready': True,
+        'rag_sources': ('obsidian', 'crm'),
+    },
+    {
+        'id': 'compliance_check',
+        'name': 'Verificacao de Conformidade',
+        'category': 'conformidade',
+        'surface': ('copilot', 'ai-task'),
+        'offline_ready': True,
+        'rag_sources': ('obsidian', 'processos'),
+    },
+)
 
 
 @dataclass(frozen=True)
@@ -111,6 +196,20 @@ def _join_url(base_url: str | None, suffix: str) -> str | None:
     if not base_url:
         return None
     return f'{base_url.rstrip("/")}/{suffix.lstrip("/")}'
+
+
+def _is_local_url(value: Any) -> bool:
+    candidate = _get_clean(value)
+    if not candidate:
+        return False
+    normalized = candidate.lower()
+    return (
+        normalized.startswith('http://127.0.0.1')
+        or normalized.startswith('http://localhost')
+        or normalized.startswith('https://127.0.0.1')
+        or normalized.startswith('https://localhost')
+        or normalized.startswith('file:')
+    )
 
 
 def _json_request(
@@ -259,6 +358,96 @@ def build_extension_config(env: Mapping[str, Any]) -> dict[str, Any]:
     return {
         'enabled': bool(base_url),
         'base_url': base_url,
+    }
+
+
+def build_extension_profiles(env: Mapping[str, Any]) -> dict[str, Any]:
+    offline_mode = _is_offline_mode(env)
+    allowlist = list(_LOCAL_EXTENSION_DEFAULT_ALLOWLIST)
+    return {
+        'active_profile': 'offline' if offline_mode else 'online',
+        'profiles': {
+            'online': {
+                'id': 'online',
+                'label': 'Navegacao assistida',
+                'web_search_enabled': True,
+                'remote_urls_allowed': True,
+                'local_files_enabled': True,
+                'allowed_commands': allowlist + ['web_search'],
+                'blocked_commands': [],
+            },
+            'offline': {
+                'id': 'offline',
+                'label': 'Modo local isolado',
+                'web_search_enabled': False,
+                'remote_urls_allowed': False,
+                'local_files_enabled': True,
+                'allowed_commands': allowlist,
+                'blocked_commands': sorted(_OFFLINE_BLOCKED_EXTENSION_COMMANDS),
+            },
+        },
+    }
+
+
+def skills_json(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    runtime_env = env or os.environ
+    offline_mode = _is_offline_mode(runtime_env)
+    categories = sorted({item['category'] for item in _DOMAIN_SKILLS})
+    return {
+        'status': 'ok',
+        'offline_mode': offline_mode,
+        'skills': [
+            {
+                **item,
+                'surface': list(item['surface']),
+                'rag_sources': list(item['rag_sources']),
+                'available': bool(item['offline_ready']) if offline_mode else True,
+            }
+            for item in _DOMAIN_SKILLS
+        ],
+        'summary': {
+            'total': len(_DOMAIN_SKILLS),
+            'offline_ready': sum(1 for item in _DOMAIN_SKILLS if item['offline_ready']),
+            'categories': categories,
+        },
+    }
+
+
+def capabilities_json(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    runtime_env = env or os.environ
+    offline_mode = _is_offline_mode(runtime_env)
+    providers = providers_json(runtime_env)
+    extension = build_extension_config(runtime_env)
+    extension_profiles = build_extension_profiles(runtime_env)
+    command_backlog = build_command_backlog()
+    command_graph = build_command_graph()
+    executable_commands = get_executable_commands()
+    skill_payload = skills_json(runtime_env)
+    return {
+        'status': 'ok',
+        'offline_mode': offline_mode,
+        'providers': providers['providers'],
+        'skills': skill_payload['skills'],
+        'skills_summary': skill_payload['summary'],
+        'commands': {
+            'total': len(command_backlog.modules),
+            'executable': len(executable_commands),
+            'builtins': len(command_graph.builtins),
+            'plugin_like': len(command_graph.plugin_like),
+            'skill_like': len(command_graph.skill_like),
+            'preview': [module.name for module in executable_commands[:8]],
+        },
+        'browser_extension': {
+            'enabled': bool(extension.get('enabled')),
+            'base_url': extension.get('base_url'),
+            'profiles': extension_profiles,
+        },
+        'rag': {
+            'offline_primary': 'obsidian',
+            'remote_disabled': offline_mode,
+            'obsidian_expected': True,
+            'supabase_optional': True,
+        },
     }
 
 
@@ -439,6 +628,7 @@ def providers_json(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
             },
         ],
         'extension': extension,
+        'skills_summary': skills_json(runtime_env)['summary'],
     }
 
 
@@ -554,11 +744,17 @@ def browser_execute_json(payload: dict[str, Any], env: Mapping[str, Any] | None 
     command_payload = payload.get('payload') if isinstance(payload.get('payload'), dict) else {}
     if not command:
         raise ValueError('command is required')
+    offline_mode = _is_offline_mode(runtime_env)
+    if offline_mode and command in _OFFLINE_BLOCKED_EXTENSION_COMMANDS:
+        raise RuntimeError(f"Offline mode blocks browser extension command '{command}'.")
+    if offline_mode and command in _OFFLINE_URL_COMMANDS and not _is_local_url(command_payload.get('url') or command_payload.get('target')):
+        raise RuntimeError('Offline mode allows only localhost or file URLs in browser navigation commands.')
     endpoint = _join_url(str(extension['base_url']), '/execute')
     response = _json_request(endpoint, {'command': command, 'payload': command_payload})
     return {
         'status': 'ok',
         'extension': extension,
+        'profile': build_extension_profiles(runtime_env)['active_profile'],
         'command': command,
         'result': response,
     }
@@ -583,6 +779,11 @@ def health(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
             },
         },
         'extension': extension,
+        'capabilities': {
+            'skills': skills_json(runtime_env)['summary'],
+            'commands': capabilities_json(runtime_env)['commands'],
+            'browser_extension_profile': build_extension_profiles(runtime_env)['active_profile'],
+        },
     }
 
 

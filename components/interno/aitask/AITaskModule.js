@@ -401,6 +401,13 @@ export default function AITaskModule({ profile, routePath }) {
     };
   }, [providerCatalog]);
 
+  const localStackReady = Boolean(localStackSummary?.ok && localStackSummary?.localProvider?.available);
+
+  useEffect(() => {
+    if (!localStackReady) return;
+    setProvider((current) => (current === "gpt" || current === "cloudflare" ? "local" : current));
+  }, [localStackReady, setProvider]);
+
   async function refreshLocalStackStatus() {
     setRefreshingLocalStack(true);
     try {
@@ -533,6 +540,20 @@ export default function AITaskModule({ profile, routePath }) {
 
   function handleOpenDotobot() {
     router.push("/interno");
+  }
+
+  function handleLocalStackAction(actionId) {
+    if (actionId === "open_llm_test") {
+      handleOpenLlmTest();
+      return;
+    }
+    if (actionId === "open_environment") {
+      handleOpenDiagnostics();
+      return;
+    }
+    if (actionId === "open_ai_task") {
+      router.push("/interno/ai-task");
+    }
   }
 
   async function handleLoadContact360() {
@@ -668,7 +689,8 @@ export default function AITaskModule({ profile, routePath }) {
     if (!handoff?.mission) return;
     setMission(handoff.mission);
     setMode(["assisted", "auto", "manual"].includes(handoff.mode) ? handoff.mode : "assisted");
-    setProvider(handoff.provider || "gpt");
+    const nextHandoffProvider = handoff.provider || "gpt";
+    setProvider(localStackReady && (nextHandoffProvider === "gpt" || nextHandoffProvider === "cloudflare") ? "local" : nextHandoffProvider);
     setShowContext(true);
     setContextSnapshot((current) => ({
       ...(current || {}),
@@ -775,6 +797,7 @@ export default function AITaskModule({ profile, routePath }) {
           handleOpenDiagnostics={handleOpenDiagnostics}
           handleOpenDotobot={handleOpenDotobot}
           handleRefreshLocalStack={refreshLocalStackStatus}
+          handleLocalStackAction={handleLocalStackAction}
           refreshingLocalStack={refreshingLocalStack}
           formatExecutionSourceLabel={formatExecutionSourceLabel}
         />

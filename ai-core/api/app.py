@@ -4,11 +4,13 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .server import (
+    capabilities_json,
     browser_execute_json,
     execute_json,
     health,
     messages_json,
     providers_json,
+    skills_json,
     rag_context_json,
 )
 
@@ -40,6 +42,16 @@ async def health_route() -> dict:
 @app.get('/v1/providers')
 async def providers_route() -> dict:
     return providers_json()
+
+
+@app.get('/v1/skills')
+async def skills_route() -> dict:
+    return skills_json()
+
+
+@app.get('/v1/capabilities')
+async def capabilities_route() -> dict:
+    return capabilities_json()
 
 
 @app.post('/execute')

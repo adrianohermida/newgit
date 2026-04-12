@@ -4,12 +4,14 @@ import unittest
 from unittest.mock import patch
 
 from api.server import (
+    capabilities_json,
     browser_execute_json,
     build_cloud_provider_config,
     build_local_provider_config,
     health,
     messages_json,
     providers_json,
+    skills_json,
 )
 
 
@@ -152,6 +154,25 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(providers['extension']['base_url'], 'http://127.0.0.1:32123')
         self.assertEqual(health_payload['providers']['local']['base_url'], 'http://127.0.0.1:8000')
         self.assertEqual(health_payload['providers']['cloud']['base_url'], 'https://ai.hermidamaia.adv.br')
+        self.assertGreaterEqual(providers['skills_summary']['total'], 1)
+        self.assertEqual(health_payload['capabilities']['browser_extension_profile'], 'online')
+
+    def test_skills_and_capabilities_expose_runtime_catalog(self) -> None:
+        env = {
+            'AICORE_OFFLINE_MODE': 'true',
+            'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:8000',
+        }
+
+        skills = skills_json(env)
+        capabilities = capabilities_json(env)
+
+        self.assertEqual(skills['status'], 'ok')
+        self.assertTrue(skills['offline_mode'])
+        self.assertGreaterEqual(skills['summary']['total'], 1)
+        self.assertIn('juridico', skills['summary']['categories'])
+        self.assertEqual(capabilities['browser_extension']['profiles']['active_profile'], 'offline')
+        self.assertGreaterEqual(capabilities['commands']['total'], capabilities['commands']['executable'])
+        self.assertIn('offline_primary', capabilities['rag'])
 
     def test_offline_mode_blocks_cloud_provider(self) -> None:
         env = {
@@ -175,6 +196,24 @@ class ApiServerTests(unittest.TestCase):
                     'provider': 'cloud',
                     'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'Ol\u00e1 cloud'}]}],
                 },
+                env=env,
+            )
+
+    def test_offline_mode_blocks_remote_browser_extension_commands(self) -> None:
+        env = {
+            'AICORE_OFFLINE_MODE': 'true',
+            'UNIVERSAL_LLM_EXTENSION_BASE_URL': 'http://127.0.0.1:32123',
+        }
+
+        with self.assertRaises(RuntimeError):
+            browser_execute_json(
+                {'command': 'web_search', 'payload': {'query': 'Hermida Maia'}},
+                env=env,
+            )
+
+        with self.assertRaises(RuntimeError):
+            browser_execute_json(
+                {'command': 'open_url', 'payload': {'url': 'https://example.com'}},
                 env=env,
             )
 

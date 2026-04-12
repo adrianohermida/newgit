@@ -76,7 +76,9 @@ registerTest("buildLlmTestTimeline exposes telemetry, backend logs and errors", 
     provider: "local",
     providerLabel: "LLM local",
     source: "local_llm_api",
-    model: "hmadv-local",
+    model: "aetherlab-legal-local-v1",
+    requestedModel: "aetherlab-legal-local-v1",
+    resolvedModel: "llama3.1:latest",
     durationMs: 420,
     telemetry: [{ event: "rag_lookup", matches: 0, status: "ok" }],
     logs: [{ phase: "request_sent" }],
@@ -84,6 +86,8 @@ registerTest("buildLlmTestTimeline exposes telemetry, backend logs and errors", 
   });
 
   assert.ok(result.some((item) => item.label === "Provider selecionado"));
+  assert.ok(result.some((item) => item.label === "Modelo solicitado"));
+  assert.ok(result.some((item) => item.label === "Engine real"));
   assert.ok(result.some((item) => item.label === "rag_lookup"));
   assert.ok(result.some((item) => item.label === "backend_log_1"));
   assert.ok(result.some((item) => item.label === "backend_error_1"));
