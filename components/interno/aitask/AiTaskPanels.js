@@ -231,6 +231,7 @@ export function WorkspaceHeader({
   const browserExtensionProfiles = localStackSummary?.capabilities?.browserExtensionProfiles || null;
   const activeBrowserProfile =
     browserExtensionProfiles?.profiles?.[browserExtensionProfiles?.active_profile] || null;
+  const persistenceSummary = localStackSummary?.persistence || localStackSummary?.capabilities?.persistence || null;
   const offlineHealthSnapshot = buildOfflineHealthSnapshot({ localStackSummary, ragHealth });
   const localBootstrapPlan = buildLocalBootstrapPlan({ localStackSummary, ragHealth });
   const supabaseBootstrap = buildSupabaseLocalBootstrap({ localStackSummary, ragHealth });
@@ -323,6 +324,19 @@ export function WorkspaceHeader({
         {activeBrowserProfile?.label ? (
           <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB]">
             Extensao {activeBrowserProfile.label}
+          </span>
+        ) : null}
+        {persistenceSummary?.label ? (
+          <span
+            className={`rounded-full border px-3 py-1.5 text-[11px] ${
+              persistenceSummary.localReady
+                ? "border-[#234034] text-[#8FCFA9]"
+                : persistenceSummary.remoteBlocked
+                  ? "border-[#5b2d2d] text-[#f2b2b2]"
+                  : "border-[#3B3523] text-[#D9C38A]"
+            }`}
+          >
+            Storage {persistenceSummary.label}
           </span>
         ) : null}
         {activeProvider?.endpoint ? (
@@ -442,13 +456,18 @@ export function WorkspaceHeader({
                 {moduleKey}
               </span>
             ))}
+            {persistenceSummary?.label ? (
+              <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB]">
+                {persistenceSummary.label}
+              </span>
+            ) : null}
           </div>
         </div>
       </div>
       {localStackSummary ? (
         <p className="mt-3 text-[11px] leading-6 text-[#7F928C]">
           {localStackReady
-            ? `ai-core local ativo${localStackSummary.offlineMode ? " em modo offline" : ""} com ${localStackSummary.localProvider?.model || "modelo local"} via ${localRuntimeLabel}.`
+            ? `ai-core local ativo${localStackSummary.offlineMode ? " em modo offline" : ""} com ${localStackSummary.localProvider?.model || "modelo local"} via ${localRuntimeLabel}${persistenceSummary?.label ? ` e ${persistenceSummary.label.toLowerCase()}` : ""}.`
             : "O runtime local ainda nao respondeu nesta sessao. Suba o ai-core local, configure o vault e ligue a extensao para o modo da maquina."}
         </p>
       ) : null}
@@ -566,6 +585,37 @@ export function WorkspaceHeader({
             </div>
           </div>
         </div>
+        {supabaseBootstrap.readiness?.checks?.length ? (
+          <div className="mt-3 rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Readiness offline</p>
+              <span className={`rounded-full border px-3 py-1 text-[11px] ${
+                supabaseBootstrap.readiness.readyForStructuredOffline
+                  ? "border-[#234034] text-[#8FCFA9]"
+                  : "border-[#3B3523] text-[#D9C38A]"
+              }`}>
+                {supabaseBootstrap.readiness.score}
+              </span>
+            </div>
+            <div className="mt-3 grid gap-2 xl:grid-cols-2">
+              {supabaseBootstrap.readiness.checks.map((item) => (
+                <div key={item.id} className="rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.75)] px-3 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-[11px] font-semibold text-[#F5F1E8]">{item.label}</p>
+                    <span className={`rounded-full border px-2.5 py-1 text-[10px] ${
+                      item.ready
+                        ? "border-[#234034] text-[#8FCFA9]"
+                        : "border-[#5b2d2d] text-[#f2b2b2]"
+                    }`}>
+                      {item.ready ? "OK" : "Pendente"}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-[11px] leading-6 text-[#9BAEA8]">{item.detail}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <div className="mt-3 rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3">
           <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Schema offline</p>
           <div className="mt-2 grid gap-2 xl:grid-cols-2">

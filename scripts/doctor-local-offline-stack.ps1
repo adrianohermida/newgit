@@ -102,6 +102,22 @@ function Build-Check {
   }
 }
 
+function Build-SupabaseProbe {
+  param(
+    [string]$Id,
+    [string]$Label,
+    [bool]$Ok,
+    [object]$Details
+  )
+  return [ordered]@{
+    id = $Id
+    label = $Label
+    ok = $Ok
+    status = $(if ($Ok) { "ok" } else { "error" })
+    details = $Details
+  }
+}
+
 function Join-Url([string]$BaseUrl, [string]$Path) {
   if ([string]::IsNullOrWhiteSpace($BaseUrl)) {
     return $Path
@@ -469,18 +485,93 @@ $supabaseDetails = [ordered]@{
   url = $resolvedSupabaseUrl
   configured = -not [string]::IsNullOrWhiteSpace($resolvedSupabaseUrl)
 }
+$supabaseSchemaChecks = @()
 if (-not [string]::IsNullOrWhiteSpace($resolvedSupabaseUrl)) {
-  $authConfigProbe = Invoke-JsonRequest -Uri ($resolvedSupabaseUrl.TrimEnd("/") + "/rest/v1/") -Method "GET" -Headers @{
-    apikey = (First-Value @($env:SUPABASE_ANON_KEY, $env:NEXT_PUBLIC_SUPABASE_ANON_KEY))
+  $anonKey = First-Value @($env:SUPABASE_ANON_KEY, $env:NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  $serviceRoleKey = First-Value @($env:SUPABASE_SERVICE_ROLE_KEY)
+  $embedSecret = First-Value @($env:DOTOBOT_SUPABASE_EMBED_SECRET, $env:HMDAV_AI_SHARED_SECRET, $env:HMADV_AI_SHARED_SECRET, $env:LAWDESK_AI_SHARED_SECRET)
+  $restHeaders = @{}
+  if (-not [string]::IsNullOrWhiteSpace($anonKey)) {
+    $restHeaders.apikey = $anonKey
   }
+  $authConfigProbe = Invoke-JsonRequest -Uri ($resolvedSupabaseUrl.TrimEnd("/") + "/rest/v1/") -Method "GET" -Headers $restHeaders
   $supabaseLocal = $authConfigProbe.ok
   $supabaseDetails.httpStatus = $authConfigProbe.status
   $supabaseDetails.raw = if ($authConfigProbe.ok) { $authConfigProbe.data } else { $authConfigProbe.raw }
   $supabaseDetails.error = $authConfigProbe.error
+  $supabaseDetails.anonKeyConfigured = -not [string]::IsNullOrWhiteSpace($anonKey)
+  $supabaseDetails.serviceRoleConfigured = -not [string]::IsNullOrWhiteSpace($serviceRoleKey)
+
+  if (-not [string]::IsNullOrWhiteSpace($serviceRoleKey)) {
+    $serviceHeaders = @{
+      apikey = $serviceRoleKey
+      Authorization = "Bearer $serviceRoleKey"
+      Accept = "application/json"
+    }
+
+    $memoryTableProbe = Invoke-JsonRequest -Uri ($resolvedSupabaseUrl.TrimEnd("/") + "/rest/v1/dotobot_memory_embeddings?select=id&limit=1") -Method "GET" -Headers $serviceHeaders
+    $supabaseSchemaChecks += Build-SupabaseProbe -Id "supabase-table-memory" -Label "Tabela dotobot_memory_embeddings" -Ok $memoryTableProbe.ok -Details ([ordered]@{
+      endpoint = "/rest/v1/dotobot_memory_embeddings?select=id&limit=1"
+      httpStatus = $memoryTableProbe.status
+      error = $memoryTableProbe.error
+      raw = if ($memoryTableProbe.ok) { $memoryTableProbe.data } else { $memoryTableProbe.raw }
+    })
+
+    $taskRunsProbe = Invoke-JsonRequest -Uri ($resolvedSupabaseUrl.TrimEnd("/") + "/rest/v1/dotobot_task_runs?select=id&limit=1") -Method "GET" -Headers $serviceHeaders
+    $supabaseSchemaChecks += Build-SupabaseProbe -Id "supabase-table-task-runs" -Label "Tabela dotobot_task_runs" -Ok $taskRunsProbe.ok -Details ([ordered]@{
+      endpoint = "/rest/v1/dotobot_task_runs?select=id&limit=1"
+      httpStatus = $taskRunsProbe.status
+      error = $taskRunsProbe.error
+      raw = if ($taskRunsProbe.ok) { $taskRunsProbe.data } else { $taskRunsProbe.raw }
+    })
+
+    $rpcProbe = Invoke-JsonRequest -Uri ($resolvedSupabaseUrl.TrimEnd("/") + "/rest/v1/rpc/search_dotobot_memory_embeddings") -Method "POST" -Headers $serviceHeaders -Body @{
+      query_embedding = @(0.0, 0.0, 0.0)
+      match_count = 1
+      match_threshold = $null
+    }
+    $rpcOk = $rpcProbe.ok -or ($rpcProbe.status -in @(400, 404, 422) -and [string]::IsNullOrWhiteSpace($rpcProbe.error) -eq $false -and $rpcProbe.raw -notmatch "Could not find")
+    $supabaseSchemaChecks += Build-SupabaseProbe -Id "supabase-rpc-search-memory" -Label "RPC search_dotobot_memory_embeddings" -Ok $rpcOk -Details ([ordered]@{
+      endpoint = "/rest/v1/rpc/search_dotobot_memory_embeddings"
+      httpStatus = $rpcProbe.status
+      error = $rpcProbe.error
+      raw = if ($rpcProbe.ok) { $rpcProbe.data } else { $rpcProbe.raw }
+    })
+
+    $embedHeaders = @{
+      apikey = $serviceRoleKey
+      Authorization = "Bearer $serviceRoleKey"
+      "Content-Type" = "application/json"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($embedSecret)) {
+      $embedHeaders["x-dotobot-embed-secret"] = $embedSecret
+    }
+    $embedProbe = Invoke-JsonRequest -Uri ($resolvedSupabaseUrl.TrimEnd("/") + "/functions/v1/dotobot-embed") -Method "POST" -Headers $embedHeaders -Body @{
+      input = "healthcheck dotobot offline local"
+      model = "supabase/gte-small"
+    }
+    $embedOk = $embedProbe.ok
+    $supabaseSchemaChecks += Build-SupabaseProbe -Id "supabase-function-dotobot-embed" -Label "Function dotobot-embed" -Ok $embedOk -Details ([ordered]@{
+      endpoint = "/functions/v1/dotobot-embed"
+      httpStatus = $embedProbe.status
+      error = $embedProbe.error
+      raw = if ($embedProbe.ok) { $embedProbe.data } else { $embedProbe.raw }
+      embedSecretConfigured = -not [string]::IsNullOrWhiteSpace($embedSecret)
+    })
+  }
 }
 $checks += Build-Check -Id "supabase-local" -Label "Supabase local" -Ok $supabaseLocal -Status ($(if ($supabaseLocal) { "ok" } elseif ([string]::IsNullOrWhiteSpace($resolvedSupabaseUrl)) { "warning" } else { "error" })) -Details $supabaseDetails
+$checks += $supabaseSchemaChecks
 if (-not $supabaseLocal) {
   $diagnosis += "Se quiser persistencia estruturada offline, suba o Supabase local com supabase start."
+}
+if ($supabaseLocal -and $supabaseSchemaChecks.Count -gt 0) {
+  $failedSupabaseChecks = @($supabaseSchemaChecks | Where-Object { -not $_.ok })
+  if ($failedSupabaseChecks.Count -gt 0) {
+    $diagnosis += "Supabase local respondeu, mas o contrato offline ainda esta incompleto: $((@($failedSupabaseChecks.label) -join ', '))."
+  } else {
+    $diagnosis += "Supabase local com contrato principal validado: tabelas Dotobot, RPC de busca e function dotobot-embed."
+  }
 }
 
 $readyForOffline = (
@@ -500,6 +591,7 @@ $report = [ordered]@{
     localLlmReady = $localLlmOk
     extensionReady = $extensionHealth.ok
     supabaseLocalReady = $supabaseLocal
+    supabaseSchemaReady = ($supabaseSchemaChecks.Count -gt 0 -and (@($supabaseSchemaChecks | Where-Object { -not $_.ok }).Count -eq 0))
   }
   checks = $checks
   diagnosis = $diagnosis

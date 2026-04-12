@@ -41,6 +41,10 @@ class ObsidianRagTests(TempPathsMixin):
         self.assertGreaterEqual(len(context.matches), 1)
         self.assertIn('superendividamento', context.matches[0].excerpt.lower())
         self.assertIn('estrat\u00e9gia', context.matches[0].excerpt.lower())
+        self.assertEqual(context.vector_backend, 'obsidian_hybrid_local_index')
+        self.assertEqual(context.embedding_engine, 'hashed_token_bow')
+        self.assertGreaterEqual(context.indexed_notes, 1)
+        self.assertEqual(context.matches[0].metadata['ranking'], 'lexical_plus_embedding')
 
     def test_search_obsidian_context_normalizes_accents(self) -> None:
         temp_vault = self.make_temp_vault()
@@ -64,6 +68,7 @@ class ObsidianRagTests(TempPathsMixin):
         context = search_obsidian_context('acao monitoria', top_k=1)
         self.assertTrue(context.matches)
         self.assertEqual(context.matches[0].id, 'acao-monitoria')
+        self.assertGreater(context.matches[0].metadata['lexical_score'], 0)
 
     def test_search_obsidian_context_returns_empty_matches_when_vault_has_no_notes(self) -> None:
         temp_vault = self.make_temp_vault()
@@ -106,6 +111,7 @@ class ObsidianRagTests(TempPathsMixin):
 
         self.assertEqual(len(context.matches), 1)
         self.assertEqual(context.matches[0].id, 'newer')
+        self.assertEqual(context.index_limit, 1)
 
     def test_coordinator_injects_rag_and_writes_obsidian_note(self) -> None:
         temp_vault = self.make_temp_vault()

@@ -85,9 +85,11 @@ async function evaluateModule(module) {
 async function loadAiTaskModules() {
   const stateModule = await evaluateModule(await loadEsmModule("D:/Github/newgit/components/interno/aitask/aiTaskState.js"));
   const adaptersModule = await evaluateModule(await loadEsmModule("D:/Github/newgit/components/interno/aitask/aiTaskAdapters.js"));
+  const supabaseBootstrapModule = await evaluateModule(await loadEsmModule("D:/Github/newgit/lib/lawdesk/supabase-local-bootstrap.js"));
   return {
     state: stateModule.namespace,
     adapters: adaptersModule.namespace,
+    supabaseBootstrap: supabaseBootstrapModule.namespace,
   };
 }
 
@@ -222,6 +224,50 @@ registerTest("adapter helpers classify mission intent and approval risk", async 
   assert.equal(adapters.normalizeTaskStepStatus("ok"), "done");
   assert.equal(adapters.normalizeTaskStepStatus("error"), "failed");
   assert.equal(adapters.inferTaskPriority({ action: "Recuperar contexto RAG" }), "medium");
+});
+
+registerTest("supabase local bootstrap exposes readiness checklist for offline persistence", async () => {
+  const { supabaseBootstrap } = await loadAiTaskModules();
+  const result = supabaseBootstrap.buildSupabaseLocalBootstrap({
+    localStackSummary: {
+      offlineMode: true,
+      persistence: {
+        browserConfigured: true,
+        anonKeySource: "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      },
+    },
+    ragHealth: {
+      report: {
+        supabase: {
+          baseUrlConfigured: true,
+          baseUrlKind: "local",
+          baseUrlPreview: "http://127.0.0.1:54321",
+          serviceKeyConfigured: true,
+          serviceKeySource: "SUPABASE_SERVICE_ROLE_KEY",
+        },
+        supabaseEmbedding: {
+          ok: true,
+          dimensions: 384,
+        },
+        supabaseQuery: {
+          ok: true,
+          matches: 2,
+        },
+        supabaseUpsert: {
+          ok: true,
+          skipped: false,
+        },
+      },
+    },
+  });
+
+  assert.equal(result.mode, "supabase_local_ready");
+  assert.equal(result.readiness.score, "6/6");
+  assert.equal(result.readiness.readyForStructuredOffline, true);
+  assert.equal(result.readiness.checks.find((item) => item.id === "anon_key").ready, true);
+  assert.ok(result.envBlock.includes("LAWDESK_OFFLINE_MODE=true"));
+  assert.ok(result.actions.includes("diagnose_supabase_local"));
+  assert.ok(result.commands.includes("npm run bootstrap:supabase-local"));
 });
 
 async function run() {

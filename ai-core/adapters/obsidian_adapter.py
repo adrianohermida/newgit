@@ -28,6 +28,8 @@ class IndexedObsidianNote:
     title: str
     excerpt: str
     lowered_content: str
+    token_counts: dict[str, int]
+    token_count_total: int
     embedding: tuple[float, ...]
     mtime_ns: int
 
@@ -79,6 +81,9 @@ class ObsidianRagContext:
     error: str | None = None
     embedding_engine: str = "hashed_token_bow"
     embedding_dimensions: int = _DEFAULT_LOCAL_EMBEDDING_DIMENSIONS
+    vector_backend: str = "obsidian_hybrid_local_index"
+    indexed_notes: int = 0
+    index_limit: int = _DEFAULT_MAX_INDEXED_NOTES
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -89,6 +94,9 @@ class ObsidianRagContext:
             "error": self.error,
             "embedding_engine": self.embedding_engine,
             "embedding_dimensions": self.embedding_dimensions,
+            "vector_backend": self.vector_backend,
+            "indexed_notes": self.indexed_notes,
+            "index_limit": self.index_limit,
         }
 
 
@@ -135,6 +143,13 @@ def _embed_text(text: str, dimensions: int = 128) -> list[float]:
     return vector
 
 
+def _build_token_counts(tokens: tuple[str, ...]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for token in tokens:
+        counts[token] = counts.get(token, 0) + 1
+    return counts
+
+
 def get_local_embedding_dimensions() -> int:
     raw = os.getenv("DOTOBOT_LOCAL_EMBEDDING_DIMENSIONS") or os.getenv("AICORE_LOCAL_EMBEDDING_DIMENSIONS")
     if not raw:
@@ -154,6 +169,17 @@ def get_local_embedding_config() -> dict[str, Any]:
     }
 
 
+def get_local_vector_index_config() -> dict[str, Any]:
+    return {
+        "backend": "obsidian_hybrid_local_index",
+        "storage": "vault_markdown",
+        "index_limit": _get_max_indexed_notes(),
+        "ranking": "lexical_plus_embedding",
+        "local_only": True,
+        "supports_network": False,
+    }
+
+
 def _cosine_similarity(left: list[float], right: list[float]) -> float:
     if len(left) != len(right):
         size = min(len(left), len(right))
@@ -163,6 +189,25 @@ def _cosine_similarity(left: list[float], right: list[float]) -> float:
     if not denominator:
         return 0.0
     return sum(l * r for l, r in zip(left, right)) / denominator
+
+
+def _lexical_overlap_score(query_counts: dict[str, int], indexed_note: IndexedObsidianNote) -> float:
+    if not query_counts or not indexed_note.token_counts:
+        return 0.0
+
+    shared_weight = 0.0
+    query_total = sum(query_counts.values()) or 1
+    note_total = indexed_note.token_count_total or 1
+
+    for token, query_count in query_counts.items():
+        note_count = indexed_note.token_counts.get(token)
+        if not note_count:
+            continue
+        shared_weight += min(query_count, note_count)
+
+    query_ratio = shared_weight / query_total
+    note_ratio = shared_weight / note_total
+    return min(1.0, (query_ratio * 0.7) + (note_ratio * 0.3))
 
 
 def _frontmatter_value(value: Any) -> str:
@@ -274,11 +319,14 @@ def _get_cached_index(memory_dir: Path) -> dict[str, IndexedObsidianNote]:
 
         title = file_path.stem.replace("-", " ").replace("_", " ").strip() or file_path.stem
         excerpt = " ".join(content.split())[:300]
+        tokens = _tokenize(content)
         cache.notes[resolved_path] = IndexedObsidianNote(
             path=resolved_path,
             title=title,
             excerpt=excerpt,
             lowered_content=content.lower(),
+            token_counts=_build_token_counts(tokens),
+            token_count_total=len(tokens),
             embedding=tuple(_embed_text(content, embedding_dimensions)),
             mtime_ns=stat.st_mtime_ns,
         )
@@ -325,23 +373,47 @@ def write_obsidian_memory_note(
 def search_obsidian_context(query: str, top_k: int = 5) -> ObsidianRagContext:
     vault_path = get_obsidian_vault_path()
     embedding_dimensions = get_local_embedding_dimensions()
+    index_limit = _get_max_indexed_notes()
     if vault_path is None:
-        return ObsidianRagContext(enabled=False, vault_path=None, memory_dir=None, embedding_dimensions=embedding_dimensions)
+        return ObsidianRagContext(
+            enabled=False,
+            vault_path=None,
+            memory_dir=None,
+            embedding_dimensions=embedding_dimensions,
+            index_limit=index_limit,
+        )
 
     memory_dir = build_obsidian_memory_dir(vault_path)
     if memory_dir is None:
-        return ObsidianRagContext(enabled=False, vault_path=str(vault_path), memory_dir=None, embedding_dimensions=embedding_dimensions)
+        return ObsidianRagContext(
+            enabled=False,
+            vault_path=str(vault_path),
+            memory_dir=None,
+            embedding_dimensions=embedding_dimensions,
+            index_limit=index_limit,
+        )
 
     indexed_notes = _get_cached_index(memory_dir)
     if not indexed_notes:
-        return ObsidianRagContext(enabled=True, vault_path=str(vault_path), memory_dir=str(memory_dir), embedding_dimensions=embedding_dimensions)
+        return ObsidianRagContext(
+            enabled=True,
+            vault_path=str(vault_path),
+            memory_dir=str(memory_dir),
+            embedding_dimensions=embedding_dimensions,
+            index_limit=index_limit,
+            indexed_notes=0,
+        )
 
+    query_tokens_list = _tokenize(query)
     query_embedding = _embed_text(query, embedding_dimensions)
-    query_tokens = set(_tokenize(query))
+    query_counts = _build_token_counts(query_tokens_list)
+    query_tokens = set(query_tokens_list)
     matches: list[ObsidianMatch] = []
 
     for indexed_note in indexed_notes.values():
-        score = _cosine_similarity(query_embedding, list(indexed_note.embedding))
+        embedding_score = _cosine_similarity(query_embedding, list(indexed_note.embedding))
+        lexical_score = _lexical_overlap_score(query_counts, indexed_note)
+        score = (embedding_score * 0.62) + (lexical_score * 0.38)
         for token in query_tokens:
             if token in indexed_note.lowered_content:
                 score += 0.08
@@ -356,7 +428,13 @@ def search_obsidian_context(query: str, top_k: int = 5) -> ObsidianRagContext:
                 path=indexed_note.path,
                 score=round(score, 6),
                 excerpt=indexed_note.excerpt,
-                metadata={"source": "obsidian", "path": indexed_note.path},
+                metadata={
+                    "source": "obsidian",
+                    "path": indexed_note.path,
+                    "ranking": "lexical_plus_embedding",
+                    "embedding_score": round(embedding_score, 6),
+                    "lexical_score": round(lexical_score, 6),
+                },
             )
         )
 
@@ -367,4 +445,6 @@ def search_obsidian_context(query: str, top_k: int = 5) -> ObsidianRagContext:
         memory_dir=str(memory_dir),
         matches=tuple(matches[:top_k]),
         embedding_dimensions=embedding_dimensions,
+        index_limit=index_limit,
+        indexed_notes=len(indexed_notes),
     )

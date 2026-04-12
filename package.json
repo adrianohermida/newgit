@@ -13,6 +13,8 @@
     "diagnose:hmadv-ai": "powershell -ExecutionPolicy Bypass -File scripts/diagnose-hmadv-process-ai.ps1",
     "diagnose:local-llm": "powershell -ExecutionPolicy Bypass -File scripts/diagnose-local-llm.ps1",
     "doctor:offline-local": "powershell -ExecutionPolicy Bypass -File scripts/doctor-local-offline-stack.ps1",
+    "diagnose:supabase-local": "powershell -ExecutionPolicy Bypass -File scripts/doctor-local-offline-stack.ps1",
+    "bootstrap:supabase-local": "powershell -ExecutionPolicy Bypass -File scripts/bootstrap-supabase-local.ps1",
     "bootstrap:offline-local": "powershell -ExecutionPolicy Bypass -File scripts/bootstrap-offline-local.ps1",
     "setup:ai-core-local": "powershell -ExecutionPolicy Bypass -Command \"Set-Location ai-core; python -m pip install -e .\"",
     "start:ai-core-local": "powershell -ExecutionPolicy Bypass -File scripts/start-ai-core-local.ps1",

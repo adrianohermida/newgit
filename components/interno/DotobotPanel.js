@@ -766,6 +766,10 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
       router.push("/interno/agentlab/environment");
       return;
     }
+    if (actionId === "diagnose_supabase_local") {
+      router.push("/interno/agentlab/environment");
+      return;
+    }
     if (actionId === "open_environment") {
       router.push("/interno/agentlab/environment");
       return;

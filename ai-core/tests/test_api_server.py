@@ -201,6 +201,10 @@ class ApiServerTests(unittest.TestCase):
         self.assertIn('offline_primary', capabilities['rag'])
         self.assertEqual(capabilities['rag']['local_embedding']['engine'], 'hashed_token_bow')
         self.assertEqual(capabilities['rag']['local_embedding']['dimensions'], 128)
+        self.assertEqual(capabilities['rag']['local_embedding']['ranking'], 'lexical_plus_embedding')
+        self.assertEqual(capabilities['rag']['local_vector_index']['backend'], 'obsidian_hybrid_local_index')
+        self.assertEqual(capabilities['rag']['local_vector_index']['ranking'], 'lexical_plus_embedding')
+        self.assertEqual(capabilities['persistence']['mode'], 'obsidian_only')
         self.assertTrue(capabilities['orchestration']['multi_agent'])
 
     def test_local_embedding_dimensions_can_be_configured(self) -> None:
@@ -216,6 +220,40 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(capabilities['rag']['local_embedding']['dimensions'], 256)
         self.assertEqual(health_payload['capabilities']['rag']['local_embedding']['dimensions'], 256)
         self.assertTrue(health_payload['capabilities']['rag']['local_embedding']['local_only'])
+        self.assertEqual(health_payload['capabilities']['rag']['local_vector_index']['backend'], 'obsidian_hybrid_local_index')
+
+    def test_persistence_reports_local_supabase_contract_when_configured(self) -> None:
+        env = {
+            'AICORE_OFFLINE_MODE': 'true',
+            'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:8000',
+            'SUPABASE_URL': 'http://127.0.0.1:54321',
+            'SUPABASE_SERVICE_ROLE_KEY': 'local-service-role',
+            'NEXT_PUBLIC_SUPABASE_ANON_KEY': 'local-anon',
+        }
+
+        capabilities = capabilities_json(env)
+        health_payload = health(env)
+
+        self.assertEqual(capabilities['persistence']['mode'], 'local_structured_configured')
+        self.assertEqual(capabilities['persistence']['base_url_kind'], 'local')
+        self.assertTrue(capabilities['persistence']['structured_configured'])
+        self.assertTrue(health_payload['persistence']['local_ready'])
+        self.assertEqual(health_payload['capabilities']['persistence']['anon_key_source'], 'NEXT_PUBLIC_SUPABASE_ANON_KEY')
+
+    def test_persistence_blocks_remote_supabase_in_offline_mode(self) -> None:
+        env = {
+            'AICORE_OFFLINE_MODE': 'true',
+            'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:8000',
+            'SUPABASE_URL': 'https://example.supabase.co',
+            'SUPABASE_SERVICE_ROLE_KEY': 'remote-service-role',
+        }
+
+        capabilities = capabilities_json(env)
+        health_payload = health(env)
+
+        self.assertEqual(capabilities['persistence']['mode'], 'remote_blocked_offline')
+        self.assertTrue(capabilities['persistence']['remote_blocked'])
+        self.assertEqual(health_payload['capabilities']['persistence']['base_url_kind'], 'remote')
 
     def test_offline_mode_blocks_cloud_provider(self) -> None:
         env = {

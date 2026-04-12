@@ -1,71 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
+import { Panel, Tag, Tile, mergeById, money, toNumber, toneFor } from "../../components/interno/market-ads/shared";
 import { adminFetch } from "../../lib/admin/api";
 import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
 import { buildModuleSnapshot } from "../../lib/admin/module-registry";
-
-function Panel({ eyebrow, title, helper, children }) {
-  return (
-    <section className="rounded-[28px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(14,18,17,0.98),rgba(8,12,11,0.94))] p-6">
-      {eyebrow ? <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C5A059]">{eyebrow}</p> : null}
-      {title ? <h3 className="mt-3 text-2xl font-semibold text-[#F6F2E8]">{title}</h3> : null}
-      {helper ? <p className="mt-2 text-sm leading-6 text-[#97ABA4]">{helper}</p> : null}
-      <div className="mt-5">{children}</div>
-    </section>
-  );
-}
-
-function Tile({ label, value, helper }) {
-  return (
-    <article className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-5">
-      <p className="text-[11px] uppercase tracking-[0.18em] text-[#7F928C]">{label}</p>
-      <p className="mt-3 text-3xl font-semibold text-[#F8F4EB]">{value}</p>
-      <p className="mt-2 text-sm leading-6 text-[#8FA29B]">{helper}</p>
-    </article>
-  );
-}
-
-function Tag({ children, tone = "neutral" }) {
-  const tones = {
-    neutral: "border-[#22342F] text-[#C7D0CA]",
-    accent: "border-[#C5A059] text-[#F4E7C2]",
-    success: "border-[#35554B] text-[#B7F7C6]",
-    warn: "border-[#6E5630] text-[#FDE68A]",
-    danger: "border-[#5B2D2D] text-[#FECACA]",
-  };
-  return <span className={`inline-flex rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.16em] ${tones[tone]}`}>{children}</span>;
-}
-
-function toneFor(value) {
-  const normalized = String(value || "").toLowerCase();
-  if (normalized.includes("aprov")) return "success";
-  if (normalized.includes("escalar") || normalized.includes("scale")) return "success";
-  if (normalized.includes("crit") || normalized.includes("bloq")) return "danger";
-  if (normalized.includes("revis") || normalized.includes("alert") || normalized.includes("atenc")) return "warn";
-  if (normalized.includes("otimiz")) return "accent";
-  if (normalized.includes("forte")) return "success";
-  if (normalized.includes("estavel") || normalized.includes("media")) return "accent";
-  return "accent";
-}
-
-function money(value) {
-  return Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-function toNumber(value) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function mergeById(items = [], nextItem, { prepend = false, limit = null } = {}) {
-  const list = Array.isArray(items) ? items : [];
-  if (!nextItem?.id) return list;
-
-  const filtered = list.filter((item) => item?.id !== nextItem.id);
-  const merged = prepend ? [nextItem, ...filtered] : [...filtered, nextItem];
-  return Number.isFinite(limit) ? merged.slice(0, limit) : merged;
-}
 
 export default function InternoMarketAdsPage() {
   return (
@@ -212,6 +151,10 @@ function MarketAdsContent() {
     }
   }
 
+  function refreshDashboardSilently() {
+    void load({ silent: true });
+  }
+
   async function generatePreview() {
     setPreviewState({ loading: true, error: null, result: null });
     try {
@@ -305,7 +248,7 @@ function MarketAdsContent() {
             : current.templateLibrary,
         }));
       }
-      load({ silent: true });
+      refreshDashboardSilently();
     } catch (error) {
       setTemplateState({ loading: false, error: error.message || "Falha ao salvar template na biblioteca.", result: null });
     }
@@ -336,7 +279,7 @@ function MarketAdsContent() {
             : current.templateLibrary,
         }));
       }
-      load({ silent: true });
+      refreshDashboardSilently();
     } catch (error) {
       setTemplateState({ loading: false, error: error.message || "Falha ao atualizar favorito do template.", result: null });
     }
@@ -367,7 +310,7 @@ function MarketAdsContent() {
             : current.templateLibrary,
         }));
       }
-      load({ silent: true });
+      refreshDashboardSilently();
     } catch (error) {
       setTemplateState({ loading: false, error: error.message || "Falha ao atualizar visibilidade do template.", result: null });
     }
@@ -398,7 +341,7 @@ function MarketAdsContent() {
             : current.templateLibrary,
         }));
       }
-      load({ silent: true });
+      refreshDashboardSilently();
     } catch (error) {
       setTemplateState({ loading: false, error: error.message || "Falha ao atualizar escopo de edicao do template.", result: null });
     }
@@ -425,7 +368,7 @@ function MarketAdsContent() {
           attributions: mergeById(current.attributions, payload.data.attribution, { prepend: true, limit: 50 }),
         }));
       }
-      load({ silent: true });
+      refreshDashboardSilently();
     } catch (error) {
       setAttributionState({ loading: false, error: error.message || "Falha ao registrar atribuicao.", result: null });
     }
@@ -460,7 +403,7 @@ function MarketAdsContent() {
           drafts: mergeById(current.drafts, payload.data.draft, { prepend: true, limit: 6 }),
         }));
       }
-      load({ silent: true });
+      refreshDashboardSilently();
     } catch (error) {
       setDraftState({ loading: false, error: error.message || "Falha ao salvar draft.", result: null });
     }
@@ -495,7 +438,7 @@ function MarketAdsContent() {
           campaigns: mergeById(current.campaigns, payload.data.campaign, { prepend: true, limit: 6 }),
         }));
       }
-      load({ silent: true });
+      refreshDashboardSilently();
     } catch (error) {
       setCampaignState({ loading: false, error: error.message || "Falha ao salvar campanha.", result: null });
     }
@@ -616,7 +559,24 @@ function MarketAdsContent() {
         body: JSON.stringify({ action: "apply_optimizations" }),
       });
       setApplyOptimizationState({ loading: false, error: null, result: payload.data || null });
-      await load();
+      if (payload.data?.applied?.length) {
+        patchDashboardData((current) => {
+          const nextCampaigns = (current.campaigns || []).map((campaign) => {
+            const appliedItem = payload.data.applied.find((item) => item.campaignId === campaign.id && item.action === "updated");
+            if (!appliedItem) return campaign;
+            return {
+              ...campaign,
+              status: appliedItem.status || campaign.status,
+            };
+          });
+
+          return {
+            ...current,
+            campaigns: nextCampaigns,
+          };
+        });
+      }
+      refreshDashboardSilently();
     } catch (error) {
       setApplyOptimizationState({ loading: false, error: error.message || "Falha ao aplicar recomendacoes nas campanhas locais.", result: null });
     }
@@ -697,7 +657,7 @@ function MarketAdsContent() {
           adItems: mergeById(current.adItems, payload.data.adItem, { prepend: true, limit: 12 }),
         }));
       }
-      load({ silent: true });
+      refreshDashboardSilently();
     } catch (error) {
       setAdState({ loading: false, error: error.message || "Falha ao salvar anuncio.", result: null });
     }

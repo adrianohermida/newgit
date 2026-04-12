@@ -50,6 +50,7 @@ import {
 } from "../../../lib/lawdesk/browser-local-runtime";
 import { resolvePreferredLawdeskProvider } from "../../../lib/lawdesk/providers.js";
 import { listSkills } from "../../../lib/lawdesk/skill_registry.js";
+import { buildSupabaseLocalBootstrap } from "../../../lib/lawdesk/supabase-local-bootstrap.js";
 
 function formatHistoryStatus(status) {
   const labels = {
@@ -486,7 +487,6 @@ export default function AITaskModule({ profile, routePath }) {
   }
 
   async function handleCopySupabaseLocalEnvBlock() {
-    const { buildSupabaseLocalBootstrap } = await import("../../../lib/lawdesk/supabase-local-bootstrap.js");
     const envBlock = buildSupabaseLocalBootstrap({ localStackSummary, ragHealth }).envBlock;
     if (!envBlock) return;
     try {
@@ -633,6 +633,10 @@ export default function AITaskModule({ profile, routePath }) {
       return;
     }
     if (actionId === "abrir_diagnostico") {
+      handleOpenDiagnostics();
+      return;
+    }
+    if (actionId === "diagnose_supabase_local") {
       handleOpenDiagnostics();
       return;
     }

@@ -10,7 +10,7 @@ from typing import Any, Mapping
 from core.coordinator import Coordinator
 from core.command_graph import build_command_graph
 from core.commands import build_command_backlog, get_executable_commands
-from adapters.obsidian_adapter import get_local_embedding_config, search_obsidian_context
+from adapters.obsidian_adapter import get_local_vector_index_config, search_obsidian_context
 
 
 _MAX_QUERY_LENGTH = 8_000
@@ -199,6 +199,74 @@ def _int_env(env: Mapping[str, Any], *keys: str, default: int) -> int:
         return max(1, int(value))
     except (TypeError, ValueError):
         return default
+
+
+def _local_embedding_config(env: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        'engine': 'hashed_token_bow',
+        'dimensions': _int_env(env, 'DOTOBOT_LOCAL_EMBEDDING_DIMENSIONS', 'AICORE_LOCAL_EMBEDDING_DIMENSIONS', default=128),
+        'local_only': True,
+        'supports_network': False,
+        'ranking': 'lexical_plus_embedding',
+    }
+
+
+def _url_kind(value: Any) -> str:
+    candidate = _get_clean(value)
+    if not candidate:
+        return 'unconfigured'
+    return 'local' if _is_local_url(candidate) else 'remote'
+
+
+def _persistence_config(env: Mapping[str, Any]) -> dict[str, Any]:
+    offline_mode = _is_offline_mode(env)
+    supabase_url_key, supabase_url = _resolve_env(env, 'SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL')
+    service_key_key, service_key = _resolve_env(env, 'SUPABASE_SERVICE_ROLE_KEY')
+    anon_key_key, anon_key = _resolve_env(env, 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'SUPABASE_ANON_KEY')
+    base_url_kind = _url_kind(supabase_url)
+    structured_configured = bool(supabase_url and service_key)
+    browser_configured = bool(supabase_url and anon_key)
+
+    if not supabase_url:
+        mode = 'obsidian_only'
+        detail = 'Sem Supabase configurado; o offline usa somente Obsidian como memoria primária.'
+    elif offline_mode and base_url_kind == 'remote':
+        mode = 'remote_blocked_offline'
+        detail = 'Modo offline ativo com SUPABASE_URL remota. Persistencia estruturada remota deve permanecer bloqueada.'
+    elif base_url_kind == 'local' and structured_configured:
+        mode = 'local_structured_configured'
+        detail = 'Supabase local configurado para persistencia estruturada de sessoes, runs e memoria.'
+    elif base_url_kind == 'local':
+        mode = 'local_structured_partial'
+        detail = 'SUPABASE_URL local detectada, mas ainda faltam chaves para fechar a persistencia estruturada.'
+    elif structured_configured:
+        mode = 'remote_structured_configured'
+        detail = 'Persistencia estruturada configurada, mas ainda depende de um Supabase remoto.'
+    else:
+        mode = 'remote_structured_partial'
+        detail = 'SUPABASE_URL remota detectada sem contrato completo de persistencia.'
+
+    return {
+        'mode': mode,
+        'offline_mode': offline_mode,
+        'base_url': supabase_url,
+        'base_url_kind': base_url_kind,
+        'base_url_source': supabase_url_key,
+        'service_role_configured': bool(service_key),
+        'service_role_source': service_key_key,
+        'anon_key_configured': bool(anon_key),
+        'anon_key_source': anon_key_key,
+        'structured_configured': structured_configured,
+        'browser_configured': browser_configured,
+        'local_ready': bool(base_url_kind == 'local' and structured_configured),
+        'remote_blocked': bool(offline_mode and base_url_kind == 'remote'),
+        'detail': detail,
+        'recommended_envs': {
+            'url': 'SUPABASE_URL',
+            'service_role': 'SUPABASE_SERVICE_ROLE_KEY',
+            'anon': 'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+        },
+    }
 
 
 def _join_url(base_url: str | None, suffix: str) -> str | None:
@@ -428,6 +496,7 @@ def capabilities_json(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
     providers = providers_json(runtime_env)
     extension = build_extension_config(runtime_env)
     extension_profiles = build_extension_profiles(runtime_env)
+    persistence = _persistence_config(runtime_env)
     command_backlog = build_command_backlog()
     command_graph = build_command_graph()
     executable_commands = get_executable_commands()
@@ -456,8 +525,10 @@ def capabilities_json(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
             'remote_disabled': offline_mode,
             'obsidian_expected': True,
             'supabase_optional': True,
-            'local_embedding': get_local_embedding_config(),
+            'local_embedding': _local_embedding_config(runtime_env),
+            'local_vector_index': get_local_vector_index_config(),
         },
+        'persistence': persistence,
         'orchestration': {
             **_ORCHESTRATION_CAPABILITIES,
         },
@@ -824,6 +895,7 @@ def health(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
     cloud = build_cloud_provider_config(runtime_env)
     extension = build_extension_config(runtime_env)
     offline_mode = _is_offline_mode(runtime_env)
+    persistence = _persistence_config(runtime_env)
     local_diagnostics = _provider_runtime_diagnostics(local)
     return {
         'status': 'ok',
@@ -842,6 +914,7 @@ def health(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
             },
         },
         'extension': extension,
+        'persistence': persistence,
         'capabilities': {
             'skills': skills_json(runtime_env)['summary'],
             'commands': capabilities_json(runtime_env)['commands'],
@@ -849,8 +922,10 @@ def health(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
             'orchestration': dict(_ORCHESTRATION_CAPABILITIES),
             'rag': {
                 'offline_primary': 'obsidian',
-                'local_embedding': get_local_embedding_config(),
+                'local_embedding': _local_embedding_config(runtime_env),
+                'local_vector_index': get_local_vector_index_config(),
             },
+            'persistence': persistence,
         },
     }
 
