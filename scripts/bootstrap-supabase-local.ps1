@@ -61,6 +61,7 @@ $envLines += 'DOTOBOT_SUPABASE_MEMORY_TABLE=dotobot_memory_embeddings'
 $envLines += 'DOTOBOT_SUPABASE_EMBEDDING_MODEL=supabase/gte-small'
 
 $envBlock = $envLines -join [Environment]::NewLine
+$resolvedOutputEnvFile = $null
 
 if (-not [string]::IsNullOrWhiteSpace($OutputEnvFile)) {
   $targetFile = if ([System.IO.Path]::IsPathRooted($OutputEnvFile)) {
@@ -69,6 +70,7 @@ if (-not [string]::IsNullOrWhiteSpace($OutputEnvFile)) {
     Join-Path $root $OutputEnvFile
   }
   $envBlock | Set-Content -Path $targetFile -Encoding UTF8
+  $resolvedOutputEnvFile = $targetFile
 }
 
 $missingArtifacts = @($artifactChecks | Where-Object { -not $_.exists })
@@ -100,7 +102,7 @@ if ($missingArtifacts.Count -gt 0) {
   dockerAvailable = $dockerAvailable
   supabaseCliAvailable = $supabaseCliAvailable
   envBlock = $envBlock
-  outputEnvFile = if ([string]::IsNullOrWhiteSpace($OutputEnvFile)) { $null } else { $OutputEnvFile }
+  outputEnvFile = $resolvedOutputEnvFile
   artifacts = $artifactChecks
   missingArtifacts = $missingArtifacts
   nextSteps = $nextSteps
