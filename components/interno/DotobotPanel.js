@@ -133,6 +133,12 @@ function formatBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function getConversationTimestamp(value) {
+  if (!value) return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function parseProviderPresentation(value) {
   if (value && typeof value === "object") {
     const meta = [
@@ -1601,12 +1607,23 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
     filteredConversations = filteredConversations.filter(c => !c.archived);
   }
   if (conversationSort === "recent") {
-    filteredConversations = filteredConversations.slice().sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+    filteredConversations = filteredConversations
+      .slice()
+      .sort((a, b) => getConversationTimestamp(b.updatedAt || b.createdAt) - getConversationTimestamp(a.updatedAt || a.createdAt));
   } else if (conversationSort === "oldest") {
-    filteredConversations = filteredConversations.slice().sort((a, b) => (a.updatedAt || a.createdAt || 0) - (b.updatedAt || b.createdAt || 0));
+    filteredConversations = filteredConversations
+      .slice()
+      .sort((a, b) => getConversationTimestamp(a.updatedAt || a.createdAt) - getConversationTimestamp(b.updatedAt || b.createdAt));
   } else if (conversationSort === "title") {
     filteredConversations = filteredConversations.slice().sort((a, b) => (a.title || "").localeCompare(b.title || ""));
   }
+  const compactRecentConversations = filteredConversations.slice(0, 4);
+  const compactTranscript = messages.slice(-4);
+  const activeConversationPreview =
+    activeConversation?.preview ||
+    activeConversation?.messages?.[activeConversation.messages.length - 1]?.text ||
+    "Nova conversa pronta para receber contexto, tarefas e handoff.";
+  const activeConversationTimestamp = activeConversation?.updatedAt || activeConversation?.createdAt || null;
 
   useEffect(() => {
     if (!localStackReady) return;
@@ -1832,44 +1849,39 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
         </header>
 
         {compactRail ? (
-          <div className="px-4 py-4">
+          <div className="flex h-full min-h-0 flex-col px-4 py-4">
             <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Workspace resumido</p>
-              <p className="mt-2 text-sm leading-6 text-[#9BAEA8]">
-                Conversa recente, prompts rapidos e entrada imediata. Use a tela cheia para trilha completa de tasks e contexto.
-              </p>
-              {ragAlert ? (
-                  <div className={`mt-4 rounded-[18px] border px-3 py-3 text-sm ${
-                    ragAlert.tone === "danger"
-                      ? "border-[#5b2d2d] bg-[rgba(91,45,45,0.22)] text-[#f2d0d0]"
-                      : "border-[#6f5a2d] bg-[rgba(98,79,34,0.2)] text-[#f1dfb5]"
-                  }`}>
-                    <p className="text-[10px] uppercase tracking-[0.16em] opacity-80">Diagnóstico RAG</p>
-                    <p className="mt-2 font-medium text-[#F5F1E8]">{ragAlert.title}</p>
-                    <p className="mt-1 leading-6">{ragAlert.body}</p>
-                    <div className="mt-3">
-                      <button
-                        type="button"
-                        onClick={() => router.push("/interno/agentlab/environment")}
-                        className="rounded-full border border-current px-3 py-1.5 text-[11px] font-semibold transition hover:bg-[rgba(255,255,255,0.06)]"
-                      >
-                        Abrir diagnóstico
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Copilot compacto</p>
+                  <p className="mt-2 truncate text-sm font-semibold text-[#F5F1E8]">
+                    {activeConversation?.title || "Nova conversa"}
+                  </p>
+                  <p className="mt-2 line-clamp-3 text-[12px] leading-6 text-[#9BAEA8]">
+                    {activeConversationPreview}
+                  </p>
+                </div>
                 <button
                   type="button"
-                  onClick={() => router.push("/interno/ai-task")}
-                  className="rounded-full border border-[#C5A059] px-3 py-1.5 text-[11px] font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]"
+                  onClick={() => createConversationFromCurrentState("Nova conversa")}
+                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] font-medium text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                 >
-                  Abrir Copilot
+                  Nova
                 </button>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2 text-[10px]">
+                <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[#D8DEDA]">
+                  {activeProviderPresentation.name}
+                </span>
+                {selectedSkillId ? (
+                  <span className="rounded-full border border-[#35554B] px-2.5 py-1 text-[#B7D5CB]">
+                    skill {selectedSkillId}
+                  </span>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => setContextEnabled((value) => !value)}
-                  className={`rounded-full border px-3 py-1.5 text-[11px] font-medium transition ${
+                  className={`rounded-full border px-2.5 py-1 font-medium transition ${
                     contextEnabled
                       ? "border-[#3E5B50] bg-[rgba(64,122,97,0.16)] text-[#A9E3C3]"
                       : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
@@ -1877,7 +1889,201 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
                 >
                   Contexto {contextEnabled ? "ON" : "OFF"}
                 </button>
+                {activeConversationTimestamp ? (
+                  <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[#7F928C]">
+                    {new Date(activeConversationTimestamp).toLocaleDateString("pt-BR")}
+                  </span>
+                ) : null}
               </div>
+            </div>
+
+            <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4">
+              <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Histórico</p>
+                    <p className="mt-1 text-[12px] text-[#9BAEA8]">Mesmo estado do nodo full e handoff para AI Task.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setWorkspaceOpen(true)}
+                    className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                  >
+                    Ver tudo
+                  </button>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {compactRecentConversations.length ? (
+                    compactRecentConversations.map((conversation) => {
+                      const isActive = conversation.id === activeConversationId;
+                      return (
+                        <button
+                          key={conversation.id}
+                          type="button"
+                          onClick={() => selectConversation(conversation)}
+                          className={`w-full rounded-[18px] border px-3 py-3 text-left transition ${
+                            isActive
+                              ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]"
+                              : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#35554B]"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-[12px] font-semibold text-[#F5F1E8]">{conversation.title}</p>
+                              <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-[#9BAEA8]">{conversation.preview}</p>
+                            </div>
+                            <span className="shrink-0 text-[10px] text-[#60706A]">
+                              {conversation.messages?.length || 0}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-[18px] border border-dashed border-[#22342F] px-3 py-4 text-[12px] text-[#9BAEA8]">
+                      Nenhuma conversa salva ainda.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="min-h-0 flex-1 rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Conversa ativa</p>
+                    <p className="mt-1 text-[12px] text-[#9BAEA8]">Leitura rápida da thread atual.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => router.push("/interno/ai-task")}
+                    className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                  >
+                    AI Task
+                  </button>
+                </div>
+                <div className="mt-3 max-h-[28vh] space-y-2 overflow-y-auto pr-1">
+                  {compactTranscript.length ? (
+                    compactTranscript.map((message, index) => (
+                      <div
+                        key={message.id || `${message.role}-${message.createdAt || index}`}
+                        className={`rounded-[18px] border px-3 py-3 ${
+                          message.role === "user"
+                            ? "border-[#3B3523] bg-[rgba(197,160,89,0.08)]"
+                            : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">
+                            {message.role === "user" ? "Você" : "Dotobot"}
+                          </span>
+                          {message.createdAt ? (
+                            <span className="text-[10px] text-[#60706A]">
+                              {new Date(message.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-[12px] leading-6 text-[#D8DEDA]">
+                          {message.text || (message.role === "assistant" && loading ? "Processando resposta..." : "Sem texto")}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-[18px] border border-dashed border-[#22342F] px-3 py-4 text-[12px] text-[#9BAEA8]">
+                      A conversa começa aqui. Use um prompt curto e siga para o modo full quando precisar de trilha completa.
+                    </div>
+                  )}
+                  {loading ? (
+                    <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3 text-[12px] text-[#9BAEA8]">
+                      Dotobot está preparando a próxima resposta...
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            {ragAlert ? (
+              <div className={`mt-4 rounded-[18px] border px-3 py-3 text-sm ${
+                ragAlert.tone === "danger"
+                  ? "border-[#5b2d2d] bg-[rgba(91,45,45,0.22)] text-[#f2d0d0]"
+                  : "border-[#6f5a2d] bg-[rgba(98,79,34,0.2)] text-[#f1dfb5]"
+              }`}>
+                <p className="text-[10px] uppercase tracking-[0.16em] opacity-80">Diagnóstico RAG</p>
+                <p className="mt-2 font-medium text-[#F5F1E8]">{ragAlert.title}</p>
+                <p className="mt-1 text-[12px] leading-6">{ragAlert.body}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => router.push("/interno/agentlab/environment")}
+                    className="rounded-full border border-current px-3 py-1.5 text-[11px] font-semibold transition hover:bg-[rgba(255,255,255,0.06)]"
+                  >
+                    Abrir diagnóstico
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openLlmTest(provider, input)}
+                    className="rounded-full border border-current px-3 py-1.5 text-[11px] font-semibold transition hover:bg-[rgba(255,255,255,0.06)]"
+                  >
+                    LLM Test
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-4 rounded-[24px] border border-[#22342F] bg-[rgba(7,9,8,0.98)] p-4">
+              <div className="mb-3 flex flex-wrap gap-2">
+                {visibleQuickPrompts.map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#C6D1CC] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                    onClick={() => setInput(prompt)}
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+              <form onSubmit={handleSubmit} className="space-y-3">
+                <textarea
+                  ref={composerRef}
+                  value={input}
+                  onChange={(event) => {
+                    setInput(event.target.value);
+                    setShowSlashCommands(event.target.value.trimStart().startsWith("/"));
+                  }}
+                  onKeyDown={handleComposerKeyDown}
+                  onPaste={handlePaste}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={handleDrop}
+                  rows={3}
+                  placeholder="Converse com o Dotobot, delegue uma tarefa ou faça um handoff..."
+                  className="w-full resize-none rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm outline-none transition focus:border-[#C5A059]"
+                />
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => router.push("/interno/ai-task")}
+                      className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                    >
+                      AI Task
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWorkspaceOpen(true)}
+                      className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                    >
+                      Nodo full
+                    </button>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading || !input.trim()}
+                    className="rounded-2xl border border-[#C5A059] px-4 py-2 text-sm font-semibold text-[#C5A059] transition disabled:opacity-40"
+                  >
+                    Enviar
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         ) : !railCollapsed ? (
