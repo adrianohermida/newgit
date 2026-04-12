@@ -92,3 +92,48 @@ Isso melhora:
 - consistÃªncia entre Supabase e CRM;
 - rastreabilidade para o usuÃ¡rio final antes mesmo da timeline estar 100% drenada.
 
+## PendÃªncias atualizadas em 2026-04-12
+
+### JÃ¡ consolidado no `main`
+
+- trilha financeira canÃ´nica `Freshsales + Supabase billing`;
+- painel e API operacional HMADV com leituras de overview, filas e histÃ³rico;
+- worker HMADV IA e deploy Cloudflare estabilizados;
+- migraÃ§Ã£o [040_create_hmadv_processo_cobertura_sync.sql](D:/Github/newgit/supabase/migrations/040_create_hmadv_processo_cobertura_sync.sql) adicionada para destravar a leitura de cobertura processual esperada pelo painel.
+
+### Parcial no `main`
+
+- endpoints e telas administrativas jÃ¡ consultam `processo_cobertura_sync`;
+- o lote essencial de edge functions tambÃ©m jÃ¡ foi portado:
+  - `datajud-search`
+  - `datajud-worker`
+  - `fs-account-repair`
+  - `processo-sync`
+  - `sync-worker`
+- migrations auxiliares deste lote tambÃ©m jÃ¡ foram versionadas:
+  - `041_create_hmadv_sync_worker_status.sql`
+  - `042_create_hmadv_advise_sync_and_divergencias.sql`
+- integraÃ§Ã£o `custom provider -> worker HMADV IA` validada, mas a validaÃ§Ã£o ponta a ponta do fluxo judicial operacional ainda depende de aplicar as migrations no banco e exercitar as funÃ§Ãµes em ambiente com `Supabase CLI`/deploy.
+
+### Ainda pendente de portar do `_hmadv_review`
+
+- functions Supabase complementares:
+  - `fs-webhook`
+  - `publicacoes-freshsales`
+  - `sync-advise-backfill`
+  - `sync-advise-publicacoes`
+  - `sync-advise-realtime`
+- migrations HMADV operacionais complementares:
+  - grants/complementos TPU
+  - contatos/status
+  - prazos
+  - operaÃ§Ã£o execuÃ§Ãµes/jobs
+  - cobertura/sync complementar
+
+### PrÃ³xima ordem recomendada
+
+1. aplicar as migrations HMADV novas no banco de destino e validar permissÃµes/relaÃ§Ãµes reais;
+2. executar validaÃ§Ã£o integrada das funÃ§Ãµes `datajud-worker`, `processo-sync`, `fs-account-repair` e `sync-worker`;
+3. portar o lote complementar de realtime/backfill do `Advise`;
+4. sÃ³ entÃ£o ligar a esteira completa em produÃ§Ã£o sem fallback manual.
+
