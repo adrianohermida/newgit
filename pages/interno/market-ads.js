@@ -740,6 +740,10 @@ function MarketAdsContent() {
           <Tile label="CTR medio" value={`${data?.overview?.averageCtr || "0.0"}%`} helper="Aderencia atual entre mensagem e publico." />
           <Tile label="CPA medio" value={data?.overview?.averageCpa || "R$ 0,00"} helper="Custo medio de aquisicao no recorte atual." />
         </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <Tile label="Receita atribuida" value={data?.overview?.realRevenue || "R$ 0,00"} helper="Valor real registrado nas atribuicoes do modulo." />
+          <Tile label="ROI real" value={data?.overview?.realRoi || "0.00"} helper="Receita atribuida dividida pela verba consolidada." />
+        </div>
       </Panel>
 
       {state.loading ? <Panel title="Carregando modulo" helper="Buscando benchmarks, campanhas e compliance." /> : null}
@@ -1592,6 +1596,17 @@ function MarketAdsContent() {
                           <div key={item.id} className="rounded-[12px] border border-[#22342F] px-3 py-2 text-sm text-[#C7D0CA]">
                             <p>{item.name}</p>
                             <p className="mt-1 text-[#8FA29B]">leads {item.leads} · clientes {item.clients} · valor {money(item.value)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3">
+                      <p className="font-semibold text-[#F5F1E8]">ROI real por campanha</p>
+                      <div className="mt-3 space-y-2">
+                        {(data.revenueOverview?.byCampaign || []).map((item) => (
+                          <div key={item.id} className="rounded-[12px] border border-[#22342F] px-3 py-2 text-sm text-[#C7D0CA]">
+                            <p>{item.name}</p>
+                            <p className="mt-1 text-[#8FA29B]">receita {money(item.revenue)} · verba {money(item.budget)} · roi {Number(item.roiReal || 0).toFixed(2)}</p>
                           </div>
                         ))}
                       </div>

@@ -174,7 +174,7 @@ class ApiServerTests(unittest.TestCase):
         }
 
         with patch('api.server._json_request') as mocked_request, patch('api.server._json_get_request') as mocked_get:
-            mocked_request.side_effect = [RuntimeError('404')]
+            mocked_request.side_effect = [RuntimeError('404'), RuntimeError('404')]
             mocked_get.return_value = {'object': 'list', 'data': [{'id': 'llama3.1:latest'}]}
 
             health_payload = health(env)
