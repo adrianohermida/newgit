@@ -1877,7 +1877,15 @@ const [contextEnabled, setContextEnabled] = useState(true);
                         {item}
                       </span>
                     ))}
+                    {activeProviderPresentation.endpoint ? (
+                      <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
+                        {activeProviderPresentation.endpoint}
+                      </span>
+                    ) : null}
                   </div>
+                  {activeProviderPresentation.reason ? (
+                    <p className="mt-2 max-w-3xl text-[11px] leading-6 text-[#7F928C]">{activeProviderPresentation.reason}</p>
+                  ) : null}
                   {ragAlert ? (
                     <div className={`mt-4 max-w-3xl rounded-[20px] border px-4 py-3 text-sm ${
                       ragAlert.tone === "danger"

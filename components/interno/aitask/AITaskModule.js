@@ -334,6 +334,14 @@ export default function AITaskModule({ profile, routePath }) {
             value: item.id,
             label: `${item.label}${item.model ? ` · ${item.model}` : ""}${item.status ? ` · ${item.status}` : ""}`,
             disabled: !item.available,
+            displayLabel: item.label,
+            model: item.model || null,
+            status: item.status || null,
+            transport: item.transport || null,
+            runtimeMode: item.details?.probe?.mode || null,
+            host: item.details?.config?.host || null,
+            endpoint: item.details?.probe?.endpoint || item.details?.config?.baseUrl || null,
+            reason: item.reason || null,
           }))
         );
         setProvider((current) =>

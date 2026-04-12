@@ -181,6 +181,14 @@ export function WorkspaceHeader({
       : String(providerStatus || "").toLowerCase() === "failed"
         ? "danger"
         : "accent";
+  const resolvedProviderName = activeProvider?.displayLabel || providerName;
+  const resolvedProviderMeta = [
+    activeProvider?.model,
+    activeProvider?.status,
+    activeProvider?.transport,
+    activeProvider?.runtimeMode,
+    activeProvider?.host ? `host:${activeProvider.host}` : null,
+  ].filter(Boolean);
   return (
     <section className="rounded-[28px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(11,15,14,0.98),rgba(7,10,9,0.98))] px-5 py-4 shadow-[0_18px_54px_rgba(0,0,0,0.24)]">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -194,7 +202,7 @@ export function WorkspaceHeader({
         <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[520px] xl:grid-cols-4">
           <MetricPill label="Status" value={stateLabel} tone={stateLabel === "Falhou" ? "danger" : stateLabel === "Concluído" ? "success" : "accent"} />
           <MetricPill label="Modo" value={activeModeLabel} />
-          <MetricPill label="Provider" value={providerName} tone={providerTone} />
+          <MetricPill label="Provider" value={resolvedProviderName} tone={providerTone} />
           <MetricPill label="Eventos" value={eventsTotal} />
         </div>
       </div>
@@ -217,11 +225,16 @@ export function WorkspaceHeader({
         <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
           Execução: {`${formatExecutionSourceLabel(executionSource)}${executionModel ? ` / ${executionModel}` : ""}`}
         </span>
-        {providerMeta.map((item) => (
+        {resolvedProviderMeta.map((item) => (
           <span key={item} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#9BAEA8]">
             {item}
           </span>
         ))}
+        {activeProvider?.endpoint ? (
+          <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB]">
+            {activeProvider.endpoint}
+          </span>
+        ) : null}
         <button type="button" onClick={handlePause} className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
           {paused ? "Retomar fluxo" : "Pausar fluxo"}
         </button>
@@ -241,6 +254,9 @@ export function WorkspaceHeader({
           Abrir Dotobot
         </button>
       </div>
+      {activeProvider?.reason ? (
+        <p className="mt-3 text-[11px] leading-6 text-[#7F928C]">{activeProvider.reason}</p>
+      ) : null}
       {ragAlert ? (
         <div className={`mt-4 rounded-[20px] border px-4 py-3 text-sm ${
           ragAlert.tone === "danger"
