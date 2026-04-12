@@ -41,7 +41,13 @@ import {
 import { useAiTaskRun } from "./useAiTaskRun";
 import { useAiTaskWorkspace } from "./useAiTaskWorkspace";
 import { extractModuleKeysFromContext, resolveModuleEntries } from "../../../lib/admin/module-registry.js";
-import { applyBrowserLocalOfflinePolicy, hydrateBrowserLocalProviderOptions, probeBrowserLocalStackSummary } from "../../../lib/lawdesk/browser-local-runtime";
+import {
+  applyBrowserLocalOfflinePolicy,
+  getBrowserLocalRuntimeConfig,
+  hydrateBrowserLocalProviderOptions,
+  persistBrowserLocalRuntimeConfig,
+  probeBrowserLocalStackSummary,
+} from "../../../lib/lawdesk/browser-local-runtime";
 import { resolvePreferredLawdeskProvider } from "../../../lib/lawdesk/providers.js";
 import { listSkills } from "../../../lib/lawdesk/skill_registry.js";
 
@@ -255,6 +261,8 @@ export default function AITaskModule({ profile, routePath }) {
   const [skillCatalog, setSkillCatalog] = useState(FALLBACK_SKILL_OPTIONS);
   const [localStackSummary, setLocalStackSummary] = useState(null);
   const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
+  const [localRuntimeConfigOpen, setLocalRuntimeConfigOpen] = useState(false);
+  const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocalRuntimeConfig());
   const [ragHealth, setRagHealth] = useState(null);
   const [historyPage, setHistoryPage] = useState(1);
   const [taskViewMode, setTaskViewMode] = useState("kanban");
@@ -427,6 +435,10 @@ export default function AITaskModule({ profile, routePath }) {
     );
   }, [localStackSummary]);
 
+  useEffect(() => {
+    setLocalRuntimeDraft(getBrowserLocalRuntimeConfig());
+  }, [localStackSummary]);
+
   const localStackReady = Boolean(localStackSummary?.ok && localStackSummary?.localProvider?.available);
 
   useEffect(() => {
@@ -465,6 +477,12 @@ export default function AITaskModule({ profile, routePath }) {
     } finally {
       setRefreshingLocalStack(false);
     }
+  }
+
+  async function handleSaveLocalRuntimeConfig() {
+    persistBrowserLocalRuntimeConfig(localRuntimeDraft);
+    setLocalRuntimeConfigOpen(false);
+    await refreshLocalStackStatus();
   }
 
   useEffect(() => {
@@ -584,6 +602,18 @@ export default function AITaskModule({ profile, routePath }) {
   function handleLocalStackAction(actionId) {
     if (actionId === "open_llm_test") {
       handleOpenLlmTest();
+      return;
+    }
+    if (actionId === "open_runtime_config") {
+      setLocalRuntimeConfigOpen(true);
+      return;
+    }
+    if (actionId === "testar_llm_local") {
+      handleOpenLlmTest();
+      return;
+    }
+    if (actionId === "abrir_diagnostico") {
+      handleOpenDiagnostics();
       return;
     }
     if (actionId === "open_environment") {
@@ -823,6 +853,7 @@ export default function AITaskModule({ profile, routePath }) {
           skillOptions={skillCatalog}
           providerOptions={providerCatalog}
           localStackSummary={localStackSummary}
+          ragHealth={ragHealth}
           ragAlert={ragAlert}
           onProviderChange={setProvider}
           onSkillChange={setSelectedSkillId}
@@ -840,6 +871,11 @@ export default function AITaskModule({ profile, routePath }) {
           handleOpenDotobot={handleOpenDotobot}
           handleRefreshLocalStack={refreshLocalStackStatus}
           handleLocalStackAction={handleLocalStackAction}
+          localRuntimeConfigOpen={localRuntimeConfigOpen}
+          onToggleLocalRuntimeConfig={() => setLocalRuntimeConfigOpen((current) => !current)}
+          localRuntimeDraft={localRuntimeDraft}
+          onLocalRuntimeDraftChange={setLocalRuntimeDraft}
+          onSaveLocalRuntimeConfig={handleSaveLocalRuntimeConfig}
           refreshingLocalStack={refreshingLocalStack}
           formatExecutionSourceLabel={formatExecutionSourceLabel}
         />

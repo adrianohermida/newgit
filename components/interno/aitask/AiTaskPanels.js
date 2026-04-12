@@ -1,3 +1,6 @@
+import { buildOfflineHealthSnapshot } from "../../../lib/lawdesk/offline-health.js";
+import { buildLocalBootstrapPlan } from "../../../lib/lawdesk/local-bootstrap.js";
+
 export function TaskCard({ task, isSelected, onSelect, compact = false, draggable = false, onDragStart = null }) {
   const statusTone = {
     pending: "text-[#9BAEA8] border-[#22342F]",
@@ -157,6 +160,7 @@ export function WorkspaceHeader({
   skillOptions = [],
   providerOptions = [],
   localStackSummary = null,
+  ragHealth = null,
   ragAlert = null,
   onProviderChange,
   onSkillChange,
@@ -172,6 +176,11 @@ export function WorkspaceHeader({
   handleOpenDotobot,
   handleRefreshLocalStack,
   handleLocalStackAction,
+  localRuntimeConfigOpen = false,
+  onToggleLocalRuntimeConfig,
+  localRuntimeDraft = null,
+  onLocalRuntimeDraftChange,
+  onSaveLocalRuntimeConfig,
   refreshingLocalStack = false,
   paused,
   formatExecutionSourceLabel,
@@ -203,6 +212,8 @@ export function WorkspaceHeader({
   const browserExtensionProfiles = localStackSummary?.capabilities?.browserExtensionProfiles || null;
   const activeBrowserProfile =
     browserExtensionProfiles?.profiles?.[browserExtensionProfiles?.active_profile] || null;
+  const offlineHealthSnapshot = buildOfflineHealthSnapshot({ localStackSummary, ragHealth });
+  const localBootstrapPlan = buildLocalBootstrapPlan({ localStackSummary, ragHealth });
   return (
     <section className="rounded-[28px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(11,15,14,0.98),rgba(7,10,9,0.98))] px-5 py-4 shadow-[0_18px_54px_rgba(0,0,0,0.24)]">
       <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">
@@ -322,6 +333,13 @@ export function WorkspaceHeader({
         >
           {refreshingLocalStack ? "Atualizando stack..." : "Atualizar stack local"}
         </button>
+        <button
+          type="button"
+          onClick={onToggleLocalRuntimeConfig}
+          className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+        >
+          {localRuntimeConfigOpen ? "Fechar runtime local" : "Editar runtime local"}
+        </button>
       </div>
       {localStackSummary ? (
         <p className="mt-3 text-[11px] leading-6 text-[#7F928C]">
@@ -329,6 +347,114 @@ export function WorkspaceHeader({
             ? `ai-core local ativo${localStackSummary.offlineMode ? " em modo offline" : ""} com ${localStackSummary.localProvider?.model || "modelo local"} via ${localRuntimeLabel}.`
             : "O runtime local ainda nao respondeu nesta sessao. Suba o ai-core local, configure o vault e ligue a extensao para o modo da maquina."}
         </p>
+      ) : null}
+      {offlineHealthSnapshot.items.length ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {offlineHealthSnapshot.items.map((item) => (
+            <span
+              key={item.id}
+              title={item.detail || item.value}
+              className={`rounded-full border px-3 py-1.5 text-[11px] ${
+                item.tone === "success"
+                  ? "border-[#234034] text-[#8FCFA9]"
+                  : item.tone === "danger"
+                    ? "border-[#5b2d2d] text-[#f2b2b2]"
+                    : "border-[#3B3523] text-[#D9C38A]"
+              }`}
+            >
+              {item.label}: {item.value}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {localBootstrapPlan.steps.length ? (
+        <div className="mt-4 rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Bootstrap local</p>
+              <p className="mt-1 text-sm text-[#F5F1E8]">
+                {localBootstrapPlan.requiredCompleted}/{localBootstrapPlan.requiredTotal} etapas essenciais concluídas
+              </p>
+            </div>
+            <span className={`rounded-full border px-3 py-1.5 text-[11px] ${
+              localBootstrapPlan.readyForOfflineCore
+                ? "border-[#234034] text-[#8FCFA9]"
+                : "border-[#3B3523] text-[#D9C38A]"
+            }`}>
+              {localBootstrapPlan.readyForOfflineCore ? "Offline core pronto" : "Setup em andamento"}
+            </span>
+          </div>
+          <div className="mt-3 grid gap-2 xl:grid-cols-2">
+            {localBootstrapPlan.steps.map((step) => (
+              <div key={step.id} className="rounded-[18px] border border-[#22342F] bg-[rgba(7,9,8,0.65)] px-3 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold text-[#F5F1E8]">{step.title}</p>
+                    <p className="mt-1 text-[11px] leading-6 text-[#9BAEA8]">{step.detail}</p>
+                  </div>
+                  <span className={`rounded-full border px-2.5 py-1 text-[10px] ${
+                    step.done
+                      ? "border-[#234034] text-[#8FCFA9]"
+                      : step.optional
+                        ? "border-[#3B3523] text-[#D9C38A]"
+                        : "border-[#5b2d2d] text-[#f2b2b2]"
+                  }`}>
+                    {step.done ? "OK" : step.optional ? "Opcional" : "Pendente"}
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => handleLocalStackAction?.(step.action)}
+                    className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                  >
+                    {step.action === "testar_llm_local" ? "Testar runtime" : "Abrir diagnóstico"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {localRuntimeConfigOpen ? (
+        <div className="mt-4 rounded-[20px] border border-[#22342F] bg-[rgba(7,9,8,0.7)] p-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Configuração persistente do runtime local</p>
+          <div className="mt-3 grid gap-3 xl:grid-cols-3">
+            <label className="text-[11px] text-[#D8DEDA]">
+              <span className="mb-2 block text-[#7F928C]">Runtime base URL</span>
+              <input
+                value={localRuntimeDraft?.runtimeBaseUrl || ""}
+                onChange={(event) => onLocalRuntimeDraftChange?.((current) => ({ ...current, runtimeBaseUrl: event.target.value }))}
+                className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
+              />
+            </label>
+            <label className="text-[11px] text-[#D8DEDA]">
+              <span className="mb-2 block text-[#7F928C]">Modelo local</span>
+              <input
+                value={localRuntimeDraft?.localModel || ""}
+                onChange={(event) => onLocalRuntimeDraftChange?.((current) => ({ ...current, localModel: event.target.value }))}
+                className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
+              />
+            </label>
+            <label className="text-[11px] text-[#D8DEDA]">
+              <span className="mb-2 block text-[#7F928C]">Extensão local URL</span>
+              <input
+                value={localRuntimeDraft?.extensionBaseUrl || ""}
+                onChange={(event) => onLocalRuntimeDraftChange?.((current) => ({ ...current, extensionBaseUrl: event.target.value }))}
+                className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
+              />
+            </label>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onSaveLocalRuntimeConfig}
+              className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+            >
+              Salvar e recarregar
+            </button>
+          </div>
+        </div>
       ) : null}
       {capabilitiesSkills?.total || capabilitiesCommands?.total ? (
         <p className="mt-2 text-[11px] leading-6 text-[#7F928C]">

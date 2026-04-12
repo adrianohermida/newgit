@@ -9,13 +9,17 @@ import { useRouter } from "next/router";
 import { adminFetch } from "../../lib/admin/api";
 import {
   applyBrowserLocalOfflinePolicy,
+  getBrowserLocalRuntimeConfig,
   hydrateBrowserLocalProviderOptions,
   invokeBrowserLocalMessages,
   isBrowserLocalProvider,
+  persistBrowserLocalRuntimeConfig,
   probeBrowserLocalStackSummary,
 } from "../../lib/lawdesk/browser-local-runtime";
 import { resolvePreferredLawdeskProvider } from "../../lib/lawdesk/providers.js";
 import { listSkills } from "../../lib/lawdesk/skill_registry.js";
+import { buildOfflineHealthSnapshot } from "../../lib/lawdesk/offline-health.js";
+import { buildLocalBootstrapPlan } from "../../lib/lawdesk/local-bootstrap.js";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import { cancelTaskRun, createPendingTaskRun, pollTaskRun, startTaskRun } from "./dotobotTaskRun";
 import { appendActivityLog, getModuleHistory, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
@@ -566,6 +570,8 @@ const [ragHealth, setRagHealth] = useState(null);
 const [contextEnabled, setContextEnabled] = useState(true);
 const [localStackSummary, setLocalStackSummary] = useState(null);
 const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
+const [localRuntimeConfigOpen, setLocalRuntimeConfigOpen] = useState(false);
+const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocalRuntimeConfig());
   const [rightPanelTab, setRightPanelTab] = useState("tasks");
   const [attachments, setAttachments] = useState([]);
   const [showSlashCommands, setShowSlashCommands] = useState(false);
@@ -690,6 +696,10 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
     );
   }, [localStackSummary]);
 
+  useEffect(() => {
+    setLocalRuntimeDraft(getBrowserLocalRuntimeConfig());
+  }, [localStackSummary]);
+
   async function refreshLocalStackStatus() {
     setRefreshingLocalStack(true);
     try {
@@ -712,9 +722,27 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
     }
   }
 
+  async function handleSaveLocalRuntimeConfig() {
+    persistBrowserLocalRuntimeConfig(localRuntimeDraft);
+    setLocalRuntimeConfigOpen(false);
+    await refreshLocalStackStatus();
+  }
+
   function handleLocalStackAction(actionId) {
     if (actionId === "open_llm_test") {
       openLlmTest("local", input);
+      return;
+    }
+    if (actionId === "open_runtime_config") {
+      setLocalRuntimeConfigOpen(true);
+      return;
+    }
+    if (actionId === "testar_llm_local") {
+      openLlmTest("local", input || "Resuma em 3 bullets como o runtime local está operando offline.");
+      return;
+    }
+    if (actionId === "abrir_diagnostico") {
+      router.push("/interno/agentlab/environment");
       return;
     }
     if (actionId === "open_environment") {
@@ -1608,6 +1636,8 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
   const activeBrowserProfile =
     browserExtensionProfiles?.profiles?.[browserExtensionProfiles?.active_profile] || null;
   const ragAlert = buildRagAlert(ragHealth);
+  const offlineHealthSnapshot = buildOfflineHealthSnapshot({ localStackSummary, ragHealth });
+  const localBootstrapPlan = buildLocalBootstrapPlan({ localStackSummary, ragHealth });
   const isWorkspaceShell = workspaceOpen;
   const railCollapsed = compactRail ? true : isCollapsed;
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
@@ -1771,6 +1801,121 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
                     : "O runtime local ainda nao respondeu; suba o ai-core e a extensao local para habilitar o modo da sua maquina."}
                 </p>
               ) : null}
+              {offlineHealthSnapshot.items.length ? (
+                <div className="mt-3 flex max-w-3xl flex-wrap gap-2">
+                  {offlineHealthSnapshot.items.map((item) => (
+                    <span
+                      key={item.id}
+                      title={item.detail || item.value}
+                      className={`rounded-full border px-3 py-1.5 text-[11px] ${
+                        item.tone === "success"
+                          ? "border-[#234034] text-[#8FCFA9]"
+                          : item.tone === "danger"
+                            ? "border-[#5b2d2d] text-[#f2b2b2]"
+                            : "border-[#3B3523] text-[#D9C38A]"
+                      }`}
+                    >
+                      {item.label}: {item.value}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {localBootstrapPlan.steps.length ? (
+                <div className="mt-4 rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Bootstrap local</p>
+                      <p className="mt-1 text-sm text-[#F5F1E8]">
+                        {localBootstrapPlan.requiredCompleted}/{localBootstrapPlan.requiredTotal} etapas essenciais concluídas
+                      </p>
+                    </div>
+                    <span className={`rounded-full border px-3 py-1.5 text-[11px] ${
+                      localBootstrapPlan.readyForOfflineCore
+                        ? "border-[#234034] text-[#8FCFA9]"
+                        : "border-[#3B3523] text-[#D9C38A]"
+                    }`}>
+                      {localBootstrapPlan.readyForOfflineCore ? "Offline core pronto" : "Setup em andamento"}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-2 xl:grid-cols-2">
+                    {localBootstrapPlan.steps.map((step) => (
+                      <div key={step.id} className="rounded-[18px] border border-[#22342F] bg-[rgba(7,9,8,0.65)] px-3 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[11px] font-semibold text-[#F5F1E8]">{step.title}</p>
+                            <p className="mt-1 text-[11px] leading-6 text-[#9BAEA8]">{step.detail}</p>
+                          </div>
+                          <span className={`rounded-full border px-2.5 py-1 text-[10px] ${
+                            step.done
+                              ? "border-[#234034] text-[#8FCFA9]"
+                              : step.optional
+                                ? "border-[#3B3523] text-[#D9C38A]"
+                                : "border-[#5b2d2d] text-[#f2b2b2]"
+                          }`}>
+                            {step.done ? "OK" : step.optional ? "Opcional" : "Pendente"}
+                          </span>
+                        </div>
+                        <div className="mt-3">
+                          <button
+                            type="button"
+                            onClick={() => handleLocalStackAction(step.action)}
+                            className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                          >
+                            {step.action === "testar_llm_local" ? "Testar runtime" : "Abrir diagnóstico"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {localRuntimeConfigOpen ? (
+                <div className="mt-4 rounded-[20px] border border-[#22342F] bg-[rgba(7,9,8,0.7)] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Configuração persistente do runtime local</p>
+                  <div className="mt-3 grid gap-3 xl:grid-cols-3">
+                    <label className="text-[11px] text-[#D8DEDA]">
+                      <span className="mb-2 block text-[#7F928C]">Runtime base URL</span>
+                      <input
+                        value={localRuntimeDraft.runtimeBaseUrl || ""}
+                        onChange={(event) => setLocalRuntimeDraft((current) => ({ ...current, runtimeBaseUrl: event.target.value }))}
+                        className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
+                      />
+                    </label>
+                    <label className="text-[11px] text-[#D8DEDA]">
+                      <span className="mb-2 block text-[#7F928C]">Modelo local</span>
+                      <input
+                        value={localRuntimeDraft.localModel || ""}
+                        onChange={(event) => setLocalRuntimeDraft((current) => ({ ...current, localModel: event.target.value }))}
+                        className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
+                      />
+                    </label>
+                    <label className="text-[11px] text-[#D8DEDA]">
+                      <span className="mb-2 block text-[#7F928C]">Extensão local URL</span>
+                      <input
+                        value={localRuntimeDraft.extensionBaseUrl || ""}
+                        onChange={(event) => setLocalRuntimeDraft((current) => ({ ...current, extensionBaseUrl: event.target.value }))}
+                        className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
+                      />
+                    </label>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveLocalRuntimeConfig}
+                      className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                    >
+                      Salvar e recarregar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLocalRuntimeDraft(getBrowserLocalRuntimeConfig())}
+                      className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                    >
+                      Restaurar valores atuais
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               {capabilitiesSkills?.total || capabilitiesCommands?.total ? (
                 <p className="mt-2 max-w-3xl text-[11px] leading-6 text-[#7F928C]">
                   {[
@@ -1823,6 +1968,13 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
                 className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:cursor-wait disabled:opacity-60"
               >
                 {refreshingLocalStack ? "Atualizando stack..." : "Atualizar stack local"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setLocalRuntimeConfigOpen((current) => !current)}
+                className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+              >
+                {localRuntimeConfigOpen ? "Fechar runtime local" : "Editar runtime local"}
               </button>
               {compactRail ? (
                   <div className="flex w-full flex-col gap-2 sm:w-auto">
@@ -1891,7 +2043,7 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
                   Nova
                 </button>
               </div>
-              <div className="mt-4 flex flex-wrap gap-2 text-[10px]">
+                  <div className="mt-4 flex flex-wrap gap-2 text-[10px]">
                 <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[#D8DEDA]">
                   {activeProviderPresentation.name}
                 </span>
@@ -1923,6 +2075,91 @@ const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
                 ) : null}
               </div>
             </div>
+            {offlineHealthSnapshot.items.length ? (
+              <div className="mt-4 rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Saúde offline</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {offlineHealthSnapshot.items.map((item) => (
+                    <span
+                      key={item.id}
+                      title={item.detail || item.value}
+                      className={`rounded-full border px-3 py-1.5 text-[11px] ${
+                        item.tone === "success"
+                          ? "border-[#234034] text-[#8FCFA9]"
+                          : item.tone === "danger"
+                            ? "border-[#5b2d2d] text-[#f2b2b2]"
+                            : "border-[#3B3523] text-[#D9C38A]"
+                      }`}
+                    >
+                      {item.label}: {item.value}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {localBootstrapPlan.steps.length ? (
+              <div className="mt-4 rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Bootstrap local</p>
+                  <span className="text-[11px] text-[#9BAEA8]">
+                    {localBootstrapPlan.requiredCompleted}/{localBootstrapPlan.requiredTotal}
+                  </span>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {localBootstrapPlan.steps.slice(0, 3).map((step) => (
+                    <div key={step.id} className="rounded-[18px] border border-[#22342F] px-3 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[12px] font-semibold text-[#F5F1E8]">{step.title}</p>
+                          <p className="mt-1 text-[11px] leading-5 text-[#9BAEA8]">{step.detail}</p>
+                        </div>
+                        <span className={`rounded-full border px-2 py-1 text-[10px] ${
+                          step.done
+                            ? "border-[#234034] text-[#8FCFA9]"
+                            : step.optional
+                              ? "border-[#3B3523] text-[#D9C38A]"
+                              : "border-[#5b2d2d] text-[#f2b2b2]"
+                        }`}>
+                          {step.done ? "OK" : "Pend."}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {localRuntimeConfigOpen ? (
+              <div className="mt-4 rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Runtime local</p>
+                <div className="mt-3 space-y-2">
+                  <input
+                    value={localRuntimeDraft.runtimeBaseUrl || ""}
+                    onChange={(event) => setLocalRuntimeDraft((current) => ({ ...current, runtimeBaseUrl: event.target.value }))}
+                    placeholder="http://127.0.0.1:8000"
+                    className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
+                  />
+                  <input
+                    value={localRuntimeDraft.localModel || ""}
+                    onChange={(event) => setLocalRuntimeDraft((current) => ({ ...current, localModel: event.target.value }))}
+                    placeholder="aetherlab-legal-local-v1"
+                    className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
+                  />
+                  <input
+                    value={localRuntimeDraft.extensionBaseUrl || ""}
+                    onChange={(event) => setLocalRuntimeDraft((current) => ({ ...current, extensionBaseUrl: event.target.value }))}
+                    placeholder="http://127.0.0.1:32123"
+                    className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveLocalRuntimeConfig}
+                    className="w-full rounded-2xl border border-[#35554B] px-4 py-2 text-sm font-semibold text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                  >
+                    Salvar e recarregar
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4">
               <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">

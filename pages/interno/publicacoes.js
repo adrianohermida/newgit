@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch as adminFetchRaw } from "../../lib/admin/api";
-import { appendActivityLog, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
+import { appendActivityLog, appendFrontendIssue, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
 
 const PUBLICACOES_VIEW_ITEMS = [
   { key: "operacao", label: "Operacao" },
@@ -1291,6 +1291,13 @@ function PublicacoesContent() {
     });
   }
 
+  function buildAdminErrorDetail(path, meta, error) {
+    const status = error?.status ? `HTTP ${error.status}` : "sem status";
+    const payloadType = error?.payload?.errorType ? `payload ${error.payload.errorType}` : "payload n/d";
+    const expectation = meta.expectation || meta.label || meta.action || "consultar backend";
+    return `[layout/publicacoes] ${meta.component || "publicacoes"} falhou em ${path} (${status}; ${payloadType}). Impacto esperado na UI: ${expectation}. Mensagem: ${error?.message || "falha administrativa"}`;
+  }
+
   async function adminFetch(path, init = {}, meta = {}) {
     const startedAt = Date.now();
     const method = String(init?.method || "GET").toUpperCase();
@@ -1329,10 +1336,26 @@ function PublicacoesContent() {
       });
       return payload;
     } catch (error) {
+      const errorDetail = buildAdminErrorDetail(path, meta, error);
       updateActivityLog(entryId, {
         status: "error",
         durationMs: Date.now() - startedAt,
-        error: stringifyLogPayload(error?.payload || error?.message || error),
+        error: stringifyLogPayload({
+          message: error?.message || "Falha administrativa",
+          status: error?.status || null,
+          payload: error?.payload || null,
+          path,
+          component: meta.component || "publicacoes",
+          action,
+          expectation: meta.expectation || null,
+          detail: errorDetail,
+        }),
+      });
+      appendFrontendIssue({
+        page: "/interno/publicacoes",
+        component: meta.component || "publicacoes",
+        detail: errorDetail,
+        status: "aberto",
       });
       throw error;
     }
@@ -2202,6 +2225,26 @@ function PublicacoesContent() {
   const recurringPublicacoesBatch = deriveSuggestedPublicacoesBatch(recurringPublicacoesSummary, recurringPublicacoesBands);
   const recurringPublicacoesActions = deriveSuggestedPublicacoesActions(recurringPublicacoesSummary, recurringPublicacoesBands);
   const recurringPublicacoesChecklist = deriveSuggestedPublicacoesChecklist(recurringPublicacoesSummary, recurringPublicacoesBands);
+  const queueDiagnostics = [
+    processCandidates.error ? {
+      key: "processos",
+      title: "Fila de processos criaveis",
+      message: processCandidates.error,
+      target: { view: "filas", hash: "publicacoes-fila-processos-criaveis" },
+    } : null,
+    partesCandidates.error ? {
+      key: "partes",
+      title: "Fila de partes extraiveis",
+      message: partesCandidates.error,
+      target: { view: "filas", hash: "publicacoes-fila-partes-extraiveis" },
+    } : null,
+    integratedQueue.error ? {
+      key: "mesa",
+      title: "Mesa integrada",
+      message: integratedQueue.error,
+      target: { view: "filas", hash: "publicacoes-mesa-integrada" },
+    } : null,
+  ].filter(Boolean);
   const primaryPublicacoesAction = derivePrimaryPublicacoesAction(recurringPublicacoesActions);
   const partesBacklogCount = Number(partesCandidates.totalRows || partesCandidates.items.length || 0);
   const syncWorkerShouldFocusCrm = Number(data.publicacoesPendentesComAccount || 0) > 0;
@@ -2717,6 +2760,25 @@ function PublicacoesContent() {
       </div> : null}
 
       {view === "filas" ? <div className="space-y-6">
+        {queueDiagnostics.length ? <Panel title="Diagnostico de leitura" eyebrow="Falhas atuais do modulo">
+          <div className="space-y-4">
+            <div className="rounded-[20px] border border-[#4B2222] bg-[rgba(127,29,29,0.12)] p-4 text-sm text-red-100">
+              <p className="font-semibold">O modulo continua navegavel, mas ha filas com erro de backend.</p>
+              <p className="mt-2 opacity-80">Os detalhes tecnicos tambem foram enviados ao Console {"->"} Log e ao tracker interno de debitos de frontend.</p>
+            </div>
+            <div className="grid gap-3 xl:grid-cols-3">
+              {queueDiagnostics.map((item) => <div key={item.key} className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.16)] p-4 text-sm">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#F8E7B5]">{item.title}</p>
+                <p className="mt-2 leading-6 text-[#F4E6C4]">{item.message}</p>
+                <div className="mt-3">
+                  <button type="button" onClick={() => updateView(item.target.view, item.target.hash)} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">
+                    Abrir trecho afetado
+                  </button>
+                </div>
+              </div>)}
+            </div>
+          </div>
+        </Panel> : null}
         {recurringPublicacoes.length ? <Panel title="Pendencias reincidentes" eyebrow="Prioridade operacional">
           <div className="space-y-4">
             <div className="rounded-[24px] border border-[#6E5630] bg-[rgba(76,57,26,0.16)] p-4">

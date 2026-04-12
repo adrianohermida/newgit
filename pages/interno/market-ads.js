@@ -1295,10 +1295,12 @@ function MarketAdsContent() {
                           <div className="flex flex-wrap gap-2">
                             <Tag tone={toneFor(item.priority)}>{item.priority}</Tag>
                             <Tag tone="neutral">score {item.healthScore}</Tag>
+                            {item.attributedLeads ? <Tag tone="accent">leads {item.attributedLeads}</Tag> : null}
+                            {Number(item.realRoi || 0) > 0 ? <Tag tone={Number(item.realRoi || 0) >= 2 ? "success" : "warn"}>roi real {Number(item.realRoi || 0).toFixed(2)}</Tag> : null}
                           </div>
                         </div>
                         <p className="mt-2 text-[#8FA29B]">{item.action}</p>
-                        <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#6F837C]">Owner sugerido: {item.owner}</p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#6F837C]">Owner sugerido: {item.owner}{item.clients ? ` · clientes ${item.clients}` : ""}</p>
                       </div>
                     ))}
                   </div>
@@ -1316,10 +1318,12 @@ function MarketAdsContent() {
                             <div className="flex flex-wrap gap-2">
                               <Tag tone={toneFor(item.decision)}>{item.decision}</Tag>
                               <Tag tone="neutral">{item.suggestedStatus}</Tag>
+                              {item.attributedLeads ? <Tag tone="accent">leads {item.attributedLeads}</Tag> : null}
+                              {Number(item.realRoi || 0) > 0 ? <Tag tone={Number(item.realRoi || 0) >= 2 ? "success" : "warn"}>roi real {Number(item.realRoi || 0).toFixed(2)}</Tag> : null}
                             </div>
                           </div>
                           <p className="mt-2 text-[#8FA29B]">{item.reason}</p>
-                          <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#6F837C]">{item.impact}</p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#6F837C]">{item.impact}{item.clients ? ` · clientes ${item.clients}` : ""}</p>
                         </div>
                       ))}
                     </div>
@@ -1668,6 +1672,65 @@ function MarketAdsContent() {
                           </div>
                           <p className="mt-1 text-[#8FA29B]">{lead.subject}</p>
                           {lead.email ? <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#6F837C]">{lead.email}</p> : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="font-semibold text-[#F7F2E8]">Previsao de fechamento</p>
+                    <Tag tone="accent">{data.leadForecast?.summary || "Sem previsao ainda"}</Tag>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-[#7F928C]">Quentes</p>
+                      <p className="mt-2 text-2xl font-semibold text-[#F5F1E8]">{data.leadForecast?.totals?.hot || 0}</p>
+                      <p className="mt-2 text-[#8FA29B]">Precisam de acao humana imediata.</p>
+                    </div>
+                    <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-[#7F928C]">Mornos</p>
+                      <p className="mt-2 text-2xl font-semibold text-[#F5F1E8]">{data.leadForecast?.totals?.warm || 0}</p>
+                      <p className="mt-2 text-[#8FA29B]">Pedem follow-up estruturado em ate 24h.</p>
+                    </div>
+                    <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-[#7F928C]">Frios</p>
+                      <p className="mt-2 text-2xl font-semibold text-[#F5F1E8]">{data.leadForecast?.totals?.cold || 0}</p>
+                      <p className="mt-2 text-[#8FA29B]">Base para nutricao ou recaptura.</p>
+                    </div>
+                    <div className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-[#7F928C]">Clientes</p>
+                      <p className="mt-2 text-2xl font-semibold text-[#F5F1E8]">{data.leadForecast?.totals?.clients || 0}</p>
+                      <p className="mt-2 text-[#8FA29B]">Conversoes registradas no modulo.</p>
+                    </div>
+                  </div>
+                  {(data.leadForecast?.bottlenecks || []).length ? (
+                    <div className="mt-4 space-y-2">
+                      {(data.leadForecast?.bottlenecks || []).map((item) => (
+                        <p key={item} className="text-sm leading-6 text-[#8FA29B]">{item}</p>
+                      ))}
+                    </div>
+                  ) : null}
+                  {(data.leadForecast?.queue || []).length ? (
+                    <div className="mt-4 space-y-3">
+                      {(data.leadForecast.queue || []).map((lead) => (
+                        <div key={lead.id} className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-semibold text-[#F5F1E8]">{lead.leadName}</p>
+                            <div className="flex flex-wrap gap-2">
+                              <Tag tone={lead.temperature === "quente" ? "success" : lead.temperature === "morno" ? "warn" : "neutral"}>{lead.temperature}</Tag>
+                              <Tag tone="accent">score {lead.score}</Tag>
+                              <Tag tone="neutral">etapa {lead.stage}</Tag>
+                            </div>
+                          </div>
+                          <p className="mt-2 text-[#8FA29B]">{lead.recommendation}</p>
+                          <p className="mt-2 text-xs uppercase tracking-[0.16em] text-[#6F837C]">{lead.nextStep}</p>
+                          <div className="mt-3 flex flex-wrap gap-2 text-xs uppercase tracking-[0.16em] text-[#6F837C]">
+                            <span>{lead.campaignName}</span>
+                            {lead.adName ? <span>· {lead.adName}</span> : null}
+                            {Number(lead.value || 0) > 0 ? <span>· valor {money(lead.value)}</span> : null}
+                            {Number.isFinite(lead.ageInDays) ? <span>· {lead.ageInDays} dia(s)</span> : null}
+                          </div>
                         </div>
                       ))}
                     </div>
