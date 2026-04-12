@@ -98,3 +98,13 @@ Comandos suportados atualmente:
 - adicionar um endpoint local de modelo AetherLab próprio para substituir o fallback Ollama
 - plugar `task_run_start` do AI Task em ferramentas explícitas de browser/files quando a missão exigir navegação
 - consolidar observabilidade do `ai-core` e da extensão no mesmo painel técnico
+
+## Compatibilidade do provider local
+
+O `ai-core` aceita runtimes locais nestes formatos:
+
+- `Anthropic-compatible` via `POST /v1/messages`
+- `OpenAI-compatible` via `GET /v1/models` e `POST /v1/chat/completions`
+- `Ollama` via `GET /api/tags` e `POST /api/chat`
+
+Assim, o provider `local` do Copilot e do AI Task pode continuar único mesmo quando o modelo estiver servido por uma stack diferente na sua máquina.

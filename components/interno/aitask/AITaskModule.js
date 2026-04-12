@@ -41,6 +41,7 @@ import {
 import { useAiTaskRun } from "./useAiTaskRun";
 import { useAiTaskWorkspace } from "./useAiTaskWorkspace";
 import { extractModuleKeysFromContext, resolveModuleEntries } from "../../../lib/admin/module-registry.js";
+import { resolvePreferredLawdeskProvider } from "../../../lib/lawdesk/providers.js";
 
 function formatHistoryStatus(status) {
   const labels = {
@@ -335,7 +336,13 @@ export default function AITaskModule({ profile, routePath }) {
             disabled: !item.available,
           }))
         );
-        setProvider((current) => (current === "gpt" ? defaultProvider : current));
+        setProvider((current) =>
+          resolvePreferredLawdeskProvider({
+            currentProvider: current,
+            defaultProvider,
+            providers,
+          })
+        );
       })
       .catch(() => null);
     return () => {
@@ -588,7 +595,7 @@ export default function AITaskModule({ profile, routePath }) {
     const handoff = aiTaskHistory?.handoffFromDotobot || null;
     if (!handoff?.mission) return;
     setMission(handoff.mission);
-    setMode(handoff.mode || "task");
+    setMode(["assisted", "auto", "manual"].includes(handoff.mode) ? handoff.mode : "assisted");
     setProvider(handoff.provider || "gpt");
     setShowContext(true);
     setContextSnapshot((current) => ({

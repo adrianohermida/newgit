@@ -1,17 +1,24 @@
 import { requireAdminNode } from "../../lib/admin/node-auth.js";
 import {
+  applyMarketAdsOptimizations,
   generateLegalAdVariant,
   generateMarketAdsOptimizations,
+  generateVariantFromTemplate,
+  generateVariantFromCreativeWinner,
   getMarketAdsDashboardData,
   inspectAdsIntegrations,
   importRemoteAdsCampaigns,
+  importRemoteAdsItems,
   persistComplianceValidation,
   recommendLandingPage,
   saveMarketAdsAbTest,
   saveMarketAdsCampaign,
   saveMarketAdsDraft,
   saveMarketAdsItem,
+  saveMarketAdsTemplate,
   syncRemoteAdsCampaigns,
+  syncRemoteAdsItems,
+  toggleMarketAdsTemplateFavorite,
   updateMarketAdsAbTest,
   updateMarketAdsCampaign,
   updateMarketAdsItem,
@@ -42,8 +49,32 @@ export default async function handler(req, res) {
       });
     }
 
+    if (action === "generate_from_winner") {
+      return res.status(200).json({
+        ok: true,
+        data: generateVariantFromCreativeWinner(req.body?.input || {}),
+      });
+    }
+
+    if (action === "generate_from_template") {
+      return res.status(200).json({
+        ok: true,
+        data: generateVariantFromTemplate(req.body?.input || {}),
+      });
+    }
+
     if (action === "save_draft") {
       const data = await saveMarketAdsDraft(req.body?.input || {}, auth.user?.id || null);
+      return res.status(200).json({ ok: true, data });
+    }
+
+    if (action === "save_template") {
+      const data = await saveMarketAdsTemplate(req.body?.input || {}, auth.user?.id || null);
+      return res.status(200).json({ ok: true, data });
+    }
+
+    if (action === "toggle_template_favorite") {
+      const data = await toggleMarketAdsTemplateFavorite(req.body?.templateId || null, req.body?.isFavorite !== false);
       return res.status(200).json({ ok: true, data });
     }
 
@@ -67,8 +98,23 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, data });
     }
 
+    if (action === "sync_remote_ads") {
+      const data = await syncRemoteAdsItems();
+      return res.status(200).json({ ok: true, data });
+    }
+
+    if (action === "import_remote_ads") {
+      const data = await importRemoteAdsItems(auth.user?.id || null);
+      return res.status(200).json({ ok: true, data });
+    }
+
     if (action === "generate_optimizations") {
       const data = await generateMarketAdsOptimizations();
+      return res.status(200).json({ ok: true, data });
+    }
+
+    if (action === "apply_optimizations") {
+      const data = await applyMarketAdsOptimizations();
       return res.status(200).json({ ok: true, data });
     }
 

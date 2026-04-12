@@ -1,5 +1,5 @@
 import { requireAdminNode } from "../../lib/admin/node-auth";
-import { getDefaultLawdeskProvider, listLawdeskProviders, runLawdeskProvidersHealth } from "../../lib/lawdesk/providers";
+import { getDefaultLawdeskProvider, isLawdeskOfflineMode, listLawdeskProviders, runLawdeskProvidersHealth } from "../../lib/lawdesk/providers";
 
 function parseBoolean(value, defaultValue = false) {
   if (value == null) return defaultValue;
@@ -36,6 +36,7 @@ export default async function handler(req, res) {
     const includeHealth = parseBoolean(req.query?.include_health, false);
     const providers = listLawdeskProviders(process.env);
     const defaultProvider = getDefaultLawdeskProvider(process.env);
+    const offlineMode = isLawdeskOfflineMode(process.env);
 
     let health = null;
     if (includeHealth) {
@@ -65,6 +66,7 @@ export default async function handler(req, res) {
         providers: health?.providers || providers,
         health,
         defaultProvider,
+        offlineMode,
       },
     });
   } catch (error) {

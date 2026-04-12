@@ -239,6 +239,85 @@ registerTest("getCustomLlmConfig can reuse primary backend and shared secret ali
   assert.equal(config.modelSource, "CLOUDFLARE_WORKERS_AI_MODEL");
 });
 
+registerTest("offline mode forces local as default provider and blocks cloud providers", async () => {
+  const providers = await loadProvidersModule();
+  const health = await providers.runLawdeskProvidersHealth({
+    LAWDESK_OFFLINE_MODE: "true",
+    LOCAL_LLM_BASE_URL: "http://127.0.0.1:8000",
+    LOCAL_LLM_MODEL: "aetherlab-legal-local-v1",
+    PROCESS_AI_BASE: "https://ai.hermidamaia.adv.br",
+    CUSTOM_LLM_BASE_URL: "https://ai.hermidamaia.adv.br",
+  });
+
+  const catalog = providers.listLawdeskProviders({
+    LAWDESK_OFFLINE_MODE: "true",
+    LOCAL_LLM_BASE_URL: "http://127.0.0.1:8000",
+    PROCESS_AI_BASE: "https://ai.hermidamaia.adv.br",
+  });
+
+  assert.equal(providers.getDefaultLawdeskProvider({ LAWDESK_OFFLINE_MODE: "true" }), "local");
+  assert.equal(health.offlineMode, true);
+  assert.equal(health.summary.defaultProvider, "local");
+  assert.equal(catalog.find((item) => item.id === "gpt").available, false);
+  assert.equal(catalog.find((item) => item.id === "custom").available, false);
+  assert.equal(catalog.find((item) => item.id === "cloudflare").available, false);
+  assert.equal(catalog.find((item) => item.id === "local").available, true);
+});
+
+registerTest("runLawdeskProvidersHealth accepts openai-compatible local runtime", async () => {
+  const providers = await loadProvidersModule();
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (url) => {
+    if (String(url) === "http://127.0.0.1:11434/v1/messages") {
+      return new Response(JSON.stringify({ error: { message: "not found" } }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (String(url) === "http://127.0.0.1:11434/v1/models") {
+      return new Response(JSON.stringify({
+        object: "list",
+        data: [{ id: "llama3.1:latest" }],
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    throw new Error(`Unexpected fetch in openai-compatible local test: ${url}`);
+  };
+
+  try {
+    const health = await providers.runLawdeskProvidersHealth({
+      LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434",
+      LOCAL_LLM_MODEL: "aetherlab-legal-local-v1",
+    });
+    const local = health.providers.find((item) => item.id === "local");
+
+    assert.equal(local.status, "operational");
+    assert.equal(local.available, true);
+    assert.equal(local.model, "llama3.1:latest");
+    assert.equal(local.details.probe.mode, "openai_compatible");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+registerTest("resolvePreferredLawdeskProvider falls back to available provider when current is blocked", async () => {
+  const providers = await loadProvidersModule();
+  const selected = providers.resolvePreferredLawdeskProvider({
+    currentProvider: "gpt",
+    defaultProvider: "local",
+    providers: [
+      { id: "gpt", available: false },
+      { id: "local", available: true },
+      { id: "custom", available: false },
+    ],
+  });
+
+  assert.equal(selected, "local");
+});
+
 async function run() {
   let failures = 0;
   for (const entry of tests) {

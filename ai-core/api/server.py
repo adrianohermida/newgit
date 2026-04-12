@@ -59,6 +59,25 @@ class CompatibleProviderConfig:
         }
 
 
+@dataclass(frozen=True)
+class ProviderTransportProbe:
+    endpoint: str
+    mode: str
+    model: str | None = None
+
+
+def _is_offline_mode(env: Mapping[str, Any]) -> bool:
+    _, value = _resolve_env(
+        env,
+        'AICORE_OFFLINE_MODE',
+        'AI_CORE_OFFLINE_MODE',
+        'LAWDESK_OFFLINE_MODE',
+    )
+    if value is None:
+        return False
+    return str(value).strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
+
+
 def _get_clean(value: Any) -> str | None:
     if value is None:
         return None
@@ -105,6 +124,36 @@ def _json_request(
         data=json.dumps(payload).encode('utf-8'),
         headers={'Content-Type': 'application/json', **(headers or {})},
         method='POST',
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            body = response.read().decode('utf-8')
+            return json.loads(body) if body else {}
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode('utf-8', errors='replace')
+        try:
+            parsed = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            parsed = {'message': raw}
+        message = (
+            parsed.get('error', {}).get('message')
+            if isinstance(parsed.get('error'), dict)
+            else parsed.get('error')
+        ) or parsed.get('message') or raw or f'HTTP {exc.code}'
+        raise RuntimeError(str(message)) from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(str(exc.reason or exc)) from exc
+
+
+def _json_get_request(
+    url: str,
+    headers: dict[str, str] | None = None,
+    timeout: int = _DEFAULT_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
+    request = urllib.request.Request(
+        url=url,
+        headers={**(headers or {})},
+        method='GET',
     )
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -251,6 +300,98 @@ def _resolve_runtime_provider(payload: dict[str, Any], env: Mapping[str, Any]) -
     return default_provider if default_provider in {'local', 'cloud'} else 'local'
 
 
+def _build_provider_headers(config: CompatibleProviderConfig) -> dict[str, str]:
+    headers: dict[str, str] = {}
+    if config.api_key:
+        headers['x-api-key'] = config.api_key
+        headers.setdefault('Authorization', f'Bearer {config.api_key}')
+    if config.auth_token:
+        headers['Authorization'] = f'Bearer {config.auth_token}'
+    return headers
+
+
+def _probe_provider_transport(config: CompatibleProviderConfig) -> ProviderTransportProbe:
+    if not config.base_url:
+        raise RuntimeError(f"Provider '{config.provider_id}' is not configured.")
+
+    headers = _build_provider_headers(config)
+    anthropic_endpoint = _join_url(config.base_url, '/v1/messages')
+    if anthropic_endpoint:
+        try:
+            _json_request(
+                anthropic_endpoint,
+                {
+                    'model': config.model,
+                    'max_tokens': 8,
+                    'stream': False,
+                    'messages': [
+                        {
+                            'role': 'user',
+                            'content': [{'type': 'text', 'text': 'ping'}],
+                        }
+                    ],
+                },
+                headers={'x-llm-version': '2023-06-01', **headers},
+                timeout=12,
+            )
+            return ProviderTransportProbe(endpoint=anthropic_endpoint, mode='anthropic_messages', model=config.model)
+        except RuntimeError:
+            pass
+
+    openai_endpoint = _join_url(config.base_url, '/v1/models')
+    if openai_endpoint:
+        try:
+            payload = _json_get_request(openai_endpoint, headers=headers, timeout=12)
+            model = config.model
+            if isinstance(payload.get('data'), list) and payload['data']:
+                first = payload['data'][0]
+                if isinstance(first, dict):
+                    model = _get_clean(first.get('id')) or model
+            return ProviderTransportProbe(
+                endpoint=_join_url(config.base_url, '/v1/chat/completions') or config.base_url,
+                mode='openai_chat_completions',
+                model=model,
+            )
+        except RuntimeError:
+            pass
+
+    ollama_endpoint = _join_url(config.base_url, '/api/tags')
+    if ollama_endpoint:
+        try:
+            payload = _json_get_request(ollama_endpoint, timeout=12)
+            model = config.model
+            models = payload.get('models')
+            if isinstance(models, list) and models:
+                first = models[0]
+                if isinstance(first, dict):
+                    model = _get_clean(first.get('name')) or model
+            return ProviderTransportProbe(
+                endpoint=_join_url(config.base_url, '/api/chat') or config.base_url,
+                mode='ollama_chat',
+                model=model,
+            )
+        except RuntimeError:
+            pass
+
+    raise RuntimeError(
+        f"Provider '{config.provider_id}' did not respond as /v1/messages, /v1/models or /api/tags."
+    )
+
+
+def _extract_text_from_blocks(blocks: Any) -> str:
+    if isinstance(blocks, str):
+        return blocks
+    if not isinstance(blocks, list):
+        return ''
+    parts: list[str] = []
+    for block in blocks:
+        if isinstance(block, dict):
+            text = _get_clean(block.get('text'))
+            if text:
+                parts.append(text)
+    return '\n'.join(parts).strip()
+
+
 def execute_request(request: ExecuteRequest) -> dict[str, Any]:
     coordinator = Coordinator()
     outcome = coordinator.execute(query=request.query, context=request.context)
@@ -284,10 +425,19 @@ def providers_json(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
     local = build_local_provider_config(runtime_env)
     cloud = build_cloud_provider_config(runtime_env)
     extension = build_extension_config(runtime_env)
+    offline_mode = _is_offline_mode(runtime_env)
     return {
         'status': 'ok',
-        'default_provider': _resolve_runtime_provider({}, runtime_env),
-        'providers': [local.to_public_dict(), cloud.to_public_dict()],
+        'default_provider': 'local' if offline_mode else _resolve_runtime_provider({}, runtime_env),
+        'offline_mode': offline_mode,
+        'providers': [
+            local.to_public_dict(),
+            {
+                **cloud.to_public_dict(),
+                'available': False if offline_mode else cloud.configured,
+                'offline_blocked': offline_mode,
+            },
+        ],
         'extension': extension,
     }
 
@@ -300,45 +450,87 @@ def _invoke_compatible_provider(config: CompatibleProviderConfig, payload: dict[
     system_prompt = _get_clean(payload.get('system')) or _get_clean(payload.get('system_prompt')) or ''
     model = _get_clean(payload.get('model')) or config.model
     max_tokens = payload.get('max_tokens') or payload.get('maxTokens') or config.max_tokens
-    endpoint = _join_url(config.base_url, '/v1/messages')
-    if not endpoint:
-        raise RuntimeError(f"Provider '{config.provider_id}' does not have a valid base URL.")
+    transport = _probe_provider_transport(config)
+    resolved_model = transport.model or model
+    headers = _build_provider_headers(config)
 
-    request_payload = {
-        'model': model,
-        'max_tokens': max_tokens,
-        'system': system_prompt,
-        'stream': False,
-        'messages': [
+    if transport.mode == 'anthropic_messages':
+        response = _json_request(
+            transport.endpoint,
             {
-                'role': 'user',
-                'content': [{'type': 'text', 'text': text}],
-            }
-        ],
-    }
-    headers = {'x-llm-version': '2023-06-01'}
-    if config.api_key:
-        headers['x-api-key'] = config.api_key
-    if config.auth_token:
-        headers['Authorization'] = f'Bearer {config.auth_token}'
-    response = _json_request(endpoint, request_payload, headers=headers)
+                'model': model,
+                'max_tokens': max_tokens,
+                'system': system_prompt,
+                'stream': False,
+                'messages': [
+                    {
+                        'role': 'user',
+                        'content': [{'type': 'text', 'text': text}],
+                    }
+                ],
+            },
+            headers={'x-llm-version': '2023-06-01', **headers},
+        )
+        response_content = response.get('content')
+        response_model = response.get('model') or resolved_model
+    elif transport.mode == 'openai_chat_completions':
+        response = _json_request(
+            transport.endpoint,
+            {
+                'model': resolved_model,
+                'max_tokens': max_tokens,
+                'stream': False,
+                'messages': [
+                    *([{'role': 'system', 'content': system_prompt}] if system_prompt else []),
+                    {'role': 'user', 'content': text},
+                ],
+            },
+            headers=headers,
+        )
+        choices = response.get('choices') if isinstance(response.get('choices'), list) else []
+        message = choices[0].get('message') if choices and isinstance(choices[0], dict) else {}
+        response_text = _get_clean(message.get('content')) or response.get('message') or response.get('result') or ''
+        response_content = [{'type': 'text', 'text': response_text or json.dumps(response)}]
+        response_model = response.get('model') or resolved_model
+    elif transport.mode == 'ollama_chat':
+        response = _json_request(
+            transport.endpoint,
+            {
+                'model': resolved_model,
+                'stream': False,
+                'messages': [
+                    *([{'role': 'system', 'content': system_prompt}] if system_prompt else []),
+                    {'role': 'user', 'content': text},
+                ],
+                'options': {
+                    'num_predict': max_tokens,
+                },
+            },
+            headers=headers,
+        )
+        message = response.get('message') if isinstance(response.get('message'), dict) else {}
+        response_text = _get_clean(message.get('content')) or response.get('response') or response.get('message') or ''
+        response_content = [{'type': 'text', 'text': response_text or json.dumps(response)}]
+        response_model = response.get('model') or resolved_model
+    else:
+        raise RuntimeError(f"Unsupported provider transport '{transport.mode}'.")
+
     metadata = response.get('metadata') if isinstance(response.get('metadata'), dict) else {}
     return {
         'id': response.get('id') or f'msg_{config.provider_id}',
         'type': 'message',
         'role': 'assistant',
-        'model': response.get('model') or model,
-        'content': response.get('content')
-        if isinstance(response.get('content'), list)
-        else [{'type': 'text', 'text': response.get('message') or response.get('result') or json.dumps(response)}],
+        'model': response_model,
+        'content': response_content if isinstance(response_content, list) else [{'type': 'text', 'text': _extract_text_from_blocks(response_content)}],
         'usage': response.get('usage') if isinstance(response.get('usage'), dict) else {},
         'request_id': response.get('request_id') or response.get('id'),
         'metadata': {
             **metadata,
             'provider': config.provider_id,
             'requested_model': model,
-            'resolved_model': metadata.get('resolved_model') or response.get('model') or model,
-            'route': '/v1/messages',
+            'resolved_model': metadata.get('resolved_model') or response_model,
+            'route': transport.mode,
+            'transport_endpoint': transport.endpoint,
         },
     }
 
@@ -346,6 +538,8 @@ def _invoke_compatible_provider(config: CompatibleProviderConfig, payload: dict[
 def messages_json(payload: dict[str, Any], env: Mapping[str, Any] | None = None) -> dict[str, Any]:
     runtime_env = env or os.environ
     provider_id = _resolve_runtime_provider(payload, runtime_env)
+    if _is_offline_mode(runtime_env) and provider_id != 'local':
+        raise RuntimeError(f"Offline mode is active. Provider '{provider_id}' is blocked.")
     config = build_local_provider_config(runtime_env) if provider_id == 'local' else build_cloud_provider_config(runtime_env)
     return _invoke_compatible_provider(config, payload)
 
@@ -375,12 +569,18 @@ def health(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
     local = build_local_provider_config(runtime_env)
     cloud = build_cloud_provider_config(runtime_env)
     extension = build_extension_config(runtime_env)
+    offline_mode = _is_offline_mode(runtime_env)
     return {
         'status': 'ok',
         'service': 'ai-core',
+        'offline_mode': offline_mode,
         'providers': {
             'local': local.to_public_dict(),
-            'cloud': cloud.to_public_dict(),
+            'cloud': {
+                **cloud.to_public_dict(),
+                'available': False if offline_mode else cloud.configured,
+                'offline_blocked': offline_mode,
+            },
         },
         'extension': extension,
     }

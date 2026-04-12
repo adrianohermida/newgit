@@ -8,6 +8,7 @@ import { getCurrentContext } from "../../lib/ai/context_engine";
 import { useRouter } from "next/router";
 import { adminFetch } from "../../lib/admin/api";
 import { invokeBrowserLocalMessages, isBrowserLocalProvider } from "../../lib/lawdesk/browser-local-runtime";
+import { resolvePreferredLawdeskProvider } from "../../lib/lawdesk/providers.js";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import { cancelTaskRun, createPendingTaskRun, pollTaskRun, startTaskRun } from "./dotobotTaskRun";
 import { appendActivityLog, getModuleHistory, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
@@ -120,11 +121,28 @@ function formatBytes(bytes) {
 }
 
 function parseProviderPresentation(value) {
+  if (value && typeof value === "object") {
+    const meta = [
+      value.model,
+      value.status,
+      value.transport,
+      value.runtimeMode,
+      value.host ? `host:${value.host}` : null,
+    ].filter(Boolean);
+    return {
+      name: value.displayLabel || value.label || value.value || "Provider",
+      meta: meta.slice(0, 5),
+      status: value.status || null,
+      endpoint: value.endpoint || null,
+      reason: value.reason || null,
+    };
+  }
+
   const segments = String(value || "").split("·").map((item) => item.trim()).filter(Boolean);
   const name = segments[0] || String(value || "Provider");
   const meta = segments.slice(1);
   const status = meta.find((item) => ["operational", "degraded", "failed"].includes(String(item).toLowerCase())) || null;
-  return { name, meta, status };
+  return { name, meta, status, endpoint: null, reason: null };
 }
 
 function buildRagAlert(health) {
@@ -570,9 +588,23 @@ const [contextEnabled, setContextEnabled] = useState(true);
             value: item.id,
             label: `${item.label}${item.model ? ` · ${item.model}` : ""}${item.status ? ` · ${item.status}` : ""}`,
             disabled: !item.available,
+            displayLabel: item.label,
+            model: item.model || null,
+            status: item.status || null,
+            transport: item.transport || null,
+            runtimeMode: item.details?.probe?.mode || null,
+            host: item.details?.config?.host || null,
+            endpoint: item.details?.probe?.endpoint || item.details?.config?.baseUrl || null,
+            reason: item.reason || null,
           }))
         );
-        setProvider((current) => (current === "gpt" ? defaultProvider : current));
+        setProvider((current) =>
+          resolvePreferredLawdeskProvider({
+            currentProvider: current,
+            defaultProvider,
+            providers,
+          })
+        );
       })
       .catch(() => null);
     return () => {
@@ -1462,8 +1494,8 @@ const [contextEnabled, setContextEnabled] = useState(true);
           ? "Executando"
           : "Idle";
   const activeMode = MODE_OPTIONS.find((item) => item.value === mode) || MODE_OPTIONS[0];
-  const activeProviderLabel = providerCatalog.find((item) => item.value === provider)?.label || "Nuvem principal";
-  const activeProviderPresentation = parseProviderPresentation(activeProviderLabel);
+  const activeProviderOption = providerCatalog.find((item) => item.value === provider) || null;
+  const activeProviderPresentation = parseProviderPresentation(activeProviderOption || "Nuvem principal");
   const ragAlert = buildRagAlert(ragHealth);
   const isWorkspaceShell = workspaceOpen;
   const railCollapsed = compactRail ? true : isCollapsed;
@@ -1565,7 +1597,15 @@ const [contextEnabled, setContextEnabled] = useState(true);
                     {item}
                   </span>
                 ))}
+                {activeProviderPresentation.endpoint ? (
+                  <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
+                    {activeProviderPresentation.endpoint}
+                  </span>
+                ) : null}
               </div>
+              {activeProviderPresentation.reason ? (
+                <p className="mt-2 max-w-2xl text-[11px] leading-6 text-[#7F928C]">{activeProviderPresentation.reason}</p>
+              ) : null}
             </div>
             <div className="flex flex-row flex-wrap items-start justify-end gap-2 sm:flex-col sm:items-end">
               <button

@@ -23,6 +23,10 @@ function safeParseWorkspace(raw) {
   }
 }
 
+function normalizeWorkspaceMode(value) {
+  return ["assisted", "auto", "manual"].includes(String(value || "").trim()) ? String(value).trim() : "assisted";
+}
+
 export function useAiTaskWorkspace({ missionInputRef, normalizeAttachmentsFromEvent, trimRecentHistory, nowIso, maxThinking, maxLogs, profile }) {
   const [mission, setMission] = useState("");
   const [mode, setMode] = useState("assisted");
@@ -56,7 +60,7 @@ export function useAiTaskWorkspace({ missionInputRef, normalizeAttachmentsFromEv
     if (!persisted) return;
 
     setMission(typeof persisted.mission === "string" ? persisted.mission : "");
-    setMode(typeof persisted.mode === "string" ? persisted.mode : "assisted");
+    setMode(normalizeWorkspaceMode(persisted.mode));
     setProvider(typeof persisted.provider === "string" ? persisted.provider : "gpt");
     setAutomation(typeof persisted.automation === "string" ? persisted.automation : "idle");
     setApproved(Boolean(persisted.approved));
@@ -185,7 +189,7 @@ export function useAiTaskWorkspace({ missionInputRef, normalizeAttachmentsFromEv
     };
 
     setMission(action.mission);
-    setMode("task");
+    setMode("assisted");
     setShowContext(true);
     setShowTasks(true);
     setAutomation("idle");
@@ -326,7 +330,7 @@ export function useAiTaskWorkspace({ missionInputRef, normalizeAttachmentsFromEv
   function handleSelectRun(item) {
     if (!item) return;
     setMission(typeof item.mission === "string" ? item.mission : "");
-    setMode(typeof item.mode === "string" ? item.mode : "assisted");
+    setMode(normalizeWorkspaceMode(item.mode));
     setProvider(typeof item.provider === "string" ? item.provider : "gpt");
     setAutomation(typeof item.status === "string" ? item.status : "idle");
     setExecutionSource(typeof item.source === "string" ? item.source : null);

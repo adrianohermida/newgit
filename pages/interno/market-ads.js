@@ -108,7 +108,11 @@ function MarketAdsContent() {
   const [integrationState, setIntegrationState] = useState({ loading: false, error: null, result: null });
   const [remoteSyncState, setRemoteSyncState] = useState({ loading: false, error: null, result: null });
   const [remoteImportState, setRemoteImportState] = useState({ loading: false, error: null, result: null });
+  const [remoteAdSyncState, setRemoteAdSyncState] = useState({ loading: false, error: null, result: null });
+  const [remoteAdImportState, setRemoteAdImportState] = useState({ loading: false, error: null, result: null });
   const [optimizationState, setOptimizationState] = useState({ loading: false, error: null, result: null });
+  const [applyOptimizationState, setApplyOptimizationState] = useState({ loading: false, error: null, result: null });
+  const [templateState, setTemplateState] = useState({ loading: false, error: null, result: null });
   const [adForm, setAdForm] = useState({
     campaignId: "",
     name: "Anuncio juridico | Search",
@@ -175,6 +179,100 @@ function MarketAdsContent() {
       setPreviewState({ loading: false, error: null, result: payload.data || null });
     } catch (error) {
       setPreviewState({ loading: false, error: error.message || "Falha ao gerar preview.", result: null });
+    }
+  }
+
+  async function generateFromWinner(item) {
+    setPreviewState({ loading: true, error: null, result: null });
+    try {
+      const nextGenerator = {
+        area: item.area || generator.area,
+        audience: item.audience || generator.audience,
+        objective: item.objective || generator.objective,
+        platform: item.platform || generator.platform,
+        location: generator.location,
+      };
+      setGenerator(nextGenerator);
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "generate_from_winner",
+          input: {
+            ...nextGenerator,
+            source: item,
+          },
+        }),
+      });
+      setPreviewState({ loading: false, error: null, result: payload.data || null });
+    } catch (error) {
+      setPreviewState({ loading: false, error: error.message || "Falha ao gerar variacoes a partir do criativo vencedor.", result: null });
+    }
+  }
+
+  async function generateFromTemplate(template) {
+    setPreviewState({ loading: true, error: null, result: null });
+    try {
+      const nextGenerator = {
+        area: template.area || generator.area,
+        audience: template.audience || generator.audience,
+        objective: template.objective || generator.objective,
+        platform: template.platform || generator.platform,
+        location: generator.location,
+      };
+      setGenerator(nextGenerator);
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "generate_from_template",
+          input: {
+            ...nextGenerator,
+            template,
+          },
+        }),
+      });
+      setPreviewState({ loading: false, error: null, result: payload.data || null });
+    } catch (error) {
+      setPreviewState({ loading: false, error: error.message || "Falha ao gerar variacoes a partir do template.", result: null });
+    }
+  }
+
+  async function saveTemplate(template) {
+    setTemplateState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save_template",
+          input: template,
+        }),
+      });
+      setTemplateState({ loading: false, error: null, result: payload.data || null });
+      await load();
+    } catch (error) {
+      setTemplateState({ loading: false, error: error.message || "Falha ao salvar template na biblioteca.", result: null });
+    }
+  }
+
+  async function toggleTemplateFavorite(template) {
+    if (!template?.id) return;
+    setTemplateState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "toggle_template_favorite",
+          templateId: template.id,
+          isFavorite: !template.isFavorite,
+        }),
+      });
+      setTemplateState({ loading: false, error: null, result: payload.data || null });
+      await load();
+    } catch (error) {
+      setTemplateState({ loading: false, error: error.message || "Falha ao atualizar favorito do template.", result: null });
     }
   }
 
@@ -299,6 +397,35 @@ function MarketAdsContent() {
     }
   }
 
+  async function syncRemoteAds() {
+    setRemoteAdSyncState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "sync_remote_ads" }),
+      });
+      setRemoteAdSyncState({ loading: false, error: null, result: payload.data || null });
+    } catch (error) {
+      setRemoteAdSyncState({ loading: false, error: error.message || "Falha ao ler anuncios remotos.", result: null });
+    }
+  }
+
+  async function importRemoteAds() {
+    setRemoteAdImportState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "import_remote_ads" }),
+      });
+      setRemoteAdImportState({ loading: false, error: null, result: payload.data || null });
+      await load();
+    } catch (error) {
+      setRemoteAdImportState({ loading: false, error: error.message || "Falha ao importar anuncios remotos.", result: null });
+    }
+  }
+
   async function generateOptimizations() {
     setOptimizationState({ loading: true, error: null, result: null });
     try {
@@ -310,6 +437,21 @@ function MarketAdsContent() {
       setOptimizationState({ loading: false, error: null, result: payload.data || null });
     } catch (error) {
       setOptimizationState({ loading: false, error: error.message || "Falha ao gerar plano de otimizacao.", result: null });
+    }
+  }
+
+  async function applyOptimizations() {
+    setApplyOptimizationState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-market-ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "apply_optimizations" }),
+      });
+      setApplyOptimizationState({ loading: false, error: null, result: payload.data || null });
+      await load();
+    } catch (error) {
+      setApplyOptimizationState({ loading: false, error: error.message || "Falha ao aplicar recomendacoes nas campanhas locais.", result: null });
     }
   }
 
@@ -565,11 +707,19 @@ function MarketAdsContent() {
               <button type="button" onClick={importRemoteCampaigns} disabled={remoteImportState.loading} className="rounded-full border border-[#22342F] px-5 py-3 text-sm text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">
                 {remoteImportState.loading ? "Importando para a base..." : "Importar para campanhas locais"}
               </button>
+              <button type="button" onClick={syncRemoteAds} disabled={remoteAdSyncState.loading} className="rounded-full border border-[#22342F] px-5 py-3 text-sm text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">
+                {remoteAdSyncState.loading ? "Lendo anuncios..." : "Ler anuncios remotos"}
+              </button>
+              <button type="button" onClick={importRemoteAds} disabled={remoteAdImportState.loading} className="rounded-full border border-[#22342F] px-5 py-3 text-sm text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">
+                {remoteAdImportState.loading ? "Importando anuncios..." : "Importar anuncios locais"}
+              </button>
               <Tag tone="accent">{(integrationState.result || data.integrations)?.summary || "Sem leitura ainda"}</Tag>
             </div>
             {integrationState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{integrationState.error}</p> : null}
             {remoteSyncState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{remoteSyncState.error}</p> : null}
             {remoteImportState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{remoteImportState.error}</p> : null}
+            {remoteAdSyncState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{remoteAdSyncState.error}</p> : null}
+            {remoteAdImportState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{remoteAdImportState.error}</p> : null}
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               {((integrationState.result || data.integrations)?.providers || []).map((item) => (
                 <article key={item.provider} className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
@@ -629,6 +779,57 @@ function MarketAdsContent() {
                         <Tag tone={item.action === "created" ? "success" : item.action === "updated" ? "warn" : "danger"}>{item.action}</Tag>
                       </div>
                       <p className="mt-1 text-[#8FA29B]">{item.remote?.provider || "Ads"} · {item.remote?.objective || "sem objetivo"}</p>
+                      {item.error ? <p className="mt-3 text-[#F8C5C5]">{item.error}</p> : null}
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {remoteAdSyncState.result ? (
+              <div className="mt-5 rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="font-semibold text-[#F7F2E8]">Leitura remota de anuncios</p>
+                  <Tag tone="accent">{remoteAdSyncState.result.summary}</Tag>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {(remoteAdSyncState.result.remoteItems || []).map((item) => (
+                    <article key={item.id} className="rounded-[18px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold text-[#F5F1E8]">{item.name}</p>
+                        <Tag tone={toneFor(item.status)}>{item.provider}</Tag>
+                      </div>
+                      <p className="mt-1 text-[#8FA29B]">{item.remoteCampaignName}</p>
+                      <p className="mt-2 text-[#8FA29B]">{item.headline}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Tag tone="neutral">imp {item.impressions || 0}</Tag>
+                        <Tag tone="neutral">cliques {item.clicks || 0}</Tag>
+                        <Tag tone="accent">ctr {Number(item.ctr || 0).toFixed(1)}%</Tag>
+                        <Tag tone="neutral">cpc {money(item.cpc || 0)}</Tag>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {remoteAdImportState.result ? (
+              <div className="mt-5 rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="font-semibold text-[#F7F2E8]">Importacao conciliada de anuncios</p>
+                  <Tag tone="accent">{remoteAdImportState.result.summary}</Tag>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Tag tone="success">criados {remoteAdImportState.result.created || 0}</Tag>
+                  <Tag tone="warn">atualizados {remoteAdImportState.result.updated || 0}</Tag>
+                  <Tag tone="neutral">lidos {(remoteAdImportState.result.remoteItems || []).length}</Tag>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {(remoteAdImportState.result.imported || []).map((item, index) => (
+                    <article key={`${item.remote?.id || index}-${item.action}`} className="rounded-[18px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold text-[#F5F1E8]">{item.adItem?.name || item.remote?.name || "Anuncio remoto"}</p>
+                        <Tag tone={item.action === "created" ? "success" : item.action === "updated" ? "warn" : "danger"}>{item.action}</Tag>
+                      </div>
+                      <p className="mt-1 text-[#8FA29B]">{item.remote?.remoteCampaignName || item.remote?.provider || "Ads"}</p>
                       {item.error ? <p className="mt-3 text-[#F8C5C5]">{item.error}</p> : null}
                     </article>
                   ))}
@@ -983,9 +1184,27 @@ function MarketAdsContent() {
                     >
                       {optimizationState.loading ? "Rodando otimizacao..." : "Gerar rodada de otimizacao"}
                     </button>
+                    <button
+                      type="button"
+                      onClick={applyOptimizations}
+                      disabled={applyOptimizationState.loading}
+                      className="rounded-full border border-[#22342F] px-4 py-2 text-xs font-semibold text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
+                    >
+                      {applyOptimizationState.loading ? "Aplicando status..." : "Aplicar status sugeridos"}
+                    </button>
                     <Tag tone="accent">{(optimizationState.result || data.optimizationPlan)?.narrative || "Sem rodada executada ainda"}</Tag>
                   </div>
                   {optimizationState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{optimizationState.error}</p> : null}
+                  {applyOptimizationState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{applyOptimizationState.error}</p> : null}
+                  {applyOptimizationState.result ? (
+                    <div className="mt-3 rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold text-[#F5F1E8]">Aplicacao segura concluida</p>
+                        <Tag tone="accent">{applyOptimizationState.result.narrative}</Tag>
+                      </div>
+                      <p className="mt-2 text-[#8FA29B]">O lote atualiza apenas o status sugerido e registra a decisao em metadata, sem alterar orcamento automaticamente.</p>
+                    </div>
+                  ) : null}
                   <div className="mt-3 space-y-3">
                     {(data.strategyQueue || []).map((item) => (
                       <div key={item.id} className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
@@ -1022,12 +1241,125 @@ function MarketAdsContent() {
                         </div>
                       ))}
                     </div>
+                    {applyOptimizationState.result?.applied?.length ? (
+                      <div className="mt-4 space-y-3">
+                        {applyOptimizationState.result.applied.map((item) => (
+                          <div key={`${item.campaignId}-${item.action}`} className="rounded-[16px] border border-[#22342F] px-3 py-3 text-sm text-[#C7D0CA]">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="font-semibold text-[#F5F1E8]">{item.campaignName}</p>
+                              <div className="flex flex-wrap gap-2">
+                                <Tag tone={item.action === "updated" ? "success" : item.action === "skipped" ? "warn" : "danger"}>{item.action}</Tag>
+                                {item.status ? <Tag tone="neutral">{item.status}</Tag> : null}
+                              </div>
+                            </div>
+                            {item.decision ? <p className="mt-2 text-[#8FA29B]">Decisao aplicada: {item.decision}</p> : null}
+                            {item.reason ? <p className="mt-2 text-[#8FA29B]">{item.reason}</p> : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
                 <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
                   <p className="font-semibold text-[#F7F2E8]">Landing pages</p>
                   <div className="mt-3 space-y-2">
                     {data.landingPages.map((item) => <p key={item.id} className="text-sm leading-6 text-[#C7D0CA]">{item.title} · {item.slug}</p>)}
+                  </div>
+                </div>
+                <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="font-semibold text-[#F7F2E8]">Criativos vencedores</p>
+                    <Tag tone="accent">{data.creativeRanking?.summary || "Sem ranking ainda"}</Tag>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {(data.creativeRanking?.leaders || []).map((item) => (
+                      <div key={`${item.source}-${item.id}`} className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-semibold text-[#F5F1E8]">{item.headline}</p>
+                          <div className="flex flex-wrap gap-2">
+                            <Tag tone={item.source === "local" ? "success" : "accent"}>{item.source}</Tag>
+                            <Tag tone="neutral">score {item.score}</Tag>
+                          </div>
+                        </div>
+                        <p className="mt-1 text-[#8FA29B]">{item.platform}</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Tag tone="accent">ctr {Number(item.ctr || 0).toFixed(1)}%</Tag>
+                          {item.source === "local" ? <Tag tone="neutral">cliques {item.clicks || 0}</Tag> : null}
+                          {item.source === "local" ? <Tag tone="neutral">conv {item.conversions || 0}</Tag> : null}
+                        </div>
+                        <p className="mt-3 text-[#8FA29B]">{item.recommendation}</p>
+                        <div className="mt-3 flex flex-wrap gap-3">
+                          <button
+                            type="button"
+                            onClick={() => generateFromWinner(item)}
+                            className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                          >
+                            Gerar variacoes
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="font-semibold text-[#F7F2E8]">Biblioteca de templates</p>
+                    <Tag tone="accent">{data.templateLibrary?.summary || "Sem templates ainda"}</Tag>
+                  </div>
+                  {templateState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{templateState.error}</p> : null}
+                  {templateState.result?.template?.id ? <p className="mt-3 text-sm text-[#B7F7C6]">Template atualizado na biblioteca persistida.</p> : null}
+                  <div className="mt-4 space-y-4">
+                    {(data.templateLibrary?.groups || []).map((group) => (
+                      <div key={group.key} className="rounded-[16px] border border-[#1D2B27] px-3 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-semibold text-[#F5F1E8]">{group.area}</p>
+                          <Tag tone="neutral">{group.objective}</Tag>
+                        </div>
+                        <div className="mt-3 space-y-3">
+                          {(group.items || []).slice(0, 3).map((item) => (
+                            <div key={item.id} className="rounded-[16px] border border-[#22342F] px-3 py-3 text-sm text-[#C7D0CA]">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="font-semibold text-[#F5F1E8]">{item.name}</p>
+                                <div className="flex flex-wrap gap-2">
+                                  <Tag tone={item.source === "local" ? "success" : "accent"}>{item.source}</Tag>
+                                  <Tag tone="neutral">score {item.score}</Tag>
+                                </div>
+                              </div>
+                              <p className="mt-2 text-[#8FA29B]">{item.headline}</p>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {(item.tags || []).slice(0, 4).map((tag) => <Tag key={`${item.id}-${tag}`}>{tag}</Tag>)}
+                              </div>
+                              <div className="mt-3 flex flex-wrap gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => generateFromTemplate(item)}
+                                  className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                >
+                                  Aplicar template
+                                </button>
+                                {item.id?.startsWith("tpl-") ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => saveTemplate(item)}
+                                    className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                  >
+                                    Salvar na base
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleTemplateFavorite(item)}
+                                    className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                  >
+                                    {item.isFavorite ? "Desfavoritar" : "Favoritar"}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
@@ -1116,6 +1448,12 @@ function MarketAdsContent() {
                             <Tag tone={toneFor(item.status)}>{item.status}</Tag>
                             <Tag tone={toneFor(item.complianceStatus)}>{item.complianceStatus}</Tag>
                           </div>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Tag tone="neutral">imp {item.impressions || 0}</Tag>
+                          <Tag tone="neutral">cliques {item.clicks || 0}</Tag>
+                          <Tag tone="accent">ctr {Number(item.ctr || 0).toFixed(1)}%</Tag>
+                          <Tag tone="neutral">cpc {money(item.cpc || 0)}</Tag>
                         </div>
                         <div className="mt-3 flex flex-wrap gap-3">
                           <button

@@ -41,14 +41,24 @@ class ApiServerTests(unittest.TestCase):
 
     def test_messages_json_routes_to_local_provider_by_default(self) -> None:
         with patch('api.server._json_request') as mocked_request:
-            mocked_request.return_value = {
-                'id': 'msg_1',
-                'type': 'message',
-                'role': 'assistant',
-                'model': 'aetherlab-legal-local-v1',
-                'content': [{'type': 'text', 'text': 'Resposta local'}],
-                'metadata': {'resolved_model': 'aetherlab-legal-local-v1'},
-            }
+            mocked_request.side_effect = [
+                {
+                    'id': 'probe_local',
+                    'type': 'message',
+                    'role': 'assistant',
+                    'model': 'aetherlab-legal-local-v1',
+                    'content': [{'type': 'text', 'text': 'ok'}],
+                    'metadata': {'resolved_model': 'aetherlab-legal-local-v1'},
+                },
+                {
+                    'id': 'msg_1',
+                    'type': 'message',
+                    'role': 'assistant',
+                    'model': 'aetherlab-legal-local-v1',
+                    'content': [{'type': 'text', 'text': 'Resposta local'}],
+                    'metadata': {'resolved_model': 'aetherlab-legal-local-v1'},
+                },
+            ]
 
             payload = messages_json(
                 {
@@ -60,7 +70,41 @@ class ApiServerTests(unittest.TestCase):
 
         self.assertEqual(payload['metadata']['provider'], 'local')
         self.assertEqual(payload['content'][0]['text'], 'Resposta local')
-        mocked_request.assert_called_once()
+        self.assertEqual(mocked_request.call_count, 2)
+
+    def test_messages_json_accepts_openai_compatible_local_runtime(self) -> None:
+        with patch('api.server._json_request') as mocked_request, patch('api.server._json_get_request') as mocked_get:
+            mocked_request.side_effect = [
+                RuntimeError('404'),
+                {
+                    'id': 'chatcmpl_local',
+                    'model': 'llama3.1:latest',
+                    'choices': [
+                        {
+                            'message': {
+                                'role': 'assistant',
+                                'content': 'Resposta via runtime OpenAI local',
+                            }
+                        }
+                    ],
+                },
+            ]
+            mocked_get.return_value = {
+                'object': 'list',
+                'data': [{'id': 'llama3.1:latest'}],
+            }
+
+            payload = messages_json(
+                {
+                    'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'Ol\u00e1 local'}]}],
+                    'model': 'aetherlab-legal-local-v1',
+                },
+                env={'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:11434'},
+            )
+
+        self.assertEqual(payload['metadata']['provider'], 'local')
+        self.assertEqual(payload['metadata']['route'], 'openai_chat_completions')
+        self.assertEqual(payload['content'][0]['text'], 'Resposta via runtime OpenAI local')
 
     def test_messages_json_routes_to_cloud_provider_when_requested(self) -> None:
         with patch('api.server._json_request') as mocked_request:
@@ -108,6 +152,31 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(providers['extension']['base_url'], 'http://127.0.0.1:32123')
         self.assertEqual(health_payload['providers']['local']['base_url'], 'http://127.0.0.1:8000')
         self.assertEqual(health_payload['providers']['cloud']['base_url'], 'https://ai.hermidamaia.adv.br')
+
+    def test_offline_mode_blocks_cloud_provider(self) -> None:
+        env = {
+            'AICORE_OFFLINE_MODE': 'true',
+            'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:8000',
+            'CUSTOM_LLM_BASE_URL': 'https://ai.hermidamaia.adv.br',
+        }
+
+        providers = providers_json(env)
+        health_payload = health(env)
+
+        self.assertTrue(providers['offline_mode'])
+        self.assertEqual(providers['default_provider'], 'local')
+        self.assertFalse(providers['providers'][1]['available'])
+        self.assertTrue(health_payload['offline_mode'])
+        self.assertFalse(health_payload['providers']['cloud']['available'])
+
+        with self.assertRaises(RuntimeError):
+            messages_json(
+                {
+                    'provider': 'cloud',
+                    'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'Ol\u00e1 cloud'}]}],
+                },
+                env=env,
+            )
 
 
 if __name__ == '__main__':
