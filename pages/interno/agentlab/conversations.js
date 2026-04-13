@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
@@ -16,9 +17,20 @@ function Panel({ title, children }) {
   );
 }
 
+function parseCopilotContext(rawValue) {
+  if (!rawValue) return null;
+  try {
+    return JSON.parse(String(rawValue));
+  } catch {
+    return null;
+  }
+}
+
 export default function AgentLabConversationsPage() {
+  const router = useRouter();
   const state = useAgentLabData();
   const [syncState, setSyncState] = useState({ loading: false, message: null });
+  const copilotContext = parseCopilotContext(typeof router.query.copilotContext === "string" ? router.query.copilotContext : "");
 
   async function runSync(action, limit = 5, threadLimit = 2) {
     try {
@@ -47,14 +59,14 @@ export default function AgentLabConversationsPage() {
           description="Painel de inteligencia conversacional para sincronizar historico real, detectar falhas de leitura e alimentar treino, avaliacao e feedback loop."
         >
           <AgentLabModuleNav />
-          <ConversationsContent state={state} syncState={syncState} runSync={runSync} />
+          <ConversationsContent state={state} syncState={syncState} runSync={runSync} copilotContext={copilotContext} />
         </InternoLayout>
       )}
     </RequireAdmin>
   );
 }
 
-function ConversationsContent({ state, syncState, runSync }) {
+function ConversationsContent({ state, syncState, runSync, copilotContext }) {
   if (state.loading) {
     return (
       <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
@@ -120,6 +132,15 @@ function ConversationsContent({ state, syncState, runSync }) {
 
   return (
     <div className="space-y-8">
+      {copilotContext ? (
+        <Panel title="Contexto vindo do Copilot">
+          <div className="space-y-2 text-sm opacity-75">
+            <p className="font-semibold">{copilotContext.conversationTitle || "Conversa ativa"}</p>
+            {copilotContext.mission ? <p>{copilotContext.mission}</p> : null}
+            <p>Use esta trilha para revisar threads, handoffs e mensagens reais associadas à missão atual.</p>
+          </div>
+        </Panel>
+      ) : null}
       <div className="grid gap-4 md:grid-cols-4">
         <Panel title={`Threads: ${summary.total || 0}`}>
           <p className="text-sm opacity-70">Base de treino, leitura contextual e analise operacional.</p>

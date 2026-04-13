@@ -305,10 +305,34 @@ function buildLocalFallbackActions({ routePath, activeConversation, activeTask }
     : routePath || "/interno/copilot";
   const routeActionLabel =
     matchedModule?.label ? `Abrir ${matchedModule.label} em contexto` : "Abrir módulo em contexto";
+  const missionText = String(
+    activeTask?.query ||
+    activeTask?.title ||
+    activeTask?.mission ||
+    activeConversation?.title ||
+    activeConversation?.preview ||
+    ""
+  ).toLowerCase();
+  const copilotContext = encodeURIComponent(
+    buildCopilotContextPayload({
+      module: matchedModule || { key: "agentlab" },
+      activeConversation,
+      activeTask,
+      routePath,
+      projectLabel,
+    })
+  );
+  const agentLabTarget = missionText.match(/trein|score|avali|prompt|fallback|modelo/)
+    ? `/interno/agentlab/training?copilotContext=${copilotContext}`
+    : missionText.match(/conversa|mensagem|handoff|freshchat|cliente|thread/)
+      ? `/interno/agentlab/conversations?copilotContext=${copilotContext}`
+      : missionText.match(/workflow|intent|orquestra|playbook|agent/)
+        ? `/interno/agentlab/orquestracao?copilotContext=${copilotContext}`
+        : `/interno/agentlab/environment?copilotContext=${copilotContext}`;
   return [
     { id: "open-context-route", label: routeActionLabel, kind: "route", target: routeTarget },
     { id: "open-ai-task", label: "Enviar ao AI Task", kind: "route", target: "/interno/ai-task" },
-    { id: "open-agentlab", label: "Ver AgentLabs", kind: "route", target: "/interno/agentlab" },
+    { id: "open-agentlab", label: "Abrir trilha no AgentLab", kind: "route", target: agentLabTarget },
     { id: "open-runtime-config", label: "Editar runtime local", kind: "local_action", target: "open_runtime_config" },
     activeConversation?.id || activeTask?.id
       ? { id: "reuse-mission", label: "Reusar no composer", kind: "composer_seed", target: activeTask?.query || activeConversation?.title || "" }

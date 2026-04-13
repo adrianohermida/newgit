@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useRouter } from "next/router";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
@@ -92,8 +93,19 @@ function getProvidersHealthStatus(health) {
   };
 }
 
+function parseCopilotContext(rawValue) {
+  if (!rawValue) return null;
+  try {
+    return JSON.parse(String(rawValue));
+  } catch {
+    return null;
+  }
+}
+
 export default function AgentLabEnvironmentPage() {
+  const router = useRouter();
   const state = useAgentLabData();
+  const copilotContext = parseCopilotContext(typeof router.query.copilotContext === "string" ? router.query.copilotContext : "");
 
   return (
     <RequireAdmin>
@@ -104,14 +116,14 @@ export default function AgentLabEnvironmentPage() {
           description="Diagnóstico do schema, bootstrap do Supabase e estado operacional do ambiente do AgentLab."
         >
           <AgentLabModuleNav />
-          <EnvironmentContent state={state} />
+          <EnvironmentContent state={state} copilotContext={copilotContext} />
         </InternoLayout>
       )}
     </RequireAdmin>
   );
 }
 
-function EnvironmentContent({ state }) {
+function EnvironmentContent({ state, copilotContext }) {
   if (state.loading) {
     return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando diagnóstico do laboratório...</div>;
   }
@@ -173,6 +185,15 @@ function EnvironmentContent({ state }) {
 
   return (
     <div className="space-y-8">
+      {copilotContext ? (
+        <Panel title="Contexto vindo do Copilot">
+          <div className="space-y-2 text-sm opacity-75">
+            <p className="font-semibold">{copilotContext.conversationTitle || "Conversa ativa"}</p>
+            {copilotContext.mission ? <p>{copilotContext.mission}</p> : null}
+            <p>Use esta trilha para revisar runtime, schema, RAG e providers antes de retomar a operação.</p>
+          </div>
+        </Panel>
+      ) : null}
       <div className="grid gap-4 md:grid-cols-3">
         <Panel title={`Modo: ${environment.mode === "degraded" ? "Contingência" : "Conectado"}`}>
           <p className="text-sm opacity-75">{environment.message}</p>

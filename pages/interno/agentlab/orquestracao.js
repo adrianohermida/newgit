@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/router";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
@@ -23,9 +24,21 @@ function SaveState({ state }) {
   return null;
 }
 
+function parseCopilotContext(rawValue) {
+  if (!rawValue) return null;
+  try {
+    return JSON.parse(String(rawValue));
+  } catch {
+    return null;
+  }
+}
+
 export default function AgentLabOrquestracaoPage() {
+  const router = useRouter();
   const state = useAgentLabData();
   const [selectedAgent, setSelectedAgent] = useState("dotobot-chatbot");
+  const copilotContext = parseCopilotContext(typeof router.query.copilotContext === "string" ? router.query.copilotContext : "");
+  const copilotAgentSeedAppliedRef = useRef(false);
   const [replyForm, setReplyForm] = useState({
     title: "",
     shortcut: "",
@@ -76,6 +89,16 @@ export default function AgentLabOrquestracaoPage() {
   const handoffPlaybooks = (state.data?.governance?.handoffPlaybooks || []).filter(
     (item) => !item.agent_ref || item.agent_ref === selectedAgent
   );
+
+  useEffect(() => {
+    if (copilotAgentSeedAppliedRef.current) return;
+    const mission = String(copilotContext?.mission || "").toLowerCase();
+    if (!mission) return;
+    if (mission.match(/workflow|intent|orquestra|playbook|agent/)) {
+      copilotAgentSeedAppliedRef.current = true;
+      setSelectedAgent("dotobot-ai");
+    }
+  }, [copilotContext]);
 
   useEffect(() => {
     setModuleHistory(
@@ -212,6 +235,15 @@ export default function AgentLabOrquestracaoPage() {
             <div className="border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] p-6 text-sm">{state.error}</div>
           ) : (
             <div className="space-y-8">
+              {copilotContext ? (
+                <Panel title="Contexto vindo do Copilot">
+                  <div className="space-y-2 text-sm opacity-75">
+                    <p className="font-semibold">{copilotContext.conversationTitle || "Conversa ativa"}</p>
+                    {copilotContext.mission ? <p>{copilotContext.mission}</p> : null}
+                    <p>Use esta trilha para revisar intents, playbooks, workflow library e governança do agente.</p>
+                  </div>
+                </Panel>
+              ) : null}
               <Panel title="Escopo de experimentos">
                 <div className="grid gap-4 md:grid-cols-[260px_1fr]">
                   <label className="block">

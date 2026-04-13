@@ -2543,7 +2543,7 @@ function PublicacoesContent() {
   const isDockedPublicacoesView = view === "operacao" || view === "resultado";
 
   return (
-    <div className={`${isResultView ? "space-y-6" : "space-y-8"} ${isDockedPublicacoesView ? "flex min-h-full flex-1 flex-col" : ""}`.trim()}>
+    <div className={`${isDockedPublicacoesView ? "flex min-h-full flex-1 flex-col gap-6" : isResultView ? "space-y-6" : "space-y-8"}`.trim()}>
       {copilotContext ? (
         <section className="rounded-[22px] border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-4 text-sm text-[#C6D1CC]">
           <p className="text-[10px] uppercase tracking-[0.18em] text-[#7FC4AF]">Contexto vindo do Copilot</p>

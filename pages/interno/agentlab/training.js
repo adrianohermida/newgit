@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/router";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
@@ -16,11 +17,23 @@ function Panel({ title, children }) {
   );
 }
 
+function parseCopilotContext(rawValue) {
+  if (!rawValue) return null;
+  try {
+    return JSON.parse(String(rawValue));
+  } catch {
+    return null;
+  }
+}
+
 export default function AgentLabTrainingPage() {
+  const router = useRouter();
   const state = useAgentLabData();
   const [runningId, setRunningId] = useState(null);
   const [resultMessage, setResultMessage] = useState(null);
   const [selectedAgent, setSelectedAgent] = useState("all");
+  const copilotContext = parseCopilotContext(typeof router.query.copilotContext === "string" ? router.query.copilotContext : "");
+  const copilotAgentSeedAppliedRef = useRef(false);
 
   async function runScenario(id) {
     try {
@@ -58,6 +71,8 @@ export default function AgentLabTrainingPage() {
             resultMessage={resultMessage}
             selectedAgent={selectedAgent}
             setSelectedAgent={setSelectedAgent}
+            copilotContext={copilotContext}
+            copilotAgentSeedAppliedRef={copilotAgentSeedAppliedRef}
           />
         </InternoLayout>
       )}
@@ -72,6 +87,8 @@ function TrainingContent({
   resultMessage,
   selectedAgent,
   setSelectedAgent,
+  copilotContext,
+  copilotAgentSeedAppliedRef,
 }) {
   if (state.loading) {
     return (
@@ -97,6 +114,16 @@ function TrainingContent({
     selectedAgent === "all" ? scenarios : scenarios.filter((item) => item.agent_ref === selectedAgent);
   const visibleRuns =
     selectedAgent === "all" ? runs : runs.filter((item) => item.agent_ref === selectedAgent);
+
+  useEffect(() => {
+    if (copilotAgentSeedAppliedRef.current) return;
+    const mission = String(copilotContext?.mission || "").toLowerCase();
+    if (!mission) return;
+    if (mission.match(/dotobot|prompt|modelo|fallback|score|avali/)) {
+      copilotAgentSeedAppliedRef.current = true;
+      setSelectedAgent("dotobot-ai");
+    }
+  }, [copilotAgentSeedAppliedRef, copilotContext, setSelectedAgent]);
 
   useEffect(() => {
     setModuleHistory(
@@ -132,6 +159,15 @@ function TrainingContent({
 
   return (
     <div className="space-y-8">
+      {copilotContext ? (
+        <Panel title="Contexto vindo do Copilot">
+          <div className="space-y-2 text-sm opacity-75">
+            <p className="font-semibold">{copilotContext.conversationTitle || "Conversa ativa"}</p>
+            {copilotContext.mission ? <p>{copilotContext.mission}</p> : null}
+            <p>Use esta trilha para comparar cenários, score e fallback antes de retomar a missão.</p>
+          </div>
+        </Panel>
+      ) : null}
       <div className="grid gap-4 md:grid-cols-3">
         <Panel title={`Cenarios: ${scenarios.length}`}>
           <p className="text-sm opacity-70">Cenarios para treino de intents, handoff e fluxo.</p>

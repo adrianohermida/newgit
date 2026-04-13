@@ -1558,7 +1558,7 @@ export default function InternoLayout({
               </button>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden" style={{ paddingBottom: `${consoleReservedSpace}px` }}>
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden" style={{ paddingBottom: `${consoleReservedSpace}px` }}>
           <header className="mb-6 shrink-0 border-b border-[#1E2E29] bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.008))] pb-5 px-6 pt-6">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
               <div className="min-w-0">
@@ -1568,7 +1568,7 @@ export default function InternoLayout({
               </div>
             </div>
           </header>
-          <div className="flex min-h-full flex-col gap-6 px-6 pb-6">
+          <div className="flex min-h-0 flex-1 flex-col gap-6 px-6 pb-6">
             <IntegrationGuideCard guide={integrationGuide} />
             {children}
             {showExtensionManager ? <DotobotExtensionManager /> : null}

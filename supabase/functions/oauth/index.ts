@@ -64,6 +64,17 @@ function decodeStateKind(value: string | null): OAuthKind {
   return normalizeKind(prefix || null);
 }
 
+function envByKind(kind: OAuthKind, keys: { contacts: string[]; deals: string[]; fallback?: string[] }): string {
+  const candidates = kind === 'contacts'
+    ? [...keys.contacts, ...(keys.fallback ?? [])]
+    : [...keys.deals, ...(keys.fallback ?? [])];
+  for (const key of candidates) {
+    const value = Deno.env.get(key);
+    if (value && value.trim()) return value.trim();
+  }
+  return '';
+}
+
 function resolveConfig(kind: OAuthKind) {
   const isContacts = kind === 'contacts';
   const clientId = isContacts
@@ -292,13 +303,39 @@ Deno.serve(async (req: Request) => {
 
     if (action === 'seed' && method === 'POST') {
       const config = resolveConfig(requestedKind);
-      const accessToken = Deno.env.get('FRESHSALES_ACCESS_TOKEN');
-      const refreshToken = Deno.env.get('FRESHSALES_REFRESH_TOKEN');
-      const expiresInEnv = Number(Deno.env.get('FRESHSALES_EXPIRES_IN') ?? '1799');
-      const expiryTs = Number(Deno.env.get('FRESHSALES_TOKEN_EXPIRY') ?? '0');
+      const accessToken = envByKind(requestedKind, {
+        contacts: ['FRESHSALES_CONTACTS_ACCESS_TOKEN', 'FRESHSALES_CONTACT_ACCESS_TOKEN'],
+        deals: ['FRESHSALES_DEALS_ACCESS_TOKEN', 'FRESHSALES_DEAL_ACCESS_TOKEN'],
+        fallback: ['FRESHSALES_ACCESS_TOKEN'],
+      });
+      const refreshToken = envByKind(requestedKind, {
+        contacts: ['FRESHSALES_CONTACTS_REFRESH_TOKEN', 'FRESHSALES_CONTACT_REFRESH_TOKEN'],
+        deals: ['FRESHSALES_DEALS_REFRESH_TOKEN', 'FRESHSALES_DEAL_REFRESH_TOKEN'],
+        fallback: ['FRESHSALES_REFRESH_TOKEN'],
+      });
+      const expiresInEnv = Number(envByKind(requestedKind, {
+        contacts: ['FRESHSALES_CONTACTS_EXPIRES_IN', 'FRESHSALES_CONTACT_EXPIRES_IN'],
+        deals: ['FRESHSALES_DEALS_EXPIRES_IN', 'FRESHSALES_DEAL_EXPIRES_IN'],
+        fallback: ['FRESHSALES_EXPIRES_IN'],
+      }) || '1799');
+      const expiryTs = Number(envByKind(requestedKind, {
+        contacts: ['FRESHSALES_CONTACTS_TOKEN_EXPIRY', 'FRESHSALES_CONTACT_TOKEN_EXPIRY'],
+        deals: ['FRESHSALES_DEALS_TOKEN_EXPIRY', 'FRESHSALES_DEAL_TOKEN_EXPIRY'],
+        fallback: ['FRESHSALES_TOKEN_EXPIRY'],
+      }) || '0');
+      const tokenType = envByKind(requestedKind, {
+        contacts: ['FRESHSALES_CONTACTS_TOKEN_TYPE', 'FRESHSALES_CONTACT_TOKEN_TYPE'],
+        deals: ['FRESHSALES_DEALS_TOKEN_TYPE', 'FRESHSALES_DEAL_TOKEN_TYPE'],
+        fallback: ['FRESHSALES_TOKEN_TYPE'],
+      }) || 'Bearer';
 
       if (!accessToken || !refreshToken) {
-        return json({ error: 'FRESHSALES_ACCESS_TOKEN ou FRESHSALES_REFRESH_TOKEN nao definidos' }, 400);
+        return json({
+          error: requestedKind === 'contacts'
+            ? 'FRESHSALES_CONTACTS_ACCESS_TOKEN ou FRESHSALES_CONTACTS_REFRESH_TOKEN nao definidos'
+            : 'FRESHSALES_ACCESS_TOKEN ou FRESHSALES_REFRESH_TOKEN nao definidos',
+          kind: requestedKind,
+        }, 400);
       }
 
       const computedIn = expiryTs > Date.now()
@@ -309,7 +346,7 @@ Deno.serve(async (req: Request) => {
         access_token: accessToken,
         refresh_token: refreshToken,
         expires_in: computedIn,
-        token_type: Deno.env.get('FRESHSALES_TOKEN_TYPE') ?? 'Bearer',
+        token_type: tokenType,
         scope: config.scopes,
       });
 
