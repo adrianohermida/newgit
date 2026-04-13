@@ -2673,10 +2673,10 @@ const [uiToasts, setUiToasts] = useState([]);
         : "w-full max-w-[1320px]";
   const workspaceShellGridClass =
     effectiveWorkspaceLayout === "immersive"
-      ? "xl:grid-cols-[260px_minmax(0,1.55fr)_320px] 2xl:grid-cols-[300px_minmax(0,1.75fr)_360px]"
+      ? "lg:grid-cols-[220px_minmax(0,1.2fr)_280px] xl:grid-cols-[260px_minmax(0,1.55fr)_320px] 2xl:grid-cols-[300px_minmax(0,1.75fr)_360px]"
       : effectiveWorkspaceLayout === "balanced"
-        ? "xl:grid-cols-[210px_minmax(0,1.25fr)_260px] 2xl:grid-cols-[230px_minmax(0,1.4fr)_280px]"
-        : "xl:grid-cols-[190px_minmax(0,1.12fr)_240px] 2xl:grid-cols-[210px_minmax(0,1.2fr)_260px]";
+        ? "lg:grid-cols-[200px_minmax(0,1.1fr)_240px] xl:grid-cols-[210px_minmax(0,1.25fr)_260px] 2xl:grid-cols-[230px_minmax(0,1.4fr)_280px]"
+        : "lg:grid-cols-[180px_minmax(0,1fr)_220px] xl:grid-cols-[190px_minmax(0,1.12fr)_240px] 2xl:grid-cols-[210px_minmax(0,1.2fr)_260px]";
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
   const visibleLegalActions = LEGAL_ACTIONS.slice(0, isCompactViewport ? 1 : 3);
   const visibleQuickPrompts = QUICK_PROMPTS.slice(0, isCompactViewport ? 1 : 2);
@@ -4131,7 +4131,7 @@ const [uiToasts, setUiToasts] = useState([]);
 
             <div className="flex-1 overflow-hidden p-3 md:p-5">
               <div className={`grid h-full min-h-0 gap-4 transition-all duration-300 ease-out ${workspaceShellGridClass}`}>
-                <aside className="hidden xl:flex min-h-0 flex-col overflow-hidden rounded-[22px] border border-[#1C2623] bg-[rgba(255,255,255,0.018)] shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
+                <aside className="hidden lg:flex min-h-0 flex-col overflow-hidden rounded-[22px] border border-[#1C2623] bg-[rgba(255,255,255,0.018)] shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
                   <div className="border-b border-[#22342F] px-4 py-4 md:px-5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -4494,7 +4494,7 @@ const [uiToasts, setUiToasts] = useState([]);
                   </div>
                 </section>
 
-                <aside className="hidden xl:block min-h-0 overflow-hidden rounded-[24px] border border-[#1C2623] bg-[rgba(255,255,255,0.015)]">
+                <aside className="hidden lg:block min-h-0 overflow-hidden rounded-[24px] border border-[#1C2623] bg-[rgba(255,255,255,0.015)]">
                   <div className="border-b border-[#22342F] px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
