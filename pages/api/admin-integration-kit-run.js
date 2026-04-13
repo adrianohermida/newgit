@@ -5,9 +5,9 @@ const { requireAdminNode } = require("../../lib/admin/node-auth.js");
 const {
   getIntegrationKitCapabilities,
   parseBoolean,
-} = require("../../lib/integration-kit/runtime");
+} = require(/*turbopackIgnore: true*/ "../../lib/integration-kit/runtime");
 
-const PROJECT_ROOT = path.resolve(__dirname, "../..");
+const PROJECT_ROOT = path.join(__dirname, "..", "..");
 
 const COMMANDS = {
   validate: ["npm", "run", "integration:validate"],

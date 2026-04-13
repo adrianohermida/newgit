@@ -169,6 +169,17 @@ $authConfigCheck = $results | Where-Object { $_.name -eq "admin-auth-config" } |
 $publicChatConfigCheck = $results | Where-Object { $_.name -eq "public-chat-config" } | Select-Object -First 1
 $marketAdsCheck = $results | Where-Object { $_.name -eq "admin-market-ads" } | Select-Object -First 1
 
+$canonicalAdminRuntimeMissing = $false
+if ($providersCheck -and $providersCheck.status -eq 404) {
+  $canonicalAdminRuntimeMissing = $true
+}
+if ($ragCheck -and $ragCheck.status -eq 404) {
+  $canonicalAdminRuntimeMissing = $true
+}
+if ($chatCheck -and $chatCheck.status -eq 404) {
+  $canonicalAdminRuntimeMissing = $true
+}
+
 if ($authConfigCheck) {
   if ($authConfigCheck.status -ge 500) {
     $diagnosis.Add("A rota publica /api/admin-auth-config falhou; o bootstrap de auth do dashboard pode estar quebrado.")
@@ -202,6 +213,24 @@ if ($providersCheck) {
       $diagnosis.Add("O runtime administrativo existe, mas a validacao protegida depende de token admin.")
     }
   }
+}
+
+if (
+  $canonicalAdminRuntimeMissing -and
+  $legacyChatCheck -and $legacyChatCheck.status -eq 405 -and
+  $legacyProvidersCheck -and $legacyProvidersCheck.status -eq 405
+) {
+  $diagnosis.Add("Padrao tipico de deploy estatico detectado: as rotas canonicas /api/* nao estao publicadas e o alias legado /functions/api/* responde 405.")
+  $diagnosis.Add("Esse estado costuma acontecer quando o site foi sobrescrito por upload estatico puro, sem anexar a pasta functions/ ao projeto Cloudflare Pages.")
+  $diagnosis.Add("Corrija o deploy no projeto newgit-pages usando build conectado do repositorio; nao publique somente o diretorio out.")
+}
+
+if (
+  $canonicalAdminRuntimeMissing -and
+  $authConfigCheck -and $authConfigCheck.status -eq 200 -and
+  $publicChatConfigCheck -and $publicChatConfigCheck.status -eq 200
+) {
+  $diagnosis.Add("O frontend publico esta no ar, mas o runtime administrativo do Pages nao foi publicado junto.")
 }
 
 if ($ragCheck -and $ragCheck.errorType) {

@@ -10,6 +10,42 @@ import { InternalThemeProvider } from '../components/interno/InternalThemeProvid
 import useConsoleRouteInstrumentation from '../hooks/useConsoleRouteInstrumentation';
 
 const FreshchatWebMessenger = dynamic(() => import('../components/FreshchatWebMessenger'), { ssr: false });
+const NON_PORTAL_SW_CLEANUP_MARKER = 'hmadv_sw_cleanup_once_v2';
+const CHUNK_RECOVERY_MARKER = 'hmadv_chunk_recovery_once_v1';
+
+function shouldRecoverFromChunkError(reason = '') {
+  const message = String(reason || '').toLowerCase();
+  return (
+    message.includes('chunkloaderror') ||
+    message.includes('loading chunk') ||
+    message.includes('failed to fetch dynamically imported module') ||
+    message.includes('/_next/static/') ||
+    message.includes('strict mime type checking') ||
+    message.includes('is not executable')
+  );
+}
+
+async function clearFrontendRuntimeCaches() {
+  if (typeof window === 'undefined') return;
+  if (!('caches' in window)) return;
+  try {
+    const keys = await caches.keys();
+    await Promise.all(
+      keys
+        .filter((key) =>
+          key.startsWith('hmadv-portal-') ||
+          key.startsWith('workbox') ||
+          key.startsWith('next-') ||
+          key.includes('_next') ||
+          key.includes('turbopack') ||
+          key.includes('precache')
+        )
+        .map((key) => caches.delete(key).catch(() => null))
+    );
+  } catch {
+    // noop
+  }
+}
 
 export default function App({ Component, pageProps }) {
   const router = useRouter();
@@ -71,23 +107,11 @@ export default function App({ Component, pageProps }) {
           .getRegistrations()
           .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister().catch(() => null))))
           .catch(() => null),
-        'caches' in window
-          ? caches
-              .keys()
-              .then((keys) =>
-                Promise.all(
-                  keys
-                    .filter((key) => key.startsWith('hmadv-portal-'))
-                    .map((key) => caches.delete(key).catch(() => null))
-                )
-              )
-              .catch(() => null)
-          : Promise.resolve(),
+        clearFrontendRuntimeCaches(),
       ]).then(() => {
         try {
-          const marker = 'hmadv_sw_cleanup_once_v1';
-          if (window.navigator.serviceWorker.controller && window.sessionStorage.getItem(marker) !== '1') {
-            window.sessionStorage.setItem(marker, '1');
+          if (window.navigator.serviceWorker.controller && window.sessionStorage.getItem(NON_PORTAL_SW_CLEANUP_MARKER) !== '1') {
+            window.sessionStorage.setItem(NON_PORTAL_SW_CLEANUP_MARKER, '1');
             window.location.reload();
           }
         } catch {
@@ -110,6 +134,50 @@ export default function App({ Component, pageProps }) {
     window.addEventListener('load', registerWorker, { once: true });
     return () => window.removeEventListener('load', registerWorker);
   }, [isPortalRoute]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const recoverFrontend = async (reason) => {
+      try {
+        if (!shouldRecoverFromChunkError(reason)) return;
+        if (window.sessionStorage.getItem(CHUNK_RECOVERY_MARKER) === '1') return;
+        window.sessionStorage.setItem(CHUNK_RECOVERY_MARKER, '1');
+        await clearFrontendRuntimeCaches();
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.set('__hmadv_reload', String(Date.now()));
+        window.location.replace(nextUrl.toString());
+      } catch {
+        // noop
+      }
+    };
+
+    const handleWindowError = (event) => {
+      const targetSource =
+        event?.target?.src ||
+        event?.filename ||
+        event?.message ||
+        '';
+      recoverFrontend(targetSource);
+    };
+
+    const handleUnhandledRejection = (event) => {
+      const reason =
+        event?.reason?.message ||
+        event?.reason?.stack ||
+        event?.reason ||
+        '';
+      recoverFrontend(reason);
+    };
+
+    window.addEventListener('error', handleWindowError, true);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener('error', handleWindowError, true);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
 
   return (
     <>

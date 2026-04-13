@@ -2046,11 +2046,13 @@ const [uiToasts, setUiToasts] = useState([]);
         return;
       }
       const message =
-        err?.code === "LOCAL_RUNTIME_INSUFFICIENT_MEMORY"
-          ? "Inferência local indisponível: a máquina não tem memória suficiente para o modelo atual. O painel segue operando em modo degradado."
-          : err?.code === "LOCAL_RUNTIME_INFERENCE_FAILED"
-            ? "Inferência local indisponível: o runtime local falhou ao responder. O painel segue operando em modo degradado."
-          : err.message || "Erro ao conectar ao backend.";
+        err?.payload?.errorType === "admin_runtime_unavailable" || err?.status === 404 || err?.status === 405
+          ? "O runtime administrativo do chat não está publicado neste deploy. O frontend está pronto, mas a rota /api/admin-lawdesk-chat precisa estar ativa no ambiente."
+          : err?.code === "LOCAL_RUNTIME_INSUFFICIENT_MEMORY"
+            ? "Inferência local indisponível: a máquina não tem memória suficiente para o modelo atual. O painel segue operando em modo degradado."
+            : err?.code === "LOCAL_RUNTIME_INFERENCE_FAILED"
+              ? "Inferência local indisponível: o runtime local falhou ao responder. O painel segue operando em modo degradado."
+              : err.message || "Erro ao conectar ao backend.";
       setError(message);
       setMessages((msgs) => {
         const last = msgs[msgs.length - 1];

@@ -25,6 +25,8 @@ Importante:
 - esse fluxo nao envia `functions/` nem `_routes.json`
 - se usado sozinho, pode deixar `/api/*` indisponivel em producao
 - para runtime administrativo completo, prefira o build conectado do Cloudflare Pages a partir do repositorio
+- se o console mostrar `POST /api/admin-lawdesk-chat 404` e `POST /functions/api/admin-lawdesk-chat 405`, trate como indicio de deploy estatico puro sobrescrevendo o runtime do Pages
+- nesse caso, republique o projeto `newgit-pages` pelo build conectado do Cloudflare Pages e confirme o diagnostico com `npm run diagnose:pages-admin`
 
 Observacao sobre o modulo `HMADV Market Ads`:
 

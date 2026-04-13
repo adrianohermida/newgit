@@ -404,26 +404,28 @@ function ViewToggle({ value, onChange }) {
   })}</div>;
 }
 function QueueList({ title, rows, selected, onToggle, onTogglePage, page, setPage, loading, helper, totalRows = 0, pageSize = 20, renderStatuses = null, lastUpdated = null, limited = false, errorMessage = "", selectionDisabled = false, selectionDisabledMessage = "" }) {
+  const { isLightTheme } = useInternalTheme();
   const allSelected = rows.length > 0 && rows.every((row) => selected.includes(getProcessSelectionValue(row)));
   const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / Math.max(1, pageSize)));
   const mismatchMessage = queueMismatchMessage({ totalRows, items: rows });
   const updatedLabel = lastUpdated ? new Date(lastUpdated).toLocaleString("pt-BR") : "nao atualizado";
-  return <div className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">{title}</p><span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{rows.length} nesta pagina</span><span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{totalRows} no total</span>{selected.length ? <span className="rounded-full border border-[#6E5630] bg-[rgba(76,57,26,0.22)] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-[#FDE68A]">{selected.length} selecionado(s)</span> : null}</div>{helper ? <p className="mt-1 text-xs leading-6 opacity-60">{helper}</p> : null}{totalRows ? <p className="mt-1 text-xs opacity-50">Pagina {page} de {totalPages}</p> : null}{lastUpdated !== undefined ? <p className="mt-1 text-xs opacity-50">Atualizado em {updatedLabel}</p> : null}{limited ? <p className="mt-1 text-xs text-[#FDE68A]">Fila em modo reduzido para evitar sobrecarga.</p> : null}{errorMessage ? <p className="mt-1 text-xs text-[#FECACA]">{errorMessage}</p> : null}{selectionDisabled && selectionDisabledMessage ? <p className="mt-1 text-xs text-[#FDE68A]">{selectionDisabledMessage}</p> : null}{mismatchMessage ? <p className="mt-1 text-xs text-[#FDE68A]">{mismatchMessage}</p> : null}</div><div className="flex flex-wrap gap-2">{selectionDisabled ? null : <ActionButton onClick={() => onTogglePage(!allSelected)} className="px-3 py-2 text-xs">{allSelected ? "Desmarcar pagina" : "Selecionar pagina"}</ActionButton>}<ActionButton onClick={() => setPage(Math.max(1, page - 1))} disabled={loading || page <= 1} className="px-3 py-2 text-xs">Anterior</ActionButton><ActionButton onClick={() => setPage(page + 1)} disabled={loading || page >= totalPages} className="px-3 py-2 text-xs">Proxima</ActionButton></div></div>{loading ? <p className="text-sm opacity-60">Carregando fila...</p> : null}{!loading && !rows.length ? <p className="rounded-2xl border border-dashed border-[#2D2E2E] px-4 py-6 text-sm opacity-60">Nenhum item encontrado nesta pagina.</p> : null}<div className="space-y-3">{rows.map((row) => { const selectionValue = getProcessSelectionValue(row); const statuses = renderStatuses ? renderStatuses(row) : []; return <label key={row.key} className={`block rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 transition ${selectionDisabled ? "cursor-default" : "cursor-pointer hover:border-[#3A3E3D]"}`}><div className="flex gap-3">{selectionDisabled ? <div className="mt-1 h-4 w-4 rounded-full border border-[#4A4031] bg-[rgba(76,57,26,0.22)]" /> : <input type="checkbox" checked={selected.includes(selectionValue)} onChange={() => onToggle(selectionValue)} className="mt-1" />}<div className="min-w-0 flex-1 space-y-2 text-sm"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold break-all">{row.numero_cnj || row.key}</p>{row.monitoramento_fallback ? <span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">fallback</span> : null}</div>{row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}{statuses.length ? <div className="flex flex-wrap gap-2">{statuses.map((status) => <StatusBadge key={status.label} tone={status.tone}>{status.label}</StatusBadge>)}</div> : null}<div className="flex flex-wrap gap-x-4 gap-y-1 opacity-60 text-xs">{row.status_atual_processo ? <span>Status: {row.status_atual_processo}</span> : null}{row.quantidade_movimentacoes !== undefined ? <span>Movimentacoes: {row.quantidade_movimentacoes ?? 0}</span> : null}{row.monitoramento_ativo !== undefined ? <span>Monitorado: {row.monitoramento_ativo ? "sim" : "nao"}</span> : null}{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]" onClick={(e) => e.stopPropagation()}>Account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}</div></div></div></label>; })}</div></div>;
+  return <div className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">{title}</p><span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "border-[#d7d4cb] text-[#6b7280]" : "border-[#2D2E2E] opacity-70"}`}>{rows.length} nesta pagina</span><span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "border-[#d7d4cb] text-[#6b7280]" : "border-[#2D2E2E] opacity-70"}`}>{totalRows} no total</span>{selected.length ? <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.22)] text-[#FDE68A]"}`}>{selected.length} selecionado(s)</span> : null}</div>{helper ? <p className={`mt-1 text-xs leading-6 ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>{helper}</p> : null}{totalRows ? <p className={`mt-1 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Pagina {page} de {totalPages}</p> : null}{lastUpdated !== undefined ? <p className={`mt-1 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Atualizado em {updatedLabel}</p> : null}{limited ? <p className={`mt-1 text-xs ${isLightTheme ? "text-[#9a6d14]" : "text-[#FDE68A]"}`}>Fila em modo reduzido para evitar sobrecarga.</p> : null}{errorMessage ? <p className="mt-1 text-xs text-[#FECACA]">{errorMessage}</p> : null}{selectionDisabled && selectionDisabledMessage ? <p className={`mt-1 text-xs ${isLightTheme ? "text-[#9a6d14]" : "text-[#FDE68A]"}`}>{selectionDisabledMessage}</p> : null}{mismatchMessage ? <p className={`mt-1 text-xs ${isLightTheme ? "text-[#9a6d14]" : "text-[#FDE68A]"}`}>{mismatchMessage}</p> : null}</div><div className="flex flex-wrap gap-2">{selectionDisabled ? null : <ActionButton onClick={() => onTogglePage(!allSelected)} className="px-3 py-2 text-xs">{allSelected ? "Desmarcar pagina" : "Selecionar pagina"}</ActionButton>}<ActionButton onClick={() => setPage(Math.max(1, page - 1))} disabled={loading || page <= 1} className="px-3 py-2 text-xs">Anterior</ActionButton><ActionButton onClick={() => setPage(page + 1)} disabled={loading || page >= totalPages} className="px-3 py-2 text-xs">Proxima</ActionButton></div></div>{loading ? <p className={`text-sm ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Carregando fila...</p> : null}{!loading && !rows.length ? <p className={`rounded-2xl border border-dashed px-4 py-6 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#6b7280]" : "border-[#2D2E2E] opacity-60"}`}>Nenhum item encontrado nesta pagina.</p> : null}<div className="space-y-3">{rows.map((row) => { const selectionValue = getProcessSelectionValue(row); const statuses = renderStatuses ? renderStatuses(row) : []; return <label key={row.key} className={`block rounded-[24px] border p-4 transition ${selectionDisabled ? "cursor-default" : "cursor-pointer"} ${isLightTheme ? "border-[#d7d4cb] bg-white hover:border-[#c79b2c]" : `border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] ${selectionDisabled ? "" : "hover:border-[#3A3E3D]"}`}`}><div className="flex gap-3">{selectionDisabled ? <div className={`mt-1 h-4 w-4 rounded-full border ${isLightTheme ? "border-[#d7d4cb] bg-[#f3eee1]" : "border-[#4A4031] bg-[rgba(76,57,26,0.22)]"}`} /> : <input type="checkbox" checked={selected.includes(selectionValue)} onChange={() => onToggle(selectionValue)} className="mt-1" />}<div className="min-w-0 flex-1 space-y-2 text-sm"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold break-all">{row.numero_cnj || row.key}</p>{row.monitoramento_fallback ? <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "border-[#d7d4cb] text-[#6b7280]" : "border-[#2D2E2E] opacity-70"}`}>fallback</span> : null}</div>{row.titulo ? <p className={isLightTheme ? "text-[#4b5563]" : "opacity-70"}>{row.titulo}</p> : null}{statuses.length ? <div className="flex flex-wrap gap-2">{statuses.map((status) => <StatusBadge key={status.label} tone={status.tone}>{status.label}</StatusBadge>)}</div> : null}<div className={`flex flex-wrap gap-x-4 gap-y-1 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>{row.status_atual_processo ? <span>Status: {row.status_atual_processo}</span> : null}{row.quantidade_movimentacoes !== undefined ? <span>Movimentacoes: {row.quantidade_movimentacoes ?? 0}</span> : null}{row.monitoramento_ativo !== undefined ? <span>Monitorado: {row.monitoramento_ativo ? "sim" : "nao"}</span> : null}{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className={`underline ${isLightTheme ? "hover:text-[#9a6d14]" : "hover:text-[#C5A059]"}`} onClick={(e) => e.stopPropagation()}>Account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}</div></div></div></label>; })}</div></div>;
 }
 function QueueActionBlock({ selectionCount = 0, batchSize = 1, onBatchChange, helper = "", disabled = false, actions = [] }) {
-  return <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4">
+  const { isLightTheme } = useInternalTheme();
+  return <div className={`rounded-[22px] border p-4 ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.45)]"}`}>
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div className="space-y-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Acao por fila</p>
+        <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Acao por fila</p>
         <div className="flex flex-wrap gap-2">
           <StatusBadge tone={selectionCount ? "success" : "default"}>{selectionCount} selecionado(s)</StatusBadge>
           <StatusBadge tone="default">lote local {batchSize}</StatusBadge>
         </div>
-        {helper ? <p className="text-xs leading-6 opacity-60">{helper}</p> : null}
+        {helper ? <p className={`text-xs leading-6 ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>{helper}</p> : null}
       </div>
       <label className="block min-w-[120px]">
-        <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Lote</span>
-        <input type="number" min="1" max="30" value={batchSize} onChange={(e) => onBatchChange(e.target.value)} className="w-full rounded-2xl border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" />
+        <span className={`mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Lote</span>
+        <input type="number" min="1" max="30" value={batchSize} onChange={(e) => onBatchChange(e.target.value)} className={`w-full rounded-2xl border p-3 text-sm outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-[#050706] focus:border-[#C5A059]"}`} />
       </label>
     </div>
     <div className="mt-4 flex flex-wrap gap-3">
@@ -436,7 +438,8 @@ function CoverageList({ rows, page, setPage, loading, totalRows = 0, pageSize = 
   return <div className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-semibold">Cobertura por processo</p><p className="mt-1 text-xs leading-6 opacity-60">Leitura consolidada do que ja esta coberto entre HMADV e Freshsales, por processo.</p><p className="mt-1 text-xs opacity-50">Pagina {page} de {totalPages} • {totalRows} processo(s) com pendencia</p></div><div className="flex flex-wrap gap-2"><ActionButton onClick={() => setPage(Math.max(1, page - 1))} disabled={loading || page <= 1} className="px-3 py-2 text-xs">Anterior</ActionButton><ActionButton onClick={() => setPage(page + 1)} disabled={loading || page >= totalPages} className="px-3 py-2 text-xs">Proxima</ActionButton></div></div>{loading ? <p className="text-sm opacity-60">Carregando cobertura...</p> : null}{!loading && !rows.length ? <p className="rounded-2xl border border-dashed border-[#2D2E2E] px-4 py-6 text-sm opacity-60">Nenhum processo com pendencia de cobertura nesta pagina.</p> : null}<div className="space-y-3">{rows.map((row) => <div key={row.key} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div className="space-y-2"><p className="font-semibold break-all">{row.numero_cnj || row.key}</p>{row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}<div className="flex flex-wrap gap-2"><StatusBadge tone={row.coveragePct >= 85 ? "success" : row.coveragePct >= 55 ? "warning" : "danger"}>{row.coveragePct || 0}% coberto</StatusBadge>{(row.pending || []).slice(0, 6).map((label) => <StatusBadge key={`${row.key}-${label}`} tone="warning">{label.replace(/_/g, " ")}</StatusBadge>)}</div><div className="flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60"><span>Publicacoes pendentes: {row.publicacoesPendentes || 0}</span><span>Movimentacoes pendentes: {row.movimentacoesPendentes || 0}</span><span>Partes sem contato: {row.partesSemContato || 0}</span><span>Audiencias pendentes: {row.audienciasPendentes || 0}</span>{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}</div></div>{onSelectProcess ? <ActionButton onClick={() => onSelectProcess(row.numero_cnj)} className="px-3 py-2 text-xs">Usar no lote</ActionButton> : null}</div></div>)}</div></div>;
 }
 function RelationProcessCard({ title, process, fallbackNumber }) {
-  return <div className="rounded-[24px] border border-[#2D2E2E] bg-[#050706] p-4"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">{title}</p><p className="mt-3 break-all font-semibold">{process?.numero_cnj || fallbackNumber || "Sem CNJ"}</p><p className="mt-1 text-sm opacity-70">{process?.titulo || "Processo ainda nao encontrado na base judiciaria."}</p><div className="mt-2 flex flex-wrap gap-3 text-xs opacity-60">{process?.status_atual_processo ? <span>Status: {process.status_atual_processo}</span> : null}{process?.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${process.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Account {process.account_id_freshsales}</a> : null}</div></div>;
+  const { isLightTheme } = useInternalTheme();
+  return <div className={`rounded-[24px] border p-4 ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#1f2937]" : "border-[#2D2E2E] bg-[#050706]"}`}><p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>{title}</p><p className="mt-3 break-all font-semibold">{process?.numero_cnj || fallbackNumber || "Sem CNJ"}</p><p className={`mt-1 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>{process?.titulo || "Processo ainda nao encontrado na base judiciaria."}</p><div className={`mt-2 flex flex-wrap gap-3 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>{process?.status_atual_processo ? <span>Status: {process.status_atual_processo}</span> : null}{process?.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${process.account_id_freshsales}`} target="_blank" rel="noreferrer" className={`underline ${isLightTheme ? "hover:text-[#9a6d14]" : "hover:text-[#C5A059]"}`}>Account {process.account_id_freshsales}</a> : null}</div></div>;
 }
 function RelationSelectionBar({
   title,
@@ -454,17 +457,18 @@ function RelationSelectionBar({
   disableNext = false,
   disablePrev = false,
 }) {
+  const { isLightTheme } = useInternalTheme();
   const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / Math.max(1, pageSize)));
   return <div className="flex flex-wrap items-start justify-between gap-3">
     <div>
       <div className="flex flex-wrap items-center gap-2">
         <p className="text-sm font-semibold">{title}</p>
-        <span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70">{totalRows} no total</span>
-        {selectedCount ? <span className="rounded-full border border-[#6E5630] bg-[rgba(76,57,26,0.22)] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-[#FDE68A]">{selectedCount} selecionado(s)</span> : null}
+        <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "border-[#d7d4cb] text-[#6b7280]" : "border-[#2D2E2E] opacity-70"}`}>{totalRows} no total</span>
+        {selectedCount ? <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.22)] text-[#FDE68A]"}`}>{selectedCount} selecionado(s)</span> : null}
         {allMatchingSelected ? <StatusBadge tone="success">todos do filtro</StatusBadge> : null}
       </div>
-      {helper ? <p className="mt-1 text-xs leading-6 opacity-60">{helper}</p> : null}
-      <p className="mt-1 text-xs opacity-50">Pagina {page} de {totalPages}</p>
+      {helper ? <p className={`mt-1 text-xs leading-6 ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>{helper}</p> : null}
+      <p className={`mt-1 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Pagina {page} de {totalPages}</p>
     </div>
     <div className="flex flex-wrap gap-2">
       <ActionButton onClick={onTogglePage} disabled={loading} className="px-3 py-2 text-xs">Selecionar pagina</ActionButton>
@@ -475,7 +479,8 @@ function RelationSelectionBar({
   </div>;
 }
 function RelationSuggestionCard({ item, checked, onToggle, onUseSuggestion }) {
-  return <label className="block cursor-pointer rounded-[26px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 transition hover:border-[#3A3E3D]">
+  const { isLightTheme } = useInternalTheme();
+  return <label className={`block cursor-pointer rounded-[26px] border p-4 transition ${isLightTheme ? "border-[#d7d4cb] bg-white hover:border-[#c79b2c]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] hover:border-[#3A3E3D]"}`}>
     <div className="flex gap-3">
       <input type="checkbox" checked={checked} onChange={onToggle} className="mt-1" />
       <div className="min-w-0 flex-1 space-y-3">
@@ -489,8 +494,8 @@ function RelationSuggestionCard({ item, checked, onToggle, onUseSuggestion }) {
           <RelationProcessCard title="Filho sugerido" process={item.source_process?.numero_cnj === item.numero_cnj_filho ? item.source_process : item.target_process} fallbackNumber={item.numero_cnj_filho} />
         </div>
         {item.reasons?.length ? <div className="flex flex-wrap gap-2">{item.reasons.map((reason) => <StatusBadge key={reason} tone="warning">{reason}</StatusBadge>)}</div> : null}
-        {item.evidence?.trecho ? <div className="rounded-[20px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] p-3 text-sm opacity-75"><p className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-55">Trecho da publicacao</p><p className="mt-2 leading-6">{item.evidence.trecho}</p></div> : null}
-        <div className="flex flex-wrap items-center gap-3 text-xs opacity-60">
+        {item.evidence?.trecho ? <div className={`rounded-[20px] border p-3 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#4b5563]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] opacity-75"}`}><p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${isLightTheme ? "text-[#6b7280]" : "opacity-55"}`}>Trecho da publicacao</p><p className="mt-2 leading-6">{item.evidence.trecho}</p></div> : null}
+        <div className={`flex flex-wrap items-center gap-3 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>
           {item.evidence?.data_publicacao ? <span>Publicacao: {new Date(item.evidence.data_publicacao).toLocaleDateString("pt-BR")}</span> : null}
           {item.evidence?.cnj_mencionado ? <span>CNJ citado: {item.evidence.cnj_mencionado}</span> : null}
         </div>
@@ -502,14 +507,15 @@ function RelationSuggestionCard({ item, checked, onToggle, onUseSuggestion }) {
   </label>;
 }
 function RegisteredRelationCard({ item, checked, onToggle, onEdit, onDelete, disabled = false }) {
-  return <label className="block cursor-pointer rounded-[28px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4">
+  const { isLightTheme } = useInternalTheme();
+  return <label className={`block cursor-pointer rounded-[28px] border p-4 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}>
     <div className="flex gap-3">
       <input type="checkbox" checked={checked} onChange={onToggle} className="mt-1" />
       <div className="min-w-0 flex-1 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.15em]">
-            <span className="border border-[#2D2E2E] px-2 py-1">{item.tipo_relacao}</span>
-            <span className="border border-[#2D2E2E] px-2 py-1">{item.status}</span>
+            <span className={`border px-2 py-1 ${isLightTheme ? "border-[#d7d4cb] text-[#6b7280]" : "border-[#2D2E2E]"}`}>{item.tipo_relacao}</span>
+            <span className={`border px-2 py-1 ${isLightTheme ? "border-[#d7d4cb] text-[#6b7280]" : "border-[#2D2E2E]"}`}>{item.status}</span>
           </div>
           <div className="flex gap-2">
             <ActionButton onClick={(event) => { event.preventDefault(); onEdit(item); }} disabled={disabled} className="px-3 py-2 text-xs">Editar</ActionButton>
@@ -520,17 +526,18 @@ function RegisteredRelationCard({ item, checked, onToggle, onEdit, onDelete, dis
           <RelationProcessCard title="Processo principal" process={item.processo_pai} fallbackNumber={item.numero_cnj_pai} />
           <RelationProcessCard title="Processo relacionado" process={item.processo_filho} fallbackNumber={item.numero_cnj_filho} />
         </div>
-        {item.observacoes ? <p className="text-sm opacity-65">{item.observacoes}</p> : null}
+        {item.observacoes ? <p className={`text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>{item.observacoes}</p> : null}
       </div>
     </div>
   </label>;
 }
 function StatusBadge({ children, tone = "default" }) {
+  const { isLightTheme } = useInternalTheme();
   const tones = {
-    default: "border-[#2D2E2E] text-[#F4F1EA]",
-    success: "border-[#30543A] text-[#B7F7C6]",
-    warning: "border-[#6E5630] text-[#FDE68A]",
-    danger: "border-[#5B2D2D] text-[#FECACA]",
+    default: isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#6b7280]" : "border-[#2D2E2E] text-[#F4F1EA]",
+    success: isLightTheme ? "border-[#8dc8a3] bg-[#effaf2] text-[#166534]" : "border-[#30543A] text-[#B7F7C6]",
+    warning: isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] text-[#FDE68A]",
+    danger: isLightTheme ? "border-[#e7b3b3] bg-[#fff1f1] text-[#991b1b]" : "border-[#5B2D2D] text-[#FECACA]",
   };
   return <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${tones[tone] || tones.default}`}>{children}</span>;
 }
@@ -599,9 +606,10 @@ function renderQueueRowStatuses(row, queueKey, { monitoringUnsupported = false }
 }
 function PayloadDetails({ title, payload }) {
   if (!payload) return null;
-  return <details className="mt-2 rounded-2xl border border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] p-3 text-xs opacity-75">
-    <summary className="cursor-pointer list-none font-semibold uppercase tracking-[0.14em] text-[#C5A059]">{title}</summary>
-    <pre className="mt-3 overflow-x-auto whitespace-pre-wrap opacity-80">{JSON.stringify(payload, null, 2)}</pre>
+  const { isLightTheme } = useInternalTheme();
+  return <details className={`mt-2 rounded-2xl border p-3 text-xs ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#4b5563]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] opacity-75"}`}>
+    <summary className={`cursor-pointer list-none font-semibold uppercase tracking-[0.14em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#C5A059]"}`}>{title}</summary>
+    <pre className={`mt-3 overflow-x-auto whitespace-pre-wrap ${isLightTheme ? "text-[#4b5563]" : "opacity-80"}`}>{JSON.stringify(payload, null, 2)}</pre>
   </details>;
 }
 function renderProcessSyncStatuses(row) {
@@ -878,6 +886,7 @@ function buildProcessResultHeadline(row) {
   return "Sem alteracoes relevantes";
 }
 function OperationResult({ result }) {
+  const { isLightTheme } = useInternalTheme();
   if (result?.job) {
     return <JobCard job={result.job} active />;
   }
@@ -901,17 +910,17 @@ function OperationResult({ result }) {
         <QueueSummaryCard title="Sem account" count={counters.semAccount} helper="Pendencias sem Sales Account vinculada." accent="text-[#FDE68A]" />
         <QueueSummaryCard title="Falhas" count={counters.errors} helper="Itens que pedem revisao manual." accent="text-[#FECACA]" />
       </div>
-      {result?.source ? <div className="rounded-2xl border border-[#1D2321] bg-[rgba(4,6,6,0.45)] px-4 py-3 text-xs uppercase tracking-[0.16em] opacity-65">Origem da execucao: {result.source}</div> : null}
-      {rows.length ? rows.slice(0, 20).map((row, index) => <div key={`${row.numero_cnj || row.processo_id || row.id || index}`} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm">
+      {result?.source ? <div className={`rounded-2xl border px-4 py-3 text-xs uppercase tracking-[0.16em] ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#6b7280]" : "border-[#1D2321] bg-[rgba(4,6,6,0.45)] opacity-65"}`}>Origem da execucao: {result.source}</div> : null}
+      {rows.length ? rows.slice(0, 20).map((row, index) => <div key={`${row.numero_cnj || row.processo_id || row.id || index}`} className={`rounded-[24px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}>
         <p className="font-semibold">{row.numero_cnj || row.id || `Linha ${index + 1}`}</p>
-        {row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}
+        {row.titulo ? <p className={isLightTheme ? "text-[#4b5563]" : "opacity-70"}>{row.titulo}</p> : null}
         <div className="mt-2 flex flex-wrap gap-2">
           {row.status ? <StatusBadge tone={String(row.status).includes("sem") ? "warning" : "success"}>{String(row.status).replaceAll("_", " ")}</StatusBadge> : null}
           {typeof row.total_pendente === "number" ? <StatusBadge tone="warning">{row.total_pendente} pendentes</StatusBadge> : null}
           {row.account_id_freshsales ? <StatusBadge tone="success">account vinculada</StatusBadge> : <StatusBadge tone="danger">sem sales account</StatusBadge>}
         </div>
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-65">
-          {row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Abrir account {row.account_id_freshsales}</a> : null}
+        <div className={`mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-65"}`}>
+          {row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className={`underline transition ${isLightTheme ? "hover:text-[#9a6d14]" : "hover:text-[#C5A059]"}`}>Abrir account {row.account_id_freshsales}</a> : null}
           {row.processo_id ? <span>Processo ID: {row.processo_id}</span> : null}
           {row.ultima_data ? <span>Ultima data: {new Date(row.ultima_data).toLocaleDateString("pt-BR")}</span> : null}
         </div>
@@ -929,10 +938,10 @@ function OperationResult({ result }) {
         <QueueSummaryCard title="Sem account" count={Number(result?.semAccount || 0)} helper="Pendencias sem Sales Account vinculada." accent="text-[#FDE68A]" />
         <QueueSummaryCard title="Falhas" count={Number(result?.errors || 0)} helper="Itens que pedem revisao manual." accent="text-[#FECACA]" />
       </div>
-      {result?.source ? <div className="rounded-2xl border border-[#1D2321] bg-[rgba(4,6,6,0.45)] px-4 py-3 text-xs uppercase tracking-[0.16em] opacity-65">Origem da execucao: {result.source}</div> : null}
-      {rows.length ? rows.slice(0, 20).map((row, index) => <div key={`${row.numero_cnj || row.processo_id || row.id || index}`} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm">
+      {result?.source ? <div className={`rounded-2xl border px-4 py-3 text-xs uppercase tracking-[0.16em] ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#6b7280]" : "border-[#1D2321] bg-[rgba(4,6,6,0.45)] opacity-65"}`}>Origem da execucao: {result.source}</div> : null}
+      {rows.length ? rows.slice(0, 20).map((row, index) => <div key={`${row.numero_cnj || row.processo_id || row.id || index}`} className={`rounded-[24px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}>
         <p className="font-semibold">{row.numero_cnj || row.id || `Linha ${index + 1}`}</p>
-        {row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}
+        {row.titulo ? <p className={isLightTheme ? "text-[#4b5563]" : "opacity-70"}>{row.titulo}</p> : null}
         <div className="mt-2 flex flex-wrap gap-2">
           {row.status ? <StatusBadge tone={String(row.status).includes("sem") ? "warning" : "success"}>{String(row.status).replaceAll("_", " ")}</StatusBadge> : null}
           {typeof row.total_pendente === "number" ? <StatusBadge tone="warning">{row.total_pendente} pendentes</StatusBadge> : null}
@@ -950,7 +959,7 @@ function OperationResult({ result }) {
         <QueueSummaryCard title="Contatos criados" count={Number(result?.contatosCriados || 0)} helper="Novos contatos gerados no Freshsales." accent="text-[#B7F7C6]" />
         <QueueSummaryCard title="Modo" count={result?.apply ? "Aplicar" : "Simular"} helper="Execucao da reconciliacao." accent="text-[#C5A059]" />
       </div>
-      {rows.length ? rows.slice(0, 20).map((row, index) => <div key={`${row.numero_cnj || row.processo_id || index}`} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm">
+      {rows.length ? rows.slice(0, 20).map((row, index) => <div key={`${row.numero_cnj || row.processo_id || index}`} className={`rounded-[24px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}>
         <p className="font-semibold">{row.numero_cnj || `Linha ${index + 1}`}</p>
         {Array.isArray(row.partes) ? <div className="mt-2 flex flex-wrap gap-2">{row.partes.slice(0, 6).map((parte) => <StatusBadge key={`${parte.parte_id || parte.nome}-${parte.modo || "parte"}`} tone={parte.contato_freshsales_id ? "success" : "warning"}>{parte.nome || "Parte"}: {parte.modo || "pendente"}</StatusBadge>)}</div> : null}
       </div>) : <PayloadDetails title="Resultado completo" payload={result} />}
@@ -967,30 +976,32 @@ function OperationResult({ result }) {
     if (row.result?.ok === false || row.datajud?.ok === false || row.freshsales_repair?.ok === false) acc.falhas += 1;
     return acc;
   }, { persistidos: 0, reparados: 0, pendentes: 0, falhas: 0, movimentos: 0, gaps: 0, crmOnly: 0 });
-  return rows.length ? <div className="space-y-3"><div className="grid gap-3 md:grid-cols-7"><QueueSummaryCard title="Persistidos" count={counters.persistidos} helper="Consultas ou dados gravados no Supabase." accent="text-[#B7F7C6]" /><QueueSummaryCard title="Movimentos novos" count={counters.movimentos} helper="Andamentos agregados no lote." accent="text-[#B7F7C6]" /><QueueSummaryCard title="Gaps reduzidos" count={counters.gaps} helper="Campos antes vazios que foram preenchidos." accent="text-[#B7F7C6]" /><QueueSummaryCard title="CRM only" count={counters.crmOnly} helper="Itens que foram direto ao reparo CRM." accent="text-[#C5A059]" /><QueueSummaryCard title="CRM reparado" count={counters.reparados} helper="Accounts refletidas no Freshsales." accent="text-[#B7F7C6]" /><QueueSummaryCard title="Pendentes" count={counters.pendentes} helper="Processos ainda sem reparo no CRM." accent="text-[#FDE68A]" /><QueueSummaryCard title="Falhas" count={counters.falhas} helper="Itens que pedem revisao manual." accent="text-[#FECACA]" /></div><div className="rounded-2xl border border-[#1D2321] bg-[rgba(4,6,6,0.45)] px-4 py-3 text-xs uppercase tracking-[0.16em] opacity-65">Amostra operacional: {rows.length} item(ns)</div>{rows.slice(0, 20).map((row, index) => { const showPayloads = shouldShowProcessPayloadDetails(row); return <div key={`${row.numero_cnj || row.id || index}`} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm"><p className="font-semibold">{row.numero_cnj || row.id || `Linha ${index + 1}`}</p>{row.titulo ? <p className="opacity-70">{row.titulo}</p> : null}<p className="mt-2 text-sm opacity-80">{buildProcessResultHeadline(row)}</p>{renderProcessSyncStatuses(row).length ? <div className="mt-2 flex flex-wrap gap-2">{renderProcessSyncStatuses(row).map((item) => <StatusBadge key={item.label} tone={item.tone}>{item.label}</StatusBadge>)}</div> : null}<div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-65">{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Abrir account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}{row.processo_id ? <span>Processo ID: {row.processo_id}</span> : null}{row.before ? <span>Antes: {row.before.quantidade_movimentacoes || 0} mov.</span> : null}{row.after ? <span>Depois: {row.after.quantidade_movimentacoes || 0} mov.</span> : null}</div>{showPayloads ? <><PayloadDetails title="Detalhes CRM" payload={row.freshsales_repair} /><PayloadDetails title="Detalhes persistencia" payload={row.result} /><PayloadDetails title="Detalhes DataJud" payload={row.datajud} /></> : null}</div>; })}</div> : <PayloadDetails title="Resultado completo" payload={result} />;
+  return rows.length ? <div className="space-y-3"><div className="grid gap-3 md:grid-cols-7"><QueueSummaryCard title="Persistidos" count={counters.persistidos} helper="Consultas ou dados gravados no Supabase." accent="text-[#B7F7C6]" /><QueueSummaryCard title="Movimentos novos" count={counters.movimentos} helper="Andamentos agregados no lote." accent="text-[#B7F7C6]" /><QueueSummaryCard title="Gaps reduzidos" count={counters.gaps} helper="Campos antes vazios que foram preenchidos." accent="text-[#B7F7C6]" /><QueueSummaryCard title="CRM only" count={counters.crmOnly} helper="Itens que foram direto ao reparo CRM." accent="text-[#C5A059]" /><QueueSummaryCard title="CRM reparado" count={counters.reparados} helper="Accounts refletidas no Freshsales." accent="text-[#B7F7C6]" /><QueueSummaryCard title="Pendentes" count={counters.pendentes} helper="Processos ainda sem reparo no CRM." accent="text-[#FDE68A]" /><QueueSummaryCard title="Falhas" count={counters.falhas} helper="Itens que pedem revisao manual." accent="text-[#FECACA]" /></div><div className={`rounded-2xl border px-4 py-3 text-xs uppercase tracking-[0.16em] ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#6b7280]" : "border-[#1D2321] bg-[rgba(4,6,6,0.45)] opacity-65"}`}>Amostra operacional: {rows.length} item(ns)</div>{rows.slice(0, 20).map((row, index) => { const showPayloads = shouldShowProcessPayloadDetails(row); return <div key={`${row.numero_cnj || row.id || index}`} className={`rounded-[24px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}><p className="font-semibold">{row.numero_cnj || row.id || `Linha ${index + 1}`}</p>{row.titulo ? <p className={isLightTheme ? "text-[#4b5563]" : "opacity-70"}>{row.titulo}</p> : null}<p className={`mt-2 text-sm ${isLightTheme ? "text-[#374151]" : "opacity-80"}`}>{buildProcessResultHeadline(row)}</p>{renderProcessSyncStatuses(row).length ? <div className="mt-2 flex flex-wrap gap-2">{renderProcessSyncStatuses(row).map((item) => <StatusBadge key={item.label} tone={item.tone}>{item.label}</StatusBadge>)}</div> : null}<div className={`mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-65"}`}>{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className={`underline transition ${isLightTheme ? "hover:text-[#9a6d14]" : "hover:text-[#C5A059]"}`}>Abrir account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}{row.processo_id ? <span>Processo ID: {row.processo_id}</span> : null}{row.before ? <span>Antes: {row.before.quantidade_movimentacoes || 0} mov.</span> : null}{row.after ? <span>Depois: {row.after.quantidade_movimentacoes || 0} mov.</span> : null}</div>{showPayloads ? <><PayloadDetails title="Detalhes CRM" payload={row.freshsales_repair} /><PayloadDetails title="Detalhes persistencia" payload={row.result} /><PayloadDetails title="Detalhes DataJud" payload={row.datajud} /></> : null}</div>; })}</div> : <PayloadDetails title="Resultado completo" payload={result} />;
 }
 function HistoryCard({ entry, onReuse }) {
-  return <div className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm">
+  const { isLightTheme } = useInternalTheme();
+  return <div className={`rounded-[24px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}>
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><p className="font-semibold">{entry.label}</p>{entry.meta?.intentLabel ? <p className="mt-1 text-xs uppercase tracking-[0.14em] text-[#C5A059]">{entry.meta.intentLabel}</p> : null}<p className="text-xs opacity-60">{new Date(entry.createdAt).toLocaleString("pt-BR")}</p></div>
-      <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${entry.status === "running" ? "border-[#6E5630] text-[#FDE68A]" : entry.status === "error" ? "border-[#4B2222] text-red-200" : "border-[#2D2E2E] opacity-70"}`}>{entry.status}</span>
+      <div><p className="font-semibold">{entry.label}</p>{entry.meta?.intentLabel ? <p className={`mt-1 text-xs uppercase tracking-[0.14em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#C5A059]"}`}>{entry.meta.intentLabel}</p> : null}<p className={`text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>{new Date(entry.createdAt).toLocaleString("pt-BR")}</p></div>
+      <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${entry.status === "running" ? (isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] text-[#FDE68A]") : entry.status === "error" ? "border-[#4B2222] text-red-200" : (isLightTheme ? "border-[#d7d4cb] text-[#6b7280]" : "border-[#2D2E2E] opacity-70")}`}>{entry.status}</span>
     </div>
-    {entry.preview ? <p className="mt-3 opacity-70">{entry.preview}</p> : null}
-    {entry.meta?.selectedCount ? <p className="mt-2 text-xs opacity-60">Itens selecionados: {entry.meta.selectedCount}</p> : null}
-    {entry.meta?.limit ? <p className="mt-1 text-xs opacity-60">Lote: {entry.meta.limit}</p> : null}
-    {entry.meta?.processNumbersPreview ? <p className="mt-2 break-all text-xs opacity-60">CNJs: {entry.meta.processNumbersPreview}</p> : null}
+    {entry.preview ? <p className={`mt-3 ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>{entry.preview}</p> : null}
+    {entry.meta?.selectedCount ? <p className={`mt-2 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Itens selecionados: {entry.meta.selectedCount}</p> : null}
+    {entry.meta?.limit ? <p className={`mt-1 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Lote: {entry.meta.limit}</p> : null}
+    {entry.meta?.processNumbersPreview ? <p className={`mt-2 break-all text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>CNJs: {entry.meta.processNumbersPreview}</p> : null}
     <div className="mt-3 flex flex-wrap gap-2"><ActionButton onClick={() => onReuse(entry)} className="px-3 py-2 text-xs">Reusar parametros</ActionButton></div>
   </div>;
 }
 function JobCard({ job, active = false }) {
+  const { isLightTheme } = useInternalTheme();
   const processed = Number(job?.processed_count || 0);
   const requested = Number(job?.requested_count || 0);
   const percent = requested ? Math.min(100, Math.round((processed / requested) * 100)) : 0;
-  return <div className={`rounded-[24px] border p-4 text-sm ${active ? "border-[#C5A059] bg-[rgba(76,57,26,0.18)]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}>
+  return <div className={`rounded-[24px] border p-4 text-sm ${active ? (isLightTheme ? "border-[#c79b2c] bg-[#fff8e8] text-[#1f2937]" : "border-[#C5A059] bg-[rgba(76,57,26,0.18)]") : (isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]")}`}>
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <p className="font-semibold">{getProcessActionLabel(job?.acao, job?.payload || {})}</p>
-        <p className="text-xs opacity-60">{job?.created_at ? new Date(job.created_at).toLocaleString("pt-BR") : "sem horario"}</p>
+        <p className={`text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>{job?.created_at ? new Date(job.created_at).toLocaleString("pt-BR") : "sem horario"}</p>
       </div>
       <div className="flex flex-wrap gap-2">
         <StatusBadge tone={job?.status === "completed" ? "success" : job?.status === "error" ? "danger" : "warning"}>{job?.status || "pending"}</StatusBadge>
@@ -1002,32 +1013,34 @@ function JobCard({ job, active = false }) {
       <StatusBadge tone="success">Processados {processed}</StatusBadge>
       <StatusBadge tone="warning">Falhas {Number(job?.error_count || 0)}</StatusBadge>
     </div>
-    <div className="mt-3 h-2 overflow-hidden rounded-full bg-[rgba(255,255,255,0.08)]">
-      <div className="h-full rounded-full bg-[#C5A059]" style={{ width: `${percent}%` }} />
+    <div className={`mt-3 h-2 overflow-hidden rounded-full ${isLightTheme ? "bg-[#ece7da]" : "bg-[rgba(255,255,255,0.08)]"}`}>
+      <div className={`h-full rounded-full ${isLightTheme ? "bg-[#c79b2c]" : "bg-[#C5A059]"}`} style={{ width: `${percent}%` }} />
     </div>
-    <p className="mt-2 text-xs opacity-65">{buildJobPreview(job)}</p>
+    <p className={`mt-2 text-xs ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>{buildJobPreview(job)}</p>
     {job?.last_error ? <p className="mt-2 text-xs text-red-200">{job.last_error}</p> : null}
   </div>;
 }
 function QueueSummaryCard({ title, count, helper, accent = "text-[#C5A059]" }) {
-  return <div className="w-full rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-left">
-    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">{title}</p>
+  const { isLightTheme } = useInternalTheme();
+  return <div className={`w-full rounded-[24px] border p-4 text-left ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}>
+    <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>{title}</p>
     <p className={`mt-2 font-serif text-3xl ${accent}`}>{count}</p>
-    <p className="mt-2 text-sm opacity-65">{helper}</p>
+    <p className={`mt-2 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>{helper}</p>
   </div>;
 }
 function RemoteRunSummary({ entry }) {
   if (!entry) return null;
+  const { isLightTheme } = useInternalTheme();
   const summary = entry.result_summary || {};
   const items = Object.entries(summary).filter(([, value]) => value !== undefined && value !== null && value !== "");
   const rows = Array.isArray(entry?.result_sample) ? entry.result_sample : [];
   const truncationErrors = rows.filter((row) => hasJsonTruncationMessage(row?.detalhe)).length;
-  return <div className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4">
+  return <div className={`rounded-[24px] border p-4 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}>
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Ultimo ciclo HMADV</p>
+        <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Ultimo ciclo HMADV</p>
         <p className="mt-1 font-semibold">{getProcessActionLabel(entry.acao, entry.payload || {})}</p>
-        <p className="mt-1 text-xs opacity-60">{new Date(entry.created_at).toLocaleString("pt-BR")}</p>
+        <p className={`mt-1 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>{new Date(entry.created_at).toLocaleString("pt-BR")}</p>
       </div>
       <StatusBadge tone={entry.status === "error" ? "danger" : entry.status === "success" ? "success" : "default"}>{entry.status}</StatusBadge>
     </div>
@@ -1037,7 +1050,7 @@ function RemoteRunSummary({ entry }) {
       {items.slice(0, 4).map(([key, value]) => <StatusBadge key={key} tone="warning">{key}: {String(value)}</StatusBadge>)}
       {truncationErrors ? <StatusBadge tone="danger">json truncado {truncationErrors}</StatusBadge> : null}
     </div>
-    {entry.resumo ? <p className="mt-3 text-sm opacity-70">{entry.resumo}</p> : null}
+    {entry.resumo ? <p className={`mt-3 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>{entry.resumo}</p> : null}
     {truncationErrors ? <p className="mt-3 text-sm text-[#FECACA]">O retorno remoto trouxe respostas JSON incompletas nesta amostra. Vale rodar lotes menores ou cair para o fluxo local/fallback antes de confiar que a fila esta vazia.</p> : null}
   </div>;
 }
@@ -1214,7 +1227,8 @@ function suggestProcessNextAction(source, row, current) {
   return "sincronizar supabase + freshsales";
 }
 function RecurringProcessItem({ item }) {
-  return <div className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm">
+  const { isLightTheme } = useInternalTheme();
+  return <div className={`rounded-[24px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}>
     <div className="flex flex-wrap items-center gap-2">
       <p className="font-semibold break-all">{item.key}</p>
       <StatusBadge tone="danger">{item.hits} ciclos</StatusBadge>
@@ -1225,15 +1239,16 @@ function RecurringProcessItem({ item }) {
       {item.needsManualReview ? <StatusBadge tone="danger">precisa intervencao manual</StatusBadge> : null}
       {item.nextAction ? <StatusBadge tone="success">{item.nextAction}</StatusBadge> : null}
     </div>
-    {item.titulo ? <p className="mt-2 opacity-70">{item.titulo}</p> : null}
+    {item.titulo ? <p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>{item.titulo}</p> : null}
   </div>;
 }
 function RecurringProcessGroup({ title, helper, items }) {
   if (!items.length) return null;
+  const { isLightTheme } = useInternalTheme();
   return <div className="space-y-3">
     <div>
       <p className="text-sm font-semibold">{title}</p>
-      <p className="text-xs opacity-60">{helper}</p>
+      <p className={`text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>{helper}</p>
     </div>
     <div className="space-y-3">
       {items.map((item) => <RecurringProcessItem key={item.key} item={item} />)}
@@ -2990,8 +3005,8 @@ function InternoProcessosContent() {
       <Panel title="Fila operacional" eyebrow="Sincronismo Freshsales + Supabase" className="h-full">
         <div className="space-y-4">
           {latestJob ? <JobCard job={latestJob} active={latestJob.id === activeJobId} /> : null}
-          <label className="block"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">CNJs para foco manual</span><textarea value={processNumbers} onChange={(e) => setProcessNumbers(e.target.value)} rows={4} placeholder="Opcional: cole CNJs manualmente, um por linha." className="w-full rounded-[22px] border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" /></label>
-          <label className="block max-w-[220px]"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Lote</span><input type="number" min="1" max="30" value={limit} onChange={(e) => setLimit(Number(e.target.value || 2))} className="w-full rounded-2xl border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" /><span className="mt-2 block text-xs leading-5 opacity-55">Lotes maiores ficam disponiveis na operacao, com reducao automatica so quando a acao tiver um teto tecnico mais baixo.</span></label>
+          <label className="block"><span className={`mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>CNJs para foco manual</span><textarea value={processNumbers} onChange={(e) => setProcessNumbers(e.target.value)} rows={4} placeholder="Opcional: cole CNJs manualmente, um por linha." className={`w-full rounded-[22px] border p-3 text-sm outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-[#050706] focus:border-[#C5A059]"}`} /></label>
+          <label className="block max-w-[220px]"><span className={`mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Lote</span><input type="number" min="1" max="30" value={limit} onChange={(e) => setLimit(Number(e.target.value || 2))} className={`w-full rounded-2xl border p-3 text-sm outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-[#050706] focus:border-[#C5A059]"}`} /><span className={`mt-2 block text-xs leading-5 ${isLightTheme ? "text-[#6b7280]" : "opacity-55"}`}>Lotes maiores ficam disponiveis na operacao, com reducao automatica so quando a acao tiver um teto tecnico mais baixo.</span></label>
           <div className="grid gap-3 md:grid-cols-2">
             {selectionSuggestedAction ? <ActionButton tone={selectionSuggestedAction.tone || "primary"} onClick={() => handleAction(selectionSuggestedAction.key, selectionSuggestedAction.payload || {})} disabled={actionState.loading || selectionSuggestedAction.disabled} className="md:col-span-2">{selectionSuggestedAction.label}</ActionButton> : null}
             <ActionButton onClick={() => handleAction("run_sync_worker")} disabled={actionState.loading} tone={isSuggestedAction("run_sync_worker") ? "primary" : "subtle"}>Rodar sync-worker</ActionButton>
@@ -3003,15 +3018,15 @@ function InternoProcessosContent() {
             <ActionButton onClick={() => handleAction("auditoria_sync")} disabled={actionState.loading} className="md:col-span-2" tone={isSuggestedAction("auditoria_sync") ? "primary" : "subtle"}>Rodar auditoria</ActionButton>
             <ActionButton onClick={runPendingJobsNow} disabled={actionState.loading || drainInFlight || !jobs.some((item) => ["pending", "running"].includes(String(item.status || "")))} className="md:col-span-2">{drainInFlight ? "Drenando fila..." : "Drenar fila HMADV"}</ActionButton>
           </div>
-            <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-xs leading-6 opacity-70">
-              <p><strong className="text-[#F4F1EA]">Selecao atual:</strong> {combinedSelectedNumbers.length ? combinedSelectedNumbers.slice(0, 8).join(", ") : "nenhum processo selecionado nas filas"}</p>
+            <div className={`rounded-[22px] border p-4 text-xs leading-6 ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#4b5563]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] opacity-70"}`}>
+              <p><strong className={isLightTheme ? "text-[#1f2937]" : "text-[#F4F1EA]"}>Selecao atual:</strong> {combinedSelectedNumbers.length ? combinedSelectedNumbers.slice(0, 8).join(", ") : "nenhum processo selecionado nas filas"}</p>
               <p className="mt-2">As acoes principais agora podem virar job persistido no HMADV. O painel acompanha progresso, continua em lote curto e avisa ao concluir sem depender de cliques repetidos.</p>
-              {snapshotAt ? <p className="mt-2 opacity-55">Memoria local restauravel atualizada em {new Date(snapshotAt).toLocaleString("pt-BR")}.</p> : null}
+              {snapshotAt ? <p className={`mt-2 ${isLightTheme ? "text-[#6b7280]" : "opacity-55"}`}>Memoria local restauravel atualizada em {new Date(snapshotAt).toLocaleString("pt-BR")}.</p> : null}
             </div>
-          <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Proximo passo sugerido</p>
+          <div className={`rounded-[22px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.45)]"}`}>
+            <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Proximo passo sugerido</p>
             <p className="mt-2 font-semibold">{selectionActionHint.title}</p>
-            <p className="mt-2 opacity-70">{selectionActionHint.body}</p>
+            <p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>{selectionActionHint.body}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {selectionActionHint.badges.map((badge) => <StatusBadge key={badge} tone="warning">{badge}</StatusBadge>)}
             </div>
@@ -3020,7 +3035,7 @@ function InternoProcessosContent() {
       </Panel>
       <Panel title="Reenriquecimento DataJud" eyebrow="Consulta e persistencia" className="h-full">
         <div className="space-y-4">
-          <p className="text-sm opacity-70">Aqui ficam os passos granulares. Eles usam primeiro a selecao da fila atual e, se ela estiver vazia, aproveitam os CNJs digitados manualmente.</p>
+          <p className={`text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>Aqui ficam os passos granulares. Eles usam primeiro a selecao da fila atual e, se ela estiver vazia, aproveitam os CNJs digitados manualmente.</p>
           <div className="grid gap-3 md:grid-cols-2">
             <ActionButton tone="primary" onClick={() => handleAction("enriquecer_datajud", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(withoutMovements.items, selectedWithoutMovements).join("\n")), limit, intent: "buscar_movimentacoes", action: "enriquecer_datajud" })} disabled={actionState.loading}>Buscar movimentacoes no DataJud</ActionButton>
             <ActionButton onClick={() => handleAction("repair_freshsales_accounts", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n")), limit })} disabled={actionState.loading}>Corrigir campos no Freshsales</ActionButton>
@@ -3032,9 +3047,9 @@ function InternoProcessosContent() {
             <ActionButton onClick={() => handleAction("enriquecer_datajud", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n")), limit, intent: "reenriquecer_gaps", action: "enriquecer_datajud" })} disabled={actionState.loading} className="md:col-span-2">Reenriquecer processos com gap</ActionButton>
           </div>
           <div className="grid gap-3 pt-2 md:grid-cols-3">
-            <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Fluxo 1</p><p className="mt-2 font-semibold">Persistir consulta</p><p className="mt-2 opacity-65">Salvar DataJud no Supabase sem depender de reparo imediato no CRM.</p></div>
-            <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Fluxo 2</p><p className="mt-2 font-semibold">Corrigir CRM</p><p className="mt-2 opacity-65">Refletir os campos no Freshsales depois que o processo ja estiver consistente no banco.</p></div>
-            <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Fluxo 3</p><p className="mt-2 font-semibold">Usar pipeline unica</p><p className="mt-2 opacity-65">O comando combinado executa as duas etapas e devolve o que foi persistido e o que foi reparado.</p></div>
+            <div className={`rounded-[22px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.45)]"}`}><p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Fluxo 1</p><p className="mt-2 font-semibold">Persistir consulta</p><p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>Salvar DataJud no Supabase sem depender de reparo imediato no CRM.</p></div>
+            <div className={`rounded-[22px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.45)]"}`}><p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Fluxo 2</p><p className="mt-2 font-semibold">Corrigir CRM</p><p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>Refletir os campos no Freshsales depois que o processo ja estiver consistente no banco.</p></div>
+            <div className={`rounded-[22px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.45)]"}`}><p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Fluxo 3</p><p className="mt-2 font-semibold">Usar pipeline unica</p><p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>O comando combinado executa as duas etapas e devolve o que foi persistido e o que foi reparado.</p></div>
           </div>
         </div>
       </Panel>
@@ -3043,10 +3058,10 @@ function InternoProcessosContent() {
     {view === "filas" ? <div id="filas" className="space-y-6">
       {recurringProcesses.length ? <Panel title="Pendencias reincidentes" eyebrow="Prioridade operacional">
         <div className="space-y-4">
-          <div className="rounded-[24px] border border-[#6E5630] bg-[rgba(76,57,26,0.16)] p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#F8E7B5]">Foco recomendado</p>
+          <div className={`rounded-[24px] border p-4 ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#5b4a22]" : "border-[#6E5630] bg-[rgba(76,57,26,0.16)]"}`}>
+            <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#8a6217]" : "text-[#F8E7B5]"}`}>Foco recomendado</p>
             <p className="mt-2 font-semibold">{recurringProcessFocus.title}</p>
-            <p className="mt-2 text-sm opacity-75">{recurringProcessFocus.body}</p>
+            <p className={`mt-2 text-sm ${isLightTheme ? "text-[#6b7280]" : "opacity-75"}`}>{recurringProcessFocus.body}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <StatusBadge tone="success">lote sugerido {recurringProcessBatch.size}</StatusBadge>
               <StatusBadge tone="default">{recurringProcessBatch.reason}</StatusBadge>
@@ -3073,8 +3088,8 @@ function InternoProcessosContent() {
                 <ActionButton className="px-3 py-2 text-xs" onClick={runPendingJobsNow} disabled={actionState.loading || drainInFlight}>{drainInFlight ? "Drenando..." : "Rodar drenagem agora"}</ActionButton>
               </div>
             <div className="mt-4 space-y-2">
-              {recurringProcessChecklist.map((step, index) => <div key={step} className="flex items-start gap-3 text-sm opacity-80">
-                <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#6E5630] text-[11px] font-semibold text-[#F8E7B5]">{index + 1}</span>
+              {recurringProcessChecklist.map((step, index) => <div key={step} className={`flex items-start gap-3 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-80"}`}>
+                <span className={`mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold ${isLightTheme ? "border-[#e4d2a8] text-[#8a6217]" : "border-[#6E5630] text-[#F8E7B5]"}`}>{index + 1}</span>
                 <p>{step}</p>
               </div>)}
             </div>
@@ -3112,14 +3127,14 @@ function InternoProcessosContent() {
       <div className="grid gap-6 xl:grid-cols-2">
       <div id="processos-cobertura"><Panel title="Cobertura por processo" eyebrow="Auditoria local">
         {processCoverage.unsupported ? (
-          <div className="rounded-[22px] border border-dashed border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">
+          <div className={`rounded-[22px] border border-dashed p-4 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#F8E7B5]"}`}>
             O schema de cobertura ainda nao foi aplicado no HMADV. Assim que a migracao estiver ativa, esta leitura vai mostrar o percentual real de cobertura por processo.
           </div>
         ) : (
           <div className="space-y-4">
-            {processCoverage.limited ? <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">A leitura de cobertura entrou em modo reduzido para evitar sobrecarga. Os totais continuam uteis, mas a pagina atual pode vir parcial.</div> : null}
+            {processCoverage.limited ? <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#F8E7B5]"}`}>A leitura de cobertura entrou em modo reduzido para evitar sobrecarga. Os totais continuam uteis, mas a pagina atual pode vir parcial.</div> : null}
             {processCoverage.error ? <div className="rounded-[20px] border border-[#4B2222] bg-[rgba(75,34,34,0.18)] p-4 text-sm text-[#FECACA]">{processCoverage.error}</div> : null}
-            {!processCoverage.loading && Number(processCoverage.totalRows || 0) > 0 && !(processCoverage.items || []).length ? <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">{coverageMismatchMessage(processCoverage)}</div> : null}
+            {!processCoverage.loading && Number(processCoverage.totalRows || 0) > 0 && !(processCoverage.items || []).length ? <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#F8E7B5]"}`}>{coverageMismatchMessage(processCoverage)}</div> : null}
             <CoverageList rows={processCoverage.items} page={covPage} setPage={setCovPage} loading={processCoverage.loading} totalRows={processCoverage.totalRows} pageSize={processCoverage.pageSize} onSelectProcess={useCoverageProcess} />
           </div>
         )}
@@ -3129,8 +3144,8 @@ function InternoProcessosContent() {
       <div id="processos-publicacoes-pendentes"><Panel title="Publicacoes pendentes" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Publicacoes sem activity" helper="Processos com publicacoes no HMADV ainda sem reflexo em sales_activities do Freshsales." rows={publicationBacklog.items} selected={selectedPublicationBacklog} onToggle={(key) => toggleSelection(setSelectedPublicationBacklog, selectedPublicationBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedPublicationBacklog, selectedPublicationBacklog, publicationBacklog.items, nextState)} page={pubPage} setPage={setPubPage} loading={publicationBacklog.loading} totalRows={publicationBacklog.totalRows} pageSize={publicationBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "publicacoes_pendentes")} lastUpdated={publicationBacklog.updatedAt} limited={publicationBacklog.limited} errorMessage={publicationBacklog.error} /><QueueActionBlock selectionCount={queueActionConfigs.publicacoes_pendentes.selectionCount} batchSize={queueActionConfigs.publicacoes_pendentes.batchSize} onBatchChange={(value) => updateQueueBatchSize("publicacoes_pendentes", value)} helper={queueActionConfigs.publicacoes_pendentes.helper} disabled={actionState.loading} actions={queueActionConfigs.publicacoes_pendentes.actions} /></div></Panel></div>
       <div id="processos-partes-sem-contato"><Panel title="Partes sem contato" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Partes a reconciliar" helper="Processos com partes ainda sem contato_freshsales_id, prontos para reconciliacao com o modulo de contatos." rows={partesBacklog.items} selected={selectedPartesBacklog} onToggle={(key) => toggleSelection(setSelectedPartesBacklog, selectedPartesBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedPartesBacklog, selectedPartesBacklog, partesBacklog.items, nextState)} page={partesPage} setPage={setPartesPage} loading={partesBacklog.loading} totalRows={partesBacklog.totalRows} pageSize={partesBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "partes_sem_contato")} lastUpdated={partesBacklog.updatedAt} limited={partesBacklog.limited} errorMessage={partesBacklog.error} /><QueueActionBlock selectionCount={queueActionConfigs.partes_sem_contato.selectionCount} batchSize={queueActionConfigs.partes_sem_contato.batchSize} onBatchChange={(value) => updateQueueBatchSize("partes_sem_contato", value)} helper={queueActionConfigs.partes_sem_contato.helper} disabled={actionState.loading} actions={queueActionConfigs.partes_sem_contato.actions} /></div></Panel></div>
       <Panel title="Audiencias detectaveis" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Retroativo de audiencias" helper="Processos com sinais concretos de audiencia nas publicacoes e ainda sem persistencia equivalente." rows={audienciaCandidates.items} selected={selectedAudienciaCandidates} onToggle={(key) => toggleSelection(setSelectedAudienciaCandidates, selectedAudienciaCandidates, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedAudienciaCandidates, selectedAudienciaCandidates, audienciaCandidates.items, nextState)} page={audPage} setPage={setAudPage} loading={audienciaCandidates.loading} totalRows={audienciaCandidates.totalRows} pageSize={audienciaCandidates.pageSize} renderStatuses={(row) => [{ label: `${row.audiencias_pendentes || 0} audiencias pendentes`, tone: "warning" }, row.proxima_data_audiencia ? { label: `proxima ${new Date(row.proxima_data_audiencia).toLocaleDateString("pt-BR")}`, tone: "default" } : null].filter(Boolean)} lastUpdated={audienciaCandidates.updatedAt} limited={audienciaCandidates.limited} errorMessage={audienciaCandidates.error} /><QueueActionBlock selectionCount={queueActionConfigs.audiencias_pendentes.selectionCount} batchSize={queueActionConfigs.audiencias_pendentes.batchSize} onBatchChange={(value) => updateQueueBatchSize("audiencias_pendentes", value)} helper={queueActionConfigs.audiencias_pendentes.helper} disabled={actionState.loading} actions={queueActionConfigs.audiencias_pendentes.actions} /></div></Panel>
-      <Panel title="Monitoramento ativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">A coluna <strong>monitoramento_ativo</strong> ainda nao existe no HMADV. Esta fila fica em modo diagnostico, com leitura por fallback e sem gravacao.</div> : null}<QueueList title="Monitorados" helper="Se a base ainda nao marca monitoramento_ativo, o painel usa fallback pelos processos com account." rows={monitoringActive.items} selected={selectedMonitoringActive} onToggle={(key) => toggleSelection(setSelectedMonitoringActive, selectedMonitoringActive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringActive, selectedMonitoringActive, monitoringActive.items, nextState)} page={maPage} setPage={setMaPage} loading={monitoringActive.loading} totalRows={monitoringActive.totalRows} pageSize={monitoringActive.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "monitoramento_ativo", { monitoringUnsupported })} lastUpdated={monitoringActive.updatedAt} limited={monitoringActive.limited} errorMessage={monitoringActive.error} selectionDisabled={monitoringUnsupported} selectionDisabledMessage={monitoringUnsupported ? "Selecao bloqueada: esta fila serve apenas para diagnosticar a adequacao de schema." : ""} />{monitoringUnsupported ? <div className="rounded-[18px] border border-dashed border-[#6E5630] px-4 py-3 text-xs leading-6 text-[#F8E7B5]">Escrita de monitoramento temporariamente indisponivel: aplique a migracao do schema para liberar ativacao e desativacao pela fila.</div> : null}<QueueActionBlock selectionCount={queueActionConfigs.monitoramento_ativo.selectionCount} batchSize={queueActionConfigs.monitoramento_ativo.batchSize} onBatchChange={(value) => updateQueueBatchSize("monitoramento_ativo", value)} helper={queueActionConfigs.monitoramento_ativo.helper} disabled={actionState.loading || monitoringUnsupported} actions={queueActionConfigs.monitoramento_ativo.actions} /></div></Panel>
-      <Panel title="Monitoramento inativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#F8E7B5]">Sem a coluna <strong>monitoramento_ativo</strong>, esta fila nao consegue gravar alteracoes. O painel mostra apenas o que precisa de adequacao de schema.</div> : null}<QueueList title="Nao monitorados" helper="Use esta fila para reativar o sync dos processos que ficaram fora da rotina." rows={monitoringInactive.items} selected={selectedMonitoringInactive} onToggle={(key) => toggleSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, monitoringInactive.items, nextState)} page={miPage} setPage={setMiPage} loading={monitoringInactive.loading} totalRows={monitoringInactive.totalRows} pageSize={monitoringInactive.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "monitoramento_inativo", { monitoringUnsupported })} lastUpdated={monitoringInactive.updatedAt} limited={monitoringInactive.limited} errorMessage={monitoringInactive.error} selectionDisabled={monitoringUnsupported} selectionDisabledMessage={monitoringUnsupported ? "Selecao bloqueada: esta fila mostra somente o backlog dependente da migracao de schema." : ""} />{monitoringUnsupported ? <div className="rounded-[18px] border border-dashed border-[#6E5630] px-4 py-3 text-xs leading-6 text-[#F8E7B5]">A reativacao fica bloqueada ate a criacao da coluna <strong>monitoramento_ativo</strong> no HMADV.</div> : null}<QueueActionBlock selectionCount={queueActionConfigs.monitoramento_inativo.selectionCount} batchSize={queueActionConfigs.monitoramento_inativo.batchSize} onBatchChange={(value) => updateQueueBatchSize("monitoramento_inativo", value)} helper={queueActionConfigs.monitoramento_inativo.helper} disabled={actionState.loading || monitoringUnsupported} actions={queueActionConfigs.monitoramento_inativo.actions} /></div></Panel>
+      <Panel title="Monitoramento ativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#F8E7B5]"}`}>A coluna <strong>monitoramento_ativo</strong> ainda nao existe no HMADV. Esta fila fica em modo diagnostico, com leitura por fallback e sem gravacao.</div> : null}<QueueList title="Monitorados" helper="Se a base ainda nao marca monitoramento_ativo, o painel usa fallback pelos processos com account." rows={monitoringActive.items} selected={selectedMonitoringActive} onToggle={(key) => toggleSelection(setSelectedMonitoringActive, selectedMonitoringActive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringActive, selectedMonitoringActive, monitoringActive.items, nextState)} page={maPage} setPage={setMaPage} loading={monitoringActive.loading} totalRows={monitoringActive.totalRows} pageSize={monitoringActive.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "monitoramento_ativo", { monitoringUnsupported })} lastUpdated={monitoringActive.updatedAt} limited={monitoringActive.limited} errorMessage={monitoringActive.error} selectionDisabled={monitoringUnsupported} selectionDisabledMessage={monitoringUnsupported ? "Selecao bloqueada: esta fila serve apenas para diagnosticar a adequacao de schema." : ""} />{monitoringUnsupported ? <div className={`rounded-[18px] border border-dashed px-4 py-3 text-xs leading-6 ${isLightTheme ? "border-[#e4d2a8] text-[#8a6217]" : "border-[#6E5630] text-[#F8E7B5]"}`}>Escrita de monitoramento temporariamente indisponivel: aplique a migracao do schema para liberar ativacao e desativacao pela fila.</div> : null}<QueueActionBlock selectionCount={queueActionConfigs.monitoramento_ativo.selectionCount} batchSize={queueActionConfigs.monitoramento_ativo.batchSize} onBatchChange={(value) => updateQueueBatchSize("monitoramento_ativo", value)} helper={queueActionConfigs.monitoramento_ativo.helper} disabled={actionState.loading || monitoringUnsupported} actions={queueActionConfigs.monitoramento_ativo.actions} /></div></Panel>
+      <Panel title="Monitoramento inativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#F8E7B5]"}`}>Sem a coluna <strong>monitoramento_ativo</strong>, esta fila nao consegue gravar alteracoes. O painel mostra apenas o que precisa de adequacao de schema.</div> : null}<QueueList title="Nao monitorados" helper="Use esta fila para reativar o sync dos processos que ficaram fora da rotina." rows={monitoringInactive.items} selected={selectedMonitoringInactive} onToggle={(key) => toggleSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, monitoringInactive.items, nextState)} page={miPage} setPage={setMiPage} loading={monitoringInactive.loading} totalRows={monitoringInactive.totalRows} pageSize={monitoringInactive.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "monitoramento_inativo", { monitoringUnsupported })} lastUpdated={monitoringInactive.updatedAt} limited={monitoringInactive.limited} errorMessage={monitoringInactive.error} selectionDisabled={monitoringUnsupported} selectionDisabledMessage={monitoringUnsupported ? "Selecao bloqueada: esta fila mostra somente o backlog dependente da migracao de schema." : ""} />{monitoringUnsupported ? <div className={`rounded-[18px] border border-dashed px-4 py-3 text-xs leading-6 ${isLightTheme ? "border-[#e4d2a8] text-[#8a6217]" : "border-[#6E5630] text-[#F8E7B5]"}`}>A reativacao fica bloqueada ate a criacao da coluna <strong>monitoramento_ativo</strong> no HMADV.</div> : null}<QueueActionBlock selectionCount={queueActionConfigs.monitoramento_inativo.selectionCount} batchSize={queueActionConfigs.monitoramento_inativo.batchSize} onBatchChange={(value) => updateQueueBatchSize("monitoramento_inativo", value)} helper={queueActionConfigs.monitoramento_inativo.helper} disabled={actionState.loading || monitoringUnsupported} actions={queueActionConfigs.monitoramento_inativo.actions} /></div></Panel>
       <Panel title="GAP DataJud -> CRM" eyebrow="Campos orfaos"><div className="space-y-4"><QueueList title="Campos pendentes no Freshsales" helper="Processos vinculados cujo espelho ainda tem campos importantes em branco." rows={fieldGaps.items} selected={selectedFieldGaps} onToggle={(key) => toggleSelection(setSelectedFieldGaps, selectedFieldGaps, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedFieldGaps, selectedFieldGaps, fieldGaps.items, nextState)} page={fgPage} setPage={setFgPage} loading={fieldGaps.loading} totalRows={fieldGaps.totalRows} pageSize={fieldGaps.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "campos_orfaos")} lastUpdated={fieldGaps.updatedAt} limited={fieldGaps.limited} errorMessage={fieldGaps.error} /><QueueActionBlock selectionCount={queueActionConfigs.campos_orfaos.selectionCount} batchSize={queueActionConfigs.campos_orfaos.batchSize} onBatchChange={(value) => updateQueueBatchSize("campos_orfaos", value)} helper={queueActionConfigs.campos_orfaos.helper} disabled={actionState.loading} actions={queueActionConfigs.campos_orfaos.actions} /></div></Panel>
       <div id="processos-sem-sales-account"><Panel title="Sem Sales Account" eyebrow="Processos orfaos"><div className="space-y-4"><QueueList title="Orfaos" helper="Itens do HMADV que ainda nao viraram Sales Account." rows={orphans.items} selected={selectedOrphans} onToggle={(key) => toggleSelection(setSelectedOrphans, selectedOrphans, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedOrphans, selectedOrphans, orphans.items, nextState)} page={orphanPage} setPage={setOrphanPage} loading={orphans.loading} totalRows={orphans.totalRows} pageSize={orphans.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "orfaos")} lastUpdated={orphans.updatedAt} limited={orphans.limited} errorMessage={orphans.error} /><QueueActionBlock selectionCount={queueActionConfigs.orfaos.selectionCount} batchSize={queueActionConfigs.orfaos.batchSize} onBatchChange={(value) => updateQueueBatchSize("orfaos", value)} helper={queueActionConfigs.orfaos.helper} disabled={actionState.loading} actions={queueActionConfigs.orfaos.actions} /></div></Panel></div>
       </div>
@@ -3140,7 +3155,7 @@ function InternoProcessosContent() {
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <Panel title="Vincular processos relacionados" eyebrow="Arvore processual">
           <div className="space-y-4">
-            {editingRelationId ? <div className="rounded-2xl border border-[#6E5630] bg-[rgba(76,57,26,0.22)] px-4 py-3 text-sm">Editando relacao existente. Salve novamente para atualizar o vinculo.</div> : null}
+            {editingRelationId ? <div className={`rounded-2xl border px-4 py-3 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.22)]"}`}>Editando relacao existente. Salve novamente para atualizar o vinculo.</div> : null}
             <Field label="Processo principal / pai" value={form.numero_cnj_pai} onChange={(value) => setForm((current) => ({ ...current, numero_cnj_pai: value }))} placeholder="CNJ do processo principal" />
             <Field label="Processo relacionado / filho" value={form.numero_cnj_filho} onChange={(value) => setForm((current) => ({ ...current, numero_cnj_filho: value }))} placeholder="CNJ do apenso, incidente, recurso ou dependencia" />
             <div className="grid gap-4 md:grid-cols-2">
@@ -3210,8 +3225,8 @@ function InternoProcessosContent() {
             <ActionButton onClick={() => setSelectedSuggestionKeys([])} disabled={actionState.loading || !selectedSuggestionKeys.length}>Limpar selecao</ActionButton>
           </div>
           {relationSuggestions.loading ? <p className="text-sm opacity-60">Carregando sugestoes...</p> : null}
-          {relationSuggestions.error ? <p className="text-sm text-red-300">{relationSuggestions.error}</p> : null}
-          {!relationSuggestions.loading && !relationSuggestions.items.length ? <p className="rounded-2xl border border-dashed border-[#2D2E2E] px-4 py-6 text-sm opacity-60">Nenhuma sugestao encontrada para os filtros atuais.</p> : null}
+          {relationSuggestions.error ? <p className={`text-sm ${isLightTheme ? "text-red-700" : "text-red-300"}`}>{relationSuggestions.error}</p> : null}
+          {!relationSuggestions.loading && !relationSuggestions.items.length ? <p className={`rounded-2xl border border-dashed px-4 py-6 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#6b7280]" : "border-[#2D2E2E] opacity-60"}`}>Nenhuma sugestao encontrada para os filtros atuais.</p> : null}
           <div className="space-y-4">
             {relationSuggestions.items.map((item) => <RelationSuggestionCard key={item.suggestion_key} item={item} checked={selectedSuggestionKeys.includes(getSuggestionSelectionValue(item))} onToggle={() => toggleCustomSelection(setSelectedSuggestionKeys, selectedSuggestionKeys, getSuggestionSelectionValue(item))} onUseSuggestion={useSuggestionInForm} />)}
           </div>
@@ -3243,8 +3258,8 @@ function InternoProcessosContent() {
             <ActionButton tone="danger" onClick={handleBulkRelationRemoval} disabled={actionState.loading || !selectedRelations.length}>Remover selecionadas</ActionButton>
           </div>
           {relations.loading ? <p className="text-sm opacity-60">Carregando relacoes...</p> : null}
-          {relations.error ? <p className="text-sm text-red-300">{relations.error}</p> : null}
-          {!relations.loading && !relations.items.length ? <p className="rounded-2xl border border-dashed border-[#2D2E2E] px-4 py-6 text-sm opacity-60">Nenhuma relacao cadastrada ainda.</p> : null}
+          {relations.error ? <p className={`text-sm ${isLightTheme ? "text-red-700" : "text-red-300"}`}>{relations.error}</p> : null}
+          {!relations.loading && !relations.items.length ? <p className={`rounded-2xl border border-dashed px-4 py-6 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#6b7280]" : "border-[#2D2E2E] opacity-60"}`}>Nenhuma relacao cadastrada ainda.</p> : null}
           <div className="space-y-4">
             {relations.items.map((item) => <RegisteredRelationCard key={item.id} item={item} checked={selectedRelations.includes(getRelationSelectionValue(item))} onToggle={() => toggleCustomSelection(setSelectedRelations, selectedRelations, getRelationSelectionValue(item))} onEdit={startEditing} onDelete={handleDeleteRelation} disabled={actionState.loading} />)}
           </div>
@@ -3257,7 +3272,7 @@ function InternoProcessosContent() {
         className="h-full"
         loading={actionState.loading}
         error={actionState.error}
-        result={actionState.result ? <>{actionState.result?.drain ? <div className="mb-4 rounded-[20px] border border-[#30543A] bg-[rgba(48,84,58,0.12)] p-4 text-sm"><p className="font-semibold">Drenagem de fila</p><p className="mt-2 opacity-75">{buildDrainPreview(actionState.result.drain)}</p></div> : null}{jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}<OperationResult result={actionState.result} /></> : null}
+        result={actionState.result ? <>{actionState.result?.drain ? <div className={`mb-4 rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#8dc8a3] bg-[#effaf2] text-[#166534]" : "border-[#30543A] bg-[rgba(48,84,58,0.12)]"}`}><p className="font-semibold">Drenagem de fila</p><p className={`mt-2 ${isLightTheme ? "text-[#166534]" : "opacity-75"}`}>{buildDrainPreview(actionState.result.drain)}</p></div> : null}{jobs.length ? <div className="mb-4 space-y-3"><p className={`text-xs uppercase tracking-[0.16em] ${isLightTheme ? "text-[#6b7280]" : "opacity-55"}`}>Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}<OperationResult result={actionState.result} /></> : null}
         emptyText="Nenhuma acao executada ainda nesta sessao."
         footer="Resultado compacto, sem esticar o modulo antes do console."
       />

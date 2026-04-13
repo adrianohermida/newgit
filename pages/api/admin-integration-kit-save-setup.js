@@ -1,14 +1,16 @@
 const fs = require("fs");
 const path = require("path");
 
+const PROJECT_ROOT = path.join(__dirname, "..", "..");
+
 const { requireAdminNode } = require("../../lib/admin/node-auth.js");
 const {
   buildSetupPreview,
   ensureSetupStructure,
   getSetupSecretsPath,
   materializeSetupTemplates,
-} = require("../../lib/integration-kit/bootstrap");
-const { getIntegrationKitCapabilities } = require("../../lib/integration-kit/runtime");
+} = require(/*turbopackIgnore: true*/ "../../lib/integration-kit/bootstrap");
+const { getIntegrationKitCapabilities } = require(/*turbopackIgnore: true*/ "../../lib/integration-kit/runtime");
 
 module.exports = async function handler(req, res) {
   const auth = await requireAdminNode(req);
@@ -27,7 +29,7 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const capabilities = getIntegrationKitCapabilities(process.env, process.cwd());
+    const capabilities = getIntegrationKitCapabilities(process.env, PROJECT_ROOT);
     if (!capabilities.canServerSaveSetup) {
       return res.status(403).json({
         ok: false,
@@ -38,11 +40,11 @@ module.exports = async function handler(req, res) {
     }
 
     const setup = req.body && typeof req.body === "object" ? req.body : {};
-    materializeSetupTemplates(process.cwd());
-    ensureSetupStructure(process.cwd());
+    materializeSetupTemplates(PROJECT_ROOT);
+    ensureSetupStructure(PROJECT_ROOT);
 
     const preview = buildSetupPreview(setup, process.env);
-    const setupPath = getSetupSecretsPath(process.cwd());
+    const setupPath = getSetupSecretsPath(PROJECT_ROOT);
     fs.writeFileSync(setupPath, `${JSON.stringify(preview.setupFile, null, 2)}\n`, "utf8");
 
     return res.status(200).json({

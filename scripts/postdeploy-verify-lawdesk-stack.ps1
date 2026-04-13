@@ -88,6 +88,8 @@ foreach ($item in @($aiReport.diagnosis)) {
 $providersRoute = @($pagesReport.results) | Where-Object { $_.name -eq "admin-lawdesk-providers" } | Select-Object -First 1
 $ragRoute = @($pagesReport.results) | Where-Object { $_.name -eq "admin-dotobot-rag-health" } | Select-Object -First 1
 $chatRoute = @($pagesReport.results) | Where-Object { $_.name -eq "admin-lawdesk-chat" } | Select-Object -First 1
+$legacyChatRoute = @($pagesReport.results) | Where-Object { $_.name -eq "legacy-admin-lawdesk-chat" } | Select-Object -First 1
+$legacyProvidersRoute = @($pagesReport.results) | Where-Object { $_.name -eq "legacy-admin-lawdesk-providers" } | Select-Object -First 1
 
 $stackHealthy = $false
 if ($providersRoute -and $ragRoute -and $chatRoute) {
@@ -106,6 +108,16 @@ if ($aiReport.health.ok -and $aiReport.execute.ok -and $aiReport.executeV1.ok -a
   Add-Diagnosis -Target $diagnosis -Message "O backend HMADV IA esta operacional; se a stack continua quebrada, concentre a investigacao no deploy de Pages e nas envs da app."
 }
 
+if (
+  $providersRoute -and $providersRoute.status -eq 404 -and
+  $chatRoute -and $chatRoute.status -eq 404 -and
+  $legacyChatRoute -and $legacyChatRoute.status -eq 405 -and
+  $legacyProvidersRoute -and $legacyProvidersRoute.status -eq 405
+) {
+  Add-Diagnosis -Target $diagnosis -Message "Sinal forte de deploy estatico puro: frontend publicado sem runtime administrativo do Pages."
+  Add-Diagnosis -Target $diagnosis -Message "Republique o projeto newgit-pages pelo build conectado do Cloudflare Pages; evite upload manual apenas do diretorio out."
+}
+
 $report = [ordered]@{
   checkedAt = (Get-Date).ToString("o")
   pagesBaseUrl = $PagesBaseUrl
@@ -122,6 +134,8 @@ $report = [ordered]@{
     ragRouteErrorType = if ($ragRoute) { $ragRoute.errorType } else { $null }
     chatRouteStatus = if ($chatRoute) { $chatRoute.status } else { $null }
     chatRouteErrorType = if ($chatRoute) { $chatRoute.errorType } else { $null }
+    legacyChatRouteStatus = if ($legacyChatRoute) { $legacyChatRoute.status } else { $null }
+    legacyProvidersRouteStatus = if ($legacyProvidersRoute) { $legacyProvidersRoute.status } else { $null }
     executeOk = $aiReport.execute.ok
     executeV1Ok = $aiReport.executeV1.ok
   }

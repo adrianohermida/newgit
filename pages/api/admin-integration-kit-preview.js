@@ -1,7 +1,10 @@
 const { requireAdminNode } = require("../../lib/admin/node-auth.js");
-const { buildRequiredChecks } = require("../../lib/integration-kit/config");
-const { buildSetupPreview } = require("../../lib/integration-kit/bootstrap");
-const { getIntegrationKitCapabilities } = require("../../lib/integration-kit/runtime");
+const { buildRequiredChecks } = require(/*turbopackIgnore: true*/ "../../lib/integration-kit/config");
+const { buildSetupPreview } = require(/*turbopackIgnore: true*/ "../../lib/integration-kit/bootstrap");
+const { getIntegrationKitCapabilities } = require(/*turbopackIgnore: true*/ "../../lib/integration-kit/runtime");
+
+const path = require("path");
+const PROJECT_ROOT = path.join(__dirname, "..", "..");
 
 module.exports = async function handler(req, res) {
   const auth = await requireAdminNode(req);
@@ -32,7 +35,7 @@ module.exports = async function handler(req, res) {
         setupFile: preview.setupFile,
         requiredChecks: buildRequiredChecks(preview.env),
       },
-      capabilities: getIntegrationKitCapabilities(process.env, process.cwd()),
+      capabilities: getIntegrationKitCapabilities(process.env, PROJECT_ROOT),
     });
   } catch (error) {
     return res.status(500).json({
