@@ -964,9 +964,11 @@ export default function DotobotCopilot({
   compactRail = false,
   showCollapsedTrigger = true,
   embeddedInInternoShell = false,
+  focusedWorkspaceMode = false,
 }) {
   const isFullscreenCopilot = routePath === "/interno/copilot";
-  const isFocusedCopilotShell = embeddedInInternoShell && isFullscreenCopilot;
+  const isFocusedCopilotShell = focusedWorkspaceMode || (embeddedInInternoShell && isFullscreenCopilot);
+  const suppressInnerChrome = isFocusedCopilotShell;
   const isCompactViewport = useMediaQuery({ maxWidth: 640 });
   // Estado de autenticaÃ§Ã£o/admin
   const { supabase, loading: supaLoading, configError } = useSupabaseBrowser();
@@ -1284,7 +1286,10 @@ const [uiToasts, setUiToasts] = useState([]);
   }, []);
 
   useEffect(() => {
-    if (!shouldAutoProbeBrowserLocalRuntime()) return undefined;
+    const canAutoProbe =
+      shouldAutoProbeBrowserLocalRuntime() &&
+      (!isFocusedCopilotShell || provider === "local");
+    if (!canAutoProbe) return undefined;
     let active = true;
     probeBrowserLocalStackSummary()
       .then((summary) => {
@@ -1299,7 +1304,7 @@ const [uiToasts, setUiToasts] = useState([]);
     return () => {
       active = false;
     };
-  }, []);
+  }, [isFocusedCopilotShell, provider]);
 
   useEffect(() => {
     const runtimeSkills = Array.isArray(localStackSummary?.capabilities?.skillList)
@@ -3768,7 +3773,7 @@ const [uiToasts, setUiToasts] = useState([]);
       ) : null}
 
         {isWorkspaceShell ? (
-          <div className={`${embeddedInInternoShell ? "relative min-h-0 h-full overflow-hidden rounded-[28px] border border-[#1C2623] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.1),transparent_24%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.97))]" : "fixed inset-0 z-[70] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.14),transparent_26%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.96))] backdrop-blur-xl"} text-[#F4F1EA]`}>
+          <div className={`${embeddedInInternoShell ? suppressInnerChrome ? "relative min-h-0 h-full overflow-hidden" : "relative min-h-0 h-full overflow-hidden rounded-[28px] border border-[#1C2623] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.1),transparent_24%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.97))]" : "fixed inset-0 z-[70] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.14),transparent_26%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.96))] backdrop-blur-xl"} text-[#F4F1EA]`}>
           <div className={`${embeddedInInternoShell ? "flex h-full w-full flex-col" : `ml-auto flex h-full ${workspaceShellWidthClass} flex-col border-l border-[#1C2623]/70 bg-[rgba(4,7,6,0.68)] shadow-[-24px_0_54px_rgba(0,0,0,0.24)]`} transition-[max-width,width] duration-300 ease-out`}>
             <style jsx>{`
               .dotobot-panel-tab-enter {
@@ -3822,7 +3827,71 @@ const [uiToasts, setUiToasts] = useState([]);
                 ))}
               </div>
             ) : null}
-            <header className="border-b border-[#22342F]/80 bg-[linear-gradient(180deg,rgba(11,14,13,0.82),rgba(7,10,9,0.78))] px-4 py-4 backdrop-blur-xl md:px-5">
+            {!suppressInnerChrome ? (
+            <header className={`border-b border-[#22342F]/80 bg-[linear-gradient(180deg,rgba(11,14,13,0.82),rgba(7,10,9,0.78))] backdrop-blur-xl ${isFocusedCopilotShell ? "px-4 py-3 md:px-5" : "px-4 py-4 md:px-5"}`}>
+              {isFocusedCopilotShell ? (
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] ${activeStatus === "processing" ? "border-[#8b6f33] text-[#D9B46A]" : "border-[#234034] text-[#80C7A1]"}`}>
+                        <span className={`h-2 w-2 rounded-full ${activeStatus === "processing" ? "bg-[#D9B46A]" : "bg-[#80C7A1]"}`} />
+                        {activeStatus === "processing" ? "Processando" : "Online"}
+                      </span>
+                      <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+                        {activeProviderPresentation.name}
+                      </span>
+                      <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+                        modo {activeMode.label}
+                      </span>
+                      <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+                        foco {activeProjectLabel}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-base font-semibold text-[#F5F1E8]">
+                      {activeConversation?.title || "Nova conversa"}
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-[#9BAEA8]">
+                      Histórico à esquerda, conversa ao centro e módulos na barra lateral direita.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {MODE_OPTIONS.map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => setMode(item.value)}
+                        className={`rounded-full border px-4 py-2 text-xs font-medium transition ${
+                          mode === item.value
+                            ? "border-[#C5A059] bg-[#C5A059] text-[#07110E]"
+                            : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                    <select
+                      value={provider}
+                      onChange={(event) => setProvider(event.target.value)}
+                      aria-label="Selecionar LLM do Copilot"
+                      className="h-10 rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-xs text-[#D8DEDA] outline-none transition focus:border-[#C5A059]"
+                    >
+                      {providerCatalog.map((item) => (
+                        <option key={item.value} value={item.value} disabled={item.disabled}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => router.push("/interno/ai-task")}
+                      className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                    >
+                      Abrir AI Task
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              {!isFocusedCopilotShell ? (
               <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-3">
@@ -4127,16 +4196,22 @@ const [uiToasts, setUiToasts] = useState([]);
                   ) : null}
                 </div>
               </div>
+              ) : null}
             </header>
+            ) : null}
 
-            <div className="flex-1 overflow-hidden p-3 md:p-5">
+            <div className={`flex-1 overflow-hidden ${suppressInnerChrome ? "p-0" : "p-3 md:p-5"}`}>
               <div className={`grid h-full min-h-0 gap-4 transition-all duration-300 ease-out ${workspaceShellGridClass}`}>
                 <aside className="hidden lg:flex min-h-0 flex-col overflow-hidden rounded-[22px] border border-[#1C2623] bg-[rgba(255,255,255,0.018)] shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
                   <div className="border-b border-[#22342F] px-4 py-4 md:px-5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Historico</p>
-                        <p className="mt-1 text-sm text-[#9BAEA8]">Histórico enxuto para retomar contexto sem competir com a conversa central.</p>
+                        <p className="mt-1 text-sm text-[#9BAEA8]">
+                          {isFocusedCopilotShell
+                            ? "Conversas, busca contextual e agrupamento por projeto no mesmo padrão de um workspace conversacional."
+                            : "Histórico enxuto para retomar contexto sem competir com a conversa central."}
+                        </p>
                       </div>
                       <button
                         type="button"
@@ -4306,10 +4381,14 @@ const [uiToasts, setUiToasts] = useState([]);
                         onClick={handleResetChat}
                         className="rounded-2xl border border-[#22342F] px-3 py-2 text-center text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                       >
-                        Limpar
+                        Nova sessão
                       </button>
                     </div>
-                    <p className="mt-4 text-[11px] leading-5 text-[#7F928C]">Histórico lateral focado em retomada rápida, sem excesso de ações simultâneas.</p>
+                    <p className="mt-4 text-[11px] leading-5 text-[#7F928C]">
+                      {isFocusedCopilotShell
+                        ? "Sidebar esquerda dedicada a retomada de contexto, concatenação e navegação por projetos."
+                        : "Histórico lateral focado em retomada rápida, sem excesso de ações simultâneas."}
+                    </p>
                   </footer>
                 </aside>
 
@@ -4318,14 +4397,36 @@ const [uiToasts, setUiToasts] = useState([]);
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Conversa</p>
+                        <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">
+                          {activeConversation?.title || "Nova conversa"}
+                        </p>
+                        <p className="mt-1 text-sm leading-6 text-[#9BAEA8]">
+                          {isFocusedCopilotShell
+                            ? "Fluxo centralizado para conversar, concatenar contexto e despachar módulos sem sair do shell interno."
+                            : "Conversa principal com contexto, execução assistida e handoff operacional."}
+                        </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
+                        {isFocusedCopilotShell ? (
+                          <>
+                            <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+                              {activeProjectLabel}
+                            </span>
+                            <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+                              {messages.length} msg
+                            </span>
+                          </>
+                        ) : null}
                         {visibleLegalActions.slice(0, 3).map((action) => (
                           <button
                             key={action.label}
                             type="button"
                             onClick={() => handleQuickAction(action.prompt)}
-                            className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                            className={`rounded-full border px-3 py-1.5 text-[11px] transition ${
+                              isFocusedCopilotShell
+                                ? "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"
+                                : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
+                            }`}
                           >
                             {action.label}
                           </button>
@@ -4395,7 +4496,11 @@ const [uiToasts, setUiToasts] = useState([]);
                         <button
                           key={prompt}
                           type="button"
-                          className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#C6D1CC] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${
+                            isFocusedCopilotShell
+                              ? "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"
+                              : "border-[#22342F] text-[#C6D1CC] hover:border-[#C5A059] hover:text-[#C5A059]"
+                          }`}
                           onClick={() => setInput(prompt)}
                         >
                           {prompt}
@@ -4406,9 +4511,11 @@ const [uiToasts, setUiToasts] = useState([]);
                       <div className="rounded-[20px] border border-[#1C2623] bg-[rgba(7,9,8,0.98)] p-3" onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}>
                         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#7F928C]">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full border border-[#22342F] px-2.5 py-1">/{showSlashCommands ? "comandos ativos" : "digite / para comandos"}</span>
+                            <span className="rounded-full border border-[#22342F] px-2.5 py-1">/{showSlashCommands ? "comandos ativos" : "digite /"}</span>
                             <span className="rounded-full border border-[#22342F] px-2.5 py-1">Enter envia</span>
-                            <span className="rounded-full border border-[#22342F] px-2.5 py-1">Shift+Enter quebra</span>
+                            {!isFocusedCopilotShell ? (
+                              <span className="rounded-full border border-[#22342F] px-2.5 py-1">Shift+Enter quebra</span>
+                            ) : null}
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
                             <button type="button" onClick={handleOpenFiles} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
@@ -4482,9 +4589,11 @@ const [uiToasts, setUiToasts] = useState([]);
                           <button type="button" onClick={() => router.push("/interno/ai-task")} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
                             AI Task
                           </button>
+                          {!isFocusedCopilotShell ? (
                           <button type="button" onClick={() => openLlmTest(provider, input)} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
                             LLM Test
                           </button>
+                          ) : null}
                         </div>
                         <button type="submit" disabled={loading || !input.trim() || isComposerBlocked} className="rounded-2xl border border-[#C5A059] bg-[rgba(197,160,89,0.08)] px-4 py-2 text-sm font-semibold text-[#F1D39A] transition disabled:opacity-40 hover:bg-[rgba(197,160,89,0.14)]">
                           Enviar
@@ -4498,9 +4607,15 @@ const [uiToasts, setUiToasts] = useState([]);
                   <div className="border-b border-[#22342F] px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Painel</p>
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">
+                          {isFocusedCopilotShell ? "Sidebar direita" : "Painel"}
+                        </p>
                         <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeRightPanelMeta.title}</p>
-                        <p className="mt-1 max-w-[17rem] text-[11px] leading-5 text-[#7F928C]">{activeRightPanelMeta.detail}</p>
+                        <p className="mt-1 max-w-[17rem] text-[11px] leading-5 text-[#7F928C]">
+                          {isFocusedCopilotShell
+                            ? "Módulos operacionais, AI Task, AgentLabs e contexto em leitura lateral fixa."
+                            : activeRightPanelMeta.detail}
+                        </p>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <button

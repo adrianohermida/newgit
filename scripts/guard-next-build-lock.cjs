@@ -1,62 +1,69 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
-const { execSync } = require('node:child_process');
+const { execSync, spawnSync } = require('node:child_process');
 
 const nextDir = path.join(process.cwd(), '.next');
 const lockPath = path.join(nextDir, 'lock');
+const MAX_ATTEMPTS = 2;
 
 function hasConcurrentNextBuild() {
   try {
     if (os.platform() === 'win32') {
       const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process -Filter \"name = 'node.exe'\" | Where-Object { $_.CommandLine -match 'next\\\\dist\\\\bin\\\\next\" build' } | Select-Object -ExpandProperty ProcessId"`;
-      const out = execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] })
-        .toString()
-        .trim();
+      const out = execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
       return out.length > 0;
     }
-
     const out = execSync("ps -ax -o command= | grep -E 'next(.+)?dist/bin/next build' | grep -v grep", {
       stdio: ['ignore', 'pipe', 'ignore'],
       shell: '/bin/sh',
-    })
-      .toString()
-      .trim();
-
+    }).toString().trim();
     return out.length > 0;
   } catch {
     return false;
   }
 }
 
+function cleanNextDir() {
+  if (!fs.existsSync(nextDir)) return;
+  try {
+    fs.rmSync(nextDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+    console.log('guard-next-build-lock: cleaned stale .next directory.');
+  } catch (error) {
+    if (fs.existsSync(lockPath)) {
+      try { fs.unlinkSync(lockPath); } catch { /* ignore */ }
+    }
+    console.warn(`guard-next-build-lock: partial cleanup: ${error.message}`);
+  }
+}
+
 if (hasConcurrentNextBuild()) {
-  console.error('guard-next-build-lock: another next build process is running; aborting this build.');
+  console.error('guard-next-build-lock: another next build process is running; aborting.');
   process.exit(1);
 }
 
-if (!fs.existsSync(nextDir)) {
-  process.exit(0);
-}
+const nextBin = path.join(process.cwd(), 'node_modules', '.bin', 'next');
+let exitCode = 1;
 
-try {
-  fs.rmSync(nextDir, {
-    recursive: true,
-    force: true,
-    maxRetries: 3,
-    retryDelay: 200,
-  });
-  console.log('guard-next-build-lock: cleaned stale .next directory.');
-} catch (error) {
-  if (fs.existsSync(lockPath)) {
-    try {
-      fs.unlinkSync(lockPath);
-      console.log('guard-next-build-lock: removed stale .next/lock file after cleanup retry.');
-      process.exit(0);
-    } catch {
-      // fall through to consolidated error below
-    }
+for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+  cleanNextDir();
+
+  if (attempt > 1) {
+    console.error(`\nguard-next-build-lock: retrying build (attempt ${attempt}/${MAX_ATTEMPTS})...\n`);
   }
 
-  console.error(`guard-next-build-lock: failed to clean .next directory: ${error.message}`);
-  process.exit(1);
+  const result = spawnSync(nextBin, ['build'], {
+    stdio: 'inherit',
+    shell: os.platform() === 'win32',
+    env: process.env,
+  });
+
+  exitCode = result.status ?? 1;
+  if (exitCode === 0) break;
+
+  if (attempt < MAX_ATTEMPTS) {
+    console.error(`guard-next-build-lock: build failed (attempt ${attempt}). Retrying after clean.`);
+  }
 }
+
+process.exit(exitCode);

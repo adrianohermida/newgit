@@ -1656,7 +1656,9 @@ export default function InternoLayout({
               <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6D7F7B]" : "text-[#7E918B]"}`}>Workspace</p>
               <p className={`mt-2 text-sm font-medium ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Sidebar, modulo e Dotobot</p>
               <p className={`mt-2 text-sm leading-6 ${isLightTheme ? "text-[#60716E]" : "text-[#92A59F]"}`}>
-                O painel lateral serve como atalho rapido. A experiencia completa de conversa, tarefas e execucao vive no AI Task central.
+                {router.pathname === "/interno/copilot"
+                  ? "O Copilot agora opera como workspace centralizado: histórico à esquerda, conversa ao centro e módulos integrados na barra lateral direita."
+                  : "O painel lateral serve como atalho rapido. A experiencia completa de conversa, tarefas e execucao vive no AI Task central."}
               </p>
             </div>
           ) : null}

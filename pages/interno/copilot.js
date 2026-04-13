@@ -1,6 +1,6 @@
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import InternoLayout from "../../components/interno/InternoLayout";
-import DotobotCopilot from "../../components/interno/DotobotPanel";
+import CopilotWorkspace from "../../components/interno/CopilotWorkspace";
 
 export default function InternoCopilotPage() {
   return (
@@ -13,15 +13,7 @@ export default function InternoCopilotPage() {
           hideDotobotRail={true}
         >
           <div className="min-h-0 flex-1 overflow-hidden">
-            <DotobotCopilot
-              profile={profile}
-              routePath="/interno/copilot"
-              initialWorkspaceOpen={true}
-              defaultCollapsed={false}
-              compactRail={false}
-              showCollapsedTrigger={false}
-              embeddedInInternoShell={true}
-            />
+            <CopilotWorkspace profile={profile} />
           </div>
         </InternoLayout>
       )}
