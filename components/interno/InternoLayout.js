@@ -1649,7 +1649,7 @@ export default function InternoLayout({
             <button
               type="button"
               onClick={() => setLeftCollapsed((current) => !current)}
-                className="h-10 w-10 rounded-[14px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                className={`flex h-10 w-10 items-center justify-center rounded-[14px] border transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
                 title="Alternar sidebar"
               >
                 <span className="sr-only">Sidebar</span>
@@ -1658,7 +1658,7 @@ export default function InternoLayout({
               <button
                 type="button"
                 onClick={handleToggleRightRail}
-                className="h-10 w-10 rounded-[14px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                className={`flex h-10 w-10 items-center justify-center rounded-[14px] border transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
                 title="Alternar painel direito"
               >
                 <span className="sr-only">Painel</span>
@@ -1667,7 +1667,7 @@ export default function InternoLayout({
               <button
                 type="button"
                 onClick={() => setConsoleOpen((current) => !current)}
-                className="h-10 w-10 rounded-[14px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                className={`flex h-10 w-10 items-center justify-center rounded-[14px] border transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
                 title="Alternar console"
               >
                 <span className="sr-only">Console</span>

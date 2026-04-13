@@ -82,15 +82,23 @@
 
 	body {
 		@apply bg-[#050706] text-[#F5F1EA];
-		background-image: url('https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/69afcb1629af46b252a01ca2/785905e76_generated_image.png');
-		background-size: cover;
-		background-position: center;
-		background-repeat: no-repeat;
+		font-family: Arial, sans-serif;
+		background-image: none;
 		min-height: 100vh;
 	}
 
 	main {
 		background: #050706 !important;
 		color: #F4F1EA;
+	}
+
+	body[data-interno-theme="light"] {
+		background: linear-gradient(180deg, #eef2f6 0%, #e4eaf1 100%);
+		color: #13201d;
+	}
+
+	body[data-interno-theme="light"] main {
+		background: transparent !important;
+		color: #13201d !important;
 	}
 }
