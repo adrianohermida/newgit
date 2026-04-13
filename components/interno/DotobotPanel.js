@@ -2692,13 +2692,13 @@ const [uiToasts, setUiToasts] = useState([]);
         : "w-full max-w-[1320px]";
   const workspaceShellGridClass =
     effectiveWorkspaceLayout === "immersive"
-      ? "lg:grid-cols-[250px_minmax(0,1.45fr)_280px] xl:grid-cols-[290px_minmax(0,1.85fr)_320px] 2xl:grid-cols-[320px_minmax(0,2.1fr)_360px]"
+      ? "lg:grid-cols-[300px_minmax(0,1.5fr)_320px] xl:grid-cols-[340px_minmax(0,1.95fr)_360px] 2xl:grid-cols-[380px_minmax(0,2.25fr)_420px]"
       : effectiveWorkspaceLayout === "balanced"
         ? "lg:grid-cols-[220px_minmax(0,1.25fr)_240px] xl:grid-cols-[240px_minmax(0,1.5fr)_260px] 2xl:grid-cols-[260px_minmax(0,1.65fr)_280px]"
         : "lg:grid-cols-[180px_minmax(0,1fr)_220px] xl:grid-cols-[190px_minmax(0,1.12fr)_240px] 2xl:grid-cols-[210px_minmax(0,1.2fr)_260px]";
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
   const visibleLegalActions = LEGAL_ACTIONS.slice(0, isCompactViewport ? 1 : 3);
-  const visibleQuickPrompts = QUICK_PROMPTS.slice(0, isCompactViewport ? 1 : 2);
+  const visibleQuickPrompts = QUICK_PROMPTS.slice(0, isCompactViewport ? 1 : isFocusedCopilotShell ? 1 : 2);
   let filteredConversations = filterVisibleConversations(conversations, conversationSearch);
   if (!showArchived) {
     filteredConversations = filteredConversations.filter(c => !c.archived);
@@ -2773,12 +2773,12 @@ const [uiToasts, setUiToasts] = useState([]);
   ];
   const activeRightPanelMeta =
     rightPanelTab === "modules"
-      ? { title: "Módulos em foco", detail: "Navegação contextual e acesso rápido aos sistemas internos." }
+      ? { title: "Módulos", detail: "Atalhos contextuais para os sistemas internos." }
       : rightPanelTab === "ai-task"
-        ? { title: "AI Task em foco", detail: "Subtarefas, replay e continuidade operacional sem sair do cockpit." }
+        ? { title: "AI Task", detail: "Subtarefas e continuidade operacional ao lado da conversa." }
         : rightPanelTab === "agentlabs"
-          ? { title: "AgentLabs em foco", detail: "Subagentes, syncs e governança do ai-core em leitura lateral." }
-          : { title: "Contexto em foco", detail: "Missão ativa, rota, histórico ligado e sinais para handoff." };
+          ? { title: "AgentLabs", detail: "Subagentes, syncs e saúde do ai-core em leitura lateral." }
+          : { title: "Contexto", detail: "Missão ativa, rota e sinais úteis para handoff." };
   const agentLabData = agentLabSnapshot.data || null;
   const agentLabSubagents = extractAgentLabSubagents(agentLabSnapshot.data, activeTask);
   const agentLabOverview = agentLabData?.overview || {};
@@ -4438,9 +4438,6 @@ const [uiToasts, setUiToasts] = useState([]);
                         <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
                           {activeProjectLabel}
                         </span>
-                        <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
-                          {messages.length} msg
-                        </span>
                         {!isFocusedCopilotShell ? visibleLegalActions.slice(0, 3).map((action) => (
                           <button
                             key={action.label}
@@ -4512,7 +4509,7 @@ const [uiToasts, setUiToasts] = useState([]);
 
                   <div className="border-t border-[#22342F] px-4 py-4 md:px-5">
                     <div className="mb-3 flex flex-wrap gap-2">
-                      {(isFocusedCopilotShell ? visibleQuickPrompts.slice(0, 3) : visibleQuickPrompts).map((prompt) => (
+                      {visibleQuickPrompts.map((prompt) => (
                         <button
                           key={prompt}
                           type="button"

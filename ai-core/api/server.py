@@ -773,6 +773,15 @@ def _invoke_compatible_provider(config: CompatibleProviderConfig, payload: dict[
     transport_default_model = transport.model or config.model
     requested_model = model or transport_default_model
     headers = _build_provider_headers(config)
+    provider_default_model = config.model or ''
+    should_prefer_transport_model = (
+        transport_default_model
+        and requested_model
+        and requested_model == provider_default_model
+        and requested_model != transport_default_model
+        and transport.mode in {'openai_chat_completions', 'ollama_chat'}
+    )
+    effective_model = transport_default_model if should_prefer_transport_model else requested_model
 
     if transport.mode == 'anthropic_messages':
         response = _json_request(
@@ -797,7 +806,7 @@ def _invoke_compatible_provider(config: CompatibleProviderConfig, payload: dict[
         response = _json_request(
             transport.endpoint,
             {
-                'model': requested_model,
+                'model': effective_model,
                 'max_tokens': max_tokens,
                 'stream': False,
                 'messages': [
@@ -816,7 +825,7 @@ def _invoke_compatible_provider(config: CompatibleProviderConfig, payload: dict[
         response = _json_request(
             transport.endpoint,
             {
-                'model': requested_model,
+                'model': effective_model,
                 'stream': False,
                 'messages': [
                     *([{'role': 'system', 'content': system_prompt}] if system_prompt else []),
@@ -848,6 +857,7 @@ def _invoke_compatible_provider(config: CompatibleProviderConfig, payload: dict[
             **metadata,
             'provider': config.provider_id,
             'requested_model': requested_model,
+            'effective_model': effective_model,
             'resolved_model': metadata.get('resolved_model') or response_model,
             'transport_default_model': transport_default_model,
             'route': transport.mode,

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
+import { useInternalTheme } from "../../../components/interno/InternalThemeProvider";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
 import { useAgentLabData } from "../../../lib/agentlab/useAgentLabData";
@@ -8,8 +9,9 @@ import { setModuleHistory } from "../../../lib/admin/activity-log";
 import { buildModuleSnapshot } from "../../../lib/admin/module-registry";
 
 function Panel({ title, children }) {
+  const { isLightTheme } = useInternalTheme();
   return (
-    <section className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
+    <section className={`border p-6 ${isLightTheme ? "border-[#d7d4cb] bg-[rgba(255,255,255,0.92)] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
       <h3 className="mb-4 font-serif text-2xl">{title}</h3>
       {children}
     </section>
@@ -36,6 +38,7 @@ export default function AgentLabKnowledgePage() {
 }
 
 function KnowledgeContent({ state }) {
+  const { isLightTheme } = useInternalTheme();
   const packs = state.data?.rollout?.knowledgePacks || [];
   const knowledgeSources = state.data?.rollout?.knowledgeSources || [];
   const [message, setMessage] = useState(null);
@@ -72,7 +75,7 @@ function KnowledgeContent({ state }) {
   }, [knowledgeSources.length, message, packs.length, queue.length, state.error, state.loading]);
 
   if (state.loading) {
-    return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando conhecimento...</div>;
+    return <div className={`border p-6 ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#4b5563]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>Carregando conhecimento...</div>;
   }
 
   if (state.error) {
@@ -104,59 +107,70 @@ function KnowledgeContent({ state }) {
     }
   }
 
+  const boxTone = isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]";
+  const muted = isLightTheme ? "text-[#4b5563]" : "opacity-75";
+  const subtle = isLightTheme ? "text-[#6b7280]" : "opacity-50";
+  const inputTone = isLightTheme
+    ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]"
+    : "border-[#2D2E2E] bg-transparent focus:border-[#C5A059]";
+
   return (
     <div className="space-y-8">
       <div className="grid gap-6 xl:grid-cols-2">
         <Panel title="Knowledge packs prioritarios">
-          <div className="space-y-4 text-sm opacity-75">
+          <div className={`space-y-4 text-sm ${muted}`}>
             {packs.map((item) => (
-              <div key={item.id} className="border border-[#2D2E2E] p-4">
+              <div key={item.id} className={`border p-4 ${boxTone}`}>
                 <p className="font-semibold">{item.title}</p>
                 <p>{item.description}</p>
-                <p className="mt-2 text-xs uppercase tracking-[0.15em] opacity-50">Prioridade: {item.priority}</p>
+                <p className={`mt-2 text-xs uppercase tracking-[0.15em] ${subtle}`}>Prioridade: {item.priority}</p>
               </div>
             ))}
           </div>
         </Panel>
 
         <Panel title="Fontes de conhecimento sugeridas">
-          {message ? <div className="mb-4 text-sm opacity-75">{message}</div> : null}
-          <div className="grid gap-4 mb-6 md:grid-cols-2">
+          {message ? <div className={`mb-4 text-sm ${muted}`}>{message}</div> : null}
+          <div className="mb-6 grid gap-4 md:grid-cols-2">
             <input
               value={form.title}
               onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-              className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              className={`border px-4 py-3 outline-none transition ${inputTone}`}
               placeholder="Titulo da fonte"
             />
             <input
               value={form.source_type}
               onChange={(event) => setForm((current) => ({ ...current, source_type: event.target.value }))}
-              className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              className={`border px-4 py-3 outline-none transition ${inputTone}`}
               placeholder="faq, url, pdf, artigo"
             />
             <input
               value={form.status}
               onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
-              className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              className={`border px-4 py-3 outline-none transition ${inputTone}`}
               placeholder="Status"
             />
             <div />
             <textarea
               value={form.notes}
               onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
-              className="min-h-[100px] md:col-span-2 border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              className={`min-h-[100px] border px-4 py-3 outline-none transition md:col-span-2 ${inputTone}`}
               placeholder="Notas operacionais, URL, ownership, pauta editorial..."
             />
             <div className="md:col-span-2">
-              <button type="button" onClick={handleSaveKnowledgeSource} className="border border-[#C5A059] px-4 py-3 text-sm">
+              <button
+                type="button"
+                onClick={handleSaveKnowledgeSource}
+                className={`border px-4 py-3 text-sm transition ${isLightTheme ? "border-[#9a6d14] text-[#9a6d14] hover:bg-[#9a6d14] hover:text-white" : "border-[#C5A059]"}`}
+              >
                 Salvar fonte
               </button>
             </div>
           </div>
-          <div className="space-y-4 text-sm opacity-75">
+          <div className={`space-y-4 text-sm ${muted}`}>
             {knowledgeSources.map((item) => (
-              <div key={item.id} className="border border-[#2D2E2E] p-4">
-                <div className="mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
+              <div key={item.id} className={`border p-4 ${boxTone}`}>
+                <div className={`mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] ${subtle}`}>
                   <span>{item.source_type}</span>
                   <span>{item.status}</span>
                 </div>
@@ -168,14 +182,14 @@ function KnowledgeContent({ state }) {
         </Panel>
       </div>
 
-        <Panel title="Backlog operacional de conhecimento">
-        <div className="space-y-4 text-sm opacity-75">
+      <Panel title="Backlog operacional de conhecimento">
+        <div className={`space-y-4 text-sm ${muted}`}>
           {queue.length ? (
             queue.map((item) => (
-              <div key={item.id} className="border border-[#2D2E2E] p-4">
+              <div key={item.id} className={`border p-4 ${boxTone}`}>
                 <p className="font-semibold">{item.title}</p>
                 <p>{item.description}</p>
-                <p className="mt-2 text-xs uppercase tracking-[0.15em] opacity-50">
+                <p className={`mt-2 text-xs uppercase tracking-[0.15em] ${subtle}`}>
                   {item.category} · {item.priority} · {item.status}
                 </p>
               </div>
@@ -188,7 +202,7 @@ function KnowledgeContent({ state }) {
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Panel title="Playbook editorial juridico">
-          <div className="space-y-3 text-sm opacity-75">
+          <div className={`space-y-3 text-sm ${muted}`}>
             <p>1. Responder em PT-BR claro, sem prometer resultado juridico.</p>
             <p>2. Em tema processual sensivel, oferecer orientacao geral e priorizar handoff humano.</p>
             <p>3. Em financeiro e agendamento, priorizar autosservico com trilha registrada no CRM.</p>
@@ -197,7 +211,7 @@ function KnowledgeContent({ state }) {
         </Panel>
 
         <Panel title="Checklist de governanca">
-          <div className="space-y-3 text-sm opacity-75">
+          <div className={`space-y-3 text-sm ${muted}`}>
             <p>1. Revisar unanswered e respostas ruins da sprint.</p>
             <p>2. Publicar ou revisar FAQs, respostas rapidas e arquivos criticos.</p>
             <p>3. Validar se o workflow certo esta cobrindo pergunta informativa ou tarefa operacional.</p>
