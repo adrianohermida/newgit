@@ -278,6 +278,19 @@ Leitura atual:
 - Lote seguro observado para operacao manual/assistida: `batch=30`.
 - `batch=50` ja havia falhado anteriormente com limite de compute do Worker, entao nao deve ser usado como padrao operacional.
 
+### Estado operacional final validado no fechamento
+
+- Rodada adicional de `batch=30` reduziu o saldo para `publicacoesComActivity = 2959` e `publicacoesPendentesComAccount = 39`.
+- Uma rodada subsequente ainda em `batch=30`, apesar de timeout local no terminal, foi confirmada por validacao runtime e reduziu o saldo para `publicacoesComActivity = 2987` e `publicacoesPendentesComAccount = 11`.
+- A rodada final `node scripts/hmadv-drain-publicacoes-freshsales.js --batch=15 --iterations=1` processou `9/9` com sucesso.
+- Estado final:
+  - `publicacoesTotal = 3000`
+  - `publicacoesComActivity = 2998`
+  - `publicacoesPendentesComAccount = 0`
+  - `publicacoesLeilaoIgnorado = 227`
+  - `publicacoesSemProcesso = 2`
+- Conclusao operacional: a fila de publicacoes pendentes com account no Freshsales foi zerada.
+
 ### Script operacional adicionado
 
 - Arquivo: `scripts/hmadv-drain-publicacoes-freshsales.js`
