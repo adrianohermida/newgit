@@ -15,6 +15,7 @@ const UI_STATE_STORAGE_KEY = "hmadv:interno-publicacoes:ui:v1";
 const VALIDATION_STORAGE_KEY = "hmadv:interno-publicacoes:validations:v1";
 const ACTION_LABELS = {
   criar_processos_publicacoes: "Criar processos das publicacoes",
+  sincronizar_publicacoes_activity: "Sincronizar publicacoes vinculadas no Freshsales",
   backfill_partes: "Extracao retroativa de partes",
   sincronizar_partes: "Salvar partes + atualizar polos + corrigir CRM",
   reconciliar_partes_contatos: "Reconciliar partes com contatos",
@@ -449,47 +450,47 @@ function groupRecurringPublicacoes(items = []) {
 function deriveRecurringPublicacoesFocus(summary, bands) {
   if (bands.critical > 0) return { title: "Ataque estrutural imediato", body: "Existem publicacoes 4x+ reaparecendo. Priorize o gargalo cronico antes de ampliar o lote." };
   if (summary.manual > 0) return { title: "Revisao manual prioritaria", body: "Ha publicacoes que continuam pedindo leitura humana ou ajuste de regra." };
-  if (summary.advise > 0) return { title: "Extracao Advise primeiro", body: "O principal gargalo recorrente esta na leitura, criacao de processo ou extracao de partes das publicacoes." };
-  if (summary.freshsales > 0) return { title: "Drenar CRM e activities", body: "A fila recorrente esta mais concentrada no reflexo para Freshsales e nas activities." };
+  if (summary.advise > 0) return { title: "Criar processos ausentes primeiro", body: "O principal gargalo recorrente esta em publicacoes ainda sem processo vinculado no HMADV." };
+  if (summary.freshsales > 0) return { title: "Sincronizar processos vinculados", body: "A fila recorrente esta concentrada no reflexo das publicacoes para activities do Freshsales." };
   if (summary.stagnant > 0) return { title: "Auditar lote sem progresso", body: "Ha recorrencias sem ganho util. Revise selecao, regra de extracao e limite do lote." };
   return { title: "Ciclo sob controle", body: "As recorrencias atuais parecem operacionais e podem ser drenadas com lotes menores e correcoes pontuais." };
 }
 function deriveSuggestedPublicacoesBatch(summary, bands) {
   if (bands.critical > 0 || summary.manual > 0) return { size: 5, reason: "Use lote minimo para validar regra e evitar retrabalho em massa." };
-  if (summary.advise > 0 || summary.freshsales > 0) return { size: 10, reason: "Use lote curto para medir extracao, reparo e reflexo em CRM." };
+  if (summary.advise > 0 || summary.freshsales > 0) return { size: 10, reason: "Use lote curto para medir criacao de processo e reflexo no Freshsales." };
   if (summary.stagnant > 0) return { size: 8, reason: "Reduza o lote para isolar por que a fila nao esta ganhando progresso." };
   return { size: 20, reason: "A fila parece sob controle para uma rodada operacional padrao." };
 }
 function deriveSuggestedPublicacoesActions(summary, bands) {
-  if (bands.critical > 0 || summary.manual > 0) return ["Extracao retroativa de partes", "Salvar partes + atualizar polos + corrigir CRM", "Auditar publicacoes reincidentes"];
-  if (summary.advise > 0) return ["Criar processos das publicacoes", "Extracao retroativa de partes", "Salvar partes + atualizar polos + corrigir CRM"];
-  if (summary.freshsales > 0) return ["Rodar sync-worker (activities/CRM)", "Salvar partes + atualizar polos + corrigir CRM"];
-  if (summary.stagnant > 0) return ["Extracao retroativa de partes", "Salvar partes + atualizar polos + corrigir CRM"];
-  return ["Salvar partes + atualizar polos + corrigir CRM", "Extracao retroativa de partes"];
+  if (bands.critical > 0 || summary.manual > 0) return ["Criar processos das publicacoes", "Sincronizar publicacoes vinculadas no Freshsales", "Auditar publicacoes reincidentes"];
+  if (summary.advise > 0) return ["Criar processos das publicacoes", "Sincronizar publicacoes vinculadas no Freshsales", "Rodar sync-worker (activities/CRM)"];
+  if (summary.freshsales > 0) return ["Sincronizar publicacoes vinculadas no Freshsales", "Rodar sync-worker (activities/CRM)"];
+  if (summary.stagnant > 0) return ["Criar processos das publicacoes", "Sincronizar publicacoes vinculadas no Freshsales"];
+  return ["Sincronizar publicacoes vinculadas no Freshsales", "Criar processos das publicacoes"];
 }
 function derivePrimaryPublicacoesAction(actions = []) {
-  return actions[0] || "Salvar partes + atualizar polos + corrigir CRM";
+  return actions[0] || "Sincronizar publicacoes vinculadas no Freshsales";
 }
 function deriveSuggestedPublicacoesChecklist(summary, bands) {
   if (bands.critical > 0 || summary.manual > 0) {
     return [
       "Revise primeiro a amostra das publicacoes criticas.",
-      "Rode extracao retroativa em lote minimo.",
-      "So depois repare polos e CRM no lote validado.",
+      "Crie primeiro os processos ausentes em lote minimo.",
+      "So depois sincronize as publicacoes dos processos vinculados.",
     ];
   }
   if (summary.advise > 0) {
     return [
       "Crie os processos faltantes a partir das publicacoes.",
-      "Extraia e salve as partes no Supabase.",
-      "Atualize polos e corrija o reflexo no Freshsales.",
+      "Sincronize as publicacoes dos processos que ja possuem account.",
+      "Use o modulo de processos se precisar extrair ou reconciliar partes.",
     ];
   }
   if (summary.freshsales > 0) {
     return [
-      "Rode o sync-worker em lote curto apenas para pendencias de activity/CRM.",
-      "Reaplique a consolidacao de partes e polos.",
-      "Confirme que as activities passaram a refletir no CRM.",
+      "Sincronize primeiro as publicacoes vinculadas selecionadas.",
+      "Rode o sync-worker em lote curto apenas para pendencias residuais de activity/CRM.",
+      "Confirme que as activities passaram a refletir no Freshsales.",
     ];
   }
   return [
@@ -503,11 +504,10 @@ function suggestPublicacaoNextAction(source, row, current) {
   if (source === "freshsales") return "rodar sync-worker";
   if (source === "advise") {
     if (!row?.processo_criado && !row?.processo_depois) return "criar processo da publicacao";
-    if ((row?.partes_detectadas || row?.partes_novas || 0) > 0) return "salvar partes e atualizar polos";
-    return "reler publicacao no advise";
+    return "sincronizar publicacao vinculada";
   }
   if (current?.noProgress) return "auditar fila de publicacoes";
-  return "salvar partes + corrigir crm";
+  return "sincronizar publicacao vinculada";
 }
 function RecurringPublicacaoItem({ item }) {
   return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
