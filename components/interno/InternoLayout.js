@@ -1834,7 +1834,9 @@ export default function InternoLayout({
             style={isCopilotWorkspace ? { paddingBottom: `${copilotConsoleInset}px` } : undefined}
           >
             {!isCopilotWorkspace ? <IntegrationGuideCard guide={integrationGuide} /> : null}
-            {children}
+            <div className={isCopilotWorkspace ? "min-h-0 flex-1 px-2 pb-2 md:px-3 md:pb-3" : ""}>
+              {children}
+            </div>
             {showExtensionManager && !isCopilotWorkspace ? <DotobotExtensionManager /> : null}
           </div>
           </div>
@@ -2370,19 +2372,19 @@ export default function InternoLayout({
                       </div>
                     </div> : null}
                     {logPane === "history" ? <div className="space-y-3">
-                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 text-[11px] text-[#9BAEA8]">
+                      <div className={`rounded-xl border p-3 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)] text-[#9BAEA8]"}`}>
                         Historicos e snapshots operacionais separados por modulo.
                       </div>
-                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                      <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(8,10,9,0.5)]"}`}>
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Historico de execucao</p>
-                          <p className="mt-1 text-[11px] text-[#9BAEA8]">Consolidado do modulo Processos no console.</p>
+                          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Historico de execucao</p>
+                          <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Consolidado do modulo Processos no console.</p>
                         </div>
                         <button
                           type="button"
                           onClick={handleCopyProcessHistory}
-                          className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                          className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
                         >
                           Copiar historico
                         </button>
@@ -2390,17 +2392,17 @@ export default function InternoLayout({
                       {processosRemoteHistory.length ? (
                         <div className="mt-3 space-y-2">
                           {processosRemoteHistory.slice(0, 6).map((entry) => (
-                            <div key={entry.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2 text-[11px]">
+                            <div key={entry.id} className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                               <div className="flex items-center justify-between">
-                                <span className="font-semibold">{entry.acao || "acao"}</span>
+                                <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>{entry.acao || "acao"}</span>
                                 <span className={entry.status === "error" ? "text-red-200" : "text-[#11D473]"}>
                                   {entry.status}
                                 </span>
                               </div>
-                              <div className="mt-1 text-[10px] text-[#7E918B]">
+                              <div className={`mt-1 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>
                                 {entry.created_at ? new Date(entry.created_at).toLocaleString("pt-BR") : "sem data"}
                               </div>
-                              {entry.resumo ? <div className="mt-1 text-[#C7D0CA]">{entry.resumo}</div> : null}
+                              {entry.resumo ? <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>{entry.resumo}</div> : null}
                             </div>
                           ))}
                         </div>
@@ -2409,18 +2411,18 @@ export default function InternoLayout({
                       )}
                       {processosLocalHistory.length ? (
                         <div className="mt-3">
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Memoria local</p>
+                          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Memoria local</p>
                           <div className="mt-2 space-y-2">
                             {processosLocalHistory.slice(0, 6).map((entry) => (
-                              <div key={entry.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2 text-[11px]">
+                              <div key={entry.id} className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                                 <div className="flex items-center justify-between">
-                                  <span className="font-semibold">{entry.label || entry.action}</span>
-                                  <span className="text-[#9BAEA8]">{entry.status || "status"}</span>
+                                  <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>{entry.label || entry.action}</span>
+                                  <span className={isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}>{entry.status || "status"}</span>
                                 </div>
-                                <div className="mt-1 text-[10px] text-[#7E918B]">
+                                <div className={`mt-1 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>
                                   {entry.startedAt ? new Date(entry.startedAt).toLocaleString("pt-BR") : "sem data"}
                                 </div>
-                                {entry.preview ? <div className="mt-1 text-[#C7D0CA]">{entry.preview}</div> : null}
+                                {entry.preview ? <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>{entry.preview}</div> : null}
                               </div>
                             ))}
                           </div>
@@ -2429,16 +2431,16 @@ export default function InternoLayout({
                         <div className="mt-2 text-[11px] opacity-60">Sem historico local registrado.</div>
                       )}
                     </div>
-                    <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                    <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(8,10,9,0.5)]"}`}>
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Historico de publicacoes</p>
-                          <p className="mt-1 text-[11px] text-[#9BAEA8]">Consolidado do modulo Publicacoes no console.</p>
+                          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Historico de publicacoes</p>
+                          <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Consolidado do modulo Publicacoes no console.</p>
                         </div>
                         <button
                           type="button"
                           onClick={handleCopyPublicacoesHistory}
-                          className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                          className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
                         >
                           Copiar historico
                         </button>
@@ -2446,17 +2448,17 @@ export default function InternoLayout({
                       {publicacoesRemoteHistory.length ? (
                         <div className="mt-3 space-y-2">
                           {publicacoesRemoteHistory.slice(0, 6).map((entry) => (
-                            <div key={entry.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2 text-[11px]">
+                            <div key={entry.id} className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                               <div className="flex items-center justify-between">
-                                <span className="font-semibold">{entry.acao || "acao"}</span>
+                                <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>{entry.acao || "acao"}</span>
                                 <span className={entry.status === "error" ? "text-red-200" : "text-[#11D473]"}>
                                   {entry.status}
                                 </span>
                               </div>
-                              <div className="mt-1 text-[10px] text-[#7E918B]">
+                              <div className={`mt-1 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>
                                 {entry.created_at ? new Date(entry.created_at).toLocaleString("pt-BR") : "sem data"}
                               </div>
-                              {entry.resumo ? <div className="mt-1 text-[#C7D0CA]">{entry.resumo}</div> : null}
+                              {entry.resumo ? <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>{entry.resumo}</div> : null}
                             </div>
                           ))}
                         </div>
@@ -2465,18 +2467,18 @@ export default function InternoLayout({
                       )}
                       {publicacoesLocalHistory.length ? (
                         <div className="mt-3">
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Memoria local</p>
+                          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Memoria local</p>
                           <div className="mt-2 space-y-2">
                             {publicacoesLocalHistory.slice(0, 6).map((entry) => (
-                              <div key={entry.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2 text-[11px]">
+                              <div key={entry.id} className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                                 <div className="flex items-center justify-between">
-                                  <span className="font-semibold">{entry.label || entry.action}</span>
-                                  <span className="text-[#9BAEA8]">{entry.status || "status"}</span>
+                                  <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>{entry.label || entry.action}</span>
+                                  <span className={isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}>{entry.status || "status"}</span>
                                 </div>
-                                <div className="mt-1 text-[10px] text-[#7E918B]">
+                                <div className={`mt-1 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>
                                   {entry.startedAt ? new Date(entry.startedAt).toLocaleString("pt-BR") : "sem data"}
                                 </div>
-                                {entry.preview ? <div className="mt-1 text-[#C7D0CA]">{entry.preview}</div> : null}
+                                {entry.preview ? <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>{entry.preview}</div> : null}
                               </div>
                             ))}
                           </div>
@@ -2485,49 +2487,49 @@ export default function InternoLayout({
                         <div className="mt-2 text-[11px] opacity-60">Sem historico local registrado.</div>
                       )}
                     </div>
-                    <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                    <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(8,10,9,0.5)]"}`}>
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Contacts</p>
-                          <p className="mt-1 text-[11px] text-[#9BAEA8]">Snapshot de qualidade da base, bulk actions e persistencia do modulo.</p>
+                          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Contacts</p>
+                          <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Snapshot de qualidade da base, bulk actions e persistencia do modulo.</p>
                         </div>
                         <button
                           type="button"
                           onClick={handleCopyContactsHistory}
-                          className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                          className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
                         >
                           Copiar snapshot
                         </button>
                       </div>
                       {contactsHistory ? (
                         <div className="mt-3 space-y-2 text-[11px]">
-                          <div className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2">
+                          <div className={`rounded-lg border px-3 py-2 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                             <div className="flex items-center justify-between">
-                              <span className="font-semibold">Contato em foco</span>
+                                <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>Contato em foco</span>
                               <span className={contactsHistory.actionState?.error ? "text-red-200" : "text-[#11D473]"}>
                                 {contactsHistory.selectedContact?.name || "nenhum"}
                               </span>
                             </div>
-                            <div className="mt-1 text-[10px] text-[#7E918B]">
+                            <div className={`mt-1 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>
                               total {contactsHistory.overview?.total || 0} · duplicados {contactsHistory.overview?.duplicados || 0} · partes sem contato {contactsHistory.overview?.partesSemContato || 0}
                             </div>
-                            <div className="mt-1 text-[#C7D0CA]">
+                            <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>
                               sync {contactsHistory.settings?.syncLimit || 0} · reconcile {contactsHistory.settings?.reconcileLimit || 0} · pendentes selecionadas {contactsHistory.partesPendentes?.selected || 0} · vinculadas selecionadas {contactsHistory.partesVinculadas?.selected || 0}
                             </div>
-                            {contactsHistory.actionState?.preview ? <div className="mt-1 text-[#C7D0CA]">Ultima acao: {contactsHistory.actionState.preview}</div> : null}
+                            {contactsHistory.actionState?.preview ? <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>Ultima acao: {contactsHistory.actionState.preview}</div> : null}
                             {contactsHistory.actionState?.error ? <div className="mt-1 text-red-200">Erro: {contactsHistory.actionState.error}</div> : null}
                           </div>
                           {Array.isArray(contactsHistory.executionHistory) && contactsHistory.executionHistory.length ? (
                             <div className="space-y-2">
                               {contactsHistory.executionHistory.slice(0, 4).map((entry) => (
-                                <div key={entry.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2">
+                                <div key={entry.id} className={`rounded-lg border px-3 py-2 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                                   <div className="flex items-center justify-between">
-                                    <span className="font-semibold">{entry.label || entry.action}</span>
+                                      <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>{entry.label || entry.action}</span>
                                     <span className={entry.status === "error" ? "text-red-200" : entry.status === "success" ? "text-[#11D473]" : "text-[#D9B46A]"}>
                                       {entry.status || "running"}
                                     </span>
                                   </div>
-                                  {entry.preview ? <div className="mt-1 text-[#C7D0CA]">{entry.preview}</div> : null}
+                                  {entry.preview ? <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>{entry.preview}</div> : null}
                                 </div>
                               ))}
                             </div>
@@ -2537,33 +2539,33 @@ export default function InternoLayout({
                         <div className="mt-2 text-[11px] opacity-60">Sem snapshot de Contacts.</div>
                       )}
                     </div>
-                    <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                    <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(8,10,9,0.5)]"}`}>
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Dotobot</p>
-                          <p className="mt-1 text-[11px] text-[#9BAEA8]">Snapshot do copilot, chat e task runs locais.</p>
+                          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Dotobot</p>
+                          <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Snapshot do copilot, chat e task runs locais.</p>
                         </div>
                         <button
                           type="button"
                           onClick={handleCopyDotobotHistory}
-                          className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                          className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
                         >
                           Copiar snapshot
                         </button>
                       </div>
                       {dotobotHistory ? (
                         <div className="mt-3 space-y-2 text-[11px]">
-                          <div className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2">
+                          <div className={`rounded-lg border px-3 py-2 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                             <div className="flex items-center justify-between">
-                              <span className="font-semibold">Estado</span>
+                                <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>Estado</span>
                               <span className={dotobotHistory.error ? "text-red-200" : "text-[#11D473]"}>
                                 {dotobotHistory.uiState || "idle"}
                               </span>
                             </div>
-                            <div className="mt-1 text-[10px] text-[#7E918B]">
+                            <div className={`mt-1 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>
                               modo {dotobotHistory.mode || "n/a"} · provider {dotobotHistory.provider || "n/a"} · conversas {dotobotHistory.conversationCount || 0}
                             </div>
-                            {dotobotHistory.activeTask ? <div className="mt-1 text-[#C7D0CA]">Task ativa: {dotobotHistory.activeTask.query || dotobotHistory.activeTask.id}</div> : null}
+                            {dotobotHistory.activeTask ? <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>Task ativa: {dotobotHistory.activeTask.query || dotobotHistory.activeTask.id}</div> : null}
                             {dotobotHistory.error ? <div className="mt-1 text-red-200">Erro: {dotobotHistory.error}</div> : null}
                           </div>
                         </div>
