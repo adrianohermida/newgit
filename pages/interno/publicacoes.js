@@ -1191,7 +1191,7 @@ export default function InternoPublicacoesPage() {
         <InternoLayout
           profile={profile}
           title="Gestao de Publicacoes"
-          description="Modulo interno para drenagem do backlog Advise, criacao de processos, extracao retroativa de partes e sincronizacao com Freshsales."
+          description="Modulo interno para drenagem do backlog Advise, criacao de processos ausentes e sincronizacao das publicacoes ja vinculadas com Freshsales."
         >
           <PublicacoesContent />
         </InternoLayout>
@@ -2573,7 +2573,7 @@ function PublicacoesContent() {
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C5A059]">Centro de publicacoes</p>
-            <h3 className="mt-3 font-serif text-4xl leading-tight">Criacao de processos, extracao de partes e drenagem do backlog em uma trilha operacional.</h3>
+            <h3 className="mt-3 font-serif text-4xl leading-tight">Criacao de processos ausentes e drenagem das publicacoes vinculadas em uma trilha operacional unica.</h3>
             <p className="mt-3 max-w-2xl text-sm leading-7 opacity-65">A tela foi segmentada por foco de trabalho para reduzir ruido visual e guardar memoria do que foi executado na sessao.</p>
           </div>
           <div className="flex flex-col gap-3 rounded-[26px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm">
@@ -2668,7 +2668,7 @@ function PublicacoesContent() {
       ) : null}
 
       {view === "operacao" ? <div id="operacao" className="grid flex-1 auto-rows-fr gap-6 lg:grid-cols-2">
-        <Panel title="Criacao de processos a partir das publicacoes" eyebrow="Operacao orientada por fila" className="h-full">
+        <Panel title="Drenagem principal de publicacoes" eyebrow="Operacao orientada por fila" className="h-full">
           <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
               <QueueSummaryCard
@@ -2683,14 +2683,14 @@ function PublicacoesContent() {
               />
             </div>
             <p className="text-sm opacity-70">
-              Use a visao <strong>Filas</strong> para selecionar processos individualmente ou por pagina.
-              Esta visao fica focada em disparar a operacao e acompanhar o lote.
+              Este modulo agora fica focado em duas responsabilidades: <strong>criar processos quando a publicacao ainda nao possui vinculo</strong> e <strong>sincronizar publicacoes dos processos ja vinculados</strong>.
+              Use a visao <strong>Filas</strong> para selecionar os CNJs e volte aqui para disparar o lote.
             </p>
             <div className="rounded-[20px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] p-4 text-sm opacity-80">
-              <p className="font-semibold">Sync-worker e fila de partes sao fluxos diferentes.</p>
+              <p className="font-semibold">Partes ficam centralizadas no modulo de processos.</p>
               <p className="mt-2">
-                Use <strong>Rodar sync-worker</strong> para activities e sincronizacao com CRM.
-                Para itens em <strong>candidatos_partes</strong>, use a trilha de extracao de partes abaixo.
+                Use <strong>Sincronizar publicacoes vinculadas</strong> e <strong>Rodar sync-worker</strong> para refletir activities/CRM.
+                Se precisar extrair ou reconciliar partes, siga pelo modulo <strong>Processos</strong>.
               </p>
             </div>
             <label className="block">
@@ -2728,7 +2728,15 @@ function PublicacoesContent() {
                 disabled={actionState.loading || hasBlockingJob}
                 className="bg-[#C5A059] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#050706] disabled:opacity-50"
               >
-                Criar processos das publicacoes
+                Criar processos ausentes
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAction("sincronizar_publicacoes_activity", false, selectedUnifiedNumbers)}
+                disabled={actionState.loading || hasBlockingJob}
+                className="border border-[#6E5630] bg-[rgba(197,160,89,0.08)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#F8E7B5] hover:border-[#C5A059] disabled:opacity-50"
+              >
+                Sincronizar publicacoes vinculadas
               </button>
               <button
                 type="button"
@@ -2750,28 +2758,28 @@ function PublicacoesContent() {
           </div>
         </Panel>
 
-        <Panel title="Extracao retroativa de partes" eyebrow="Operacao orientada por fila" className="h-full">
+        <Panel title="Sincronia dos processos vinculados" eyebrow="Operacao orientada por fila" className="h-full">
           <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
               <QueueSummaryCard
-                title="Partes extraiveis"
-                count={partesCandidates.totalRows || partesCandidates.items.length || 0}
-                helper={`${selectedPartesKeys.length} selecionado(s) nesta sessao.${partesCandidates.totalEstimated ? " Total estimado." : ""}`}
+                title="Pendentes com account"
+                count={data.publicacoesPendentesComAccount || 0}
+                helper="Publicacoes de processos ja vinculados que ainda nao viraram activity."
               />
               <QueueSummaryCard
-                title="Partes totais"
-                count={data.partesTotal || 0}
-                helper="Base atual persistida em judiciario.partes."
+                title="Com activity"
+                count={data.publicacoesComActivity || 0}
+                helper="Publicacoes ja refletidas no Freshsales."
               />
             </div>
             <p className="text-sm opacity-70">
-              A extracao sempre precisa enriquecer o Supabase primeiro. Selecione os processos na visao <strong>Filas</strong> e volte aqui para simular ou aplicar.
+              Use esta trilha para refletir no Freshsales o que ja esta vinculado a processos. A extracao e reconciliacao de partes continuam disponiveis no modulo <strong>Processos</strong>.
             </p>
             {partesBacklogCount > 0 ? (
               <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#FDE68A]">
-                <p className="font-semibold">Fila certa para o backlog atual</p>
+                <p className="font-semibold">Backlog de partes referenciado, mas fora da drenagem daqui</p>
                 <p className="mt-2">
-                  Existem {partesBacklogCount} processo(s) em <strong>candidatos_partes</strong>. Esse backlog nao e drenado pelo sync-worker; ele depende de <strong>Extracao retroativa de partes</strong> e, quando necessario, de <strong>Salvar + corrigir CRM</strong>.
+                  Existem {partesBacklogCount} processo(s) em <strong>candidatos_partes</strong>. Mantivemos a leitura para diagnostico, mas a acao operacional de partes deve acontecer no modulo <strong>Processos</strong>.
                 </p>
               </div>
             ) : null}
@@ -2785,28 +2793,26 @@ function PublicacoesContent() {
               </button>
               <button
                 type="button"
-                onClick={() => handleAction("backfill_partes", false, selectedPartesNumbers)}
+                onClick={() => handleAction("sincronizar_publicacoes_activity", false, selectedUnifiedNumbers)}
                 disabled={actionState.loading || hasBlockingJob}
                 className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
               >
-                Simular extracao
+                Simular sincronizacao
               </button>
               <button
                 type="button"
-                onClick={() => handleAction("backfill_partes", true, selectedPartesNumbers)}
+                onClick={() => handleAction("sincronizar_publicacoes_activity", true, selectedUnifiedNumbers)}
                 disabled={actionState.loading || hasBlockingJob}
                 className="bg-[#C5A059] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#050706] disabled:opacity-50"
               >
-                Aplicar extracao
+                Aplicar sincronizacao
               </button>
-              <button
-                type="button"
-                onClick={() => handleAction("sincronizar_partes", true, selectedPartesNumbers)}
-                disabled={actionState.loading || hasBlockingJob}
-                className="border border-[#6E5630] bg-[rgba(197,160,89,0.08)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#F8E7B5] hover:border-[#C5A059] disabled:opacity-50"
+              <a
+                href="/interno/processos"
+                className="border border-[#6E5630] bg-[rgba(197,160,89,0.08)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#F8E7B5] hover:border-[#C5A059]"
               >
-                Salvar + corrigir CRM
-              </button>
+                Abrir processos para partes
+              </a>
               <button
                 type="button"
                 onClick={async () => {
