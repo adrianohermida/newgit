@@ -17,6 +17,8 @@ import {
   listPartesExtractionCandidates,
   logAdminOperation,
   processPublicacoesAdminJob,
+  runAdviseBackfill,
+  runAdviseSync,
   runSyncWorker,
   savePublicacoesValidation,
   syncPublicationActivities,
@@ -532,6 +534,15 @@ export async function onRequestPost(context) {
     }
     if (action === "run_sync_worker") {
       return runLogged(async () => runSyncWorker(context.env));
+    }
+    if (action === "run_advise_sync") {
+      return runLogged(async () => runAdviseSync(context.env, {
+        maxPaginas: Number(body.maxPaginas || body.limit || 12),
+        porPagina: Number(body.porPagina || 50),
+      }));
+    }
+    if (action === "run_advise_backfill") {
+      return runLogged(async () => runAdviseBackfill(context.env));
     }
     return jsonError(new Error("Acao POST invalida."), 400);
   } catch (error) {

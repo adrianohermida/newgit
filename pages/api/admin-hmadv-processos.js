@@ -23,6 +23,26 @@ function parseProcessNumbers(value) {
     .filter(Boolean);
 }
 
+function isQueueOverloadError(error) {
+  const message = String(error?.message || "");
+  return (
+    message.includes("Too many subrequests") ||
+    message.includes("subrequests") ||
+    message.includes("Worker exceeded resource limits") ||
+    message.includes("exceeded resource limits")
+  );
+}
+
+function buildQueueFallback({ error }) {
+  return {
+    limited: true,
+    unavailable: true,
+    items: [],
+    totalRows: 0,
+    error: error?.message || "Painel em modo reduzido por sobrecarga.",
+  };
+}
+
 export default async function handler(req, res) {
   const auth = await requireAdminNode(req);
   if (!auth.ok) {
@@ -38,38 +58,74 @@ export default async function handler(req, res) {
     if (req.method === "GET") {
       const action = String(req.query.action || "overview");
       if (action === "overview") {
-        const data = await getProcessosOverview();
+        let data;
+        try {
+          data = await getProcessosOverview();
+        } catch (error) {
+          if (!isQueueOverloadError(error)) throw error;
+          data = buildQueueFallback({ error });
+        }
         return res.status(200).json({ ok: true, data });
       }
       if (action === "orfaos") {
-        const data = await scanOrphanProcesses(Number(req.query.limit || 50));
+        let data;
+        try {
+          data = await scanOrphanProcesses(Number(req.query.limit || 50));
+        } catch (error) {
+          if (!isQueueOverloadError(error)) throw error;
+          data = buildQueueFallback({ error });
+        }
         return res.status(200).json({ ok: true, data });
       }
       if (action === "inspect_audiencias") {
-        const data = await inspectAudiencias(Number(req.query.limit || 10));
+        let data;
+        try {
+          data = await inspectAudiencias(Number(req.query.limit || 10));
+        } catch (error) {
+          if (!isQueueOverloadError(error)) throw error;
+          data = buildQueueFallback({ error });
+        }
         return res.status(200).json({ ok: true, data });
       }
       if (action === "buscar_processos") {
-        const data = await searchProcesses(String(req.query.query || ""), Number(req.query.limit || 8));
+        let data;
+        try {
+          data = await searchProcesses(String(req.query.query || ""), Number(req.query.limit || 8));
+        } catch (error) {
+          if (!isQueueOverloadError(error)) throw error;
+          data = buildQueueFallback({ error });
+        }
         return res.status(200).json({ ok: true, data });
       }
       if (action === "relacoes") {
-        const data = await listProcessRelations({
-          page: Number(req.query.page || 1),
-          pageSize: Number(req.query.pageSize || 20),
-          query: String(req.query.query || ""),
-          selectionOnly: String(req.query.selection || "") === "1",
-        });
+        let data;
+        try {
+          data = await listProcessRelations({
+            page: Number(req.query.page || 1),
+            pageSize: Number(req.query.pageSize || 20),
+            query: String(req.query.query || ""),
+            selectionOnly: String(req.query.selection || "") === "1",
+          });
+        } catch (error) {
+          if (!isQueueOverloadError(error)) throw error;
+          data = buildQueueFallback({ error });
+        }
         return res.status(200).json({ ok: true, data });
       }
       if (action === "sugestoes_relacoes") {
-        const data = await suggestProcessRelations({
-          page: Number(req.query.page || 1),
-          pageSize: Number(req.query.pageSize || 20),
-          query: String(req.query.query || ""),
-          minScore: Number(req.query.minScore || 0.45),
-          selectionOnly: String(req.query.selection || "") === "1",
-        });
+        let data;
+        try {
+          data = await suggestProcessRelations({
+            page: Number(req.query.page || 1),
+            pageSize: Number(req.query.pageSize || 20),
+            query: String(req.query.query || ""),
+            minScore: Number(req.query.minScore || 0.45),
+            selectionOnly: String(req.query.selection || "") === "1",
+          });
+        } catch (error) {
+          if (!isQueueOverloadError(error)) throw error;
+          data = buildQueueFallback({ error });
+        }
         return res.status(200).json({ ok: true, data });
       }
       return res.status(400).json({ ok: false, error: "Acao GET invalida." });

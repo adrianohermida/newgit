@@ -20,6 +20,8 @@ const ACTION_LABELS = {
   sincronizar_partes: "Salvar partes + atualizar polos + corrigir CRM",
   reconciliar_partes_contatos: "Reconciliar partes com contatos",
   run_sync_worker: "Rodar sync-worker (activities/CRM)",
+  run_advise_sync: "Rodar ingestao incremental do Advise",
+  run_advise_backfill: "Importar backlog historico do Advise",
   run_pending_jobs: "Drenar fila HMADV",
 };
 const CONTACT_TYPE_OPTIONS = [
@@ -52,6 +54,7 @@ const MODULE_LIMITS = {
   maxBackfillPartes: 50,
   maxSyncPartes: 20,
   maxSyncWorker: 2,
+  maxAdviseSync: 12,
   maxDefault: 20,
 };
 const PUBLICACOES_QUEUE_VIEWS = new Set(["operacao", "filas"]);
@@ -98,6 +101,7 @@ function getSafePublicacoesActionLimit(action, requestedLimit) {
   if (action === "backfill_partes") return Math.max(1, Math.min(normalized || 15, MODULE_LIMITS.maxBackfillPartes));
   if (action === "reconciliar_partes_contatos") return Math.max(1, Math.min(normalized || 5, 10));
   if (action === "run_sync_worker") return Math.max(1, Math.min(normalized || 2, MODULE_LIMITS.maxSyncWorker));
+  if (action === "run_advise_sync") return Math.max(1, Math.min(normalized || 12, MODULE_LIMITS.maxAdviseSync));
   return Math.max(1, Math.min(normalized || MODULE_LIMITS.maxDefault, MODULE_LIMITS.maxDefault));
 }
 
@@ -1615,6 +1619,10 @@ function PublicacoesContent() {
       setOperationalStatus({ mode: "error", message: globalError, updatedAt: new Date().toISOString() });
       return;
     }
+    const overviewData = overview?.data || {};
+    const advisePersistedDelta = Number(overviewData.advisePersistedDelta || 0);
+    const publicacoesSemProcesso = Number(overviewData.publicacoesSemProcesso || 0);
+    const publicacoesPendentesComAccount = Number(overviewData.publicacoesPendentesComAccount || 0);
     const queues = [processCandidates, partesCandidates];
     const queueErrorCount = queues.filter((queue) => queue?.error).length;
     const mismatchCount = queues.filter((queue) => candidateQueueHasReadMismatch(queue)).length;
@@ -1643,8 +1651,32 @@ function PublicacoesContent() {
       });
       return;
     }
+    if (advisePersistedDelta > 0) {
+      setOperationalStatus({
+        mode: "limited",
+        message: `Ainda existe delta estrutural de ${advisePersistedDelta} publicacao(oes) entre o cursor do Advise e o banco.`,
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
+    if (publicacoesSemProcesso > 0) {
+      setOperationalStatus({
+        mode: "limited",
+        message: `${publicacoesSemProcesso} publicacao(oes) seguem sem processo vinculado e exigem drenagem de criacao.`,
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
+    if (publicacoesPendentesComAccount > 0) {
+      setOperationalStatus({
+        mode: "limited",
+        message: `${publicacoesPendentesComAccount} publicacao(oes) vinculadas ainda aguardam sync no Freshsales.`,
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
     setOperationalStatus({ mode: "ok", message: "Operacao normal", updatedAt: new Date().toISOString() });
-  }, [globalError, processCandidates, partesCandidates]);
+  }, [globalError, overview.data, processCandidates, partesCandidates]);
 
   useEffect(() => {
     const latest = remoteHistory[0];
@@ -2228,6 +2260,9 @@ function PublicacoesContent() {
   const adviseTokenOk = adviseConfig?.token_ok === true;
   const adviseMode = adviseConfig?.modo || "indisponivel";
   const adviseLastCycleTotal = Number(adviseCursor?.total_registros || 0);
+  const advisePersistedDelta = Number(data.advisePersistedDelta || 0);
+  const publicacoesSemProcesso = Number(data.publicacoesSemProcesso || 0);
+  const publicacoesPendentesComAccount = Number(data.publicacoesPendentesComAccount || 0);
   const syncWorkerLastPublicacoes = Number(data?.syncWorker?.worker?.ultimo_lote?.publicacoes || 0);
   const latestHistory = executionHistory[0] || null;
   const latestRemoteRun = remoteHistory[0] || null;
@@ -2249,8 +2284,15 @@ function PublicacoesContent() {
         ? { hash: "publicacoes-mesa-integrada", label: "Revisar mesa integrada", view: "operacao" }
         : { hash: "filas", label: "Abrir filas", view: "filas" };
   const healthSuggestedActions = [];
+  if (advisePersistedDelta > 0 || publicacoesSemProcesso > 0) {
+    healthSuggestedActions.push({ key: "operacao-drenagem", label: "Abrir drenagem principal", onClick: () => updateView("operacao", "operacao") });
+    healthSuggestedActions.push({ key: "advise-backfill", label: "Importar backlog Advise", onClick: () => handleAction("run_advise_backfill", false), disabled: actionState.loading });
+  }
   if (candidateQueueErrorCount > 0 || candidateQueueMismatchCount > 0) {
     healthSuggestedActions.push({ key: "filas", label: healthQueueTarget.label, onClick: () => updateView(healthQueueTarget.view, healthQueueTarget.hash) });
+  }
+  if (publicacoesPendentesComAccount > 0) {
+    healthSuggestedActions.push({ key: "sync-crm", label: "Sincronizar publicacoes", onClick: () => updateView("operacao", "operacao") });
   }
   if (backendHealth.status === "warning" || backendHealth.status === "error") {
     healthSuggestedActions.push({ key: "resultado", label: "Ver resultado", onClick: () => updateView("resultado", "resultado") });
@@ -2495,6 +2537,7 @@ function PublicacoesContent() {
           action,
           apply,
           limit: safeLimit,
+          maxPaginas: action === "run_advise_sync" ? safeLimit : undefined,
           processNumbers: numbers.length ? numbers.join("\n") : processNumbers,
         }),
       }, {
@@ -2504,25 +2547,39 @@ function PublicacoesContent() {
         expectation: `Executar ${getPublicacoesActionLabel(action)} com lote ${safeLimit}`,
       });
       const resultData = (() => {
-        if (action !== "run_sync_worker") return payload.data;
-        const hasNoProgress = Number(payload.data?.affected_count || 0) === 0;
-        if (!hasNoProgress) return payload.data;
-        if (partesBacklogCount > 0) {
+        if (action === "run_sync_worker") {
+          const hasNoProgress = Number(payload.data?.affected_count || 0) === 0;
+          if (!hasNoProgress) return payload.data;
+          if (partesBacklogCount > 0) {
+            return {
+              ...payload.data,
+              uiHint: `O sync-worker concluiu sem progresso e nao drena a fila de partes. Ha ${partesBacklogCount} processo(s) em candidatos_partes; use Extracao retroativa de partes ou Salvar partes + corrigir CRM para atuar nessa fila.`,
+            };
+          }
+          if (syncWorkerShouldFocusCrm) {
+            return {
+              ...payload.data,
+              uiHint: "O sync-worker concluiu sem progresso nesta rodada. Ele atua em pendencias de activity/CRM, nao em extracao retroativa de partes.",
+            };
+          }
           return {
             ...payload.data,
-            uiHint: `O sync-worker concluiu sem progresso e nao drena a fila de partes. Ha ${partesBacklogCount} processo(s) em candidatos_partes; use Extracao retroativa de partes ou Salvar partes + corrigir CRM para atuar nessa fila.`,
+            uiHint: "O sync-worker concluiu sem trabalho pendente nesta rodada.",
           };
         }
-        if (syncWorkerShouldFocusCrm) {
+        if (action === "run_advise_backfill") {
           return {
             ...payload.data,
-            uiHint: "O sync-worker concluiu sem progresso nesta rodada. Ele atua em pendencias de activity/CRM, nao em extracao retroativa de partes.",
+            uiHint: "O backfill do Advise importa o historico bruto para o Supabase. Depois use Criar processos ausentes e Sincronizar publicacoes vinculadas para concluir a drenagem operacional.",
           };
         }
-        return {
-          ...payload.data,
-          uiHint: "O sync-worker concluiu sem trabalho pendente nesta rodada.",
-        };
+        if (action === "run_advise_sync") {
+          return {
+            ...payload.data,
+            uiHint: "A ingestao incremental do Advise traz publicacoes novas. Se ainda houver delta estrutural, rode tambem o backfill historico.",
+          };
+        }
+        return payload.data;
       })();
       setActionState({ loading: false, error: null, result: resultData });
       replaceHistoryEntry(historyId, {
@@ -2657,6 +2714,24 @@ function PublicacoesContent() {
               <QueueSummaryCard title="Ultimo ciclo" count={adviseLastCycleTotal} helper="Total reportado pelo cursor do advise-sync no ciclo mais recente." />
               <QueueSummaryCard title="Ultimo lote worker" count={syncWorkerLastPublicacoes} helper="Quantidade de publicacoes no ultimo lote do sync-worker." />
             </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => handleAction("run_advise_backfill", false)}
+                disabled={actionState.loading}
+                className="border border-[#6E5630] bg-[rgba(197,160,89,0.08)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-[#F8E7B5] hover:border-[#C5A059] disabled:opacity-50"
+              >
+                Importar backlog Advise
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAction("run_advise_sync", false)}
+                disabled={actionState.loading}
+                className="border border-[#2D2E2E] px-4 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
+              >
+                Rodar ingestao incremental
+              </button>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <QueueSummaryCard title="Persistidas no banco" count={data.publicacoesTotal || 0} helper="Contagem atual em judiciario.publicacoes." />
               <QueueSummaryCard title="Cursor Advise" count={data.adviseCursorTotal || 0} helper="Total de registros reportado pelo cursor do advise-sync." />
@@ -2742,6 +2817,22 @@ function PublicacoesContent() {
                 className="border border-[#6E5630] bg-[rgba(197,160,89,0.08)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#F8E7B5] hover:border-[#C5A059] disabled:opacity-50"
               >
                 Sincronizar publicacoes vinculadas
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAction("run_advise_backfill", false)}
+                disabled={actionState.loading}
+                className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
+              >
+                Importar backlog Advise
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAction("run_advise_sync", false)}
+                disabled={actionState.loading}
+                className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
+              >
+                Rodar ingestao incremental
               </button>
               <button
                 type="button"

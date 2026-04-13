@@ -6,6 +6,8 @@ import {
   listAdminOperations,
   listCreateProcessCandidates,
   listPartesExtractionCandidates,
+  runAdviseBackfill,
+  runAdviseSync,
   runSyncWorker,
 } from "../../lib/admin/hmadv-ops.js";
 import {
@@ -38,6 +40,27 @@ function isJobInfraError(error) {
     message.includes("Could not find the table") ||
     message.includes("PGRST205")
   );
+}
+
+function isQueueOverloadError(error) {
+  const message = String(error?.message || "");
+  return (
+    message.includes("Too many subrequests") ||
+    message.includes("subrequests") ||
+    message.includes("Worker exceeded resource limits") ||
+    message.includes("exceeded resource limits")
+  );
+}
+
+function buildQueueFallback({ page, pageSize, error }) {
+  return {
+    page,
+    pageSize,
+    totalRows: 0,
+    items: [],
+    limited: true,
+    error: error?.message || "Fila em modo reduzido por sobrecarga.",
+  };
 }
 
 function parseProcessNumbers(value) {
@@ -344,17 +367,33 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, data });
       }
       if (action === "candidatos_processos") {
-        const data = await listCreateProcessCandidates({
-          page: Number(req.query.page || 1),
-          pageSize: Number(req.query.pageSize || 20),
-        });
+        const page = Number(req.query.page || 1);
+        const pageSize = Number(req.query.pageSize || 20);
+        let data;
+        try {
+          data = await listCreateProcessCandidates({
+            page,
+            pageSize,
+          });
+        } catch (error) {
+          if (!isQueueOverloadError(error)) throw error;
+          data = buildQueueFallback({ page, pageSize, error });
+        }
         return res.status(200).json({ ok: true, data });
       }
       if (action === "candidatos_partes") {
-        const data = await listPartesExtractionCandidates({
-          page: Number(req.query.page || 1),
-          pageSize: Number(req.query.pageSize || 20),
-        });
+        const page = Number(req.query.page || 1);
+        const pageSize = Number(req.query.pageSize || 20);
+        let data;
+        try {
+          data = await listPartesExtractionCandidates({
+            page,
+            pageSize,
+          });
+        } catch (error) {
+          if (!isQueueOverloadError(error)) throw error;
+          data = buildQueueFallback({ page, pageSize, error });
+        }
         return res.status(200).json({ ok: true, data });
       }
       if (action === "historico") {
@@ -376,12 +415,22 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, data });
       }
       if (action === "mesa_integrada") {
-        const data = await collectIntegratedQueueSlice({
-          page: Number(req.query.page || 1),
-          pageSize: Number(req.query.pageSize || 20),
-          query: String(req.query.query || ""),
-          source: String(req.query.source || "todos"),
-        });
+        const page = Number(req.query.page || 1);
+        const pageSize = Number(req.query.pageSize || 20);
+        const query = String(req.query.query || "");
+        const source = String(req.query.source || "todos");
+        let data;
+        try {
+          data = await collectIntegratedQueueSlice({
+            page,
+            pageSize,
+            query,
+            source,
+          });
+        } catch (error) {
+          if (!isQueueOverloadError(error)) throw error;
+          data = buildQueueFallback({ page, pageSize, error });
+        }
         return res.status(200).json({ ok: true, data });
       }
       if (action === "mesa_integrada_selecao") {
@@ -512,6 +561,17 @@ export default async function handler(req, res) {
       }
       if (action === "run_sync_worker") {
         const data = await runSyncWorker();
+        return res.status(200).json({ ok: true, data });
+      }
+      if (action === "run_advise_sync") {
+        const data = await runAdviseSync({
+          maxPaginas: Number(req.body?.maxPaginas || req.body?.limit || 12),
+          porPagina: Number(req.body?.porPagina || 50),
+        });
+        return res.status(200).json({ ok: true, data });
+      }
+      if (action === "run_advise_backfill") {
+        const data = await runAdviseBackfill();
         return res.status(200).json({ ok: true, data });
       }
       return res.status(400).json({ ok: false, error: "Acao POST invalida." });

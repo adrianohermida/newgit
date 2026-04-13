@@ -28,7 +28,7 @@ function Panel({ title, subtitle, meta, children, className = "" }) {
                 {subtitle}
               </p>
             ) : null}
-          </Panel>
+          </div>
           {meta ? (
             <div className={`text-xs uppercase tracking-[0.15em] ${isLightTheme ? "text-[#9ca3af]" : "opacity-45"}`}>
               {meta}
@@ -892,7 +892,7 @@ export default function AgentLabWorkflowsPage() {
                 </div>
               )}
             </div>
-          </div>
+          </Panel>
 
           <Panel title="Dispatch real" subtitle="E-mails operacionais enviados e fila de WhatsApp gerada a partir das regras." meta={`${dispatchRuns.length} dispatches`} className="mt-6">
             <div className="space-y-4">

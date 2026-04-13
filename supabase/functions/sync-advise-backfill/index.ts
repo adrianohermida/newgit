@@ -9,17 +9,14 @@ const supabase = createClient(
 );
 
 const ADVISE_TOKEN = Deno.env.get("ADVISE_TOKEN")!;
-
 const ADVISE_URL =
   "https://api.advise.com.br/core/v1/publicacoes-clientes/consulta-paginada";
-
+const REGISTROS_POR_PAGINA = 100;
 const PAGINAS_POR_EXECUCAO = 25;
 
 serve(async () => {
-
   try {
-
-    console.log("Iniciando sincronização Advise");
+    console.log("Iniciando sincronizacao Advise");
 
     let { data: sync } = await supabase
       .from("advise_sync_status")
@@ -28,21 +25,19 @@ serve(async () => {
       .maybeSingle();
 
     if (sync?.total_paginas && sync?.ultima_pagina >= sync?.total_paginas) {
-
       console.log("Backfill finalizado");
-
-      return new Response(JSON.stringify({
-        status: "concluido",
-        paginas_importadas: sync.total_paginas
-      }), {
-        headers: { "Content-Type": "application/json" }
-      });
-
-    }  
+      return new Response(
+        JSON.stringify({
+          status: "concluido",
+          paginas_importadas: sync.total_paginas,
+          total_registros_api: sync.total_registros ?? 0,
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      );
+    }
 
     if (!sync) {
-
-      console.log("Criando registro inicial de sincronização");
+      console.log("Criando registro inicial de sincronizacao");
 
       const { data: novo, error } = await supabase
         .from("advise_sync_status")
@@ -51,164 +46,140 @@ serve(async () => {
           ultima_pagina: 1,
           total_paginas: null,
           total_registros: 0,
-          status: "idle"
+          status: "idle",
         })
         .select()
         .single();
 
       if (error) throw error;
-
       sync = novo;
     }
 
-    const paginaAtual = sync.ultima_pagina ?? 1;
-
-    let totalPaginas = sync.total_paginas ?? null;
-
+    const paginaInicial = Math.max(1, Number(sync.ultima_pagina ?? 1));
+    let totalPaginas = Number(sync.total_paginas ?? 0) || null;
+    let totalRegistrosApi = Number(sync.total_registros ?? 0) || 0;
     let registrosImportados = 0;
+    let paginasProcessadas = 0;
+    let ultimaPaginaProcessada = paginaInicial - 1;
 
-    for (let i = 0; i < PAGINAS_POR_EXECUCAO; i++) {
-
-      const pagina = paginaAtual + i;
+    for (let i = 0; i < PAGINAS_POR_EXECUCAO; i += 1) {
+      const pagina = paginaInicial + i;
 
       if (totalPaginas && pagina > totalPaginas) break;
 
-      console.log("Importando página:", pagina);
+      console.log("Importando pagina:", pagina);
 
       const response = await fetch(
-        `${ADVISE_URL}?paginaAtual=${pagina}&registrosPorPagina=100&Lido=false`,
+        `${ADVISE_URL}?paginaAtual=${pagina}&registrosPorPagina=${REGISTROS_POR_PAGINA}&Lido=false`,
         {
           headers: {
             Authorization: `Bearer ${ADVISE_TOKEN}`,
-            "Content-Type": "application/json"
-          }
+            "Content-Type": "application/json",
+          },
         }
       );
 
       if (!response.ok) {
-
         const erro = await response.text();
-
         throw new Error(`Erro API Advise (${response.status}): ${erro}`);
-
       }
 
       const api = await response.json();
+      totalPaginas = Number(api?.paginacao?.paginaTotal ?? totalPaginas ?? 0) || totalPaginas;
+      totalRegistrosApi = Number(api?.paginacao?.totalRegistros ?? api?.totalRegistros ?? totalRegistrosApi ?? 0) || totalRegistrosApi;
 
-      totalPaginas = api?.paginacao?.paginaTotal ?? totalPaginas;
-
-      const itens = api?.itens ?? [];
-
-      console.log("Publicações recebidas:", itens.length);
+      const itens = Array.isArray(api?.itens) ? api.itens : [];
+      console.log("Publicacoes recebidas:", itens.length);
 
       const publicacoes = itens.map((item: any) => ({
-
         advise_id_publicacao_cliente: item.id,
         advise_id_publicacao: item.idPublicacao,
         advise_id_mov_usuario_cliente: item.idMovUsuarioCliente,
         advise_id_cliente: item.idCliente,
         advise_id_usuario_cliente: item.idUsuarioCliente,
-
         advise_cod_publicacao: item.codPublicacao,
         advise_cod_diario: item.codDiario,
         advise_cod_caderno: item.codCaderno,
-
         advise_id_municipio: item.idMunicipio,
         advise_id_caderno_diario_edicao: item.idCadernoDiarioEdicao,
-
         data_publicacao: item.dataPublicacao ? new Date(item.dataPublicacao) : null,
         data_hora_movimento: item.dataHoraMovimento ? new Date(item.dataHoraMovimento) : null,
         data_hora_cadastro: item.dataHoraCadastro ? new Date(item.dataHoraCadastro) : null,
-
         ativo: item.ativo,
         ativo_publicacao: item.ativoPublicacao,
-
         ano_publicacao: item.anoPublicacao,
         edicao_diario: item.edicaoDiario,
-
         cidade_comarca_descricao: item.cidadeComarcaDescricao,
         vara_descricao: item.varaDescricao,
-
         pagina_inicial_publicacao: item.paginaInicialPublicacao,
         pagina_final_publicacao: item.paginaFinalPublicacao,
-
         conteudo: item.conteudo,
         despacho: item.despacho,
-
         corrigido: item.corrigido,
         lido: item.lido,
-
         nome_diario: item.nomeDiario,
         descricao_diario: item.descricaoDiario,
-
         nome_caderno_diario: item.nomeCadernoDiario,
         descricao_caderno_diario: item.descricaoCadernoDiario,
-
         nome_cliente: item.nomeCliente,
         nome_usuario_cliente: item.nomeUsuarioCliente,
-
         numero_processo_api: item.numero?.trim(),
-
-        raw_payload: item
-
+        raw_payload: item,
       }));
 
       if (publicacoes.length > 0) {
-
         const { error } = await supabase
           .from("publicacoes")
-          .upsert(publicacoes, {
-            onConflict: "advise_id_publicacao_cliente"
-          });
+          .upsert(publicacoes, { onConflict: "advise_id_publicacao_cliente" });
 
         if (error) throw error;
-
         registrosImportados += publicacoes.length;
       }
+
+      paginasProcessadas += 1;
+      ultimaPaginaProcessada = pagina;
     }
 
-    const novaPagina = Math.min(
-      paginaAtual + PAGINAS_POR_EXECUCAO,
-      totalPaginas ?? paginaAtual + PAGINAS_POR_EXECUCAO
-    );
+    const concluiu = Boolean(totalPaginas && ultimaPaginaProcessada >= totalPaginas);
+    const proximaPagina = concluiu
+      ? null
+      : Math.max(paginaInicial, ultimaPaginaProcessada + 1);
 
     const { error: updateError } = await supabase
       .from("advise_sync_status")
       .update({
-        ultima_pagina: novaPagina,
+        ultima_pagina: concluiu ? Number(totalPaginas || ultimaPaginaProcessada || paginaInicial) : proximaPagina,
         total_paginas: totalPaginas,
-        total_registros:
-          (sync.total_registros ?? 0) + registrosImportados,
-        ultima_execucao: new Date()
+        total_registros: totalRegistrosApi,
+        ultima_execucao: new Date(),
+        status: concluiu ? "concluido" : "idle",
       })
       .eq("id", sync.id);
 
     if (updateError) throw updateError;
 
-    return new Response(JSON.stringify({
-
-      pagina_inicial: paginaAtual,
-      paginas_processadas: PAGINAS_POR_EXECUCAO,
-      registros_importados: registrosImportados,
-      total_paginas: totalPaginas
-
-    }), {
-      headers: { "Content-Type": "application/json" }
-    });
-
-  }
-
-  catch (error: any) {
-
-    console.error("Erro na sincronização:", error);
+    return new Response(
+      JSON.stringify({
+        status: concluiu ? "concluido" : "parcial",
+        pagina_inicial: paginaInicial,
+        paginas_processadas: paginasProcessadas,
+        ultima_pagina_processada: ultimaPaginaProcessada >= paginaInicial ? ultimaPaginaProcessada : null,
+        registros_importados: registrosImportados,
+        total_paginas: totalPaginas,
+        total_registros_api: totalRegistrosApi,
+        proxima_pagina: proximaPagina,
+      }),
+      { headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    console.error("Erro na sincronizacao:", error);
 
     return new Response(
       JSON.stringify({
         status: "erro",
-        mensagem: error.message
+        mensagem: error.message,
       }),
-      { status: 500 }
+      { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
-
 });

@@ -731,7 +731,7 @@ function getLastTask(taskHistory) {
   return taskHistory.find((task) => task.status === "running") || taskHistory[0] || null;
 }
 
-function renderRichText(text) {
+function renderRichText(text, isLightTheme = false) {
   if (typeof text !== "string") return null;
   const blocks = text.split(/```/g);
   return blocks.map((block, index) => {
@@ -740,7 +740,11 @@ function renderRichText(text) {
       return (
         <pre
           key={`code-${index}`}
-          className="overflow-x-auto rounded-2xl border border-[#22342F] bg-[rgba(4,7,6,0.95)] p-4 text-[12px] leading-6 text-[#EAE3D6]"
+          className={`overflow-x-auto rounded-2xl border p-4 text-[12px] leading-6 ${
+            isLightTheme
+              ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#1F2A37]"
+              : "border-[#22342F] bg-[rgba(4,7,6,0.95)] text-[#EAE3D6]"
+          }`}
         >
           <code>{block.trim()}</code>
         </pre>
@@ -764,15 +768,21 @@ function renderRichText(text) {
   });
 }
 
-function MessageBubble({ message, isTyping, onCopy, onReuse, onOpenAiTask, onAction }) {
+function MessageBubble({ message, isTyping, isLightTheme = false, onCopy, onReuse, onOpenAiTask, onAction }) {
   const isAssistant = message.role === "assistant";
   const isSystem = message.role === "system";
   const alignClass = isAssistant ? "justify-start" : "justify-end";
   const bubbleClass = isAssistant
-    ? "border-[#1C2623] bg-[rgba(17,22,20,0.96)] text-[#F4F1EA] shadow-[0_8px_24px_rgba(0,0,0,0.16)]"
+    ? isLightTheme
+      ? "border-[#D7DEE8] bg-white text-[#1F2A37] shadow-[0_10px_26px_rgba(148,163,184,0.16)]"
+      : "border-[#1C2623] bg-[rgba(17,22,20,0.96)] text-[#F4F1EA] shadow-[0_8px_24px_rgba(0,0,0,0.16)]"
     : isSystem
-      ? "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9FB1AA]"
-      : "border-[#2F3029] bg-[rgba(196,160,89,0.08)] text-[#F7F1E6]";
+      ? isLightTheme
+        ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]"
+        : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9FB1AA]"
+      : isLightTheme
+        ? "border-[#E7D9B8] bg-[#FFF8E8] text-[#5B4A22]"
+        : "border-[#2F3029] bg-[rgba(196,160,89,0.08)] text-[#F7F1E6]";
 
   // Suporte multimodal: imagens/Ã¡udios
   const media = Array.isArray(message.media) ? message.media : [];
@@ -793,18 +803,18 @@ function MessageBubble({ message, isTyping, onCopy, onReuse, onOpenAiTask, onAct
           </span>
         ) : (
           <>
-            {renderRichText(message.text)}
+            {renderRichText(message.text, isLightTheme)}
             {media.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-3">
                 {media.map((item, idx) => {
                   if (typeof item === "string" && item.match(/\.(png|jpe?g|webp|gif)$/i)) {
-                    return <img key={idx} src={item} alt="imagem" className="max-w-[180px] max-h-[180px] rounded-xl border border-[#22342F]" />;
+                    return <img key={idx} src={item} alt="imagem" className={`max-w-[180px] max-h-[180px] rounded-xl border ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`} />;
                   }
                   if (typeof item === "string" && item.match(/\.(mp3|wav|ogg|m4a)$/i)) {
                     return <audio key={idx} src={item} controls className="max-w-[220px]" />;
                   }
                   if (typeof item === "object" && item.type === "image" && item.url) {
-                    return <img key={idx} src={item.url} alt={item.alt || "imagem"} className="max-w-[180px] max-h-[180px] rounded-xl border border-[#22342F]" />;
+                    return <img key={idx} src={item.url} alt={item.alt || "imagem"} className={`max-w-[180px] max-h-[180px] rounded-xl border ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`} />;
                   }
                   if (typeof item === "object" && item.type === "audio" && item.url) {
                     return <audio key={idx} src={item.url} controls className="max-w-[220px]" />;
@@ -814,7 +824,7 @@ function MessageBubble({ message, isTyping, onCopy, onReuse, onOpenAiTask, onAct
               </div>
             )}
             {(isAssistant || isSystem) && message.text ? (
-              <div className="mt-4 flex flex-wrap gap-2 border-t border-[#22342F] pt-3 text-[10px] sm:text-[11px]">
+              <div className={`mt-4 flex flex-wrap gap-2 border-t pt-3 text-[10px] sm:text-[11px] ${isLightTheme ? "border-[#E5EAF1]" : "border-[#22342F]"}`}>
                 {Array.isArray(message.actions) && message.actions.length ? (
                   <>
                     {message.actions.map((action) => (
@@ -822,7 +832,11 @@ function MessageBubble({ message, isTyping, onCopy, onReuse, onOpenAiTask, onAct
                         key={action.id || `${action.kind}-${action.target}`}
                         type="button"
                         onClick={() => onAction?.(action, message)}
-                        className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF] sm:px-3"
+                        className={`rounded-full border px-3 py-1.5 transition sm:px-3 ${
+                          isLightTheme
+                            ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]"
+                            : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                        }`}
                       >
                         {action.label}
                       </button>
@@ -832,21 +846,33 @@ function MessageBubble({ message, isTyping, onCopy, onReuse, onOpenAiTask, onAct
                 <button
                   type="button"
                   onClick={() => onCopy?.(message)}
-                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#C6D1CC] transition hover:border-[#C5A059] hover:text-[#F1D39A] sm:px-3"
+                  className={`rounded-full border px-3 py-1.5 transition sm:px-3 ${
+                    isLightTheme
+                      ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]"
+                      : "border-[#22342F] text-[#C6D1CC] hover:border-[#C5A059] hover:text-[#F1D39A]"
+                  }`}
                 >
                   Copiar
                 </button>
                 <button
                   type="button"
                   onClick={() => onReuse?.(message)}
-                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#C6D1CC] transition hover:border-[#C5A059] hover:text-[#F1D39A] sm:px-3"
+                  className={`rounded-full border px-3 py-1.5 transition sm:px-3 ${
+                    isLightTheme
+                      ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]"
+                      : "border-[#22342F] text-[#C6D1CC] hover:border-[#C5A059] hover:text-[#F1D39A]"
+                  }`}
                 >
                   Usar no composer
                 </button>
                 <button
                   type="button"
                   onClick={() => onOpenAiTask?.(message)}
-                  className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF] sm:px-3"
+                  className={`rounded-full border px-3 py-1.5 transition sm:px-3 ${
+                    isLightTheme
+                      ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]"
+                      : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                  }`}
                 >
                   Abrir no AI Task
                 </button>
@@ -1490,6 +1516,13 @@ const [uiToasts, setUiToasts] = useState([]);
     if (typeof window === "undefined") return;
     safeLocalSet(layoutStorageKey, workspaceLayoutMode);
   }, [layoutStorageKey, workspaceLayoutMode]);
+
+  useEffect(() => {
+    if (!isFocusedCopilotShell) return;
+    if (rightPanelTab === "context") {
+      setRightPanelTab("modules");
+    }
+  }, [isFocusedCopilotShell, rightPanelTab]);
 
   useEffect(() => {
     const activeConversation = conversations.find((item) => item.id === activeConversationId) || null;
@@ -4234,23 +4267,27 @@ const [uiToasts, setUiToasts] = useState([]);
                     ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,248,251,0.98))]"
                     : "border-[#1C2623] bg-[rgba(255,255,255,0.018)]"
                 }`}>
-                  <div className="border-b border-[#22342F] px-4 py-4 md:px-5">
+                  <div className={`border-b px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Historico</p>
-                        <p className="mt-1 text-sm text-[#9BAEA8]">
+                        <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Historico</p>
+                        <p className={`mt-1 text-sm ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                           {isFocusedCopilotShell
                             ? "Conversas, busca contextual e agrupamento por projeto no mesmo padrão de um workspace conversacional."
                             : "Histórico enxuto para retomar contexto sem competir com a conversa central."}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => createConversationFromCurrentState("Nova conversa")}
-                        className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-                      >
-                        Nova
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => createConversationFromCurrentState("Nova conversa")}
+                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${
+                            isLightTheme
+                              ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]"
+                              : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
+                          }`}
+                        >
+                          Nova
+                        </button>
                     </div>
                     <div className="mt-4 flex flex-col gap-2">
                         <input
@@ -4264,13 +4301,13 @@ const [uiToasts, setUiToasts] = useState([]);
                           }`}
                       />
                       <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
-                        <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[#D8DEDA]">
+                        <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                           projetos {projectInsights.length}
                         </span>
-                        <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[#D8DEDA]">
+                        <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                           conversas {filteredConversations.length}
                         </span>
-                        <span className="rounded-full border border-[#35554B] px-2.5 py-1 text-[#B7D5CB]">
+                        <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB]"}`}>
                           foco {activeProjectLabel}
                         </span>
                       </div>
@@ -4304,7 +4341,7 @@ const [uiToasts, setUiToasts] = useState([]);
                             </option>
                           ))}
                         </select>
-                        <label className="flex items-center gap-1 text-xs text-[#C5A059] cursor-pointer">
+                        <label className={`flex cursor-pointer items-center gap-1 text-xs ${isLightTheme ? "text-[#9A6E2D]" : "text-[#C5A059]"}`}>
                           <input
                             type="checkbox"
                             checked={showArchived}
@@ -4327,13 +4364,13 @@ const [uiToasts, setUiToasts] = useState([]);
                   >
                     {conversationProjectGroups.length ? (
                       conversationProjectGroups.map((group) => (
-                        <section key={group.key} className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.015)] p-2">
+                        <section key={group.key} className={`rounded-[20px] border p-2 ${isLightTheme ? "border-[#D7DEE8] bg-[rgba(255,255,255,0.92)]" : "border-[#22342F] bg-[rgba(255,255,255,0.015)]"}`}>
                           <div className="flex items-center justify-between gap-2 px-2 py-2">
                             <div>
-                              <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">{group.label}</p>
-                              <p className="text-[11px] text-[#60706A]">{group.items.length} conversa(s)</p>
+                              <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{group.label}</p>
+                              <p className={`text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#60706A]"}`}>{group.items.length} conversa(s)</p>
                             </div>
-                            <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#D8DEDA]">
+                            <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                               {group.updatedAt ? new Date(group.updatedAt).toLocaleDateString("pt-BR") : "sem data"}
                             </span>
                           </div>
@@ -4346,20 +4383,22 @@ const [uiToasts, setUiToasts] = useState([]);
                                   className={`rounded-[18px] border p-3 transition ${
                                     active
                                       ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]"
-                                      : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#35554B]"
+                                      : isLightTheme
+                                        ? "border-[#D7DEE8] bg-white hover:border-[#BAC8D6]"
+                                        : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#35554B]"
                                   }`}
                                 >
                                   <button type="button" onClick={() => selectConversation(conversation)} className="w-full text-left">
                                     <div className="flex items-start justify-between gap-3">
                                       <div className="min-w-0">
-                                        <p className="truncate text-sm font-semibold text-[#F5F1E8]">{conversation.title}</p>
-                                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#9BAEA8]">{conversation.preview}</p>
+                                        <p className={`truncate text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{conversation.title}</p>
+                                        <p className={`mt-1 line-clamp-2 text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{conversation.preview}</p>
                                       </div>
                                       <div className="text-right">
-                                        <span className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">
+                                        <span className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
                                           {conversation.messages?.length || 0}
                                         </span>
-                                        <p className="mt-1 text-[10px] text-[#60706A]">
+                                        <p className={`mt-1 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#60706A]"}`}>
                                           {conversation.updatedAt ? new Date(conversation.updatedAt).toLocaleDateString("pt-BR") : ""}
                                         </p>
                                       </div>
@@ -4367,20 +4406,20 @@ const [uiToasts, setUiToasts] = useState([]);
                                   </button>
 
                                   <div className="mt-3 flex flex-wrap gap-2">
-                                    <span className="rounded-full border border-[#35554B] px-2.5 py-1 text-[10px] text-[#B7D5CB]">
+                                    <span className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB]"}`}>
                                       {conversation.projectLabel || "Geral"}
                                     </span>
                                     <button
                                       type="button"
                                       onClick={() => handleConcatConversation(conversation)}
-                                      className="rounded-full border border-[#35554B] px-2.5 py-1 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                                      className={`rounded-full border px-2.5 py-1 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                                     >
                                       Concatenar
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => archiveConversation(conversation)}
-                                      className="rounded-full border border-[#22342F] px-2.5 py-1 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                      className={`rounded-full border px-2.5 py-1 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                                     >
                                       {conversation.archived ? "Desarquivar" : "Arquivar"}
                                     </button>
@@ -4392,25 +4431,25 @@ const [uiToasts, setUiToasts] = useState([]);
                         </section>
                       ))
                     ) : (
-                      <div className="rounded-[24px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm text-[#9BAEA8]">
+                      <div className={`rounded-[24px] border border-dashed p-4 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
                         Nenhuma conversa encontrada.
                       </div>
                     )}
                   </div>
 
-                  <footer className="shrink-0 border-t border-[#22342F] bg-[rgba(12,15,14,0.95)] px-4 py-4 md:px-5">
+                  <footer className={`shrink-0 border-t px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8] bg-[rgba(255,255,255,0.96)]" : "border-[#22342F] bg-[rgba(12,15,14,0.95)]"}`}>
                     <div className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.03)] text-sm font-semibold text-[#F5F1E8]">
+                      <div className={`flex h-11 w-11 items-center justify-center rounded-full border text-sm font-semibold ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#152421]" : "border-[#22342F] bg-[rgba(255,255,255,0.03)] text-[#F5F1E8]"}`}>
                         {(profile?.full_name || profile?.email || "HM").slice(0, 2).toUpperCase()}
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-[#F5F1E8]">{profile?.full_name || profile?.email || "Hermida Maia"}</p>
-                        <p className="text-xs text-[#9BAEA8]">{profile?.role || "Equipe interna"}</p>
+                        <p className={`truncate text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{profile?.full_name || profile?.email || "Hermida Maia"}</p>
+                        <p className={`text-xs ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{profile?.role || "Equipe interna"}</p>
                       </div>
                     </div>
                     <div className={`mt-4 grid gap-2 text-xs ${isFocusedCopilotShell ? "grid-cols-1" : "grid-cols-2"}`}>
                       {!isFocusedCopilotShell ? (
-                        <a href="/interno" className="rounded-2xl border border-[#22342F] px-3 py-2 text-center text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                        <a href="/interno" className={`rounded-2xl border px-3 py-2 text-center transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
                           Dashboard
                         </a>
                       ) : null}
@@ -4418,7 +4457,7 @@ const [uiToasts, setUiToasts] = useState([]);
                         <button
                           type="button"
                           onClick={() => router.push("/interno/agentlab")}
-                          className="rounded-2xl border border-[#22342F] px-3 py-2 text-center text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                          className={`rounded-2xl border px-3 py-2 text-center transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                         >
                           AgentLab
                         </button>
@@ -4426,12 +4465,12 @@ const [uiToasts, setUiToasts] = useState([]);
                       <button
                         type="button"
                         onClick={handleResetChat}
-                        className="rounded-2xl border border-[#22342F] px-3 py-2 text-center text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                        className={`rounded-2xl border px-3 py-2 text-center transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                       >
                         Nova sessão
                       </button>
                     </div>
-                    <p className="mt-4 text-[11px] leading-5 text-[#7F928C]">
+                    <p className={`mt-4 text-[11px] leading-5 ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
                       {isFocusedCopilotShell
                         ? "Sidebar esquerda dedicada a retomada de contexto, concatenação e navegação por projetos."
                         : "Histórico lateral focado em retomada rápida, sem excesso de ações simultâneas."}
@@ -4444,21 +4483,21 @@ const [uiToasts, setUiToasts] = useState([]);
                     ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,248,251,0.98))]"
                     : "border-[#1C2623] bg-[rgba(255,255,255,0.015)]"
                 }`}>
-                  <div className="border-b border-[#22342F] px-4 py-4 md:px-5">
+                  <div className={`border-b px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Conversa</p>
-                        <p className="mt-2 truncate text-lg font-semibold text-[#F5F1E8]">
+                        <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Conversa</p>
+                        <p className={`mt-2 truncate text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
                           {activeConversation?.title || "Nova conversa"}
                         </p>
-                        <p className="mt-1 text-sm leading-6 text-[#9BAEA8]">
+                        <p className={`mt-1 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                           {isFocusedCopilotShell
                             ? "Área principal dedicada à conversa ativa, com histórico e módulos fixos nas laterais."
                             : "Conversa principal com contexto, execução assistida e handoff operacional."}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+                        <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                           {activeProjectLabel}
                         </span>
                         {!isFocusedCopilotShell ? visibleLegalActions.slice(0, 3).map((action) => (
@@ -4466,7 +4505,7 @@ const [uiToasts, setUiToasts] = useState([]);
                             key={action.label}
                             type="button"
                             onClick={() => handleQuickAction(action.prompt)}
-                            className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                            className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                           >
                             {action.label}
                           </button>
@@ -4482,6 +4521,7 @@ const [uiToasts, setUiToasts] = useState([]);
                           <MessageBubble
                             key={message.id || idx}
                             message={message}
+                            isLightTheme={isLightTheme}
                             onCopy={handleCopyMessage}
                             onReuse={handleReuseMessage}
                             onOpenAiTask={handleOpenMessageInAiTask}
@@ -4489,8 +4529,8 @@ const [uiToasts, setUiToasts] = useState([]);
                           />
                         ))
                       ) : (
-                        <div className="rounded-[20px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-5 text-sm text-[#9BAEA8]">
-                          <p className="text-base font-semibold text-[#F5F1E8]">Pronto para operar.</p>
+                        <div className={`rounded-[20px] border border-dashed p-5 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
+                          <p className={`text-base font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Pronto para operar.</p>
                           <p className="mt-2 leading-6">Use uma instrução curta, um comando com contexto ou envie esta conversa para o AI Task.</p>
                         </div>
                       )}
@@ -4498,6 +4538,7 @@ const [uiToasts, setUiToasts] = useState([]);
                         <MessageBubble
                           message={{ role: "assistant", text: "", createdAt: null }}
                           isTyping={true}
+                          isLightTheme={isLightTheme}
                         />
                       ) : null}
                       {localInferenceAlert && !messages.length ? (
@@ -4530,7 +4571,7 @@ const [uiToasts, setUiToasts] = useState([]);
                     </div>
                   </div>
 
-                  <div className="shrink-0 border-t border-[#22342F] px-4 py-4 md:px-5">
+                  <div className={`shrink-0 border-t px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
                     <div className="mb-3 flex flex-wrap gap-2">
                       {visibleQuickPrompts.map((prompt) => (
                         <button
@@ -4548,24 +4589,24 @@ const [uiToasts, setUiToasts] = useState([]);
                       ))}
                     </div>
                     <form onSubmit={handleSubmit} className="space-y-3">
-                      <div className="rounded-[20px] border border-[#1C2623] bg-[rgba(7,9,8,0.98)] p-3" onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}>
-                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#7F928C]">
+                      <div className={`rounded-[20px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1C2623] bg-[rgba(7,9,8,0.98)]"}`} onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}>
+                        <div className={`mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full border border-[#22342F] px-2.5 py-1">
+                            <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>
                               {isFocusedCopilotShell ? "Conversa ativa" : `/${showSlashCommands ? "comandos ativos" : "comandos"}`}
                             </span>
                             {!isFocusedCopilotShell ? (
-                              <span className="rounded-full border border-[#22342F] px-2.5 py-1">Enter envia</span>
+                              <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>Enter envia</span>
                             ) : null}
                             {!isFocusedCopilotShell ? (
-                              <span className="rounded-full border border-[#22342F] px-2.5 py-1">Shift+Enter quebra</span>
+                              <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>Shift+Enter quebra</span>
                             ) : null}
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <button type="button" onClick={handleOpenFiles} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                            <button type="button" onClick={handleOpenFiles} className={`rounded-full border px-2.5 py-1 transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
                               Anexar
                             </button>
-                            <button type="button" onClick={toggleVoiceInput} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                            <button type="button" onClick={toggleVoiceInput} className={`rounded-full border px-2.5 py-1 transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
                               {isRecording ? "Parar voz" : "Voz"}
                             </button>
                           </div>
@@ -4582,7 +4623,7 @@ const [uiToasts, setUiToasts] = useState([]);
                           rows={4}
                           disabled={isComposerBlocked}
                           placeholder={isFocusedCopilotShell ? "Converse com o Dotobot, continue um contexto ou delegue uma ação..." : "Pergunte, delegue uma tarefa ou cole o contexto que precisa operar..."}
-                          className="w-full resize-none border-0 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-[#60706A] disabled:cursor-not-allowed disabled:opacity-50"
+                          className={`w-full resize-none border-0 bg-transparent px-1 py-1 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50 ${isLightTheme ? "text-[#152421] placeholder:text-[#94A3B8]" : "placeholder:text-[#60706A]"}`}
                         />
                         {composerBlockedReason ? (
                           <p className="mt-2 px-1 text-[11px] leading-5 text-[#f1dfb5]">{composerBlockedReason}</p>
@@ -4591,17 +4632,17 @@ const [uiToasts, setUiToasts] = useState([]);
                         {attachments.length ? (
                           <div className="mt-3 flex flex-wrap gap-2">
                             {attachments.map((attachment) => (
-                              <div key={attachment.id} className="flex items-center gap-3 rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs text-[#C6D1CC]">
+                              <div key={attachment.id} className={`flex items-center gap-3 rounded-full border px-3 py-2 text-xs ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#C6D1CC]"}`}>
                                 {attachment.previewUrl ? (
                                   <img src={attachment.previewUrl} alt={attachment.name} className="h-8 w-8 rounded-lg object-cover" />
                                 ) : (
-                                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#22342F] text-[10px] uppercase text-[#9BAEA8]">
+                                  <span className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border text-[10px] uppercase ${isLightTheme ? "border-[#D7DEE8] text-[#7B8B98]" : "border-[#22342F] text-[#9BAEA8]"}`}>
                                     {attachment.kind}
                                   </span>
                                 )}
                                 <div>
                                   <p className="max-w-[12rem] truncate">{attachment.name}</p>
-                                  <p className="text-[10px] opacity-60">{formatBytes(attachment.size)}</p>
+                                  <p className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "opacity-60"}`}>{formatBytes(attachment.size)}</p>
                                 </div>
                               </div>
                             ))}
@@ -4609,16 +4650,16 @@ const [uiToasts, setUiToasts] = useState([]);
                         ) : null}
 
                         {showSlashCommands && input.trim().startsWith("/") ? (
-                          <div className="mt-3 grid gap-2 rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-2 md:grid-cols-2">
+                          <div className={`mt-3 grid gap-2 rounded-[18px] border p-2 md:grid-cols-2 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                             {SLASH_COMMANDS.map((command) => (
                               <button
                                 key={command.value}
                                 type="button"
                                 onClick={() => handleSlashCommand(command)}
-                                className="rounded-[20px] border border-[#22342F] px-4 py-3 text-left text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                className={`rounded-[20px] border px-4 py-3 text-left text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                               >
-                            <p className="font-semibold text-[#F5F1E8]">{command.label}</p>
-                            <p className="mt-1 text-[11px] leading-5 text-[#9BAEA8]">{command.hint}</p>
+                            <p className={`font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{command.label}</p>
+                            <p className={`mt-1 text-[11px] leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{command.hint}</p>
                           </button>
                         ))}
                       </div>
@@ -4628,20 +4669,20 @@ const [uiToasts, setUiToasts] = useState([]);
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex flex-wrap gap-2">
                           {!isFocusedCopilotShell ? (
-                            <button type="button" onClick={handleResetChat} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                            <button type="button" onClick={handleResetChat} className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
                               Limpar
                             </button>
                           ) : null}
-                          <button type="button" onClick={() => router.push("/interno/ai-task")} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                          <button type="button" onClick={() => router.push("/interno/ai-task")} className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
                             AI Task
                           </button>
                           {!isFocusedCopilotShell ? (
-                          <button type="button" onClick={() => openLlmTest(provider, input)} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                          <button type="button" onClick={() => openLlmTest(provider, input)} className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
                             LLM Test
                           </button>
                           ) : null}
                         </div>
-                        <button type="submit" disabled={loading || !input.trim() || isComposerBlocked} className="rounded-2xl border border-[#C5A059] bg-[rgba(197,160,89,0.08)] px-4 py-2 text-sm font-semibold text-[#F1D39A] transition disabled:opacity-40 hover:bg-[rgba(197,160,89,0.14)]">
+                        <button type="submit" disabled={loading || !input.trim() || isComposerBlocked} className={`rounded-2xl border px-4 py-2 text-sm font-semibold transition disabled:opacity-40 ${isLightTheme ? "border-[#C79B2C] bg-[#FFF8E8] text-[#8A6217] hover:bg-[#FFF2D2]" : "border-[#C5A059] bg-[rgba(197,160,89,0.08)] text-[#F1D39A] hover:bg-[rgba(197,160,89,0.14)]"}`}>
                           Enviar
                         </button>
                       </div>
@@ -4691,13 +4732,15 @@ const [uiToasts, setUiToasts] = useState([]);
                               AgentLabs
                             </button>
                           ) : null}
-                        <button
-                          type="button"
-                          onClick={() => setRightPanelTab("context")}
-                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "context" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#9A6E2D] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"}`}
-                        >
-                          Contexto
-                        </button>
+                        {!isFocusedCopilotShell ? (
+                          <button
+                            type="button"
+                            onClick={() => setRightPanelTab("context")}
+                            className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "context" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#9A6E2D] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"}`}
+                          >
+                            Contexto
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -4802,7 +4845,7 @@ const [uiToasts, setUiToasts] = useState([]);
                                 <button
                                   type="button"
                                   onClick={() => router.push("/interno/agentlab")}
-                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                  className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                                 >
                                   Abrir
                                 </button>
@@ -4814,43 +4857,43 @@ const [uiToasts, setUiToasts] = useState([]);
                     ) : rightPanelTab === "ai-task" ? (
                       <div className="space-y-3">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm text-[#9BAEA8]">Subtarefas e continuidade operacional.</p>
+                          <p className={`text-sm ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Subtarefas e continuidade operacional.</p>
                           <div className="flex gap-2">
                             <button
                               type="button"
                               onClick={() => router.push("/interno/ai-task")}
-                              className="rounded-2xl border border-[#35554B] px-3 py-2 text-xs text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                              className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                             >
                               Abrir AI Task
                             </button>
-                            <button type="button" onClick={handleResetTasks} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                            <button type="button" onClick={handleResetTasks} className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
                               Limpar
                             </button>
                           </div>
                         </div>
                         <div className="grid gap-2 sm:grid-cols-3">
-                          <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
-                            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Ativas</p>
-                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{runningCount}</p>
+                          <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Ativas</p>
+                            <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{runningCount}</p>
                           </div>
-                          <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
-                            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Etapas</p>
-                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{activeTaskStepCount}</p>
+                          <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Etapas</p>
+                            <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeTaskStepCount}</p>
                           </div>
-                          <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
-                            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Provider</p>
-                            <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeTaskProviderLabel}</p>
+                          <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Provider</p>
+                            <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeTaskProviderLabel}</p>
                           </div>
                         </div>
-                        <div className="rounded-[18px] border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-4">
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Missão em foco</p>
-                          <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeTaskLabel}</p>
+                        <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-[#F8FAFC]" : "border-[#35554B] bg-[rgba(12,22,19,0.72)]"}`}>
+                          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Missão em foco</p>
+                          <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeTaskLabel}</p>
                           <div className="mt-3 flex flex-wrap gap-2">
                             {!notificationsEnabled ? (
                               <button
                                 type="button"
                                 onClick={handleEnableNotifications}
-                                className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                               >
                                 Ativar notificações
                               </button>
@@ -4858,7 +4901,7 @@ const [uiToasts, setUiToasts] = useState([]);
                             <button
                               type="button"
                               onClick={() => router.push("/interno/ai-task")}
-                              className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                              className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                             >
                               Abrir cockpit
                             </button>
@@ -4866,33 +4909,33 @@ const [uiToasts, setUiToasts] = useState([]);
                         </div>
                         {taskHistory.length ? (
                           taskHistory.slice(0, isFocusedCopilotShell ? 3 : taskHistory.length).map((task) => (
-                            <article key={task.id} className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm">
+                            <article key={task.id} className={`rounded-[18px] border p-4 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                               <div className="flex items-start justify-between gap-3">
                                 <div>
                                   <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]"><TaskStatusChip status={task.status} /></p>
-                                  <p className="mt-2 font-semibold text-[#F5F1E8] line-clamp-3">{task.query}</p>
+                                  <p className={`mt-2 line-clamp-3 font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{task.query}</p>
                                 </div>
-                                <span className="text-[10px] text-[#9BAEA8]">
+                                <span className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#9BAEA8]"}`}>
                                   {task.startedAt ? new Date(task.startedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "--"}
                                 </span>
                               </div>
-                              <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[#9BAEA8]">
-                                <span className="rounded-full border border-[#22342F] px-2.5 py-1">{parseProviderPresentation(task.provider || "gpt").name}</span>
-                                <span className="rounded-full border border-[#22342F] px-2.5 py-1">{task.steps?.length || 0} etapas</span>
-                                {task.rag?.retrieval?.enabled ? <span className="rounded-full border border-[#22342F] px-2.5 py-1">RAG {task.rag.retrieval.matches?.length || 0}</span> : null}
+                              <div className={`mt-3 flex flex-wrap gap-2 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
+                                <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>{parseProviderPresentation(task.provider || "gpt").name}</span>
+                                <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>{task.steps?.length || 0} etapas</span>
+                                {task.rag?.retrieval?.enabled ? <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>RAG {task.rag.retrieval.matches?.length || 0}</span> : null}
                               </div>
                               <div className="mt-3 flex flex-wrap gap-2">
-                                <button type="button" onClick={() => handlePause(task)} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                                <button type="button" onClick={() => handlePause(task)} className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
                                   {task.status === "paused" ? "Retomar" : "Pausar"}
                                 </button>
-                                <button type="button" onClick={() => handleRetry(task)} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                                <button type="button" onClick={() => handleRetry(task)} className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
                                   Replay
                                 </button>
                               </div>
                             </article>
                           ))
                         ) : (
-                          <div className="rounded-[20px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm text-[#9BAEA8]">
+                          <div className={`rounded-[20px] border border-dashed p-4 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
                             Nenhuma tarefa ainda.
                           </div>
                         )}
@@ -4900,7 +4943,7 @@ const [uiToasts, setUiToasts] = useState([]);
                           <button
                             type="button"
                             onClick={() => router.push("/interno/ai-task")}
-                            className="w-full rounded-[16px] border border-[#22342F] px-3 py-2 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                            className={`w-full rounded-[16px] border px-3 py-2 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                           >
                             Ver histórico completo no AI Task
                           </button>
@@ -4909,43 +4952,43 @@ const [uiToasts, setUiToasts] = useState([]);
                     ) : rightPanelTab === "agentlabs" ? (
                       <div className="space-y-3">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm text-[#9BAEA8]">Subagentes e governança do ai-core.</p>
+                          <p className={`text-sm ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Subagentes e governança do ai-core.</p>
                           <button
                             type="button"
                             onClick={() => router.push("/interno/agentlab")}
-                            className="rounded-2xl border border-[#35554B] px-3 py-2 text-xs text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                            className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                           >
                             Abrir AgentLabs
                           </button>
                         </div>
                         <div className="grid gap-2 sm:grid-cols-2">
-                          <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
-                            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Subagentes</p>
-                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{agentLabSubagents.length}</p>
+                          <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Subagentes</p>
+                            <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{agentLabSubagents.length}</p>
                           </div>
-                          <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
-                            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Threads</p>
-                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{agentLabConversationSummary.total || 0}</p>
+                          <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Threads</p>
+                            <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{agentLabConversationSummary.total || 0}</p>
                           </div>
-                          <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
-                            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Fila</p>
-                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{agentLabOverview.queueItems || 0}</p>
+                          <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Fila</p>
+                            <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{agentLabOverview.queueItems || 0}</p>
                           </div>
-                          <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
-                            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Incidentes</p>
-                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{agentLabIncidentsSummary.open || agentLabOverview.openIncidents || 0}</p>
+                          <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Incidentes</p>
+                            <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{agentLabIncidentsSummary.open || agentLabOverview.openIncidents || 0}</p>
                           </div>
-                          <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
-                            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Syncs</p>
-                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{agentLabOverview.syncRuns || 0}</p>
+                          <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Syncs</p>
+                            <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{agentLabOverview.syncRuns || 0}</p>
                           </div>
-                          <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
-                            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Treino médio</p>
-                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{agentLabTrainingSummary.averageScore || agentLabOverview.trainingAverageScore || 0}%</p>
+                          <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Treino médio</p>
+                            <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{agentLabTrainingSummary.averageScore || agentLabOverview.trainingAverageScore || 0}%</p>
                           </div>
                         </div>
                         {agentLabSnapshot.loading ? (
-                          <div className="rounded-[20px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm text-[#9BAEA8]">
+                          <div className={`rounded-[20px] border border-dashed p-4 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
                             Carregando AgentLab...
                           </div>
                         ) : agentLabSnapshot.error ? (
@@ -4954,37 +4997,37 @@ const [uiToasts, setUiToasts] = useState([]);
                           </div>
                         ) : (
                           <>
-                            <div className="rounded-[18px] border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-4">
+                            <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-[#F8FAFC]" : "border-[#35554B] bg-[rgba(12,22,19,0.72)]"}`}>
                               <div className="flex items-start justify-between gap-3">
                                 <div>
-                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Saúde operacional</p>
-                                  <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{agentLabEnvironment.message || "Painel AgentLab conectado ao copilot local."}</p>
+                                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Saúde operacional</p>
+                                  <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{agentLabEnvironment.message || "Painel AgentLab conectado ao copilot local."}</p>
                                 </div>
-                                <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                                <span className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                                   {agentLabEnvironment.mode || "n/a"}
                                 </span>
                               </div>
                               <div className="mt-3 flex flex-wrap gap-2">
                                 {agentLabHealthSignals.map((signal) => (
-                                  <span key={signal.label} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                                  <span key={signal.label} className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                                     {signal.label} {formatInlinePanelValue(signal.value)}
                                   </span>
                                 ))}
                               </div>
                             </div>
-                            <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                            <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                               <div className="flex items-start justify-between gap-3">
                                 <div>
-                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Controles rápidos</p>
-                                  <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">Operações do AgentLab sem sair do Copilot.</p>
-                                  <p className="mt-2 text-xs leading-5 text-[#9BAEA8]">
+                                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Controles rápidos</p>
+                                  <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Operações do AgentLab sem sair do Copilot.</p>
+                                  <p className={`mt-2 text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                                     Sync e treino focal com atualização rápida do painel.
                                   </p>
                                 </div>
                                 <button
                                   type="button"
                                   onClick={() => loadAgentLabSnapshot()}
-                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                                  className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                                 >
                                   Atualizar
                                 </button>
@@ -4994,7 +5037,7 @@ const [uiToasts, setUiToasts] = useState([]);
                                   type="button"
                                   disabled={agentLabActionState.loading}
                                   onClick={() => runAgentLabSync("sync_workspace_conversations", "Sync do workspace")}
-                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:cursor-not-allowed disabled:opacity-60"
+                                   className={`rounded-full border px-3 py-1.5 text-[11px] transition disabled:cursor-not-allowed disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                                 >
                                   Sync workspace
                                 </button>
@@ -5002,7 +5045,7 @@ const [uiToasts, setUiToasts] = useState([]);
                                   type="button"
                                   disabled={agentLabActionState.loading}
                                   onClick={() => runAgentLabSync("sync_freshsales_activities", "Sync do Freshsales")}
-                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:cursor-not-allowed disabled:opacity-60"
+                                   className={`rounded-full border px-3 py-1.5 text-[11px] transition disabled:cursor-not-allowed disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                                 >
                                   Sync Freshsales
                                 </button>
@@ -5010,7 +5053,7 @@ const [uiToasts, setUiToasts] = useState([]);
                                   type="button"
                                   disabled={agentLabActionState.loading}
                                   onClick={() => runAgentLabSync("sync_freshchat_conversations", "Sync do Freshchat")}
-                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:cursor-not-allowed disabled:opacity-60"
+                                   className={`rounded-full border px-3 py-1.5 text-[11px] transition disabled:cursor-not-allowed disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                                 >
                                   Sync Freshchat
                                 </button>
@@ -5018,7 +5061,7 @@ const [uiToasts, setUiToasts] = useState([]);
                                   type="button"
                                   disabled={agentLabActionState.loading || !featuredTrainingScenario?.id}
                                   onClick={() => runAgentLabTrainingScenario(featuredTrainingScenario?.id)}
-                                  className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF] disabled:cursor-not-allowed disabled:opacity-60"
+                                   className={`rounded-full border px-3 py-1.5 text-[11px] transition disabled:cursor-not-allowed disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                                 >
                                   Rodar treino focal
                                 </button>
@@ -5037,40 +5080,40 @@ const [uiToasts, setUiToasts] = useState([]);
                                 </div>
                               ) : null}
                             </div>
-                            <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                            <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                               <div className="flex items-start justify-between gap-3">
                                 <div>
-                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Handoff atual</p>
-                                  <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeConversation?.title || "Nova conversa"}</p>
-                                  <p className="mt-2 line-clamp-3 text-xs leading-5 text-[#9BAEA8]">
+                                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Handoff atual</p>
+                                  <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeConversation?.title || "Nova conversa"}</p>
+                                  <p className={`mt-2 line-clamp-3 text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                                     {activeConversationPreview}
                                   </p>
                                 </div>
-                                <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                                <span className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                                   {activeProjectLabel}
                                 </span>
                               </div>
                               <div className="mt-3 flex flex-wrap gap-2">
-                                <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                                <span className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                                   missão {activeTask ? "ativa" : "livre"}
                                 </span>
-                                <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                                <span className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                                   route {routePath || "/interno"}
                                 </span>
-                                <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                                <span className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                                   runs {linkedAgentLabTaskRuns.length}
                                 </span>
                               </div>
                               {linkedAgentLabTaskRuns.length ? (
                                 <div className="mt-3 space-y-2">
                                   {linkedAgentLabTaskRuns.slice(0, isFocusedCopilotShell ? 2 : linkedAgentLabTaskRuns.length).map((run) => (
-                                    <article key={run.id} className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.76)] px-3 py-3">
+                                    <article key={run.id} className={`rounded-[16px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F8FAFC]" : "border-[#22342F] bg-[rgba(7,9,8,0.76)]"}`}>
                                       <div className="flex items-start justify-between gap-3">
                                         <div>
-                                          <p className="text-[11px] font-medium text-[#F5F1E8] line-clamp-2">{run.mission || "Execução sem missão"}</p>
-                                          <p className="mt-1 text-[10px] text-[#7F928C]">{formatRuntimeTimeLabel(run.updated_at || run.created_at)}</p>
+                                          <p className={`line-clamp-2 text-[11px] font-medium ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{run.mission || "Execução sem missão"}</p>
+                                          <p className={`mt-1 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{formatRuntimeTimeLabel(run.updated_at || run.created_at)}</p>
                                         </div>
-                                        <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#D8DEDA]">
+                                        <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                                           <TaskStatusChip status={run.status} />
                                         </span>
                                       </div>
@@ -5078,14 +5121,14 @@ const [uiToasts, setUiToasts] = useState([]);
                                         <button
                                           type="button"
                                           onClick={() => handleReuseTaskMission(run)}
-                                          className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                                         >
                                           Reusar missão
                                         </button>
                                         <button
                                           type="button"
                                           onClick={() => setRightPanelTab("ai-task")}
-                                          className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                                         >
                                           Ver no AI Task
                                         </button>
@@ -5094,30 +5137,30 @@ const [uiToasts, setUiToasts] = useState([]);
                                   ))}
                                 </div>
                               ) : (
-                                <p className="mt-3 text-xs text-[#7F928C]">Nenhuma execução do Dotobot vinculada diretamente a esta rota ou conversa ainda.</p>
+                                <p className={`mt-3 text-xs ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Nenhuma execução do Dotobot vinculada diretamente a esta rota ou conversa ainda.</p>
                               )}
                             </div>
                             <div className="grid gap-3 xl:grid-cols-2">
-                              <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                              <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                                 <div className="flex items-center justify-between gap-2">
-                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Fila de melhoria</p>
-                                  <span className="text-[10px] text-[#60706A]">{agentLabOverview.queueItems || 0}</span>
+                                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Fila de melhoria</p>
+                                  <span className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#60706A]"}`}>{agentLabOverview.queueItems || 0}</span>
                                 </div>
                                 <div className="mt-3 space-y-2">
                                   {agentLabQueuePreview.length ? agentLabQueuePreview.map((item) => (
-                                    <article key={item.id} className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.76)] px-3 py-3">
-                                      <p className="text-[11px] font-medium text-[#F5F1E8] line-clamp-2">{item.title}</p>
+                                    <article key={item.id} className={`rounded-[16px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F8FAFC]" : "border-[#22342F] bg-[rgba(7,9,8,0.76)]"}`}>
+                                      <p className={`line-clamp-2 text-[11px] font-medium ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{item.title}</p>
                                       <div className="mt-2 flex flex-wrap gap-2">
-                                        <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#D8DEDA]">{item.priority}</span>
-                                        <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#D8DEDA]">{item.status}</span>
-                                        <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#7F928C]">{item.agentRef}</span>
+                                        <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>{item.priority}</span>
+                                        <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>{item.status}</span>
+                                        <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#7B8B98]" : "border-[#22342F] text-[#7F928C]"}`}>{item.agentRef}</span>
                                       </div>
                                       <div className="mt-3 flex flex-wrap gap-2">
                                         <button
                                           type="button"
                                           disabled={agentLabActionState.loading}
                                           onClick={() => updateAgentLabQueueItemStatus(item, "in_progress")}
-                                          className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:cursor-not-allowed disabled:opacity-60"
+                                          className={`rounded-full border px-2.5 py-1 text-[10px] transition disabled:cursor-not-allowed disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                                         >
                                           Assumir
                                         </button>
@@ -5125,35 +5168,35 @@ const [uiToasts, setUiToasts] = useState([]);
                                           type="button"
                                           disabled={agentLabActionState.loading}
                                           onClick={() => updateAgentLabQueueItemStatus(item, "done")}
-                                          className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF] disabled:cursor-not-allowed disabled:opacity-60"
+                                          className={`rounded-full border px-2.5 py-1 text-[10px] transition disabled:cursor-not-allowed disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                                         >
                                           Concluir
                                         </button>
                                       </div>
                                     </article>
                                   )) : (
-                                    <div className="rounded-[16px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3 text-xs text-[#9BAEA8]">
+                                    <div className={`rounded-[16px] border border-dashed px-3 py-3 text-xs ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
                                       Nenhum item pendente na fila do AgentLab.
                                     </div>
                                   )}
                                 </div>
                               </div>
-                              <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                              <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                                 <div className="flex items-center justify-between gap-2">
-                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Últimos syncs</p>
-                                  <span className="text-[10px] text-[#60706A]">{agentLabOverview.syncRuns || 0}</span>
+                                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>Últimos syncs</p>
+                                  <span className={`text-[10px] ${isLightTheme ? "text-[#7C8B96]" : "text-[#60706A]"}`}>{agentLabOverview.syncRuns || 0}</span>
                                 </div>
                                 <div className="mt-3 space-y-2">
                                   {agentLabSyncPreview.length ? agentLabSyncPreview.map((run) => (
-                                    <article key={run.id} className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.76)] px-3 py-3">
+                                    <article key={run.id} className={`rounded-[16px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(7,9,8,0.76)]"}`}>
                                       <div className="flex items-center justify-between gap-2">
-                                        <p className="text-[11px] font-medium text-[#F5F1E8]">{run.source}</p>
-                                        <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#D8DEDA]">{run.status}</span>
+                                        <p className={`text-[11px] font-medium ${isLightTheme ? "text-[#1F2A37]" : "text-[#F5F1E8]"}`}>{run.source}</p>
+                                        <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>{run.status}</span>
                                       </div>
-                                      <p className="mt-1 text-[10px] text-[#7F928C]">{run.scope} · {run.records} registros · {formatRuntimeTimeLabel(run.createdAt)}</p>
+                                      <p className={`mt-1 text-[10px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>{run.scope} · {run.records} registros · {formatRuntimeTimeLabel(run.createdAt)}</p>
                                     </article>
                                   )) : (
-                                    <div className="rounded-[16px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3 text-xs text-[#9BAEA8]">
+                                    <div className={`rounded-[16px] border border-dashed px-3 py-3 text-xs ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
                                       Ainda não há syncs recentes registrados.
                                     </div>
                                   )}
@@ -5161,59 +5204,59 @@ const [uiToasts, setUiToasts] = useState([]);
                               </div>
                             </div>
                             <div className="grid gap-3 xl:grid-cols-2">
-                              <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                              <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                                 <div className="flex items-center justify-between gap-2">
-                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Treinamento</p>
-                                  <span className="text-[10px] text-[#60706A]">{agentLabOverview.trainingRuns || 0}</span>
+                                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>Treinamento</p>
+                                  <span className={`text-[10px] ${isLightTheme ? "text-[#7C8B96]" : "text-[#60706A]"}`}>{agentLabOverview.trainingRuns || 0}</span>
                                 </div>
                                 <div className="mt-3 space-y-2">
                                   {agentLabTrainingPreview.length ? agentLabTrainingPreview.map((run) => (
-                                    <article key={run.id} className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.76)] px-3 py-3">
+                                    <article key={run.id} className={`rounded-[16px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(7,9,8,0.76)]"}`}>
                                       <div className="flex items-center justify-between gap-2">
-                                        <p className="text-[11px] font-medium text-[#F5F1E8]">{run.agentRef}</p>
-                                        <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#D8DEDA]">{run.status}</span>
+                                        <p className={`text-[11px] font-medium ${isLightTheme ? "text-[#1F2A37]" : "text-[#F5F1E8]"}`}>{run.agentRef}</p>
+                                        <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>{run.status}</span>
                                       </div>
-                                      <p className="mt-1 text-[10px] text-[#7F928C]">score {Math.round((run.score || 0) * 100)}% · {run.provider} · {formatRuntimeTimeLabel(run.createdAt)}</p>
+                                      <p className={`mt-1 text-[10px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>score {Math.round((run.score || 0) * 100)}% · {run.provider} · {formatRuntimeTimeLabel(run.createdAt)}</p>
                                     </article>
                                   )) : (
-                                    <div className="rounded-[16px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3 text-xs text-[#9BAEA8]">
+                                    <div className={`rounded-[16px] border border-dashed px-3 py-3 text-xs ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
                                       Nenhum treino recente disponível.
                                     </div>
                                   )}
                                 </div>
                               </div>
-                              <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                              <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                                 <div className="flex items-center justify-between gap-2">
-                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Incidentes</p>
-                                  <span className="text-[10px] text-[#60706A]">{agentLabIncidentsSummary.total || 0}</span>
+                                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>Incidentes</p>
+                                  <span className={`text-[10px] ${isLightTheme ? "text-[#7C8B96]" : "text-[#60706A]"}`}>{agentLabIncidentsSummary.total || 0}</span>
                                 </div>
                                 <div className="mt-3 flex flex-wrap gap-2">
-                                  <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">abertos {agentLabIncidentsSummary.open || 0}</span>
+                                  <span className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>abertos {agentLabIncidentsSummary.open || 0}</span>
                                   {(agentLabIncidentsSummary.bySeverity || []).slice(0, 3).map((item) => (
-                                    <span key={item.label} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                                    <span key={item.label} className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                                       {item.label} {formatInlinePanelValue(item.value)}
                                     </span>
                                   ))}
                                 </div>
-                                <p className="mt-3 text-xs leading-6 text-[#9BAEA8]">
+                                <p className={`mt-3 text-xs leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                                   {agentLabConversationSummary.handoffs || 0} handoff(s) detectados e {agentLabConversationSummary.withErrors || 0} thread(s) com erro sinalizado.
                                 </p>
                                 <div className="mt-3 space-y-2">
                                   {agentLabIncidentPreview.length ? agentLabIncidentPreview.map((item) => (
-                                    <article key={item.id} className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.76)] px-3 py-3">
+                                    <article key={item.id} className={`rounded-[16px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(7,9,8,0.76)]"}`}>
                                       <div className="flex items-start justify-between gap-3">
                                         <div>
-                                          <p className="text-[11px] font-medium text-[#F5F1E8] line-clamp-2">{item.title}</p>
-                                          <p className="mt-1 text-[10px] text-[#7F928C]">{item.category} · {item.severity} · {formatRuntimeTimeLabel(item.occurredAt)}</p>
+                                          <p className={`text-[11px] font-medium line-clamp-2 ${isLightTheme ? "text-[#1F2A37]" : "text-[#F5F1E8]"}`}>{item.title}</p>
+                                          <p className={`mt-1 text-[10px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>{item.category} · {item.severity} · {formatRuntimeTimeLabel(item.occurredAt)}</p>
                                         </div>
-                                        <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#D8DEDA]">{item.status}</span>
+                                        <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>{item.status}</span>
                                       </div>
                                       <div className="mt-3 flex flex-wrap gap-2">
                                         <button
                                           type="button"
                                           disabled={agentLabActionState.loading}
                                           onClick={() => updateAgentLabIncidentItemStatus(item, "investigating")}
-                                          className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:cursor-not-allowed disabled:opacity-60"
+                                          className={`rounded-full border px-2.5 py-1 text-[10px] transition disabled:cursor-not-allowed disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] text-[#8A5A16] hover:border-[#C5A059] hover:text-[#8A5A16]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                                         >
                                           Investigar
                                         </button>
@@ -5221,7 +5264,7 @@ const [uiToasts, setUiToasts] = useState([]);
                                           type="button"
                                           disabled={agentLabActionState.loading}
                                           onClick={() => updateAgentLabIncidentItemStatus(item, "resolved")}
-                                          className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF] disabled:cursor-not-allowed disabled:opacity-60"
+                                          className={`rounded-full border px-2.5 py-1 text-[10px] transition disabled:cursor-not-allowed disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62] hover:text-[#2F7A62]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                                         >
                                           Resolver
                                         </button>
@@ -5233,60 +5276,60 @@ const [uiToasts, setUiToasts] = useState([]);
                             </div>
                             <div className="space-y-2">
                               {agentLabSubagents.length ? agentLabSubagents.map((agent) => (
-                                <article key={agent.id} className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                                <article key={agent.id} className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                                   <div className="flex items-center justify-between gap-3">
                                     <div>
-                                      <p className="text-sm font-semibold text-[#F5F1E8]">{agent.role}</p>
-                                      <p className="mt-1 text-xs text-[#9BAEA8]">
+                                      <p className={`text-sm font-semibold ${isLightTheme ? "text-[#1F2A37]" : "text-[#F5F1E8]"}`}>{agent.role}</p>
+                                      <p className={`mt-1 text-xs ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                                         {agent.stageCount} estágio(s) · {agent.moduleCount} módulo(s)
                                       </p>
                                     </div>
-                                    <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                                    <span className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                                       {agent.status}
                                     </span>
                                   </div>
                                 </article>
                               )) : (
-                                <div className="rounded-[20px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm text-[#9BAEA8]">
+                                <div className={`rounded-[20px] border border-dashed p-4 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
                                   Nenhum subagente ativo neste momento.
                                 </div>
                               )}
                             </div>
-                            <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-                              <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Ações rápidas</p>
+                            <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                              <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>Ações rápidas</p>
                               <div className="mt-3 flex flex-wrap gap-2">
                                 <button
                                   type="button"
                                   onClick={() => router.push("/interno/agentlab/orquestracao")}
-                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                  className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B] hover:border-[#C5A059] hover:text-[#8A5A16]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                                 >
                                   Orquestração
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => router.push("/interno/agentlab/conversations")}
-                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                  className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B] hover:border-[#C5A059] hover:text-[#8A5A16]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                                 >
                                   Conversas
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => router.push("/interno/agentlab/training")}
-                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                  className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B] hover:border-[#C5A059] hover:text-[#8A5A16]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                                 >
                                   Training
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => router.push("/interno/agentlab/workflows")}
-                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                  className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B] hover:border-[#C5A059] hover:text-[#8A5A16]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                                 >
                                   Workflows
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => router.push("/interno/agentlab/environment")}
-                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                  className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B] hover:border-[#C5A059] hover:text-[#8A5A16]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                                 >
                                   Ambiente
                                 </button>
@@ -5296,32 +5339,32 @@ const [uiToasts, setUiToasts] = useState([]);
                         )}
                       </div>
                     ) : (
-                      <div className="space-y-4 text-sm text-[#C6D1CC]">
-                        <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-                          <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Módulo</p>
-                          <p className="mt-2 font-medium text-[#F5F1E8]">{routePath || "/interno"}</p>
+                      <div className={`space-y-4 text-sm ${isLightTheme ? "text-[#51606B]" : "text-[#C6D1CC]"}`}>
+                        <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                          <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>Módulo</p>
+                          <p className={`mt-2 font-medium ${isLightTheme ? "text-[#1F2A37]" : "text-[#F5F1E8]"}`}>{routePath || "/interno"}</p>
                         </div>
-                        <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                        <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Memória</p>
-                            <span className="text-[10px] text-[#C5A059]">{contextEnabled ? "ON" : "OFF"}</span>
+                            <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>Memória</p>
+                            <span className={`text-[10px] ${isLightTheme ? "text-[#8A5A16]" : "text-[#C5A059]"}`}>{contextEnabled ? "ON" : "OFF"}</span>
                           </div>
-                          <p className="mt-2 font-medium text-[#F5F1E8]">{ragSummary.count ? `${ragSummary.count} itens relevantes` : "Sem memória carregada"}</p>
-                          {ragSummary.sources.length ? <p className="mt-2 text-xs text-[#9BAEA8]">Fontes: {ragSummary.sources.join(", ")}</p> : null}
+                          <p className={`mt-2 font-medium ${isLightTheme ? "text-[#1F2A37]" : "text-[#F5F1E8]"}`}>{ragSummary.count ? `${ragSummary.count} itens relevantes` : "Sem memória carregada"}</p>
+                          {ragSummary.sources.length ? <p className={`mt-2 text-xs ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Fontes: {ragSummary.sources.join(", ")}</p> : null}
                         </div>
-                        <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-                          <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Documentos</p>
+                        <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                          <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>Documentos</p>
                           {attachments.length ? (
                             <div className="mt-3 space-y-2">
                               {attachments.map((attachment) => (
-                                <div key={attachment.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#22342F] px-3 py-2 text-xs">
+                                <div key={attachment.id} className={`flex items-center justify-between gap-3 rounded-2xl border px-3 py-2 text-xs ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>
                                   <span className="truncate">{attachment.name}</span>
-                                  <span className="text-[#9BAEA8]">{attachment.kind}</span>
+                                  <span className={isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}>{attachment.kind}</span>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <p className="mt-2 text-xs text-[#9BAEA8]">Nenhum anexo nesta conversa.</p>
+                            <p className={`mt-2 text-xs ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Nenhum anexo nesta conversa.</p>
                           )}
                         </div>
                       </div>

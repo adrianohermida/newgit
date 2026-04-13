@@ -3692,6 +3692,23 @@ export async function runSyncWorker(env) {
   return hmadvFunction(env, "sync-worker", { action: "run" }, { method: "POST", body: {} });
 }
 
+export async function runAdviseSync(env, { maxPaginas = 12, porPagina = 50 } = {}) {
+  return hmadvFunction(
+    env,
+    "advise-sync",
+    {
+      action: "sync",
+      max_paginas: Math.max(1, Number(maxPaginas || 12)),
+      por_pagina: Math.max(1, Number(porPagina || 50)),
+    },
+    { method: "POST", body: {} }
+  );
+}
+
+export async function runAdviseBackfill(env) {
+  return hmadvFunction(env, "sync-advise-backfill", {}, { method: "POST", body: {} });
+}
+
 export async function enrichProcessesViaDatajud(env, { processNumbers = [], limit = 10, intent = "" } = {}) {
   const config = getProcessActionLimitConfig("enriquecer_datajud");
   const safeLimit = Math.max(1, Math.min(Number(limit || config.defaultLimit), config.maxLimit));
