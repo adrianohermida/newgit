@@ -2573,33 +2573,33 @@ export default function InternoLayout({
                         <div className="mt-2 text-[11px] opacity-60">Sem snapshot do Dotobot.</div>
                       )}
                     </div>
-                    <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                    <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(8,10,9,0.5)]"}`}>
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">AI Task</p>
-                          <p className="mt-1 text-[11px] text-[#9BAEA8]">Run ativa, trilha de logs e contexto persistido do orquestrador.</p>
+                          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>AI Task</p>
+                          <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Run ativa, trilha de logs e contexto persistido do orquestrador.</p>
                         </div>
                         <button
                           type="button"
                           onClick={handleCopyAiTaskHistory}
-                          className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                          className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
                         >
                           Copiar snapshot
                         </button>
                       </div>
                       {aiTaskHistory ? (
                         <div className="mt-3 space-y-2 text-[11px]">
-                          <div className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2">
+                          <div className={`rounded-lg border px-3 py-2 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                             <div className="flex items-center justify-between">
-                              <span className="font-semibold">Automacao</span>
+                                <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>Automacao</span>
                               <span className={aiTaskHistory.error ? "text-red-200" : "text-[#11D473]"}>
                                 {aiTaskHistory.automation || "idle"}
                               </span>
                             </div>
-                            <div className="mt-1 text-[10px] text-[#7E918B]">
+                            <div className={`mt-1 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>
                               modo {aiTaskHistory.mode || "n/a"} · provider {aiTaskHistory.provider || "n/a"} · eventos {aiTaskHistory.eventsTotal || 0}
                             </div>
-                            {aiTaskHistory.activeRun?.id ? <div className="mt-1 text-[#C7D0CA]">Run: {aiTaskHistory.activeRun.id}</div> : null}
+                            {aiTaskHistory.activeRun?.id ? <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>Run: {aiTaskHistory.activeRun.id}</div> : null}
                             {aiTaskHistory.error ? <div className="mt-1 text-red-200">Erro: {aiTaskHistory.error}</div> : null}
                           </div>
                         </div>
