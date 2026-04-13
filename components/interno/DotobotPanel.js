@@ -9,8 +9,10 @@ import { useRouter } from "next/router";
 import { adminFetch } from "../../lib/admin/api";
 import {
   applyBrowserLocalOfflinePolicy,
+  clearBrowserLocalInferenceFailure,
   getBrowserLocalRuntimeConfig,
   hydrateBrowserLocalProviderOptions,
+  invokeBrowserLocalExecute,
   invokeBrowserLocalMessages,
   isBrowserLocalProvider,
   persistBrowserLocalRuntimeConfig,
@@ -69,6 +71,15 @@ function safeLocalSet(key, value) {
   }
 }
 
+function safeLocalGet(key, fallback = "") {
+  try {
+    const value = window.localStorage.getItem(key);
+    return value ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 // Utilitário para sumarizar contexto RAG
 function buildRagSummary(rag) {
   if (!rag) return { count: 0, sources: [], documents: [] };
@@ -115,6 +126,8 @@ const QUICK_PROMPTS = [
   "Padronize a resposta deste bot em PT-BR.",
   "Resuma riscos, fatos e inferencias deste contexto.",
 ];
+
+const DOTOBOT_LAYOUT_STORAGE_PREFIX = "lawdesk_dotobot_layout";
 
 const MODULE_WORKSPACES = [
   { key: "processos", label: "Processos", href: "/interno/processos", helper: "Monitoramento, CNJ, tarefas jurídicas e gaps operacionais." },
@@ -237,6 +250,7 @@ function buildLocalFallbackResponse({
   activeTask,
   globalContext,
   selectedSkillId,
+  failureMode,
 }) {
   const intent = detectIntent(String(query || ""));
   const uiContext = getCurrentContext({
@@ -261,6 +275,12 @@ function buildLocalFallbackResponse({
       : intent.intent === "create_task"
         ? "Quebrar a missão em etapas curtas e encaminhar para execução assistida."
         : modulePlaybook.summary;
+  const runtimeIssueLabel =
+    failureMode === "memory"
+      ? "por memória"
+      : failureMode === "inference"
+        ? "porque o runtime local falhou ao responder"
+        : "temporariamente";
 
   const checklist = [
     `Contexto ativo: ${projectLabel} (${uiContext.route}).`,
@@ -272,7 +292,7 @@ function buildLocalFallbackResponse({
 
   return [
     "Modo contingência local",
-    "O LLM local ficou indisponível por memória, então gerei um playbook operacional para não interromper o fluxo.",
+    `O LLM local ficou indisponível ${runtimeIssueLabel}, então gerei um playbook operacional para não interromper o fluxo.`,
     "",
     `Leitura rápida: ${nextAction}`,
     "",
@@ -330,6 +350,7 @@ function buildLocalFallbackActions({ routePath, activeConversation, activeTask }
         ? `/interno/agentlab/orquestracao?copilotContext=${copilotContext}`
         : `/interno/agentlab/environment?copilotContext=${copilotContext}`;
   return [
+    { id: "retry-runtime-local", label: "Tentar novamente", kind: "local_action", target: "retry_runtime_local" },
     { id: "open-context-route", label: routeActionLabel, kind: "route", target: routeTarget },
     { id: "open-ai-task", label: "Enviar ao AI Task", kind: "route", target: "/interno/ai-task" },
     { id: "open-agentlab", label: "Abrir trilha no AgentLab", kind: "route", target: agentLabTarget },
@@ -552,6 +573,10 @@ const SLASH_COMMANDS = [
 const COPILOT_QUICK_SHORTCUTS = [
   { id: "command-k", label: "Ctrl/Cmd+K", detail: "foco no compositor" },
   { id: "command-dot", label: "Ctrl+.", detail: "abrir ou recolher" },
+  { id: "command-1", label: "Ctrl/Cmd+1", detail: "módulos" },
+  { id: "command-2", label: "Ctrl/Cmd+2", detail: "AI Task" },
+  { id: "command-3", label: "Ctrl/Cmd+3", detail: "AgentLabs" },
+  { id: "command-4", label: "Ctrl/Cmd+4", detail: "contexto" },
   { id: "shift-enter", label: "Shift+Enter", detail: "quebrar linha" },
   { id: "notifications", label: "Notificações", detail: "alerta de task finalizada" },
 ];
@@ -626,7 +651,23 @@ function buildLocalInferenceAlert({ provider, error, localStackSummary }) {
       tone: "danger",
       title: "Inferência local indisponível nesta máquina",
       body: "O Copilot continua útil para histórico, handoff e navegação operacional, mas o modelo local não cabe na memória disponível agora.",
-      actions: ["open_runtime_config", "open_llm_test", "open_ai_task"],
+      actions: ["retry_runtime_local", "open_runtime_config", "open_llm_test", "open_ai_task"],
+    };
+  }
+  if (normalizedError.includes("nao conseguiu concluir a inferencia no runtime configurado")) {
+    return {
+      tone: "warning",
+      title: "Copilot local em contingência",
+      body: "O runtime local falhou ao responder à inferência. O painel segue útil para histórico, handoff, navegação contextual e AI Task.",
+      actions: ["retry_runtime_local", "open_runtime_config", "open_llm_test", "open_ai_task"],
+    };
+  }
+  if (localStackSummary?.localProvider?.inferenceFailure?.message) {
+    return {
+      tone: "warning",
+      title: "Inferência local indisponível temporariamente",
+      body: "O último teste do runtime local falhou recentemente. O Copilot vai priorizar contingência operacional até o runtime estabilizar.",
+      actions: ["retry_runtime_local", "open_runtime_config", "open_llm_test", "open_ai_task"],
     };
   }
   if (localStackSummary?.offlineMode && !localStackSummary?.localProvider?.available) {
@@ -950,6 +991,7 @@ export default function DotobotCopilot({
   const chatStorageKey = useMemo(() => buildStorageKey(CHAT_STORAGE_PREFIX, profile), [profile]);
   const taskStorageKey = useMemo(() => buildStorageKey(TASK_STORAGE_PREFIX, profile), [profile]);
   const prefStorageKey = useMemo(() => buildStorageKey(PREF_STORAGE_PREFIX, profile), [profile]);
+  const layoutStorageKey = useMemo(() => buildStorageKey(DOTOBOT_LAYOUT_STORAGE_PREFIX, profile), [profile]);
   const conversationStorageKey = useMemo(() => buildConversationStorageKey(profile), [profile]);
   const [messages, setMessages] = useState([]);
   const [taskHistory, setTaskHistory] = useState([]);
@@ -1024,6 +1066,7 @@ export default function DotobotCopilot({
 const [workspaceOpen, setWorkspaceOpen] = useState(initialWorkspaceOpen);
 const [mode, setMode] = useState("task");
 const [provider, setProvider] = useState("gpt");
+const [workspaceLayoutMode, setWorkspaceLayoutMode] = useState("snap");
 const [providerCatalog, setProviderCatalog] = useState(PROVIDER_OPTIONS);
 const [skillCatalog, setSkillCatalog] = useState(SKILL_OPTIONS);
 const [selectedSkillId, setSelectedSkillId] = useState("");
@@ -1033,11 +1076,12 @@ const [localStackSummary, setLocalStackSummary] = useState(null);
 const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
 const [localRuntimeConfigOpen, setLocalRuntimeConfigOpen] = useState(false);
 const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocalRuntimeConfig());
-  const [rightPanelTab, setRightPanelTab] = useState("modules");
+  const [rightPanelTab, setRightPanelTab] = useState("ai-task");
   const [selectedProjectFilter, setSelectedProjectFilter] = useState("all");
-  const [agentLabSnapshot, setAgentLabSnapshot] = useState({ loading: true, error: null, data: null });
-  const [agentLabActionState, setAgentLabActionState] = useState({ loading: false, scope: null, message: null, tone: "idle" });
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+const [agentLabSnapshot, setAgentLabSnapshot] = useState({ loading: true, error: null, data: null });
+const [agentLabActionState, setAgentLabActionState] = useState({ loading: false, scope: null, message: null, tone: "idle" });
+const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+const [uiToasts, setUiToasts] = useState([]);
   const [attachments, setAttachments] = useState([]);
   const [showSlashCommands, setShowSlashCommands] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -1070,7 +1114,11 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
     if (typeof persistedState.prefs.selectedSkillId === "string") setSelectedSkillId(persistedState.prefs.selectedSkillId);
     if (typeof persistedState.prefs.contextEnabled === "boolean") setContextEnabled(persistedState.prefs.contextEnabled);
     setWorkspaceOpen(persistedState.prefs.workspaceOpen);
-  }, [chatStorageKey, taskStorageKey, prefStorageKey, conversationStorageKey, initialWorkspaceOpen]);
+    const persistedLayoutMode = safeLocalGet(layoutStorageKey, "snap");
+    if (["snap", "balanced", "immersive"].includes(persistedLayoutMode)) {
+      setWorkspaceLayoutMode(persistedLayoutMode);
+    }
+  }, [chatStorageKey, taskStorageKey, prefStorageKey, layoutStorageKey, conversationStorageKey, initialWorkspaceOpen]);
 
   useEffect(() => {
     let active = true;
@@ -1173,9 +1221,31 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
     }
   }
 
+  function pushUiToast(toast) {
+    const normalized = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      tone: toast?.tone || "neutral",
+      title: toast?.title || "Dotobot",
+      body: toast?.body || "",
+    };
+    setUiToasts((current) => [...current, normalized].slice(-4));
+  }
+
+  function dismissUiToast(toastId) {
+    setUiToasts((current) => current.filter((item) => item.id !== toastId));
+  }
+
   useEffect(() => {
     loadAgentLabSnapshot();
   }, []);
+
+  useEffect(() => {
+    if (!uiToasts.length) return undefined;
+    const timeoutId = window.setTimeout(() => {
+      setUiToasts((current) => current.slice(1));
+    }, 4200);
+    return () => window.clearTimeout(timeoutId);
+  }, [uiToasts]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) return;
@@ -1262,7 +1332,23 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
   }
 
   function handleLocalStackAction(actionId) {
+    if (actionId === "retry_runtime_local") {
+      clearBrowserLocalInferenceFailure();
+      refreshLocalStackStatus();
+      pushUiToast({
+        tone: "neutral",
+        title: "Retry do runtime local iniciado",
+        body: "O Dotobot limpou a falha recente e abriu um teste rápido do runtime local.",
+      });
+      openLlmTest("local", input || "Responda em até 2 linhas como o runtime local está operando.");
+      return;
+    }
     if (actionId === "open_llm_test") {
+      pushUiToast({
+        tone: "neutral",
+        title: "Abrindo LLM Test",
+        body: "Vamos validar o runtime local fora da conversa para isolar o comportamento.",
+      });
       openLlmTest("local", input);
       return;
     }
@@ -1350,6 +1436,11 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
   }, [mode, provider, selectedSkillId, contextEnabled, workspaceOpen, activeConversationId, prefStorageKey]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    safeLocalSet(layoutStorageKey, workspaceLayoutMode);
+  }, [layoutStorageKey, workspaceLayoutMode]);
+
+  useEffect(() => {
     const activeConversation = conversations.find((item) => item.id === activeConversationId) || null;
     const activeTask = getLastTask(taskHistory);
     setModuleHistory("dotobot", {
@@ -1409,7 +1500,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
   ]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !notificationsEnabled || !("Notification" in window)) return;
+    if (typeof window === "undefined") return;
     taskHistory.forEach((task) => {
       const previousStatus = taskStatusRef.current.get(task.id);
       if (
@@ -1419,9 +1510,16 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
       ) {
         const title = task.status === "failed" || task.status === "error" ? "Dotobot: tarefa com falha" : "Dotobot: tarefa concluída";
         const body = task.query || task.title || "Execução finalizada";
-        try {
-          new window.Notification(title, { body });
-        } catch {}
+        pushUiToast({
+          tone: task.status === "failed" || task.status === "error" ? "danger" : "success",
+          title,
+          body,
+        });
+        if (notificationsEnabled && "Notification" in window) {
+          try {
+            new window.Notification(title, { body });
+          } catch {}
+        }
       }
       taskStatusRef.current.set(task.id, task.status);
     });
@@ -1431,15 +1529,57 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     const onKeyDown = (event) => {
+      const normalizedKey = String(event.key || "").toLowerCase();
       const isCmdK = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k";
       if (isCmdK) {
         event.preventDefault();
+        setWorkspaceOpen(true);
         composerRef.current?.focus();
+        pushUiToast({
+          tone: "neutral",
+          title: "Composer em foco",
+          body: "O atalho Ctrl/Cmd+K deixou o Dotobot pronto para digitação imediata.",
+        });
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && ["1", "2", "3", "4"].includes(normalizedKey)) {
+        event.preventDefault();
+        setWorkspaceOpen(true);
+        const tabMap = {
+          "1": { tab: "modules", title: "Painel lateral: módulos" },
+          "2": { tab: "ai-task", title: "Painel lateral: AI Task" },
+          "3": { tab: "agentlabs", title: "Painel lateral: AgentLabs" },
+          "4": { tab: "context", title: "Painel lateral: contexto" },
+        };
+        const selection = tabMap[normalizedKey];
+        if (selection) {
+          setRightPanelTab(selection.tab);
+          pushUiToast({
+            tone: "neutral",
+            title: selection.title,
+            body: "O painel da direita foi reposicionado sem sair da conversa.",
+          });
+        }
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && normalizedKey === "o") {
+        event.preventDefault();
+        router.push("/interno/copilot");
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && normalizedKey === "a") {
+        event.preventDefault();
+        router.push("/interno/ai-task");
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && normalizedKey === "g") {
+        event.preventDefault();
+        router.push("/interno/agentlab");
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (!attachments.length) return undefined;
@@ -1472,6 +1612,11 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
       });
     }
     setInput(handoff.mission);
+    pushUiToast({
+      tone: "success",
+      title: "Handoff recebido do AI Task",
+      body: handoff.mission,
+    });
     setTimeout(() => composerRef.current?.focus(), 50);
   }, [input, lastConsumedAiTaskHandoffId]);
 
@@ -1760,16 +1905,56 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
       setLoading(false);
       setUiState("idle");
     } catch (err) {
-      const isLocalFallbackAvailable = err?.code === "LOCAL_RUNTIME_INSUFFICIENT_MEMORY" && isBrowserLocalProvider(nextProvider);
+      const isLocalFallbackAvailable =
+        isBrowserLocalProvider(nextProvider) &&
+        (err?.code === "LOCAL_RUNTIME_INSUFFICIENT_MEMORY" || err?.code === "LOCAL_RUNTIME_INFERENCE_FAILED");
       if (isLocalFallbackAvailable) {
-        const fallbackText = buildLocalFallbackResponse({
-          query: trimmedQuestion,
-          routePath,
-          activeConversation,
-          activeTask,
-          globalContext,
-          selectedSkillId,
-        });
+        let fallbackText = "";
+        let fallbackSummary = "";
+        let executeFallbackPayload = null;
+        if (err?.code === "LOCAL_RUNTIME_INFERENCE_FAILED") {
+          try {
+            executeFallbackPayload = await invokeBrowserLocalExecute({
+              query: trimmedQuestion,
+              context: {
+                ...globalContext,
+                browserLocalRuntime: {
+                  surface: "copilot",
+                  mode: String(nextMode || "chat"),
+                  routePath: routePath || "/interno/copilot",
+                  contextEnabled: Boolean(nextContextEnabled),
+                  fallback: "execute_after_inference_failure",
+                },
+              },
+            });
+            const executeText =
+              executeFallbackPayload?.result?.message ||
+              executeFallbackPayload?.resultText ||
+              (typeof executeFallbackPayload?.result === "string" ? executeFallbackPayload.result : "") ||
+              "";
+            if (executeText && !/No tool selected; step processed as reasoning-only action\./i.test(executeText)) {
+              fallbackText = executeText;
+              fallbackSummary = "Resposta operacional gerada por /execute após falha de inferência no runtime local.";
+            }
+          } catch {
+            // Se /execute também falhar, seguimos para o playbook local estático.
+          }
+        }
+        if (!fallbackText) {
+          fallbackText = buildLocalFallbackResponse({
+            query: trimmedQuestion,
+            routePath,
+            activeConversation,
+            activeTask,
+            globalContext,
+            selectedSkillId,
+            failureMode: err?.code === "LOCAL_RUNTIME_INSUFFICIENT_MEMORY" ? "memory" : "inference",
+          });
+          fallbackSummary =
+            err?.code === "LOCAL_RUNTIME_INSUFFICIENT_MEMORY"
+              ? "Resposta operacional gerada sem LLM por contingência de memória."
+              : "Resposta operacional gerada sem LLM por falha de inferência no runtime local.";
+        }
         setMessages((msgs) => {
           const last = msgs[msgs.length - 1];
           return [
@@ -1792,16 +1977,21 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
           durationMs: Date.now() - chatStartedAt,
           response: buildDiagnosticReport({
             title: "Dotobot chat fallback local",
-            summary: "Resposta operacional gerada sem LLM por contingência de memória.",
+            summary: fallbackSummary,
             sections: [
               { label: "endpoint", value: requestPath },
               { label: "error", value: err?.message || err },
+              { label: "execute_payload", value: executeFallbackPayload },
               { label: "fallback", value: fallbackText },
             ],
           }),
           error: "",
         });
-        setError("LLM local sem memória suficiente. O Copilot respondeu com um playbook operacional de contingência.");
+        setError(
+          err?.code === "LOCAL_RUNTIME_INSUFFICIENT_MEMORY"
+            ? "LLM local sem memória suficiente. O Copilot respondeu com um playbook operacional de contingência."
+            : "O runtime local falhou na inferência. O Copilot respondeu com um playbook operacional de contingência."
+        );
         setLoading(false);
         setUiState("idle");
         return;
@@ -1809,6 +1999,8 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
       const message =
         err?.code === "LOCAL_RUNTIME_INSUFFICIENT_MEMORY"
           ? "Inferência local indisponível: a máquina não tem memória suficiente para o modelo atual. O painel segue operando em modo degradado."
+          : err?.code === "LOCAL_RUNTIME_INFERENCE_FAILED"
+            ? "Inferência local indisponível: o runtime local falhou ao responder. O painel segue operando em modo degradado."
           : err.message || "Erro ao conectar ao backend.";
       setError(message);
       setMessages((msgs) => {
@@ -1957,6 +2149,14 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
     if (typeof window === "undefined" || !("Notification" in window)) return;
     const permission = await window.Notification.requestPermission();
     setNotificationsEnabled(permission === "granted");
+    pushUiToast({
+      tone: permission === "granted" ? "success" : "warning",
+      title: permission === "granted" ? "Notificações ativadas" : "Notificações não liberadas",
+      body:
+        permission === "granted"
+          ? "O Dotobot agora pode avisar conclusão e falha de tarefas como um cockpit residente."
+          : "Sem a permissão do navegador, o painel continua usando avisos internos dentro da interface.",
+    });
   }
 
   function updateConversationById(conversationId, updater) {
@@ -2209,6 +2409,11 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
     setWorkspaceOpen(true);
     setInput(prompt);
     setShowSlashCommands(true);
+    pushUiToast({
+      tone: "neutral",
+      title: "Atalho operacional preparado",
+      body: String(prompt || "").replace(/^\/\w+\s*/, "").slice(0, 110) || "O prompt rápido foi carregado no compositor.",
+    });
     composerRef.current?.focus();
   }
 
@@ -2422,6 +2627,22 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
   const supabaseBootstrap = buildSupabaseLocalBootstrap({ localStackSummary, ragHealth });
   const isWorkspaceShell = workspaceOpen;
   const railCollapsed = compactRail ? true : isCollapsed;
+  const effectiveWorkspaceLayout =
+    isCompactViewport
+      ? "immersive"
+      : workspaceLayoutMode;
+  const workspaceShellWidthClass =
+    effectiveWorkspaceLayout === "immersive"
+      ? "w-full"
+      : effectiveWorkspaceLayout === "balanced"
+        ? "w-full max-w-[1680px]"
+        : "w-full max-w-[1440px]";
+  const workspaceShellGridClass =
+    effectiveWorkspaceLayout === "immersive"
+      ? "xl:grid-cols-[240px_minmax(0,1.45fr)_300px] 2xl:grid-cols-[260px_minmax(0,1.65fr)_340px]"
+      : effectiveWorkspaceLayout === "balanced"
+        ? "xl:grid-cols-[220px_minmax(0,1.35fr)_280px] 2xl:grid-cols-[240px_minmax(0,1.45fr)_300px]"
+        : "xl:grid-cols-[200px_minmax(0,1.2fr)_260px] 2xl:grid-cols-[220px_minmax(0,1.28fr)_280px]";
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
   const visibleLegalActions = LEGAL_ACTIONS.slice(0, isCompactViewport ? 1 : 3);
   const visibleQuickPrompts = QUICK_PROMPTS.slice(0, isCompactViewport ? 1 : 2);
@@ -2463,6 +2684,48 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
       }),
     };
   });
+  const cockpitCommandActions = [
+    {
+      id: "focus-composer",
+      label: "Focar composer",
+      hint: "Ctrl/Cmd+K",
+      onClick: () => {
+        setWorkspaceOpen(true);
+        composerRef.current?.focus();
+        pushUiToast({
+          tone: "neutral",
+          title: "Composer em foco",
+          body: "A conversa central está pronta para receber a próxima instrução.",
+        });
+      },
+    },
+    {
+      id: "open-fullscreen",
+      label: routePath === "/interno/copilot" ? "Fullscreen ativo" : "Abrir fullscreen",
+      hint: "Ctrl/Cmd+Shift+O",
+      onClick: () => router.push("/interno/copilot"),
+    },
+    {
+      id: "open-ai-task",
+      label: "Abrir AI Task",
+      hint: "Ctrl/Cmd+Shift+A",
+      onClick: () => router.push("/interno/ai-task"),
+    },
+    {
+      id: "open-agentlab",
+      label: "Abrir AgentLabs",
+      hint: "Ctrl/Cmd+Shift+G",
+      onClick: () => router.push("/interno/agentlab"),
+    },
+  ];
+  const activeRightPanelMeta =
+    rightPanelTab === "modules"
+      ? { title: "Módulos em foco", detail: "Navegação contextual e acesso rápido aos sistemas internos." }
+      : rightPanelTab === "ai-task"
+        ? { title: "AI Task em foco", detail: "Subtarefas, replay e continuidade operacional sem sair do cockpit." }
+        : rightPanelTab === "agentlabs"
+          ? { title: "AgentLabs em foco", detail: "Subagentes, syncs e governança do ai-core em leitura lateral." }
+          : { title: "Contexto em foco", detail: "Missão ativa, rota, histórico ligado e sinais para handoff." };
   const agentLabData = agentLabSnapshot.data || null;
   const agentLabSubagents = extractAgentLabSubagents(agentLabSnapshot.data, activeTask);
   const agentLabOverview = agentLabData?.overview || {};
@@ -2831,7 +3094,9 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                       onClick={() => handleLocalStackAction(actionId)}
                       className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
                     >
-                      {actionId === "open_runtime_config"
+                      {actionId === "retry_runtime_local"
+                        ? "Tentar novamente"
+                        : actionId === "open_runtime_config"
                         ? "Editar runtime local"
                         : actionId === "copiar_envs_supabase_local"
                           ? "Copiar envs local"
@@ -2942,7 +3207,9 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                         onClick={() => handleLocalStackAction(actionId)}
                         className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
                       >
-                        {actionId === "open_runtime_config"
+                        {actionId === "retry_runtime_local"
+                          ? "Tentar novamente"
+                          : actionId === "open_runtime_config"
                           ? "Editar runtime local"
                           : actionId === "open_llm_test"
                             ? "Testar runtime"
@@ -3134,42 +3401,44 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                     {messages.length} mensagens
                   </span>
                 </div>
-                <div className="mt-3 flex max-h-[34vh] min-h-[22vh] flex-col justify-end space-y-2 overflow-y-auto pr-1">
-                  {compactTranscript.length ? (
-                    compactTranscript.map((message, index) => (
-                      <div
-                        key={message.id || `${message.role}-${message.createdAt || index}`}
-                        className={`rounded-[18px] border px-3 py-3 ${
-                          message.role === "user"
-                            ? "border-[#3B3523] bg-[rgba(197,160,89,0.08)]"
-                            : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">
-                            {message.role === "user" ? "Você" : "Dotobot"}
-                          </span>
-                          {message.createdAt ? (
-                            <span className="text-[10px] text-[#60706A]">
-                              {new Date(message.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                <div className="mt-3 flex max-h-[34vh] min-h-[22vh] flex-col overflow-y-auto pr-1">
+                  <div className="flex min-h-full flex-col justify-end space-y-2">
+                    {compactTranscript.length ? (
+                      compactTranscript.map((message, index) => (
+                        <div
+                          key={message.id || `${message.role}-${message.createdAt || index}`}
+                          className={`rounded-[18px] border px-3 py-3 ${
+                            message.role === "user"
+                              ? "border-[#3B3523] bg-[rgba(197,160,89,0.08)]"
+                              : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">
+                              {message.role === "user" ? "Você" : "Dotobot"}
                             </span>
-                          ) : null}
+                            {message.createdAt ? (
+                              <span className="text-[10px] text-[#60706A]">
+                                {new Date(message.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-[12px] leading-6 text-[#D8DEDA]">
+                            {message.text || (message.role === "assistant" && loading ? "Processando resposta..." : "Sem texto")}
+                          </p>
                         </div>
-                        <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-[12px] leading-6 text-[#D8DEDA]">
-                          {message.text || (message.role === "assistant" && loading ? "Processando resposta..." : "Sem texto")}
-                        </p>
+                      ))
+                    ) : (
+                      <div className="rounded-[18px] border border-dashed border-[#22342F] px-3 py-4 text-[12px] text-[#9BAEA8]">
+                        A conversa começa aqui. Use um prompt curto e siga para o modo full quando precisar de trilha completa.
                       </div>
-                    ))
-                  ) : (
-                    <div className="rounded-[18px] border border-dashed border-[#22342F] px-3 py-4 text-[12px] text-[#9BAEA8]">
-                      A conversa começa aqui. Use um prompt curto e siga para o modo full quando precisar de trilha completa.
-                    </div>
-                  )}
-                  {loading ? (
-                    <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3 text-[12px] text-[#9BAEA8]">
-                      Dotobot está preparando a próxima resposta...
-                    </div>
-                  ) : null}
+                    )}
+                    {loading ? (
+                      <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3 text-[12px] text-[#9BAEA8]">
+                        Dotobot está preparando a próxima resposta...
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             </div>
@@ -3229,7 +3498,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                           onClick={() => handleLocalStackAction(actionId)}
                           className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
                         >
-                          {actionId === "open_runtime_config" ? "Editar runtime" : actionId === "open_llm_test" ? "Testar" : "Diagnóstico"}
+                          {actionId === "retry_runtime_local" ? "Tentar" : actionId === "open_runtime_config" ? "Editar runtime" : actionId === "open_llm_test" ? "Testar" : "Diagnóstico"}
                         </button>
                       ))}
                     </div>
@@ -3467,7 +3736,59 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
 
         {isWorkspaceShell ? (
           <div className="fixed inset-0 z-[70] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.14),transparent_26%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.96))] text-[#F4F1EA] backdrop-blur-xl">
-          <div className="flex h-full flex-col">
+          <div className={`ml-auto flex h-full ${workspaceShellWidthClass} flex-col border-l border-[#1C2623]/70 bg-[rgba(4,7,6,0.68)] shadow-[-24px_0_54px_rgba(0,0,0,0.24)] transition-[max-width,width] duration-300 ease-out`}>
+            <style jsx>{`
+              .dotobot-panel-tab-enter {
+                opacity: 0;
+                transform: translateY(10px) scale(0.985);
+              }
+              .dotobot-panel-tab-enter-active {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+                transition: opacity 180ms ease, transform 180ms ease;
+              }
+              .dotobot-panel-tab-exit {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+              }
+              .dotobot-panel-tab-exit-active {
+                opacity: 0;
+                transform: translateY(-6px) scale(0.99);
+                transition: opacity 140ms ease, transform 140ms ease;
+              }
+            `}</style>
+            {uiToasts.length ? (
+              <div className="pointer-events-none absolute right-4 top-4 z-[90] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2">
+                {uiToasts.map((toast) => (
+                  <div
+                    key={toast.id}
+                    className={`pointer-events-auto rounded-[20px] border px-4 py-3 shadow-[0_18px_42px_rgba(0,0,0,0.28)] backdrop-blur-xl ${
+                      toast.tone === "success"
+                        ? "border-[#2E5A46] bg-[rgba(15,33,25,0.92)] text-[#D9F5E5]"
+                        : toast.tone === "danger"
+                          ? "border-[#6A3131] bg-[rgba(46,16,16,0.92)] text-[#FFD1D1]"
+                          : toast.tone === "warning"
+                            ? "border-[#6A5320] bg-[rgba(54,39,12,0.92)] text-[#F7E2AE]"
+                            : "border-[#2A3A35] bg-[rgba(13,18,17,0.92)] text-[#E7ECE9]"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-80">{toast.title}</p>
+                        {toast.body ? <p className="mt-1 text-sm leading-6 opacity-90">{toast.body}</p> : null}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => dismissUiToast(toast.id)}
+                        className="rounded-full border border-current/20 px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70 transition hover:opacity-100"
+                      >
+                        Fechar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             <header className="border-b border-[#22342F]/80 bg-[linear-gradient(180deg,rgba(11,14,13,0.82),rgba(7,10,9,0.78))] px-4 py-4 backdrop-blur-xl md:px-5">
               <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
                 <div className="min-w-0">
@@ -3565,16 +3886,23 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                           </span>
                         ))}
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {routePath !== "/interno/copilot" ? (
+                      <div className="mt-3 grid gap-2 md:grid-cols-2">
+                        {cockpitCommandActions.map((action) => (
                           <button
+                            key={action.id}
                             type="button"
-                            onClick={() => router.push("/interno/copilot")}
-                            className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                            onClick={action.onClick}
+                            className="flex items-center justify-between rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-left transition hover:border-[#C5A059] hover:bg-[rgba(197,160,89,0.06)]"
                           >
-                            Abrir fullscreen
+                            <span>
+                              <span className="block text-[11px] font-semibold text-[#F5F1E8]">{action.label}</span>
+                              <span className="mt-1 block text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">{action.hint}</span>
+                            </span>
+                            <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#D8DEDA]">Ir</span>
                           </button>
-                        ) : null}
+                        ))}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
                         {!notificationsEnabled ? (
                           <button
                             type="button"
@@ -3697,6 +4025,36 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                   >
                     Abrir no AI Task
                   </button>
+                  {[
+                    { id: "snap", label: "Snap" },
+                    { id: "balanced", label: "Balanceado" },
+                    { id: "immersive", label: "Imersivo" },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setWorkspaceLayoutMode(item.id);
+                        pushUiToast({
+                          tone: "neutral",
+                          title: `Layout ${item.label.toLowerCase()}`,
+                          body:
+                            item.id === "snap"
+                              ? "O Copilot voltou ao encaixe lateral com densidade próxima de painel residente."
+                              : item.id === "balanced"
+                                ? "O Copilot abriu um pouco mais a área de trabalho sem perder a leitura lateral."
+                                : "O Copilot expandiu a malha para priorizar a conversa e os módulos simultaneamente.",
+                        });
+                      }}
+                      className={`rounded-full border px-4 py-2 text-xs font-medium transition ${
+                        workspaceLayoutMode === item.id
+                          ? "border-[#C5A059] bg-[rgba(197,160,89,0.12)] text-[#F1D39A]"
+                          : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
                   <button
                     type="button"
                     onClick={() => openLlmTest(provider, input)}
@@ -3716,13 +4074,13 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
             </header>
 
             <div className="flex-1 overflow-hidden p-3 md:p-5">
-              <div className="grid h-full min-h-0 gap-4 2xl:grid-cols-[280px_minmax(0,1.35fr)_340px]">
-                <aside className="flex min-h-0 flex-col overflow-hidden rounded-[22px] border border-[#1C2623] bg-[rgba(255,255,255,0.018)] shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
+              <div className={`grid h-full min-h-0 gap-4 transition-all duration-300 ease-out ${workspaceShellGridClass}`}>
+                <aside className="hidden xl:flex min-h-0 flex-col overflow-hidden rounded-[22px] border border-[#1C2623] bg-[rgba(255,255,255,0.018)] shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
                   <div className="border-b border-[#22342F] px-4 py-4 md:px-5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Historico</p>
-                        <p className="mt-1 text-sm text-[#9BAEA8]">Busca contextual, agrupamento por projeto e continuidade entre diálogos.</p>
+                        <p className="mt-1 text-sm text-[#9BAEA8]">Histórico enxuto para retomar contexto sem competir com a conversa central.</p>
                       </div>
                       <button
                         type="button"
@@ -3847,24 +4205,10 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => renameConversation(conversation)}
-                                      className="rounded-full border border-[#22342F] px-2.5 py-1 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-                                    >
-                                      Renomear
-                                    </button>
-                                    <button
-                                      type="button"
                                       onClick={() => archiveConversation(conversation)}
                                       className="rounded-full border border-[#22342F] px-2.5 py-1 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                                     >
                                       {conversation.archived ? "Desarquivar" : "Arquivar"}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => deleteConversation(conversation)}
-                                      className="rounded-full border border-[#4f2525] px-2.5 py-1 text-[11px] text-[#f2b2b2] transition hover:border-[#f2b2b2]"
-                                    >
-                                      Excluir
                                     </button>
                                   </div>
                                 </article>
@@ -3909,23 +4253,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                         Limpar
                       </button>
                     </div>
-                    <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-[#9BAEA8]">
-                      <a href="#" className="underline-offset-4 hover:underline">
-                        Privacidade
-                      </a>
-                      <a href="#" className="underline-offset-4 hover:underline">
-                        Termos
-                      </a>
-                      <a href="#" className="underline-offset-4 hover:underline">
-                        FAQ
-                      </a>
-                      <a href="#" className="underline-offset-4 hover:underline">
-                        Feedback
-                      </a>
-                      <a href="#" className="underline-offset-4 hover:underline">
-                        Sobre
-                      </a>
-                    </div>
+                    <p className="mt-4 text-[11px] leading-5 text-[#7F928C]">Histórico lateral focado em retomada rápida, sem excesso de ações simultâneas.</p>
                   </footer>
                 </aside>
 
@@ -3936,7 +4264,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                         <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Conversa</p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {visibleLegalActions.map((action) => (
+                        {visibleLegalActions.slice(0, 3).map((action) => (
                           <button
                             key={action.label}
                             type="button"
@@ -3950,60 +4278,60 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                     </div>
                   </div>
 
-                  <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto space-y-3 px-4 py-4 md:px-5">
-                    {messages.length ? (
-                      messages.map((message, idx) => (
-                        <MessageBubble
-                          key={message.id || idx}
-                          message={message}
-                          onCopy={handleCopyMessage}
-                          onReuse={handleReuseMessage}
-                          onOpenAiTask={handleOpenMessageInAiTask}
-                          onAction={handleMessageAction}
-                        />
-                      ))
-                    ) : (
-                      <div className="rounded-[20px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-5 text-sm text-[#9BAEA8]">
-                        <p className="text-base font-semibold text-[#F5F1E8]">Pronto para operar.</p>
-                        <p className="mt-2 leading-6">Use uma instrucao curta, um comando com contexto ou envie esta conversa para o AI Task.</p>
-                      </div>
-                    )}
-                    {loading ? (
-                      <MessageBubble
-                        message={{ role: "assistant", text: "", createdAt: null }}
-                        isTyping={true}
-                      />
-                    ) : null}
-                    {localInferenceAlert && !messages.length ? (
-                      <div className="rounded-[20px] border border-[#6f5a2d] bg-[rgba(98,79,34,0.16)] p-5 text-sm text-[#f1dfb5]">
-                        <p className="text-base font-semibold text-[#F5F1E8]">{localInferenceAlert.title}</p>
-                        <p className="mt-2 leading-6">{localInferenceAlert.body}</p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleLocalStackAction("open_runtime_config")}
-                            className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
-                          >
-                            Editar runtime local
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleLocalStackAction("open_ai_task")}
-                            className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
-                          >
-                            Continuar via AI Task
-                          </button>
+                  <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-5">
+                    <div className="flex min-h-full flex-col justify-end space-y-3">
+                      {messages.length ? (
+                        messages.map((message, idx) => (
+                          <MessageBubble
+                            key={message.id || idx}
+                            message={message}
+                            onCopy={handleCopyMessage}
+                            onReuse={handleReuseMessage}
+                            onOpenAiTask={handleOpenMessageInAiTask}
+                            onAction={handleMessageAction}
+                          />
+                        ))
+                      ) : (
+                        <div className="rounded-[20px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-5 text-sm text-[#9BAEA8]">
+                          <p className="text-base font-semibold text-[#F5F1E8]">Pronto para operar.</p>
+                          <p className="mt-2 leading-6">Use uma instrução curta, um comando com contexto ou envie esta conversa para o AI Task.</p>
                         </div>
-                      </div>
-                    ) : null}
-                    {error ? (
-                      <div className="rounded-[24px] border border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] px-4 py-3 text-sm text-[#f2b2b2]">
-                        {error}
-                      </div>
-                    ) : null}
-
-                  {/* Fim do bloco de mensagens */}
-                </div>
+                      )}
+                      {loading ? (
+                        <MessageBubble
+                          message={{ role: "assistant", text: "", createdAt: null }}
+                          isTyping={true}
+                        />
+                      ) : null}
+                      {localInferenceAlert && !messages.length ? (
+                        <div className="rounded-[20px] border border-[#6f5a2d] bg-[rgba(98,79,34,0.16)] p-5 text-sm text-[#f1dfb5]">
+                          <p className="text-base font-semibold text-[#F5F1E8]">{localInferenceAlert.title}</p>
+                          <p className="mt-2 leading-6">{localInferenceAlert.body}</p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleLocalStackAction("open_runtime_config")}
+                              className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                            >
+                              Editar runtime local
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleLocalStackAction("open_ai_task")}
+                              className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                            >
+                              Continuar via AI Task
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                      {error ? (
+                        <div className="rounded-[24px] border border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] px-4 py-3 text-sm text-[#f2b2b2]">
+                          {error}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
 
                   <div className="border-t border-[#22342F] px-4 py-4 md:px-5">
                     <div className="mb-3 flex flex-wrap gap-2">
@@ -4110,36 +4438,40 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                   </div>
                 </section>
 
-                <aside className="min-h-0 overflow-hidden rounded-[24px] border border-[#1C2623] bg-[rgba(255,255,255,0.015)]">
+                <aside className="hidden xl:block min-h-0 overflow-hidden rounded-[24px] border border-[#1C2623] bg-[rgba(255,255,255,0.015)]">
                   <div className="border-b border-[#22342F] px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Painel</p>
-                      <div className="flex flex-wrap gap-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Painel</p>
+                        <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeRightPanelMeta.title}</p>
+                        <p className="mt-1 max-w-[17rem] text-[11px] leading-5 text-[#7F928C]">{activeRightPanelMeta.detail}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
                           onClick={() => setRightPanelTab("modules")}
-                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "modules" ? "border-[#C5A059] text-[#F1D39A]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "modules" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#F1D39A] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : "border-[#22342F] text-[#9BAEA8]"}`}
                         >
                           Módulos
                         </button>
                         <button
                           type="button"
                           onClick={() => setRightPanelTab("ai-task")}
-                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "ai-task" ? "border-[#C5A059] text-[#F1D39A]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "ai-task" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#F1D39A] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : "border-[#22342F] text-[#9BAEA8]"}`}
                         >
                           AI Task
                         </button>
                         <button
                           type="button"
                           onClick={() => setRightPanelTab("agentlabs")}
-                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "agentlabs" ? "border-[#C5A059] text-[#F1D39A]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "agentlabs" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#F1D39A] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : "border-[#22342F] text-[#9BAEA8]"}`}
                         >
                           AgentLabs
                         </button>
                         <button
                           type="button"
                           onClick={() => setRightPanelTab("context")}
-                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "context" ? "border-[#C5A059] text-[#F1D39A]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "context" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#F1D39A] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : "border-[#22342F] text-[#9BAEA8]"}`}
                         >
                           Contexto
                         </button>
@@ -4147,7 +4479,9 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                     </div>
                   </div>
 
-                  <div className="max-h-[calc(100vh-14rem)] overflow-y-auto p-4">
+                  <TransitionGroup component={null}>
+                    <CSSTransition key={rightPanelTab} timeout={180} classNames="dotobot-panel-tab">
+                      <div className="h-[calc(100vh-14rem)] overflow-y-auto p-4">
                     {rightPanelTab === "modules" ? (
                       <div className="space-y-3">
                         <div className="rounded-[18px] border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-4">
@@ -4714,7 +5048,9 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                         </div>
                       </div>
                     )}
-                  </div>
+                      </div>
+                    </CSSTransition>
+                  </TransitionGroup>
                 </aside>
               </div>
             </div>

@@ -770,7 +770,8 @@ def _invoke_compatible_provider(config: CompatibleProviderConfig, payload: dict[
     model = _get_clean(payload.get('model')) or config.model
     max_tokens = payload.get('max_tokens') or payload.get('maxTokens') or config.max_tokens
     transport = _probe_provider_transport(config)
-    resolved_model = transport.model or model
+    transport_default_model = transport.model or config.model
+    requested_model = model or transport_default_model
     headers = _build_provider_headers(config)
 
     if transport.mode == 'anthropic_messages':
@@ -791,12 +792,12 @@ def _invoke_compatible_provider(config: CompatibleProviderConfig, payload: dict[
             headers={'x-llm-version': '2023-06-01', **headers},
         )
         response_content = response.get('content')
-        response_model = response.get('model') or resolved_model
+        response_model = response.get('model') or requested_model
     elif transport.mode == 'openai_chat_completions':
         response = _json_request(
             transport.endpoint,
             {
-                'model': resolved_model,
+                'model': requested_model,
                 'max_tokens': max_tokens,
                 'stream': False,
                 'messages': [
@@ -810,12 +811,12 @@ def _invoke_compatible_provider(config: CompatibleProviderConfig, payload: dict[
         message = choices[0].get('message') if choices and isinstance(choices[0], dict) else {}
         response_text = _get_clean(message.get('content')) or response.get('message') or response.get('result') or ''
         response_content = [{'type': 'text', 'text': response_text or json.dumps(response)}]
-        response_model = response.get('model') or resolved_model
+        response_model = response.get('model') or requested_model
     elif transport.mode == 'ollama_chat':
         response = _json_request(
             transport.endpoint,
             {
-                'model': resolved_model,
+                'model': requested_model,
                 'stream': False,
                 'messages': [
                     *([{'role': 'system', 'content': system_prompt}] if system_prompt else []),
@@ -830,7 +831,7 @@ def _invoke_compatible_provider(config: CompatibleProviderConfig, payload: dict[
         message = response.get('message') if isinstance(response.get('message'), dict) else {}
         response_text = _get_clean(message.get('content')) or response.get('response') or response.get('message') or ''
         response_content = [{'type': 'text', 'text': response_text or json.dumps(response)}]
-        response_model = response.get('model') or resolved_model
+        response_model = response.get('model') or requested_model
     else:
         raise RuntimeError(f"Unsupported provider transport '{transport.mode}'.")
 
@@ -846,8 +847,9 @@ def _invoke_compatible_provider(config: CompatibleProviderConfig, payload: dict[
         'metadata': {
             **metadata,
             'provider': config.provider_id,
-            'requested_model': model,
+            'requested_model': requested_model,
             'resolved_model': metadata.get('resolved_model') or response_model,
+            'transport_default_model': transport_default_model,
             'route': transport.mode,
             'transport_endpoint': transport.endpoint,
         },

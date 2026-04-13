@@ -65,13 +65,13 @@ function SidebarItem({ item, active, collapsed }) {
     <Link
       href={item.href}
       prefetch={false}
-      className={`group flex items-center gap-3 rounded-[18px] border px-3.5 py-3 text-sm transition-all duration-200 ${
+      className={`group flex items-center gap-3 rounded-[16px] border px-3.5 py-3 text-sm transition-all duration-200 ${
         active
-          ? "border-[#C5A059] bg-[linear-gradient(180deg,#C5A059,#B08B46)] text-[#07110E] shadow-[0_10px_26px_rgba(197,160,89,0.22)]"
-          : "border-[#1F2A27] bg-[rgba(255,255,255,0.015)] text-[#D8DED9] hover:translate-x-[2px] hover:border-[#31433D] hover:bg-[rgba(255,255,255,0.03)]"
+          ? "border-[#C5A059] bg-[linear-gradient(180deg,#C5A059,#B08B46)] text-[#07110E] shadow-[0_8px_22px_rgba(197,160,89,0.2)]"
+          : "border-[#1F2A27] bg-[rgba(255,255,255,0.015)] text-[#D8DED9] hover:border-[#31433D] hover:bg-[rgba(255,255,255,0.03)]"
       }`}
     >
-      <span className={`flex h-9 w-9 items-center justify-center rounded-[14px] border ${active ? "border-[rgba(7,17,14,0.12)] bg-[rgba(7,17,14,0.08)]" : "border-[#233630] bg-[rgba(255,255,255,0.02)] group-hover:border-[#35554B]"}`}>
+      <span className={`flex h-9 w-9 items-center justify-center rounded-[12px] border ${active ? "border-[rgba(7,17,14,0.12)] bg-[rgba(7,17,14,0.08)]" : "border-[#233630] bg-[rgba(255,255,255,0.02)] group-hover:border-[#35554B]"}`}>
         <span className={`h-2.5 w-2.5 rounded-full ${active ? "bg-[#07110E]" : "bg-[#C5A059]"}`} />
       </span>
       {!collapsed ? <span className="font-medium">{item.label}</span> : null}
@@ -903,6 +903,7 @@ export default function InternoLayout({
   const [rightCollapsed, setRightCollapsed] = useState(!shouldStartWithOpenRail);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(shouldStartWithOpenRail);
+  const [theme, setTheme] = useState("dark");
   const [consoleTab, setConsoleTab] = useState("console");
   const [logPane, setLogPane] = useState("activity");
   const [activityLog, setActivityLog] = useState([]);
@@ -931,6 +932,38 @@ export default function InternoLayout({
   const [logSearch, setLogSearch] = useState("");
   const [logExpanded, setLogExpanded] = useState(null);
   const dragStateRef = useRef({ dragging: false, startY: 0, startHeight: 260 });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const persistedTheme = window.localStorage.getItem(INTERNAL_THEME_STORAGE_KEY);
+    if (persistedTheme === "light" || persistedTheme === "dark") {
+      setTheme(persistedTheme);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    window.localStorage.setItem(INTERNAL_THEME_STORAGE_KEY, theme);
+    document.body.dataset.internoTheme = theme;
+    return () => {
+      delete document.body.dataset.internoTheme;
+    };
+  }, [theme]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    function syncResponsiveShell() {
+      const width = window.innerWidth;
+      setLeftCollapsed(width < 1180);
+      if (width < 1024) {
+        setRightCollapsed(true);
+        setCopilotOpen(false);
+      }
+    }
+    syncResponsiveShell();
+    window.addEventListener("resize", syncResponsiveShell);
+    return () => window.removeEventListener("resize", syncResponsiveShell);
+  }, []);
 
   useEffect(() => {
     return subscribeActivityLog((entries, archives, notes, filters, frontendItems, schemaItems, moduleSnapshot, fingerprintSnapshot) => {
@@ -1442,11 +1475,12 @@ export default function InternoLayout({
   const consoleReservedSpace = consoleOpen ? consoleHeight + 20 : 52;
   const consoleDockLeft = leftCollapsed ? 88 : 272;
   const consoleDockRight = shouldRenderDotobotRail && !rightCollapsed ? 360 : 0;
+  const isLightTheme = theme === "light";
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.16),transparent_24%),linear-gradient(180deg,#040605_0%,#070A09_100%)] p-3 text-[#F4F1EA]">
+    <div className={`flex h-screen w-full overflow-hidden p-2 text-[Arial,sans-serif] md:p-3 ${isLightTheme ? "bg-[linear-gradient(180deg,#EEF2F6_0%,#E4EAF1_100%)] text-[#13201D]" : "bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.16),transparent_24%),linear-gradient(180deg,#040605_0%,#070A09_100%)] text-[#F4F1EA]"}`}>
       {/* SIDEBAR */}
-      <aside className={`shrink-0 flex h-full flex-col rounded-[30px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(11,18,16,0.98),rgba(8,14,13,0.95))] px-5 py-5 shadow-[0_22px_60px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all ${leftCollapsed ? "w-[88px] min-w-[88px]" : "w-[272px] min-w-[220px] max-w-[320px]"}`}>
+      <aside className={`shrink-0 flex h-full flex-col rounded-[26px] border px-4 py-4 shadow-[0_18px_48px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all ${isLightTheme ? "border-[#C9D5E2] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(241,245,249,0.98))]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(11,18,16,0.98),rgba(8,14,13,0.95))]"} ${leftCollapsed ? "w-[88px] min-w-[88px]" : "w-[264px] min-w-[220px] max-w-[312px]"}`}>
         <Link href="/interno" prefetch={false} className="mb-8 block">
           {!leftCollapsed ? (
             <>
@@ -1463,7 +1497,7 @@ export default function InternoLayout({
           )}
         </Link>
         {!leftCollapsed ? (
-          <div className="mb-6 rounded-[22px] border border-[#1D2E29] bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+          <div className="mb-6 rounded-[18px] border border-[#1D2E29] bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
             <p className="text-[11px] uppercase tracking-[0.2em] text-[#7F928C]">Perfil conectado</p>
             <p className="mt-3 text-lg font-semibold text-[#F8F4EB]">{normalizeDisplayName(profile)}</p>
             <p className="mt-1 text-sm text-[#91A49E]">{profile?.email}</p>
@@ -1478,7 +1512,7 @@ export default function InternoLayout({
         </nav>
         <div className="mt-auto space-y-3 pt-6">
           {!leftCollapsed ? (
-            <div className="rounded-[20px] border border-[#1D2E29] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+            <div className="rounded-[18px] border border-[#1D2E29] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
               <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">Workspace</p>
               <p className="mt-2 text-sm font-medium text-[#F5F1E8]">Sidebar, modulo e Dotobot</p>
               <p className="mt-2 text-sm leading-6 text-[#92A59F]">
@@ -1489,23 +1523,23 @@ export default function InternoLayout({
           <button
             type="button"
             onClick={handleSignOut}
-            className="w-full rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.015)] px-4 py-3 text-sm text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+            className="w-full rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.015)] px-4 py-3 text-sm text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
           >
             {!leftCollapsed ? "Sair" : "X"}
           </button>
         </div>
       </aside>
       {/* MAIN + COPILOT */}
-      <div className="ml-3 flex h-full min-h-0 flex-1">
+        <div className="ml-2 flex h-full min-h-0 flex-1 md:ml-3">
         {/* CONTEÚDO PRINCIPAL */}
-        <div className="relative flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden rounded-[30px] border border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.985),rgba(7,9,8,0.95))] shadow-[0_24px_64px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.02)]">
-          <div className="shrink-0 flex items-center justify-between gap-4 border-b border-[#1E2E29] bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015))] px-6 py-4">
-            <div className="rounded-[18px] border border-[#1F2D29] bg-[rgba(255,255,255,0.02)] px-3 py-2">
+        <div className={`relative flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden rounded-[26px] border shadow-[0_20px_56px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#CBD5E1] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,247,250,0.96))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.985),rgba(7,9,8,0.95))]"}`}>
+          <div className={`shrink-0 flex flex-wrap items-center justify-between gap-4 border-b px-4 py-3 md:px-5 md:py-3.5 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(247,249,251,0.88))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015))]"}`}>
+            <div className={`rounded-[16px] border px-3 py-2 ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.82)]" : "border-[#1F2D29] bg-[rgba(255,255,255,0.02)]"}`}>
               <p className="text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">Workspace</p>
               <p className="mt-1 text-[11px] text-[#C6D1CC]">{router.pathname}</p>
             </div>
             <div className="flex-1 px-4 xl:px-6">
-              <div className="mx-auto flex max-w-xl items-center gap-3 rounded-[18px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(12,15,14,0.86),rgba(8,10,9,0.9))] px-4 py-2.5 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+              <div className={`mx-auto flex max-w-xl items-center gap-3 rounded-[16px] border px-4 py-2.5 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.84)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(12,15,14,0.86),rgba(8,10,9,0.9))]"}`}>
                 <input
                   type="text"
                   placeholder="Buscar por processos, publicacoes, contas..."
@@ -1514,13 +1548,13 @@ export default function InternoLayout({
                 <button
                   type="button"
                   onClick={handleToggleCopilot}
-                  className="rounded-[14px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] text-[#C5A059] transition hover:border-[#C5A059] hover:text-[#F5E6C5]"
+                  className="rounded-[12px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] text-[#C5A059] transition hover:border-[#C5A059] hover:text-[#F5E6C5]"
                 >
                   Chat
                 </button>
               </div>
             </div>
-          <div className="flex shrink-0 items-center gap-2 rounded-[18px] border border-[#1F2D29] bg-[rgba(255,255,255,0.02)] px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+          <div className={`flex shrink-0 items-center gap-2 rounded-[16px] border px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.84)]" : "border-[#1F2D29] bg-[rgba(255,255,255,0.02)]"}`}>
             <button
               type="button"
               onClick={handlePageDebug}
