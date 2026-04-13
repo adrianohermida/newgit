@@ -3004,17 +3004,17 @@ function PublicacoesContent() {
         </div>
       </div> : null}
 
-      {view === "resultado" ? <div id="resultado" className="grid min-h-[calc(100vh-24rem)] items-stretch gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional" className="flex h-full flex-col">
+      {view === "resultado" ? <div id="resultado" className="grid items-start gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">
           {actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}
           {actionState.error ? <p className="text-sm text-red-300">{actionState.error}</p> : null}
           {!actionState.loading && actionState.result?.drain ? <div className="mb-4 rounded-[20px] border border-[#30543A] bg-[rgba(48,84,58,0.12)] p-4 text-sm"><p className="font-semibold">Drenagem de fila</p><p className="mt-2 opacity-75">{buildDrainPreview(actionState.result.drain)}</p></div> : null}
           {jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}
           {!actionState.loading && !actionState.error && actionState.result ? <OperationResult result={actionState.result} /> : null}
           {!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p> : null}
-          <div className="mt-auto pt-6 text-xs text-[#7F928C]">A composicao do modulo foi estendida para ocupar a altura util da tela e manter o console ancorado no shell.</div>
+          <div className="pt-4 text-xs text-[#7F928C]">Resultado compacto, sem afastar visualmente o console do fim do modulo.</div>
         </Panel>
-        <CompactHistoryPanel localHistory={executionHistory} remoteHistory={remoteHistory} className="flex h-full flex-col justify-between" />
+        <CompactHistoryPanel localHistory={executionHistory} remoteHistory={remoteHistory} />
       </div> : null}
     </div>
   );

@@ -5,8 +5,28 @@ grant select, insert, update, delete on table judiciario.tpu_assunto to service_
 grant select, insert, update, delete on table judiciario.tpu_movimento to service_role;
 grant select, insert, update, delete on table judiciario.tpu_documento to service_role;
 grant select, insert, update, delete on table judiciario.tpu_sync_log to service_role;
-grant select, update on table judiciario.movimentos to service_role;
-grant select on table judiciario.processos to service_role;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'judiciario'
+      and table_name = 'movimentos'
+  ) then
+    execute 'grant select, update on table judiciario.movimentos to service_role';
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'judiciario'
+      and table_name = 'processos'
+  ) then
+    execute 'grant select on table judiciario.processos to service_role';
+  end if;
+end
+$$;
 
 alter table if exists judiciario.tpu_classe disable row level security;
 alter table if exists judiciario.tpu_assunto disable row level security;
