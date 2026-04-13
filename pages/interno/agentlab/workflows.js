@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
+import { useInternalTheme } from "../../../components/interno/InternalThemeProvider";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
 import { useAgentLabData } from "../../../lib/agentlab/useAgentLabData";
@@ -7,7 +8,41 @@ import { adminFetch } from "../../../lib/admin/api";
 import { setModuleHistory } from "../../../lib/admin/activity-log";
 import { buildModuleSnapshot } from "../../../lib/admin/module-registry";
 
+function Panel({ title, subtitle, meta, children, className = "" }) {
+  const { isLightTheme } = useInternalTheme();
+
+  return (
+    <section
+      className={`border p-6 ${
+        isLightTheme
+          ? "border-[#d7d4cb] bg-[rgba(255,255,255,0.92)] text-[#1f2937]"
+          : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"
+      } ${className}`}
+    >
+      {(title || subtitle || meta) ? (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            {title ? <h3 className="font-serif text-2xl">{title}</h3> : null}
+            {subtitle ? (
+              <p className={`mt-2 text-sm ${isLightTheme ? "text-[#6b7280]" : "opacity-65"}`}>
+                {subtitle}
+              </p>
+            ) : null}
+          </Panel>
+          {meta ? (
+            <div className={`text-xs uppercase tracking-[0.15em] ${isLightTheme ? "text-[#9ca3af]" : "opacity-45"}`}>
+              {meta}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {children}
+    </section>
+  );
+}
+
 function RuleCard({ rule, onSave }) {
+  const { isLightTheme } = useInternalTheme();
   const [form, setForm] = useState({
     id: rule.id,
     event_key: rule.event_key || "",
@@ -39,47 +74,56 @@ function RuleCard({ rule, onSave }) {
     }
   }
 
+  const fieldTone = isLightTheme
+    ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]"
+    : "border-[#2D2E2E] bg-transparent focus:border-[#C5A059]";
+  const containerTone = isLightTheme
+    ? "border-[#d7d4cb] bg-white text-[#1f2937]"
+    : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]";
+  const muted = isLightTheme ? "text-[#6b7280]" : "opacity-60";
+  const statusTone = isLightTheme ? "text-[#9ca3af]" : "opacity-45";
+
   return (
-    <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-5">
+    <div className={`border p-5 ${containerTone}`}>
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <span className="text-[10px] font-semibold tracking-[0.2em]" style={{ color: "#C5A059" }}>
           {form.event_key}
         </span>
-        <span className="text-[10px] uppercase tracking-[0.15em] opacity-45">
+        <span className={`text-[10px] uppercase tracking-[0.15em] ${statusTone}`}>
           {form.enabled ? "ativo" : "desativado"}
         </span>
-        <span className="text-[10px] uppercase tracking-[0.15em] opacity-45">
+        <span className={`text-[10px] uppercase tracking-[0.15em] ${statusTone}`}>
           {form.execution_mode}
         </span>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <label className="block">
-          <span className="block mb-2 text-xs font-semibold tracking-[0.15em] uppercase opacity-60">Titulo</span>
+          <span className={`block mb-2 text-xs font-semibold tracking-[0.15em] uppercase ${muted}`}>Titulo</span>
           <input
             value={form.title}
             onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-            className="w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+            className={`w-full border px-4 py-3 outline-none transition ${fieldTone}`}
           />
         </label>
 
         <label className="block">
-          <span className="block mb-2 text-xs font-semibold tracking-[0.15em] uppercase opacity-60">Event key</span>
+          <span className={`block mb-2 text-xs font-semibold tracking-[0.15em] uppercase ${muted}`}>Event key</span>
           <input
             value={form.event_key}
             onChange={(event) => setForm((current) => ({ ...current, event_key: event.target.value }))}
-            className="w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+            className={`w-full border px-4 py-3 outline-none transition ${fieldTone}`}
           />
         </label>
       </div>
 
       <label className="block mt-4">
-        <span className="block mb-2 text-xs font-semibold tracking-[0.15em] uppercase opacity-60">Descricao</span>
+        <span className={`block mb-2 text-xs font-semibold tracking-[0.15em] uppercase ${muted}`}>Descricao</span>
         <textarea
           value={form.description}
           onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
           rows={3}
-          className="w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+          className={`w-full border px-4 py-3 outline-none transition ${fieldTone}`}
         />
       </label>
 
@@ -93,11 +137,11 @@ function RuleCard({ rule, onSave }) {
           ["client_stage", "Cliente"],
         ].map(([field, label]) => (
           <label key={field} className="block">
-            <span className="block mb-2 text-xs font-semibold tracking-[0.15em] uppercase opacity-60">{label}</span>
+            <span className={`block mb-2 text-xs font-semibold tracking-[0.15em] uppercase ${muted}`}>{label}</span>
             <input
               value={form[field]}
               onChange={(event) => setForm((current) => ({ ...current, [field]: event.target.value }))}
-              className="w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              className={`w-full border px-4 py-3 outline-none transition ${fieldTone}`}
             />
           </label>
         ))}
@@ -105,46 +149,46 @@ function RuleCard({ rule, onSave }) {
 
       <div className="grid gap-4 mt-4 md:grid-cols-2">
         <label className="block">
-          <span className="block mb-2 text-xs font-semibold tracking-[0.15em] uppercase opacity-60">Sequencia</span>
+          <span className={`block mb-2 text-xs font-semibold tracking-[0.15em] uppercase ${muted}`}>Sequencia</span>
           <input
             value={form.sequence_name}
             onChange={(event) => setForm((current) => ({ ...current, sequence_name: event.target.value }))}
-            className="w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+            className={`w-full border px-4 py-3 outline-none transition ${fieldTone}`}
           />
         </label>
         <label className="block">
-          <span className="block mb-2 text-xs font-semibold tracking-[0.15em] uppercase opacity-60">Jornada</span>
+          <span className={`block mb-2 text-xs font-semibold tracking-[0.15em] uppercase ${muted}`}>Jornada</span>
           <input
             value={form.journey_name}
             onChange={(event) => setForm((current) => ({ ...current, journey_name: event.target.value }))}
-            className="w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+            className={`w-full border px-4 py-3 outline-none transition ${fieldTone}`}
           />
         </label>
         <label className="block">
-          <span className="block mb-2 text-xs font-semibold tracking-[0.15em] uppercase opacity-60">Template de email</span>
+          <span className={`block mb-2 text-xs font-semibold tracking-[0.15em] uppercase ${muted}`}>Template de email</span>
           <input
             value={form.email_template}
             onChange={(event) => setForm((current) => ({ ...current, email_template: event.target.value }))}
-            className="w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+            className={`w-full border px-4 py-3 outline-none transition ${fieldTone}`}
           />
         </label>
         <label className="block">
-          <span className="block mb-2 text-xs font-semibold tracking-[0.15em] uppercase opacity-60">Template de WhatsApp</span>
+          <span className={`block mb-2 text-xs font-semibold tracking-[0.15em] uppercase ${muted}`}>Template de WhatsApp</span>
           <input
             value={form.whatsapp_template}
             onChange={(event) => setForm((current) => ({ ...current, whatsapp_template: event.target.value }))}
-            className="w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+            className={`w-full border px-4 py-3 outline-none transition ${fieldTone}`}
           />
         </label>
       </div>
 
       <div className="grid gap-4 mt-4 md:grid-cols-[220px,1fr]">
         <label className="block">
-          <span className="block mb-2 text-xs font-semibold tracking-[0.15em] uppercase opacity-60">Modo de execucao</span>
+          <span className={`block mb-2 text-xs font-semibold tracking-[0.15em] uppercase ${muted}`}>Modo de execucao</span>
           <select
             value={form.execution_mode}
             onChange={(event) => setForm((current) => ({ ...current, execution_mode: event.target.value }))}
-            className="w-full border border-[#2D2E2E] bg-[#050706] px-4 py-3 outline-none focus:border-[#C5A059]"
+            className={`w-full border px-4 py-3 outline-none transition ${fieldTone}`}
           >
             <option value="manual">manual</option>
             <option value="semi_auto">semi_auto</option>
@@ -153,17 +197,17 @@ function RuleCard({ rule, onSave }) {
         </label>
 
         <label className="block">
-          <span className="block mb-2 text-xs font-semibold tracking-[0.15em] uppercase opacity-60">Notas operacionais</span>
+          <span className={`block mb-2 text-xs font-semibold tracking-[0.15em] uppercase ${muted}`}>Notas operacionais</span>
           <textarea
             value={form.notes}
             onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
             rows={3}
-            className="w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+            className={`w-full border px-4 py-3 outline-none transition ${fieldTone}`}
           />
         </label>
       </div>
 
-      <label className="mt-4 inline-flex items-center gap-3 text-sm opacity-80">
+      <label className={`mt-4 inline-flex items-center gap-3 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-80"}`}>
         <input
           type="checkbox"
           checked={form.enabled}
@@ -181,14 +225,15 @@ function RuleCard({ rule, onSave }) {
         >
           {state.loading ? "Salvando..." : "Salvar regra"}
         </button>
-        {state.success ? <p className="text-sm text-emerald-400">{state.success}</p> : null}
-        {state.error ? <p className="text-sm text-red-300">{state.error}</p> : null}
+        {state.success ? <p className={`text-sm ${isLightTheme ? "text-emerald-700" : "text-emerald-400"}`}>{state.success}</p> : null}
+        {state.error ? <p className={`text-sm ${isLightTheme ? "text-red-700" : "text-red-300"}`}>{state.error}</p> : null}
       </div>
     </div>
   );
 }
 
 export default function AgentLabWorkflowsPage() {
+  const { isLightTheme } = useInternalTheme();
   const state = useAgentLabData();
   const rules = useMemo(() => state.data?.crm?.automationRules || [], [state.data]);
   const runs = useMemo(() => state.data?.crm?.automationRuns || [], [state.data]);
@@ -494,6 +539,19 @@ export default function AgentLabWorkflowsPage() {
     state.refresh();
   }
 
+  const panelCardTone = isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]";
+  const fieldTone = isLightTheme
+    ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]"
+    : "border-[#2D2E2E] bg-transparent focus:border-[#C5A059]";
+  const subtle = isLightTheme ? "text-[#9ca3af]" : "opacity-45";
+  const muted = isLightTheme ? "text-[#6b7280]" : "opacity-70";
+  const bodyMuted = isLightTheme ? "text-[#4b5563]" : "opacity-80";
+  const actionTone = isLightTheme
+    ? "border-[#d7d4cb] bg-white text-[#374151] hover:border-[#9a6d14] hover:text-[#9a6d14]"
+    : "border-[#2D2E2E] hover:border-[#C5A059] hover:text-[#C5A059]";
+  const successTone = isLightTheme ? "text-emerald-700" : "text-emerald-400";
+  const errorTone = isLightTheme ? "text-red-700" : "text-red-300";
+
   return (
     <RequireAdmin>
       {(profile) => (
@@ -504,39 +562,37 @@ export default function AgentLabWorkflowsPage() {
         >
           <AgentLabModuleNav />
 
-          <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6 mb-6">
-            <h3 className="font-serif text-2xl mb-4">Workflow backlog</h3>
-            <div className="space-y-4 text-sm opacity-75">
+          <Panel title="Workflow backlog" className="mb-6">
+            <div className={`space-y-4 text-sm ${muted}`}>
               {(state.data?.rollout?.workflows || []).map((item) => (
-                <div key={item.id} className="border border-[#2D2E2E] p-4">
+                <div key={item.id} className={`border p-4 ${panelCardTone}`}>
                   <p className="font-semibold">{item.title}</p>
                   <p>{item.outcome}</p>
                 </div>
               ))}
             </div>
-          </div>
+          </Panel>
 
           <div className="grid gap-6 mb-6 xl:grid-cols-2">
-            <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
-              <h3 className="font-serif text-2xl mb-4">Workflow library sugerida</h3>
+            <Panel title="Workflow library sugerida">
               <div className="grid gap-4 mb-6">
                 <input
                   value={workflowLibraryForm.title}
                   onChange={(event) => setWorkflowLibraryForm((current) => ({ ...current, title: event.target.value }))}
-                  className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                  className={`border px-4 py-3 outline-none transition ${fieldTone}`}
                   placeholder="Titulo do workflow"
                 />
                 <div className="grid gap-4 md:grid-cols-2">
                   <input
                     value={workflowLibraryForm.type}
                     onChange={(event) => setWorkflowLibraryForm((current) => ({ ...current, type: event.target.value }))}
-                    className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                    className={`border px-4 py-3 outline-none transition ${fieldTone}`}
                     placeholder="Tipo"
                   />
                   <input
                     value={workflowLibraryForm.status}
                     onChange={(event) => setWorkflowLibraryForm((current) => ({ ...current, status: event.target.value }))}
-                    className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                    className={`border px-4 py-3 outline-none transition ${fieldTone}`}
                     placeholder="Status"
                   />
                 </div>
@@ -544,21 +600,21 @@ export default function AgentLabWorkflowsPage() {
                   value={workflowLibraryForm.notes}
                   onChange={(event) => setWorkflowLibraryForm((current) => ({ ...current, notes: event.target.value }))}
                   rows={3}
-                  className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                  className={`border px-4 py-3 outline-none transition ${fieldTone}`}
                   placeholder="Notas operacionais do workflow"
                 />
                 <div className="flex flex-wrap items-center gap-3">
-                  <button type="button" onClick={handleSaveWorkflowLibraryItem} className="border border-[#C5A059] px-4 py-3 text-sm">
+                  <button type="button" onClick={handleSaveWorkflowLibraryItem} className="border border-[#C5A059] px-4 py-3 text-sm transition hover:bg-[rgba(197,160,89,0.12)]">
                     Salvar workflow
                   </button>
-                  {workflowLibrarySaveState.success ? <p className="text-sm text-emerald-400">{workflowLibrarySaveState.success}</p> : null}
-                  {workflowLibrarySaveState.error ? <p className="text-sm text-red-300">{workflowLibrarySaveState.error}</p> : null}
+                  {workflowLibrarySaveState.success ? <p className={`text-sm ${successTone}`}>{workflowLibrarySaveState.success}</p> : null}
+                  {workflowLibrarySaveState.error ? <p className={`text-sm ${errorTone}`}>{workflowLibrarySaveState.error}</p> : null}
                 </div>
               </div>
-              <div className="space-y-4 text-sm opacity-75">
+              <div className={`space-y-4 text-sm ${muted}`}>
                 {workflowLibrary.map((item) => (
-                  <div key={item.id} className="border border-[#2D2E2E] p-4">
-                    <div className="flex flex-wrap gap-3 mb-2 text-xs uppercase tracking-[0.15em] opacity-50">
+                  <div key={item.id} className={`border p-4 ${panelCardTone}`}>
+                    <div className={`flex flex-wrap gap-3 mb-2 text-xs uppercase tracking-[0.15em] ${subtle}`}>
                       <span>{item.type}</span>
                       <span>{item.status}</span>
                     </div>
@@ -567,45 +623,44 @@ export default function AgentLabWorkflowsPage() {
                   </div>
                 ))}
               </div>
-            </div>
+            </Panel>
 
-            <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
-              <h3 className="font-serif text-2xl mb-4">Catalogo de intents</h3>
+            <Panel title="Catalogo de intents">
               <div className="grid gap-4 mb-6">
                 <input
                   value={intentForm.label}
                   onChange={(event) => setIntentForm((current) => ({ ...current, label: event.target.value }))}
-                  className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                  className={`border px-4 py-3 outline-none transition ${fieldTone}`}
                   placeholder="Rotulo da intent"
                 />
                 <textarea
                   value={intentForm.examples}
                   onChange={(event) => setIntentForm((current) => ({ ...current, examples: event.target.value }))}
                   rows={4}
-                  className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                  className={`border px-4 py-3 outline-none transition ${fieldTone}`}
                   placeholder={"Um exemplo por linha"}
                 />
                 <textarea
                   value={intentForm.policy}
                   onChange={(event) => setIntentForm((current) => ({ ...current, policy: event.target.value }))}
                   rows={3}
-                  className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                  className={`border px-4 py-3 outline-none transition ${fieldTone}`}
                   placeholder="Politica de resposta e roteamento"
                 />
                 <div className="flex flex-wrap items-center gap-3">
-                  <button type="button" onClick={handleSaveIntent} className="border border-[#C5A059] px-4 py-3 text-sm">
+                  <button type="button" onClick={handleSaveIntent} className="border border-[#C5A059] px-4 py-3 text-sm transition hover:bg-[rgba(197,160,89,0.12)]">
                     Salvar intent
                   </button>
-                  {intentSaveState.success ? <p className="text-sm text-emerald-400">{intentSaveState.success}</p> : null}
-                  {intentSaveState.error ? <p className="text-sm text-red-300">{intentSaveState.error}</p> : null}
+                  {intentSaveState.success ? <p className={`text-sm ${successTone}`}>{intentSaveState.success}</p> : null}
+                  {intentSaveState.error ? <p className={`text-sm ${errorTone}`}>{intentSaveState.error}</p> : null}
                 </div>
               </div>
-              <div className="space-y-4 text-sm opacity-75">
+              <div className={`space-y-4 text-sm ${muted}`}>
                 {intents.map((item) => (
-                  <div key={item.id} className="border border-[#2D2E2E] p-4">
+                  <div key={item.id} className={`border p-4 ${panelCardTone}`}>
                     <p className="font-semibold">{item.label}</p>
                     <p className="mt-2">{item.policy}</p>
-                    <div className="mt-3 space-y-1 text-xs opacity-60">
+                    <div className={`mt-3 space-y-1 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>
                       {(item.examples || []).map((example) => (
                         <p key={example}>• {example}</p>
                       ))}
@@ -613,100 +668,80 @@ export default function AgentLabWorkflowsPage() {
                   </div>
                 ))}
               </div>
-            </div>
+            </Panel>
           </div>
 
-          <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-              <div>
-                <h3 className="font-serif text-2xl">Regras de automacao CRM</h3>
-                <p className="text-sm opacity-65 mt-2">
-                  Defina o que cada evento do funil deve disparar no Freshsales Suite.
-                </p>
-              </div>
-              <div className="text-xs uppercase tracking-[0.15em] opacity-45">
-                {rules.length} regras carregadas
-              </div>
-            </div>
-
+          <Panel
+            title="Regras de automacao CRM"
+            subtitle="Defina o que cada evento do funil deve disparar no Freshsales Suite."
+            meta={`${rules.length} regras carregadas`}
+          >
             <div className="space-y-5">
               {rules.map((rule) => (
                 <RuleCard key={rule.id} rule={rule} onSave={handleSaveRule} />
               ))}
             </div>
-          </div>
+          </Panel>
 
-          <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6 mt-6">
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-              <div>
-                <h3 className="font-serif text-2xl">Execucoes recentes</h3>
-                <p className="text-sm opacity-65 mt-2">
-                  Trilhas geradas pelos eventos do agendamento para operar sequencias, jornadas e campanhas.
-                </p>
-              </div>
-              <div className="text-xs uppercase tracking-[0.15em] opacity-45">
-                {runs.length} execucoes
-              </div>
-            </div>
+          <Panel
+            title="Execucoes recentes"
+            subtitle="Trilhas geradas pelos eventos do agendamento para operar sequencias, jornadas e campanhas."
+            meta={`${runs.length} execucoes`}
+            className="mt-6"
+          >
 
             <div className="space-y-4">
               {runs.length ? runs.map((run) => (
-                <div key={run.id} className="border border-[#2D2E2E] p-4">
+                <div key={run.id} className={`border p-4 ${panelCardTone}`}>
                   <div className="flex flex-wrap items-center gap-3 mb-3">
                     <span className="text-[10px] font-semibold tracking-[0.2em]" style={{ color: "#C5A059" }}>
                       {run.event_key}
                     </span>
-                    <span className="text-[10px] uppercase tracking-[0.15em] opacity-45">{run.status}</span>
-                    <span className="text-[10px] uppercase tracking-[0.15em] opacity-45">{run.execution_mode}</span>
+                    <span className={`text-[10px] uppercase tracking-[0.15em] ${subtle}`}>{run.status}</span>
+                    <span className={`text-[10px] uppercase tracking-[0.15em] ${subtle}`}>{run.execution_mode}</span>
                   </div>
-                  <p className="text-sm opacity-80 mb-2">
+                  <p className={`mb-2 text-sm ${bodyMuted}`}>
                     Referencia: {run.source_ref || "sem referencia"} | Criado em {run.created_at || "sem data"}
                   </p>
-                  <div className="space-y-1 text-sm opacity-70">
+                  <div className={`space-y-1 text-sm ${muted}`}>
                     {Array.isArray(run.planned_actions) && run.planned_actions.length ? run.planned_actions.map((action) => (
                       <p key={action}>• {action}</p>
                     )) : <p>Nenhuma acao planejada registrada.</p>}
                   </div>
                 </div>
               )) : (
-                <div className="border border-[#2D2E2E] p-4 text-sm opacity-70">
+                <div className={`border p-4 text-sm ${panelCardTone} ${muted}`}>
                   Ainda nao ha execucoes registradas. Elas aparecem quando eventos como `booked`, `confirmed`, `attended` e `no_show` passam pelo fluxo.
                 </div>
               )}
             </div>
-          </div>
+          </Panel>
 
-          <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6 mt-6">
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-              <div>
-                <h3 className="font-serif text-2xl">Templates operacionais</h3>
-                <p className="text-sm opacity-65 mt-2">
-                  Edite o texto-base usado pelo dispatcher para email e WhatsApp.
-                </p>
-              </div>
-              <div className="text-xs uppercase tracking-[0.15em] opacity-45">
-                {messageTemplates.length} templates
-              </div>
-            </div>
+          <Panel
+            title="Templates operacionais"
+            subtitle="Edite o texto-base usado pelo dispatcher para email e WhatsApp."
+            meta={`${messageTemplates.length} templates`}
+            className="mt-6"
+          >
 
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block">
-                <span className="block mb-2 text-xs font-semibold tracking-[0.15em] uppercase opacity-60">Canal</span>
+                <span className={`block mb-2 text-xs font-semibold tracking-[0.15em] uppercase ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Canal</span>
                 <select
                   value={templateForm.channel}
                   onChange={(event) => setTemplateForm((current) => ({ ...current, channel: event.target.value }))}
-                  className="w-full border border-[#2D2E2E] bg-[#050706] px-4 py-3 outline-none focus:border-[#C5A059]"
+                  className={`w-full border px-4 py-3 outline-none transition ${fieldTone}`}
                 >
                   <option value="email">email</option>
                   <option value="whatsapp">whatsapp</option>
                 </select>
               </label>
               <label className="block">
-                <span className="block mb-2 text-xs font-semibold tracking-[0.15em] uppercase opacity-60">Template name</span>
+                <span className={`block mb-2 text-xs font-semibold tracking-[0.15em] uppercase ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Template name</span>
                 <input
                   value={templateForm.template_name}
                   onChange={(event) => setTemplateForm((current) => ({ ...current, template_name: event.target.value }))}
-                  className="w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                  className={`w-full border px-4 py-3 outline-none transition ${fieldTone}`}
                 />
               </label>
               <label className="block md:col-span-2">
@@ -714,7 +749,7 @@ export default function AgentLabWorkflowsPage() {
                 <input
                   value={templateForm.subject}
                   onChange={(event) => setTemplateForm((current) => ({ ...current, subject: event.target.value }))}
-                  className="w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                  className={`w-full border px-4 py-3 outline-none transition ${fieldTone}`}
                 />
               </label>
               <label className="block md:col-span-2">
@@ -723,27 +758,27 @@ export default function AgentLabWorkflowsPage() {
                   value={templateForm.body_html}
                   onChange={(event) => setTemplateForm((current) => ({ ...current, body_html: event.target.value }))}
                   rows={6}
-                  className="w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                  className={`w-full border px-4 py-3 outline-none transition ${fieldTone}`}
                   placeholder="<p>Olá, {{nome}}</p>"
                 />
               </label>
               <label className="block md:col-span-2">
-                <span className="block mb-2 text-xs font-semibold tracking-[0.15em] uppercase opacity-60">Body text</span>
+                <span className={`block mb-2 text-xs font-semibold tracking-[0.15em] uppercase ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Body text</span>
                 <textarea
                   value={templateForm.body_text}
                   onChange={(event) => setTemplateForm((current) => ({ ...current, body_text: event.target.value }))}
                   rows={5}
-                  className="w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                  className={`w-full border px-4 py-3 outline-none transition ${fieldTone}`}
                   placeholder="Ola, {{nome}}. Sua consulta esta marcada para {{data}}, as {{hora}}. {{zoom_link}}"
                 />
               </label>
               <label className="block md:col-span-2">
-                <span className="block mb-2 text-xs font-semibold tracking-[0.15em] uppercase opacity-60">Notas</span>
+                <span className={`block mb-2 text-xs font-semibold tracking-[0.15em] uppercase ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Notas</span>
                 <textarea
                   value={templateForm.notes}
                   onChange={(event) => setTemplateForm((current) => ({ ...current, notes: event.target.value }))}
                   rows={3}
-                  className="w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                  className={`w-full border px-4 py-3 outline-none transition ${fieldTone}`}
                 />
               </label>
             </div>
@@ -757,27 +792,32 @@ export default function AgentLabWorkflowsPage() {
               >
                 {templateSaveState.loading ? "Salvando..." : "Salvar template"}
               </button>
-              {templateSaveState.success ? <p className="text-sm text-emerald-400">{templateSaveState.success}</p> : null}
-              {templateSaveState.error ? <p className="text-sm text-red-300">{templateSaveState.error}</p> : null}
+              {templateSaveState.success ? <p className={`text-sm ${successTone}`}>{templateSaveState.success}</p> : null}
+              {templateSaveState.error ? <p className={`text-sm ${errorTone}`}>{templateSaveState.error}</p> : null}
             </div>
 
             <div className="space-y-3 mt-6">
               {messageTemplates.length ? messageTemplates.map((item) => (
-                <div key={item.id} className="border border-[#2D2E2E] p-4 text-sm">
+                <div key={item.id} className={`border p-4 text-sm ${panelCardTone}`}>
                   <p className="font-semibold">{item.channel} · {item.template_name}</p>
-                  <p className="opacity-75">{item.subject || "Sem subject"}</p>
-                  {item.body_text ? <p className="opacity-70 mt-2 whitespace-pre-wrap">{item.body_text}</p> : null}
-                  {item.notes ? <p className="opacity-60 mt-2">{item.notes}</p> : null}
+                  <p className={muted}>{item.subject || "Sem subject"}</p>
+                  {item.body_text ? <p className={`mt-2 whitespace-pre-wrap ${bodyMuted}`}>{item.body_text}</p> : null}
+                  {item.notes ? <p className={`mt-2 ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>{item.notes}</p> : null}
                 </div>
               )) : (
-                <div className="border border-[#2D2E2E] p-4 text-sm opacity-70">
+                <div className={`border p-4 text-sm ${panelCardTone} ${muted}`}>
                   Ainda nao ha templates customizados. O dispatcher usa fallback padrao enquanto isso.
                 </div>
               )}
             </div>
-          </div>
+          </Panel>
 
-          <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6 mt-6">
+          <Panel
+            title="Fila de sequences e journeys"
+            subtitle="Como o Freshsales nem sempre expoe API publica para esses recursos, o AgentLab mantem uma fila guiada com rastreabilidade."
+            meta={`${actionQueue.length} acoes`}
+            className="mt-6"
+          >
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
               <div>
                 <h3 className="font-serif text-2xl">Fila de sequences e journeys</h3>
@@ -792,7 +832,7 @@ export default function AgentLabWorkflowsPage() {
 
             <div className="space-y-4">
               {actionQueue.length ? actionQueue.map((item) => (
-                <div key={item.id} className="border border-[#2D2E2E] p-4">
+                <div key={item.id} className={`border p-4 ${panelCardTone}`}>
                   <div className="flex flex-wrap items-center gap-3 mb-3">
                     <span className="text-[10px] font-semibold tracking-[0.2em]" style={{ color: "#C5A059" }}>
                       {item.action_type}
@@ -821,7 +861,7 @@ export default function AgentLabWorkflowsPage() {
                       <button
                         type="button"
                         onClick={() => handleUpdateActionQueueItem(item, "done")}
-                        className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]"
+                        className={`border px-3 py-2 text-xs transition ${actionTone}`}
                       >
                         Marcar concluida
                       </button>
@@ -830,7 +870,7 @@ export default function AgentLabWorkflowsPage() {
                       <button
                         type="button"
                         onClick={() => handleUpdateActionQueueItem(item, "failed")}
-                        className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]"
+                        className={`border px-3 py-2 text-xs transition ${actionTone}`}
                       >
                         Marcar falha
                       </button>
@@ -839,7 +879,7 @@ export default function AgentLabWorkflowsPage() {
                       <button
                         type="button"
                         onClick={() => handleUpdateActionQueueItem(item, "pending")}
-                        className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]"
+                        className={`border px-3 py-2 text-xs transition ${actionTone}`}
                       >
                         Voltar para fila
                       </button>
@@ -847,39 +887,27 @@ export default function AgentLabWorkflowsPage() {
                   </div>
                 </div>
               )) : (
-                <div className="border border-[#2D2E2E] p-4 text-sm opacity-70">
+                <div className={`border p-4 text-sm ${panelCardTone} ${muted}`}>
                   Ainda nao ha sequences ou journeys na fila. Elas aparecem quando uma regra configurada usa esses recursos.
                 </div>
               )}
             </div>
           </div>
 
-          <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6 mt-6">
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-              <div>
-                <h3 className="font-serif text-2xl">Dispatch real</h3>
-                <p className="text-sm opacity-65 mt-2">
-                  E-mails operacionais enviados e fila de WhatsApp gerada a partir das regras.
-                </p>
-              </div>
-              <div className="text-xs uppercase tracking-[0.15em] opacity-45">
-                {dispatchRuns.length} dispatches
-              </div>
-            </div>
-
+          <Panel title="Dispatch real" subtitle="E-mails operacionais enviados e fila de WhatsApp gerada a partir das regras." meta={`${dispatchRuns.length} dispatches`} className="mt-6">
             <div className="space-y-4">
               {dispatchRuns.length ? dispatchRuns.map((run) => (
-                <div key={run.id} className="border border-[#2D2E2E] p-4">
+                <div key={run.id} className={`border p-4 ${panelCardTone}`}>
                   <div className="flex flex-wrap items-center gap-3 mb-3">
                     <span className="text-[10px] font-semibold tracking-[0.2em]" style={{ color: "#C5A059" }}>
                       {run.channel}
                     </span>
-                    <span className="text-[10px] uppercase tracking-[0.15em] opacity-45">{run.status}</span>
+                    <span className={`text-[10px] uppercase tracking-[0.15em] ${subtle}`}>{run.status}</span>
                   </div>
                   <p className="text-sm opacity-80">{run.template_name || "sem template"} · {run.recipient_ref || "sem destinatario"}</p>
                   {run.detail ? <p className="text-sm opacity-60 mt-2">{run.detail}</p> : null}
                   {run.payload?.message_preview ? (
-                    <div className="mt-3 border border-[#2D2E2E] bg-[rgba(255,255,255,0.02)] p-3 text-sm whitespace-pre-wrap opacity-80">
+                    <div className={`mt-3 border p-3 text-sm whitespace-pre-wrap ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#4b5563]" : "border-[#2D2E2E] bg-[rgba(255,255,255,0.02)] opacity-80"}`}>
                       {run.payload.message_preview}
                     </div>
                   ) : null}
@@ -889,7 +917,7 @@ export default function AgentLabWorkflowsPage() {
                         <button
                           type="button"
                           onClick={() => handleUpdateDispatch(run, "approved")}
-                          className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]"
+                          className={`border px-3 py-2 text-xs transition ${actionTone}`}
                         >
                           Aprovar fila
                         </button>
@@ -921,12 +949,12 @@ export default function AgentLabWorkflowsPage() {
                   ) : null}
                 </div>
               )) : (
-                <div className="border border-[#2D2E2E] p-4 text-sm opacity-70">
+                <div className={`border p-4 text-sm ${panelCardTone} ${muted}`}>
                   Ainda nao ha dispatches registrados. Eles passam a aparecer quando uma regra em modo `auto` ou `semi_auto` gerar envio real ou fila.
                 </div>
               )}
             </div>
-          </div>
+          </Panel>
 
           <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6 mt-6">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">

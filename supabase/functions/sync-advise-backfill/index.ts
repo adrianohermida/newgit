@@ -13,7 +13,7 @@ const ADVISE_TOKEN = Deno.env.get("ADVISE_TOKEN")!;
 const ADVISE_URL =
   "https://api.advise.com.br/core/v1/publicacoes-clientes/consulta-paginada";
 
-const PAGINAS_POR_EXECUCAO = 10;
+const PAGINAS_POR_EXECUCAO = 25;
 
 serve(async () => {
 

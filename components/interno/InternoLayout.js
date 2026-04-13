@@ -1606,6 +1606,7 @@ export default function InternoLayout({
     ? rightRail({ moduleKey: currentModuleKey, moduleHistory, activityLog })
     : rightRail;
   const consoleReservedSpace = consoleOpen ? consoleHeight + 20 : 52;
+  const copilotConsoleInset = isCopilotWorkspace ? consoleReservedSpace + (isMobileShell ? 12 : 16) : 0;
   const consoleDockLeft = hideShellSidebar ? 0 : isMobileShell ? 0 : leftCollapsed ? 88 : 272;
   const desktopRightRailWidth = rightRailMode === "compact" ? 320 : 388;
   const consoleDockRight = !isMobileShell && shouldRenderDotobotRail && !rightCollapsed ? desktopRightRailWidth : 0;
@@ -1812,7 +1813,10 @@ export default function InternoLayout({
               </div>
             </header>
           ) : null}
-          <div className={`flex min-h-0 flex-1 flex-col ${isCopilotWorkspace ? "overflow-hidden px-3 pb-3 md:px-4 md:pb-4" : "gap-6 px-4 pb-4 md:px-6 md:pb-6"}`}>
+          <div
+            className={`flex min-h-0 flex-1 flex-col ${isCopilotWorkspace ? "overflow-hidden px-3 pt-3 md:px-4 md:pt-4" : "gap-6 px-4 pb-4 md:px-6 md:pb-6"}`}
+            style={isCopilotWorkspace ? { paddingBottom: `${copilotConsoleInset}px` } : undefined}
+          >
             {!isCopilotWorkspace ? <IntegrationGuideCard guide={integrationGuide} /> : null}
             {children}
             {showExtensionManager && !isCopilotWorkspace ? <DotobotExtensionManager /> : null}

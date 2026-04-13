@@ -8,6 +8,7 @@
     "build:core": "node scripts/guard-next-build-lock.cjs",
     "build": "npm run build:core && node scripts/normalize-pages-export-assets.js",
     "build:pages": "npm run build",
+    "diagnose:pages-assets": "node scripts/diagnose-pages-export-assets.cjs",
     "deploy:pages": "npm run build:pages && node scripts/guard-pages-static-deploy.cjs && npx wrangler pages deploy out --project-name=newgit-pages",
     "deploy:hmadv-ai": "powershell -ExecutionPolicy Bypass -File scripts/deploy-hmadv-process-ai.ps1",
     "diagnose:hmadv-ai": "powershell -ExecutionPolicy Bypass -File scripts/diagnose-hmadv-process-ai.ps1",

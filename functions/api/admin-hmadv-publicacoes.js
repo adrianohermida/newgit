@@ -68,6 +68,14 @@ function buildQueueFallback({ page, pageSize, error }) {
   };
 }
 
+function isLegacyPartesAction(action) {
+  return action === "backfill_partes" || action === "sincronizar_partes" || action === "reconciliar_partes_contatos";
+}
+
+function buildLegacyPartesActionError() {
+  return new Error("As acoes de partes foram centralizadas no modulo de processos. Use /interno/processos para extracao, reconciliacao e CRM de partes.");
+}
+
 function normalizeSearchText(value) {
   return String(value || "")
     .normalize("NFD")
@@ -432,15 +440,14 @@ export async function onRequestPost(context) {
         return jsonError(error, 500);
       }
     }
-    if (action === "backfill_partes") {
-      return runLogged(async () => backfillPartesFromPublicacoes(context.env, {
-        processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 15),
-        apply: Boolean(body.apply),
-      }));
+    if (isLegacyPartesAction(action)) {
+      return jsonError(buildLegacyPartesActionError(), 409);
     }
     if (action === "create_job") {
       try {
+          if (isLegacyPartesAction(String(body.jobAction || ""))) {
+            return jsonError(buildLegacyPartesActionError(), 409);
+          }
           const data = await createPublicacoesAdminJob(context.env, {
             action: String(body.jobAction || ""),
             payload: {
@@ -502,12 +509,6 @@ export async function onRequestPost(context) {
         return jsonError(error, 500);
       }
     }
-    if (action === "sincronizar_partes") {
-      return runLogged(async () => syncPartesFromPublicacoes(context.env, {
-        processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 10),
-      }));
-    }
     if (action === "criar_processos_publicacoes") {
       return runLogged(async () => createProcessesFromPublicacoes(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
@@ -518,13 +519,6 @@ export async function onRequestPost(context) {
       return runLogged(async () => syncPublicationActivities(context.env, {
         processNumbers: parseProcessNumbers(body.processNumbers),
         limit: Number(body.limit || 5),
-      }));
-    }
-    if (action === "reconciliar_partes_contatos") {
-      return runLogged(async () => reconcilePartesContacts(context.env, {
-        processNumbers: parseProcessNumbers(body.processNumbers),
-        limit: Number(body.limit || 20),
-        apply: Boolean(body.apply),
       }));
     }
     if (action === "salvar_validacao") {

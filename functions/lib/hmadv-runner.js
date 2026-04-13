@@ -408,23 +408,36 @@ async function runDatajudTaggedPipeline(env) {
 async function runAdviseSyncPipeline(env) {
   const result = {
     ok: true,
-    backfill: null,
+    backfill: [],
     incremental: null,
   };
 
-  try {
-    result.backfill = await callHmadvFunction(
-      env,
-      "sync-advise-backfill",
-      {},
-      { method: "POST", body: {} }
-    );
-  } catch (error) {
-    result.ok = false;
-    result.backfill = {
-      ok: false,
-      error: error?.message || "Falha ao rodar backfill Advise.",
-    };
+  for (let round = 0; round < 6; round += 1) {
+    try {
+      const backfillRun = await callHmadvFunction(
+        env,
+        "sync-advise-backfill",
+        {},
+        { method: "POST", body: {} }
+      );
+      result.backfill.push(backfillRun);
+      if (String(backfillRun?.status || "").toLowerCase() === "concluido") {
+        break;
+      }
+      const totalPaginas = Number(backfillRun?.total_paginas || 0);
+      const paginaInicial = Number(backfillRun?.pagina_inicial || 0);
+      const paginasProcessadas = Number(backfillRun?.paginas_processadas || 0);
+      if (totalPaginas > 0 && paginaInicial > 0 && paginaInicial + paginasProcessadas > totalPaginas) {
+        break;
+      }
+    } catch (error) {
+      result.ok = false;
+      result.backfill.push({
+        ok: false,
+        error: error?.message || "Falha ao rodar backfill Advise.",
+      });
+      break;
+    }
   }
 
   try {
@@ -434,7 +447,7 @@ async function runAdviseSyncPipeline(env) {
       {
         action: "sync",
         por_pagina: 100,
-        max_paginas: 5,
+        max_paginas: 12,
       },
       { method: "POST", body: {} }
     );

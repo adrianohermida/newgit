@@ -1625,21 +1625,37 @@ export async function getProcessosOverview(env) {
 }
 
 export async function getPublicacoesOverview(env) {
-  const [publicacoesTotal, publicacoesComActivity, publicacoesPendentesComAccount, publicacoesLeilaoIgnorado, publicacoesSemProcesso, partesTotal] = await Promise.all([
+  const [publicacoesTotal, publicacoesComActivity, publicacoesPendentesComAccount, publicacoesLeilaoIgnorado, publicacoesSemProcesso, partesTotal, adviseSync] = await Promise.all([
     countTable(env, "publicacoes"),
     countTable(env, "publicacoes", "freshsales_activity_id=not.is.null"),
     countTable(env, "publicacoes", "freshsales_activity_id=is.null&processo_id=not.is.null"),
     countTable(env, "publicacoes", "freshsales_activity_id=eq.LEILAO_IGNORADO"),
     countTable(env, "publicacoes", "processo_id=is.null"),
     countTable(env, "partes"),
+    hmadvFunction(env, "advise-sync", { action: "status" }).catch((error) => ({
+      ok: false,
+      unavailable: true,
+      error: error?.message || "Falha ao consultar o status do advise-sync.",
+      functionName: "advise-sync",
+    })),
   ]);
+  const publicacoesOperacionais = Math.max(0, Number(publicacoesTotal || 0) - Number(publicacoesLeilaoIgnorado || 0));
+  const publicacoesVinculadas = Math.max(0, Number(publicacoesTotal || 0) - Number(publicacoesSemProcesso || 0));
+  const adviseCursor = adviseSync?.status_cursor || adviseSync?.ultima_execucao || null;
+  const adviseCursorTotal = Number(adviseCursor?.total_registros || adviseSync?.publicacoes_total || 0);
+  const advisePersistedDelta = adviseCursorTotal > 0 ? Math.max(0, adviseCursorTotal - Number(publicacoesTotal || 0)) : 0;
   return {
     publicacoesTotal,
+    publicacoesOperacionais,
+    publicacoesVinculadas,
     publicacoesComActivity,
     publicacoesPendentesComAccount,
     publicacoesLeilaoIgnorado,
     publicacoesSemProcesso,
     partesTotal,
+    adviseSync,
+    adviseCursorTotal,
+    advisePersistedDelta,
   };
 }
 
@@ -4431,7 +4447,14 @@ function normalizePublicacoesJobPayload(action, payload = {}) {
   };
 }
 
+function isLegacyPublicacoesPartesAction(action) {
+  return action === "backfill_partes" || action === "sincronizar_partes" || action === "reconciliar_partes_contatos";
+}
+
 export async function createPublicacoesAdminJob(env, { action, payload = {} } = {}) {
+  if (isLegacyPublicacoesPartesAction(action)) {
+    throw new Error("As acoes de partes foram centralizadas no modulo de processos. Use /interno/processos para esse fluxo.");
+  }
   const normalizedPayload = normalizePublicacoesJobPayload(action, payload);
   const targets = await resolvePublicacoesJobTargets(env, action, normalizedPayload.processNumbers);
   const job = await insertOperationJob(env, {
@@ -4461,6 +4484,9 @@ export async function getPublicacoesAdminJob(env, id) {
 
 async function runPublicacoesJobAction(env, action, processNumbers, limit, options = {}) {
   const { apply = true } = options;
+  if (isLegacyPublicacoesPartesAction(action)) {
+    throw new Error("As acoes de partes foram centralizadas no modulo de processos. Use /interno/processos para esse fluxo.");
+  }
   if (action === "criar_processos_publicacoes") {
     return createProcessesFromPublicacoes(env, { processNumbers, limit });
   }

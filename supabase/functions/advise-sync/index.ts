@@ -7,9 +7,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
  *
  * Regras:
  *   - Só busca publicações NOVAS (após a última data já armazenada ou D-1)
- *   - EXCLUI qualquer publicação cuja palavrasChave contenha 'leilão' ou 'leilões'
- *     OU cujo despacho/conteúdo contenha esses termos
- *   - Persiste novas publicações em judiciario.publicacoes
+ *   - Persiste todas as publicações em judiciario.publicacoes
+ *   - Marca publicações de leilão apenas para exclusão operacional/CRM, sem perder o estoque bruto
  *   - Vincula processo_id automaticamente
  *   - Ao final dispara publicacoes-freshsales para enviar as novas ao FS
  *   - Registra log em advise_sync_log
@@ -33,7 +32,7 @@ const ADVISE_API_URL       = Deno.env.get('ADVISE_API_URL')      ?? 'https://api
 const ADVISE_API_TOKEN     = Deno.env.get('ADVISE_API_TOKEN') ?? Deno.env.get('ADVISE_TOKEN') ?? '';
 const ADVISE_CLIENTE_ID    = Deno.env.get('ADVISE_CLIENTE_ID') ?? Deno.env.get('ADVISE_CLIENT_ID') ?? '';
 const DEFAULT_POR_PAGINA   = Math.max(1, Number(Deno.env.get('ADVISE_SYNC_POR_PAGINA') ?? '50'));
-const DEFAULT_MAX_PAGINAS  = Math.max(1, Number(Deno.env.get('ADVISE_SYNC_MAX_PAGINAS') ?? '3'));
+const DEFAULT_MAX_PAGINAS  = Math.max(1, Number(Deno.env.get('ADVISE_SYNC_MAX_PAGINAS') ?? '12'));
 
 const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   db: { schema: 'judiciario' },
@@ -488,7 +487,9 @@ async function actionStatus(): Promise<Record<string,unknown>> {
   const statusRow = await getAdviseStatusRow();
   const [r1, r2, r3, r4] = await Promise.all([
     db.from('publicacoes').select('*',{count:'exact',head:true}),
-    db.from('publicacoes').select('*',{count:'exact',head:true}).is('freshsales_activity_id',null),
+    db.from('publicacoes').select('*',{count:'exact',head:true})
+      .is('freshsales_activity_id',null)
+      .not('processo_id','is',null),
     // Última execução do sync
     db.from('advise_sync_log').select('executado_em,data_inicio,data_fim,novas,erros')
       .order('executado_em',{ascending:false}).limit(1),

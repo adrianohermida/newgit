@@ -57,6 +57,14 @@ function normalizeSearchText(value) {
     .trim();
 }
 
+function isLegacyPartesAction(action) {
+  return action === "backfill_partes" || action === "sincronizar_partes" || action === "reconciliar_partes_contatos";
+}
+
+function buildLegacyPartesActionError() {
+  return "As acoes de partes foram centralizadas no modulo de processos. Use /interno/processos para extracao, reconciliacao e CRM de partes.";
+}
+
 function mapIntegratedQueueItem(source, row) {
   return {
     ...row,
@@ -414,16 +422,14 @@ export default async function handler(req, res) {
     if (req.method === "POST") {
       const action = String(req.body?.action || "");
       const adminIdentity = auth.profile?.email || auth.user?.email || auth.user?.id || "";
-      if (action === "backfill_partes") {
-        const data = await backfillPartesFromPublicacoes({
-          processNumbers: parseProcessNumbers(req.body?.processNumbers),
-          limit: Number(req.body?.limit || 50),
-          apply: Boolean(req.body?.apply),
-        });
-        return res.status(200).json({ ok: true, data });
+      if (isLegacyPartesAction(action)) {
+        return res.status(409).json({ ok: false, error: buildLegacyPartesActionError() });
       }
       if (action === "create_job") {
         try {
+          if (isLegacyPartesAction(String(req.body?.jobAction || ""))) {
+            return res.status(409).json({ ok: false, error: buildLegacyPartesActionError() });
+          }
           const data = await createPublicacoesAdminJob(runtimeEnv, {
             action: String(req.body?.jobAction || ""),
             payload: {
@@ -469,13 +475,6 @@ export default async function handler(req, res) {
         });
         return res.status(200).json({ ok: true, data });
       }
-      if (action === "sincronizar_partes") {
-        const data = await syncPartesFromPublicacoes(runtimeEnv, {
-          processNumbers: parseProcessNumbers(req.body?.processNumbers),
-          limit: Number(req.body?.limit || 10),
-        });
-        return res.status(200).json({ ok: true, data });
-      }
       if (action === "criar_processos_publicacoes") {
         const data = await createProcessesFromPublicacoes(runtimeEnv, {
           processNumbers: parseProcessNumbers(req.body?.processNumbers),
@@ -487,14 +486,6 @@ export default async function handler(req, res) {
         const data = await syncPublicationActivities(runtimeEnv, {
           processNumbers: parseProcessNumbers(req.body?.processNumbers),
           limit: Number(req.body?.limit || 5),
-        });
-        return res.status(200).json({ ok: true, data });
-      }
-      if (action === "reconciliar_partes_contatos") {
-        const data = await reconcilePartesContacts(runtimeEnv, {
-          processNumbers: parseProcessNumbers(req.body?.processNumbers),
-          limit: Number(req.body?.limit || 20),
-          apply: Boolean(req.body?.apply),
         });
         return res.status(200).json({ ok: true, data });
       }

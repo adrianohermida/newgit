@@ -9,13 +9,16 @@ binding = "AI"
 # Este wrangler.toml representa o projeto Cloudflare Pages `newgit-pages`.
 # O recurso `newgit` nao deve ser usado como alvo de deploy deste repositorio.
 #
-# Deploy manual:
-#   npx wrangler pages deploy out --project-name=newgit-pages
-#
 # No Pages Dashboard:
 #   Build command: npm run build
 #   Build output directory: out
 #   Deploy command: (deixe vazio)
+#
+# Importante:
+#   Evite publicar apenas `out/` manualmente via `wrangler pages deploy out`.
+#   Esse fluxo envia só os assets estáticos e pode deixar `functions/` e `/api/*`
+#   fora do ar ou dessincronizados em produção.
+#   Prefira o build conectado do Cloudflare Pages para publicar frontend + functions.
 #
 # Secrets configurados via Cloudflare Dashboard > Pages > Settings > Environment Variables:
 #   GOOGLE_CLIENT_ID

@@ -2636,9 +2636,9 @@ function PublicacoesContent() {
       </section>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Publicacoes totais" value={data.publicacoesTotal || 0} helper="Estoque atualmente persistido no HMADV." />
-        <MetricCard label="Com activity" value={data.publicacoesComActivity || 0} helper="Ja refletidas como activity no Freshsales." />
-        <MetricCard label="Pendentes" value={data.publicacoesPendentesComAccount || 0} helper="Ainda sem activity em processos com account vinculado." />
+        <MetricCard label="Publicacoes operacionais" value={data.publicacoesOperacionais || 0} helper="Total operacional no portal, excluindo itens marcados como leilao ignorado." />
+        <MetricCard label="Vinculadas" value={data.publicacoesVinculadas || 0} helper="Publicacoes que ja possuem processo vinculado no HMADV." />
+        <MetricCard label="Pendentes de sync" value={data.publicacoesPendentesComAccount || 0} helper="Publicacoes vinculadas ainda sem activity no Freshsales." />
         <MetricCard label="Sem processo" value={data.publicacoesSemProcesso || 0} helper="Publicacoes ainda sem processo vinculado no HMADV." />
       </div>
 
@@ -2652,10 +2652,15 @@ function PublicacoesContent() {
               <HealthBadge label={adviseLastRunAt ? `ultimo ciclo ${new Date(adviseLastRunAt).toLocaleString("pt-BR")}` : "ultimo ciclo indisponivel"} tone="default" />
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <QueueSummaryCard title="Recebidas do Advise" count={Number(adviseSync.publicacoes_total || 0)} helper="Estoque de publicacoes de origem Advise no projeto HMADV." />
-              <QueueSummaryCard title="Pendentes CRM" count={Number(adviseSync.publicacoes_pendentes_fs || 0)} helper="Publicacoes Advise ainda sem reflexo no Freshsales." />
+              <QueueSummaryCard title="Recebidas do Advise" count={Number(adviseSync.publicacoes_total || 0)} helper="Estoque de publicacoes de origem Advise persistido no HMADV." />
+              <QueueSummaryCard title="Pendentes de sync" count={Number(adviseSync.publicacoes_pendentes_fs || 0)} helper="Publicacoes Advise ainda sem reflexo no Freshsales." />
               <QueueSummaryCard title="Ultimo ciclo" count={adviseLastCycleTotal} helper="Total reportado pelo cursor do advise-sync no ciclo mais recente." />
               <QueueSummaryCard title="Ultimo lote worker" count={syncWorkerLastPublicacoes} helper="Quantidade de publicacoes no ultimo lote do sync-worker." />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <QueueSummaryCard title="Persistidas no banco" count={data.publicacoesTotal || 0} helper="Contagem atual em judiciario.publicacoes." />
+              <QueueSummaryCard title="Cursor Advise" count={data.adviseCursorTotal || 0} helper="Total de registros reportado pelo cursor do advise-sync." />
+              <QueueSummaryCard title="Delta Advise x banco" count={data.advisePersistedDelta || 0} helper="Se maior que zero, ainda existe backlog estrutural ou de throughput a absorver." accent={(data.advisePersistedDelta || 0) > 0 ? "text-[#FDE68A]" : "text-[#B7F7C6]"} />
             </div>
             {adviseCursor?.erro ? (
               <div className="rounded-[20px] border border-[#4B2222] bg-[rgba(127,29,29,0.12)] p-4 text-sm text-red-100">
@@ -2836,10 +2841,13 @@ function PublicacoesContent() {
           {overview.error ? <p className="text-sm text-red-300">{overview.error}</p> : null}
           {!overview.loading && !overview.error ? (
             <div className="space-y-3 text-sm opacity-75">
-              <p>Partes totais: {data.partesTotal || 0}</p>
               <p>Publicacoes totais: {data.publicacoesTotal || 0}</p>
+              <p>Publicacoes operacionais: {data.publicacoesOperacionais || 0}</p>
+              <p>Publicacoes vinculadas: {data.publicacoesVinculadas || 0}</p>
               <p>Publicacoes com activity: {data.publicacoesComActivity || 0}</p>
-              <p>Publicacoes pendentes com account: {data.publicacoesPendentesComAccount || 0}</p>
+              <p>Publicacoes pendentes de sync: {data.publicacoesPendentesComAccount || 0}</p>
+              <p>Cursor Advise: {data.adviseCursorTotal || 0}</p>
+              <p>Delta Advise x banco: {data.advisePersistedDelta || 0}</p>
               <p>Publicacoes sem processo: {data.publicacoesSemProcesso || 0}</p>
               <p>Publicacoes marcadas como leilao ignorado: {data.publicacoesLeilaoIgnorado || 0}</p>
             </div>
@@ -2925,7 +2933,7 @@ function PublicacoesContent() {
           <QueueSummaryCard title="Processos criaveis" count={processCandidates.totalRows || processCandidates.items.length || 0} helper="Fila para gerar processo a partir da publicacao." />
           <QueueSummaryCard title="Partes referenciadas" count={partesCandidates.totalRows || partesCandidates.items.length || 0} helper={partesCandidates.totalEstimated ? "Leitura estimada para encaminhar a extracao ao modulo de processos." : "Leitura para encaminhar a extracao ao modulo de processos."} />
           <QueueSummaryCard title="Com activity" count={data.publicacoesComActivity || 0} helper="Publicacoes ja refletidas no Freshsales." />
-          <QueueSummaryCard title="Pendentes" count={data.publicacoesPendentesComAccount || 0} helper="Publicacoes ainda sem activity." />
+          <QueueSummaryCard title="Pendentes de sync" count={data.publicacoesPendentesComAccount || 0} helper="Publicacoes vinculadas ainda sem activity." />
         </div>
         <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
           <div id="publicacoes-mesa-integrada"><Panel title="Mesa integrada" eyebrow="Lista paginada + selecao multipla">
