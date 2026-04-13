@@ -239,6 +239,50 @@ registerTest("persistDotobotMemory offline stores in Obsidian without remote fet
   }
 });
 
+registerTest("runDotobotRagHealth offline with Obsidian skips Supabase embed and still reports local fallback", async () => {
+  const { runDotobotRagHealth, writeObsidianMemory } = await loadLawdeskModules();
+  const tempDir = path.join("D:/Github/newgit", ".tmp-dotobot-offline-health-primary");
+  const originalFetch = globalThis.fetch;
+
+  await fs.rm(tempDir, { recursive: true, force: true });
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("/rest/v1/rpc/search_dotobot_memory_embeddings")) {
+      return new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    throw new Error(`Offline Obsidian primary should not call remote embedding: ${url}`);
+  };
+
+  try {
+    const env = {
+      AICORE_OFFLINE_MODE: "true",
+      DOTOBOT_OBSIDIAN_VAULT_PATH: tempDir,
+      SUPABASE_URL: "http://127.0.0.1:54321",
+      SUPABASE_SERVICE_ROLE_KEY: "service-role",
+    };
+
+    await writeObsidianMemory(env, {
+      source_key: "offline-health-note",
+      query: "saude local",
+      responseText: "Fallback local do Obsidian ativo.",
+      created_at: "2026-04-13T00:00:00.000Z",
+      updated_at: "2026-04-13T00:00:00.000Z",
+    });
+
+    const result = await runDotobotRagHealth(env, { includeUpsert: true, query: "fallback local", topK: 2 });
+    assert.equal(result.available, true);
+    assert.equal(result.status, "degraded");
+    assert.equal(result.report.obsidian.ok, true);
+    assert.equal(result.report.supabaseEmbedding.skipped, true);
+    assert.equal(result.report.supabaseEmbedding.reason, "offline_obsidian_primary");
+  } finally {
+    globalThis.fetch = originalFetch;
+    await fs.rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 registerTest("runDotobotRagHealth exposes Supabase auth mismatch signals and recommendations", async () => {
   const { runDotobotRagHealth } = await loadLawdeskModules();
   const originalFetch = globalThis.fetch;

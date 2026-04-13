@@ -270,6 +270,52 @@ registerTest("supabase local bootstrap exposes readiness checklist for offline p
   assert.ok(result.commands.includes("npm run bootstrap:supabase-local"));
 });
 
+registerTest("supabase local bootstrap treats embedding as optional when offline obsidian is primary", async () => {
+  const { supabaseBootstrap } = await loadAiTaskModules();
+  const result = supabaseBootstrap.buildSupabaseLocalBootstrap({
+    localStackSummary: {
+      offlineMode: true,
+      persistence: {
+        browserConfigured: true,
+        anonKeySource: "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      },
+    },
+    ragHealth: {
+      report: {
+        obsidian: {
+          vaultPathConfigured: true,
+        },
+        supabase: {
+          baseUrlConfigured: true,
+          baseUrlKind: "local",
+          baseUrlPreview: "http://127.0.0.1:54321",
+          serviceKeyConfigured: true,
+          serviceKeySource: "SUPABASE_SERVICE_ROLE_KEY",
+        },
+        supabaseEmbedding: {
+          ok: false,
+          skipped: true,
+          reason: "offline_obsidian_primary",
+        },
+        supabaseQuery: {
+          ok: true,
+          matches: 0,
+        },
+        supabaseUpsert: {
+          ok: false,
+          skipped: true,
+          reason: "offline_obsidian_primary",
+        },
+      },
+    },
+  });
+
+  assert.equal(result.mode, "supabase_local_ready");
+  assert.equal(result.readiness.readyForStructuredOffline, true);
+  assert.equal(result.readiness.checks.find((item) => item.id === "embedding").ready, true);
+  assert.match(result.readiness.checks.find((item) => item.id === "embedding").detail, /Obsidian local ativo/i);
+});
+
 async function run() {
   let failures = 0;
 

@@ -36,6 +36,25 @@ function Test-DockerEngineAvailable {
   }
 }
 
+function Resolve-ObsidianVaultPath {
+  param(
+    [string[]]$Candidates
+  )
+
+  foreach ($candidate in $Candidates) {
+    if ([string]::IsNullOrWhiteSpace($candidate)) {
+      continue
+    }
+
+    $trimmed = $candidate.Trim()
+    if (Test-Path -LiteralPath $trimmed) {
+      return $trimmed
+    }
+  }
+
+  return ""
+}
+
 function Get-LocalSupabaseStatusEnv {
   if (-not (Test-LocalSupabaseCli)) {
     return $null
@@ -100,6 +119,13 @@ $resolvedSupabaseUrl = if ($localSupabaseStatusEnv -and $localSupabaseStatusEnv.
 } else {
   $SupabaseUrl
 }
+$resolvedObsidianVaultPath = Resolve-ObsidianVaultPath @(
+  $env:DOTOBOT_OBSIDIAN_VAULT_PATH,
+  $env:LAWDESK_OBSIDIAN_VAULT_PATH,
+  $env:OBSIDIAN_VAULT_PATH,
+  "D:\Obsidian\hermidamaia",
+  "D:\Obsidian"
+)
 $resolvedAnonKey = if ($localSupabaseStatusEnv -and $localSupabaseStatusEnv.ContainsKey("ANON_KEY")) {
   [string]$localSupabaseStatusEnv["ANON_KEY"]
 } else {
@@ -121,6 +147,9 @@ $envLines += "SUPABASE_URL=$resolvedSupabaseUrl"
 $envLines += "NEXT_PUBLIC_SUPABASE_URL=$resolvedSupabaseUrl"
 $envLines += "SUPABASE_SERVICE_ROLE_KEY=$resolvedServiceRoleKey"
 $envLines += "NEXT_PUBLIC_SUPABASE_ANON_KEY=$resolvedAnonKey"
+if (-not [string]::IsNullOrWhiteSpace($resolvedObsidianVaultPath)) {
+  $envLines += "DOTOBOT_OBSIDIAN_VAULT_PATH=$resolvedObsidianVaultPath"
+}
 $envLines += 'DOTOBOT_SUPABASE_EMBED_FUNCTION=dotobot-embed'
 $envLines += 'DOTOBOT_SUPABASE_MEMORY_TABLE=dotobot_memory_embeddings'
 $envLines += 'DOTOBOT_SUPABASE_EMBEDDING_MODEL=supabase/gte-small'
@@ -145,7 +174,7 @@ $nextSteps = @(
   "2. Rode: npm run supabase:start-local",
   "3. Carregue as envs no shell com: . .\scripts\load-local-env.ps1 -Path .local.supabase.env",
   "4. Rode: npm run diagnose:supabase-local",
-  "5. Se o doctor acusar gaps, valide migrations 024/025/027 e a function dotobot-embed."
+  "5. Se o doctor acusar gaps, valide migrations 024/025/027; em offline com Obsidian local o dotobot-embed pode ficar opcional."
 )
 
 if (-not $dockerAvailable) {
@@ -171,6 +200,7 @@ if ($missingArtifacts.Count -gt 0) {
   supabaseCliAvailable = $supabaseCliAvailable
   localSupabaseCliAvailable = $localSupabaseCliAvailable
   localSupabaseRunning = [bool]$localSupabaseStatusEnv
+  obsidianVaultPath = $resolvedObsidianVaultPath
   envBlock = $envBlock
   outputEnvFile = $resolvedOutputEnvFile
   artifacts = $artifactChecks

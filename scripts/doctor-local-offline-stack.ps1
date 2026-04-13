@@ -46,6 +46,25 @@ function Test-DockerEngineAvailable {
   }
 }
 
+function Resolve-ObsidianVaultPath {
+  param(
+    [string[]]$Candidates
+  )
+
+  foreach ($candidate in $Candidates) {
+    if ([string]::IsNullOrWhiteSpace($candidate)) {
+      continue
+    }
+
+    $trimmed = $candidate.Trim()
+    if (Test-Path -LiteralPath $trimmed) {
+      return $trimmed
+    }
+  }
+
+  return First-Value $Candidates
+}
+
 function Invoke-JsonRequest {
   param(
     [string]$Uri,
@@ -356,11 +375,13 @@ $resolvedSupabaseUrl = First-Value @(
   $env:SUPABASE_URL,
   $env:NEXT_PUBLIC_SUPABASE_URL
 )
-$resolvedVaultPath = First-Value @(
+$resolvedVaultPath = Resolve-ObsidianVaultPath @(
   $ObsidianVaultPath,
   $env:DOTOBOT_OBSIDIAN_VAULT_PATH,
   $env:LAWDESK_OBSIDIAN_VAULT_PATH,
-  $env:OBSIDIAN_VAULT_PATH
+  $env:OBSIDIAN_VAULT_PATH,
+  "D:\Obsidian\hermidamaia",
+  "D:\Obsidian"
 )
 
 $offlineMode = Parse-Bool(First-Value @(
@@ -409,6 +430,7 @@ $checks += Build-Check -Id "obsidian-vault" -Label "Obsidian local" -Ok $obsidia
   vaultExists = $obsidianExists
   memoryDir = $memoryDir
   memoryDirExists = $memoryDirExists
+  autoDetected = [string]::IsNullOrWhiteSpace($ObsidianVaultPath) -and [string]::IsNullOrWhiteSpace($env:DOTOBOT_OBSIDIAN_VAULT_PATH) -and -not [string]::IsNullOrWhiteSpace($resolvedVaultPath)
 })
 if (-not $obsidianExists) {
   $diagnosis += "Configure DOTOBOT_OBSIDIAN_VAULT_PATH com um vault local valido."
@@ -520,6 +542,7 @@ $supabaseDetails = [ordered]@{
   configured = -not [string]::IsNullOrWhiteSpace($resolvedSupabaseUrl)
 }
 $supabaseSchemaChecks = @()
+$preferObsidianOffline = $offlineMode -and $obsidianExists
 if (-not [string]::IsNullOrWhiteSpace($resolvedSupabaseUrl)) {
   $anonKey = First-Value @($env:SUPABASE_ANON_KEY, $env:NEXT_PUBLIC_SUPABASE_ANON_KEY)
   $serviceRoleKey = First-Value @($env:SUPABASE_SERVICE_ROLE_KEY)
@@ -572,26 +595,38 @@ if (-not [string]::IsNullOrWhiteSpace($resolvedSupabaseUrl)) {
       raw = if ($rpcProbe.ok) { $rpcProbe.data } else { $rpcProbe.raw }
     })
 
-    $embedHeaders = @{
-      apikey = $serviceRoleKey
-      Authorization = "Bearer $serviceRoleKey"
-      "Content-Type" = "application/json"
+    if ($preferObsidianOffline) {
+      $supabaseSchemaChecks += Build-Check -Id "supabase-function-dotobot-embed" -Label "Function dotobot-embed" -Ok $true -Status "warning" -Details ([ordered]@{
+        endpoint = "/functions/v1/dotobot-embed"
+        skipped = $true
+        reason = "offline_obsidian_primary"
+        error = $null
+        raw = $null
+        embedSecretConfigured = -not [string]::IsNullOrWhiteSpace($embedSecret)
+        detail = "Modo offline com Obsidian local ativo; embedding Supabase tratado como opcional."
+      })
+    } else {
+      $embedHeaders = @{
+        apikey = $serviceRoleKey
+        Authorization = "Bearer $serviceRoleKey"
+        "Content-Type" = "application/json"
+      }
+      if (-not [string]::IsNullOrWhiteSpace($embedSecret)) {
+        $embedHeaders["x-dotobot-embed-secret"] = $embedSecret
+      }
+      $embedProbe = Invoke-JsonRequest -Uri ($resolvedSupabaseUrl.TrimEnd("/") + "/functions/v1/dotobot-embed") -Method "POST" -Headers $embedHeaders -Body @{
+        input = "healthcheck dotobot offline local"
+        model = "supabase/gte-small"
+      }
+      $embedOk = $embedProbe.ok
+      $supabaseSchemaChecks += Build-SupabaseProbe -Id "supabase-function-dotobot-embed" -Label "Function dotobot-embed" -Ok $embedOk -Details ([ordered]@{
+        endpoint = "/functions/v1/dotobot-embed"
+        httpStatus = $embedProbe.status
+        error = $embedProbe.error
+        raw = if ($embedProbe.ok) { $embedProbe.data } else { $embedProbe.raw }
+        embedSecretConfigured = -not [string]::IsNullOrWhiteSpace($embedSecret)
+      })
     }
-    if (-not [string]::IsNullOrWhiteSpace($embedSecret)) {
-      $embedHeaders["x-dotobot-embed-secret"] = $embedSecret
-    }
-    $embedProbe = Invoke-JsonRequest -Uri ($resolvedSupabaseUrl.TrimEnd("/") + "/functions/v1/dotobot-embed") -Method "POST" -Headers $embedHeaders -Body @{
-      input = "healthcheck dotobot offline local"
-      model = "supabase/gte-small"
-    }
-    $embedOk = $embedProbe.ok
-    $supabaseSchemaChecks += Build-SupabaseProbe -Id "supabase-function-dotobot-embed" -Label "Function dotobot-embed" -Ok $embedOk -Details ([ordered]@{
-      endpoint = "/functions/v1/dotobot-embed"
-      httpStatus = $embedProbe.status
-      error = $embedProbe.error
-      raw = if ($embedProbe.ok) { $embedProbe.data } else { $embedProbe.raw }
-      embedSecretConfigured = -not [string]::IsNullOrWhiteSpace($embedSecret)
-    })
   }
 }
 $checks += Build-Check -Id "supabase-local" -Label "Supabase local" -Ok $supabaseLocal -Status ($(if ($supabaseLocal) { "ok" } elseif ([string]::IsNullOrWhiteSpace($resolvedSupabaseUrl)) { "warning" } else { "error" })) -Details $supabaseDetails
@@ -604,7 +639,11 @@ if ($supabaseLocal -and $supabaseSchemaChecks.Count -gt 0) {
   if ($failedSupabaseChecks.Count -gt 0) {
     $diagnosis += "Supabase local respondeu, mas o contrato offline ainda esta incompleto: $((@($failedSupabaseChecks.label) -join ', '))."
   } else {
-    $diagnosis += "Supabase local com contrato principal validado: tabelas Dotobot, RPC de busca e function dotobot-embed."
+    if ($preferObsidianOffline) {
+      $diagnosis += "Supabase local com contrato principal validado para offline: tabelas Dotobot e RPC de busca ok, com Obsidian local como RAG primario."
+    } else {
+      $diagnosis += "Supabase local com contrato principal validado: tabelas Dotobot, RPC de busca e function dotobot-embed."
+    }
   }
 }
 
