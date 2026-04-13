@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
+import { OperationalHistoryCompactCard, OperationalResultCard } from "../../components/interno/OperationalResultPanels";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch as adminFetchRaw } from "../../lib/admin/api";
 import { appendActivityLog, appendFrontendIssue, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
@@ -2185,6 +2186,14 @@ function PublicacoesContent() {
     [partesCandidates.items, selectedPartesKeys]
   );
   const data = overview.data || {};
+  const adviseSync = data.adviseSync || null;
+  const adviseConfig = adviseSync?.config || {};
+  const adviseCursor = adviseSync?.status_cursor || adviseSync?.ultima_execucao || {};
+  const adviseLastRunAt = adviseCursor?.ultima_execucao || null;
+  const adviseTokenOk = adviseConfig?.token_ok === true;
+  const adviseMode = adviseConfig?.modo || "indisponivel";
+  const adviseLastCycleTotal = Number(adviseCursor?.total_registros || 0);
+  const syncWorkerLastPublicacoes = Number(data?.syncWorker?.worker?.ultimo_lote?.publicacoes || 0);
   const latestHistory = executionHistory[0] || null;
   const latestRemoteRun = remoteHistory[0] || null;
   const latestJob = jobs[0] || null;
@@ -2584,6 +2593,31 @@ function PublicacoesContent() {
         <MetricCard label="Pendentes" value={data.publicacoesPendentesComAccount || 0} helper="Ainda sem activity em processos com account vinculado." />
         <MetricCard label="Sem processo" value={data.publicacoesSemProcesso || 0} helper="Publicacoes ainda sem processo vinculado no HMADV." />
       </div>
+
+      {adviseSync ? (
+        <Panel title="Status do Advise" eyebrow="Observabilidade da ingestao">
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <HealthBadge label={adviseTokenOk ? "token advise ok" : "token advise indisponivel"} tone={adviseTokenOk ? "success" : "danger"} />
+              <HealthBadge label={`modo ${adviseMode}`} tone="default" />
+              <HealthBadge label={`cursor ${String(adviseCursor?.status || "desconhecido")}`} tone={String(adviseCursor?.erro || "") ? "danger" : "default"} />
+              <HealthBadge label={adviseLastRunAt ? `ultimo ciclo ${new Date(adviseLastRunAt).toLocaleString("pt-BR")}` : "ultimo ciclo indisponivel"} tone="default" />
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <QueueSummaryCard title="Recebidas do Advise" count={Number(adviseSync.publicacoes_total || 0)} helper="Estoque de publicacoes de origem Advise no projeto HMADV." />
+              <QueueSummaryCard title="Pendentes CRM" count={Number(adviseSync.publicacoes_pendentes_fs || 0)} helper="Publicacoes Advise ainda sem reflexo no Freshsales." />
+              <QueueSummaryCard title="Ultimo ciclo" count={adviseLastCycleTotal} helper="Total reportado pelo cursor do advise-sync no ciclo mais recente." />
+              <QueueSummaryCard title="Ultimo lote worker" count={syncWorkerLastPublicacoes} helper="Quantidade de publicacoes no ultimo lote do sync-worker." />
+            </div>
+            {adviseCursor?.erro ? (
+              <div className="rounded-[20px] border border-[#4B2222] bg-[rgba(127,29,29,0.12)] p-4 text-sm text-red-100">
+                <p className="font-semibold">Erro recente do advise-sync</p>
+                <p className="mt-2 opacity-80">{String(adviseCursor.erro)}</p>
+              </div>
+            ) : null}
+          </div>
+        </Panel>
+      ) : null}
 
       {view === "operacao" ? <div id="operacao" className="grid gap-6 xl:grid-cols-2">
         <Panel title="Criacao de processos a partir das publicacoes" eyebrow="Operacao orientada por fila">
@@ -3005,16 +3039,18 @@ function PublicacoesContent() {
       </div> : null}
 
       {view === "resultado" ? <div id="resultado" className="grid items-start gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">
-          {actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}
-          {actionState.error ? <p className="text-sm text-red-300">{actionState.error}</p> : null}
-          {!actionState.loading && actionState.result?.drain ? <div className="mb-4 rounded-[20px] border border-[#30543A] bg-[rgba(48,84,58,0.12)] p-4 text-sm"><p className="font-semibold">Drenagem de fila</p><p className="mt-2 opacity-75">{buildDrainPreview(actionState.result.drain)}</p></div> : null}
-          {jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}
-          {!actionState.loading && !actionState.error && actionState.result ? <OperationResult result={actionState.result} /> : null}
-          {!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p> : null}
-          <div className="pt-4 text-xs text-[#7F928C]">Resultado compacto, sem afastar visualmente o console do fim do modulo.</div>
-        </Panel>
-        <CompactHistoryPanel localHistory={executionHistory} remoteHistory={remoteHistory} />
+        <OperationalResultCard
+          loading={actionState.loading}
+          error={actionState.error}
+          result={actionState.result ? <>{actionState.result?.drain ? <div className="mb-4 rounded-[20px] border border-[#30543A] bg-[rgba(48,84,58,0.12)] p-4 text-sm"><p className="font-semibold">Drenagem de fila</p><p className="mt-2 opacity-75">{buildDrainPreview(actionState.result.drain)}</p></div> : null}{jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}<OperationResult result={actionState.result} /></> : null}
+          emptyText="Nenhuma acao executada ainda nesta sessao."
+          footer="Resultado compacto, sem afastar visualmente o console do fim do modulo."
+        />
+        <OperationalHistoryCompactCard
+          primaryText={executionHistory[0] ? `${executionHistory[0].label || executionHistory[0].action} • ${executionHistory[0].status}` : ""}
+          secondaryLabel="Ultimo HMADV"
+          secondaryText={remoteHistory[0] ? `${remoteHistory[0].acao} • ${remoteHistory[0].status}` : ""}
+        />
       </div> : null}
     </div>
   );

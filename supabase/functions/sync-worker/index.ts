@@ -19,7 +19,7 @@ function envFirst(...keys: string[]): string | undefined {
 }
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SVC_KEY      = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const SVC_KEY      = (Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '').trim();
 const SYNC_BASE    = `${SUPABASE_URL}/functions/v1/processo-sync`;
 const FS_ACCOUNT_REPAIR_BASE = `${SUPABASE_URL}/functions/v1/fs-account-repair`;
 const PROCESS_AI_BASE = (Deno.env.get('PROCESS_AI_BASE') ?? '').trim();
@@ -277,6 +277,15 @@ function restHeaders(extra: Record<string,string> = {}): Record<string,string> {
   };
 }
 
+function functionHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return {
+    apikey: SVC_KEY,
+    Authorization: `Bearer ${SVC_KEY}`,
+    'Content-Type': 'application/json',
+    ...extra,
+  };
+}
+
 async function contarTabela(tabela: string, filtros: string): Promise<number> {
   try {
     const url = `${SUPABASE_URL}/rest/v1/${tabela}?${filtros}&select=id`;
@@ -403,11 +412,7 @@ async function chamarSync(action: string, params: Record<string,string|number> =
   try {
     const r = await fetch(`${SYNC_BASE}?${qs}`, {
       method: 'POST',
-      headers: {
-        apikey: SVC_KEY,
-        'Content-Type':'application/json',
-        Authorization:`Bearer ${SVC_KEY}`,
-      },
+      headers: functionHeaders(),
       body: '{}', signal: AbortSignal.timeout(90_000),
     });
     if (!r.ok) { log('warn','sync_http',{action,s:r.status}); return {ok:false,status:r.status}; }
@@ -420,10 +425,7 @@ async function chamarFsAccountRepair(limit: number, offset = 0): Promise<Record<
   try {
     const r = await fetch(`${FS_ACCOUNT_REPAIR_BASE}?${qs}`, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${SVC_KEY}`,
-        'Content-Type': 'application/json',
-      },
+      headers: functionHeaders(),
       signal: AbortSignal.timeout(90_000),
     });
     if (!r.ok) {
@@ -441,11 +443,7 @@ async function repararAccountProcesso(processoId: string): Promise<boolean> {
   try {
     const r = await fetch(`${FS_ACCOUNT_REPAIR_BASE}?processo_id=${encodeURIComponent(processoId)}`, {
       method: 'GET',
-      headers: {
-        apikey: SVC_KEY,
-        Authorization: `Bearer ${SVC_KEY}`,
-        'Content-Type': 'application/json',
-      },
+      headers: functionHeaders(),
       signal: AbortSignal.timeout(45_000),
     });
     if (!r.ok) {
@@ -1049,11 +1047,7 @@ async function loop(): Promise<Record<string,unknown>> {
     if (p5.fila_dj>0) {
       fetch(`${SUPABASE_URL}/functions/v1/datajud-worker`,{
         method:'POST',
-        headers:{
-          apikey:SVC_KEY,
-          Authorization:`Bearer ${SVC_KEY}`,
-          'Content-Type':'application/json',
-        },
+        headers:functionHeaders(),
         body:'{}',signal:AbortSignal.timeout(3_000),
       }).catch(()=>{});
     }

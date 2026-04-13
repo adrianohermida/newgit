@@ -34,7 +34,53 @@ function log(n: 'info'|'warn'|'error', m: string, e: Record<string,unknown> = {}
   console[n](JSON.stringify({ ts: new Date().toISOString(), msg: m, ...e }));
 }
 
-async function callHmadvFunction(name: string, query: Record<string, unknown> = {}, body: Record<string, unknown> = {}) {
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const [, payload] = token.split('.');
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+    const json = atob(padded);
+    const parsed = JSON.parse(json);
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
+
+function isServiceAuthorizationHeader(authHeader: string): boolean {
+  const trimmed = String(authHeader ?? '').trim();
+  if (!trimmed) return false;
+  if (trimmed.includes(SVC_KEY)) return true;
+  if (!/^Bearer\s+/i.test(trimmed)) return false;
+  const token = trimmed.replace(/^Bearer\s+/i, '').trim();
+  if (!token) return false;
+  const payload = decodeJwtPayload(token);
+  return String(payload?.role ?? '') === 'service_role';
+}
+
+function extractBearerToken(value: string): string {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) return '';
+  return trimmed.replace(/^Bearer\s+/i, '').trim();
+}
+
+function buildFunctionAuthHeaders(authHeader = '', apiKeyHeader = ''): Record<string, string> {
+  const bearerToken = extractBearerToken(authHeader) || extractBearerToken(apiKeyHeader) || SVC_KEY;
+  const rawApiKey = extractBearerToken(apiKeyHeader) || extractBearerToken(authHeader) || SVC_KEY;
+  return {
+    Authorization: `Bearer ${bearerToken}`,
+    apikey: rawApiKey,
+    "Content-Type": "application/json",
+  };
+}
+
+async function callHmadvFunction(
+  name: string,
+  query: Record<string, unknown> = {},
+  body: Record<string, unknown> = {},
+  authHeaders: Record<string, string> = buildFunctionAuthHeaders(),
+) {
   const url = new URL(`${SUPABASE_URL}/functions/v1/${name}`);
   Object.entries(query || {}).forEach(([key, value]) => {
     if (value === undefined || value === null || value === "") return;
@@ -42,11 +88,7 @@ async function callHmadvFunction(name: string, query: Record<string, unknown> = 
   });
   const response = await fetch(url.toString(), {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${SVC_KEY}`,
-      apikey: SVC_KEY,
-      "Content-Type": "application/json",
-    },
+    headers: authHeaders,
     body: JSON.stringify(body || {}),
   });
   const payload = await response.json().catch(() => ({}));
@@ -743,6 +785,16 @@ async function listTaggedSalesAccounts(limit = 100, tag = 'datajud'): Promise<Re
   return salesAccounts.slice(0, safeLimit);
 }
 
+function listTaggedAccountProcessNumbers(salesAccounts: Record<string, unknown>[], tag = 'datajud'): string[] {
+  const unique = new Set<string>();
+  for (const salesAccount of salesAccounts) {
+    if (!salesAccountHasTag(salesAccount, tag)) continue;
+    const cnj20 = extractCnjFromSalesAccountPayload({ sales_account: salesAccount }) ?? '';
+    if (cnj20) unique.add(cnj20);
+  }
+  return Array.from(unique);
+}
+
 async function handleDiagnoseTaggedAccounts(limit = 100, tag = 'datajud'): Promise<Record<string, unknown>> {
   const salesAccounts = await listTaggedSalesAccounts(limit, tag);
   const summary = {
@@ -1030,6 +1082,42 @@ async function handleCronTaggedDatajud({
   };
 }
 
+async function handleAdviseTaggedSync({
+  limit = 100,
+  tag = 'datajud',
+  advisePages = 2,
+  advisePerPage = 50,
+  authHeaders = buildFunctionAuthHeaders(),
+} = {}): Promise<Record<string, unknown>> {
+  const salesAccounts = await listTaggedSalesAccounts(limit, tag);
+  const processNumbers = listTaggedAccountProcessNumbers(salesAccounts, tag);
+  if (!processNumbers.length) {
+    return {
+      ok: true,
+      scoped: true,
+      tag,
+      scopeCount: 0,
+      salesAccounts: salesAccounts.length,
+      skipped: true,
+      reason: 'Nenhum processo tagged elegível para sync do Advise.',
+    };
+  }
+  const advise = await callHmadvFunction(
+    'advise-sync',
+    { action: 'sync', por_pagina: advisePerPage, max_paginas: advisePages },
+    { processNumbers },
+    authHeaders,
+  );
+  return {
+    ok: true,
+    scoped: true,
+    tag,
+    scopeCount: processNumbers.length,
+    salesAccounts: salesAccounts.length,
+    advise,
+  };
+}
+
 async function handleCronIntegracaoTotal({
   scanLimit = 50,
   monitorLimit = 100,
@@ -1037,23 +1125,30 @@ async function handleCronIntegracaoTotal({
   advisePages = 2,
   advisePerPage = 50,
   publicacoesBatch = 20,
+  authHeaders = buildFunctionAuthHeaders(),
 } = {}): Promise<Record<string, unknown>> {
   const datajud = await handleCronTaggedDatajud({ scanLimit, monitorLimit, movementLimit });
   let advise: Record<string, unknown> | null = null;
   let publicacoes: Record<string, unknown> | null = null;
   let worker: Record<string, unknown> | null = null;
   try {
-    advise = await callHmadvFunction("advise-sync", { action: "sync", por_pagina: advisePerPage, max_paginas: advisePages });
+    advise = await handleAdviseTaggedSync({
+      limit: Math.max(scanLimit, monitorLimit),
+      tag: 'datajud',
+      advisePages,
+      advisePerPage,
+      authHeaders,
+    });
   } catch (error) {
     advise = { ok: false, error: String(error?.message || error) };
   }
   try {
-    publicacoes = await callHmadvFunction("publicacoes-freshsales", { action: "sync", batch: publicacoesBatch });
+    publicacoes = await callHmadvFunction("publicacoes-freshsales", { action: "sync", batch: publicacoesBatch }, {}, authHeaders);
   } catch (error) {
     publicacoes = { ok: false, error: String(error?.message || error) };
   }
   try {
-    worker = await callHmadvFunction("sync-worker", { action: "run" });
+    worker = await callHmadvFunction("sync-worker", { action: "run" }, {}, authHeaders);
   } catch (error) {
     worker = { ok: false, error: String(error?.message || error) };
   }
@@ -1075,7 +1170,11 @@ Deno.serve(async (req: Request) => {
 
   // Auth: aceita anon key (webhook FS), service key, ou nenhum secret configurado
   const authHeader = req.headers.get('authorization') ?? '';
-  const isService  = authHeader.includes(SVC_KEY);
+  const apiKeyHeader = req.headers.get('apikey') ?? '';
+  const isService  = isServiceAuthorizationHeader(authHeader)
+    || isServiceAuthorizationHeader(apiKeyHeader)
+    || apiKeyHeader.includes(SVC_KEY);
+  const forwardedFunctionHeaders = buildFunctionAuthHeaders(authHeader, apiKeyHeader);
   // Acoes internas requerem service key; sync_account aceita qualquer token (o FS usa anon)
   const publicActions = ['sync_account','tag_added','tag_removed'];
   if (!publicActions.includes(action) && !isService && WEBHOOK_SECRET) {
@@ -1104,6 +1203,13 @@ Deno.serve(async (req: Request) => {
         monitorLimit: Number(url.searchParams.get('monitor_limit') ?? 100),
         movementLimit: Number(url.searchParams.get('movement_limit') ?? 120),
       }); break;
+      case 'advise_tagged_sync': result = await handleAdviseTaggedSync({
+        limit: Number(url.searchParams.get('limite') ?? 100),
+        tag: String(url.searchParams.get('tag') ?? 'datajud'),
+        advisePages: Number(url.searchParams.get('advise_pages') ?? 2),
+        advisePerPage: Number(url.searchParams.get('advise_per_page') ?? 50),
+        authHeaders: forwardedFunctionHeaders,
+      }); break;
       case 'cron_integracao_total': result = await handleCronIntegracaoTotal({
         scanLimit: Number(url.searchParams.get('scan_limit') ?? 50),
         monitorLimit: Number(url.searchParams.get('monitor_limit') ?? 100),
@@ -1111,6 +1217,7 @@ Deno.serve(async (req: Request) => {
         advisePages: Number(url.searchParams.get('advise_pages') ?? 2),
         advisePerPage: Number(url.searchParams.get('advise_per_page') ?? 50),
         publicacoesBatch: Number(url.searchParams.get('publicacoes_batch') ?? 20),
+        authHeaders: forwardedFunctionHeaders,
       }); break;
       default: {
         // Payload generico do FS (sem action na URL)

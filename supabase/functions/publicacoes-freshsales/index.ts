@@ -27,26 +27,47 @@ function envFirst(...keys: string[]): string | undefined {
 
 // ─── Env ────────────────────────────────────────────────────────────────────
 const SUPABASE_URL         = Deno.env.get('SUPABASE_URL')!;
-const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const FS_DOMAIN            = Deno.env.get('FRESHSALES_DOMAIN')!;
+const SUPABASE_SERVICE_KEY = (Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '').trim();
+const FS_DOMAIN_RAW        = Deno.env.get('FRESHSALES_DOMAIN')!;
 const FS_API_KEY           = Deno.env.get('FRESHSALES_API_KEY')!;
 const FS_ACTIVITY_TYPE_ID  = Number(envFirst(
+  'FRESHSALES_ACTIVITY_TYPE_PUBLICACOES',
+  'FRESHSALES_ACTIVITY_TYPE_PUBLICACAO',
   'FRESHSALES_PUBLICACAO_ACTIVITY_TYPE_ID',
   'FRESHSALES_PUBLICACOES_ACTIVITY_TYPE_ID',
   'FRESHSALES_ACTIVITY_TYPE_PUBLICACAO_ID',
   'FRESHSALES_SALES_ACTIVITY_TYPE_PUBLICACAO_ID',
   'FRESHSALES_DEFAULT_ACTIVITY_TYPE_ID',
   'FS_ACTIVITY_TYPE_ID',
-) ?? '31005023082');
+) ?? '31001147699');
 const FS_OWNER_ID          = Number(envFirst(
   'FRESHSALES_OWNER_ID',
   'FS_OWNER_ID',
 ) ?? '31000147944');
 const BASE44_WORKSPACE_ID  = Deno.env.get('BASE44_WORKSPACE_ID');
 
+const DOMAIN_MAP: Record<string, string> = {
+  'hmadv-7b725ea101eff55.freshsales.io': 'hmadv-org.myfreshworks.com',
+};
+
 const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   db: { schema: 'judiciario' },
 });
+
+function fsDomain(): string {
+  const domain = (FS_DOMAIN_RAW ?? '').trim();
+  if (domain.includes('myfreshworks.com')) return domain;
+  return DOMAIN_MAP[domain] ?? domain.replace(/\.freshsales\.io$/, '.myfreshworks.com');
+}
+
+function supabaseFunctionHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return {
+    apikey: SUPABASE_SERVICE_KEY,
+    Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+    'Content-Type': 'application/json',
+    ...extra,
+  };
+}
 
 // ─── Log ────────────────────────────────────────────────────────────────────
 type Etapa = 'normalizar_cnj'|'buscar_processo'|'datajud_enrich'|'upsert_processo'
@@ -67,11 +88,24 @@ const shouldRetry = (s:number) => s===429||s>=500;
 
 async function fsPost(path:string, body:unknown): Promise<{status:number;data:Record<string,unknown>}> {
   for (let i=1;i<=3;i++) {
-    const r = await fetch(`https://${FS_DOMAIN}/crm/sales/api/${path}`,{
+    const r = await fetch(`https://${fsDomain()}/crm/sales/api/${path}`,{
       method:'POST', headers:{Authorization:authHeader(),'Content-Type':'application/json'},
       body: JSON.stringify(body),
     });
-    const data = await r.json();
+    const text = await r.text();
+    const data = text ? JSON.parse(text) as Record<string, unknown> : {};
+    if (!r.ok && (!shouldRetry(r.status) || i===3)) {
+      return {
+        status: r.status,
+        data: {
+          ...data,
+          __debug: {
+            path,
+            url: `https://${fsDomain()}/crm/sales/api/${path}`,
+          },
+        },
+      };
+    }
     if (!shouldRetry(r.status)||i===3) return {status:r.status, data};
     await sleep(500*2**(i-1));
   }
@@ -79,7 +113,7 @@ async function fsPost(path:string, body:unknown): Promise<{status:number;data:Re
 }
 async function fsPut(path:string, body:unknown): Promise<void> {
   for (let i=1;i<=3;i++) {
-    const r = await fetch(`https://${FS_DOMAIN}/crm/sales/api/${path}`,{
+    const r = await fetch(`https://${fsDomain()}/crm/sales/api/${path}`,{
       method:'PUT', headers:{Authorization:authHeader(),'Content-Type':'application/json'},
       body: JSON.stringify(body),
     });
@@ -91,11 +125,14 @@ async function fsPut(path:string, body:unknown): Promise<void> {
 }
 async function fsGet(path:string): Promise<Record<string,unknown>> {
   for (let i=1;i<=3;i++) {
-    const r = await fetch(`https://${FS_DOMAIN}/crm/sales/api/${path}`,
+    const r = await fetch(`https://${fsDomain()}/crm/sales/api/${path}`,
       {headers:{Authorization:authHeader(),'Content-Type':'application/json'}});
-    if (r.ok) return r.json();
+    if (r.ok) {
+      const text = await r.text();
+      return text ? JSON.parse(text) as Record<string, unknown> : {};
+    }
     const b = await r.text();
-    if (!shouldRetry(r.status)||i===3) throw new Error(`FS GET ${path} ${r.status}: ${b}`);
+    if (!shouldRetry(r.status)||i===3) throw new Error(`FS GET ${path} ${r.status} @ ${fsDomain()}: ${b}`);
     await sleep(500*2**(i-1));
   }
   throw new Error('fsGet retries esgotados');
@@ -142,7 +179,7 @@ async function dispararEnriquecimentoTPU(processoId:string, pubId:string, cnj:st
     const url = `${SUPABASE_URL}/functions/v1/tpu-sync?action=enriquecer_processo&processo_id=${processoId}`;
     const r = await fetch(url, {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` },
+      headers: supabaseFunctionHeaders(),
       signal: AbortSignal.timeout(10000),
     });
     const resultado = await r.json().catch(() => ({}));
@@ -157,7 +194,7 @@ async function consultarDatajud(cnj:string, processoId:string, pubId:string): Pr
   try {
     const r = await fetch(`${SUPABASE_URL}/functions/v1/datajud-search`,{
       method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':`Bearer ${SUPABASE_SERVICE_KEY}`},
+      headers: supabaseFunctionHeaders(),
       body: JSON.stringify({ numeroProcesso:cnj, persistir:true }),
       signal: AbortSignal.timeout(10000),
     });
@@ -344,6 +381,53 @@ function addBusinessDays(d:Date,days:number): Date {
 }
 const toDateStr = (d:Date) => d.toISOString().split('T')[0];
 
+function fmtDataBr(value: string | Date | null | undefined): string {
+  const d = value instanceof Date ? value : new Date(String(value ?? ''));
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('pt-BR');
+}
+
+function freshsalesDate(date: Date, kind: 'start' | 'end' = 'start'): string {
+  const base = date.toISOString().split('T')[0];
+  return kind === 'start'
+    ? `${base}T09:00:00-03:00`
+    : `${base}T18:00:00-03:00`;
+}
+
+function textoPublicacao(p: Record<string, unknown>): string {
+  return String(p.conteudo || p.despacho || '').trim();
+}
+
+function publicacaoDisponibilizacao(p: Record<string, unknown>): Date | null {
+  const raw = (p.raw_payload ?? {}) as Record<string, unknown>;
+  const value = raw.dataHoraMovimento ?? raw.dataDisponibilizacao ?? raw.dataDisponibilizacaoPublicacao ?? p.data_publicacao ?? null;
+  if (!value) return null;
+  const dt = new Date(String(value));
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function publicacaoDataPublicacao(p: Record<string, unknown>): Date | null {
+  const value = p.data_publicacao ?? null;
+  if (!value) return null;
+  const dt = new Date(String(value));
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function tituloPublicacao(_p: Record<string, unknown>, dtDisponibilizacao: Date): string {
+  return `Publicação disponibilizada em ${fmtDataBr(dtDisponibilizacao)}`;
+}
+
+function descricaoPublicacao(p: Record<string, unknown>, dtDisponibilizacao: Date, dtPublicacao: Date | null): string {
+  const header = [
+    `Diário: ${p.nome_diario ?? ''}`,
+    `Disponibilização: ${fmtDataBr(dtDisponibilizacao)}`,
+    `Publicação: ${fmtDataBr(dtPublicacao)}`,
+    `Comarca: ${p.cidade_comarca_descricao ?? ''}`,
+    `Vara: ${p.vara_descricao ?? ''}`,
+  ].join('\n');
+  const conteudo = textoPublicacao(p);
+  return [header, conteudo].filter(Boolean).join('\n\n').slice(0, 65000);
+}
+
 function buildNotes(pub:Record<string,unknown>): string {
   const dt = pub.data_publicacao ? new Date(String(pub.data_publicacao)).toISOString().split('T')[0] : '';
   return [
@@ -366,17 +450,19 @@ async function enviarPublicacao(
   const pubId  = String(pub.id);
   const cnj    = String(pub.numero_processo_api??'');
   const dtBase = pub.data_publicacao ? new Date(String(pub.data_publicacao)) : new Date();
-  const dtFim  = new Date(dtBase); dtFim.setUTCDate(dtBase.getUTCDate()+2);
+  const dtDisp = publicacaoDisponibilizacao(pub) ?? dtBase;
+  const dtPub  = publicacaoDataPublicacao(pub) ?? dtBase;
 
   const {status,data:actData} = await fsPost('sales_activities',{
     sales_activity:{
-      sales_account_id: Number(accountId),
-      owner_id:         FS_OWNER_ID,
-      activity_type_id: FS_ACTIVITY_TYPE_ID,
-      title:            'Diário de Justiça',
-      starts_at:        `${toDateStr(dtBase)}T00:01:00Z`,
-      ends_at:          `${toDateStr(dtFim)}T23:59:00Z`,
-      notes:            buildNotes(pub),
+      targetable_type: 'SalesAccount',
+      targetable_id: Number(accountId),
+      owner_id: FS_OWNER_ID,
+      sales_activity_type_id: FS_ACTIVITY_TYPE_ID,
+      title: tituloPublicacao(pub, dtDisp),
+      start_date: freshsalesDate(dtDisp, 'start'),
+      end_date: freshsalesDate(dtPub, 'end'),
+      notes: descricaoPublicacao(pub, dtDisp, dtPub),
     },
   });
   if (status!==200&&status!==201) {
@@ -535,7 +621,22 @@ Deno.serve(async (req:Request) => {
         break;
       }
       case 'activity_types':
-        result = await fsGet('selector/sales_activity_types');
+        try {
+          result = await fsGet('selector/sales_activity_types');
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          result = {
+            sales_activity_types: [
+              {
+                id: FS_ACTIVITY_TYPE_ID,
+                name: 'Publicacao processual',
+                fallback: true,
+              },
+            ],
+            unavailable: true,
+            error: message,
+          };
+        }
         break;
       default:
         return new Response(

@@ -65,6 +65,20 @@ function normCNJ(r:string): string|null {
 function cnj20toFmt(cnj:string): string {
   return `${cnj.slice(0,7)}-${cnj.slice(7,9)}.${cnj.slice(9,13)}.${cnj.slice(13,14)}.${cnj.slice(14,16)}.${cnj.slice(16)}`;
 }
+function extractScopedCnjs(input: unknown): string[] {
+  const rawItems = Array.isArray(input)
+    ? input
+    : String(input ?? '')
+        .split(/[\s,;\n\r\t]+/g)
+        .map((item) => item.trim())
+        .filter(Boolean);
+  const unique = new Set<string>();
+  for (const item of rawItems) {
+    const cnj = normCNJ(String(item ?? ''));
+    if (cnj) unique.add(cnj);
+  }
+  return Array.from(unique);
+}
 function inferirTribunal(d:string): string|null {
   const u=(d??'').toUpperCase();
   if(u.includes('DJSP')||u.includes('TJSP'))return'TJSP';
@@ -324,22 +338,25 @@ async function getAdviseStatusRow(): Promise<Record<string, unknown> | null> {
 async function actionSync(
   dataInicio:string,
   dataFim:string,
-  options: { paginaInicial?: number; porPagina?: number; maxPaginas?: number } = {},
+  options: { paginaInicial?: number; porPagina?: number; maxPaginas?: number; scopeCnjs?: string[] } = {},
 ): Promise<Record<string,unknown>> {
   const porPagina = Math.max(1, options.porPagina ?? DEFAULT_POR_PAGINA);
   const paginaInicial = Math.max(1, options.paginaInicial ?? 1);
   const maxPaginas = Math.max(1, options.maxPaginas ?? DEFAULT_MAX_PAGINAS);
-  log('info','advise_sync_inicio',{ dataInicio, dataFim, paginaInicial, porPagina, maxPaginas });
+  const scopeCnjs = Array.isArray(options.scopeCnjs) ? options.scopeCnjs.filter(Boolean) : [];
+  const scopeSet = new Set(scopeCnjs);
+  log('info','advise_sync_inicio',{ dataInicio, dataFim, paginaInicial, porPagina, maxPaginas, scope_count: scopeCnjs.length });
   await touchAdviseStatus({ status: 'running', erro: null });
 
   const stats = {
     periodo: { de: dataInicio, ate: dataFim },
-    execucao: { pagina_inicial: paginaInicial, por_pagina: porPagina, max_paginas: maxPaginas },
+    execucao: { pagina_inicial: paginaInicial, por_pagina: porPagina, max_paginas: maxPaginas, scope_count: scopeCnjs.length, scoped: scopeCnjs.length > 0 },
     total_advise: 0,
     paginas_processadas: 0,
     pagina_atual: paginaInicial,
     total_paginas: 1,
     parcial: false,
+    fora_escopo: 0,
     excluidas_leilao: 0,
     novas: 0,
     duplicadas: 0,
@@ -355,11 +372,19 @@ async function actionSync(
   let paginasProcessadas = 0;
 
   do {
-    const { pubs, totalPaginas: tp, total } = await buscarPublicacoesAdvise(dataInicio, dataFim, pagina, porPagina);
+    const { pubs: pubsOriginais, totalPaginas: tp, total } = await buscarPublicacoesAdvise(dataInicio, dataFim, pagina, porPagina);
+    const pubs = scopeSet.size > 0
+      ? pubsOriginais.filter((pub) => {
+          const cnj = normCNJ(String(pub.numero ?? pub.numeroProcesso ?? ''));
+          const keep = Boolean(cnj && scopeSet.has(cnj));
+          if (!keep) stats.fora_escopo++;
+          return keep;
+        })
+      : pubsOriginais;
     if (pagina===paginaInicial) { stats.total_advise = total; totalPaginas = tp; }
     stats.pagina_atual = pagina;
     stats.total_paginas = totalPaginas;
-    log('info','advise_pagina',{ pagina, totalPaginas, pubs_recebidas: pubs.length });
+    log('info','advise_pagina',{ pagina, totalPaginas, pubs_recebidas: pubsOriginais.length, pubs_escopo: pubs.length, scope_count: scopeCnjs.length });
 
     const novasIds: string[] = [];
 
@@ -454,6 +479,7 @@ async function actionSync(
   log('info','advise_sync_fim', stats as unknown as Record<string,unknown>);
   return {
     ...stats,
+    scope: scopeCnjs.length > 0 ? { count: scopeCnjs.length, processNumbers: scopeCnjs } : null,
     proxima_pagina: proximaPagina,
   } as unknown as Record<string,unknown>;
 }
@@ -491,6 +517,15 @@ async function actionStatus(): Promise<Record<string,unknown>> {
 Deno.serve(async (req:Request) => {
   const url    = new URL(req.url);
   const action = url.searchParams.get('action') ?? 'sync';
+  let body: Record<string, unknown> = {};
+
+  if (req.method === 'POST') {
+    try {
+      body = await req.json();
+    } catch {
+      body = {};
+    }
+  }
 
   try {
     let result: unknown;
@@ -508,6 +543,13 @@ Deno.serve(async (req:Request) => {
         const fim    = url.searchParams.get('data_fim')    ?? fmt(hoje);
         const cursor = await getAdviseStatusRow();
         const paginaParam = url.searchParams.get('pagina');
+        const scopeCnjs = extractScopedCnjs(
+          body.processNumbers
+          ?? body.numero_cnj
+          ?? url.searchParams.get('processNumbers')
+          ?? url.searchParams.get('numero_cnj')
+          ?? ''
+        );
         const paginaCursor = (
           !paginaParam &&
           cursor?.status === 'running' &&
@@ -517,6 +559,7 @@ Deno.serve(async (req:Request) => {
           paginaInicial: Number(paginaParam ?? paginaCursor),
           porPagina: Number(url.searchParams.get('por_pagina') ?? DEFAULT_POR_PAGINA),
           maxPaginas: Number(url.searchParams.get('max_paginas') ?? DEFAULT_MAX_PAGINAS),
+          scopeCnjs,
         });
         break;
       }
@@ -530,6 +573,13 @@ Deno.serve(async (req:Request) => {
             {status:400,headers:{'Content-Type':'application/json'}});
         const cursor = await getAdviseStatusRow();
         const paginaParam = url.searchParams.get('pagina');
+        const scopeCnjs = extractScopedCnjs(
+          body.processNumbers
+          ?? body.numero_cnj
+          ?? url.searchParams.get('processNumbers')
+          ?? url.searchParams.get('numero_cnj')
+          ?? ''
+        );
         const paginaCursor = (
           !paginaParam &&
           cursor?.status === 'running' &&
@@ -539,6 +589,7 @@ Deno.serve(async (req:Request) => {
           paginaInicial: Number(paginaParam ?? paginaCursor),
           porPagina: Number(url.searchParams.get('por_pagina') ?? DEFAULT_POR_PAGINA),
           maxPaginas: Number(url.searchParams.get('max_paginas') ?? DEFAULT_MAX_PAGINAS),
+          scopeCnjs,
         });
         break;
       }
