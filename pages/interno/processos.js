@@ -2900,34 +2900,34 @@ function InternoProcessosContent() {
 
   return <div className={`${isDockedProcessView ? "flex min-h-full flex-1 flex-col gap-6" : isResultView ? "space-y-6" : "space-y-8"}`.trim()}>
     {copilotContext ? (
-      <section className="rounded-[22px] border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-4 text-sm text-[#C6D1CC]">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7FC4AF]">Contexto vindo do Copilot</p>
-        <p className="mt-2 font-semibold text-[#F5F1E8]">{copilotContext.conversationTitle || "Conversa ativa"}</p>
-        {copilotContext.mission ? <p className="mt-2 leading-6 text-[#9BAEA8]">{copilotContext.mission}</p> : null}
+      <section className={`rounded-[22px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#4b5563]" : "border-[#35554B] bg-[rgba(12,22,19,0.72)] text-[#C6D1CC]"}`}>
+        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#7FC4AF]"}`}>Contexto vindo do Copilot</p>
+        <p className={`mt-2 font-semibold ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{copilotContext.conversationTitle || "Conversa ativa"}</p>
+        {copilotContext.mission ? <p className={`mt-2 leading-6 ${isLightTheme ? "text-[#6b7280]" : "text-[#9BAEA8]"}`}>{copilotContext.mission}</p> : null}
         {processNumbers ? <p className="mt-2 text-xs leading-6 text-[#7F928C]">CNJs pré-carregados no campo de foco manual.</p> : null}
       </section>
     ) : null}
-    <section className={`rounded-[30px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-4 md:px-6 ${isResultView ? "py-4 md:py-5" : "py-5 md:py-6"}`}>
+    <section className={`rounded-[30px] border px-4 md:px-6 ${isResultView ? "py-4 md:py-5" : "py-5 md:py-6"} ${isLightTheme ? "border-[#d7d4cb] bg-[radial-gradient(circle_at_top_left,rgba(199,155,44,0.12),transparent_35%),linear-gradient(180deg,#fffdf8,#f5f1e8)] text-[#1f2937]" : "border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))]"}`}>
       <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
         <div className="max-w-3xl">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C5A059]">Centro operacional</p>
+          <p className={`text-[11px] font-semibold uppercase tracking-[0.2em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#C5A059]"}`}>Centro operacional</p>
           <h3 className="mt-3 font-serif text-4xl leading-tight">Sincronismo de processos, monitoramento e reparo CRM em uma unica trilha.</h3>
-          <p className="mt-3 max-w-2xl text-sm leading-7 opacity-65">A tela agora separa operacao, filas, relacoes e resultado em visoes distintas. Isso reduz ruido visual e preserva memoria do que foi executado nesta sessao de trabalho.</p>
+          <p className={`mt-3 max-w-2xl text-sm leading-7 ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>A tela agora separa operacao, filas, relacoes e resultado em visoes distintas. Isso reduz ruido visual e preserva memoria do que foi executado nesta sessao de trabalho.</p>
         </div>
-        <div className="flex flex-col gap-3 rounded-[26px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] p-4 text-sm">
-          <div className="flex items-center justify-between gap-4"><span className="opacity-60">Selecionados no momento</span><strong className="font-serif text-2xl">{selectedSummary}</strong></div>
-          <div className="flex items-center justify-between gap-4"><span className="opacity-60">Ultima acao</span><span className="text-right text-xs uppercase tracking-[0.16em] text-[#C5A059]">{actionState.loading ? "executando" : actionState.error ? "erro" : actionState.result ? "concluida" : "aguardando"}</span></div>
-          {latestHistory ? <p className="text-xs opacity-60">{latestHistory.label}: {latestHistory.preview}</p> : null}
+        <div className={`flex flex-col gap-3 rounded-[26px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[rgba(255,255,255,0.86)] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.45)]"}`}>
+          <div className="flex items-center justify-between gap-4"><span className={isLightTheme ? "text-[#6b7280]" : "opacity-60"}>Selecionados no momento</span><strong className="font-serif text-2xl">{selectedSummary}</strong></div>
+          <div className="flex items-center justify-between gap-4"><span className={isLightTheme ? "text-[#6b7280]" : "opacity-60"}>Ultima acao</span><span className={`text-right text-xs uppercase tracking-[0.16em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#C5A059]"}`}>{actionState.loading ? "executando" : actionState.error ? "erro" : actionState.result ? "concluida" : "aguardando"}</span></div>
+          {latestHistory ? <p className={`text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>{latestHistory.label}: {latestHistory.preview}</p> : null}
         </div>
       </div>
         <div className={`mt-6 ${isResultView ? "space-y-3" : "space-y-4"}`}>
           <ViewToggle value={view} onChange={updateView} />
-          <div className={`rounded-[22px] border p-4 text-sm ${operationalStatus.mode === "error" || backendHealth.status === "error" ? "border-[#4B2222] bg-[rgba(127,29,29,0.12)]" : operationalStatus.mode === "limited" || backendHealth.status === "warning" ? "border-[#6E5630] bg-[rgba(76,57,26,0.16)]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.45)]"}`}>
+          <div className={`rounded-[22px] border p-4 text-sm ${operationalStatus.mode === "error" || backendHealth.status === "error" ? "border-[#4B2222] bg-[rgba(127,29,29,0.12)]" : operationalStatus.mode === "limited" || backendHealth.status === "warning" ? "border-[#6E5630] bg-[rgba(76,57,26,0.16)]" : isLightTheme ? "border-[#d7d4cb] bg-[rgba(255,255,255,0.82)] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.45)]"}`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-60">Barra de saude operacional</p>
+                <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Barra de saude operacional</p>
                 <p className="mt-2">{operationalStatus.message || "Operacao normal"} • {backendHealth.message || "Sem historico recente."}</p>
-                <p className="mt-2 text-xs opacity-70">Acao sugerida: {healthSuggestedActions[0]?.label || "Ir para operacao"}</p>
+                <p className={`mt-2 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-70"}`}>Acao sugerida: {healthSuggestedActions[0]?.label || "Ir para operacao"}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <StatusBadge tone={operationalStatus.mode === "error" ? "danger" : operationalStatus.mode === "limited" ? "warning" : "success"}>{operationalStatus.mode === "error" ? "operacao com alerta" : operationalStatus.mode === "limited" ? "operacao degradada" : "operacao estavel"}</StatusBadge>
@@ -2940,14 +2940,14 @@ function InternoProcessosContent() {
               {healthSuggestedActions.map((action) => <ActionButton key={action.key} className="px-3 py-2 text-xs" onClick={action.onClick} disabled={action.disabled}>{action.label}</ActionButton>)}
             </div>
           </div>
-          <div className={`rounded-[20px] border p-4 text-xs ${operationalStatus.mode === "error" ? "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200" : operationalStatus.mode === "limited" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
+          <div className={`rounded-[20px] border p-4 text-xs ${operationalStatus.mode === "error" ? "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200" : operationalStatus.mode === "limited" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#9a6d14]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="uppercase tracking-[0.18em] text-[10px]">Status operacional</span>
               <span className="text-[10px] uppercase tracking-[0.16em] opacity-70">{operationalStatus.updatedAt ? new Date(operationalStatus.updatedAt).toLocaleTimeString("pt-BR") : ""}</span>
             </div>
             <p className="mt-2">{operationalStatus.message || "Operacao normal"}</p>
           </div>
-          <div className={`rounded-[20px] border p-4 text-xs ${backendHealth.status === "error" ? "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200" : backendHealth.status === "warning" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
+          <div className={`rounded-[20px] border p-4 text-xs ${backendHealth.status === "error" ? "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200" : backendHealth.status === "warning" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#9a6d14]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="uppercase tracking-[0.18em] text-[10px]">Saude do backend</span>
               <span className="text-[10px] uppercase tracking-[0.16em] opacity-70">{backendHealth.updatedAt ? new Date(backendHealth.updatedAt).toLocaleTimeString("pt-BR") : ""}</span>
