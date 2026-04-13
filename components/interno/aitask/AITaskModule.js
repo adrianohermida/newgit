@@ -44,6 +44,7 @@ import { extractModuleKeysFromContext, resolveModuleEntries } from "../../../lib
 import {
   applyBrowserLocalOfflinePolicy,
   getBrowserLocalRuntimeConfig,
+  hasExplicitBrowserLocalRuntimeOptIn,
   hasPersistedBrowserLocalRuntimeConfig,
   hydrateBrowserLocalProviderOptions,
   persistBrowserLocalRuntimeConfig,
@@ -138,8 +139,14 @@ function resolveAiTaskProviderSelection({ currentProvider, defaultProvider, prov
     providers,
   });
   if (String(preferred || "").toLowerCase() !== "local") return preferred;
-  if (hasPersistedBrowserLocalRuntimeConfig()) return preferred;
+  if (hasPersistedBrowserLocalRuntimeConfig() && hasExplicitBrowserLocalRuntimeOptIn()) return preferred;
   return providers.find((item) => String(item?.value || "").toLowerCase() !== "local" && item?.disabled !== true)?.value || preferred;
+}
+
+function normalizeAiTaskProviderSelection(provider, providers = []) {
+  if (String(provider || "").toLowerCase() !== "local") return provider || "gpt";
+  if (hasPersistedBrowserLocalRuntimeConfig() && hasExplicitBrowserLocalRuntimeOptIn()) return provider;
+  return providers.find((item) => String(item?.value || "").toLowerCase() !== "local" && item?.disabled !== true)?.value || "gpt";
 }
 
 function buildRagAlert(health) {
@@ -474,6 +481,7 @@ export default function AITaskModule({ profile, routePath }) {
 
   useEffect(() => {
     if (!localStackSummary?.offlineMode) return;
+    if (!hasExplicitBrowserLocalRuntimeOptIn()) return;
     setProvider((current) => (current === "local" ? current : "local"));
   }, [localStackSummary?.offlineMode, setProvider]);
 
@@ -808,7 +816,14 @@ export default function AITaskModule({ profile, routePath }) {
     setMission(handoff.mission);
     setMode(["assisted", "auto", "manual"].includes(handoff.mode) ? handoff.mode : "assisted");
     const nextHandoffProvider = handoff.provider || "gpt";
-    setProvider(localStackReady && (nextHandoffProvider === "gpt" || nextHandoffProvider === "cloudflare") ? "local" : nextHandoffProvider);
+    setProvider(
+      normalizeAiTaskProviderSelection(
+        localStackReady && hasExplicitBrowserLocalRuntimeOptIn() && (nextHandoffProvider === "gpt" || nextHandoffProvider === "cloudflare")
+          ? "local"
+          : nextHandoffProvider,
+        providerCatalog
+      )
+    );
     setShowContext(true);
     setContextSnapshot((current) => ({
       ...(current || {}),

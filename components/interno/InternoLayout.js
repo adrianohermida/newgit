@@ -1612,7 +1612,7 @@ export default function InternoLayout({
   const consoleDockRight = !isMobileShell && shouldRenderDotobotRail && !rightCollapsed ? desktopRightRailWidth : 0;
 
   return (
-    <div className={`relative flex h-screen w-full overflow-hidden p-2 text-[Arial,sans-serif] md:p-3 ${isLightTheme ? "bg-[linear-gradient(180deg,#EEF2F6_0%,#E4EAF1_100%)] text-[#13201D]" : "bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.16),transparent_24%),linear-gradient(180deg,#040605_0%,#070A09_100%)] text-[#F4F1EA]"}`}>
+    <div className={`relative flex h-screen w-full overflow-hidden text-[Arial,sans-serif] ${isCopilotWorkspace ? "p-0" : "p-2 md:p-3"} ${isLightTheme ? "bg-[linear-gradient(180deg,#EEF2F6_0%,#E4EAF1_100%)] text-[#13201D]" : "bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.16),transparent_24%),linear-gradient(180deg,#040605_0%,#070A09_100%)] text-[#F4F1EA]"}`}>
       {isMobileShell && !leftCollapsed && !hideShellSidebar ? (
         <button
           type="button"
@@ -1674,7 +1674,7 @@ export default function InternoLayout({
         </div>
       </aside> : null}
       {/* MAIN + COPILOT */}
-        <div className={`${isMobileShell || hideShellSidebar ? "ml-0" : "ml-2 md:ml-3"} flex h-full min-h-0 flex-1`}>
+        <div className={`${isCopilotWorkspace || isMobileShell || hideShellSidebar ? "ml-0" : "ml-2 md:ml-3"} flex h-full min-h-0 flex-1`}>
         {/* CONTEÚDO PRINCIPAL */}
         <div className={`relative flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden ${
           isCopilotWorkspace
