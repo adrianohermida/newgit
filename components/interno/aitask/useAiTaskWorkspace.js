@@ -30,7 +30,7 @@ function normalizeWorkspaceMode(value) {
 export function useAiTaskWorkspace({ missionInputRef, normalizeAttachmentsFromEvent, trimRecentHistory, nowIso, maxThinking, maxLogs, profile }) {
   const [mission, setMission] = useState("");
   const [mode, setMode] = useState("assisted");
-  const [provider, setProvider] = useState("local");
+  const [provider, setProvider] = useState("gpt");
   const [selectedSkillId, setSelectedSkillId] = useState("");
   const [automation, setAutomation] = useState("idle");
   const [approved, setApproved] = useState(false);
@@ -62,7 +62,7 @@ export function useAiTaskWorkspace({ missionInputRef, normalizeAttachmentsFromEv
 
     setMission(typeof persisted.mission === "string" ? persisted.mission : "");
     setMode(normalizeWorkspaceMode(persisted.mode));
-    setProvider(typeof persisted.provider === "string" ? persisted.provider : "local");
+    setProvider(typeof persisted.provider === "string" ? persisted.provider : "gpt");
     setSelectedSkillId(typeof persisted.selectedSkillId === "string" ? persisted.selectedSkillId : "");
     setAutomation(typeof persisted.automation === "string" ? persisted.automation : "idle");
     setApproved(Boolean(persisted.approved));

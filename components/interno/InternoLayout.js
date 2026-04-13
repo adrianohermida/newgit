@@ -955,6 +955,7 @@ export default function InternoLayout({
   forceDotobotRail = false,
   rightRailFullscreen = false,
   rightRail,
+  hideShellSidebar = false,
 }) {
   const router = useRouter();
   const { supabase } = useSupabaseBrowser();
@@ -1605,13 +1606,13 @@ export default function InternoLayout({
     ? rightRail({ moduleKey: currentModuleKey, moduleHistory, activityLog })
     : rightRail;
   const consoleReservedSpace = consoleOpen ? consoleHeight + 20 : 52;
-  const consoleDockLeft = isMobileShell ? 0 : leftCollapsed ? 88 : 272;
+  const consoleDockLeft = hideShellSidebar ? 0 : isMobileShell ? 0 : leftCollapsed ? 88 : 272;
   const desktopRightRailWidth = rightRailMode === "compact" ? 320 : 388;
   const consoleDockRight = !isMobileShell && shouldRenderDotobotRail && !rightCollapsed ? desktopRightRailWidth : 0;
 
   return (
     <div className={`relative flex h-screen w-full overflow-hidden p-2 text-[Arial,sans-serif] md:p-3 ${isLightTheme ? "bg-[linear-gradient(180deg,#EEF2F6_0%,#E4EAF1_100%)] text-[#13201D]" : "bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.16),transparent_24%),linear-gradient(180deg,#040605_0%,#070A09_100%)] text-[#F4F1EA]"}`}>
-      {isMobileShell && !leftCollapsed ? (
+      {isMobileShell && !leftCollapsed && !hideShellSidebar ? (
         <button
           type="button"
           aria-label="Fechar menu"
@@ -1620,7 +1621,7 @@ export default function InternoLayout({
         />
       ) : null}
       {/* SIDEBAR */}
-      <aside className={`z-40 shrink-0 flex h-full flex-col rounded-[26px] border px-4 py-4 shadow-[0_18px_48px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all ${isLightTheme ? "border-[#C9D5E2] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(241,245,249,0.98))]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(11,18,16,0.98),rgba(8,14,13,0.95))]"} ${isMobileShell ? `absolute bottom-2 left-2 top-2 w-[292px] max-w-[calc(100vw-1rem)] ${leftCollapsed ? "pointer-events-none -translate-x-[110%] opacity-0" : "translate-x-0 opacity-100"}` : leftCollapsed ? "w-[88px] min-w-[88px]" : "w-[264px] min-w-[220px] max-w-[312px]"}`}>
+      {!hideShellSidebar ? <aside className={`z-40 shrink-0 flex h-full flex-col rounded-[26px] border px-4 py-4 shadow-[0_18px_48px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all ${isLightTheme ? "border-[#C9D5E2] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(241,245,249,0.98))]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(11,18,16,0.98),rgba(8,14,13,0.95))]"} ${isMobileShell ? `absolute bottom-2 left-2 top-2 w-[292px] max-w-[calc(100vw-1rem)] ${leftCollapsed ? "pointer-events-none -translate-x-[110%] opacity-0" : "translate-x-0 opacity-100"}` : leftCollapsed ? "w-[88px] min-w-[88px]" : "w-[264px] min-w-[220px] max-w-[312px]"}`}>
         <Link href="/interno" prefetch={false} className="mb-8 block">
           {!leftCollapsed ? (
             <>
@@ -1670,9 +1671,9 @@ export default function InternoLayout({
             {!leftCollapsed ? "Sair" : "X"}
           </button>
         </div>
-      </aside>
+      </aside> : null}
       {/* MAIN + COPILOT */}
-        <div className={`${isMobileShell ? "ml-0" : "ml-2 md:ml-3"} flex h-full min-h-0 flex-1`}>
+        <div className={`${isMobileShell || hideShellSidebar ? "ml-0" : "ml-2 md:ml-3"} flex h-full min-h-0 flex-1`}>
         {/* CONTEÚDO PRINCIPAL */}
         <div className={`relative flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden rounded-[26px] border shadow-[0_20px_56px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#CBD5E1] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,247,250,0.96))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.985),rgba(7,9,8,0.95))]"}`}>
           <div className={`sticky top-0 z-20 shrink-0 flex flex-wrap items-center justify-between gap-4 border-b px-4 py-3 md:px-5 md:py-3.5 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(247,249,251,0.92))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.99),rgba(7,9,8,0.96))]"}`}>

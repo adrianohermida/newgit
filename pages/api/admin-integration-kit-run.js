@@ -1,13 +1,10 @@
-const { spawnSync } = require("child_process");
-const path = require("path");
+const { spawnSync } = require(/*turbopackIgnore: true*/ "child_process");
 
-const { requireAdminNode } = require("../../lib/admin/node-auth.js");
+const { requireAdminNode } = require(/*turbopackIgnore: true*/ "../../lib/admin/node-auth.js");
 const {
   getIntegrationKitCapabilities,
   parseBoolean,
 } = require(/*turbopackIgnore: true*/ "../../lib/integration-kit/runtime");
-
-const PROJECT_ROOT = path.join(__dirname, "..", "..");
 
 const COMMANDS = {
   validate: ["npm", "run", "integration:validate"],
@@ -46,7 +43,7 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "Modo de execucao invalido." });
     }
 
-    const capabilities = getIntegrationKitCapabilities(process.env, PROJECT_ROOT);
+    const capabilities = getIntegrationKitCapabilities(process.env);
     const allowProduction = parseBoolean(process.env.INTEGRATION_KIT_COMMAND_RUNNER_ALLOW_PRODUCTION, false);
     const isProduction = String(process.env.NODE_ENV || "").trim() === "production";
 
@@ -84,7 +81,6 @@ module.exports = async function handler(req, res) {
 
     const [bin, ...args] = command;
     const result = spawnSync(bin, args, {
-      cwd: PROJECT_ROOT,
       env: process.env,
       encoding: "utf8",
       shell: process.platform === "win32",

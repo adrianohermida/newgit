@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const PROJECT_ROOT = path.join(__dirname, "..", "..");
+const PROJECT_ROOT = path.join(/*turbopackIgnore: true*/ __dirname, "..", "..");
 
 const { requireAdminNode } = require("../../lib/admin/node-auth.js");
 const {

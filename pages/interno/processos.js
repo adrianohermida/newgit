@@ -241,29 +241,30 @@ function persistHistoryEntries(entries) {
 }
 
 function CompactHistoryPanel({ localHistory, remoteHistory, className = "" }) {
+  const { isLightTheme } = useInternalTheme();
   const latestLocal = localHistory[0];
   const latestRemote = remoteHistory[0];
   return (
-    <div className={`rounded-[28px] border border-[#2D2E2E] bg-[linear-gradient(180deg,rgba(13,15,14,0.96),rgba(7,9,8,0.96))] p-5 shadow-[0_12px_36px_rgba(0,0,0,0.22)] ${className}`.trim()}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Historico (compacto)</p>
+    <div className={`rounded-[28px] border p-5 shadow-[0_12px_36px_rgba(0,0,0,0.22)] ${isLightTheme ? "border-[#d7d4cb] bg-[linear-gradient(180deg,#ffffff,#f7f4ec)] text-[#1f2937]" : "border-[#2D2E2E] bg-[linear-gradient(180deg,rgba(13,15,14,0.96),rgba(7,9,8,0.96))]"} ${className}`.trim()}>
+      <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Historico (compacto)</p>
       <div className="mt-3 space-y-3 text-sm">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.16em] opacity-60">Ultimo local</p>
+          <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#9a6d14]" : "opacity-60"}`}>Ultimo local</p>
           {latestLocal ? (
             <p className="mt-1">{latestLocal.label || latestLocal.action} • {latestLocal.status}</p>
           ) : (
-            <p className="mt-1 opacity-60">Sem registros locais.</p>
+            <p className={`mt-1 ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Sem registros locais.</p>
           )}
         </div>
         <div>
-          <p className="text-[10px] uppercase tracking-[0.16em] opacity-60">Ultimo HMADV</p>
+          <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#9a6d14]" : "opacity-60"}`}>Ultimo HMADV</p>
           {latestRemote ? (
             <p className="mt-1">{getProcessActionLabel(latestRemote.acao, latestRemote.payload || {})} • {latestRemote.status}</p>
           ) : (
-            <p className="mt-1 opacity-60">Sem registros remotos.</p>
+            <p className={`mt-1 ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Sem registros remotos.</p>
           )}
         </div>
-        <p className="text-xs opacity-60">Detalhes completos no Console &gt; Log.</p>
+        <p className={`text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Detalhes completos no Console &gt; Log.</p>
       </div>
     </div>
   );
@@ -1261,6 +1262,7 @@ export default function InternoProcessosPage() {
 }
 
 function InternoProcessosContent() {
+  const { isLightTheme } = useInternalTheme();
   const [view, setView] = useState("operacao");
   const [overview, setOverview] = useState({ loading: true, data: null });
   const [processCoverage, setProcessCoverage] = useState({ loading: true, items: [], totalRows: 0, page: 1, pageSize: 20 });
@@ -2904,7 +2906,7 @@ function InternoProcessosContent() {
         <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#7FC4AF]"}`}>Contexto vindo do Copilot</p>
         <p className={`mt-2 font-semibold ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{copilotContext.conversationTitle || "Conversa ativa"}</p>
         {copilotContext.mission ? <p className={`mt-2 leading-6 ${isLightTheme ? "text-[#6b7280]" : "text-[#9BAEA8]"}`}>{copilotContext.mission}</p> : null}
-        {processNumbers ? <p className="mt-2 text-xs leading-6 text-[#7F928C]">CNJs pré-carregados no campo de foco manual.</p> : null}
+        {processNumbers ? <p className={`mt-2 text-xs leading-6 ${isLightTheme ? "text-[#6b7280]" : "text-[#7F928C]"}`}>CNJs pré-carregados no campo de foco manual.</p> : null}
       </section>
     ) : null}
     <section className={`rounded-[30px] border px-4 md:px-6 ${isResultView ? "py-4 md:py-5" : "py-5 md:py-6"} ${isLightTheme ? "border-[#d7d4cb] bg-[radial-gradient(circle_at_top_left,rgba(199,155,44,0.12),transparent_35%),linear-gradient(180deg,#fffdf8,#f5f1e8)] text-[#1f2937]" : "border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))]"}`}>
@@ -2954,11 +2956,11 @@ function InternoProcessosContent() {
             </div>
             <p className="mt-2">{backendHealth.message || "Sem historico recente."}</p>
           </div>
-          {!isResultView ? <div className="rounded-[26px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.55)] p-4 text-sm">
+          {!isResultView ? <div className={`rounded-[26px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[rgba(255,255,255,0.88)] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.55)]"}`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-60">Ciclo completo</p>
-              <p className="mt-1 text-sm opacity-75">Disparo unico para DataJud + Advise + Freshsales com drenagem automatica.</p>
+              <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Ciclo completo</p>
+              <p className={`mt-1 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>Disparo unico para DataJud + Advise + Freshsales com drenagem automatica.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <ActionButton tone="primary" onClick={() => handleAction("executar_integracao_total_hmadv")} disabled={actionState.loading}>
@@ -2976,18 +2978,18 @@ function InternoProcessosContent() {
             </StatusBadge>
             <StatusBadge tone="default">limite API Freshsales 1000/h</StatusBadge>
           </div>
-          <div className="mt-3 grid gap-2 text-xs opacity-75 md:grid-cols-2">
+          <div className={`mt-3 grid gap-2 text-xs md:grid-cols-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>
             <p><strong>Cobertura:</strong> {Number(runnerCoverage?.coverage_coveredRows || 0)} cobertos / {Number(runnerCoverage?.coverage_totalRows || 0)} total</p>
             <p><strong>Tag datajud:</strong> {Number(runnerTagged?.tagged_fullyCovered || 0)} completos</p>
           </div>
-          {runnerAction?.datajud_action_manualActionRequired ? <p className="mt-2 text-xs text-[#FECACA]">A prioridade atual ainda depende de acao manual no Freshsales.</p> : null}
+          {runnerAction?.datajud_action_manualActionRequired ? <p className={`mt-2 text-xs ${isLightTheme ? "text-red-700" : "text-[#FECACA]"}`}>A prioridade atual ainda depende de acao manual no Freshsales.</p> : null}
         </div> : null}
         {!isResultView && queueRefreshLog.length ? (
-          <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] p-4 text-xs">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-60">Ultimas filas atualizadas</p>
+          <div className={`rounded-[22px] border p-4 text-xs ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)]"}`}>
+            <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Ultimas filas atualizadas</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {queueRefreshLog.map((item) => (
-                <span key={item.key} className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.14em] opacity-70">
+                <span key={item.key} className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#6b7280]" : "border-[#2D2E2E] opacity-70"}`}>
                   {item.label} • {new Date(item.ts).toLocaleTimeString("pt-BR")}
                 </span>
               ))}
@@ -3163,8 +3165,8 @@ function InternoProcessosContent() {
               <SelectField label="Status" value={form.status} onChange={(value) => setForm((current) => ({ ...current, status: value }))} options={[{ value: "ativo", label: "Ativo" }, { value: "inativo", label: "Inativo" }]} />
             </div>
             <label className="block">
-              <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Observacoes</span>
-              <textarea value={form.observacoes} onChange={(e) => setForm((current) => ({ ...current, observacoes: e.target.value }))} rows={4} className="w-full rounded-[22px] border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" placeholder="Ex.: recurso distribuido por dependencia do principal." />
+              <span className={`mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Observacoes</span>
+              <textarea value={form.observacoes} onChange={(e) => setForm((current) => ({ ...current, observacoes: e.target.value }))} rows={4} className={`w-full rounded-[22px] border p-3 text-sm outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-[#050706] focus:border-[#C5A059]"}`} placeholder="Ex.: recurso distribuido por dependencia do principal." />
             </label>
             <div className="flex flex-wrap gap-3">
               <ActionButton tone="primary" onClick={handleSaveRelation} disabled={actionState.loading}>{editingRelationId ? "Atualizar relacao" : "Salvar relacao"}</ActionButton>
@@ -3177,8 +3179,8 @@ function InternoProcessosContent() {
             <div className="grid gap-4 md:grid-cols-[1fr_180px]">
               <Field label="Buscar por CNJ, titulo ou parte" value={search} onChange={setSearch} placeholder="Use um CNJ, nome de parte ou trecho do titulo" />
               <label className="block">
-                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">Confianca minima</span>
-                <select value={relationMinScore} onChange={(e) => setRelationMinScore(e.target.value)} className="w-full rounded-2xl border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]">
+                <span className={`mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Confianca minima</span>
+                <select value={relationMinScore} onChange={(e) => setRelationMinScore(e.target.value)} className={`w-full rounded-2xl border p-3 text-sm outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-[#050706] focus:border-[#C5A059]"}`}>
                   <option value="0.35">35%</option>
                   <option value="0.45">45%</option>
                   <option value="0.60">60%</option>
@@ -3186,7 +3188,7 @@ function InternoProcessosContent() {
                 </select>
               </label>
             </div>
-            <div className="rounded-[22px] border border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] p-4 text-sm opacity-75">
+            <div className={`rounded-[22px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#4b5563]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] opacity-75"}`}>
               <p className="font-semibold">Como as sugestoes sao montadas</p>
               <p className="mt-2 leading-6">A tela cruza CNJs citados nas publicacoes recentes com semelhanca entre titulo e polos do processo. O resultado vira uma fila priorizada para validacao humana e aprovacao em massa.</p>
             </div>
@@ -3195,7 +3197,7 @@ function InternoProcessosContent() {
               {lookup.loading ? <p className="text-sm opacity-60">Buscando processos...</p> : null}
               {!lookup.loading && !lookup.items.length && lookupTerm.trim() ? <p className="text-sm opacity-60">Nenhum processo encontrado para esse termo.</p> : null}
               <div className="space-y-3">
-                {lookup.items.map((item) => <div key={item.id || item.numero_cnj} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-4 text-sm"><p className="font-semibold">{item.numero_cnj || "Sem CNJ"}</p><p className="mt-1 opacity-70">{item.titulo || "Sem titulo"}</p><div className="mt-2 flex flex-wrap gap-3 text-xs opacity-60"><span>Status: {item.status_atual_processo || "sem_status"}</span>{item.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${item.account_id_freshsales}`} target="_blank" rel="noreferrer" className="underline hover:text-[#C5A059]">Account {item.account_id_freshsales}</a> : null}</div><div className="mt-3 flex flex-wrap gap-2"><ActionButton onClick={() => setForm((current) => ({ ...current, numero_cnj_pai: item.numero_cnj || current.numero_cnj_pai }))} className="px-3 py-2 text-xs">Usar como pai</ActionButton><ActionButton onClick={() => setForm((current) => ({ ...current, numero_cnj_filho: item.numero_cnj || current.numero_cnj_filho }))} className="px-3 py-2 text-xs">Usar como filho</ActionButton></div></div>)}
+                {lookup.items.map((item) => <div key={item.id || item.numero_cnj} className={`rounded-[24px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}><p className="font-semibold">{item.numero_cnj || "Sem CNJ"}</p><p className={`mt-1 ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>{item.titulo || "Sem titulo"}</p><div className={`mt-2 flex flex-wrap gap-3 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}><span>Status: {item.status_atual_processo || "sem_status"}</span>{item.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${item.account_id_freshsales}`} target="_blank" rel="noreferrer" className={`underline transition ${isLightTheme ? "hover:text-[#9a6d14]" : "hover:text-[#C5A059]"}`}>Account {item.account_id_freshsales}</a> : null}</div><div className="mt-3 flex flex-wrap gap-2"><ActionButton onClick={() => setForm((current) => ({ ...current, numero_cnj_pai: item.numero_cnj || current.numero_cnj_pai }))} className="px-3 py-2 text-xs">Usar como pai</ActionButton><ActionButton onClick={() => setForm((current) => ({ ...current, numero_cnj_filho: item.numero_cnj || current.numero_cnj_filho }))} className="px-3 py-2 text-xs">Usar como filho</ActionButton></div></div>)}
               </div>
             </div>
           </div>
@@ -3235,7 +3237,7 @@ function InternoProcessosContent() {
 
       <Panel title="Relacoes processuais cadastradas" eyebrow="Lista paginada">
         <div className="space-y-4">
-          {relations.items.length ? <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.15em] opacity-70">{Object.entries(relationTypeSummary).map(([key, value]) => <span key={key} className="border border-[#2D2E2E] px-2 py-1">{key}: {value}</span>)}</div> : null}
+          {relations.items.length ? <div className={`flex flex-wrap gap-2 text-xs uppercase tracking-[0.15em] ${isLightTheme ? "text-[#6b7280]" : "opacity-70"}`}>{Object.entries(relationTypeSummary).map(([key, value]) => <span key={key} className={`border px-2 py-1 ${isLightTheme ? "border-[#d7d4cb] bg-white" : "border-[#2D2E2E]"}`}>{key}: {value}</span>)}</div> : null}
           <RelationSelectionBar
             title="Cadastro de relacoes"
             helper="Voce pode ativar, inativar ou remover varias relacoes de uma vez, com paginação e selecao global por filtro."

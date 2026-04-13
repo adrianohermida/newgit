@@ -1,25 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import InternoLayout from "../../components/interno/InternoLayout";
+import { useInternalTheme } from "../../components/interno/InternalThemeProvider";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch } from "../../lib/admin/api";
 import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
 import { buildModuleSnapshot } from "../../lib/admin/module-registry";
 
 function MetricCard({ label, value, helper }) {
+  const { isLightTheme } = useInternalTheme();
   return (
-    <article className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-5">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] opacity-50">{label}</p>
+    <article className={`border p-5 ${isLightTheme ? "border-[#d7d4cb] bg-[rgba(255,255,255,0.92)] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
+      <p className={`mb-2 text-xs font-semibold uppercase tracking-[0.15em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>{label}</p>
       <p className="font-serif text-3xl">{value}</p>
-      {helper ? <p className="mt-2 text-sm leading-relaxed opacity-65">{helper}</p> : null}
+      {helper ? <p className={`mt-2 text-sm leading-relaxed ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>{helper}</p> : null}
     </article>
   );
 }
 
 function Panel({ title, eyebrow, children }) {
+  const { isLightTheme } = useInternalTheme();
   return (
-    <section className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
-      {eyebrow ? <p className="mb-3 text-xs font-semibold uppercase tracking-[0.15em]" style={{ color: "#C5A059" }}>{eyebrow}</p> : null}
+    <section className={`border p-6 ${isLightTheme ? "border-[#d7d4cb] bg-[rgba(255,255,255,0.92)] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
+      {eyebrow ? <p className={`mb-3 text-xs font-semibold uppercase tracking-[0.15em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#C5A059]"}`}>{eyebrow}</p> : null}
       <h3 className="mb-4 font-serif text-2xl">{title}</h3>
       {children}
     </section>
@@ -27,9 +30,10 @@ function Panel({ title, eyebrow, children }) {
 }
 
 function StatusBadge({ children, tone = "neutral" }) {
+  const { isLightTheme } = useInternalTheme();
   const tones = {
-    neutral: "border-[#2D2E2E] text-[#D7DDD8]",
-    accent: "border-[#C5A059] text-[#F4E7C2]",
+    neutral: isLightTheme ? "border-[#d7d4cb] bg-white text-[#4b5563]" : "border-[#2D2E2E] text-[#D7DDD8]",
+    accent: isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#C5A059] text-[#F4E7C2]",
     success: "border-[#2E5744] text-[#C7F1D7]",
     warn: "border-[#6F5826] text-[#F7E4A7]",
     danger: "border-[#5C2A2A] text-[#F4C1C1]",
@@ -39,29 +43,31 @@ function StatusBadge({ children, tone = "neutral" }) {
 }
 
 function OperationButton({ label, helper, onClick, disabled, loading }) {
+  const { isLightTheme } = useInternalTheme();
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled || loading}
-      className="border border-[#2D2E2E] bg-[#050706] p-4 text-left transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
+      className={`border p-4 text-left transition disabled:opacity-50 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] hover:border-[#9a6d14] hover:text-[#9a6d14]" : "border-[#2D2E2E] bg-[#050706] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
     >
       <p className="font-semibold">{loading ? "Executando..." : label}</p>
-      {helper ? <p className="mt-2 text-sm opacity-65">{helper}</p> : null}
+      {helper ? <p className={`mt-2 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>{helper}</p> : null}
     </button>
   );
 }
 
 function ConfigField({ label, value, onChange, type = "text", placeholder }) {
+  const { isLightTheme } = useInternalTheme();
   return (
     <label className="block">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] opacity-50">{label}</p>
+      <p className={`mb-2 text-xs font-semibold uppercase tracking-[0.15em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>{label}</p>
       <input
         type={type}
         value={value ?? ""}
         onChange={onChange}
         placeholder={placeholder}
-        className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]"
+        className={`w-full border p-3 text-sm outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-[#050706] focus:border-[#C5A059]"}`}
       />
     </label>
   );
@@ -122,21 +128,23 @@ export default function InternoFinanceiroPage() {
 }
 
 function ConfigTextArea({ label, value, onChange, placeholder, rows = 6 }) {
+  const { isLightTheme } = useInternalTheme();
   return (
     <label className="block">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] opacity-50">{label}</p>
+      <p className={`mb-2 text-xs font-semibold uppercase tracking-[0.15em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>{label}</p>
       <textarea
         value={value ?? ""}
         onChange={onChange}
         placeholder={placeholder}
         rows={rows}
-        className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]"
+        className={`w-full border p-3 text-sm outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-[#050706] focus:border-[#C5A059]"}`}
       />
     </label>
   );
 }
 
 function FinanceiroInternoContent({ routeFocus, copilotContext }) {
+  const { isLightTheme } = useInternalTheme();
   const [state, setState] = useState({ loading: true, error: null, data: null });
   const [selectedPendingRows, setSelectedPendingRows] = useState([]);
   const [selectedPendingContactRows, setSelectedPendingContactRows] = useState([]);
@@ -494,7 +502,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
   }, [state.data]);
 
   if (state.loading) {
-    return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando leitura financeira...</div>;
+    return <div className={`border p-6 ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#4b5563]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>Carregando leitura financeira...</div>;
   }
 
   if (state.error) {
@@ -513,8 +521,8 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
     <div className="space-y-8">
       {copilotContext ? (
         <Panel title="Contexto vindo do Copilot" eyebrow="Handoff operacional">
-          <p className="font-semibold text-[#F5F1E8]">{copilotContext.conversationTitle || "Conversa ativa"}</p>
-          {copilotContext.mission ? <p className="mt-4 text-sm opacity-70">{copilotContext.mission}</p> : null}
+          <p className={`font-semibold ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{copilotContext.conversationTitle || "Conversa ativa"}</p>
+          {copilotContext.mission ? <p className={`mt-4 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>{copilotContext.mission}</p> : null}
           <div className="mt-4 flex flex-wrap gap-2">
             {copilotContext?.entities?.primaryProcessNumber ? (
               <StatusBadge tone="accent">CNJ {copilotContext.entities.primaryProcessNumber}</StatusBadge>
@@ -527,12 +535,12 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
       ) : null}
       {routeFocus?.dealId || routeFocus?.processAccountId || routeFocus?.clientId ? (
         <Panel title="Contexto vindo de Jobs" eyebrow="Handoff operacional">
-          <div className="flex flex-wrap gap-3 text-sm opacity-80">
+          <div className={`flex flex-wrap gap-3 text-sm ${isLightTheme ? "text-[#374151]" : "opacity-80"}`}>
             {routeFocus.dealId ? <StatusBadge tone="accent">Deal {routeFocus.dealId}</StatusBadge> : null}
             {routeFocus.processAccountId ? <StatusBadge tone="accent">Process account {routeFocus.processAccountId}</StatusBadge> : null}
             {routeFocus.clientId ? <StatusBadge tone="neutral">Cliente {routeFocus.clientId}</StatusBadge> : null}
           </div>
-          <p className="mt-4 text-sm opacity-70">Este modulo foi aberto a partir da mesa de jobs. Use os identificadores acima para reconciliar o pedido financeiro do portal com recebiveis, deals e pendencias internas.</p>
+          <p className={`mt-4 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>Este modulo foi aberto a partir da mesa de jobs. Use os identificadores acima para reconciliar o pedido financeiro do portal com recebiveis, deals e pendencias internas.</p>
         </Panel>
       ) : null}
 
@@ -540,7 +548,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
         <button
           type="button"
           onClick={load}
-          className="border border-[#2D2E2E] px-4 py-3 text-sm transition hover:border-[#C5A059] hover:text-[#C5A059]"
+          className={`border px-4 py-3 text-sm transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#374151] hover:border-[#9a6d14] hover:text-[#9a6d14]" : "border-[#2D2E2E] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
         >
           Atualizar leitura
         </button>
@@ -584,15 +592,15 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
         </div>
         <div className="mt-4 space-y-3">
           {(executiveSummary.top_blockers || []).map((item) => (
-            <article key={item.key} className="border border-[#2D2E2E] p-4 text-sm">
+            <article key={item.key} className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold">{item.label}</p>
                 <StatusBadge tone="warn">{item.count}</StatusBadge>
               </div>
-              <p className="mt-2 opacity-70">{item.helper}</p>
+              <p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>{item.helper}</p>
             </article>
           ))}
-          {!executiveSummary.top_blockers?.length ? <p className="opacity-65">Sem bloqueios relevantes no resumo atual.</p> : null}
+          {!executiveSummary.top_blockers?.length ? <p className={isLightTheme ? "text-[#6b7280]" : "opacity-65"}>Sem bloqueios relevantes no resumo atual.</p> : null}
         </div>
       </Panel>
 
@@ -608,7 +616,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
         {(data.publish_blockers_by_product || []).length ? (
           <div className="grid gap-3 xl:grid-cols-3">
             {data.publish_blockers_by_product.map((item) => (
-              <article key={item.key} className="border border-[#2D2E2E] p-4 text-sm">
+              <article key={item.key} className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold">{item.key}</p>
                   <StatusBadge tone="warn">{item.count} bloqueio(s)</StatusBadge>
@@ -617,7 +625,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
             ))}
           </div>
         ) : (
-          <p className="text-sm opacity-65">Nao ha bloqueios de publicacao por produto neste recorte.</p>
+          <p className={`text-sm ${isLightTheme ? "text-[#6b7280]" : "opacity-65"}`}>Nao ha bloqueios de publicacao por produto neste recorte.</p>
         )}
         {configuredProductMapEntries.length ? (
           <div className="mt-4">
@@ -631,10 +639,10 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
             </div>
           </div>
         ) : (
-          <p className="mt-4 text-sm opacity-60">Nenhum mapeamento manual persistido ainda. Salve os product IDs aqui para destravar a publicacao dos deals bloqueados.</p>
+          <p className={`mt-4 text-sm ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Nenhum mapeamento manual persistido ainda. Salve os product IDs aqui para destravar a publicacao dos deals bloqueados.</p>
         )}
         {data.product_mapping_help?.env_key ? (
-          <p className="mt-4 text-sm opacity-60">Chave de mapeamento manual: {data.product_mapping_help.env_key}</p>
+          <p className={`mt-4 text-sm ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Chave de mapeamento manual: {data.product_mapping_help.env_key}</p>
         ) : null}
       </Panel>
 
@@ -668,7 +676,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
               max="200"
               value={textualBackfillLimit}
               onChange={(event) => setTextualBackfillLimit(Number(event.target.value || 50))}
-              className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]"
+              className={`border p-3 text-sm outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-[#050706] focus:border-[#C5A059]"}`}
             />
             <button
               type="button"
@@ -681,18 +689,18 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
           </div>
           {textualBackfillState.error ? <p className="mb-4 text-sm text-red-200">{textualBackfillState.error}</p> : null}
           {textualBackfillState.result ? (
-            <div className="mb-4 rounded-[18px] border border-[#35554B] bg-[rgba(11,24,21,0.72)] p-4 text-sm">
+            <div className={`mb-4 rounded-[18px] border p-4 text-sm ${isLightTheme ? "border-[#b7d8c8] bg-[#eefbf4] text-[#1f2937]" : "border-[#35554B] bg-[rgba(11,24,21,0.72)]"}`}>
               <p className="font-semibold">
                 {textualBackfillState.result.updated_contracts || 0} contrato(s) atualizados, {textualBackfillState.result.updated_receivables || 0} recebível(is) ligados.
               </p>
-              <p className="mt-2 opacity-70">
+              <p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>
                 Existing: {textualBackfillState.result.linked_existing || 0} | Criadas: {textualBackfillState.result.created_accounts || 0}
               </p>
             </div>
           ) : null}
           <div className="grid gap-3 md:grid-cols-2">
             {Object.entries(counts.deal_sync_status || {}).map(([key, value]) => (
-              <div key={key} className="border border-[#2D2E2E] p-4 text-sm">
+              <div key={key} className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-semibold">{key}</p>
                   <StatusBadge tone={toneForStatus(key)}>{value}</StatusBadge>
@@ -700,7 +708,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
               </div>
             ))}
             {Object.entries(counts.crm_queue_status || {}).map(([key, value]) => (
-              <div key={key} className="border border-[#2D2E2E] p-4 text-sm">
+              <div key={key} className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-semibold">CRM {key}</p>
                   <StatusBadge tone={toneForStatus(key)}>{value}</StatusBadge>
@@ -715,11 +723,11 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
       </div>
 
       <Panel title="Operacao assistida" eyebrow="Runner">
-        <p className="mb-4 text-sm opacity-65">
+        <p className={`mb-4 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>
           Este runner lê a configuração operacional do backend do financeiro e expõe sempre os acionamentos disponíveis para migração, publicação e suporte de CRM.
         </p>
         {data.config?.endpoints ? (
-          <div className="mb-4 rounded-[18px] border border-[#2D2E2E] bg-[#050706] p-4 text-sm">
+          <div className={`mb-4 rounded-[18px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[#050706]"}`}>
             <p className="font-semibold">Endpoints configurados no backend</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {Object.entries(data.config.endpoints).map(([key, endpoint]) => (
@@ -812,20 +820,20 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
         </div>
         {operationState.error ? <p className="mt-4 text-sm text-red-200">{operationState.error}</p> : null}
         {operationState.result ? (
-          <div className="mt-4 rounded-[18px] border border-[#35554B] bg-[rgba(11,24,21,0.72)] p-4 text-sm">
+          <div className={`mt-4 rounded-[18px] border p-4 text-sm ${isLightTheme ? "border-[#b7d8c8] bg-[#eefbf4] text-[#1f2937]" : "border-[#35554B] bg-[rgba(11,24,21,0.72)]"}`}>
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-semibold">{operationState.result.operation}</p>
               <StatusBadge tone={operationState.result.code === 0 ? "success" : "danger"}>exit {operationState.result.code}</StatusBadge>
             </div>
-            {operationState.result.json?.output ? <p className="mt-2 opacity-80">Arquivo: {operationState.result.json.output}</p> : null}
-            {operationState.result.json?.total_rows != null ? <p className="mt-2 opacity-80">Linhas: {operationState.result.json.total_rows}</p> : null}
+            {operationState.result.json?.output ? <p className={`mt-2 ${isLightTheme ? "text-[#374151]" : "opacity-80"}`}>Arquivo: {operationState.result.json.output}</p> : null}
+            {operationState.result.json?.total_rows != null ? <p className={`mt-2 ${isLightTheme ? "text-[#374151]" : "opacity-80"}`}>Linhas: {operationState.result.json.total_rows}</p> : null}
             {operationState.result.stdout ? (
-              <pre className="mt-3 overflow-auto whitespace-pre-wrap border border-[#2D2E2E] bg-[#050706] p-3 text-xs opacity-85">
+              <pre className={`mt-3 overflow-auto whitespace-pre-wrap border p-3 text-xs ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#374151]" : "border-[#2D2E2E] bg-[#050706] opacity-85"}`}>
                 {operationState.result.stdout}
               </pre>
             ) : null}
             {operationState.result.guidance ? (
-              <div className="mt-4 border border-[#2D2E2E] bg-[#050706] p-4">
+              <div className={`mt-4 border p-4 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[#050706]"}`}>
                 <p className="font-semibold">Proximo passo recomendado</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <StatusBadge tone="accent">publish_ready: {operationState.result.guidance.snapshot?.publish_ready ?? 0}</StatusBadge>
@@ -836,7 +844,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
                 </div>
                 <div className="mt-3 space-y-2">
                   {(operationState.result.guidance.next_steps || []).map((item) => (
-                    <p key={item} className="opacity-80">{item}</p>
+                    <p key={item} className={isLightTheme ? "text-[#374151]" : "opacity-80"}>{item}</p>
                   ))}
                 </div>
                 {operationState.result.guidance.blockers?.products?.length ? (
@@ -864,12 +872,12 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
         <Panel title="Importações recentes" eyebrow="Runs">
           <div className="space-y-3">
             {(data.recent_import_runs || []).map((run) => (
-              <article key={run.id} className="border border-[#2D2E2E] p-4 text-sm">
+              <article key={run.id} className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold">{run.source_file || run.source_name || "Import run"}</p>
                   <StatusBadge tone={toneForStatus(run.status)}>{run.status || "sem_status"}</StatusBadge>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 opacity-65">
+                <div className={`mt-2 flex flex-wrap gap-x-4 gap-y-1 ${isLightTheme ? "text-[#6b7280]" : "opacity-65"}`}>
                   <span>Total: {run.total_rows || 0}</span>
                   <span>Válidas: {run.valid_rows || 0}</span>
                   <span>Erro: {run.error_rows || 0}</span>
@@ -883,7 +891,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
         <Panel title="Fontes do staging" eyebrow="CSV">
           <div className="space-y-3 text-sm">
             {Object.entries(counts.import_sources || {}).map(([key, value]) => (
-              <div key={key} className="flex items-center justify-between border border-[#2D2E2E] p-4">
+              <div key={key} className={`flex items-center justify-between border p-4 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
                 <p className="font-semibold">{key}</p>
                 <StatusBadge tone="accent">{value}</StatusBadge>
               </div>
@@ -896,7 +904,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
       <Panel title="Migracao para Deals" eyebrow="Por origem">
         <div className="space-y-3">
           {(data.migration_progress_by_source || []).map((item) => (
-            <article key={item.source_file} className="border border-[#2D2E2E] p-4 text-sm">
+            <article key={item.source_file} className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="font-semibold">{item.source_file}</p>
                 <div className="flex flex-wrap gap-2">
@@ -946,17 +954,17 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
             {freshsalesAuth.auth_summary || "Sem credencial operacional"}
           </StatusBadge>
         </div>
-        {freshsalesAuth.preferred_auth_mode ? <p className="mt-4 text-sm opacity-65">Modo preferido: {freshsalesAuth.preferred_auth_mode}</p> : null}
-        {freshsalesAuth.api_base ? <p className="mt-4 text-sm opacity-65">Base: {freshsalesAuth.api_base}</p> : null}
-        {freshsalesAuth.org_domain ? <p className="mt-2 text-sm opacity-65">Org domain: {freshsalesAuth.org_domain}</p> : null}
-        {freshsalesAuth.token_expiry ? <p className="mt-2 text-sm opacity-65">Expira em: {formatDate(freshsalesAuth.token_expiry)}</p> : null}
+        {freshsalesAuth.preferred_auth_mode ? <p className={`mt-4 text-sm ${isLightTheme ? "text-[#6b7280]" : "opacity-65"}`}>Modo preferido: {freshsalesAuth.preferred_auth_mode}</p> : null}
+        {freshsalesAuth.api_base ? <p className={`mt-4 text-sm ${isLightTheme ? "text-[#6b7280]" : "opacity-65"}`}>Base: {freshsalesAuth.api_base}</p> : null}
+        {freshsalesAuth.org_domain ? <p className={`mt-2 text-sm ${isLightTheme ? "text-[#6b7280]" : "opacity-65"}`}>Org domain: {freshsalesAuth.org_domain}</p> : null}
+        {freshsalesAuth.token_expiry ? <p className={`mt-2 text-sm ${isLightTheme ? "text-[#6b7280]" : "opacity-65"}`}>Expira em: {formatDate(freshsalesAuth.token_expiry)}</p> : null}
         {freshsalesAuth.authorization_url ? (
           <p className="mt-4">
             <a
               href={freshsalesAuth.authorization_url}
               target="_blank"
               rel="noreferrer"
-              className="inline-block border border-[#C5A059] px-3 py-2 text-sm text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#050706]"
+              className={`inline-block border px-3 py-2 text-sm transition ${isLightTheme ? "border-[#9a6d14] text-[#9a6d14] hover:bg-[#9a6d14] hover:text-white" : "border-[#C5A059] text-[#C5A059] hover:bg-[#C5A059] hover:text-[#050706]"}`}
             >
               Reautorizar Freshsales
             </a>
@@ -972,7 +980,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
         <Panel title="Recebíveis recentes" eyebrow="Base canônica">
           <div className="space-y-3">
             {(data.recent_receivables || []).map((item) => (
-              <article key={item.id} className="border border-[#2D2E2E] p-4 text-sm">
+              <article key={item.id} className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold">{item.title}</p>
                   <StatusBadge tone={toneForStatus(item.status)}>{item.status || "sem_status"}</StatusBadge>
@@ -981,7 +989,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
                     {item.sync_status_label || item.sync_status}
                   </StatusBadge>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 opacity-70">
+                <div className={`mt-2 flex flex-wrap gap-x-4 gap-y-1 ${isLightTheme ? "text-[#6b7280]" : "opacity-70"}`}>
                   <span>Contato: {item.contact_name || item.contact_email || "sem contato"}</span>
                   <span>Vencimento: {item.due_date || "n/d"}</span>
                   <span>Saldo: {formatMoney(item.balance_due || 0)}</span>
@@ -999,12 +1007,12 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
               value={processQuery}
               onChange={(event) => setProcessQuery(event.target.value)}
               placeholder="Buscar processo por CNJ, número, account ou título"
-              className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]"
+              className={`border p-3 text-sm outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-[#050706] focus:border-[#C5A059]"}`}
             />
             <button
               type="button"
               onClick={() => searchProcesses()}
-              className="border border-[#2D2E2E] px-4 py-3 text-sm transition hover:border-[#C5A059] hover:text-[#C5A059]"
+              className={`border px-4 py-3 text-sm transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#374151] hover:border-[#9a6d14] hover:text-[#9a6d14]" : "border-[#2D2E2E] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
             >
               Buscar processo
             </button>
@@ -1015,16 +1023,16 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
           </div>
           {resolutionState.error ? <p className="mb-4 text-sm text-red-200">{resolutionState.error}</p> : null}
           {resolutionState.result ? (
-            <div className="mb-4 rounded-[18px] border border-[#35554B] bg-[rgba(11,24,21,0.72)] p-4 text-sm">
+            <div className={`mb-4 rounded-[18px] border p-4 text-sm ${isLightTheme ? "border-[#b7d8c8] bg-[#eefbf4] text-[#1f2937]" : "border-[#35554B] bg-[rgba(11,24,21,0.72)]"}`}>
               <p className="font-semibold">Reconciliacao aplicada em {resolutionState.result.updated || 0} linha(s).</p>
-              <p className="mt-2 opacity-70">
+              <p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>
                 Processo: {resolutionState.result.process_reference || resolutionState.result.process?.label || "n/d"}
               </p>
             </div>
           ) : null}
           <div className="space-y-3">
             {(data.pending_account_rows || []).map((row) => (
-              <label key={row.id} className="block cursor-pointer border border-[#2D2E2E] p-4 text-sm">
+              <label key={row.id} className={`block cursor-pointer border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
                 <div className="flex gap-3">
                   <input
                     type="checkbox"
@@ -1037,7 +1045,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
                       <p className="font-semibold">{row.person_name || row.email || "Linha sem identificação"}</p>
                       <StatusBadge tone="warn">{row.matching_status}</StatusBadge>
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 opacity-70">
+                    <div className={`mt-2 flex flex-wrap gap-x-4 gap-y-1 ${isLightTheme ? "text-[#6b7280]" : "opacity-70"}`}>
                       {row.resolved_contact_name ? <span>Contato: {row.resolved_contact_name}</span> : null}
                       {row.invoice_number ? <span>Fatura: {row.invoice_number}</span> : null}
                       {row.billing_type_inferred ? <span>Cobrança: {row.billing_type_inferred}</span> : null}
@@ -1053,7 +1061,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
                           setProcessQuery(seed);
                           searchProcesses(seed);
                         }}
-                        className="mt-3 border border-[#2D2E2E] px-3 py-2 text-xs transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                        className={`mt-3 border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#374151] hover:border-[#9a6d14] hover:text-[#9a6d14]" : "border-[#2D2E2E] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                       >
                         Buscar candidatos para esta linha
                       </button>
@@ -1072,13 +1080,13 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
         {processSearch.error ? <p className="text-sm text-red-200">{processSearch.error}</p> : null}
         <div className="grid gap-3 xl:grid-cols-2">
           {(processSearch.items || []).map((item) => (
-            <article key={item.id} className="border border-[#2D2E2E] p-4 text-sm">
+            <article key={item.id} className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold">{item.label}</p>
                 {item.account_id_freshsales ? <StatusBadge tone="success">account {item.account_id_freshsales}</StatusBadge> : <StatusBadge tone="warn">sem account</StatusBadge>}
                 <StatusBadge tone="accent">{item.matched_by}</StatusBadge>
               </div>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 opacity-70">
+              <div className={`mt-2 flex flex-wrap gap-x-4 gap-y-1 ${isLightTheme ? "text-[#6b7280]" : "opacity-70"}`}>
                 {item.numero_cnj ? <span>CNJ: {item.numero_cnj}</span> : null}
                 {item.numero_processo ? <span>Número: {item.numero_processo}</span> : null}
                 {item.status ? <span>Status: {item.status}</span> : null}
@@ -1116,16 +1124,16 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
         </div>
         {contactResolutionState.error ? <p className="mb-4 text-sm text-red-200">{contactResolutionState.error}</p> : null}
         {contactResolutionState.result ? (
-          <div className="mb-4 rounded-[18px] border border-[#35554B] bg-[rgba(11,24,21,0.72)] p-4 text-sm">
+          <div className={`mb-4 rounded-[18px] border p-4 text-sm ${isLightTheme ? "border-[#b7d8c8] bg-[#eefbf4] text-[#1f2937]" : "border-[#35554B] bg-[rgba(11,24,21,0.72)]"}`}>
             <p className="font-semibold">
               {contactResolutionState.result.updated || 0} linha(s) processada(s), {contactResolutionState.result.contacts_created || 0} contato(s) criado(s), {contactResolutionState.result.partes_linked || 0} parte(s) vinculada(s).
             </p>
-            <p className="mt-2 opacity-70">Processos inferidos: {contactResolutionState.result.matched_processes || 0}</p>
+            <p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>Processos inferidos: {contactResolutionState.result.matched_processes || 0}</p>
           </div>
         ) : null}
         <div className="grid gap-3 xl:grid-cols-2">
           {(data.pending_contact_rows || []).map((row) => (
-            <label key={row.id} className="block cursor-pointer border border-[#2D2E2E] p-4 text-sm">
+            <label key={row.id} className={`block cursor-pointer border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
               <div className="flex gap-3">
                 <input
                   type="checkbox"
@@ -1138,7 +1146,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
                     <p className="font-semibold">{row.person_name || row.email || "Linha sem identificação"}</p>
                     <StatusBadge tone="warn">{row.matching_status}</StatusBadge>
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 opacity-70">
+                  <div className={`mt-2 flex flex-wrap gap-x-4 gap-y-1 ${isLightTheme ? "text-[#6b7280]" : "opacity-70"}`}>
                     {row.email ? <span>E-mail: {row.email}</span> : null}
                     {row.invoice_number ? <span>Fatura: {row.invoice_number}</span> : null}
                     {row.product_family_inferred ? <span>Produto: {row.product_family_inferred}</span> : null}
@@ -1155,17 +1163,17 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
         {contactResolutionState.result?.rows?.length ? (
           <div className="mt-4 grid gap-3 xl:grid-cols-2">
             {contactResolutionState.result.rows.map((item) => (
-              <article key={item.id} className="border border-[#2D2E2E] bg-[#050706] p-4 text-sm">
+              <article key={item.id} className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[#050706]"}`}>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold">Linha {item.id}</p>
                   <StatusBadge tone={toneForStatus(item.matching_status)}>{item.matching_status || "processada"}</StatusBadge>
                   {item.created_contact?.id ? <StatusBadge tone="success">contato {item.created_contact.id}</StatusBadge> : null}
                   {item.linked_partes ? <StatusBadge tone="accent">{item.linked_partes} parte(s)</StatusBadge> : null}
                 </div>
-                {item.created_contact?.name ? <p className="mt-2 opacity-70">Contato: {item.created_contact.name}</p> : null}
-                {item.process?.label ? <p className="mt-2 opacity-70">Processo inferido: {item.process.label}</p> : null}
+                {item.created_contact?.name ? <p className={`mt-2 ${isLightTheme ? "text-[#6b7280]" : "opacity-70"}`}>Contato: {item.created_contact.name}</p> : null}
+                {item.process?.label ? <p className={`mt-2 ${isLightTheme ? "text-[#6b7280]" : "opacity-70"}`}>Processo inferido: {item.process.label}</p> : null}
                 {item.process?.account_id_freshsales ? (
-                  <p className="mt-2 opacity-70">Account sugerido: {item.process.account_id_freshsales}</p>
+                  <p className={`mt-2 ${isLightTheme ? "text-[#6b7280]" : "opacity-70"}`}>Account sugerido: {item.process.account_id_freshsales}</p>
                 ) : null}
                 {item.possible_processes?.length ? (
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -1185,13 +1193,13 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
         <Panel title="Backlog CRM" eyebrow="Fila">
           <div className="space-y-3">
             {(data.crm_queue_backlog || []).map((item) => (
-              <article key={item.id} className="border border-[#2D2E2E] p-4 text-sm">
+              <article key={item.id} className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold">{item.event_type || "evento"}</p>
                   <StatusBadge tone={toneForStatus(item.status)}>{item.status || "sem_status"}</StatusBadge>
                   <StatusBadge tone="accent">{item.attempts || 0} tentativas</StatusBadge>
                 </div>
-                {item.error ? <p className="mt-2 opacity-75">{item.error}</p> : null}
+                {item.error ? <p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>{item.error}</p> : null}
               </article>
             ))}
             {!data.crm_queue_backlog?.length ? <p className="opacity-65">Sem backlog atual de eventos CRM.</p> : null}

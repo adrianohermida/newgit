@@ -2692,9 +2692,9 @@ const [uiToasts, setUiToasts] = useState([]);
         : "w-full max-w-[1320px]";
   const workspaceShellGridClass =
     effectiveWorkspaceLayout === "immersive"
-      ? "lg:grid-cols-[220px_minmax(0,1.2fr)_280px] xl:grid-cols-[260px_minmax(0,1.55fr)_320px] 2xl:grid-cols-[300px_minmax(0,1.75fr)_360px]"
+      ? "lg:grid-cols-[250px_minmax(0,1.45fr)_280px] xl:grid-cols-[290px_minmax(0,1.85fr)_320px] 2xl:grid-cols-[320px_minmax(0,2.1fr)_360px]"
       : effectiveWorkspaceLayout === "balanced"
-        ? "lg:grid-cols-[200px_minmax(0,1.1fr)_240px] xl:grid-cols-[210px_minmax(0,1.25fr)_260px] 2xl:grid-cols-[230px_minmax(0,1.4fr)_280px]"
+        ? "lg:grid-cols-[220px_minmax(0,1.25fr)_240px] xl:grid-cols-[240px_minmax(0,1.5fr)_260px] 2xl:grid-cols-[260px_minmax(0,1.65fr)_280px]"
         : "lg:grid-cols-[180px_minmax(0,1fr)_220px] xl:grid-cols-[190px_minmax(0,1.12fr)_240px] 2xl:grid-cols-[210px_minmax(0,1.2fr)_260px]";
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
   const visibleLegalActions = LEGAL_ACTIONS.slice(0, isCompactViewport ? 1 : 3);
@@ -3844,29 +3844,35 @@ const [uiToasts, setUiToasts] = useState([]);
             {!suppressInnerChrome ? (
             <header className={`border-b border-[#22342F]/80 bg-[linear-gradient(180deg,rgba(11,14,13,0.82),rgba(7,10,9,0.78))] backdrop-blur-xl ${isFocusedCopilotShell ? "px-4 py-3 md:px-5" : "px-4 py-4 md:px-5"}`}>
               {isFocusedCopilotShell ? (
-                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] ${activeStatus === "processing" ? "border-[#8b6f33] text-[#D9B46A]" : "border-[#234034] text-[#80C7A1]"}`}>
-                        <span className={`h-2 w-2 rounded-full ${activeStatus === "processing" ? "bg-[#D9B46A]" : "bg-[#80C7A1]"}`} />
-                        {activeStatus === "processing" ? "Processando" : "Online"}
-                      </span>
-                      <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
-                        {activeProviderPresentation.name}
-                      </span>
-                      <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
-                        modo {activeMode.label}
-                      </span>
-                      <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
-                        foco {activeProjectLabel}
-                      </span>
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] ${activeStatus === "processing" ? "border-[#8b6f33] text-[#D9B46A]" : "border-[#234034] text-[#80C7A1]"}`}>
+                          <span className={`h-2 w-2 rounded-full ${activeStatus === "processing" ? "bg-[#D9B46A]" : "bg-[#80C7A1]"}`} />
+                          {activeStatus === "processing" ? "Processando" : "Online"}
+                        </span>
+                        <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+                          {activeProjectLabel}
+                        </span>
+                        <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+                          {messages.length} msg
+                        </span>
+                      </div>
+                      <p className="mt-3 truncate text-base font-semibold text-[#F5F1E8]">
+                        {activeConversation?.title || "Nova conversa"}
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-[#9BAEA8]">
+                        Histórico à esquerda, conversa ao centro e módulos fixos na lateral direita.
+                      </p>
                     </div>
-                    <p className="mt-3 text-base font-semibold text-[#F5F1E8]">
-                      {activeConversation?.title || "Nova conversa"}
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-[#9BAEA8]">
-                      Histórico à esquerda, conversa ao centro e módulos na barra lateral direita.
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => router.push("/interno/ai-task")}
+                      className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                    >
+                      Abrir AI Task
+                    </button>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {MODE_OPTIONS.map((item) => (
@@ -3874,10 +3880,10 @@ const [uiToasts, setUiToasts] = useState([]);
                         key={item.value}
                         type="button"
                         onClick={() => setMode(item.value)}
-                        className={`rounded-full border px-4 py-2 text-xs font-medium transition ${
+                        className={`rounded-full border px-3 py-1.5 text-[11px] font-medium transition ${
                           mode === item.value
-                            ? "border-[#C5A059] bg-[#C5A059] text-[#07110E]"
-                            : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
+                            ? "border-[#C5A059] bg-[rgba(197,160,89,0.14)] text-[#F1D39A]"
+                            : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"
                         }`}
                       >
                         {item.label}
@@ -3887,7 +3893,7 @@ const [uiToasts, setUiToasts] = useState([]);
                       value={provider}
                       onChange={(event) => setProvider(event.target.value)}
                       aria-label="Selecionar LLM do Copilot"
-                      className="h-10 rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-xs text-[#D8DEDA] outline-none transition focus:border-[#C5A059]"
+                      className="h-9 rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-[11px] text-[#D8DEDA] outline-none transition focus:border-[#C5A059]"
                     >
                       {providerCatalog.map((item) => (
                         <option key={item.value} value={item.value} disabled={item.disabled}>
@@ -3897,10 +3903,14 @@ const [uiToasts, setUiToasts] = useState([]);
                     </select>
                     <button
                       type="button"
-                      onClick={() => router.push("/interno/ai-task")}
-                      className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                      onClick={() => setContextEnabled((value) => !value)}
+                      className={`rounded-full border px-3 py-1.5 text-[11px] font-medium transition ${
+                        contextEnabled
+                          ? "border-[#3E5B50] bg-[rgba(64,122,97,0.16)] text-[#A9E3C3]"
+                          : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"
+                      }`}
                     >
-                      Abrir AI Task
+                      Contexto {contextEnabled ? "ON" : "OFF"}
                     </button>
                   </div>
                 </div>
@@ -4379,17 +4389,21 @@ const [uiToasts, setUiToasts] = useState([]);
                         <p className="text-xs text-[#9BAEA8]">{profile?.role || "Equipe interna"}</p>
                       </div>
                     </div>
-                    <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-                      <a href="/interno" className="rounded-2xl border border-[#22342F] px-3 py-2 text-center text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
-                        Dashboard
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() => router.push("/interno/agentlab")}
-                        className="rounded-2xl border border-[#22342F] px-3 py-2 text-center text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-                      >
-                        AgentLab
-                      </button>
+                    <div className={`mt-4 grid gap-2 text-xs ${isFocusedCopilotShell ? "grid-cols-1" : "grid-cols-2"}`}>
+                      {!isFocusedCopilotShell ? (
+                        <a href="/interno" className="rounded-2xl border border-[#22342F] px-3 py-2 text-center text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                          Dashboard
+                        </a>
+                      ) : null}
+                      {!isFocusedCopilotShell ? (
+                        <button
+                          type="button"
+                          onClick={() => router.push("/interno/agentlab")}
+                          className="rounded-2xl border border-[#22342F] px-3 py-2 text-center text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                        >
+                          AgentLab
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         onClick={handleResetChat}
@@ -4408,43 +4422,35 @@ const [uiToasts, setUiToasts] = useState([]);
 
                 <section className="flex min-h-0 flex-col rounded-[24px] border border-[#1C2623] bg-[rgba(255,255,255,0.015)] shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
                   <div className="border-b border-[#22342F] px-4 py-4 md:px-5">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
                         <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Conversa</p>
-                        <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">
+                        <p className="mt-2 truncate text-lg font-semibold text-[#F5F1E8]">
                           {activeConversation?.title || "Nova conversa"}
                         </p>
                         <p className="mt-1 text-sm leading-6 text-[#9BAEA8]">
                           {isFocusedCopilotShell
-                            ? "Fluxo centralizado para conversar, concatenar contexto e despachar módulos sem sair do shell interno."
+                            ? "Área principal dedicada à conversa ativa, com histórico e módulos fixos nas laterais."
                             : "Conversa principal com contexto, execução assistida e handoff operacional."}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {isFocusedCopilotShell ? (
-                          <>
-                            <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
-                              {activeProjectLabel}
-                            </span>
-                            <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
-                              {messages.length} msg
-                            </span>
-                          </>
-                        ) : null}
-                        {visibleLegalActions.slice(0, 3).map((action) => (
+                        <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+                          {activeProjectLabel}
+                        </span>
+                        <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+                          {messages.length} msg
+                        </span>
+                        {!isFocusedCopilotShell ? visibleLegalActions.slice(0, 3).map((action) => (
                           <button
                             key={action.label}
                             type="button"
                             onClick={() => handleQuickAction(action.prompt)}
-                            className={`rounded-full border px-3 py-1.5 text-[11px] transition ${
-                              isFocusedCopilotShell
-                                ? "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"
-                                : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
-                            }`}
+                            className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                           >
                             {action.label}
                           </button>
-                        ))}
+                        )) : null}
                       </div>
                     </div>
                   </div>
@@ -4506,7 +4512,7 @@ const [uiToasts, setUiToasts] = useState([]);
 
                   <div className="border-t border-[#22342F] px-4 py-4 md:px-5">
                     <div className="mb-3 flex flex-wrap gap-2">
-                      {visibleQuickPrompts.map((prompt) => (
+                      {(isFocusedCopilotShell ? visibleQuickPrompts.slice(0, 3) : visibleQuickPrompts).map((prompt) => (
                         <button
                           key={prompt}
                           type="button"
@@ -4525,7 +4531,7 @@ const [uiToasts, setUiToasts] = useState([]);
                       <div className="rounded-[20px] border border-[#1C2623] bg-[rgba(7,9,8,0.98)] p-3" onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}>
                         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#7F928C]">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full border border-[#22342F] px-2.5 py-1">/{showSlashCommands ? "comandos ativos" : "digite /"}</span>
+                            <span className="rounded-full border border-[#22342F] px-2.5 py-1">/{showSlashCommands ? "comandos ativos" : "comandos"}</span>
                             <span className="rounded-full border border-[#22342F] px-2.5 py-1">Enter envia</span>
                             {!isFocusedCopilotShell ? (
                               <span className="rounded-full border border-[#22342F] px-2.5 py-1">Shift+Enter quebra</span>
@@ -4551,7 +4557,7 @@ const [uiToasts, setUiToasts] = useState([]);
                           onPaste={handlePaste}
                           rows={4}
                           disabled={isComposerBlocked}
-                          placeholder="Pergunte, delegue uma tarefa ou cole o contexto que precisa operar..."
+                          placeholder={isFocusedCopilotShell ? "Converse com o Dotobot, continue um contexto ou delegue uma ação..." : "Pergunte, delegue uma tarefa ou cole o contexto que precisa operar..."}
                           className="w-full resize-none border-0 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-[#60706A] disabled:cursor-not-allowed disabled:opacity-50"
                         />
                         {composerBlockedReason ? (
@@ -4619,44 +4625,44 @@ const [uiToasts, setUiToasts] = useState([]);
 
                 <aside className="hidden lg:block min-h-0 overflow-hidden rounded-[24px] border border-[#1C2623] bg-[rgba(255,255,255,0.015)]">
                   <div className="border-b border-[#22342F] px-4 py-4">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col gap-3">
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">
                           {isFocusedCopilotShell ? "Sidebar direita" : "Painel"}
                         </p>
                         <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeRightPanelMeta.title}</p>
-                        <p className="mt-1 max-w-[17rem] text-[11px] leading-5 text-[#7F928C]">
+                        <p className="mt-1 max-w-[19rem] text-[11px] leading-5 text-[#7F928C]">
                           {isFocusedCopilotShell
-                            ? "Módulos operacionais, AI Task, AgentLabs e contexto em leitura lateral fixa."
+                            ? "Módulos, subtarefas e contexto auxiliar sem competir com a conversa central."
                             : activeRightPanelMeta.detail}
                         </p>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={() => setRightPanelTab("modules")}
-                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "modules" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#F1D39A] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "modules" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#F1D39A] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"}`}
                         >
                           Módulos
                         </button>
                         <button
                           type="button"
                           onClick={() => setRightPanelTab("ai-task")}
-                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "ai-task" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#F1D39A] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "ai-task" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#F1D39A] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"}`}
                         >
                           AI Task
                         </button>
                         <button
                           type="button"
                           onClick={() => setRightPanelTab("agentlabs")}
-                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "agentlabs" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#F1D39A] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "agentlabs" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#F1D39A] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"}`}
                         >
                           AgentLabs
                         </button>
                         <button
                           type="button"
                           onClick={() => setRightPanelTab("context")}
-                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "context" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#F1D39A] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "context" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#F1D39A] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"}`}
                         >
                           Contexto
                         </button>
@@ -4672,8 +4678,8 @@ const [uiToasts, setUiToasts] = useState([]);
                         <div className="rounded-[18px] border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-4">
                           <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Workspace ativo</p>
                           <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeProjectLabel}</p>
-                          <p className="mt-2 text-xs leading-6 text-[#9BAEA8]">
-                            Atalhos rápidos para os módulos internos com a mesma lógica de painel lateral do Copilot.
+                          <p className="mt-2 text-xs leading-5 text-[#9BAEA8]">
+                            Módulos integrados em leitura rápida, sem tirar foco da conversa.
                           </p>
                         </div>
                         <div className="grid gap-3">
@@ -4689,7 +4695,7 @@ const [uiToasts, setUiToasts] = useState([]);
                               <div className="flex items-start justify-between gap-3">
                                 <div>
                                   <p className="text-sm font-semibold text-[#F5F1E8]">{module.label}</p>
-                                  <p className="mt-2 text-xs leading-6 text-[#9BAEA8]">{module.helper}</p>
+                                  <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-[#9BAEA8]">{module.helper}</p>
                                 </div>
                                 <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
                                   {module.count}
@@ -4699,14 +4705,14 @@ const [uiToasts, setUiToasts] = useState([]);
                                 <button
                                   type="button"
                                   onClick={() => router.push(module.contextualHref || module.href)}
-                                  className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                                  className="rounded-full border border-[#35554B] px-2.5 py-1 text-[10px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
                                 >
                                   Abrir em contexto
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setSelectedProjectFilter(module.key)}
-                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                  className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                                 >
                                   Filtrar histórico
                                 </button>
@@ -4730,7 +4736,7 @@ const [uiToasts, setUiToasts] = useState([]);
                     ) : rightPanelTab === "ai-task" ? (
                       <div className="space-y-3">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm text-[#9BAEA8]">Subtarefas, replay e continuidade com o AI Task.</p>
+                          <p className="text-sm text-[#9BAEA8]">Subtarefas e continuidade operacional.</p>
                           <div className="flex gap-2">
                             <button
                               type="button"
@@ -4781,7 +4787,7 @@ const [uiToasts, setUiToasts] = useState([]);
                           </div>
                         </div>
                         {taskHistory.length ? (
-                          taskHistory.map((task) => (
+                          taskHistory.slice(0, isFocusedCopilotShell ? 3 : taskHistory.length).map((task) => (
                             <article key={task.id} className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm">
                               <div className="flex items-start justify-between gap-3">
                                 <div>
@@ -4812,11 +4818,20 @@ const [uiToasts, setUiToasts] = useState([]);
                             Nenhuma tarefa ainda.
                           </div>
                         )}
+                        {isFocusedCopilotShell && taskHistory.length > 3 ? (
+                          <button
+                            type="button"
+                            onClick={() => router.push("/interno/ai-task")}
+                            className="w-full rounded-[16px] border border-[#22342F] px-3 py-2 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                          >
+                            Ver histórico completo no AI Task
+                          </button>
+                        ) : null}
                       </div>
                     ) : rightPanelTab === "agentlabs" ? (
                       <div className="space-y-3">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm text-[#9BAEA8]">Subagentes, governança e inteligência conversacional do ai-core.</p>
+                          <p className="text-sm text-[#9BAEA8]">Subagentes e governança do ai-core.</p>
                           <button
                             type="button"
                             onClick={() => router.push("/interno/agentlab")}
@@ -4884,8 +4899,8 @@ const [uiToasts, setUiToasts] = useState([]);
                                 <div>
                                   <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Controles rápidos</p>
                                   <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">Operações do AgentLab sem sair do Copilot.</p>
-                                  <p className="mt-2 text-xs leading-6 text-[#9BAEA8]">
-                                    Sync conversacional, treino focal e atualização operacional com refresh automático do painel.
+                                  <p className="mt-2 text-xs leading-5 text-[#9BAEA8]">
+                                    Sync e treino focal com atualização rápida do painel.
                                   </p>
                                 </div>
                                 <button
@@ -4949,7 +4964,7 @@ const [uiToasts, setUiToasts] = useState([]);
                                 <div>
                                   <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Handoff atual</p>
                                   <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeConversation?.title || "Nova conversa"}</p>
-                                  <p className="mt-2 text-xs leading-6 text-[#9BAEA8]">
+                                  <p className="mt-2 line-clamp-3 text-xs leading-5 text-[#9BAEA8]">
                                     {activeConversationPreview}
                                   </p>
                                 </div>
@@ -4970,7 +4985,7 @@ const [uiToasts, setUiToasts] = useState([]);
                               </div>
                               {linkedAgentLabTaskRuns.length ? (
                                 <div className="mt-3 space-y-2">
-                                  {linkedAgentLabTaskRuns.map((run) => (
+                                  {linkedAgentLabTaskRuns.slice(0, isFocusedCopilotShell ? 2 : linkedAgentLabTaskRuns.length).map((run) => (
                                     <article key={run.id} className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.76)] px-3 py-3">
                                       <div className="flex items-start justify-between gap-3">
                                         <div>

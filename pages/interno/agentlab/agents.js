@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
+import { useInternalTheme } from "../../../components/interno/InternalThemeProvider";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
 import { adminFetch } from "../../../lib/admin/api";
@@ -8,8 +9,9 @@ import { setModuleHistory } from "../../../lib/admin/activity-log";
 import { buildModuleSnapshot } from "../../../lib/admin/module-registry";
 
 function Panel({ title, children }) {
+  const { isLightTheme } = useInternalTheme();
   return (
-    <section className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
+    <section className={`border p-6 ${isLightTheme ? "border-[#d7d4cb] bg-[rgba(255,255,255,0.92)] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
       <h3 className="mb-4 font-serif text-2xl">{title}</h3>
       {children}
     </section>
@@ -65,6 +67,7 @@ function AgentsContent({
   selectedAgent,
   setSelectedAgent,
 }) {
+  const { isLightTheme } = useInternalTheme();
   const catalog = state.data?.agents || [];
   const profiles = state.data?.governance?.profiles || [];
   const queue = state.data?.governance?.queue || [];
@@ -112,7 +115,7 @@ function AgentsContent({
 
   if (state.loading) {
     return (
-      <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
+      <div className={`border p-6 ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#4b5563]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
         Carregando agentes...
       </div>
     );
@@ -251,7 +254,7 @@ function AgentsContent({
             <select
               value={selectedAgent}
               onChange={(event) => setSelectedAgent(event.target.value)}
-              className="w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              className={`w-full border px-4 py-3 outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-transparent focus:border-[#C5A059]"}`}
             >
               {catalog.map((item) => (
                 <option key={item.id} value={item.agent_slug || item.agent_ref}>
@@ -260,7 +263,7 @@ function AgentsContent({
               ))}
             </select>
           </label>
-          <div className="border border-[#2D2E2E] p-4 text-sm opacity-75">
+          <div className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#4b5563]" : "border-[#2D2E2E] opacity-75"}`}>
             <p className="font-semibold">{selectedCatalogItem?.name || "Agente"}</p>
             <p className="mt-2">
               Tipo: {selectedCatalogItem?.agent_kind || "agent"} | Canal principal:{" "}
@@ -275,9 +278,9 @@ function AgentsContent({
 
       <div className="grid gap-6 xl:grid-cols-[1.45fr_1fr]">
         <Panel title="Perfil principal do agente">
-          {message ? <div className="mb-4 text-sm opacity-75">{message}</div> : null}
+          {message ? <div className={`mb-4 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>{message}</div> : null}
           {!form ? (
-            <p className="text-sm opacity-70">Nenhum perfil carregado. Selecione um agente para editar sua voz e seu escopo.</p>
+            <p className={`text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>Nenhum perfil carregado. Selecione um agente para editar sua voz e seu escopo.</p>
           ) : (
             <div className="space-y-4">
               {[
@@ -297,7 +300,7 @@ function AgentsContent({
                     onChange={(event) =>
                       setForm((current) => ({ ...current, [key]: event.target.value }))
                     }
-                    className="min-h-[96px] w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                    className={`min-h-[96px] w-full border px-4 py-3 outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-transparent focus:border-[#C5A059]"}`}
                   />
                 </label>
               ))}
@@ -315,17 +318,17 @@ function AgentsContent({
         </Panel>
 
         <Panel title="Catalogo de agentes">
-          <div className="space-y-4 text-sm opacity-75">
+          <div className={`space-y-4 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>
             {catalog.map((item) => (
-              <div key={item.id} className="border border-[#2D2E2E] p-4">
-                <div className="mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
+              <div key={item.id} className={`border p-4 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
+                <div className={`mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>
                   <span>{item.status}</span>
                   <span>{item.agent_slug || "sem slug"}</span>
                   <span>{item.agent_kind || "agent"}</span>
                 </div>
                 <p className="font-semibold">{item.name}</p>
                 {item.profile?.business_goal ? (
-                  <p className="mt-2 opacity-75">{item.profile.business_goal}</p>
+                  <p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>{item.profile.business_goal}</p>
                 ) : null}
               </div>
             ))}
@@ -335,14 +338,14 @@ function AgentsContent({
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Panel title="Respostas rapidas prioritarias">
-          {quickReplyMessage ? <div className="mb-4 text-sm opacity-75">{quickReplyMessage}</div> : null}
+          {quickReplyMessage ? <div className={`mb-4 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>{quickReplyMessage}</div> : null}
           <div className="mb-6 grid gap-4 md:grid-cols-2">
             <input
               value={quickReplyForm.title}
               onChange={(event) =>
                 setQuickReplyForm((current) => ({ ...current, title: event.target.value }))
               }
-              className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              className={`border px-4 py-3 outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-transparent focus:border-[#C5A059]"}`}
               placeholder="Titulo da resposta rapida"
             />
             <input
@@ -350,7 +353,7 @@ function AgentsContent({
               onChange={(event) =>
                 setQuickReplyForm((current) => ({ ...current, shortcut: event.target.value }))
               }
-              className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              className={`border px-4 py-3 outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-transparent focus:border-[#C5A059]"}`}
               placeholder="/atalho"
             />
             <input
@@ -358,7 +361,7 @@ function AgentsContent({
               onChange={(event) =>
                 setQuickReplyForm((current) => ({ ...current, category: event.target.value }))
               }
-              className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              className={`border px-4 py-3 outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-transparent focus:border-[#C5A059]"}`}
               placeholder="Categoria"
             />
             <input
@@ -366,7 +369,7 @@ function AgentsContent({
               onChange={(event) =>
                 setQuickReplyForm((current) => ({ ...current, status: event.target.value }))
               }
-              className="border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+              className={`border px-4 py-3 outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-transparent focus:border-[#C5A059]"}`}
               placeholder="Status"
             />
             <textarea
@@ -374,23 +377,23 @@ function AgentsContent({
               onChange={(event) =>
                 setQuickReplyForm((current) => ({ ...current, body: event.target.value }))
               }
-              className="min-h-[100px] border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059] md:col-span-2"
+              className={`min-h-[100px] border px-4 py-3 outline-none transition md:col-span-2 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-transparent focus:border-[#C5A059]"}`}
               placeholder="Texto da resposta"
             />
             <div className="md:col-span-2">
               <button
                 type="button"
                 onClick={handleSaveQuickReply}
-                className="border border-[#C5A059] px-4 py-3 text-sm"
+                className={`border px-4 py-3 text-sm transition ${isLightTheme ? "border-[#9a6d14] text-[#9a6d14] hover:bg-[#9a6d14] hover:text-white" : "border-[#C5A059]"}`}
               >
                 Salvar resposta rapida
               </button>
             </div>
           </div>
-          <div className="space-y-4 text-sm opacity-75">
+          <div className={`space-y-4 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>
             {visibleQuickReplies.map((item) => (
-              <div key={item.id} className="border border-[#2D2E2E] p-4">
-                <div className="mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
+              <div key={item.id} className={`border p-4 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
+                <div className={`mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>
                   <span>{item.category}</span>
                   <span>{item.shortcut}</span>
                   <span>{item.status}</span>
@@ -403,10 +406,10 @@ function AgentsContent({
         </Panel>
 
         <Panel title="Playbooks de handoff">
-          <div className="space-y-4 text-sm opacity-75">
+          <div className={`space-y-4 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>
             {visiblePlaybooks.map((item) => (
-              <div key={item.id} className="border border-[#2D2E2E] p-4">
-                <div className="mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
+              <div key={item.id} className={`border p-4 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
+                <div className={`mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>
                   <span>trigger: {item.trigger}</span>
                   <span>destino: {item.destination}</span>
                 </div>
@@ -418,37 +421,37 @@ function AgentsContent({
       </div>
 
       <Panel title="Fila viva de melhoria">
-        {queueMessage ? <div className="mb-4 text-sm opacity-75">{queueMessage}</div> : null}
+        {queueMessage ? <div className={`mb-4 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>{queueMessage}</div> : null}
         <div className="space-y-4">
           {visibleQueue.map((item) => (
-            <div key={item.id} className="border border-[#2D2E2E] p-4">
-              <div className="mb-2 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
+            <div key={item.id} className={`border p-4 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
+              <div className={`mb-2 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.15em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>
                 <span>{item.category}</span>
                 <span>{item.priority}</span>
                 <span>{item.status}</span>
                 <span>{item.sprint_bucket || "Sem sprint"}</span>
               </div>
               <p className="mb-2 font-semibold">{item.title}</p>
-              <p className="mb-4 text-sm opacity-75">{item.description}</p>
+              <p className={`mb-4 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>{item.description}</p>
               <div className="flex flex-wrap gap-3">
                 <button
                   type="button"
                   onClick={() => updateQueue(item, { status: "doing" })}
-                  className="border border-[#2D2E2E] px-3 py-2 text-xs"
+                  className={`border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#374151] hover:border-[#9a6d14] hover:text-[#9a6d14]" : "border-[#2D2E2E]"}`}
                 >
                   Mover para doing
                 </button>
                 <button
                   type="button"
                   onClick={() => updateQueue(item, { status: "done" })}
-                  className="border border-[#2D2E2E] px-3 py-2 text-xs"
+                  className={`border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#374151] hover:border-[#9a6d14] hover:text-[#9a6d14]" : "border-[#2D2E2E]"}`}
                 >
                   Marcar done
                 </button>
                 <button
                   type="button"
                   onClick={() => updateQueue(item, { priority: "alta" })}
-                  className="border border-[#2D2E2E] px-3 py-2 text-xs"
+                  className={`border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#374151] hover:border-[#9a6d14] hover:text-[#9a6d14]" : "border-[#2D2E2E]"}`}
                 >
                   Prioridade alta
                 </button>

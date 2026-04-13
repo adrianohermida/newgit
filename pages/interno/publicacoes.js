@@ -2221,7 +2221,8 @@ function PublicacoesContent() {
   const blockingJob = pendingOrRunningJobs[0] || null;
   const hasBlockingJob = pendingOrRunningJobs.length > 0;
   const hasMultipleBlockingJobs = pendingOrRunningJobs.length > 1;
-  const canManuallyDrainActiveJob = Boolean(activeJobId) && pendingOrRunningJobs.length === 1 && pendingOrRunningJobs[0]?.id === activeJobId;
+  const currentDrainJobId = activeJobId || blockingJob?.id || null;
+  const canManuallyDrainActiveJob = Boolean(currentDrainJobId);
   const candidateQueues = [processCandidates, partesCandidates];
   const candidateQueueErrorCount = candidateQueues.filter((queue) => queue?.error).length;
   const candidateQueueMismatchCount = candidateQueues.filter((queue) => candidateQueueHasReadMismatch(queue)).length;
@@ -2410,19 +2411,20 @@ function PublicacoesContent() {
 
   async function runPendingJobsNow() {
     if (!canManuallyDrainActiveJob) {
-      const message = hasMultipleBlockingJobs
-        ? "Ha mais de um job pesado de publicacoes em andamento. Aguarde estabilizar para drenar manualmente."
-        : "Nao ha um job ativo unico disponivel para drenagem manual.";
+      const message = "Nao ha job pendente ou em andamento disponivel para drenagem manual.";
       setActionState({ loading: false, error: message, result: blockingJob ? { job: blockingJob } : null });
       return;
     }
     setActionState({ loading: true, error: null, result: null });
     updateView("resultado");
     try {
+      if (!activeJobId && currentDrainJobId) {
+        setActiveJobId(currentDrainJobId);
+      }
       const payload = await adminFetch("/api/admin-hmadv-publicacoes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "run_pending_jobs", id: activeJobId, maxChunks: 1 }),
+        body: JSON.stringify({ action: "run_pending_jobs", id: currentDrainJobId, maxChunks: 1 }),
       }, {
         action: "run_pending_jobs",
         component: "publicacoes-jobs",

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
+import { useInternalTheme } from "../../../components/interno/InternalThemeProvider";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import { adminFetch } from "../../../lib/admin/api";
 import { appendActivityLog, setModuleHistory } from "../../../lib/admin/activity-log";
@@ -39,15 +40,50 @@ function buildActionLinks(item) {
 }
 
 function MetaBlock({ label, value }) {
+  const { isLightTheme } = useInternalTheme();
   return (
     <div>
-      <p className="text-xs font-semibold tracking-[0.15em] uppercase mb-2 opacity-45">{label}</p>
-      <p className="text-sm opacity-80 break-all">{value || "—"}</p>
+      <p className={`mb-2 text-xs font-semibold uppercase tracking-[0.15em] ${isLightTheme ? "text-[#6b7280]" : "opacity-45"}`}>{label}</p>
+      <p className={`break-all text-sm ${isLightTheme ? "text-[#374151]" : "opacity-80"}`}>{value || "—"}</p>
     </div>
   );
 }
 
+function SectionCard({ title, children, accent = false }) {
+  const { isLightTheme } = useInternalTheme();
+  return (
+    <div className={`border p-6 ${isLightTheme ? "border-[#d7d4cb] bg-[rgba(255,255,255,0.92)] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
+      {title ? (
+        <p className={`mb-4 text-xs font-semibold uppercase tracking-[0.15em] ${accent ? (isLightTheme ? "text-[#9a6d14]" : "text-[#C5A059]") : isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>
+          {title}
+        </p>
+      ) : null}
+      {children}
+    </div>
+  );
+}
+
+function SecondaryAction({ as: Component = "button", className = "", ...props }) {
+  const { isLightTheme } = useInternalTheme();
+  return (
+    <Component
+      className={`border px-5 py-3 text-sm transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#374151] hover:border-[#9a6d14] hover:text-[#9a6d14]" : "border-[#2D2E2E] hover:border-[#C5A059] hover:text-[#C5A059]"} ${className}`.trim()}
+      {...props}
+    />
+  );
+}
+
+function PrimaryAction({ className = "", ...props }) {
+  return (
+    <button
+      className={`bg-[#C5A059] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#050706] disabled:opacity-60 ${className}`.trim()}
+      {...props}
+    />
+  );
+}
+
 export default function InternoAgendamentoDetalhePage() {
+  const { isLightTheme } = useInternalTheme();
   const router = useRouter();
   const [state, setState] = useState({
     loading: true,
@@ -278,6 +314,18 @@ export default function InternoAgendamentoDetalhePage() {
     );
   }, [actionState, notes.length, outcome, state, zoomState]);
 
+  const inputTone = isLightTheme
+    ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]"
+    : "border-[#2D2E2E] bg-[#050706] focus:border-[#C5A059]";
+  const textareaTone = isLightTheme
+    ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]"
+    : "border-[#2D2E2E] bg-transparent focus:border-[#C5A059]";
+  const mutedText = isLightTheme ? "text-[#6b7280]" : "opacity-60";
+  const subtleText = isLightTheme ? "text-[#4b5563]" : "opacity-55";
+  const warningCard = isLightTheme
+    ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#4b5563]"
+    : "border-[#2D2E2E] bg-[rgba(13,15,14,0.65)]";
+
   return (
     <RequireAdmin>
       {(profile) => (
@@ -286,7 +334,11 @@ export default function InternoAgendamentoDetalhePage() {
           title="Detalhe do agendamento"
           description="Visao operacional completa do registro, com links administrativos seguros para as acoes que ja existem no fluxo."
         >
-          {state.loading ? <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando agendamento...</div> : null}
+          {state.loading ? (
+            <div className={`border p-6 ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#4b5563]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
+              Carregando agendamento...
+            </div>
+          ) : null}
 
           {!state.loading && state.error ? (
             <div className="border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] p-6 text-sm">{state.error}</div>
@@ -294,16 +346,16 @@ export default function InternoAgendamentoDetalhePage() {
 
           {!state.loading && state.item ? (
             <div className="space-y-6">
-              <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
-                <div className="flex flex-wrap items-center gap-3 mb-4">
-                  <span className="text-[10px] font-semibold tracking-[0.2em]" style={{ color: "#C5A059" }}>
+              <SectionCard>
+                <div className="mb-4 flex flex-wrap items-center gap-3">
+                  <span className={`text-[10px] font-semibold tracking-[0.2em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#C5A059]"}`}>
                     {state.item.area}
                   </span>
-                  <span className="text-[10px] uppercase tracking-[0.15em] opacity-45">{state.item.status}</span>
+                  <span className={`text-[10px] uppercase tracking-[0.15em] ${isLightTheme ? "text-[#6b7280]" : "opacity-45"}`}>{state.item.status}</span>
                 </div>
 
-                <h3 className="font-serif text-3xl mb-2">{state.item.nome}</h3>
-                <p className="text-sm opacity-60 mb-6">
+                <h3 className="mb-2 font-serif text-3xl">{state.item.nome}</h3>
+                <p className={`mb-6 text-sm ${mutedText}`}>
                   {formatDateLabel(state.item.data)} as {state.item.hora}
                 </p>
 
@@ -328,16 +380,13 @@ export default function InternoAgendamentoDetalhePage() {
 
                 {state.item.observacoes ? (
                   <div className="mt-6">
-                    <p className="text-xs font-semibold tracking-[0.15em] uppercase mb-2 opacity-45">Observacoes</p>
-                    <p className="text-sm opacity-80 leading-relaxed">{state.item.observacoes}</p>
+                    <p className={`mb-2 text-xs font-semibold uppercase tracking-[0.15em] ${isLightTheme ? "text-[#6b7280]" : "opacity-45"}`}>Observacoes</p>
+                    <p className={`text-sm leading-relaxed ${isLightTheme ? "text-[#374151]" : "opacity-80"}`}>{state.item.observacoes}</p>
                   </div>
                 ) : null}
-              </div>
+              </SectionCard>
 
-              <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
-                <p className="text-xs font-semibold tracking-[0.15em] uppercase mb-4" style={{ color: "#C5A059" }}>
-                  Acoes administrativas
-                </p>
+              <SectionCard title="Acoes administrativas" accent>
                 <div className="flex flex-wrap gap-3">
                   <a
                     href={actions.confirmar}
@@ -347,42 +396,26 @@ export default function InternoAgendamentoDetalhePage() {
                   >
                     Abrir confirmacao
                   </a>
-                  <a
-                    href={actions.cancelar}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059]"
-                  >
+                  <SecondaryAction as="a" href={actions.cancelar} target="_blank" rel="noreferrer">
                     Abrir cancelamento
-                  </a>
-                  <a
-                    href={actions.remarcar}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059]"
-                  >
+                  </SecondaryAction>
+                  <SecondaryAction as="a" href={actions.remarcar} target="_blank" rel="noreferrer">
                     Abrir remarcacao
-                  </a>
-                  <Link
-                    href="/interno/agendamentos"
-                    className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059]"
-                  >
+                  </SecondaryAction>
+                  <SecondaryAction as={Link} href="/interno/agendamentos">
                     Voltar para lista
-                  </Link>
+                  </SecondaryAction>
                 </div>
-              </div>
+              </SectionCard>
 
-              <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
-                <p className="text-xs font-semibold tracking-[0.15em] uppercase mb-4" style={{ color: "#C5A059" }}>
-                  Pos-reuniao e CRM
-                </p>
+              <SectionCard title="Pos-reuniao e CRM" accent>
                 <div className="grid gap-4 md:grid-cols-[240px,1fr]">
                   <label className="block">
-                    <span className="block mb-2 text-xs font-semibold tracking-[0.15em] uppercase opacity-60">Desfecho</span>
+                    <span className={`mb-2 block text-xs font-semibold uppercase tracking-[0.15em] ${mutedText}`}>Desfecho</span>
                     <select
                       value={outcome}
                       onChange={(event) => setOutcome(event.target.value)}
-                      className="w-full border border-[#2D2E2E] bg-[#050706] px-4 py-3 outline-none focus:border-[#C5A059]"
+                      className={`w-full border px-4 py-3 outline-none transition ${inputTone}`}
                     >
                       {OUTCOME_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -393,27 +426,22 @@ export default function InternoAgendamentoDetalhePage() {
                   </label>
 
                   <label className="block">
-                    <span className="block mb-2 text-xs font-semibold tracking-[0.15em] uppercase opacity-60">Observacoes internas</span>
+                    <span className={`mb-2 block text-xs font-semibold uppercase tracking-[0.15em] ${mutedText}`}>Observacoes internas</span>
                     <textarea
                       value={notes}
                       onChange={(event) => setNotes(event.target.value)}
                       rows={4}
-                      className="w-full border border-[#2D2E2E] bg-transparent px-4 py-3 outline-none focus:border-[#C5A059]"
+                      className={`w-full border px-4 py-3 outline-none transition ${textareaTone}`}
                       placeholder="Ex.: cliente compareceu, demonstrou interesse e pediu proposta ainda hoje."
                     />
                   </label>
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleOutcomeSubmit}
-                    disabled={actionState.loading}
-                    className="bg-[#C5A059] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#050706] disabled:opacity-60"
-                  >
+                  <PrimaryAction type="button" onClick={handleOutcomeSubmit} disabled={actionState.loading}>
                     {actionState.loading ? "Sincronizando..." : "Registrar no CRM"}
-                  </button>
-                  <p className="text-xs opacity-55">
+                  </PrimaryAction>
+                  <p className={`text-xs ${subtleText}`}>
                     Isso atualiza o Freshsales para sequencias, jornadas, campanhas e pipeline comercial.
                   </p>
                 </div>
@@ -431,42 +459,39 @@ export default function InternoAgendamentoDetalhePage() {
                 ) : null}
 
                 {actionState.warnings?.length ? (
-                  <div className="mt-4 border border-[#2D2E2E] bg-[rgba(13,15,14,0.65)] p-4">
-                    <p className="text-xs font-semibold tracking-[0.15em] uppercase mb-3 opacity-50">Avisos da sincronizacao</p>
-                    <div className="space-y-2 text-sm opacity-75">
+                  <div className={`mt-4 border p-4 ${warningCard}`}>
+                    <p className={`mb-3 text-xs font-semibold uppercase tracking-[0.15em] ${isLightTheme ? "text-[#9a6d14]" : "opacity-50"}`}>Avisos da sincronizacao</p>
+                    <div className={`space-y-2 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>
                       {actionState.warnings.map((warning) => (
                         <p key={warning}>{warning}</p>
                       ))}
                     </div>
                   </div>
                 ) : null}
-              </div>
+              </SectionCard>
 
-              <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
-                <p className="text-xs font-semibold tracking-[0.15em] uppercase mb-4" style={{ color: "#C5A059" }}>
-                  Presenca via Zoom
-                </p>
+              <SectionCard title="Presenca via Zoom" accent>
                 <div className="flex flex-wrap gap-3">
-                  <button
+                  <SecondaryAction
                     type="button"
                     onClick={() => handleZoomAttendanceSync(false)}
                     disabled={zoomState.loading || !state.item.zoom_meeting_id}
-                    className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
+                    className="disabled:opacity-50"
                   >
                     {zoomState.loading ? "Consultando Zoom..." : "Sincronizar presenca"}
-                  </button>
-                  <button
+                  </SecondaryAction>
+                  <PrimaryAction
                     type="button"
                     onClick={() => handleZoomAttendanceSync(true)}
                     disabled={zoomState.loading || !state.item.zoom_meeting_id}
-                    className="bg-[#C5A059] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#050706] disabled:opacity-50"
+                    className="disabled:opacity-50"
                   >
                     Aplicar sugestao no CRM
-                  </button>
+                  </PrimaryAction>
                 </div>
 
                 {!state.item.zoom_meeting_id ? (
-                  <p className="mt-4 text-sm opacity-60">
+                  <p className={`mt-4 text-sm ${mutedText}`}>
                     Este agendamento ainda nao possui `zoom_meeting_id`, entao a presenca automatica nao pode ser consultada.
                   </p>
                 ) : null}
@@ -484,9 +509,9 @@ export default function InternoAgendamentoDetalhePage() {
                 ) : null}
 
                 {zoomState.suggestion ? (
-                  <div className="mt-4 border border-[#2D2E2E] bg-[rgba(13,15,14,0.65)] p-4">
-                    <p className="text-xs font-semibold tracking-[0.15em] uppercase mb-3 opacity-50">Sugestao automatica</p>
-                    <div className="space-y-2 text-sm opacity-80">
+                  <div className={`mt-4 border p-4 ${warningCard}`}>
+                    <p className={`mb-3 text-xs font-semibold uppercase tracking-[0.15em] ${isLightTheme ? "text-[#9a6d14]" : "opacity-50"}`}>Sugestao automatica</p>
+                    <div className={`space-y-2 text-sm ${isLightTheme ? "text-[#374151]" : "opacity-80"}`}>
                       <p>Desfecho sugerido: {zoomState.suggestion.suggestedOutcome || "sem sugestao segura"}</p>
                       <p>Confianca: {zoomState.suggestion.confidence}</p>
                       <p>Motivo: {zoomState.suggestion.reason}</p>
@@ -503,16 +528,16 @@ export default function InternoAgendamentoDetalhePage() {
                 ) : null}
 
                 {zoomState.participants?.length ? (
-                  <div className="mt-4 border border-[#2D2E2E] bg-[rgba(13,15,14,0.65)] p-4">
-                    <p className="text-xs font-semibold tracking-[0.15em] uppercase mb-3 opacity-50">Participantes do Zoom</p>
-                    <div className="space-y-3 text-sm opacity-80">
+                  <div className={`mt-4 border p-4 ${warningCard}`}>
+                    <p className={`mb-3 text-xs font-semibold uppercase tracking-[0.15em] ${isLightTheme ? "text-[#9a6d14]" : "opacity-50"}`}>Participantes do Zoom</p>
+                    <div className={`space-y-3 text-sm ${isLightTheme ? "text-[#374151]" : "opacity-80"}`}>
                       {zoomState.participants.map((participant, index) => (
-                        <div key={`${participant.id || participant.user_email || participant.name || "participant"}-${index}`} className="border border-[#2D2E2E] p-3">
+                        <div key={`${participant.id || participant.user_email || participant.name || "participant"}-${index}`} className={`border p-3 ${isLightTheme ? "border-[#d7d4cb] bg-white" : "border-[#2D2E2E]"}`}>
                           <p>{participant.name || "Sem nome"}</p>
-                          <p className="opacity-60">{participant.user_email || participant.email || "Sem e-mail"}</p>
-                          {participant.join_time ? <p className="opacity-60">Entrada: {participant.join_time}</p> : null}
-                          {participant.leave_time ? <p className="opacity-60">Saida: {participant.leave_time}</p> : null}
-                          {participant.duration ? <p className="opacity-60">Duracao: {participant.duration} min</p> : null}
+                          <p className={mutedText}>{participant.user_email || participant.email || "Sem e-mail"}</p>
+                          {participant.join_time ? <p className={mutedText}>Entrada: {participant.join_time}</p> : null}
+                          {participant.leave_time ? <p className={mutedText}>Saida: {participant.leave_time}</p> : null}
+                          {participant.duration ? <p className={mutedText}>Duracao: {participant.duration} min</p> : null}
                         </div>
                       ))}
                     </div>
@@ -520,27 +545,24 @@ export default function InternoAgendamentoDetalhePage() {
                 ) : null}
 
                 {zoomState.warnings?.length ? (
-                  <div className="mt-4 border border-[#2D2E2E] bg-[rgba(13,15,14,0.65)] p-4">
-                    <p className="text-xs font-semibold tracking-[0.15em] uppercase mb-3 opacity-50">Avisos da consulta</p>
-                    <div className="space-y-2 text-sm opacity-75">
+                  <div className={`mt-4 border p-4 ${warningCard}`}>
+                    <p className={`mb-3 text-xs font-semibold uppercase tracking-[0.15em] ${isLightTheme ? "text-[#9a6d14]" : "opacity-50"}`}>Avisos da consulta</p>
+                    <div className={`space-y-2 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>
                       {zoomState.warnings.map((warning) => (
                         <p key={warning}>{warning}</p>
                       ))}
                     </div>
                   </div>
                 ) : null}
-              </div>
+              </SectionCard>
 
-              <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
-                <p className="text-xs font-semibold tracking-[0.15em] uppercase mb-4" style={{ color: "#C5A059" }}>
-                  Tokens administrativos
-                </p>
+              <SectionCard title="Tokens administrativos" accent>
                 <div className="grid gap-6 md:grid-cols-3">
                   <MetaBlock label="Token confirmar" value={state.item.admin_token_confirmacao} />
                   <MetaBlock label="Token cancelar" value={state.item.admin_token_cancelamento} />
                   <MetaBlock label="Token remarcar" value={state.item.admin_token_remarcacao} />
                 </div>
-              </div>
+              </SectionCard>
             </div>
           ) : null}
         </InternoLayout>

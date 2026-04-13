@@ -4,7 +4,7 @@ const { buildSetupPreview } = require(/*turbopackIgnore: true*/ "../../lib/integ
 const { getIntegrationKitCapabilities } = require(/*turbopackIgnore: true*/ "../../lib/integration-kit/runtime");
 
 const path = require("path");
-const PROJECT_ROOT = path.join(__dirname, "..", "..");
+const PROJECT_ROOT = path.join(/*turbopackIgnore: true*/ __dirname, "..", "..");
 
 module.exports = async function handler(req, res) {
   const auth = await requireAdminNode(req);

@@ -118,12 +118,15 @@ const FALLBACK_SKILL_OPTIONS = listSkills().map((skill) => ({
 }));
 
 function shouldHydrateLocalProviderForAiTask(selectedProvider = "", providers = []) {
-  if (String(selectedProvider || "").toLowerCase() === "local") return true;
+  if (!Array.isArray(providers) || !providers.length) return false;
   const localOption = Array.isArray(providers)
     ? providers.find((item) => String(item?.value || item?.id || "").toLowerCase() === "local")
     : null;
   if (!localOption) return false;
-  return shouldAutoProbeBrowserLocalRuntime() && Boolean(localOption.configured);
+  if (String(selectedProvider || "").toLowerCase() === "local") {
+    return localOption.disabled !== true && (Boolean(localOption.configured) || shouldAutoProbeBrowserLocalRuntime());
+  }
+  return shouldAutoProbeBrowserLocalRuntime() && Boolean(localOption.configured) && localOption.disabled !== true;
 }
 
 function buildRagAlert(health) {
