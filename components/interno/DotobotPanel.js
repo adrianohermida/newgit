@@ -143,6 +143,15 @@ const MODULE_WORKSPACES = [
   { key: "jobs", label: "Jobs", href: "/interno/jobs", helper: "Execuções em lote, backlog e saúde das filas." },
 ];
 
+function shouldHydrateBrowserLocalProvider({ focusedWorkspace = false, selectedProvider = "", providers = [] } = {}) {
+  if (!Array.isArray(providers) || !providers.length) return false;
+  if (String(selectedProvider || "").toLowerCase() === "local") return true;
+  if (focusedWorkspace) return false;
+  const localOption = providers.find((item) => String(item?.value || item?.id || "").toLowerCase() === "local");
+  if (!localOption) return false;
+  return shouldAutoProbeBrowserLocalRuntime() || Boolean(localOption.configured);
+}
+
 function buildProjectInsights(groups = []) {
   return groups.map((group) => ({
     key: group.key,
@@ -1172,10 +1181,13 @@ const [uiToasts, setUiToasts] = useState([]);
           reason: item.reason || null,
           offlineMode: Boolean(payload?.data?.offlineMode),
         }));
-        const hydratedProviders =
-          shouldAutoProbeBrowserLocalRuntime() || mappedProviders.some((item) => item.value === "local" && item.configured)
-            ? await hydrateBrowserLocalProviderOptions(mappedProviders)
-            : mappedProviders;
+        const hydratedProviders = shouldHydrateBrowserLocalProvider({
+          focusedWorkspace: isFocusedCopilotShell,
+          selectedProvider: defaultProvider,
+          providers: mappedProviders,
+        })
+          ? await hydrateBrowserLocalProviderOptions(mappedProviders)
+          : mappedProviders;
         if (!active) return;
         setProviderCatalog(hydratedProviders);
         setProvider((current) =>

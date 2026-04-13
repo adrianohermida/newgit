@@ -117,6 +117,15 @@ const FALLBACK_SKILL_OPTIONS = listSkills().map((skill) => ({
   disabled: false,
 }));
 
+function shouldHydrateLocalProviderForAiTask(selectedProvider = "", providers = []) {
+  if (String(selectedProvider || "").toLowerCase() === "local") return true;
+  const localOption = Array.isArray(providers)
+    ? providers.find((item) => String(item?.value || item?.id || "").toLowerCase() === "local")
+    : null;
+  if (!localOption) return false;
+  return shouldAutoProbeBrowserLocalRuntime() && Boolean(localOption.configured);
+}
+
 function buildRagAlert(health) {
   if (!health || health.status === "operational") return null;
   const signals = health.signals || {};
@@ -383,7 +392,7 @@ export default function AITaskModule({ profile, routePath }) {
   }, []);
 
   useEffect(() => {
-    if (!shouldAutoProbeBrowserLocalRuntime() && !providerCatalog.some((item) => item.value === "local" && item.configured)) {
+    if (!shouldHydrateLocalProviderForAiTask(provider, providerCatalog)) {
       return undefined;
     }
     let active = true;
@@ -411,7 +420,7 @@ export default function AITaskModule({ profile, routePath }) {
   }, [localStackSummary, providerCatalog, setProvider]);
 
   useEffect(() => {
-    if (!shouldAutoProbeBrowserLocalRuntime()) return undefined;
+    if (!shouldHydrateLocalProviderForAiTask(provider, providerCatalog)) return undefined;
     let active = true;
     probeBrowserLocalStackSummary()
       .then((summary) => {
@@ -426,7 +435,7 @@ export default function AITaskModule({ profile, routePath }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [provider, providerCatalog]);
 
   useEffect(() => {
     const runtimeSkills = Array.isArray(localStackSummary?.capabilities?.skillList)

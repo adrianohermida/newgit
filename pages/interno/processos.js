@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
 import { OperationalHistoryCompactCard, OperationalResultCard } from "../../components/interno/OperationalResultPanels";
 import RequireAdmin from "../../components/interno/RequireAdmin";
+import { useInternalTheme } from "../../components/interno/InternalThemeProvider";
 import { adminFetch as adminFetchRaw } from "../../lib/admin/api";
 import { appendActivityLog, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
 
@@ -371,29 +372,35 @@ function getSuggestionSelectionValue(row) {
 }
 
 function MetricCard({ label, value, helper }) {
-  return <div className="rounded-[28px] border border-[#2D2E2E] bg-[linear-gradient(180deg,rgba(13,15,14,0.98),rgba(7,9,8,0.98))] p-5 shadow-[0_12px_36px_rgba(0,0,0,0.22)]"><p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">{label}</p><p className="mb-2 font-serif text-3xl">{value}</p>{helper ? <p className="text-sm leading-relaxed opacity-65">{helper}</p> : null}</div>;
+  const { isLightTheme } = useInternalTheme();
+  return <div className={`rounded-[28px] border p-5 shadow-[0_12px_36px_rgba(0,0,0,0.22)] ${isLightTheme ? "border-[#d7d4cb] bg-[linear-gradient(180deg,#ffffff,#f7f4ec)] text-[#1f2937]" : "border-[#2D2E2E] bg-[linear-gradient(180deg,rgba(13,15,14,0.98),rgba(7,9,8,0.98))]"}`}><p className={`mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>{label}</p><p className="mb-2 font-serif text-3xl">{value}</p>{helper ? <p className={`text-sm leading-relaxed ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>{helper}</p> : null}</div>;
 }
 function Panel({ title, eyebrow, children, className = "" }) {
-  return <section className={`rounded-[30px] border border-[#2D2E2E] bg-[linear-gradient(180deg,rgba(13,15,14,0.96),rgba(7,9,8,0.96))] p-6 shadow-[0_14px_48px_rgba(0,0,0,0.22)] ${className}`.trim()}>{eyebrow ? <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "#C5A059" }}>{eyebrow}</p> : null}<h3 className="mb-4 font-serif text-[1.9rem] leading-tight">{title}</h3>{children}</section>;
+  const { isLightTheme } = useInternalTheme();
+  return <section className={`rounded-[30px] border p-6 shadow-[0_14px_48px_rgba(0,0,0,0.22)] ${isLightTheme ? "border-[#d7d4cb] bg-[linear-gradient(180deg,#ffffff,#f7f4ec)] text-[#1f2937]" : "border-[#2D2E2E] bg-[linear-gradient(180deg,rgba(13,15,14,0.96),rgba(7,9,8,0.96))]"} ${className}`.trim()}>{eyebrow ? <p className={`mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#C5A059]"}`}>{eyebrow}</p> : null}<h3 className="mb-4 font-serif text-[1.9rem] leading-tight">{title}</h3>{children}</section>;
 }
 function Field({ label, value, onChange, placeholder }) {
-  return <label className="block"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">{label}</span><input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full rounded-2xl border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" /></label>;
+  const { isLightTheme } = useInternalTheme();
+  return <label className="block"><span className={`mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>{label}</span><input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className={`w-full rounded-2xl border p-3 text-sm outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-[#050706] focus:border-[#C5A059]"}`} /></label>;
 }
 function SelectField({ label, value, onChange, options }) {
-  return <label className="block"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">{label}</span><select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-2xl border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]">{options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>;
+  const { isLightTheme } = useInternalTheme();
+  return <label className="block"><span className={`mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>{label}</span><select value={value} onChange={(e) => onChange(e.target.value)} className={`w-full rounded-2xl border p-3 text-sm outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-[#050706] focus:border-[#C5A059]"}`}>{options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>;
 }
 function ActionButton({ children, tone = "subtle", className = "", ...props }) {
+  const { isLightTheme } = useInternalTheme();
   const tones = {
-    subtle: "border border-[#2D2E2E] text-[#F4F1EA] hover:border-[#C5A059] hover:text-[#C5A059]",
-    primary: "bg-[#C5A059] text-[#050706] hover:brightness-110",
+    subtle: isLightTheme ? "border border-[#d7d4cb] text-[#4b5563] hover:border-[#9a6d14] hover:text-[#9a6d14]" : "border border-[#2D2E2E] text-[#F4F1EA] hover:border-[#C5A059] hover:text-[#C5A059]",
+    primary: isLightTheme ? "bg-[#c79b2c] text-[#fffdf7] hover:brightness-110" : "bg-[#C5A059] text-[#050706] hover:brightness-110",
     danger: "border border-[#4B2222] text-red-200 hover:border-[#C96A6A]",
   };
   return <button type="button" {...props} className={`rounded-2xl px-5 py-3 text-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${tones[tone] || tones.subtle} ${className}`.trim()}>{children}</button>;
 }
 function ViewToggle({ value, onChange }) {
+  const { isLightTheme } = useInternalTheme();
   return <div className="flex flex-wrap gap-2">{PROCESS_VIEW_ITEMS.map((item) => {
     const active = item.key === value;
-    return <button key={item.key} type="button" onClick={() => onChange(item.key)} className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.16em] transition ${active ? "border-[#C5A059] bg-[rgba(197,160,89,0.12)] text-[#F8E7B5]" : "border-[#2D2E2E] text-[#C5A059] hover:border-[#C5A059]"}`}>{item.label}</button>;
+    return <button key={item.key} type="button" onClick={() => onChange(item.key)} className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.16em] transition ${active ? (isLightTheme ? "border-[#c79b2c] bg-[#fff8e7] text-[#8a6217]" : "border-[#C5A059] bg-[rgba(197,160,89,0.12)] text-[#F8E7B5]") : (isLightTheme ? "border-[#d7d4cb] text-[#8a6217] hover:border-[#c79b2c]" : "border-[#2D2E2E] text-[#C5A059] hover:border-[#C5A059]")}`}>{item.label}</button>;
   })}</div>;
 }
 function QueueList({ title, rows, selected, onToggle, onTogglePage, page, setPage, loading, helper, totalRows = 0, pageSize = 20, renderStatuses = null, lastUpdated = null, limited = false, errorMessage = "", selectionDisabled = false, selectionDisabledMessage = "" }) {

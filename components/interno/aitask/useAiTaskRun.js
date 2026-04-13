@@ -10,6 +10,12 @@ const AI_TASK_CONSOLE_META = {
   system: "task-run",
 };
 
+function isAdminRuntimeUnavailable(error) {
+  const status = Number(error?.status || 0);
+  const errorType = String(error?.payload?.errorType || "");
+  return status === 404 || status === 405 || errorType === "admin_runtime_unavailable";
+}
+
 function stringifyDiagnostic(value, limit = 12000) {
   if (value === undefined || value === null) return "";
   let text = "";
@@ -304,7 +310,15 @@ export function useAiTaskRun({
             result: pollError?.message || "Falha ao consultar status da execução.",
           });
         }
-        nextDelayMs = 4000;
+        if (!disposed && isAdminRuntimeUnavailable(pollError)) {
+          disposed = true;
+          setError(pollError?.message || "Runtime administrativo indisponivel.");
+          setAutomation("failed");
+          setActiveRun(null);
+          nextDelayMs = 0;
+        } else {
+          nextDelayMs = 4000;
+        }
       } finally {
         pollingInFlightRef.current = false;
         if (!disposed && activeRun?.id) {
