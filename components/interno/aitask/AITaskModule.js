@@ -869,7 +869,7 @@ export default function AITaskModule({ profile, routePath }) {
   ]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
         <WorkspaceHeader
           stateLabel={stateLabel}
           provider={provider}
@@ -905,7 +905,7 @@ export default function AITaskModule({ profile, routePath }) {
           formatExecutionSourceLabel={formatExecutionSourceLabel}
         />
 
-      <div className="grid gap-4 2xl:grid-cols-[280px_minmax(0,1fr)_340px]">
+      <div className="grid gap-5 2xl:grid-cols-[280px_minmax(0,1fr)_340px]">
         <RunsPane
           className="order-2 2xl:order-1"
           recentHistory={recentHistory}
@@ -921,8 +921,8 @@ export default function AITaskModule({ profile, routePath }) {
           onNextPage={() => setHistoryPage((current) => Math.min(historyTotalPages, current + 1))}
         />
 
-        <section className="order-1 min-h-0 overflow-hidden rounded-[30px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] shadow-[0_16px_48px_rgba(0,0,0,0.2)] 2xl:order-2">
-          <div className="border-b border-[#1B2925] px-4 py-4">
+        <section className="order-1 flex min-h-[680px] min-w-0 flex-col overflow-hidden rounded-[30px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] shadow-[0_16px_48px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.02)] 2xl:order-2">
+          <div className="border-b border-[#1B2925] bg-[rgba(255,255,255,0.015)] px-5 py-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Conversa ativa</p>
@@ -933,7 +933,7 @@ export default function AITaskModule({ profile, routePath }) {
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Filtrar eventos"
-                  className="h-10 w-full rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none placeholder:text-[#60706A] focus:border-[#C5A059] lg:w-40"
+                  className="h-10 w-full rounded-[14px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none placeholder:text-[#60706A] focus:border-[#C5A059] lg:w-40"
                 />
                 <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0">
                   {["all", "api", "backend", "planner", "reporter", "control", "error", "warning"].map((filterType) => (
@@ -941,7 +941,7 @@ export default function AITaskModule({ profile, routePath }) {
                       key={filterType}
                       type="button"
                       onClick={() => setSelectedLogFilter(filterType)}
-                      className={`shrink-0 rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] transition ${
+                      className={`shrink-0 rounded-[14px] border px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] transition ${
                         selectedLogFilter === filterType
                           ? "border-[#C5A059] text-[#C5A059]"
                           : "border-[#22342F] text-[#7F928C] hover:border-[#35554B] hover:text-[#9BAEA8]"
@@ -961,7 +961,7 @@ export default function AITaskModule({ profile, routePath }) {
             </div>
           </div>
 
-          <div ref={chatViewportRef} className="max-h-[58vh] space-y-3 overflow-y-auto px-4 py-4 md:max-h-[62vh]">
+          <div ref={chatViewportRef} className="min-h-[360px] flex-1 space-y-3 overflow-y-auto px-5 py-5">
             {mission ? <Bubble role="user" title="Missão" body={mission} time={activeRun?.startedAt || nowIso()} /> : null}
             {thinking.length ? thinking.map((block) => <ThinkingBlock key={block.id} block={block} />) : null}
             {latestResult ? <Bubble role="assistant" title="Hermida Maia IA" body={typeof latestResult === "string" ? latestResult : "Resultado estruturado entregue."} time={nowIso()} /> : null}

@@ -281,6 +281,7 @@ function buildCopilotContextPayload({ module, activeConversation, activeTask, ro
     projectLabel: projectLabel || "Geral",
     conversationTitle: activeConversation?.title || "Nova conversa",
     mission: activeTask?.query || activeTask?.title || activeTask?.mission || "",
+    entities: extractConversationEntities(activeConversation, activeTask),
   });
 }
 
@@ -398,6 +399,28 @@ function buildRagAlert(health) {
     title: "Memoria RAG degradada",
     body: health.error || "Embedding, consulta vetorial ou persistencia de memoria precisam de revisao.",
   };
+}
+
+function buildLocalInferenceAlert({ provider, error, localStackSummary }) {
+  if (!isBrowserLocalProvider(provider)) return null;
+  const normalizedError = String(error || "").toLowerCase();
+  if (normalizedError.includes("nao conseguiu reservar memoria suficiente")) {
+    return {
+      tone: "danger",
+      title: "Inferência local indisponível nesta máquina",
+      body: "O Copilot continua útil para histórico, handoff e navegação operacional, mas o modelo local não cabe na memória disponível agora.",
+      actions: ["open_runtime_config", "open_llm_test", "open_ai_task"],
+    };
+  }
+  if (localStackSummary?.offlineMode && !localStackSummary?.localProvider?.available) {
+    return {
+      tone: "warning",
+      title: "Runtime local ainda não respondeu",
+      body: "O painel segue em modo offline, mas o ai-core local ainda não está pronto para responder mensagens nesta sessão.",
+      actions: ["open_runtime_config", "abrir_diagnostico"],
+    };
+  }
+  return null;
 }
 
 function detectAttachmentKind(file) {
@@ -904,6 +927,21 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
     }
   }
 
+  function scrollConversationToBottom() {
+    if (!scrollRef.current) return;
+    const viewport = scrollRef.current;
+    const applyScroll = () => {
+      viewport.scrollTop = viewport.scrollHeight;
+    };
+    applyScroll();
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(() => {
+        applyScroll();
+        window.requestAnimationFrame(applyScroll);
+      });
+    }
+  }
+
   useEffect(() => {
     loadAgentLabSnapshot();
   }, []);
@@ -1029,12 +1067,9 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
   useEffect(() => {
     if (typeof window === "undefined") return;
     safeLocalSet(chatStorageKey, JSON.stringify(messages.slice(-MAX_HISTORY)));
-    // Scroll automático para o final ao carregar/trocar conversa
-    if (scrollRef.current) {
-      setTimeout(() => {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }, 50);
-    }
+    setTimeout(() => {
+      scrollConversationToBottom();
+    }, 50);
   }, [messages, chatStorageKey, activeConversationId]);
 
   // Restaura anexos ao alternar conversa
@@ -1494,7 +1529,10 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
       setLoading(false);
       setUiState("idle");
     } catch (err) {
-      const message = err.message || "Erro ao conectar ao backend.";
+      const message =
+        err?.code === "LOCAL_RUNTIME_INSUFFICIENT_MEMORY"
+          ? "Inferência local indisponível: a máquina não tem memória suficiente para o modelo atual. O painel segue operando em modo degradado."
+          : err.message || "Erro ao conectar ao backend.";
       setError(message);
       setMessages((msgs) => {
         const last = msgs[msgs.length - 1];
@@ -1677,6 +1715,9 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
     }
     setError(null);
     setWorkspaceOpen(true);
+    setTimeout(() => {
+      scrollConversationToBottom();
+    }, 80);
   }
 
   function handleConcatConversation(conversation) {
@@ -2078,6 +2119,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
   const activeBrowserProfile =
     browserExtensionProfiles?.profiles?.[browserExtensionProfiles?.active_profile] || null;
   const ragAlert = buildRagAlert(ragHealth);
+  const localInferenceAlert = buildLocalInferenceAlert({ provider, error, localStackSummary });
   const offlineHealthSnapshot = buildOfflineHealthSnapshot({ localStackSummary, ragHealth });
   const localBootstrapPlan = buildLocalBootstrapPlan({ localStackSummary, ragHealth });
   const supabaseBootstrap = buildSupabaseLocalBootstrap({ localStackSummary, ragHealth });
@@ -2173,6 +2215,12 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
   const activeTaskLabel = activeTask?.query || activeTask?.label || activeTask?.title || "Nenhuma missão em andamento";
   const activeTaskStepCount = Array.isArray(activeTask?.steps) ? activeTask.steps.length : 0;
   const activeTaskProviderLabel = activeTask?.provider ? parseProviderPresentation(activeTask.provider).name : activeProviderPresentation.name;
+  const composerBlockedReason = localInferenceAlert?.tone === "danger"
+    ? "Envio pausado até ajustar o runtime local ou liberar memória."
+    : !localStackReady && isBrowserLocalProvider(provider)
+      ? "Envio pausado até o runtime local responder."
+      : "";
+  const isComposerBlocked = Boolean(composerBlockedReason);
 
   useEffect(() => {
     if (!localStackReady && !localStackSummary?.offlineMode) return;
@@ -2556,7 +2604,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                   ].filter(Boolean).join(" · ")}
                 </p>
               ) : null}
-              {localStackSummary?.recommendations?.length ? (
+              {!compactRail && localStackSummary?.recommendations?.length ? (
                 <div className="mt-2 flex max-w-3xl flex-wrap gap-2 text-[11px]">
                   {localStackSummary.recommendations.slice(0, 3).map((item) => (
                     <span key={item} className="rounded-full border border-[#3B3523] bg-[rgba(197,160,89,0.08)] px-3 py-1.5 text-[#D9C38A]">
@@ -2565,7 +2613,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                   ))}
                 </div>
               ) : null}
-              {localStackSummary?.actions?.length ? (
+              {!compactRail && localStackSummary?.actions?.length ? (
                 <div className="mt-2 flex max-w-3xl flex-wrap gap-2">
                   {localStackSummary.actions.slice(0, 3).map((action) => (
                     <button
@@ -2579,35 +2627,68 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                   ))}
                 </div>
               ) : null}
-              {activeProviderPresentation.reason ? (
+              {!compactRail && activeProviderPresentation.reason ? (
                 <p className="mt-2 max-w-2xl text-[11px] leading-6 text-[#7F928C]">{activeProviderPresentation.reason}</p>
+              ) : null}
+              {!compactRail && localInferenceAlert ? (
+                <div className={`mt-4 max-w-3xl rounded-[20px] border px-4 py-3 text-sm ${
+                  localInferenceAlert.tone === "danger"
+                    ? "border-[#5b2d2d] bg-[rgba(91,45,45,0.22)] text-[#f2d0d0]"
+                    : "border-[#6f5a2d] bg-[rgba(98,79,34,0.2)] text-[#f1dfb5]"
+                }`}>
+                  <p className="text-[10px] uppercase tracking-[0.18em] opacity-80">Contingência local</p>
+                  <p className="mt-2 font-medium text-[#F5F1E8]">{localInferenceAlert.title}</p>
+                  <p className="mt-1 leading-6">{localInferenceAlert.body}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {localInferenceAlert.actions.map((actionId) => (
+                      <button
+                        key={actionId}
+                        type="button"
+                        onClick={() => handleLocalStackAction(actionId)}
+                        className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                      >
+                        {actionId === "open_runtime_config"
+                          ? "Editar runtime local"
+                          : actionId === "open_llm_test"
+                            ? "Testar runtime"
+                            : actionId === "open_ai_task"
+                              ? "Abrir AI Task"
+                              : "Abrir diagnóstico"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ) : null}
             </div>
             <div className="flex w-full flex-wrap items-start gap-2 lg:w-auto lg:justify-end">
-              <button
-                type="button"
-                onClick={handleCopilotDebug}
-                className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-              >
-                Debug
-              </button>
-              <button
-                type="button"
-                onClick={refreshLocalStackStatus}
-                disabled={refreshingLocalStack}
-                className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:cursor-wait disabled:opacity-60"
-              >
-                {refreshingLocalStack ? "Atualizando stack..." : "Atualizar stack local"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setLocalRuntimeConfigOpen((current) => !current)}
-                className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-              >
-                {localRuntimeConfigOpen ? "Fechar runtime local" : "Editar runtime local"}
-              </button>
+              {!compactRail ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleCopilotDebug}
+                    className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                  >
+                    Debug
+                  </button>
+                  <button
+                    type="button"
+                    onClick={refreshLocalStackStatus}
+                    disabled={refreshingLocalStack}
+                    className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {refreshingLocalStack ? "Atualizando stack..." : "Atualizar stack local"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLocalRuntimeConfigOpen((current) => !current)}
+                    className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                  >
+                    {localRuntimeConfigOpen ? "Fechar runtime local" : "Editar runtime local"}
+                  </button>
+                </>
+              ) : null}
               {compactRail ? (
-                  <div className="flex w-full flex-col gap-2 sm:w-auto">
+                <div className="flex w-full flex-col gap-2 sm:w-auto">
                   <button
                     type="button"
                     onClick={() => setWorkspaceOpen(true)}
@@ -2617,17 +2698,10 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                   </button>
                   <button
                     type="button"
-                    onClick={() => router.push("/interno/ai-task")}
+                    onClick={() => createConversationFromCurrentState("Nova conversa")}
                     className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                   >
-                    AI Task
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openLlmTest(provider, input)}
-                    className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-                  >
-                    LLM Test
+                    Nova conversa
                   </button>
                 </div>
               ) : (
@@ -2657,11 +2731,11 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
             <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Copilot compacto</p>
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Conversa ativa</p>
                   <p className="mt-2 truncate text-sm font-semibold text-[#F5F1E8]">
                     {activeConversation?.title || "Nova conversa"}
                   </p>
-                  <p className="mt-2 line-clamp-3 text-[12px] leading-6 text-[#9BAEA8]">
+                  <p className="mt-2 line-clamp-2 text-[12px] leading-6 text-[#9BAEA8]">
                     {activeConversationPreview}
                   </p>
                 </div>
@@ -2673,7 +2747,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                   Nova
                 </button>
               </div>
-                  <div className="mt-4 flex flex-wrap gap-2 text-[10px]">
+              <div className="mt-4 flex flex-wrap gap-2 text-[10px]">
                 <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[#D8DEDA]">
                   {activeProviderPresentation.name}
                 </span>
@@ -2705,130 +2779,12 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                 ) : null}
               </div>
             </div>
-            {offlineHealthSnapshot.items.length ? (
-              <div className="mt-4 rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-                <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Saúde offline</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {offlineHealthSnapshot.items.map((item) => (
-                    <span
-                      key={item.id}
-                      title={item.detail || item.value}
-                      className={`rounded-full border px-3 py-1.5 text-[11px] ${
-                        item.tone === "success"
-                          ? "border-[#234034] text-[#8FCFA9]"
-                          : item.tone === "danger"
-                            ? "border-[#5b2d2d] text-[#f2b2b2]"
-                            : "border-[#3B3523] text-[#D9C38A]"
-                      }`}
-                    >
-                      {item.label}: {item.value}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            {localBootstrapPlan.steps.length ? (
-              <div className="mt-4 rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Bootstrap local</p>
-                  <span className="text-[11px] text-[#9BAEA8]">
-                    {localBootstrapPlan.requiredCompleted}/{localBootstrapPlan.requiredTotal}
-                  </span>
-                </div>
-                <div className="mt-3 space-y-2">
-                  {localBootstrapPlan.steps.slice(0, 3).map((step) => (
-                    <div key={step.id} className="rounded-[18px] border border-[#22342F] px-3 py-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-[12px] font-semibold text-[#F5F1E8]">{step.title}</p>
-                          <p className="mt-1 text-[11px] leading-5 text-[#9BAEA8]">{step.detail}</p>
-                        </div>
-                        <span className={`rounded-full border px-2 py-1 text-[10px] ${
-                          step.done
-                            ? "border-[#234034] text-[#8FCFA9]"
-                            : step.optional
-                              ? "border-[#3B3523] text-[#D9C38A]"
-                              : "border-[#5b2d2d] text-[#f2b2b2]"
-                        }`}>
-                          {step.done ? "OK" : "Pend."}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            <div className="mt-4 rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Persistência</p>
-                <span className={`rounded-full border px-2 py-1 text-[10px] ${
-                  supabaseBootstrap.tone === "success"
-                    ? "border-[#234034] text-[#8FCFA9]"
-                    : supabaseBootstrap.tone === "danger"
-                      ? "border-[#5b2d2d] text-[#f2b2b2]"
-                      : "border-[#3B3523] text-[#D9C38A]"
-                }`}>
-                  {supabaseBootstrap.baseUrlKind === "local"
-                    ? "Local"
-                    : supabaseBootstrap.baseUrlKind === "remote"
-                      ? "Remoto"
-                      : "Pendente"}
-                </span>
-              </div>
-              <p className="mt-2 text-[12px] font-semibold text-[#F5F1E8]">{supabaseBootstrap.label}</p>
-              <p className="mt-1 text-[11px] leading-5 text-[#9BAEA8]">{supabaseBootstrap.detail}</p>
-              {supabaseBootstrap.baseUrlPreview ? (
-                <p className="mt-2 rounded-[18px] border border-[#22342F] px-3 py-2 text-[11px] text-[#C6D1CC]">
-                  {supabaseBootstrap.baseUrlPreview}
-                </p>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => handleLocalStackAction("copiar_envs_supabase_local")}
-                className="mt-3 w-full rounded-2xl border border-[#35554B] px-4 py-2 text-sm font-semibold text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
-              >
-                Copiar envs local
-              </button>
-            </div>
-            {localRuntimeConfigOpen ? (
-              <div className="mt-4 rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-                <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Runtime local</p>
-                <div className="mt-3 space-y-2">
-                  <input
-                    value={localRuntimeDraft.runtimeBaseUrl || ""}
-                    onChange={(event) => setLocalRuntimeDraft((current) => ({ ...current, runtimeBaseUrl: event.target.value }))}
-                    placeholder="http://127.0.0.1:8000"
-                    className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
-                  />
-                  <input
-                    value={localRuntimeDraft.localModel || ""}
-                    onChange={(event) => setLocalRuntimeDraft((current) => ({ ...current, localModel: event.target.value }))}
-                    placeholder="aetherlab-legal-local-v1"
-                    className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
-                  />
-                  <input
-                    value={localRuntimeDraft.extensionBaseUrl || ""}
-                    onChange={(event) => setLocalRuntimeDraft((current) => ({ ...current, extensionBaseUrl: event.target.value }))}
-                    placeholder="http://127.0.0.1:32123"
-                    className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSaveLocalRuntimeConfig}
-                    className="w-full rounded-2xl border border-[#35554B] px-4 py-2 text-sm font-semibold text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
-                  >
-                    Salvar e recarregar
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
             <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4">
               <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Histórico</p>
-                    <p className="mt-1 text-[12px] text-[#9BAEA8]">Mesmo estado do nodo full e handoff para AI Task.</p>
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Conversas recentes</p>
+                    <p className="mt-1 text-[12px] text-[#9BAEA8]">Acesso rápido às últimas trilhas abertas.</p>
                   </div>
                   <button
                     type="button"
@@ -2877,35 +2833,13 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Conversa ativa</p>
-                    <p className="mt-1 text-[12px] text-[#9BAEA8]">Leitura rápida da thread atual.</p>
+                    <p className="mt-1 text-[12px] text-[#9BAEA8]">A visualização já nasce no trecho mais recente da conversa.</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => router.push("/interno/ai-task")}
-                    className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-                  >
-                    AI Task
-                  </button>
+                  <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D8DEDA]">
+                    {messages.length} mensagens
+                  </span>
                 </div>
-                <div className="mt-3 max-h-[28vh] space-y-2 overflow-y-auto pr-1">
-                  {compactRecentConversations.length ? (
-                    <div className="flex flex-wrap gap-2">
-                      {compactRecentConversations.map((conversation) => (
-                        <button
-                          key={conversation.id}
-                          type="button"
-                          onClick={() => selectConversation(conversation)}
-                          className={`rounded-full border px-3 py-1.5 text-[10px] transition ${
-                            conversation.id === activeConversationId
-                              ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)] text-[#F1D39A]"
-                              : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"
-                          }`}
-                        >
-                          {conversation.title}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
+                <div className="mt-3 flex max-h-[34vh] min-h-[22vh] flex-col justify-end space-y-2 overflow-y-auto pr-1">
                   {compactTranscript.length ? (
                     compactTranscript.map((message, index) => (
                       <div
@@ -2941,70 +2875,95 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                       Dotobot está preparando a próxima resposta...
                     </div>
                   ) : null}
-                  {compactTaskHistory.length ? (
-                    <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Execuções recentes</p>
-                        <span className="text-[10px] text-[#60706A]">{taskHistory.length}</span>
-                      </div>
-                      <div className="mt-3 space-y-2">
-                        {compactTaskHistory.map((task) => (
-                          <div key={task.id} className="rounded-[14px] border border-[#22342F] bg-[rgba(7,9,8,0.75)] px-3 py-2">
-                            <p className="line-clamp-2 text-[11px] text-[#F5F1E8]">{task.query || task.title || "Tarefa"}</p>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#9BAEA8]">{task.status || "n/a"}</span>
-                              <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#9BAEA8]">{task.steps?.length || 0} etapas</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
                 </div>
               </div>
             </div>
 
-            {ragAlert ? (
-              <div className={`mt-4 rounded-[18px] border px-3 py-3 text-sm ${
-                ragAlert.tone === "danger"
-                  ? "border-[#5b2d2d] bg-[rgba(91,45,45,0.22)] text-[#f2d0d0]"
-                  : "border-[#6f5a2d] bg-[rgba(98,79,34,0.2)] text-[#f1dfb5]"
-              }`}>
-                <p className="text-[10px] uppercase tracking-[0.16em] opacity-80">Diagnóstico RAG</p>
-                <p className="mt-2 font-medium text-[#F5F1E8]">{ragAlert.title}</p>
-                <p className="mt-1 text-[12px] leading-6">{ragAlert.body}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => router.push("/interno/agentlab/environment")}
-                    className="rounded-full border border-current px-3 py-1.5 text-[11px] font-semibold transition hover:bg-[rgba(255,255,255,0.06)]"
-                  >
-                    Abrir diagnóstico
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openLlmTest(provider, input)}
-                    className="rounded-full border border-current px-3 py-1.5 text-[11px] font-semibold transition hover:bg-[rgba(255,255,255,0.06)]"
-                  >
-                    LLM Test
-                  </button>
+            <details className="mt-4 rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+              <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7F928C]">
+                Diagnóstico e runtime
+              </summary>
+              <div className="mt-4 space-y-4">
+                {offlineHealthSnapshot.items.length ? (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Saúde offline</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {offlineHealthSnapshot.items.map((item) => (
+                        <span
+                          key={item.id}
+                          title={item.detail || item.value}
+                          className={`rounded-full border px-3 py-1.5 text-[11px] ${
+                            item.tone === "success"
+                              ? "border-[#234034] text-[#8FCFA9]"
+                              : item.tone === "danger"
+                                ? "border-[#5b2d2d] text-[#f2b2b2]"
+                                : "border-[#3B3523] text-[#D9C38A]"
+                          }`}
+                        >
+                          {item.label}: {item.value}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {ragAlert ? (
+                  <div className={`rounded-[18px] border px-3 py-3 text-sm ${
+                    ragAlert.tone === "danger"
+                      ? "border-[#5b2d2d] bg-[rgba(91,45,45,0.22)] text-[#f2d0d0]"
+                      : "border-[#6f5a2d] bg-[rgba(98,79,34,0.2)] text-[#f1dfb5]"
+                  }`}>
+                    <p className="text-[10px] uppercase tracking-[0.16em] opacity-80">Diagnóstico RAG</p>
+                    <p className="mt-2 font-medium text-[#F5F1E8]">{ragAlert.title}</p>
+                    <p className="mt-1 text-[12px] leading-6">{ragAlert.body}</p>
+                  </div>
+                ) : null}
+                {localInferenceAlert ? (
+                  <div className={`rounded-[18px] border px-3 py-3 text-sm ${
+                    localInferenceAlert.tone === "danger"
+                      ? "border-[#5b2d2d] bg-[rgba(91,45,45,0.22)] text-[#f2d0d0]"
+                      : "border-[#6f5a2d] bg-[rgba(98,79,34,0.2)] text-[#f1dfb5]"
+                  }`}>
+                    <p className="text-[10px] uppercase tracking-[0.16em] opacity-80">Contingência local</p>
+                    <p className="mt-2 font-medium text-[#F5F1E8]">{localInferenceAlert.title}</p>
+                    <p className="mt-1 text-[12px] leading-6">{localInferenceAlert.body}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {localInferenceAlert.actions.slice(0, 2).map((actionId) => (
+                        <button
+                          key={actionId}
+                          type="button"
+                          onClick={() => handleLocalStackAction(actionId)}
+                          className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                        >
+                          {actionId === "open_runtime_config" ? "Editar runtime" : actionId === "open_llm_test" ? "Testar" : "Diagnóstico"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                <div className="rounded-[18px] border border-[#22342F] px-3 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Persistência</p>
+                    <span className={`rounded-full border px-2 py-1 text-[10px] ${
+                      supabaseBootstrap.tone === "success"
+                        ? "border-[#234034] text-[#8FCFA9]"
+                        : supabaseBootstrap.tone === "danger"
+                          ? "border-[#5b2d2d] text-[#f2b2b2]"
+                          : "border-[#3B3523] text-[#D9C38A]"
+                    }`}>
+                      {supabaseBootstrap.baseUrlKind === "local"
+                        ? "Local"
+                        : supabaseBootstrap.baseUrlKind === "remote"
+                          ? "Remoto"
+                          : "Pendente"}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-[12px] font-semibold text-[#F5F1E8]">{supabaseBootstrap.label}</p>
+                  <p className="mt-1 text-[11px] leading-5 text-[#9BAEA8]">{supabaseBootstrap.detail}</p>
                 </div>
               </div>
-            ) : null}
+            </details>
 
             <div className="mt-4 rounded-[24px] border border-[#22342F] bg-[rgba(7,9,8,0.98)] p-4">
-              <div className="mb-3 flex flex-wrap gap-2">
-                {visibleQuickPrompts.map((prompt) => (
-                  <button
-                    key={prompt}
-                    type="button"
-                    className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#C6D1CC] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-                    onClick={() => setInput(prompt)}
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
               <form onSubmit={handleSubmit} className="space-y-3">
                 <textarea
                   ref={composerRef}
@@ -3025,17 +2984,10 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => router.push("/interno/ai-task")}
-                      className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-                    >
-                      AI Task
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => setWorkspaceOpen(true)}
                       className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                     >
-                      Nodo full
+                      Abrir conversa completa
                     </button>
                   </div>
                   <button
@@ -3093,6 +3045,28 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                   isTyping={true}
                 />
               ) : null}
+              {localInferenceAlert && !messages.length ? (
+                <div className="rounded-[24px] border border-[#6f5a2d] bg-[rgba(98,79,34,0.16)] p-4 text-sm text-[#f1dfb5]">
+                  <p className="font-medium text-[#F5F1E8]">{localInferenceAlert.title}</p>
+                  <p className="mt-2 leading-7">{localInferenceAlert.body}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleLocalStackAction("open_runtime_config")}
+                      className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                    >
+                      Editar runtime local
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleLocalStackAction("open_ai_task")}
+                      className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                    >
+                      Continuar via AI Task
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               {error ? <p className="text-sm text-[#f2b2b2]">{error}</p> : null}
             </div>
 
@@ -3122,9 +3096,13 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={handleDrop}
                   rows={isCompactViewport ? 3 : 4}
+                  disabled={isComposerBlocked}
                   placeholder="Descreva a tarefa, caso, ordem do administrador ou instrucao de treinamento..."
-                  className="w-full resize-y rounded-[22px] border border-[#22342F] bg-[rgba(7,9,8,0.98)] px-4 py-3 text-sm outline-none transition focus:border-[#C5A059]"
+                  className="w-full resize-y rounded-[22px] border border-[#22342F] bg-[rgba(7,9,8,0.98)] px-4 py-3 text-sm outline-none transition focus:border-[#C5A059] disabled:cursor-not-allowed disabled:opacity-50"
                 />
+                {composerBlockedReason ? (
+                  <p className="text-[11px] leading-5 text-[#f1dfb5]">{composerBlockedReason}</p>
+                ) : null}
 
                 {attachments.length ? (
                   <div className="flex flex-wrap gap-2">
@@ -3801,7 +3779,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                             LLM Test
                           </button>
                         </div>
-                        <button type="submit" disabled={loading || !input.trim()} className="rounded-2xl border border-[#C5A059] bg-[rgba(197,160,89,0.08)] px-4 py-2 text-sm font-semibold text-[#F1D39A] transition disabled:opacity-40 hover:bg-[rgba(197,160,89,0.14)]">
+                        <button type="submit" disabled={loading || !input.trim() || isComposerBlocked} className="rounded-2xl border border-[#C5A059] bg-[rgba(197,160,89,0.08)] px-4 py-2 text-sm font-semibold text-[#F1D39A] transition disabled:opacity-40 hover:bg-[rgba(197,160,89,0.14)]">
                           Enviar
                         </button>
                       </div>

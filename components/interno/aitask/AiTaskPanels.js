@@ -16,8 +16,8 @@ export function TaskCard({ task, isSelected, onSelect, compact = false, draggabl
       draggable={draggable}
       onDragStart={onDragStart}
       onClick={() => onSelect(task.id)}
-      className={`w-full rounded-[20px] border p-4 text-left transition ${
-        isSelected ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#35554B]"
+      className={`w-full rounded-[22px] border p-4 text-left transition ${
+        isSelected ? "border-[#C5A059] bg-[linear-gradient(180deg,rgba(197,160,89,0.12),rgba(197,160,89,0.06))] shadow-[0_10px_26px_rgba(197,160,89,0.12)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] hover:border-[#35554B]"
       }`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -42,7 +42,7 @@ export function TaskCard({ task, isSelected, onSelect, compact = false, draggabl
 
 export function ThinkingBlock({ block }) {
   return (
-    <details open={Boolean(block.expanded)} className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+    <details open={Boolean(block.expanded)} className="rounded-[22px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
       <summary className="cursor-pointer list-none">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -67,7 +67,7 @@ export function ThinkingBlock({ block }) {
 
 export function LogRow({ log }) {
   return (
-    <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-3">
+    <div className="rounded-[18px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.012))] px-4 py-3">
       <div className="flex items-center justify-between gap-3">
         <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">{log.type}</p>
         <span className="text-[10px] text-[#9BAEA8]">
@@ -92,7 +92,7 @@ export function Bubble({ role = "assistant", title, body, details = [], time }) 
 
   return (
     <div className={`flex ${alignClass}`}>
-      <article className={`max-w-[min(46rem,92%)] rounded-[24px] border px-4 py-3 text-sm ${bubbleClass}`}>
+      <article className={`max-w-[min(46rem,92%)] rounded-[26px] border px-4 py-3 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${bubbleClass}`}>
         <div className="mb-2 flex items-center justify-between gap-4 text-[10px] uppercase tracking-[0.2em] opacity-60">
           <span>{title || (isUser ? "Equipe" : isSystem ? "Sistema" : "Hermida Maia IA")}</span>
           <span>{time ? new Date(time).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "agora"}</span>
@@ -122,7 +122,7 @@ export function MetricPill({ label, value, tone = "default" }) {
           ? "border-[#5b2d2d] text-[#f2b2b2]"
           : "border-[#22342F] text-[#D8DEDA]";
   return (
-    <div className={`rounded-[18px] border bg-[rgba(255,255,255,0.02)] px-3 py-2 ${toneClass}`}>
+    <div className={`rounded-[18px] border bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.012))] px-3 py-2 ${toneClass}`}>
       <p className="text-[10px] uppercase tracking-[0.18em] opacity-70">{label}</p>
       <p className="mt-1 text-sm font-medium">{value}</p>
     </div>
@@ -255,7 +255,7 @@ export function WorkspaceHeader({
   const activeModuleLabel = contextSnapshot?.moduleLabel || contextSnapshot?.module || "Workspace geral";
   const activeRouteLabel = contextSnapshot?.routePath || contextSnapshot?.route || "/interno/ai-task";
   return (
-    <section className="rounded-[28px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(11,15,14,0.98),rgba(7,10,9,0.98))] px-5 py-4 shadow-[0_18px_54px_rgba(0,0,0,0.24)]">
+    <section className="rounded-[30px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(11,15,14,0.98),rgba(7,10,9,0.98))] px-5 py-4 shadow-[0_18px_54px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.02)]">
       <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C5A059]">Hermida Maia Advocacia</p>

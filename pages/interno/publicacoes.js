@@ -145,6 +145,15 @@ function isResourceLimitError(error) {
   return text.includes("worker exceeded resource limits");
 }
 
+function parseCopilotContext(rawValue) {
+  if (!rawValue) return null;
+  try {
+    return JSON.parse(String(rawValue));
+  } catch {
+    return null;
+  }
+}
+
 function loadHistoryEntries() {
   if (typeof window === "undefined") return [];
   try {
@@ -1203,6 +1212,8 @@ function PublicacoesContent() {
   const [activeJobId, setActiveJobId] = useState(null);
   const [drainInFlight, setDrainInFlight] = useState(false);
   const [processNumbers, setProcessNumbers] = useState("");
+  const [copilotContext, setCopilotContext] = useState(null);
+  const copilotQueryAppliedRef = useRef(false);
   const [queueRefreshLog, setQueueRefreshLog] = useState([]);
   const [pageVisible, setPageVisible] = useState(true);
   const [lastFocusHash, setLastFocusHash] = useState("");
@@ -1406,6 +1417,15 @@ function PublicacoesContent() {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
+  }, []);
+  useEffect(() => {
+    if (typeof window === "undefined" || copilotQueryAppliedRef.current) return;
+    const url = new URL(window.location.href);
+    const queryProcessNumbers = String(url.searchParams.get("processNumbers") || "").trim();
+    const queryContext = parseCopilotContext(url.searchParams.get("copilotContext") || "");
+    if (queryProcessNumbers) setProcessNumbers(queryProcessNumbers);
+    if (queryContext) setCopilotContext(queryContext);
+    copilotQueryAppliedRef.current = true;
   }, []);
   useEffect(() => { setExecutionHistory(loadHistoryEntries()); }, []);
   useEffect(() => { setValidationMap(loadValidationState()); }, []);
@@ -2521,6 +2541,14 @@ function PublicacoesContent() {
 
   return (
     <div className="space-y-8">
+      {copilotContext ? (
+        <section className="rounded-[22px] border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-4 text-sm text-[#C6D1CC]">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7FC4AF]">Contexto vindo do Copilot</p>
+          <p className="mt-2 font-semibold text-[#F5F1E8]">{copilotContext.conversationTitle || "Conversa ativa"}</p>
+          {copilotContext.mission ? <p className="mt-2 leading-6 text-[#9BAEA8]">{copilotContext.mission}</p> : null}
+          {processNumbers ? <p className="mt-2 text-xs leading-6 text-[#7F928C]">CNJs pré-carregados para operação de publicações.</p> : null}
+        </section>
+      ) : null}
       <section className="rounded-[34px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-6 py-6 md:px-7">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">

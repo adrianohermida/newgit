@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
@@ -88,6 +88,15 @@ function toneForStatus(value) {
   return "neutral";
 }
 
+function parseCopilotContext(rawValue) {
+  if (!rawValue) return null;
+  try {
+    return JSON.parse(String(rawValue));
+  } catch {
+    return null;
+  }
+}
+
 export default function InternoFinanceiroPage() {
   const router = useRouter();
   const routeFocus = {
@@ -95,6 +104,7 @@ export default function InternoFinanceiroPage() {
     processAccountId: typeof router.query.processAccountId === "string" ? router.query.processAccountId : "",
     clientId: typeof router.query.clientId === "string" ? router.query.clientId : "",
   };
+  const copilotContext = parseCopilotContext(typeof router.query.copilotContext === "string" ? router.query.copilotContext : "");
 
   return (
     <RequireAdmin>
@@ -104,7 +114,7 @@ export default function InternoFinanceiroPage() {
           title="Financeiro"
           description="Leitura interna da base canônica de contratos, recebíveis, pendências de reconciliação e prontidão para publicação em Deals."
         >
-          <FinanceiroInternoContent routeFocus={routeFocus} />
+          <FinanceiroInternoContent routeFocus={routeFocus} copilotContext={copilotContext} />
         </InternoLayout>
       )}
     </RequireAdmin>
@@ -126,7 +136,7 @@ function ConfigTextArea({ label, value, onChange, placeholder, rows = 6 }) {
   );
 }
 
-function FinanceiroInternoContent({ routeFocus }) {
+function FinanceiroInternoContent({ routeFocus, copilotContext }) {
   const [state, setState] = useState({ loading: true, error: null, data: null });
   const [selectedPendingRows, setSelectedPendingRows] = useState([]);
   const [selectedPendingContactRows, setSelectedPendingContactRows] = useState([]);
@@ -148,6 +158,7 @@ function FinanceiroInternoContent({ routeFocus }) {
     freshsales_product_id_map: "{}",
   });
   const [configState, setConfigState] = useState({ loading: false, error: null, result: null });
+  const copilotAutoQueryAppliedRef = useRef(false);
 
   async function load() {
     setState((current) => ({ ...current, loading: true, error: null }));
@@ -411,6 +422,15 @@ function FinanceiroInternoContent({ routeFocus }) {
   }, []);
 
   useEffect(() => {
+    if (copilotAutoQueryAppliedRef.current) return;
+    const suggestedQuery = String(copilotContext?.entities?.primaryProcessNumber || "").trim();
+    if (!suggestedQuery) return;
+    copilotAutoQueryAppliedRef.current = true;
+    setProcessQuery(suggestedQuery);
+    searchProcesses(suggestedQuery);
+  }, [copilotContext]);
+
+  useEffect(() => {
     const data = state.data || {};
     setModuleHistory(
       "financeiro",
@@ -491,6 +511,20 @@ function FinanceiroInternoContent({ routeFocus }) {
 
   return (
     <div className="space-y-8">
+      {copilotContext ? (
+        <Panel title="Contexto vindo do Copilot" eyebrow="Handoff operacional">
+          <p className="font-semibold text-[#F5F1E8]">{copilotContext.conversationTitle || "Conversa ativa"}</p>
+          {copilotContext.mission ? <p className="mt-4 text-sm opacity-70">{copilotContext.mission}</p> : null}
+          <div className="mt-4 flex flex-wrap gap-2">
+            {copilotContext?.entities?.primaryProcessNumber ? (
+              <StatusBadge tone="accent">CNJ {copilotContext.entities.primaryProcessNumber}</StatusBadge>
+            ) : null}
+            {copilotContext?.entities?.primaryEmail ? (
+              <StatusBadge tone="neutral">{copilotContext.entities.primaryEmail}</StatusBadge>
+            ) : null}
+          </div>
+        </Panel>
+      ) : null}
       {routeFocus?.dealId || routeFocus?.processAccountId || routeFocus?.clientId ? (
         <Panel title="Contexto vindo de Jobs" eyebrow="Handoff operacional">
           <div className="flex flex-wrap gap-3 text-sm opacity-80">

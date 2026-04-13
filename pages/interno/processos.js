@@ -173,6 +173,15 @@ function getProcessIntentBadge(payload = {}) {
   return "";
 }
 
+function parseCopilotContext(rawValue) {
+  if (!rawValue) return null;
+  try {
+    return JSON.parse(String(rawValue));
+  } catch {
+    return null;
+  }
+}
+
 function buildJobPreview(job) {
   if (!job) return "";
   const processed = Number(job.processed_count || 0);
@@ -1255,6 +1264,8 @@ function InternoProcessosContent() {
   const [limit, setLimit] = useState(2);
   const [queueBatchSizes, setQueueBatchSizes] = useState(DEFAULT_QUEUE_BATCHES);
   const [processNumbers, setProcessNumbers] = useState("");
+  const [copilotContext, setCopilotContext] = useState(null);
+  const copilotQueryAppliedRef = useRef(false);
   const [withoutMovements, setWithoutMovements] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
   const [movementBacklog, setMovementBacklog] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
   const [publicationBacklog, setPublicationBacklog] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
@@ -1377,6 +1388,15 @@ function InternoProcessosContent() {
     };
   }, []);
   useEffect(() => { setExecutionHistory(loadHistoryEntries()); }, []);
+  useEffect(() => {
+    if (typeof window === "undefined" || copilotQueryAppliedRef.current) return;
+    const url = new URL(window.location.href);
+    const queryProcessNumbers = String(url.searchParams.get("processNumbers") || "").trim();
+    const queryContext = parseCopilotContext(url.searchParams.get("copilotContext") || "");
+    if (queryProcessNumbers) setProcessNumbers(queryProcessNumbers);
+    if (queryContext) setCopilotContext(queryContext);
+    copilotQueryAppliedRef.current = true;
+  }, []);
   useEffect(() => {
     setModuleHistory("processos", {
       executionHistory,
@@ -2854,8 +2874,17 @@ function InternoProcessosContent() {
   }
 
   const isResultView = view === "resultado";
+  const isDockedProcessView = view === "operacao" || view === "resultado";
 
-  return <div className={isResultView ? "space-y-6" : "space-y-8"}>
+  return <div className={`${isResultView ? "space-y-6" : "space-y-8"} ${isDockedProcessView ? "min-h-[calc(100vh-28rem)]" : ""}`.trim()}>
+    {copilotContext ? (
+      <section className="rounded-[22px] border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-4 text-sm text-[#C6D1CC]">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7FC4AF]">Contexto vindo do Copilot</p>
+        <p className="mt-2 font-semibold text-[#F5F1E8]">{copilotContext.conversationTitle || "Conversa ativa"}</p>
+        {copilotContext.mission ? <p className="mt-2 leading-6 text-[#9BAEA8]">{copilotContext.mission}</p> : null}
+        {processNumbers ? <p className="mt-2 text-xs leading-6 text-[#7F928C]">CNJs pré-carregados no campo de foco manual.</p> : null}
+      </section>
+    ) : null}
     <section className={`rounded-[34px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-6 md:px-7 ${isResultView ? "py-5" : "py-6"}`}>
       <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
         <div className="max-w-3xl">
@@ -2950,8 +2979,8 @@ function InternoProcessosContent() {
 
     {!isResultView ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{quickStats.map((card) => <MetricCard key={card.label} label={card.label} value={card.value} helper={card.helper} />)}</div> : null}
 
-    {view === "operacao" ? <div id="operacao" className="grid gap-6 xl:grid-cols-2">
-      <Panel title="Fila operacional" eyebrow="Sincronismo Freshsales + Supabase">
+    {view === "operacao" ? <div id="operacao" className="grid auto-rows-fr gap-6 xl:grid-cols-2">
+      <Panel title="Fila operacional" eyebrow="Sincronismo Freshsales + Supabase" className="h-full">
         <div className="space-y-4">
           {latestJob ? <JobCard job={latestJob} active={latestJob.id === activeJobId} /> : null}
           <label className="block"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] opacity-50">CNJs para foco manual</span><textarea value={processNumbers} onChange={(e) => setProcessNumbers(e.target.value)} rows={4} placeholder="Opcional: cole CNJs manualmente, um por linha." className="w-full rounded-[22px] border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none transition focus:border-[#C5A059]" /></label>
@@ -2982,7 +3011,7 @@ function InternoProcessosContent() {
           </div>
         </div>
       </Panel>
-      <Panel title="Reenriquecimento DataJud" eyebrow="Consulta e persistencia">
+      <Panel title="Reenriquecimento DataJud" eyebrow="Consulta e persistencia" className="h-full">
         <div className="space-y-4">
           <p className="text-sm opacity-70">Aqui ficam os passos granulares. Eles usam primeiro a selecao da fila atual e, se ela estiver vazia, aproveitam os CNJs digitados manualmente.</p>
           <div className="grid gap-3 md:grid-cols-2">
@@ -3216,8 +3245,9 @@ function InternoProcessosContent() {
       </Panel>
     </div> : null}
 
-    {view === "resultado" ? <div id="resultado" className="grid items-start gap-6 2xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+    {view === "resultado" ? <div id="resultado" className="grid auto-rows-fr items-stretch gap-6 2xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
       <OperationalResultCard
+        className="h-full"
         loading={actionState.loading}
         error={actionState.error}
         result={actionState.result ? <>{actionState.result?.drain ? <div className="mb-4 rounded-[20px] border border-[#30543A] bg-[rgba(48,84,58,0.12)] p-4 text-sm"><p className="font-semibold">Drenagem de fila</p><p className="mt-2 opacity-75">{buildDrainPreview(actionState.result.drain)}</p></div> : null}{jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}<OperationResult result={actionState.result} /></> : null}
@@ -3225,6 +3255,7 @@ function InternoProcessosContent() {
         footer="Resultado compacto, sem esticar o modulo antes do console."
       />
       <OperationalHistoryCompactCard
+        className="h-full"
         primaryText={executionHistory[0] ? `${executionHistory[0].label || executionHistory[0].action} • ${executionHistory[0].status}` : ""}
         secondaryLabel="Ultimo HMADV"
         secondaryText={remoteHistory[0] ? `${getProcessActionLabel(remoteHistory[0].acao, remoteHistory[0].payload || {})} • ${remoteHistory[0].status}` : ""}

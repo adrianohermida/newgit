@@ -25,6 +25,23 @@ function countByStatus(items, status) {
   return items.filter((item) => item.status === status).length;
 }
 
+function parseCopilotContext(rawValue) {
+  if (!rawValue) return null;
+  try {
+    return JSON.parse(String(rawValue));
+  } catch {
+    return null;
+  }
+}
+
+function normalizeSearchValue(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 function SummaryCard({ label, value }) {
   return (
     <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-5">
@@ -46,6 +63,7 @@ export default function InternoAgendamentosPage() {
     id: typeof router.query.id === "string" ? router.query.id : "",
     clientId: typeof router.query.clientId === "string" ? router.query.clientId : "",
   };
+  const copilotContext = parseCopilotContext(typeof router.query.copilotContext === "string" ? router.query.copilotContext : "");
 
   return (
     <RequireAdmin>
@@ -61,6 +79,7 @@ export default function InternoAgendamentosPage() {
             state={state}
             setState={setState}
             routeFocus={routeFocus}
+            copilotContext={copilotContext}
           />
         </InternoLayout>
       )}
@@ -68,7 +87,7 @@ export default function InternoAgendamentosPage() {
   );
 }
 
-function AgendamentosContent({ filters, setFilters, state, setState, routeFocus }) {
+function AgendamentosContent({ filters, setFilters, state, setState, routeFocus, copilotContext }) {
   useEffect(() => {
     let cancelled = false;
 
@@ -117,9 +136,17 @@ function AgendamentosContent({ filters, setFilters, state, setState, routeFocus 
   const pendentes = countByStatus(state.items, "pendente");
   const confirmados = countByStatus(state.items, "confirmado");
   const cancelados = countByStatus(state.items, "cancelado");
+  const copilotPrimaryEmail = normalizeSearchValue(copilotContext?.entities?.primaryEmail);
+  const copilotConversationTitle = normalizeSearchValue(copilotContext?.conversationTitle);
+  const contextualFocusReason = (item) => {
+    if (routeFocus?.id && String(item.id) === String(routeFocus.id)) return "jobs";
+    if (copilotPrimaryEmail && normalizeSearchValue(item.email) === copilotPrimaryEmail) return "copilot_email";
+    if (copilotConversationTitle && normalizeSearchValue(item.nome).includes(copilotConversationTitle)) return "copilot_nome";
+    return "";
+  };
   const orderedItems = [...state.items].sort((left, right) => {
-    const leftFocused = routeFocus?.id && String(left.id) === String(routeFocus.id) ? 1 : 0;
-    const rightFocused = routeFocus?.id && String(right.id) === String(routeFocus.id) ? 1 : 0;
+    const leftFocused = contextualFocusReason(left) ? 1 : 0;
+    const rightFocused = contextualFocusReason(right) ? 1 : 0;
     return rightFocused - leftFocused;
   });
 
@@ -154,6 +181,22 @@ function AgendamentosContent({ filters, setFilters, state, setState, routeFocus 
 
   return (
     <div>
+      {copilotContext ? (
+        <div className="border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-5 mb-6">
+          <p className="text-xs font-semibold tracking-[0.15em] uppercase text-[#7FC4AF]">
+            Contexto vindo do Copilot
+          </p>
+          <p className="mt-3 text-sm font-semibold text-[#F5F1E8]">{copilotContext.conversationTitle || "Conversa ativa"}</p>
+          {copilotContext.mission ? (
+            <p className="mt-2 text-sm leading-6 text-[#9BAEA8]">{copilotContext.mission}</p>
+          ) : null}
+          {copilotContext?.entities?.primaryEmail ? (
+            <p className="mt-3 text-xs uppercase tracking-[0.14em] text-[#7FC4AF]">
+              Foco sugerido: {copilotContext.entities.primaryEmail}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {routeFocus?.id || routeFocus?.clientId ? (
         <div className="border border-[#6F5826] bg-[rgba(111,88,38,0.12)] p-5 mb-6">
           <p className="text-xs font-semibold tracking-[0.15em] uppercase" style={{ color: "#C5A059" }}>
@@ -251,7 +294,8 @@ function AgendamentosContent({ filters, setFilters, state, setState, routeFocus 
       {!state.loading && !state.error ? (
         <div className="space-y-4">
           {orderedItems.map((item) => {
-            const isFocused = routeFocus?.id && String(item.id) === String(routeFocus.id);
+            const focusReason = contextualFocusReason(item);
+            const isFocused = Boolean(focusReason);
             return (
             <article key={item.id} className={`border p-5 ${isFocused ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
               <div className="flex flex-wrap items-center gap-3 mb-3">
@@ -259,7 +303,9 @@ function AgendamentosContent({ filters, setFilters, state, setState, routeFocus 
                   {item.area}
                 </span>
                 <span className="text-[10px] uppercase tracking-[0.15em] opacity-45">{item.status}</span>
-                {isFocused ? <span className="text-[10px] uppercase tracking-[0.15em] text-[#C5A059]">Foco de jobs</span> : null}
+                {focusReason === "jobs" ? <span className="text-[10px] uppercase tracking-[0.15em] text-[#C5A059]">Foco de jobs</span> : null}
+                {focusReason === "copilot_email" ? <span className="text-[10px] uppercase tracking-[0.15em] text-[#7FC4AF]">Foco do Copilot por e-mail</span> : null}
+                {focusReason === "copilot_nome" ? <span className="text-[10px] uppercase tracking-[0.15em] text-[#7FC4AF]">Foco do Copilot por contexto</span> : null}
               </div>
               <h3 className="font-serif text-2xl mb-2">{item.nome}</h3>
               <div className="grid gap-2 text-sm opacity-70 md:grid-cols-2">
