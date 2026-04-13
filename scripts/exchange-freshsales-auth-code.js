@@ -10,7 +10,8 @@ loadLocalEnv();
 async function main() {
   const args = process.argv.slice(2);
   const kind = resolveKind(args);
-  const code = cleanValue(args.find((arg) => !String(arg).startsWith('--') && arg !== 'deals' && arg !== 'contacts' && arg !== 'products'));
+  const rawInput = cleanValue(args.find((arg) => !String(arg).startsWith('--') && arg !== 'deals' && arg !== 'contacts' && arg !== 'products'));
+  const code = extractAuthorizationCode(rawInput);
   const orgDomain = resolveOrgDomain();
   const clientId = resolveOauthClientId(kind);
   const clientSecret = resolveOauthClientSecret(kind);
@@ -86,6 +87,19 @@ function loadLocalEnv() {
 function cleanValue(value) {
   const text = String(value || '').trim();
   return text || null;
+}
+
+function extractAuthorizationCode(input) {
+  const raw = cleanValue(input);
+  if (!raw) return null;
+  if (!/[?&#=]/.test(raw)) return raw;
+  const match = raw.match(/(?:^|[?&#])code=([^&#]+)/i) || raw.match(/^code=(.+)$/i);
+  if (!match?.[1]) return raw;
+  try {
+    return cleanValue(decodeURIComponent(match[1]));
+  } catch {
+    return cleanValue(match[1]);
+  }
 }
 
 function resolveKind(args) {
