@@ -61,10 +61,15 @@ function extractFreshsalesTokenScopes(token) {
   return [];
 }
 
-function tokenNeedsFreshsalesGeneralScopeRefresh(token) {
+function tokenNeedsFreshsalesScopeRefresh(token, kind = "deals") {
   const scopes = extractFreshsalesTokenScopes(token);
   if (!scopes.length) return false;
-  const requiredScopes = ["freshsales.sales_activities.create", "freshsales.selectors.view"];
+  const requiredScopes =
+    kind === "contacts"
+      ? ["freshsales.contacts.view", "freshsales.contacts.create", "freshsales.contacts.edit"]
+      : kind === "products"
+        ? ["freshsales.products.view"]
+        : ["freshsales.sales_activities.create", "freshsales.selectors.view"];
   return requiredScopes.some((scope) => !scopes.includes(scope));
 }
 
@@ -254,7 +259,44 @@ function resolveOauthRedirectUri(env) {
   );
 }
 
-function resolveFreshsalesOauthClientId(env) {
+function resolveFreshsalesAuthKind(path = "") {
+  const normalized = String(path || "").trim().toLowerCase();
+  if (/^\/contacts(\/|$)/.test(normalized) || /^\/settings\/contacts(\/|$)/.test(normalized)) {
+    return "contacts";
+  }
+  if (/^\/products(\/|$)/.test(normalized)) {
+    return "products";
+  }
+  return "deals";
+}
+
+function resolveFreshsalesProvider(kind = "deals") {
+  if (kind === "contacts") return "freshsales_contacts";
+  if (kind === "products") return "freshsales_products";
+  return "freshsales";
+}
+
+function resolveFreshsalesOauthClientId(env, kind = "deals") {
+  if (kind === "contacts") {
+    return (
+      getCleanEnvValue(env.FRESHSALES_OAUTH_CONTACTS_CLIENT_ID) ||
+      getCleanEnvValue(env.FRESHSALES_CONTACT_OAUTH_CLIENT_ID) ||
+      getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_ID) ||
+      getCleanEnvValue(env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
+      getCleanEnvValue(env.FRESHSALES_DEAL_OAUTH_CLIENT_ID) ||
+      null
+    );
+  }
+  if (kind === "products") {
+    return (
+      getCleanEnvValue(env.FRESHSALES_OAUTH_PRODUCTS_CLIENT_ID) ||
+      getCleanEnvValue(env.FRESHSALES_PRODUCT_OAUTH_CLIENT_ID) ||
+      getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_ID) ||
+      getCleanEnvValue(env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
+      getCleanEnvValue(env.FRESHSALES_DEAL_OAUTH_CLIENT_ID) ||
+      null
+    );
+  }
   return (
     getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_ID) ||
     getCleanEnvValue(env.FRESHSALES_OAUTH_DEALS_CLIENT_ID) ||
@@ -263,7 +305,27 @@ function resolveFreshsalesOauthClientId(env) {
   );
 }
 
-function resolveFreshsalesOauthClientSecret(env) {
+function resolveFreshsalesOauthClientSecret(env, kind = "deals") {
+  if (kind === "contacts") {
+    return (
+      getCleanEnvValue(env.FRESHSALES_OAUTH_CONTACTS_CLIENT_SECRET) ||
+      getCleanEnvValue(env.FRESHSALES_CONTACT_OAUTH_CLIENT_SECRET) ||
+      getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_SECRET) ||
+      getCleanEnvValue(env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
+      getCleanEnvValue(env.FRESHSALES_DEAL_OAUTH_CLIENT_SECRET) ||
+      null
+    );
+  }
+  if (kind === "products") {
+    return (
+      getCleanEnvValue(env.FRESHSALES_OAUTH_PRODUCTS_CLIENT_SECRET) ||
+      getCleanEnvValue(env.FRESHSALES_PRODUCT_OAUTH_CLIENT_SECRET) ||
+      getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_SECRET) ||
+      getCleanEnvValue(env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
+      getCleanEnvValue(env.FRESHSALES_DEAL_OAUTH_CLIENT_SECRET) ||
+      null
+    );
+  }
   return (
     getCleanEnvValue(env.FRESHSALES_OAUTH_CLIENT_SECRET) ||
     getCleanEnvValue(env.FRESHSALES_OAUTH_DEALS_CLIENT_SECRET) ||
@@ -272,7 +334,23 @@ function resolveFreshsalesOauthClientSecret(env) {
   );
 }
 
-function resolveFreshsalesOauthScope(env) {
+function resolveFreshsalesOauthScope(env, kind = "deals") {
+  if (kind === "contacts") {
+    return (
+      getCleanEnvValue(env.FRESHSALES_CONTACTS_SCOPES) ||
+      getCleanEnvValue(env.FRESHSALES_CONTACT_SCOPES) ||
+      getCleanEnvValue(env.FRESHSALES_SCOPES) ||
+      null
+    );
+  }
+  if (kind === "products") {
+    return (
+      getCleanEnvValue(env.FRESHSALES_PRODUCTS_SCOPES) ||
+      getCleanEnvValue(env.FRESHSALES_PRODUCT_SCOPES) ||
+      getCleanEnvValue(env.FRESHSALES_SCOPES) ||
+      null
+    );
+  }
   return (
     getCleanEnvValue(env.FRESHSALES_SCOPES) ||
     getCleanEnvValue(env.FRESHSALES_DEALS_SCOPES) ||
@@ -281,16 +359,60 @@ function resolveFreshsalesOauthScope(env) {
   );
 }
 
-async function getStoredOauthRow(env) {
+function resolveFreshsalesAccessToken(env, kind = "deals") {
+  if (kind === "contacts") {
+    return (
+      getCleanEnvValue(env.FRESHSALES_CONTACTS_ACCESS_TOKEN) ||
+      getCleanEnvValue(env.FRESHSALES_ACCESS_TOKEN) ||
+      null
+    );
+  }
+  if (kind === "products") {
+    return (
+      getCleanEnvValue(env.FRESHSALES_PRODUCTS_ACCESS_TOKEN) ||
+      getCleanEnvValue(env.FRESHSALES_ACCESS_TOKEN) ||
+      null
+    );
+  }
+  return getCleanEnvValue(env.FRESHSALES_ACCESS_TOKEN) || null;
+}
+
+function resolveFreshsalesRefreshToken(env, kind = "deals") {
+  if (kind === "contacts") {
+    return (
+      getCleanEnvValue(env.FRESHSALES_CONTACTS_REFRESH_TOKEN) ||
+      getCleanEnvValue(env.FRESHSALES_REFRESH_TOKEN) ||
+      null
+    );
+  }
+  if (kind === "products") {
+    return (
+      getCleanEnvValue(env.FRESHSALES_PRODUCTS_REFRESH_TOKEN) ||
+      getCleanEnvValue(env.FRESHSALES_REFRESH_TOKEN) ||
+      null
+    );
+  }
+  return getCleanEnvValue(env.FRESHSALES_REFRESH_TOKEN) || null;
+}
+
+function setFreshsalesAccessToken(env, kind = "deals", token = "") {
+  if (kind === "contacts") env.FRESHSALES_CONTACTS_ACCESS_TOKEN = token;
+  else if (kind === "products") env.FRESHSALES_PRODUCTS_ACCESS_TOKEN = token;
+  else env.FRESHSALES_ACCESS_TOKEN = token;
+}
+
+async function getStoredOauthRow(env, kind = "deals") {
+  const provider = resolveFreshsalesProvider(kind);
   const result = await supabaseRestRequest(
     env,
-    "freshsales_oauth_tokens?provider=eq.freshsales&select=provider,access_token,refresh_token,expires_at,token_type,scope,updated_at&limit=1"
+    `freshsales_oauth_tokens?provider=eq.${encodeURIComponent(provider)}&select=provider,access_token,refresh_token,expires_at,token_type,scope,updated_at&limit=1`
   );
   if (!result?.response?.ok) return null;
   return Array.isArray(result.payload) ? result.payload[0] || null : result.payload || null;
 }
 
-async function upsertStoredOauthRow(env, row) {
+async function upsertStoredOauthRow(env, row, kind = "deals") {
+  const provider = resolveFreshsalesProvider(kind);
   const result = await supabaseRestRequest(
     env,
     "freshsales_oauth_tokens?on_conflict=provider",
@@ -299,15 +421,18 @@ async function upsertStoredOauthRow(env, row) {
       headers: {
         Prefer: "resolution=merge-duplicates,return=minimal",
       },
-      body: JSON.stringify(row),
+      body: JSON.stringify({
+        ...row,
+        provider,
+      }),
     }
   );
   return Boolean(result?.response?.ok);
 }
 
-async function seedOauthRowFromEnv(env) {
-  const accessToken = getCleanEnvValue(env.FRESHSALES_ACCESS_TOKEN);
-  const refreshToken = getCleanEnvValue(env.FRESHSALES_REFRESH_TOKEN);
+async function seedOauthRowFromEnv(env, kind = "deals") {
+  const accessToken = resolveFreshsalesAccessToken(env, kind);
+  const refreshToken = resolveFreshsalesRefreshToken(env, kind);
   if (!accessToken || !refreshToken) return false;
 
   const expiryTs = Number(getCleanEnvValue(env.FRESHSALES_TOKEN_EXPIRY) || "0");
@@ -317,19 +442,18 @@ async function seedOauthRowFromEnv(env) {
     : fallbackExpiresIn;
 
   return upsertStoredOauthRow(env, {
-    provider: "freshsales",
     access_token: accessToken,
     refresh_token: refreshToken,
     expires_at: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),
     token_type: getCleanEnvValue(env.FRESHSALES_TOKEN_TYPE) || "Bearer",
-    scope: resolveFreshsalesOauthScope(env),
+    scope: resolveFreshsalesOauthScope(env, kind),
     updated_at: new Date().toISOString(),
-  });
+  }, kind);
 }
 
-async function refreshOauthRow(env, refreshToken) {
-  const clientId = resolveFreshsalesOauthClientId(env);
-  const clientSecret = resolveFreshsalesOauthClientSecret(env);
+async function refreshOauthRow(env, refreshToken, kind = "deals") {
+  const clientId = resolveFreshsalesOauthClientId(env, kind);
+  const clientSecret = resolveFreshsalesOauthClientSecret(env, kind);
   const orgDomain = resolveOauthOrgDomain(env);
   const redirectUri = resolveOauthRedirectUri(env);
   if (!clientId || !clientSecret || !orgDomain || !redirectUri || !refreshToken) return null;
@@ -356,22 +480,21 @@ async function refreshOauthRow(env, refreshToken) {
   if (!payload?.access_token) return null;
 
   await upsertStoredOauthRow(env, {
-    provider: "freshsales",
     access_token: payload.access_token,
     refresh_token: payload.refresh_token || refreshToken,
     expires_at: new Date(Date.now() + Number(payload.expires_in || 1799) * 1000).toISOString(),
     token_type: payload.token_type || "Bearer",
-    scope: payload.scope || resolveFreshsalesOauthScope(env) || null,
+    scope: payload.scope || resolveFreshsalesOauthScope(env, kind) || null,
     updated_at: new Date().toISOString(),
-  });
+  }, kind);
 
   return payload.access_token;
 }
 
-async function ensureSupabaseOauthSeed(env) {
+async function ensureSupabaseOauthSeed(env, kind = "deals") {
   const seedUrl = resolveSupabaseOAuthUrl(env, "seed");
-  const accessToken = getCleanEnvValue(env.FRESHSALES_ACCESS_TOKEN);
-  const refreshToken = getCleanEnvValue(env.FRESHSALES_REFRESH_TOKEN);
+  const accessToken = resolveFreshsalesAccessToken(env, kind);
+  const refreshToken = resolveFreshsalesRefreshToken(env, kind);
   if (!seedUrl || !accessToken || !refreshToken) return false;
 
   const response = await fetch(seedUrl, {
@@ -382,7 +505,7 @@ async function ensureSupabaseOauthSeed(env) {
   return Boolean(response?.ok);
 }
 
-async function getSupabaseOauthAccessToken(env) {
+async function getSupabaseOauthAccessToken(env, kind = "deals") {
   const tokenUrl = resolveSupabaseOAuthUrl(env, "token");
   if (tokenUrl) {
     const requestToken = async () => {
@@ -405,7 +528,7 @@ async function getSupabaseOauthAccessToken(env) {
     const initial = await requestToken();
     if (typeof initial === "string") return initial;
     if (initial?.missing) {
-      const seeded = await ensureSupabaseOauthSeed(env);
+      const seeded = await ensureSupabaseOauthSeed(env, kind);
       if (seeded) {
         const retried = await requestToken();
         if (typeof retried === "string") return retried;
@@ -413,11 +536,11 @@ async function getSupabaseOauthAccessToken(env) {
     }
   }
 
-  let row = await getStoredOauthRow(env);
+  let row = await getStoredOauthRow(env, kind);
   if (!row) {
-    const seeded = await seedOauthRowFromEnv(env);
+    const seeded = await seedOauthRowFromEnv(env, kind);
     if (seeded) {
-      row = await getStoredOauthRow(env);
+      row = await getStoredOauthRow(env, kind);
     }
   }
   if (!row?.access_token) return null;
@@ -426,22 +549,23 @@ async function getSupabaseOauthAccessToken(env) {
   const shouldRefresh = row.refresh_token && (
     !expiresAt ||
     Date.now() >= expiresAt - 60_000 ||
-    tokenNeedsFreshsalesGeneralScopeRefresh(row.access_token)
+    tokenNeedsFreshsalesScopeRefresh(row.access_token, kind)
   );
   if (shouldRefresh) {
-    const refreshed = await refreshOauthRow(env, row.refresh_token);
+    const refreshed = await refreshOauthRow(env, row.refresh_token, kind);
     if (refreshed) return refreshed;
   }
 
   return row.access_token;
 }
 
-async function getAuthHeaders(env) {
+async function getAuthHeaders(env, path = "") {
+  const authKind = resolveFreshsalesAuthKind(path);
   const apiKey = getCleanEnvValue(env.FRESHSALES_API_KEY);
-  const accessToken = getCleanEnvValue(env.FRESHSALES_ACCESS_TOKEN);
+  const accessToken = resolveFreshsalesAccessToken(env, authKind);
   const basicAuth = getCleanEnvValue(env.FRESHSALES_BASIC_AUTH);
   const explicitMode = getCleanEnvValue(env.FRESHSALES_AUTH_MODE);
-  const supabaseOauthToken = await getSupabaseOauthAccessToken(env);
+  const supabaseOauthToken = await getSupabaseOauthAccessToken(env, authKind);
   const headers = [
     apiKey ? { name: "api_key", header: { Authorization: `Token token=${apiKey}` } } : null,
     basicAuth ? { name: "basic_auth", header: /^Basic\s+/i.test(basicAuth) ? { Authorization: basicAuth } : { Authorization: `Basic ${basicAuth}` } } : null,
@@ -473,16 +597,17 @@ async function getAuthHeaders(env) {
   return headers;
 }
 
-async function forceRefreshFreshsalesOauthToken(env) {
-  let row = await getStoredOauthRow(env);
+async function forceRefreshFreshsalesOauthToken(env, path = "") {
+  const authKind = resolveFreshsalesAuthKind(path);
+  let row = await getStoredOauthRow(env, authKind);
   if (!row) {
-    const seeded = await seedOauthRowFromEnv(env);
-    if (seeded) row = await getStoredOauthRow(env);
+    const seeded = await seedOauthRowFromEnv(env, authKind);
+    if (seeded) row = await getStoredOauthRow(env, authKind);
   }
-  const refreshToken = getCleanEnvValue(row?.refresh_token) || getCleanEnvValue(env.FRESHSALES_REFRESH_TOKEN);
+  const refreshToken = getCleanEnvValue(row?.refresh_token) || resolveFreshsalesRefreshToken(env, authKind);
   if (!refreshToken) return null;
-  const refreshed = await refreshOauthRow(env, refreshToken);
-  if (refreshed) env.FRESHSALES_ACCESS_TOKEN = refreshed;
+  const refreshed = await refreshOauthRow(env, refreshToken, authKind);
+  if (refreshed) setFreshsalesAccessToken(env, authKind, refreshed);
   return refreshed;
 }
 
@@ -493,7 +618,7 @@ export async function freshsalesRequest(env, path, init = {}) {
 
   for (let cycle = 0; cycle < 2; cycle += 1) {
     const candidates = buildCandidates(env);
-    const authHeaders = await getAuthHeaders(env);
+    const authHeaders = await getAuthHeaders(env, path);
     if (!candidates.length || !authHeaders.length) {
       throw new Error("Credenciais do Freshsales ausentes no ambiente.");
     }
@@ -570,7 +695,7 @@ export async function freshsalesRequest(env, path, init = {}) {
     }
 
     if (!refreshedAfter401 && isOauthAuthFailure(lastError)) {
-      const refreshed = await forceRefreshFreshsalesOauthToken(env);
+      const refreshed = await forceRefreshFreshsalesOauthToken(env, path);
       if (refreshed) {
         refreshedAfter401 = true;
         continue;
