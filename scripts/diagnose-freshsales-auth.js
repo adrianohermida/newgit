@@ -10,6 +10,7 @@ loadLocalEnv();
 async function main() {
   const bases = resolveFreshsalesBases();
   const authModes = await resolveAuthModes();
+  const initialClaims = inspectAccessTokenClaims();
   const report = {
     generated_at: new Date().toISOString(),
     bases,
@@ -31,7 +32,9 @@ async function main() {
     probes: [],
     supabase_oauth: await inspectSupabaseOauth(),
     refresh: null,
-    token_claims: inspectAccessTokenClaims(),
+    token_claims: initialClaims,
+    required_scopes: describeRequiredScopes(),
+    missing_scopes: [],
   };
 
   for (const base of bases) {
@@ -50,27 +53,98 @@ async function main() {
     };
   }
 
+  const effectiveClaims = report.refresh?.token_claims || report.token_claims || null;
+  report.token_claims = effectiveClaims;
+  report.missing_scopes = computeMissingScopes(effectiveClaims, report.required_scopes);
+
   console.log(JSON.stringify(report, null, 2));
 }
 
-function inspectAccessTokenClaims() {
-  const token = cleanValue(process.env.FRESHSALES_ACCESS_TOKEN);
-  if (!token || !token.includes('.')) return null;
+function decodeTokenClaims(token) {
+  const cleanToken = cleanValue(token);
+  if (!cleanToken || !cleanToken.includes('.')) return null;
   try {
-    const parts = token.split('.');
-    const payload = JSON.parse(Buffer.from(base64UrlDecode(parts[1]), 'base64').toString('utf8'));
-    return {
-      iss: cleanValue(payload.iss),
-      aud: cleanValue(payload.aud),
-      organisation_domain: cleanValue(payload.organisation_domain || payload.org_domain),
-      scope_count: Array.isArray(payload.scope) ? payload.scope.length : typeof payload.scope === 'string' ? payload.scope.split(/\s+/).filter(Boolean).length : 0,
-      scope_sample: Array.isArray(payload.scope) ? payload.scope.slice(0, 8) : typeof payload.scope === 'string' ? payload.scope.split(/\s+/).filter(Boolean).slice(0, 8) : [],
-      exp: payload.exp || null,
-      iat: payload.iat || null,
-    };
+    const parts = cleanToken.split('.');
+    return JSON.parse(Buffer.from(base64UrlDecode(parts[1]), 'base64').toString('utf8'));
   } catch (error) {
     return { decode_error: String(error.message || error) };
   }
+}
+
+function inspectAccessTokenClaims() {
+  const payload = decodeTokenClaims(process.env.FRESHSALES_ACCESS_TOKEN);
+  return summarizeTokenClaims(payload);
+}
+
+function summarizeTokenClaims(payload) {
+  if (!payload) return null;
+  if (payload.decode_error) return payload;
+  const scopes = Array.isArray(payload.scope)
+    ? payload.scope
+    : typeof payload.scope === 'string'
+      ? payload.scope.split(/\s+/).filter(Boolean)
+      : [];
+  return {
+    iss: cleanValue(payload.iss),
+    aud: cleanValue(payload.aud),
+    organisation_domain: cleanValue(payload.organisation_domain || payload.org_domain),
+    scope_count: scopes.length,
+    scope_sample: scopes.slice(0, 8),
+    scopes,
+    exp: payload.exp || null,
+    iat: payload.iat || null,
+  };
+}
+
+function describeRequiredScopes() {
+  return {
+    contacts: [
+      'freshsales.contacts.view',
+      'freshsales.contacts.create',
+      'freshsales.contacts.edit',
+      'freshsales.contacts.delete',
+      'freshsales.contacts.fields.view',
+    ],
+    sales_accounts: [
+      'freshsales.sales_accounts.view',
+      'freshsales.sales_accounts.create',
+      'freshsales.sales_accounts.edit',
+      'freshsales.sales_accounts.fields.view',
+    ],
+    activities: [
+      'freshsales.sales_activities.view',
+      'freshsales.sales_activities.create',
+      'freshsales.sales_activities.edit',
+      'freshsales.tasks.view',
+      'freshsales.tasks.create',
+      'freshsales.tasks.edit',
+      'freshsales.appointments.view',
+      'freshsales.appointments.create',
+      'freshsales.appointments.edit',
+    ],
+    deals: [
+      'freshsales.deals.view',
+      'freshsales.deals.create',
+      'freshsales.deals.edit',
+      'freshsales.deals.fields.view',
+      'freshsales.deals.filters.view',
+    ],
+    products: [
+      'freshsales.products.view',
+      'freshsales.products.create',
+      'freshsales.products.edit',
+      'freshsales.products.delete',
+    ],
+  };
+}
+
+function computeMissingScopes(claims, requiredScopes) {
+  const granted = new Set(Array.isArray(claims?.scopes) ? claims.scopes : []);
+  const output = {};
+  for (const [group, scopes] of Object.entries(requiredScopes || {})) {
+    output[group] = (scopes || []).filter((scope) => !granted.has(scope));
+  }
+  return output;
 }
 
 function base64UrlDecode(value) {
@@ -575,6 +649,7 @@ async function tryRefresh(returnToken = false) {
       raw_payload_keys: payload && typeof payload === 'object' ? Object.keys(payload) : [],
       has_access_token: Boolean(payload.access_token),
       has_refresh_token: Boolean(payload.refresh_token),
+      token_claims: payload.access_token ? summarizeTokenClaims(decodeTokenClaims(payload.access_token)) : null,
       access_token: returnToken ? payload.access_token || null : undefined,
     };
   } catch (error) {
