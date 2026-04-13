@@ -96,41 +96,52 @@ alter table public.agentlab_conversation_threads enable row level security;
 alter table public.agentlab_conversation_messages enable row level security;
 alter table public.agentlab_incidents enable row level security;
 
-insert into public.agentlab_conversation_threads (
-  source_system,
-  source_conversation_id,
-  workspace_id,
-  contact_id,
-  process_id,
-  channel,
-  status,
-  subject,
-  last_message,
-  started_at,
-  last_message_at,
-  assigned_to,
-  metadata,
-  raw_payload
-)
-select
-  'workspace_conversas',
-  c.id::text,
-  c.workspace_id,
-  c.contato_id,
-  c.processo_id,
-  coalesce(c.canal, 'desconhecido'),
-  coalesce(c.status, 'open'),
-  coalesce(c.assunto, 'Sem assunto'),
-  c.ultima_mensagem,
-  coalesce(c.created_date, c.created_at),
-  coalesce(c.last_message_at, c.ultima_mensagem_at, c.updated_date, c.updated_at),
-  c.assigned_to,
-  coalesce(c.metadata, '{}'::jsonb),
-  to_jsonb(c)
-from public.conversas c
-where not exists (
-  select 1
-  from public.agentlab_conversation_threads t
-  where t.source_system = 'workspace_conversas'
-    and t.source_conversation_id = c.id::text
-);
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'public'
+      and table_name = 'conversas'
+  ) then
+    insert into public.agentlab_conversation_threads (
+      source_system,
+      source_conversation_id,
+      workspace_id,
+      contact_id,
+      process_id,
+      channel,
+      status,
+      subject,
+      last_message,
+      started_at,
+      last_message_at,
+      assigned_to,
+      metadata,
+      raw_payload
+    )
+    select
+      'workspace_conversas',
+      c.id::text,
+      c.workspace_id,
+      c.contato_id,
+      c.processo_id,
+      coalesce(c.canal, 'desconhecido'),
+      coalesce(c.status, 'open'),
+      coalesce(c.assunto, 'Sem assunto'),
+      c.ultima_mensagem,
+      coalesce(c.created_date, c.created_at),
+      coalesce(c.last_message_at, c.ultima_mensagem_at, c.updated_date, c.updated_at),
+      c.assigned_to,
+      coalesce(c.metadata, '{}'::jsonb),
+      to_jsonb(c)
+    from public.conversas c
+    where not exists (
+      select 1
+      from public.agentlab_conversation_threads t
+      where t.source_system = 'workspace_conversas'
+        and t.source_conversation_id = c.id::text
+    );
+  end if;
+end
+$$;
