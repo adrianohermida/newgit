@@ -491,7 +491,7 @@ function JobsContent({ copilotContext, initialSource }) {
                     <div className="mt-3 h-2 overflow-hidden rounded-full bg-[rgba(255,255,255,0.06)]">
                       <div className="h-full bg-[#C5A059]" style={{ width: `${progress}%` }} />
                     </div>
-                    {job.last_error ? <p className="mt-3 text-xs text-red-200">{job.last_error}</p> : null}
+                    {job.last_error ? <p className={`mt-3 text-xs ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>{job.last_error}</p> : null}
                   </button>
                 );
               })}

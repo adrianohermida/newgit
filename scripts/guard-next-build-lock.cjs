@@ -6,6 +6,10 @@ const { execSync, spawnSync } = require('node:child_process');
 const nextDir = path.join(process.cwd(), '.next');
 const lockPath = path.join(nextDir, 'lock');
 const MAX_ATTEMPTS = 3;
+const BENIGN_WINDOWS_BUILD_ENOENT_PATTERNS = [
+  "Error: ENOENT: no such file or directory, unlink '",
+  "Error: ENOENT: no such file or directory, rename '",
+];
 
 function sleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -61,6 +65,26 @@ function cleanNextDir() {
   }
 }
 
+function hasUsableNextArtifacts() {
+  const required = [
+    path.join(nextDir, 'BUILD_ID'),
+    path.join(nextDir, 'routes-manifest.json'),
+    path.join(nextDir, 'prerender-manifest.json'),
+    path.join(nextDir, 'server', 'pages-manifest.json'),
+  ];
+  return required.every((filePath) => fs.existsSync(filePath));
+}
+
+function isBenignWindowsNextBuildFailure(output) {
+  if (os.platform() !== 'win32') return false;
+  const text = String(output || '');
+  const generatedAllPages =
+    text.includes('Generating static pages using 1 worker') &&
+    text.includes('✓ Generating static pages using 1 worker');
+  const hasKnownEnoent = BENIGN_WINDOWS_BUILD_ENOENT_PATTERNS.some((pattern) => text.includes(pattern));
+  return generatedAllPages && hasKnownEnoent && hasUsableNextArtifacts();
+}
+
 if (hasConcurrentNextBuild()) {
   console.error('guard-next-build-lock: another next build process is running; aborting.');
   process.exit(1);
@@ -78,10 +102,22 @@ for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
   }
 
   const result = spawnSync(nextBin, buildArgs, {
-    stdio: 'inherit',
+    stdio: ['inherit', 'pipe', 'pipe'],
     shell: os.platform() === 'win32',
     env: process.env,
   });
+
+  const stdout = result.stdout ? result.stdout.toString() : '';
+  const stderr = result.stderr ? result.stderr.toString() : '';
+  if (stdout) process.stdout.write(stdout);
+  if (stderr) process.stderr.write(stderr);
+
+  const combinedOutput = `${stdout}\n${stderr}`;
+  if ((result.status ?? 1) !== 0 && isBenignWindowsNextBuildFailure(combinedOutput)) {
+    console.warn('guard-next-build-lock: detected benign Next.js Windows cleanup ENOENT after a complete build; accepting artifacts.');
+    exitCode = 0;
+    break;
+  }
 
   exitCode = result.status ?? 1;
   if (exitCode === 0) break;

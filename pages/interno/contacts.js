@@ -166,7 +166,7 @@ function ActionButton({ children, tone = "subtle", isLightTheme, ...props }) {
   const tones = {
     subtle: `${isLightTheme ? "border border-[#D4DEE8]" : "border border-[#2D2E2E]"} hover:border-[#C5A059] hover:text-[#C5A059]`,
     primary: "bg-[#C5A059] text-[#050706]",
-    danger: "border border-[#4B2222] text-red-200 hover:border-[#C96A6A]",
+    danger: isLightTheme ? "border border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E] hover:border-[#C96A6A]" : "border border-[#4B2222] text-red-200 hover:border-[#C96A6A]",
   };
   return <button type="button" {...props} className={`px-4 py-3 text-sm disabled:opacity-50 ${tones[tone]}`}>{children}</button>;
 }

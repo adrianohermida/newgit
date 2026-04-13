@@ -393,7 +393,7 @@ function ActionButton({ children, tone = "subtle", className = "", ...props }) {
   const tones = {
     subtle: isLightTheme ? "border border-[#d7d4cb] text-[#4b5563] hover:border-[#9a6d14] hover:text-[#9a6d14]" : "border border-[#2D2E2E] text-[#F4F1EA] hover:border-[#C5A059] hover:text-[#C5A059]",
     primary: isLightTheme ? "bg-[#c79b2c] text-[#fffdf7] hover:brightness-110" : "bg-[#C5A059] text-[#050706] hover:brightness-110",
-    danger: "border border-[#4B2222] text-red-200 hover:border-[#C96A6A]",
+    danger: isLightTheme ? "border border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E] hover:border-[#C96A6A]" : "border border-[#4B2222] text-red-200 hover:border-[#C96A6A]",
   };
   return <button type="button" {...props} className={`rounded-2xl px-5 py-3 text-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${tones[tone] || tones.subtle} ${className}`.trim()}>{children}</button>;
 }
@@ -1019,7 +1019,7 @@ function JobCard({ job, active = false }) {
       <div className={`h-full rounded-full ${isLightTheme ? "bg-[#c79b2c]" : "bg-[#C5A059]"}`} style={{ width: `${percent}%` }} />
     </div>
     <p className={`mt-2 text-xs ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>{buildJobPreview(job)}</p>
-    {job?.last_error ? <p className="mt-2 text-xs text-red-200">{job.last_error}</p> : null}
+    {job?.last_error ? <p className={`mt-2 text-xs ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>{job.last_error}</p> : null}
   </div>;
 }
 function QueueSummaryCard({ title, count, helper, accent = "text-[#C5A059]" }) {

@@ -506,7 +506,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
   }
 
   if (state.error) {
-    return <div className="border border-[#5C2A2A] bg-[rgba(91,53,53,0.16)] p-6 text-sm text-red-200">{state.error}</div>;
+    return <div className={`border p-6 text-sm ${isLightTheme ? "border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E]" : "border-[#5C2A2A] bg-[rgba(91,53,53,0.16)] text-red-200"}`}>{state.error}</div>;
   }
 
   const data = state.data || {};
@@ -687,7 +687,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
               {textualBackfillState.loading ? "Criando/vinculando accounts..." : "Backfill de accounts textuais"}
             </button>
           </div>
-          {textualBackfillState.error ? <p className="mb-4 text-sm text-red-200">{textualBackfillState.error}</p> : null}
+          {textualBackfillState.error ? <p className={`mb-4 text-sm ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>{textualBackfillState.error}</p> : null}
           {textualBackfillState.result ? (
             <div className={`mb-4 rounded-[18px] border p-4 text-sm ${isLightTheme ? "border-[#b7d8c8] bg-[#eefbf4] text-[#1f2937]" : "border-[#35554B] bg-[rgba(11,24,21,0.72)]"}`}>
               <p className="font-semibold">
@@ -798,7 +798,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
             <span className="text-sm opacity-65">Atualizado em {formatDate(data.config.settings.updated_at)}</span>
           ) : null}
         </div>
-        {configState.error ? <p className="mb-4 text-sm text-red-200">{configState.error}</p> : null}
+        {configState.error ? <p className={`mb-4 text-sm ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>{configState.error}</p> : null}
         {configState.result ? <p className="mb-4 text-sm opacity-70">Configuracao operacional persistida no backend.</p> : null}
         {runnerUnavailable ? (
           <p className="mb-4 text-sm text-amber-200">
@@ -818,7 +818,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
             />
           ))}
         </div>
-        {operationState.error ? <p className="mt-4 text-sm text-red-200">{operationState.error}</p> : null}
+        {operationState.error ? <p className={`mt-4 text-sm ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>{operationState.error}</p> : null}
         {operationState.result ? (
           <div className={`mt-4 rounded-[18px] border p-4 text-sm ${isLightTheme ? "border-[#b7d8c8] bg-[#eefbf4] text-[#1f2937]" : "border-[#35554B] bg-[rgba(11,24,21,0.72)]"}`}>
             <div className="flex flex-wrap items-center gap-2">
@@ -1021,7 +1021,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
             <StatusBadge tone="accent">{selectedPendingRows.length} linha(s) selecionada(s)</StatusBadge>
             {resolutionState.loading ? <StatusBadge tone="warn">Aplicando reconciliacao...</StatusBadge> : null}
           </div>
-          {resolutionState.error ? <p className="mb-4 text-sm text-red-200">{resolutionState.error}</p> : null}
+          {resolutionState.error ? <p className={`mb-4 text-sm ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>{resolutionState.error}</p> : null}
           {resolutionState.result ? (
             <div className={`mb-4 rounded-[18px] border p-4 text-sm ${isLightTheme ? "border-[#b7d8c8] bg-[#eefbf4] text-[#1f2937]" : "border-[#35554B] bg-[rgba(11,24,21,0.72)]"}`}>
               <p className="font-semibold">Reconciliacao aplicada em {resolutionState.result.updated || 0} linha(s).</p>
@@ -1077,7 +1077,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
 
       <Panel title="Candidatos de processo/account" eyebrow="Resolução manual">
         {processSearch.loading ? <p className="text-sm opacity-65">Buscando processos...</p> : null}
-        {processSearch.error ? <p className="text-sm text-red-200">{processSearch.error}</p> : null}
+        {processSearch.error ? <p className={`text-sm ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>{processSearch.error}</p> : null}
         <div className="grid gap-3 xl:grid-cols-2">
           {(processSearch.items || []).map((item) => (
             <article key={item.id} className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
@@ -1122,7 +1122,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
             {contactResolutionState.loading ? "Criando contatos..." : "Criar contato + vincular partes"}
           </button>
         </div>
-        {contactResolutionState.error ? <p className="mb-4 text-sm text-red-200">{contactResolutionState.error}</p> : null}
+        {contactResolutionState.error ? <p className={`mb-4 text-sm ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>{contactResolutionState.error}</p> : null}
         {contactResolutionState.result ? (
           <div className={`mb-4 rounded-[18px] border p-4 text-sm ${isLightTheme ? "border-[#b7d8c8] bg-[#eefbf4] text-[#1f2937]" : "border-[#35554B] bg-[rgba(11,24,21,0.72)]"}`}>
             <p className="font-semibold">

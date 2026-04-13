@@ -1013,7 +1013,7 @@ function JobCard({ job, active = false }) {
       <div className="h-full rounded-full bg-[#C5A059]" style={{ width: `${percent}%` }} />
     </div>
     <p className="mt-2 text-xs opacity-65">{buildJobPreview(job)}</p>
-    {job?.last_error ? <p className="mt-2 text-xs text-red-200">{job.last_error}</p> : null}
+    {job?.last_error ? <p className={`mt-2 text-xs ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>{job.last_error}</p> : null}
   </div>;
 }
 

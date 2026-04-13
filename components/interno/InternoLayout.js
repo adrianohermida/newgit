@@ -690,17 +690,17 @@ function OperationalRightRail({ data, onOpenConsole, onOpenJobsLog }) {
         </div>
       </div> : null}
 
-      {data.recentErrors.length || data.actionState?.error ? <div className="rounded-[20px] border border-[#5B2D2D] bg-[rgba(91,45,45,0.14)] p-4">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-[#E8B4B4]">Erros correlacionados</p>
+      {data.recentErrors.length || data.actionState?.error ? <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#F0CACA] bg-[#FFF4F4]" : "border-[#5B2D2D] bg-[rgba(91,45,45,0.14)]"}`}>
+        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#B25E5E]" : "text-[#E8B4B4]"}`}>Erros correlacionados</p>
         <div className="mt-3 space-y-2 text-[11px]">
-          {data.actionState?.error ? <div className="rounded-xl border border-[#5B2D2D] bg-[rgba(34,12,14,0.45)] p-3 text-[#FECACA]">{data.actionState.error}</div> : null}
+          {data.actionState?.error ? <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#F0CACA] bg-white text-[#8C4545]" : "border-[#5B2D2D] bg-[rgba(34,12,14,0.45)] text-[#FECACA]"}`}>{data.actionState.error}</div> : null}
           {data.recentErrors.map((item) => (
-            <div key={item.id} className="rounded-xl border border-[#5B2D2D] bg-[rgba(34,12,14,0.45)] p-3">
+            <div key={item.id} className={`rounded-xl border p-3 ${isLightTheme ? "border-[#F0CACA] bg-white" : "border-[#5B2D2D] bg-[rgba(34,12,14,0.45)]"}`}>
               <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-[#F8D6D6]">{item.label}</span>
-                <span className="text-[#D9B46A]">{formatRelativeTime(item.createdAt)}</span>
+                <span className={`font-semibold ${isLightTheme ? "text-[#8C4545]" : "text-[#F8D6D6]"}`}>{item.label}</span>
+                <span className={isLightTheme ? "text-[#A46A14]" : "text-[#D9B46A]"}>{formatRelativeTime(item.createdAt)}</span>
               </div>
-              <p className="mt-2 text-[#F1C3C3]">{item.message}</p>
+              <p className={`mt-2 ${isLightTheme ? "text-[#A65F5F]" : "text-[#F1C3C3]"}`}>{item.message}</p>
             </div>
           ))}
         </div>
@@ -1962,7 +1962,7 @@ export default function InternoLayout({
                               <span className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Alerta do modulo</span>
                               <span className={
                                 moduleAlerts.get(item.key)?.tone === "danger"
-                                  ? "text-red-200"
+                                  ? isLightTheme ? "text-[#B25E5E]" : "text-red-200"
                                   : moduleAlerts.get(item.key)?.tone === "warn"
                                     ? "text-[#D9B46A]"
                                     : "text-[#11D473]"
@@ -1971,8 +1971,8 @@ export default function InternoLayout({
                               </span>
                             </div>
                             <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
-                              <span className="rounded-full border border-[#5B2D2D] px-2 py-0.5 text-[#FECACA]">erros {moduleAlerts.get(item.key)?.errors || 0}</span>
-                              <span className="rounded-full border border-[#6E5630] px-2 py-0.5 text-[#FDE68A]">warn {moduleAlerts.get(item.key)?.warnings || 0}</span>
+                              <span className={`rounded-full border px-2 py-0.5 ${isLightTheme ? "border-[#F0CACA] bg-white text-[#B25E5E]" : "border-[#5B2D2D] text-[#FECACA]"}`}>erros {moduleAlerts.get(item.key)?.errors || 0}</span>
+                              <span className={`rounded-full border px-2 py-0.5 ${isLightTheme ? "border-[#F3DEB0] bg-white text-[#A46A14]" : "border-[#6E5630] text-[#FDE68A]"}`}>warn {moduleAlerts.get(item.key)?.warnings || 0}</span>
                               <span className={`rounded-full border px-2 py-0.5 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#E6E0D3]"}`}>abertos {moduleAlerts.get(item.key)?.recurringOpen || 0}</span>
                               <span className={`rounded-full border px-2 py-0.5 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#E6E0D3]"}`}>acima 72h {moduleAlerts.get(item.key)?.stale || 0}</span>
                             </div>
@@ -2027,7 +2027,7 @@ export default function InternoLayout({
                             <span
                               className={
                                 item.tone === "danger"
-                                  ? "text-red-200"
+                                  ? isLightTheme ? "text-[#B25E5E]" : "text-red-200"
                                   : item.tone === "warn"
                                     ? "text-[#D9B46A]"
                                     : "text-[#11D473]"
@@ -2398,7 +2398,7 @@ export default function InternoLayout({
                             <div key={entry.id} className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                               <div className="flex items-center justify-between">
                                 <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>{entry.acao || "acao"}</span>
-                                <span className={entry.status === "error" ? "text-red-200" : "text-[#11D473]"}>
+                                <span className={entry.status === "error" ? (isLightTheme ? "text-[#B25E5E]" : "text-red-200") : "text-[#11D473]"}>
                                   {entry.status}
                                 </span>
                               </div>
@@ -2454,7 +2454,7 @@ export default function InternoLayout({
                             <div key={entry.id} className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                               <div className="flex items-center justify-between">
                                 <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>{entry.acao || "acao"}</span>
-                                <span className={entry.status === "error" ? "text-red-200" : "text-[#11D473]"}>
+                                <span className={entry.status === "error" ? (isLightTheme ? "text-[#B25E5E]" : "text-red-200") : "text-[#11D473]"}>
                                   {entry.status}
                                 </span>
                               </div>
@@ -2509,7 +2509,7 @@ export default function InternoLayout({
                           <div className={`rounded-lg border px-3 py-2 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                             <div className="flex items-center justify-between">
                                 <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>Contato em foco</span>
-                              <span className={contactsHistory.actionState?.error ? "text-red-200" : "text-[#11D473]"}>
+                              <span className={contactsHistory.actionState?.error ? (isLightTheme ? "text-[#B25E5E]" : "text-red-200") : "text-[#11D473]"}>
                                 {contactsHistory.selectedContact?.name || "nenhum"}
                               </span>
                             </div>
@@ -2520,7 +2520,7 @@ export default function InternoLayout({
                               sync {contactsHistory.settings?.syncLimit || 0} · reconcile {contactsHistory.settings?.reconcileLimit || 0} · pendentes selecionadas {contactsHistory.partesPendentes?.selected || 0} · vinculadas selecionadas {contactsHistory.partesVinculadas?.selected || 0}
                             </div>
                             {contactsHistory.actionState?.preview ? <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>Ultima acao: {contactsHistory.actionState.preview}</div> : null}
-                            {contactsHistory.actionState?.error ? <div className="mt-1 text-red-200">Erro: {contactsHistory.actionState.error}</div> : null}
+                            {contactsHistory.actionState?.error ? <div className={`mt-1 ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>Erro: {contactsHistory.actionState.error}</div> : null}
                           </div>
                           {Array.isArray(contactsHistory.executionHistory) && contactsHistory.executionHistory.length ? (
                             <div className="space-y-2">
@@ -2528,7 +2528,7 @@ export default function InternoLayout({
                                 <div key={entry.id} className={`rounded-lg border px-3 py-2 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                                   <div className="flex items-center justify-between">
                                       <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>{entry.label || entry.action}</span>
-                                    <span className={entry.status === "error" ? "text-red-200" : entry.status === "success" ? "text-[#11D473]" : "text-[#D9B46A]"}>
+                                    <span className={entry.status === "error" ? (isLightTheme ? "text-[#B25E5E]" : "text-red-200") : entry.status === "success" ? "text-[#11D473]" : "text-[#D9B46A]"}>
                                       {entry.status || "running"}
                                     </span>
                                   </div>
@@ -2561,7 +2561,7 @@ export default function InternoLayout({
                           <div className={`rounded-lg border px-3 py-2 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                             <div className="flex items-center justify-between">
                                 <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>Estado</span>
-                              <span className={dotobotHistory.error ? "text-red-200" : "text-[#11D473]"}>
+                              <span className={dotobotHistory.error ? (isLightTheme ? "text-[#B25E5E]" : "text-red-200") : "text-[#11D473]"}>
                                 {dotobotHistory.uiState || "idle"}
                               </span>
                             </div>
@@ -2569,7 +2569,7 @@ export default function InternoLayout({
                               modo {dotobotHistory.mode || "n/a"} · provider {dotobotHistory.provider || "n/a"} · conversas {dotobotHistory.conversationCount || 0}
                             </div>
                             {dotobotHistory.activeTask ? <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>Task ativa: {dotobotHistory.activeTask.query || dotobotHistory.activeTask.id}</div> : null}
-                            {dotobotHistory.error ? <div className="mt-1 text-red-200">Erro: {dotobotHistory.error}</div> : null}
+                            {dotobotHistory.error ? <div className={`mt-1 ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>Erro: {dotobotHistory.error}</div> : null}
                           </div>
                         </div>
                       ) : (
@@ -2595,7 +2595,7 @@ export default function InternoLayout({
                           <div className={`rounded-lg border px-3 py-2 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                             <div className="flex items-center justify-between">
                                 <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>Automacao</span>
-                              <span className={aiTaskHistory.error ? "text-red-200" : "text-[#11D473]"}>
+                              <span className={aiTaskHistory.error ? (isLightTheme ? "text-[#B25E5E]" : "text-red-200") : "text-[#11D473]"}>
                                 {aiTaskHistory.automation || "idle"}
                               </span>
                             </div>
@@ -2603,7 +2603,7 @@ export default function InternoLayout({
                               modo {aiTaskHistory.mode || "n/a"} · provider {aiTaskHistory.provider || "n/a"} · eventos {aiTaskHistory.eventsTotal || 0}
                             </div>
                             {aiTaskHistory.activeRun?.id ? <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>Run: {aiTaskHistory.activeRun.id}</div> : null}
-                            {aiTaskHistory.error ? <div className="mt-1 text-red-200">Erro: {aiTaskHistory.error}</div> : null}
+                            {aiTaskHistory.error ? <div className={`mt-1 ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>Erro: {aiTaskHistory.error}</div> : null}
                           </div>
                         </div>
                       ) : (
@@ -2829,20 +2829,20 @@ export default function InternoLayout({
                                 ) : null}
                                 {getActivityLogResponseText(entry) ? (
                                   <div>
-                                    <p className="text-[10px] uppercase tracking-[0.14em] text-[#7F928C]">Response</p>
-                                    <pre className="mt-1 max-h-[160px] overflow-auto rounded-lg border border-[#1E2E29] bg-[rgba(9,12,11,0.6)] p-2 text-[10px] text-[#DADFD8]">{getActivityLogResponseText(entry)}</pre>
+                                    <p className={`text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Response</p>
+                                    <pre className={`mt-1 max-h-[160px] overflow-auto rounded-lg border p-2 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#1E2E29] bg-[rgba(9,12,11,0.6)] text-[#DADFD8]"}`}>{getActivityLogResponseText(entry)}</pre>
                                   </div>
                                 ) : null}
                                 {entry.error ? (
                                   <div>
-                                    <p className="text-[10px] uppercase tracking-[0.14em] text-[#D18585]">Erro</p>
-                                    <pre className="mt-1 max-h-[160px] overflow-auto rounded-lg border border-[#3A1F22] bg-[rgba(34,12,14,0.6)] p-2 text-[10px] text-[#F2C7C7]">{entry.error}</pre>
+                                    <p className={`text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "text-[#C05C5C]" : "text-[#D18585]"}`}>Erro</p>
+                                    <pre className={`mt-1 max-h-[160px] overflow-auto rounded-lg border p-2 text-[10px] ${isLightTheme ? "border-[#F0CACA] bg-[#FFF4F4] text-[#8C4545]" : "border-[#3A1F22] bg-[rgba(34,12,14,0.6)] text-[#F2C7C7]"}`}>{entry.error}</pre>
                                   </div>
                                 ) : null}
                                 {entry.schemaIssue ? (
                                   <div>
-                                    <p className="text-[10px] uppercase tracking-[0.14em] text-[#D9B46A]">Schema/SQL</p>
-                                    <pre className="mt-1 max-h-[160px] overflow-auto rounded-lg border border-[#2B2616] bg-[rgba(20,16,8,0.7)] p-2 text-[10px] text-[#EAD9B2]">{JSON.stringify(entry.schemaIssue, null, 2)}</pre>
+                                    <p className={`text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "text-[#A46A14]" : "text-[#D9B46A]"}`}>Schema/SQL</p>
+                                    <pre className={`mt-1 max-h-[160px] overflow-auto rounded-lg border p-2 text-[10px] ${isLightTheme ? "border-[#F3DEB0] bg-[#FFF8E8] text-[#7A5A12]" : "border-[#2B2616] bg-[rgba(20,16,8,0.7)] text-[#EAD9B2]"}`}>{JSON.stringify(entry.schemaIssue, null, 2)}</pre>
                                   </div>
                                 ) : null}
                               </div>
