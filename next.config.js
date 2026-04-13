@@ -8,6 +8,12 @@ const isStaticExport =
 const nextConfig = {
   ...(isStaticExport ? { output: "export" } : {}),
   images: { unoptimized: true },
+  experimental: {
+    webpackBuildWorker: false,
+    parallelServerCompiles: false,
+    parallelServerBuildTraces: false,
+    cpus: 1,
+  },
   env: {
     NEXT_PUBLIC_SUPABASE_URL:
       process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '',

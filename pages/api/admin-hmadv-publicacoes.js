@@ -569,6 +569,7 @@ export default async function handler(req, res) {
         const data = await runAdviseSync({
           maxPaginas: Number(req.body?.maxPaginas || req.body?.limit || 12),
           porPagina: Number(req.body?.porPagina || 50),
+          processNumbers: parseProcessNumbers(req.body?.processNumbers),
         });
         return res.status(200).json({ ok: true, data });
       }

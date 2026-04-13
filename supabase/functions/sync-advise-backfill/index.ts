@@ -55,7 +55,7 @@ serve(async () => {
       sync = novo;
     }
 
-    const paginaInicial = Math.max(1, Number(sync.ultima_pagina ?? 1));
+    const paginaInicial = Math.max(1, Number(sync.pagina_atual ?? sync.ultima_pagina ?? 1));
     let totalPaginas = Number(sync.total_paginas ?? 0) || null;
     let totalRegistrosApi = Number(sync.total_registros ?? 0) || 0;
     let registrosImportados = 0;
@@ -141,18 +141,20 @@ serve(async () => {
     }
 
     const concluiu = Boolean(totalPaginas && ultimaPaginaProcessada >= totalPaginas);
+    const execucaoParcial = !concluiu && Boolean(totalPaginas && ultimaPaginaProcessada >= paginaInicial);
     const proximaPagina = concluiu
-      ? null
+      ? 1
       : Math.max(paginaInicial, ultimaPaginaProcessada + 1);
 
     const { error: updateError } = await supabase
       .from("advise_sync_status")
       .update({
-        ultima_pagina: concluiu ? Number(totalPaginas || ultimaPaginaProcessada || paginaInicial) : proximaPagina,
+        pagina_atual: proximaPagina,
+        ultima_pagina: ultimaPaginaProcessada >= paginaInicial ? ultimaPaginaProcessada : sync.ultima_pagina ?? null,
         total_paginas: totalPaginas,
         total_registros: totalRegistrosApi,
         ultima_execucao: new Date(),
-        status: concluiu ? "concluido" : "idle",
+        status: concluiu ? "concluido" : "running",
       })
       .eq("id", sync.id);
 
@@ -161,6 +163,7 @@ serve(async () => {
     return new Response(
       JSON.stringify({
         status: concluiu ? "concluido" : "parcial",
+        execucao_parcial: execucaoParcial,
         pagina_inicial: paginaInicial,
         paginas_processadas: paginasProcessadas,
         ultima_pagina_processada: ultimaPaginaProcessada >= paginaInicial ? ultimaPaginaProcessada : null,

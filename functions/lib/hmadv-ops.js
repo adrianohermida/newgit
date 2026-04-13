@@ -366,15 +366,30 @@ async function ensureFallbackProcessFromPublication(env, publication, numero) {
     rawPayload?.origem ||
     null;
   const parsedFields = extractProcessFallbackFieldsFromPublication(publication?.conteudo || "");
+  const publicationDate =
+    rawPayload?.dataPublicacao ||
+    rawPayload?.data_publicacao ||
+    publication?.data_publicacao ||
+    null;
+  const fallbackTitleParts = [];
+  const activePole = String(rawPayload?.poloAtivo || rawPayload?.polo_ativo || "").trim();
+  const passivePole = String(rawPayload?.poloPassivo || rawPayload?.polo_passivo || "").trim();
+  if (activePole && passivePole) fallbackTitleParts.push(`${activePole} x ${passivePole}`);
+  else if (activePole) fallbackTitleParts.push(activePole);
+  else if (passivePole) fallbackTitleParts.push(passivePole);
+  const fallbackTitle = fallbackTitleParts.length ? `${formatCnj(numero)} (${fallbackTitleParts.join(" | ")})` : formatCnj(numero);
   const processSeed = {
     numero_cnj: numero,
     numero_processo: numero,
-    titulo: formatCnj(numero),
+    titulo: fallbackTitle,
     tribunal: inferTribunalFromPublicationDiary(diary) || (typeof diary === "string" ? diary : null),
-    comarca: parsedFields.comarca || null,
-    orgao_julgador: parsedFields.orgao_julgador || null,
-    classe: parsedFields.classe || null,
-    assunto_principal: parsedFields.assunto_principal || null,
+    comarca: parsedFields.comarca || rawPayload?.cidadeComarcaDescricao || rawPayload?.cidade_comarca_descricao || null,
+    orgao_julgador: parsedFields.orgao_julgador || rawPayload?.varaDescricao || rawPayload?.vara_descricao || null,
+    classe: parsedFields.classe || rawPayload?.classe || rawPayload?.tipoDocumento || rawPayload?.tipo_documento || null,
+    assunto_principal: parsedFields.assunto_principal || rawPayload?.assunto || rawPayload?.assuntoPrincipal || rawPayload?.assunto_principal || null,
+    data_ajuizamento: typeof publicationDate === "string" ? String(publicationDate).slice(0, 10) : null,
+    polo_ativo: activePole || null,
+    polo_passivo: passivePole || null,
     segredo_justica: parsedFields.segredo_justica === true ? true : undefined,
     dados_incompletos: true,
     fonte_criacao: "ADVISE_PARSER",
@@ -416,6 +431,29 @@ async function patchPublicationProcessLink(env, publicationId, processId) {
     },
     "judiciario"
   );
+}
+
+async function loadUnlinkedPublicacoesByNumbers(env, processNumbers = []) {
+  const normalizedNumbers = uniqueNonEmpty((processNumbers || []).map((item) => normalizeProcessNumber(item)).filter((item) => item.length === 20));
+  const output = [];
+  for (const chunk of splitIntoChunks(normalizedNumbers, 10)) {
+    const filters = [];
+    for (const numero of chunk) {
+      const formatted = formatCnj(numero);
+      filters.push(
+        encodeURIComponent(`numero_processo_api.eq.${numero}`),
+        encodeURIComponent(`numero_processo_api.eq.${formatted}`),
+        encodeURIComponent(`numero_processo_api.ilike.*${numero}*`),
+        encodeURIComponent(`numero_processo_api.ilike.*${formatted}*`)
+      );
+    }
+    const rows = await hmadvRest(
+      env,
+      `publicacoes?processo_id=is.null&or=(${filters.join(",")})&select=id,processo_id,numero_processo_api,conteudo,data_publicacao,raw_payload,freshsales_activity_id&limit=${Math.max(chunk.length * 10, chunk.length)}`
+    );
+    output.push(...rows.filter((row) => !isAuctionPublicationRow(row)));
+  }
+  return output;
 }
 
 function summarizeChunkFailures(result = {}) {
@@ -3858,7 +3896,7 @@ export async function runSyncWorker(env) {
   return hmadvFunction(env, "sync-worker", { action: "run" }, { method: "POST", body: {} });
 }
 
-export async function runAdviseSync(env, { maxPaginas = 12, porPagina = 50 } = {}) {
+export async function runAdviseSync(env, { maxPaginas = 12, porPagina = 50, processNumbers = [] } = {}) {
   return hmadvFunction(
     env,
     "advise-sync",
@@ -3867,7 +3905,12 @@ export async function runAdviseSync(env, { maxPaginas = 12, porPagina = 50 } = {
       max_paginas: Math.max(1, Number(maxPaginas || 12)),
       por_pagina: Math.max(1, Number(porPagina || 50)),
     },
-    { method: "POST", body: {} }
+    {
+      method: "POST",
+      body: {
+        processNumbers: Array.isArray(processNumbers) ? processNumbers.join("\n") : String(processNumbers || ""),
+      },
+    }
   );
 }
 
@@ -4245,13 +4288,7 @@ export async function createProcessesFromPublicacoes(env, { processNumbers = [],
     const rawTargets = [...new Set(processNumbers.map((item) => String(item || "").replace(/\D+/g, "")).filter(Boolean))];
     const missingTargets = rawTargets.filter((item) => !knownCnjs.has(item));
     if (missingTargets.length) {
-      for (const chunk of splitIntoChunks(missingTargets, 25)) {
-        const rows = await hmadvRest(
-          env,
-          `publicacoes?processo_id=is.null&${buildInFilter("numero_processo_api", chunk)}&select=id,processo_id,numero_processo_api,conteudo,data_publicacao,raw_payload,freshsales_activity_id&limit=${Math.max(chunk.length * 5, chunk.length)}`
-        );
-        publicacoes.push(...rows.filter((row) => !isAuctionPublicationRow(row)));
-      }
+      publicacoes = await loadUnlinkedPublicacoesByNumbers(env, missingTargets);
     }
   } else {
     publicacoes = (await hmadvRest(

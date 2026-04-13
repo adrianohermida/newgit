@@ -2598,15 +2598,22 @@ function PublicacoesContent() {
           };
         }
         if (action === "run_advise_backfill") {
+          const partial = payload.data?.execucao_parcial;
+          const nextPage = payload.data?.proxima_pagina;
           return {
             ...payload.data,
-            uiHint: "O backfill do Advise importa o historico bruto para o Supabase. Depois use Criar processos ausentes e Sincronizar publicacoes vinculadas para concluir a drenagem operacional.",
+            uiHint: partial
+              ? `O backfill do Advise continua pendente. A rodada atual terminou de forma parcial e a proxima pagina esperada e ${nextPage || "a seguinte do cursor"}.`
+              : "O backfill do Advise importa o historico bruto para o Supabase. Depois use Criar processos ausentes e Sincronizar publicacoes vinculadas para concluir a drenagem operacional.",
           };
         }
         if (action === "run_advise_sync") {
+          const partial = payload.data?.execucao_parcial;
           return {
             ...payload.data,
-            uiHint: "A ingestao incremental do Advise traz publicacoes novas. Se ainda houver delta estrutural, rode tambem o backfill historico.",
+            uiHint: partial
+              ? "A ingestao incremental do Advise ficou parcial nesta rodada para preservar o cursor com seguranca. Rode novamente para continuar do ponto atual."
+              : "A ingestao incremental do Advise traz publicacoes novas. Se ainda houver delta estrutural, rode tambem o backfill historico.",
           };
         }
         if (action === "sincronizar_publicacoes_activity") {
@@ -2837,6 +2844,22 @@ function PublicacoesContent() {
               <p className="mt-2">
                 Use <strong>Sincronizar publicacoes vinculadas</strong> e <strong>Rodar sync-worker</strong> para refletir activities/CRM.
                 Se precisar extrair ou reconciliar partes, siga pelo modulo <strong>Processos</strong>.
+              </p>
+            </div>
+            <div className={`rounded-[20px] border p-4 text-sm ${canManuallyDrainActiveJob ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : hasBlockingJob ? "border-[#4A3321] bg-[rgba(44,25,18,0.22)] text-[#F7C9A8]" : "border-[#244034] bg-[rgba(20,45,36,0.24)] text-[#D7F5E6]"}`}>
+              <p className="font-semibold">
+                {canManuallyDrainActiveJob
+                  ? "Existe job pronto para drenagem manual nesta tela."
+                  : hasBlockingJob
+                    ? "Existe job em andamento bloqueando parte das acoes."
+                    : "A fila operacional esta livre para nova rodada."}
+              </p>
+              <p className="mt-2 opacity-80">
+                {canManuallyDrainActiveJob
+                  ? "Use o botao Drenar fila HMADV para continuar o job persistido sem sair do modulo."
+                  : hasBlockingJob
+                    ? `Acompanhe o job ${blockingJob?.acao || "ativo"} no painel de resultado antes de abrir outro lote grande.`
+                    : "Comece pela ingestao do Advise, crie processos ausentes e finalize com a sincronizacao das publicacoes vinculadas."}
               </p>
             </div>
             <label className="block">

@@ -32,11 +32,27 @@ function ehLeilao(item: Record<string, unknown>): boolean {
 
 Deno.serve(async () => {
   try {
-    const { data: sync } = await supabase
+    let { data: sync } = await supabase
       .from("advise_sync_status")
       .select("*")
       .limit(1)
       .maybeSingle();
+
+    if (!sync) {
+      const { data, error } = await supabase
+        .from("advise_sync_status")
+        .insert({
+          fonte: "ADVISE",
+          ultima_pagina: 1,
+          total_paginas: null,
+          total_registros: 0,
+          status: "idle",
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      sync = data;
+    }
 
     const ultimaDataMovimento = sync?.ultima_data_movimento ?? "2000-01-01";
 
@@ -128,14 +144,18 @@ Deno.serve(async () => {
       pagina += 1;
     } while (pagina <= totalPaginas && paginasProcessadas < MAX_PAGINAS_POR_EXECUCAO);
 
+    const execucaoParcial = pagina <= totalPaginas;
+
     if (sync?.id) {
       await supabase
         .from("advise_sync_status")
         .update({
-          ultima_data_movimento: ultimaMov,
+          ultima_data_movimento: execucaoParcial ? sync?.ultima_data_movimento ?? null : ultimaMov,
           ultima_execucao: new Date(),
           total_registros: totalRegistros,
-          status: "idle",
+          ultima_pagina: execucaoParcial ? pagina - 1 : totalPaginas,
+          total_paginas: totalPaginas,
+          status: execucaoParcial ? "running" : "idle",
         })
         .eq("id", sync.id);
     }
@@ -145,6 +165,7 @@ Deno.serve(async () => {
         novas_publicacoes: totalItensRecebidos,
         paginas_processadas: paginasProcessadas,
         total_paginas: totalPaginas,
+        execucao_parcial: execucaoParcial,
         publicacoes_leilao: publicacoesLeilao,
         total_api: totalItensRecebidos,
         total_registros_api: totalRegistros,
