@@ -2923,7 +2923,7 @@ function PublicacoesContent() {
         </Panel> : null}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <QueueSummaryCard title="Processos criaveis" count={processCandidates.totalRows || processCandidates.items.length || 0} helper="Fila para gerar processo a partir da publicacao." />
-          <QueueSummaryCard title="Partes extraiveis" count={partesCandidates.totalRows || partesCandidates.items.length || 0} helper={partesCandidates.totalEstimated ? "Fila estimada para enriquecer judiciario.partes." : "Fila para enriquecer judiciario.partes."} />
+          <QueueSummaryCard title="Partes referenciadas" count={partesCandidates.totalRows || partesCandidates.items.length || 0} helper={partesCandidates.totalEstimated ? "Leitura estimada para encaminhar a extracao ao modulo de processos." : "Leitura para encaminhar a extracao ao modulo de processos."} />
           <QueueSummaryCard title="Com activity" count={data.publicacoesComActivity || 0} helper="Publicacoes ja refletidas no Freshsales." />
           <QueueSummaryCard title="Pendentes" count={data.publicacoesPendentesComAccount || 0} helper="Publicacoes ainda sem activity." />
         </div>
@@ -2999,12 +2999,12 @@ function PublicacoesContent() {
                   <button type="button" onClick={() => handleAction("criar_processos_publicacoes", true, selectedUnifiedNumbers)} disabled={actionState.loading || hasBlockingJob || !selectedUnifiedNumbers.length} className="border border-[#2D2E2E] px-3 py-2 text-xs disabled:opacity-40">
                     Criar processos
                   </button>
-                  <button type="button" onClick={() => handleAction("backfill_partes", true, selectedUnifiedNumbers)} disabled={actionState.loading || hasBlockingJob || !selectedUnifiedNumbers.length} className="border border-[#2D2E2E] px-3 py-2 text-xs disabled:opacity-40">
-                    Backfill partes
+                  <button type="button" onClick={() => handleAction("sincronizar_publicacoes_activity", true, selectedUnifiedNumbers)} disabled={actionState.loading || hasBlockingJob || !selectedUnifiedNumbers.length} className="border border-[#6E5630] px-3 py-2 text-xs text-[#F8E7B5] disabled:opacity-40">
+                    Sincronizar publicacoes
                   </button>
-                  <button type="button" onClick={() => handleAction("sincronizar_partes", true, selectedUnifiedNumbers)} disabled={actionState.loading || hasBlockingJob || !selectedUnifiedNumbers.length} className="border border-[#6E5630] px-3 py-2 text-xs text-[#F8E7B5] disabled:opacity-40">
-                    Salvar + CRM
-                  </button>
+                  <a href="/interno/processos" className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">
+                    Partes em processos
+                  </a>
                 </div>
               </div>
               <IntegratedQueueList
@@ -3073,7 +3073,7 @@ function PublicacoesContent() {
         <div id="publicacoes-fila-partes-extraiveis"><Panel title="Fila de partes extraiveis" eyebrow="Backfill pelo conteudo das publicacoes">
           <QueueList
             title="Processos com partes extraiveis"
-            helper="Selecione processos vinculados que ainda tenham partes detectadas no conteudo das publicacoes."
+            helper="Leitura de apoio para encaminhar a extracao de partes ao modulo de processos."
             rows={partesCandidates.items}
             selected={selectedPartesKeys}
             onToggle={(key) => toggleSelection(setSelectedPartesKeys, selectedPartesKeys, key)}
