@@ -1613,7 +1613,7 @@ export default function InternoLayout({
   const consoleReservedSpace = consoleOpen ? consoleHeight + 20 : 52;
   const copilotConsoleInset = isCopilotWorkspace ? consoleReservedSpace + (isMobileShell ? 12 : 16) : 0;
   const consoleDockLeft = hideShellSidebar ? 0 : isMobileShell ? 0 : leftCollapsed ? 88 : 272;
-  const desktopRightRailWidth = rightRailMode === "compact" ? 320 : 388;
+  const desktopRightRailWidth = rightRailMode === "compact" ? 332 : 396;
   const consoleDockRight = !isMobileShell && shouldRenderDotobotRail && !rightCollapsed ? desktopRightRailWidth : 0;
   const rightRailConversationFirst = !rightRailFullscreen;
 
@@ -1691,14 +1691,16 @@ export default function InternoLayout({
         }`}>
           <div className={`sticky top-0 z-20 shrink-0 flex flex-wrap items-center justify-between gap-4 border-b px-4 py-3 md:px-5 md:py-3.5 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(247,249,251,0.92))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.99),rgba(7,9,8,0.96))]"}`}>
             <div className={`rounded-[16px] border px-3 py-2 ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.82)]" : "border-[#1F2D29] bg-[rgba(255,255,255,0.02)]"}`}>
-              <p className="text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">Workspace</p>
-              <p className="mt-1 text-[11px] text-[#C6D1CC]">{router.pathname}</p>
+              <p className="text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">{isCopilotWorkspace ? "Copilot" : "Workspace"}</p>
+              <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#51606B]" : "text-[#C6D1CC]"}`}>
+                {isCopilotWorkspace ? "Conversa centralizada com histórico e módulos" : router.pathname}
+              </p>
             </div>
-            <div className="flex-1 px-4 xl:px-6">
-              <div className={`mx-auto flex max-w-xl items-center gap-3 rounded-[16px] border px-4 py-2.5 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.84)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(12,15,14,0.86),rgba(8,10,9,0.9))]"}`}>
+            <div className={`flex-1 ${isCopilotWorkspace ? "px-1 md:px-4 xl:px-8" : "px-4 xl:px-6"}`}>
+              <div className={`mx-auto flex items-center gap-3 rounded-[16px] border px-4 py-2.5 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isCopilotWorkspace ? "max-w-[980px]" : "max-w-xl"} ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.84)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(12,15,14,0.86),rgba(8,10,9,0.9))]"}`}>
                 <input
                   type="text"
-                  placeholder="Buscar por processos, publicacoes, contas..."
+                  placeholder={isCopilotWorkspace ? "Buscar conversas, processos, publicações, contatos ou contexto..." : "Buscar por processos, publicacoes, contas..."}
                   className="w-full bg-transparent text-sm outline-none placeholder:text-[#60706A]"
                 />
                 <button
@@ -1706,7 +1708,7 @@ export default function InternoLayout({
                   onClick={isCopilotWorkspace ? handleFocusCopilotComposer : handleToggleCopilot}
                   className={`rounded-[12px] border px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] transition ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#9A6E2D] hover:border-[#C5A059]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#C5A059] hover:border-[#C5A059] hover:text-[#F5E6C5]"}`}
                 >
-                  Conversar
+                  {isCopilotWorkspace ? "Focar chat" : "Conversar"}
                 </button>
               </div>
             </div>
