@@ -113,26 +113,76 @@ create table if not exists judiciario.suspensao_expediente (
 create index if not exists suspensao_expediente_periodo_idx
   on judiciario.suspensao_expediente (inicio, fim);
 
-create table if not exists judiciario.prazo_calculado (
-  id uuid primary key default gen_random_uuid(),
-  processo_id uuid not null references judiciario.processos(id) on delete cascade,
-  publicacao_id uuid null references judiciario.publicacoes(id) on delete set null,
-  movimento_id uuid null references judiciario.movimentos(id) on delete set null,
-  audiencia_id uuid null,
-  prazo_regra_id uuid null references judiciario.prazo_regra(id) on delete set null,
-  evento_tipo text not null,
-  titulo text not null,
-  data_base date not null,
-  data_inicio_contagem date not null,
-  data_vencimento date not null,
-  status text not null default 'aberto',
-  prioridade text null,
-  observacoes_ia text null,
-  freshsales_task_id text null,
-  metadata jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
+do $$
+declare
+  has_processos boolean;
+  has_publicacoes boolean;
+  has_movimentos boolean;
+begin
+  select exists (
+    select 1 from information_schema.tables
+    where table_schema = 'judiciario' and table_name = 'processos'
+  ) into has_processos;
+
+  select exists (
+    select 1 from information_schema.tables
+    where table_schema = 'judiciario' and table_name = 'publicacoes'
+  ) into has_publicacoes;
+
+  select exists (
+    select 1 from information_schema.tables
+    where table_schema = 'judiciario' and table_name = 'movimentos'
+  ) into has_movimentos;
+
+  if has_processos and has_publicacoes and has_movimentos then
+    execute $sql$
+      create table if not exists judiciario.prazo_calculado (
+        id uuid primary key default gen_random_uuid(),
+        processo_id uuid not null references judiciario.processos(id) on delete cascade,
+        publicacao_id uuid null references judiciario.publicacoes(id) on delete set null,
+        movimento_id uuid null references judiciario.movimentos(id) on delete set null,
+        audiencia_id uuid null,
+        prazo_regra_id uuid null references judiciario.prazo_regra(id) on delete set null,
+        evento_tipo text not null,
+        titulo text not null,
+        data_base date not null,
+        data_inicio_contagem date not null,
+        data_vencimento date not null,
+        status text not null default 'aberto',
+        prioridade text null,
+        observacoes_ia text null,
+        freshsales_task_id text null,
+        metadata jsonb not null default '{}'::jsonb,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      )
+    $sql$;
+  else
+    execute $sql$
+      create table if not exists judiciario.prazo_calculado (
+        id uuid primary key default gen_random_uuid(),
+        processo_id uuid not null,
+        publicacao_id uuid null,
+        movimento_id uuid null,
+        audiencia_id uuid null,
+        prazo_regra_id uuid null references judiciario.prazo_regra(id) on delete set null,
+        evento_tipo text not null,
+        titulo text not null,
+        data_base date not null,
+        data_inicio_contagem date not null,
+        data_vencimento date not null,
+        status text not null default 'aberto',
+        prioridade text null,
+        observacoes_ia text null,
+        freshsales_task_id text null,
+        metadata jsonb not null default '{}'::jsonb,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      )
+    $sql$;
+  end if;
+end
+$$;
 
 create unique index if not exists prazo_calculado_evento_unq
   on judiciario.prazo_calculado (

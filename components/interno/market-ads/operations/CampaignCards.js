@@ -1,4 +1,4 @@
-import { Tag, money, toneFor } from "../shared";
+import { ActionButton, Tag, money, toneFor } from "../shared";
 
 export default function CampaignCards({ campaigns, beginEditCampaign }) {
   return (
@@ -8,7 +8,7 @@ export default function CampaignCards({ campaigns, beginEditCampaign }) {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="font-semibold text-[#F7F2E8]">{campaign.name}</p>
-              <p className="mt-1 text-xs text-[#8FA29B]">{campaign.platform} · {campaign.objective}</p>
+              <p className="mt-1 text-xs text-[#8FA29B]">{campaign.platform} | {campaign.objective}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Tag tone={toneFor(campaign.status)}>{campaign.status}</Tag>
@@ -26,14 +26,8 @@ export default function CampaignCards({ campaigns, beginEditCampaign }) {
             <p className="font-semibold text-[#F7F2E8]">Proxima acao</p>
             <p className="mt-1 text-[#8FA29B]">{campaign.nextActions?.[0] || "Sem recomendacao no momento."}</p>
           </div>
-          <div className="mt-3 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => beginEditCampaign(campaign)}
-              className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-            >
-              Editar campanha
-            </button>
+          <div className="mt-3">
+            <ActionButton tone="ghost" className="px-4 py-2 text-xs" onClick={() => beginEditCampaign(campaign)}>Editar campanha</ActionButton>
           </div>
         </article>
       ))}

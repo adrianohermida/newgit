@@ -1,4 +1,4 @@
-import { Tag } from "../shared";
+import { ActionButton, Tag } from "../shared";
 
 export default function IntegrationActionBar({
   data,
@@ -16,21 +16,21 @@ export default function IntegrationActionBar({
   return (
     <>
       <div className="flex flex-wrap gap-3">
-        <button type="button" onClick={inspectIntegrations} disabled={integrationState.loading} className="rounded-full border border-[#C5A059] px-5 py-3 text-sm font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E] disabled:opacity-50">
+        <ActionButton tone="primary" onClick={inspectIntegrations} disabled={integrationState.loading}>
           {integrationState.loading ? "Inspecionando..." : "Inspecionar integracoes"}
-        </button>
-        <button type="button" onClick={syncRemoteCampaigns} disabled={remoteSyncState.loading} className="rounded-full border border-[#22342F] px-5 py-3 text-sm text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">
+        </ActionButton>
+        <ActionButton tone="ghost" onClick={syncRemoteCampaigns} disabled={remoteSyncState.loading}>
           {remoteSyncState.loading ? "Sincronizando campanhas..." : "Ler campanhas remotas"}
-        </button>
-        <button type="button" onClick={importRemoteCampaigns} disabled={remoteImportState.loading} className="rounded-full border border-[#22342F] px-5 py-3 text-sm text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">
+        </ActionButton>
+        <ActionButton tone="ghost" onClick={importRemoteCampaigns} disabled={remoteImportState.loading}>
           {remoteImportState.loading ? "Importando para a base..." : "Importar para campanhas locais"}
-        </button>
-        <button type="button" onClick={syncRemoteAds} disabled={remoteAdSyncState.loading} className="rounded-full border border-[#22342F] px-5 py-3 text-sm text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">
+        </ActionButton>
+        <ActionButton tone="ghost" onClick={syncRemoteAds} disabled={remoteAdSyncState.loading}>
           {remoteAdSyncState.loading ? "Lendo anuncios..." : "Ler anuncios remotos"}
-        </button>
-        <button type="button" onClick={importRemoteAds} disabled={remoteAdImportState.loading} className="rounded-full border border-[#22342F] px-5 py-3 text-sm text-[#D8DED9] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">
+        </ActionButton>
+        <ActionButton tone="ghost" onClick={importRemoteAds} disabled={remoteAdImportState.loading}>
           {remoteAdImportState.loading ? "Importando anuncios..." : "Importar anuncios locais"}
-        </button>
+        </ActionButton>
         <Tag tone="accent">{(integrationState.result || data.integrations)?.summary || "Sem leitura ainda"}</Tag>
       </div>
       {integrationState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{integrationState.error}</p> : null}

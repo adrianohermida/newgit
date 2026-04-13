@@ -9,17 +9,70 @@ alter table if exists judiciario.partes
   add column if not exists contato_freshsales_id text,
   add column if not exists principal_no_account boolean not null default false;
 
-create table if not exists judiciario.processo_contato_sync (
-  id uuid primary key default gen_random_uuid(),
-  processo_id uuid not null references judiciario.processos(id) on delete cascade,
-  parte_id uuid null references judiciario.partes(id) on delete set null,
-  contact_id_freshsales text not null,
-  relacao text null,
-  principal boolean not null default false,
-  origem text not null default 'partes_publicacoes',
-  synced_at timestamptz not null default now(),
-  metadata jsonb not null default '{}'::jsonb
-);
+do $$
+declare
+  has_processos boolean;
+  has_partes boolean;
+begin
+  select exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'judiciario'
+      and table_name = 'processos'
+  ) into has_processos;
+
+  select exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'judiciario'
+      and table_name = 'partes'
+  ) into has_partes;
+
+  if has_processos and has_partes then
+    execute $sql$
+      create table if not exists judiciario.processo_contato_sync (
+        id uuid primary key default gen_random_uuid(),
+        processo_id uuid not null references judiciario.processos(id) on delete cascade,
+        parte_id uuid null references judiciario.partes(id) on delete set null,
+        contact_id_freshsales text not null,
+        relacao text null,
+        principal boolean not null default false,
+        origem text not null default 'partes_publicacoes',
+        synced_at timestamptz not null default now(),
+        metadata jsonb not null default '{}'::jsonb
+      )
+    $sql$;
+  elsif has_processos then
+    execute $sql$
+      create table if not exists judiciario.processo_contato_sync (
+        id uuid primary key default gen_random_uuid(),
+        processo_id uuid not null references judiciario.processos(id) on delete cascade,
+        parte_id uuid null,
+        contact_id_freshsales text not null,
+        relacao text null,
+        principal boolean not null default false,
+        origem text not null default 'partes_publicacoes',
+        synced_at timestamptz not null default now(),
+        metadata jsonb not null default '{}'::jsonb
+      )
+    $sql$;
+  else
+    execute $sql$
+      create table if not exists judiciario.processo_contato_sync (
+        id uuid primary key default gen_random_uuid(),
+        processo_id uuid not null,
+        parte_id uuid null,
+        contact_id_freshsales text not null,
+        relacao text null,
+        principal boolean not null default false,
+        origem text not null default 'partes_publicacoes',
+        synced_at timestamptz not null default now(),
+        metadata jsonb not null default '{}'::jsonb
+      )
+    $sql$;
+  end if;
+end
+$$;
 
 create unique index if not exists processo_contato_sync_unq
   on judiciario.processo_contato_sync (processo_id, contact_id_freshsales);

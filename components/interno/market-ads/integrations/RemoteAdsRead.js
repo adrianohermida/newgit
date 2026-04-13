@@ -3,7 +3,7 @@ import { Tag, money, toneFor } from "../shared";
 export default function RemoteAdsRead({ result }) {
   if (!result) return null;
   return (
-    <div className="mt-5 rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+    <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="font-semibold text-[#F7F2E8]">Leitura remota de anuncios</p>
         <Tag tone="accent">{result.summary}</Tag>
