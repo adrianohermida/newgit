@@ -1,37 +1,39 @@
 grant usage on schema judiciario to anon, authenticated, service_role;
 
-grant select, insert, update on table judiciario.audiencias to authenticated, service_role;
-grant select on table judiciario.audiencias to anon;
-
-grant select, insert, update on table judiciario.processo_contato_sync to authenticated, service_role;
-grant select on table judiciario.processo_contato_sync to anon;
-
-grant select on table judiciario.processo_evento_regra to anon, authenticated, service_role;
-grant insert, update on table judiciario.processo_evento_regra to authenticated, service_role;
-
-grant select on table judiciario.prazo_regra to anon, authenticated, service_role;
-grant insert, update on table judiciario.prazo_regra to authenticated, service_role;
-
-grant select on table judiciario.prazo_regra_alias to anon, authenticated, service_role;
-grant insert, update on table judiciario.prazo_regra_alias to authenticated, service_role;
-
-grant select on table judiciario.estado_ibge to anon, authenticated, service_role;
-grant insert, update on table judiciario.estado_ibge to authenticated, service_role;
-
-grant select on table judiciario.municipio_ibge to anon, authenticated, service_role;
-grant insert, update on table judiciario.municipio_ibge to authenticated, service_role;
-
-grant select on table judiciario.feriado_forense to anon, authenticated, service_role;
-grant insert, update on table judiciario.feriado_forense to authenticated, service_role;
-
-grant select on table judiciario.calendario_forense_fonte to anon, authenticated, service_role;
-grant insert, update on table judiciario.calendario_forense_fonte to authenticated, service_role;
-
-grant select on table judiciario.suspensao_expediente to anon, authenticated, service_role;
-grant insert, update on table judiciario.suspensao_expediente to authenticated, service_role;
-
-grant select on table judiciario.prazo_calculado to anon, authenticated, service_role;
-grant insert, update on table judiciario.prazo_calculado to authenticated, service_role;
-
-grant select on table judiciario.prazo_evento to anon, authenticated, service_role;
-grant insert, update on table judiciario.prazo_evento to authenticated, service_role;
+do $$
+declare
+  target_table text;
+begin
+  foreach target_table in array array[
+    'audiencias',
+    'processo_contato_sync',
+    'processo_evento_regra',
+    'prazo_regra',
+    'prazo_regra_alias',
+    'estado_ibge',
+    'municipio_ibge',
+    'feriado_forense',
+    'calendario_forense_fonte',
+    'suspensao_expediente',
+    'prazo_calculado',
+    'prazo_evento'
+  ]
+  loop
+    if exists (
+      select 1
+      from information_schema.tables
+      where table_schema = 'judiciario'
+        and information_schema.tables.table_name = target_table
+    ) then
+      execute format(
+        'grant select on table judiciario.%I to anon, authenticated, service_role',
+        target_table
+      );
+      execute format(
+        'grant insert, update on table judiciario.%I to authenticated, service_role',
+        target_table
+      );
+    end if;
+  end loop;
+end
+$$;
