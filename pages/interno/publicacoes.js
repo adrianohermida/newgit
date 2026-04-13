@@ -975,29 +975,31 @@ function PublicacaoDetailPanel({
 }
 
 function HistoryCard({ entry, onReuse }) {
-  return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
+  const { isLightTheme } = useInternalTheme();
+  return <div className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><p className="font-semibold">{entry.label}</p><p className="text-xs opacity-60">{new Date(entry.createdAt).toLocaleString("pt-BR")}</p></div>
-      <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${entry.status === "running" ? "border-[#6E5630] text-[#FDE68A]" : entry.status === "error" ? "border-[#4B2222] text-red-200" : "border-[#2D2E2E] opacity-70"}`}>{entry.status}</span>
+      <div><p className="font-semibold">{entry.label}</p><p className={`text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>{new Date(entry.createdAt).toLocaleString("pt-BR")}</p></div>
+      <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${entry.status === "running" ? (isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] text-[#FDE68A]") : entry.status === "error" ? (isLightTheme ? "border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E]" : "border-[#4B2222] text-red-200") : (isLightTheme ? "border-[#d7d4cb] text-[#6b7280]" : "border-[#2D2E2E] opacity-70")}`}>{entry.status}</span>
     </div>
-    {entry.preview ? <p className="mt-3 opacity-70">{entry.preview}</p> : null}
-    {entry.meta?.selectedCount ? <p className="mt-2 text-xs opacity-60">Itens selecionados: {entry.meta.selectedCount}</p> : null}
-    {entry.meta?.limit ? <p className="mt-1 text-xs opacity-60">Lote: {entry.meta.limit}</p> : null}
-    {entry.meta?.processNumbersPreview ? <p className="mt-2 break-all text-xs opacity-60">CNJs: {entry.meta.processNumbersPreview}</p> : null}
-    <div className="mt-3"><button type="button" onClick={() => onReuse(entry)} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">Reusar parametros</button></div>
+    {entry.preview ? <p className={`mt-3 ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>{entry.preview}</p> : null}
+    {entry.meta?.selectedCount ? <p className={`mt-2 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Itens selecionados: {entry.meta.selectedCount}</p> : null}
+    {entry.meta?.limit ? <p className={`mt-1 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Lote: {entry.meta.limit}</p> : null}
+    {entry.meta?.processNumbersPreview ? <p className={`mt-2 break-all text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>CNJs: {entry.meta.processNumbersPreview}</p> : null}
+    <div className="mt-3"><button type="button" onClick={() => onReuse(entry)} className={`border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#d7d4cb] text-[#4b5563] hover:border-[#9a6d14] hover:text-[#9a6d14]" : "border-[#2D2E2E] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>Reusar parametros</button></div>
   </div>;
 }
 
 function JobCard({ job, active = false }) {
+  const { isLightTheme } = useInternalTheme();
   const processed = Number(job?.processed_count || 0);
   const requested = Number(job?.requested_count || 0);
   const percent = requested ? Math.min(100, Math.round((processed / requested) * 100)) : 0;
   const statusTone = job?.status === "completed" ? "success" : job?.status === "error" ? "danger" : "warning";
-  return <div className={`border p-4 text-sm ${active ? "border-[#C5A059] bg-[rgba(76,57,26,0.18)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
+  return <div className={`border p-4 text-sm ${active ? (isLightTheme ? "border-[#c79b2c] bg-[#fff8e8] text-[#1f2937]" : "border-[#C5A059] bg-[rgba(76,57,26,0.18)]") : (isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]")}`}>
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <p className="font-semibold">{ACTION_LABELS[job?.acao] || job?.acao}</p>
-        <p className="text-xs opacity-60">{job?.created_at ? new Date(job.created_at).toLocaleString("pt-BR") : "sem horario"}</p>
+        <p className={`text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>{job?.created_at ? new Date(job.created_at).toLocaleString("pt-BR") : "sem horario"}</p>
       </div>
       <div className="flex flex-wrap gap-2">
         <HealthBadge label={job?.status || "pending"} tone={statusTone} />
@@ -1005,14 +1007,14 @@ function JobCard({ job, active = false }) {
       </div>
     </div>
     <div className="mt-3 flex flex-wrap gap-2 text-xs">
-      <span className="rounded-full border border-[#2D2E2E] px-2 py-1">Solicitados {requested}</span>
+      <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#d7d4cb] text-[#6b7280]" : "border-[#2D2E2E]"}`}>Solicitados {requested}</span>
       <span className="rounded-full border border-[#30543A] px-2 py-1 text-[#B7F7C6]">Processados {processed}</span>
       <span className="rounded-full border border-[#6E5630] px-2 py-1 text-[#FDE68A]">Falhas {Number(job?.error_count || 0)}</span>
     </div>
-    <div className="mt-3 h-2 overflow-hidden rounded-full bg-[rgba(255,255,255,0.08)]">
-      <div className="h-full rounded-full bg-[#C5A059]" style={{ width: `${percent}%` }} />
+    <div className={`mt-3 h-2 overflow-hidden rounded-full ${isLightTheme ? "bg-[#ece7da]" : "bg-[rgba(255,255,255,0.08)]"}`}>
+      <div className={`h-full rounded-full ${isLightTheme ? "bg-[#c79b2c]" : "bg-[#C5A059]"}`} style={{ width: `${percent}%` }} />
     </div>
-    <p className="mt-2 text-xs opacity-65">{buildJobPreview(job)}</p>
+    <p className={`mt-2 text-xs ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>{buildJobPreview(job)}</p>
     {job?.last_error ? <p className={`mt-2 text-xs ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>{job.last_error}</p> : null}
   </div>;
 }
@@ -2721,14 +2723,14 @@ function PublicacoesContent() {
               {healthSuggestedActions.map((action) => <button key={action.key} type="button" onClick={action.onClick} disabled={action.disabled} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">{action.label}</button>)}
             </div>
           </div>
-          <div className={`border p-4 text-xs ${operationalStatus.mode === "error" ? "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200" : operationalStatus.mode === "limited" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
+          <div className={`border p-4 text-xs ${operationalStatus.mode === "error" ? (isLightTheme ? "border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E]" : "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200") : operationalStatus.mode === "limited" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#9a6d14]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="uppercase tracking-[0.18em] text-[10px]">Status operacional</span>
               <span className="text-[10px] uppercase tracking-[0.16em] opacity-70">{operationalStatus.updatedAt ? new Date(operationalStatus.updatedAt).toLocaleTimeString("pt-BR") : ""}</span>
             </div>
             <p className="mt-2">{operationalStatus.message || "Operacao normal"}</p>
           </div>
-          <div className={`border p-4 text-xs ${backendHealth.status === "error" ? "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200" : backendHealth.status === "warning" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
+          <div className={`border p-4 text-xs ${backendHealth.status === "error" ? (isLightTheme ? "border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E]" : "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200") : backendHealth.status === "warning" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#9a6d14]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="uppercase tracking-[0.18em] text-[10px]">Saude do backend</span>
               <span className="text-[10px] uppercase tracking-[0.16em] opacity-70">{backendHealth.updatedAt ? new Date(backendHealth.updatedAt).toLocaleTimeString("pt-BR") : ""}</span>
@@ -2811,7 +2813,7 @@ function PublicacoesContent() {
               <QueueSummaryCard title="Delta Advise x banco" count={data.advisePersistedDelta || 0} helper="Se maior que zero, ainda existe backlog estrutural ou de throughput a absorver." accent={(data.advisePersistedDelta || 0) > 0 ? "text-[#FDE68A]" : "text-[#B7F7C6]"} />
             </div>
             {adviseCursor?.erro ? (
-              <div className="rounded-[20px] border border-[#4B2222] bg-[rgba(127,29,29,0.12)] p-4 text-sm text-red-100">
+              <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E]" : "border-[#4B2222] bg-[rgba(127,29,29,0.12)] text-red-100"}`}>
                 <p className="font-semibold">Erro recente do advise-sync</p>
                 <p className="mt-2 opacity-80">{String(adviseCursor.erro)}</p>
               </div>
@@ -2970,7 +2972,7 @@ function PublicacoesContent() {
               </div>
             ) : null}
             {noPublicationActivityTypeConfigured ? (
-              <div className="rounded-[20px] border border-[#4B2222] bg-[rgba(127,29,29,0.12)] p-4 text-sm text-red-100">
+              <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E]" : "border-[#4B2222] bg-[rgba(127,29,29,0.12)] text-red-100"}`}>
                 <p className="font-semibold">Sincronizacao no Freshsales bloqueada</p>
                 <p className="mt-2 opacity-80">{publicationActivityTypeHint}</p>
               </div>
@@ -3049,7 +3051,7 @@ function PublicacoesContent() {
       {view === "filas" ? <div className="space-y-6">
         {queueDiagnostics.length ? <Panel title="Diagnostico de leitura" eyebrow="Falhas atuais do modulo">
           <div className="space-y-4">
-            <div className="rounded-[20px] border border-[#4B2222] bg-[rgba(127,29,29,0.12)] p-4 text-sm text-red-100">
+            <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E]" : "border-[#4B2222] bg-[rgba(127,29,29,0.12)] text-red-100"}`}>
               <p className="font-semibold">O modulo continua navegavel, mas ha filas com erro de backend.</p>
               <p className="mt-2 opacity-80">Os detalhes tecnicos tambem foram enviados ao Console {"->"} Log e ao tracker interno de debitos de frontend.</p>
             </div>

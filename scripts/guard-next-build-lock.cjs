@@ -15,38 +15,50 @@ function sleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-function hasConcurrentNextBuild() {
+function listLingeringNextProcessIds() {
   try {
     if (os.platform() === 'win32') {
-      const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process -Filter \"name = 'node.exe'\" | Where-Object { $_.CommandLine -match 'next\\\\dist\\\\bin\\\\next\" build' } | Select-Object -ExpandProperty ProcessId"`;
+      const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -Command "$current = ${process.pid}; Get-CimInstance Win32_Process -Filter \"name = 'node.exe'\" | Where-Object { $_.ProcessId -ne $current -and $_.CommandLine -and ( $_.CommandLine -like '*guard-next-build-lock.cjs*' -or $_.CommandLine -match 'next\\\\dist\\\\bin\\\\next\"?\\s+build(\\s|$)' -or $_.CommandLine -like '*\\\\.next\\\\build\\\\postcss.js*' ) } | Select-Object -ExpandProperty ProcessId"`;
       const out = execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
-      return out.length > 0;
+      return out ? out.split(/\s+/).map((value) => Number(value)).filter(Boolean) : [];
     }
-    const out = execSync("ps -ax -o command= | grep -E 'next(.+)?dist/bin/next build' | grep -v grep", {
+
+    const out = execSync("ps -ax -o pid=,command= | grep -E 'guard-next-build-lock\\.cjs|next(.+)?dist/bin/next build|/\\.next/build/postcss\\.js' | grep -v grep", {
       stdio: ['ignore', 'pipe', 'ignore'],
       shell: '/bin/sh',
     }).toString().trim();
-    return out.length > 0;
+
+    return out
+      ? out.split(/\r?\n/).map((line) => Number(line.trim().split(/\s+/)[0])).filter(Boolean)
+      : [];
   } catch {
-    return false;
+    return [];
   }
 }
 
+function hasConcurrentNextBuild() {
+  return listLingeringNextProcessIds().length > 0;
+}
+
 function killLingeringNextProcesses() {
+  const targets = listLingeringNextProcessIds();
+  if (!targets.length) return;
+
   try {
     if (os.platform() === 'win32') {
       execSync(
-        `powershell -NoProfile -ExecutionPolicy Bypass -Command "$targets = Get-CimInstance Win32_Process -Filter \"name = 'node.exe'\" | Where-Object { $_.CommandLine -match 'next\\\\dist\\\\bin\\\\next\" build|\\.next\\\\build\\\\postcss\\.js' } | Select-Object -ExpandProperty ProcessId; foreach ($target in $targets) { Stop-Process -Id $target -Force -ErrorAction SilentlyContinue }"`,
+        `powershell -NoProfile -ExecutionPolicy Bypass -Command "$targets = '${targets.join(',')}'.Split(',') | Where-Object { $_ }; foreach ($target in $targets) { Stop-Process -Id ([int]$target) -Force -ErrorAction SilentlyContinue }"`,
         { stdio: ['ignore', 'pipe', 'ignore'] }
       );
     } else {
-      execSync("pkill -f 'next(.+)?dist/bin/next build|/.next/build/postcss.js'", {
+      execSync(`kill -9 ${targets.join(' ')}`, {
         stdio: ['ignore', 'pipe', 'ignore'],
         shell: '/bin/sh',
       });
     }
+    console.warn(`guard-next-build-lock: terminated lingering build process(es): ${targets.join(', ')}`);
   } catch {
-    // nothing to kill
+    // ignore cleanup failures
   }
 }
 
@@ -59,7 +71,11 @@ function cleanNextDir() {
     console.log('guard-next-build-lock: cleaned stale .next directory.');
   } catch (error) {
     if (fs.existsSync(lockPath)) {
-      try { fs.unlinkSync(lockPath); } catch { /* ignore */ }
+      try {
+        fs.unlinkSync(lockPath);
+      } catch {
+        // ignore lock cleanup errors
+      }
     }
     console.warn(`guard-next-build-lock: partial cleanup: ${error.message}`);
   }
@@ -80,14 +96,16 @@ function isBenignWindowsNextBuildFailure(output) {
   const text = String(output || '');
   const generatedAllPages =
     text.includes('Generating static pages using 1 worker') &&
-    text.includes('✓ Generating static pages using 1 worker');
+    (text.includes('✓ Generating static pages using 1 worker') ||
+      text.includes('Generating static pages using 1 worker (70/70)'));
   const hasKnownEnoent = BENIGN_WINDOWS_BUILD_ENOENT_PATTERNS.some((pattern) => text.includes(pattern));
   return generatedAllPages && hasKnownEnoent && hasUsableNextArtifacts();
 }
 
 if (hasConcurrentNextBuild()) {
-  console.error('guard-next-build-lock: another next build process is running; aborting.');
-  process.exit(1);
+  console.warn('guard-next-build-lock: found lingering build process(es); cleaning before starting.');
+  killLingeringNextProcesses();
+  sleep(1200);
 }
 
 const nextBin = path.join(process.cwd(), 'node_modules', '.bin', 'next');

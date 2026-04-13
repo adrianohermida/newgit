@@ -985,7 +985,7 @@ function HistoryCard({ entry, onReuse }) {
   return <div className={`rounded-[24px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}>
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><p className="font-semibold">{entry.label}</p>{entry.meta?.intentLabel ? <p className={`mt-1 text-xs uppercase tracking-[0.14em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#C5A059]"}`}>{entry.meta.intentLabel}</p> : null}<p className={`text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>{new Date(entry.createdAt).toLocaleString("pt-BR")}</p></div>
-      <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${entry.status === "running" ? (isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] text-[#FDE68A]") : entry.status === "error" ? "border-[#4B2222] text-red-200" : (isLightTheme ? "border-[#d7d4cb] text-[#6b7280]" : "border-[#2D2E2E] opacity-70")}`}>{entry.status}</span>
+      <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${entry.status === "running" ? (isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] text-[#FDE68A]") : entry.status === "error" ? (isLightTheme ? "border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E]" : "border-[#4B2222] text-red-200") : (isLightTheme ? "border-[#d7d4cb] text-[#6b7280]" : "border-[#2D2E2E] opacity-70")}`}>{entry.status}</span>
     </div>
     {entry.preview ? <p className={`mt-3 ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>{entry.preview}</p> : null}
     {entry.meta?.selectedCount ? <p className={`mt-2 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Itens selecionados: {entry.meta.selectedCount}</p> : null}
@@ -2943,14 +2943,14 @@ function InternoProcessosContent() {
               {healthSuggestedActions.map((action) => <ActionButton key={action.key} className="px-3 py-2 text-xs" onClick={action.onClick} disabled={action.disabled}>{action.label}</ActionButton>)}
             </div>
           </div>
-          <div className={`rounded-[20px] border p-4 text-xs ${operationalStatus.mode === "error" ? "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200" : operationalStatus.mode === "limited" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#9a6d14]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
+          <div className={`rounded-[20px] border p-4 text-xs ${operationalStatus.mode === "error" ? (isLightTheme ? "border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E]" : "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200") : operationalStatus.mode === "limited" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#9a6d14]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="uppercase tracking-[0.18em] text-[10px]">Status operacional</span>
               <span className="text-[10px] uppercase tracking-[0.16em] opacity-70">{operationalStatus.updatedAt ? new Date(operationalStatus.updatedAt).toLocaleTimeString("pt-BR") : ""}</span>
             </div>
             <p className="mt-2">{operationalStatus.message || "Operacao normal"}</p>
           </div>
-          <div className={`rounded-[20px] border p-4 text-xs ${backendHealth.status === "error" ? "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200" : backendHealth.status === "warning" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#9a6d14]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
+          <div className={`rounded-[20px] border p-4 text-xs ${backendHealth.status === "error" ? (isLightTheme ? "border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E]" : "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200") : backendHealth.status === "warning" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#9a6d14]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="uppercase tracking-[0.18em] text-[10px]">Saude do backend</span>
               <span className="text-[10px] uppercase tracking-[0.16em] opacity-70">{backendHealth.updatedAt ? new Date(backendHealth.updatedAt).toLocaleTimeString("pt-BR") : ""}</span>
@@ -3136,7 +3136,7 @@ function InternoProcessosContent() {
         ) : (
           <div className="space-y-4">
             {processCoverage.limited ? <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#F8E7B5]"}`}>A leitura de cobertura entrou em modo reduzido para evitar sobrecarga. Os totais continuam uteis, mas a pagina atual pode vir parcial.</div> : null}
-            {processCoverage.error ? <div className="rounded-[20px] border border-[#4B2222] bg-[rgba(75,34,34,0.18)] p-4 text-sm text-[#FECACA]">{processCoverage.error}</div> : null}
+            {processCoverage.error ? <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E]" : "border-[#4B2222] bg-[rgba(75,34,34,0.18)] text-[#FECACA]"}`}>{processCoverage.error}</div> : null}
             {!processCoverage.loading && Number(processCoverage.totalRows || 0) > 0 && !(processCoverage.items || []).length ? <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#F8E7B5]"}`}>{coverageMismatchMessage(processCoverage)}</div> : null}
             <CoverageList rows={processCoverage.items} page={covPage} setPage={setCovPage} loading={processCoverage.loading} totalRows={processCoverage.totalRows} pageSize={processCoverage.pageSize} onSelectProcess={useCoverageProcess} />
           </div>
