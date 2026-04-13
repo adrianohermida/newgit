@@ -139,6 +139,66 @@ function buildProjectInsights(groups = []) {
   }));
 }
 
+function inferCopilotModuleFromRoute(routePath) {
+  const normalizedRoute = String(routePath || "").toLowerCase();
+  return MODULE_WORKSPACES.find((item) => normalizedRoute.startsWith(item.href.toLowerCase())) || null;
+}
+
+function buildLocalFallbackResponse({
+  query,
+  routePath,
+  activeConversation,
+  activeTask,
+  globalContext,
+  selectedSkillId,
+}) {
+  const intent = detectIntent(String(query || ""));
+  const uiContext = getCurrentContext({
+    route: routePath || "/interno/copilot",
+    entityId: activeConversation?.id || activeTask?.id,
+    entityType: activeConversation?.projectKey || "conversation",
+    recentActivity: Array.isArray(activeConversation?.messages) ? activeConversation.messages.slice(-3) : [],
+    userRole: "admin",
+  });
+  const matchedModule = inferCopilotModuleFromRoute(routePath);
+  const projectLabel = activeConversation?.projectLabel || matchedModule?.label || "Geral";
+  const conversationTitle = activeConversation?.title || "Nova conversa";
+  const nextRoute = matchedModule?.href || routePath || "/interno/copilot";
+  const nextAction =
+    intent.intent === "analyze_case"
+      ? "Conferir fatos, separar evidências e validar risco antes de seguir."
+      : intent.intent === "generate_document"
+        ? "Reunir fatos, base legal e pedido antes de abrir a tarefa de documento."
+        : intent.intent === "query_data"
+          ? `Abrir ${projectLabel} em contexto e confirmar os identificadores operacionais.`
+          : intent.intent === "create_task"
+            ? "Quebrar a missão em etapas curtas e encaminhar para execução assistida."
+            : "Definir o módulo responsável e registrar o próximo passo objetivo.";
+
+  const checklist = [
+    `Contexto ativo: ${projectLabel} (${uiContext.route}).`,
+    `Conversa base: ${conversationTitle}.`,
+    activeTask?.query ? `Missão atual: ${activeTask.query}.` : null,
+    globalContext?.moduleHistory ? "Há histórico operacional disponível para handoff entre módulos." : null,
+    selectedSkillId ? `Skill sugerida: ${selectedSkillId}.` : null,
+  ].filter(Boolean);
+
+  return [
+    "Modo contingência local",
+    "O LLM local ficou indisponível por memória, então gerei um playbook operacional para não interromper o fluxo.",
+    "",
+    `Leitura rápida: ${nextAction}`,
+    "",
+    "Próximos passos",
+    ...checklist.map((item, index) => `${index + 1}. ${item}`),
+    `4. Abrir o fluxo em ${nextRoute} se você quiser continuar com contexto já preparado.`,
+    "5. Se precisar de execução assistida, envie esta mesma missão para o AI Task.",
+    "",
+    `Intenção detectada: ${intent.intent}.`,
+    "Se quiser, eu continuo em modo contingência e estruturo isso como checklist, handoff ou plano por etapas.",
+  ].join("\n");
+}
+
 function buildConversationConcatBlock(conversation) {
   const transcript = Array.isArray(conversation?.messages)
     ? conversation.messages
@@ -1529,6 +1589,42 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
       setLoading(false);
       setUiState("idle");
     } catch (err) {
+      const isLocalFallbackAvailable = err?.code === "LOCAL_RUNTIME_INSUFFICIENT_MEMORY" && isBrowserLocalProvider(nextProvider);
+      if (isLocalFallbackAvailable) {
+        const fallbackText = buildLocalFallbackResponse({
+          query: trimmedQuestion,
+          routePath,
+          activeConversation,
+          activeTask,
+          globalContext,
+          selectedSkillId,
+        });
+        setMessages((msgs) => {
+          const last = msgs[msgs.length - 1];
+          return [
+            ...msgs.slice(0, -1),
+            { ...last, text: fallbackText, status: "ok", fallback: true },
+          ];
+        });
+        updateActivityLog(chatLogId, {
+          status: "success",
+          durationMs: Date.now() - chatStartedAt,
+          response: buildDiagnosticReport({
+            title: "Dotobot chat fallback local",
+            summary: "Resposta operacional gerada sem LLM por contingência de memória.",
+            sections: [
+              { label: "endpoint", value: requestPath },
+              { label: "error", value: err?.message || err },
+              { label: "fallback", value: fallbackText },
+            ],
+          }),
+          error: "",
+        });
+        setError("LLM local sem memória suficiente. O Copilot respondeu com um playbook operacional de contingência.");
+        setLoading(false);
+        setUiState("idle");
+        return;
+      }
       const message =
         err?.code === "LOCAL_RUNTIME_INSUFFICIENT_MEMORY"
           ? "Inferência local indisponível: a máquina não tem memória suficiente para o modelo atual. O painel segue operando em modo degradado."
@@ -2215,9 +2311,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
   const activeTaskLabel = activeTask?.query || activeTask?.label || activeTask?.title || "Nenhuma missão em andamento";
   const activeTaskStepCount = Array.isArray(activeTask?.steps) ? activeTask.steps.length : 0;
   const activeTaskProviderLabel = activeTask?.provider ? parseProviderPresentation(activeTask.provider).name : activeProviderPresentation.name;
-  const composerBlockedReason = localInferenceAlert?.tone === "danger"
-    ? "Envio pausado até ajustar o runtime local ou liberar memória."
-    : !localStackReady && isBrowserLocalProvider(provider)
+  const composerBlockedReason = !localStackReady && !localInferenceAlert && isBrowserLocalProvider(provider)
       ? "Envio pausado até o runtime local responder."
       : "";
   const isComposerBlocked = Boolean(composerBlockedReason);
@@ -3677,6 +3771,28 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                         isTyping={true}
                       />
                     ) : null}
+                    {localInferenceAlert && !messages.length ? (
+                      <div className="rounded-[20px] border border-[#6f5a2d] bg-[rgba(98,79,34,0.16)] p-5 text-sm text-[#f1dfb5]">
+                        <p className="text-base font-semibold text-[#F5F1E8]">{localInferenceAlert.title}</p>
+                        <p className="mt-2 leading-6">{localInferenceAlert.body}</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleLocalStackAction("open_runtime_config")}
+                            className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                          >
+                            Editar runtime local
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleLocalStackAction("open_ai_task")}
+                            className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                          >
+                            Continuar via AI Task
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                     {error ? (
                       <div className="rounded-[24px] border border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] px-4 py-3 text-sm text-[#f2b2b2]">
                         {error}
@@ -3726,9 +3842,13 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                           onKeyDown={handleComposerKeyDown}
                           onPaste={handlePaste}
                           rows={4}
+                          disabled={isComposerBlocked}
                           placeholder="Pergunte, delegue uma tarefa ou cole o contexto que precisa operar..."
-                          className="w-full resize-none border-0 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-[#60706A]"
+                          className="w-full resize-none border-0 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-[#60706A] disabled:cursor-not-allowed disabled:opacity-50"
                         />
+                        {composerBlockedReason ? (
+                          <p className="mt-2 px-1 text-[11px] leading-5 text-[#f1dfb5]">{composerBlockedReason}</p>
+                        ) : null}
 
                         {attachments.length ? (
                           <div className="mt-3 flex flex-wrap gap-2">

@@ -2539,8 +2539,11 @@ function PublicacoesContent() {
     persistHistoryEntries([]);
   }
 
+  const isResultView = view === "resultado";
+  const isDockedPublicacoesView = view === "operacao" || view === "resultado";
+
   return (
-    <div className="space-y-8">
+    <div className={`${isResultView ? "space-y-6" : "space-y-8"} ${isDockedPublicacoesView ? "min-h-[calc(100vh-28rem)]" : ""}`.trim()}>
       {copilotContext ? (
         <section className="rounded-[22px] border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-4 text-sm text-[#C6D1CC]">
           <p className="text-[10px] uppercase tracking-[0.18em] text-[#7FC4AF]">Contexto vindo do Copilot</p>
@@ -2647,8 +2650,8 @@ function PublicacoesContent() {
         </Panel>
       ) : null}
 
-      {view === "operacao" ? <div id="operacao" className="grid gap-6 xl:grid-cols-2">
-        <Panel title="Criacao de processos a partir das publicacoes" eyebrow="Operacao orientada por fila">
+      {view === "operacao" ? <div id="operacao" className="grid auto-rows-fr gap-6 xl:grid-cols-2">
+        <Panel title="Criacao de processos a partir das publicacoes" eyebrow="Operacao orientada por fila" className="h-full">
           <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
               <QueueSummaryCard
@@ -2730,7 +2733,7 @@ function PublicacoesContent() {
           </div>
         </Panel>
 
-        <Panel title="Extracao retroativa de partes" eyebrow="Operacao orientada por fila">
+        <Panel title="Extracao retroativa de partes" eyebrow="Operacao orientada por fila" className="h-full">
           <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
               <QueueSummaryCard
@@ -2805,7 +2808,7 @@ function PublicacoesContent() {
           </div>
         </Panel>
 
-        <Panel title="Leitura de backlog" eyebrow="Operacao">
+        <Panel title="Leitura de backlog" eyebrow="Operacao" className="h-full">
           {overview.loading ? <p className="text-sm opacity-65">Carregando leitura...</p> : null}
           {overview.error ? <p className="text-sm text-red-300">{overview.error}</p> : null}
           {!overview.loading && !overview.error ? (
@@ -3066,15 +3069,16 @@ function PublicacoesContent() {
         </div>
       </div> : null}
 
-      {view === "resultado" ? <div id="resultado" className="grid items-start gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      {view === "resultado" ? <div id="resultado" className="grid auto-rows-fr items-stretch gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <OperationalResultCard
+          className="h-full"
           loading={actionState.loading}
           error={actionState.error}
           result={actionState.result ? <>{actionState.result?.drain ? <div className="mb-4 rounded-[20px] border border-[#30543A] bg-[rgba(48,84,58,0.12)] p-4 text-sm"><p className="font-semibold">Drenagem de fila</p><p className="mt-2 opacity-75">{buildDrainPreview(actionState.result.drain)}</p></div> : null}{jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}<OperationResult result={actionState.result} /></> : null}
           emptyText="Nenhuma acao executada ainda nesta sessao."
           footer="Resultado compacto, sem afastar visualmente o console do fim do modulo."
         />
-        <OperationalHistoryCompactCard
+        <OperationalHistoryCompactCard className="h-full"
           primaryText={executionHistory[0] ? `${executionHistory[0].label || executionHistory[0].action} • ${executionHistory[0].status}` : ""}
           secondaryLabel="Ultimo HMADV"
           secondaryText={remoteHistory[0] ? `${remoteHistory[0].acao} • ${remoteHistory[0].status}` : ""}
