@@ -124,9 +124,26 @@ export function MetricPill({ label, value, tone = "default" }) {
   return (
     <div className={`rounded-[18px] border bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.012))] px-3 py-2 ${toneClass}`}>
       <p className="text-[10px] uppercase tracking-[0.18em] opacity-70">{label}</p>
-      <p className="mt-1 text-sm font-medium">{value}</p>
+      <p className="mt-1 text-sm font-medium">{formatInlineValue(value)}</p>
     </div>
   );
+}
+
+function formatInlineValue(value) {
+  if (value == null || value === "") return "n/a";
+  if (["string", "number", "boolean"].includes(typeof value)) return String(value);
+  if (Array.isArray(value)) return value.map((entry) => formatInlineValue(entry)).join(", ");
+  if (typeof value === "object") {
+    if (typeof value.label === "string" && value.label.trim()) return value.label;
+    if (typeof value.value === "string" || typeof value.value === "number") return String(value.value);
+    if (typeof value.type === "string" && value.type.trim()) return value.type;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "[objeto]";
+    }
+  }
+  return String(value);
 }
 
 function summarizeOrchestration(orchestration) {
@@ -501,7 +518,7 @@ export function WorkspaceHeader({
                     : "border-[#3B3523] text-[#D9C38A]"
               }`}
             >
-              {item.label}: {item.value}
+              {item.label}: {formatInlineValue(item.value)}
             </span>
           ))}
         </div>

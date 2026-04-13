@@ -619,6 +619,23 @@ function parseProviderPresentation(value) {
   return { name, meta, status, endpoint: null, reason: null };
 }
 
+function formatInlinePanelValue(value) {
+  if (value == null || value === "") return "n/a";
+  if (["string", "number", "boolean"].includes(typeof value)) return String(value);
+  if (Array.isArray(value)) return value.map((entry) => formatInlinePanelValue(entry)).join(", ");
+  if (typeof value === "object") {
+    if (typeof value.label === "string" && value.label.trim()) return value.label;
+    if (typeof value.value === "string" || typeof value.value === "number") return String(value.value);
+    if (typeof value.type === "string" && value.type.trim()) return value.type;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "[objeto]";
+    }
+  }
+  return String(value);
+}
+
 function buildRagAlert(health) {
   if (!health || health.status === "operational") return null;
   const signals = health.signals || {};
@@ -945,6 +962,7 @@ export default function DotobotCopilot({
   defaultCollapsed = false,
   compactRail = false,
   showCollapsedTrigger = true,
+  embeddedInInternoShell = false,
 }) {
   const isFullscreenCopilot = routePath === "/interno/copilot";
   const isCompactViewport = useMediaQuery({ maxWidth: 640 });
@@ -1274,7 +1292,7 @@ const [uiToasts, setUiToasts] = useState([]);
     return () => {
       active = false;
     };
-  }, [providerCatalog]);
+  }, []);
 
   useEffect(() => {
     const runtimeSkills = Array.isArray(localStackSummary?.capabilities?.skillList)
@@ -2639,7 +2657,9 @@ const [uiToasts, setUiToasts] = useState([]);
       ? "immersive"
       : workspaceLayoutMode;
   const workspaceShellWidthClass =
-    effectiveWorkspaceLayout === "immersive"
+    embeddedInInternoShell
+      ? "w-full max-w-none"
+      : effectiveWorkspaceLayout === "immersive"
       ? "w-full"
       : effectiveWorkspaceLayout === "balanced"
         ? "w-full max-w-[1520px]"
@@ -2856,7 +2876,7 @@ const [uiToasts, setUiToasts] = useState([]);
         }}
       />
       {showCollapsedTrigger ? <CollapsedTrigger /> : null}
-      {!isCollapsed ? (
+      {!isCollapsed && !embeddedInInternoShell ? (
         <section className={`min-h-0 overflow-hidden rounded-[26px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(10,12,11,0.98),rgba(8,10,9,0.98))] shadow-[0_18px_44px_rgba(0,0,0,0.22)] backdrop-blur-sm ${compactRail ? "" : "mr-10 md:mr-0"}`}>
         <header className="border-b border-[#22342F] px-4 py-4">
           <div className="flex items-start justify-between gap-3">
@@ -2972,7 +2992,7 @@ const [uiToasts, setUiToasts] = useState([]);
                   {offlineHealthSnapshot.items.map((item) => (
                     <span
                       key={item.id}
-                      title={item.detail || item.value}
+                      title={formatInlinePanelValue(item.detail || item.value)}
                       className={`rounded-full border px-3 py-1.5 text-[11px] ${
                         item.tone === "success"
                           ? "border-[#234034] text-[#8FCFA9]"
@@ -2981,7 +3001,7 @@ const [uiToasts, setUiToasts] = useState([]);
                             : "border-[#3B3523] text-[#D9C38A]"
                       }`}
                     >
-                      {item.label}: {item.value}
+                      {item.label}: {formatInlinePanelValue(item.value)}
                     </span>
                   ))}
                 </div>
@@ -3462,7 +3482,7 @@ const [uiToasts, setUiToasts] = useState([]);
                       {offlineHealthSnapshot.items.map((item) => (
                         <span
                           key={item.id}
-                          title={item.detail || item.value}
+                          title={formatInlinePanelValue(item.detail || item.value)}
                           className={`rounded-full border px-3 py-1.5 text-[11px] ${
                             item.tone === "success"
                               ? "border-[#234034] text-[#8FCFA9]"
@@ -3471,7 +3491,7 @@ const [uiToasts, setUiToasts] = useState([]);
                                 : "border-[#3B3523] text-[#D9C38A]"
                           }`}
                         >
-                          {item.label}: {item.value}
+                          {item.label}: {formatInlinePanelValue(item.value)}
                         </span>
                       ))}
                     </div>
@@ -3742,8 +3762,8 @@ const [uiToasts, setUiToasts] = useState([]);
       ) : null}
 
         {isWorkspaceShell ? (
-          <div className="fixed inset-0 z-[70] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.14),transparent_26%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.96))] text-[#F4F1EA] backdrop-blur-xl">
-          <div className={`ml-auto flex h-full ${workspaceShellWidthClass} flex-col border-l border-[#1C2623]/70 bg-[rgba(4,7,6,0.68)] shadow-[-24px_0_54px_rgba(0,0,0,0.24)] transition-[max-width,width] duration-300 ease-out`}>
+          <div className={`${embeddedInInternoShell ? "relative min-h-0 h-full overflow-hidden rounded-[28px] border border-[#1C2623] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.1),transparent_24%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.97))]" : "fixed inset-0 z-[70] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.14),transparent_26%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.96))] backdrop-blur-xl"} text-[#F4F1EA]`}>
+          <div className={`${embeddedInInternoShell ? "flex h-full w-full flex-col" : `ml-auto flex h-full ${workspaceShellWidthClass} flex-col border-l border-[#1C2623]/70 bg-[rgba(4,7,6,0.68)] shadow-[-24px_0_54px_rgba(0,0,0,0.24)]`} transition-[max-width,width] duration-300 ease-out`}>
             <style jsx>{`
               .dotobot-panel-tab-enter {
                 opacity: 0;
@@ -4069,13 +4089,15 @@ const [uiToasts, setUiToasts] = useState([]);
                   >
                     Testar provider
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setWorkspaceOpen(false)}
-                    className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-                  >
-                    Fechar
-                  </button>
+                  {!embeddedInInternoShell ? (
+                    <button
+                      type="button"
+                      onClick={() => setWorkspaceOpen(false)}
+                      className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                    >
+                      Fechar
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </header>
@@ -4696,7 +4718,7 @@ const [uiToasts, setUiToasts] = useState([]);
                               <div className="mt-3 flex flex-wrap gap-2">
                                 {agentLabHealthSignals.map((signal) => (
                                   <span key={signal.label} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
-                                    {signal.label} {signal.value}
+                                    {signal.label} {formatInlinePanelValue(signal.value)}
                                   </span>
                                 ))}
                               </div>
@@ -4920,7 +4942,7 @@ const [uiToasts, setUiToasts] = useState([]);
                                   <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">abertos {agentLabIncidentsSummary.open || 0}</span>
                                   {(agentLabIncidentsSummary.bySeverity || []).slice(0, 3).map((item) => (
                                     <span key={item.label} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
-                                      {item.label} {item.value}
+                                      {item.label} {formatInlinePanelValue(item.value)}
                                     </span>
                                   ))}
                                 </div>

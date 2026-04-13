@@ -420,7 +420,7 @@ export default function AITaskModule({ profile, routePath }) {
     return () => {
       active = false;
     };
-  }, [providerCatalog]);
+  }, []);
 
   useEffect(() => {
     const runtimeSkills = Array.isArray(localStackSummary?.capabilities?.skillList)

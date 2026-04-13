@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSupabaseBrowser } from "../../lib/supabase";
+import { useInternalTheme } from "./InternalThemeProvider";
 import DotobotCopilot from "./DotobotPanel";
 import DotobotExtensionManager from "./DotobotExtensionManager";
 import {
@@ -36,6 +37,8 @@ import {
 } from "../../lib/admin/console-log-utils.js";
 import { inferModuleKeyFromPathname, listModuleRegistryEntries } from "../../lib/admin/module-registry.js";
 
+const INTERNAL_RIGHT_RAIL_MODE_STORAGE_KEY = "hmadv:interno:right-rail-mode";
+
 const NAV_ITEMS = [
   { href: "/interno", label: "Visao geral" },
   { href: "/interno/copilot", label: "Copilot" },
@@ -59,8 +62,6 @@ const NAV_ITEMS = [
 function normalizeDisplayName(profile) {
   return profile?.full_name || profile?.email || "Hermida Maia";
 }
-
-const INTERNAL_THEME_STORAGE_KEY = "hmadv:interno:theme";
 
 function SidebarItem({ item, active, collapsed, isLightTheme, onNavigate }) {
   const router = useRouter();
@@ -937,14 +938,16 @@ export default function InternoLayout({
 }) {
   const router = useRouter();
   const { supabase } = useSupabaseBrowser();
+  const { isLightTheme, toggleTheme } = useInternalTheme();
+  const isCopilotWorkspace = router.pathname === "/interno/copilot";
   const initialWorkspaceOpen = router.pathname === "/interno/agentlab/conversations";
   const shouldStartWithOpenRail = rightRailFullscreen || router.pathname === "/interno/agentlab/conversations";
   const shouldRenderDotobotRail = !hideDotobotRail || forceDotobotRail;
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(!shouldStartWithOpenRail);
+  const [rightRailMode, setRightRailMode] = useState("expanded");
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(shouldStartWithOpenRail);
-  const [theme, setTheme] = useState("dark");
   const [isMobileShell, setIsMobileShell] = useState(false);
   const [consoleTab, setConsoleTab] = useState("console");
   const [logPane, setLogPane] = useState("activity");
@@ -977,20 +980,16 @@ export default function InternoLayout({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const persistedTheme = window.localStorage.getItem(INTERNAL_THEME_STORAGE_KEY);
-    if (persistedTheme === "light" || persistedTheme === "dark") {
-      setTheme(persistedTheme);
+    const persistedMode = window.localStorage.getItem(INTERNAL_RIGHT_RAIL_MODE_STORAGE_KEY);
+    if (persistedMode === "compact" || persistedMode === "expanded") {
+      setRightRailMode(persistedMode);
     }
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    window.localStorage.setItem(INTERNAL_THEME_STORAGE_KEY, theme);
-    document.body.dataset.internoTheme = theme;
-    return () => {
-      delete document.body.dataset.internoTheme;
-    };
-  }, [theme]);
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(INTERNAL_RIGHT_RAIL_MODE_STORAGE_KEY, rightRailMode);
+  }, [rightRailMode]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -998,20 +997,29 @@ export default function InternoLayout({
       const width = window.innerWidth;
       const mobile = width < 900;
       setIsMobileShell(mobile);
-      setLeftCollapsed(width < 1180);
+      setLeftCollapsed(isCopilotWorkspace ? width < 900 : width < 1180);
       if (width < 1024) {
         setRightCollapsed(true);
         setCopilotOpen(false);
+        setRightRailMode("compact");
       }
     }
     syncResponsiveShell();
     window.addEventListener("resize", syncResponsiveShell);
     return () => window.removeEventListener("resize", syncResponsiveShell);
-  }, []);
+  }, [isCopilotWorkspace]);
 
   function closeMobileSidebar() {
     if (isMobileShell) {
       setLeftCollapsed(true);
+    }
+  }
+
+  function toggleRightRailMode() {
+    setRightRailMode((current) => (current === "compact" ? "expanded" : "compact"));
+    if (rightCollapsed) {
+      setRightCollapsed(false);
+      setCopilotOpen(true);
     }
   }
 
@@ -1524,8 +1532,8 @@ export default function InternoLayout({
     : rightRail;
   const consoleReservedSpace = consoleOpen ? consoleHeight + 20 : 52;
   const consoleDockLeft = isMobileShell ? 0 : leftCollapsed ? 88 : 272;
-  const consoleDockRight = shouldRenderDotobotRail && !rightCollapsed ? 360 : 0;
-  const isLightTheme = theme === "light";
+  const desktopRightRailWidth = rightRailMode === "compact" ? 320 : 388;
+  const consoleDockRight = !isMobileShell && shouldRenderDotobotRail && !rightCollapsed ? desktopRightRailWidth : 0;
 
   return (
     <div className={`relative flex h-screen w-full overflow-hidden p-2 text-[Arial,sans-serif] md:p-3 ${isLightTheme ? "bg-[linear-gradient(180deg,#EEF2F6_0%,#E4EAF1_100%)] text-[#13201D]" : "bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.16),transparent_24%),linear-gradient(180deg,#040605_0%,#070A09_100%)] text-[#F4F1EA]"}`}>
@@ -1689,20 +1697,22 @@ export default function InternoLayout({
               </button>
             </div>
           </div>
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden" style={{ paddingBottom: `${consoleReservedSpace}px` }}>
-          <header className={`mb-6 shrink-0 border-b pb-5 px-4 pt-5 md:px-6 md:pt-6 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.62),rgba(255,255,255,0.14))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.008))]"}`}>
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-              <div className="min-w-0">
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">Operacao interna</p>
-                <h2 className={`text-3xl font-semibold tracking-[-0.035em] md:text-[38px] ${isLightTheme ? "text-[#152421]" : "text-[#F8F4EB]"}`}>{title}</h2>
-                {description ? <p className={`mt-3 max-w-3xl text-sm leading-7 ${isLightTheme ? "text-[#60716E]" : "text-[#99ADA6]"}`}>{description}</p> : null}
+          <div className={`flex min-h-0 flex-1 flex-col overflow-x-hidden ${isCopilotWorkspace ? "overflow-hidden" : "overflow-y-auto"}`} style={{ paddingBottom: `${consoleReservedSpace}px` }}>
+          {!isCopilotWorkspace ? (
+            <header className={`mb-6 shrink-0 border-b pb-5 px-4 pt-5 md:px-6 md:pt-6 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.62),rgba(255,255,255,0.14))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.008))]"}`}>
+              <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+                <div className="min-w-0">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">Operacao interna</p>
+                  <h2 className={`text-3xl font-semibold tracking-[-0.035em] md:text-[38px] ${isLightTheme ? "text-[#152421]" : "text-[#F8F4EB]"}`}>{title}</h2>
+                  {description ? <p className={`mt-3 max-w-3xl text-sm leading-7 ${isLightTheme ? "text-[#60716E]" : "text-[#99ADA6]"}`}>{description}</p> : null}
+                </div>
               </div>
-            </div>
-          </header>
-          <div className="flex min-h-0 flex-1 flex-col gap-6 px-4 pb-4 md:px-6 md:pb-6">
-            <IntegrationGuideCard guide={integrationGuide} />
+            </header>
+          ) : null}
+          <div className={`flex min-h-0 flex-1 flex-col ${isCopilotWorkspace ? "overflow-hidden px-3 pb-3 md:px-4 md:pb-4" : "gap-6 px-4 pb-4 md:px-6 md:pb-6"}`}>
+            {!isCopilotWorkspace ? <IntegrationGuideCard guide={integrationGuide} /> : null}
             {children}
-            {showExtensionManager ? <DotobotExtensionManager /> : null}
+            {showExtensionManager && !isCopilotWorkspace ? <DotobotExtensionManager /> : null}
           </div>
           </div>
           <div
