@@ -1,6 +1,45 @@
 create extension if not exists pgcrypto;
 create extension if not exists vector with schema public;
 
+do $$
+declare
+  current_dims integer;
+begin
+  if to_regclass('public.dotobot_memory_embeddings') is null then
+    return;
+  end if;
+
+  select atttypmod - 4
+    into current_dims
+  from pg_attribute
+  where attrelid = 'public.dotobot_memory_embeddings'::regclass
+    and attname = 'embedding'
+    and not attisdropped;
+
+  if current_dims = 768 then
+    return;
+  end if;
+
+  if to_regclass('public.dotobot_memory_embeddings_legacy_384') is null then
+    if to_regclass('public.idx_dotobot_memory_embeddings_created_at') is not null then
+      execute 'alter index public.idx_dotobot_memory_embeddings_created_at rename to idx_dotobot_memory_embeddings_created_at_legacy_384';
+    end if;
+    if to_regclass('public.idx_dotobot_memory_embeddings_session_id') is not null then
+      execute 'alter index public.idx_dotobot_memory_embeddings_session_id rename to idx_dotobot_memory_embeddings_session_id_legacy_384';
+    end if;
+    if to_regclass('public.idx_dotobot_memory_embeddings_embedding') is not null then
+      execute 'alter index public.idx_dotobot_memory_embeddings_embedding rename to idx_dotobot_memory_embeddings_embedding_legacy_384';
+    end if;
+    if to_regclass('public.idx_dotobot_memory_metadata_gin') is not null then
+      execute 'alter index public.idx_dotobot_memory_metadata_gin rename to idx_dotobot_memory_metadata_gin_legacy_384';
+    end if;
+    if to_regclass('public.idx_dotobot_memory_ok_status') is not null then
+      execute 'alter index public.idx_dotobot_memory_ok_status rename to idx_dotobot_memory_ok_status_legacy_384';
+    end if;
+    execute 'alter table public.dotobot_memory_embeddings rename to dotobot_memory_embeddings_legacy_384';
+  end if;
+end $$;
+
 create table if not exists public.dotobot_memory_embeddings (
   id uuid primary key default gen_random_uuid(),
   source_key text not null unique,
@@ -28,6 +67,63 @@ create index if not exists idx_dotobot_memory_embeddings_session_id
 create index if not exists idx_dotobot_memory_embeddings_embedding
   on public.dotobot_memory_embeddings
   using hnsw (embedding vector_cosine_ops);
+
+create index if not exists idx_dotobot_memory_metadata_gin
+  on public.dotobot_memory_embeddings using gin (metadata);
+
+create index if not exists idx_dotobot_memory_ok_status
+  on public.dotobot_memory_embeddings
+  using hnsw (embedding vector_cosine_ops)
+  where status = 'ok';
+
+drop function if exists public.upsert_dotobot_memory_embedding(jsonb);
+drop function if exists public.search_dotobot_memory_embeddings(jsonb, integer, double precision);
+
+alter table public.dotobot_memory_embeddings enable row level security;
+
+drop policy if exists dotobot_memory_service_all on public.dotobot_memory_embeddings;
+drop policy if exists dotobot_memory_authenticated_read_own on public.dotobot_memory_embeddings;
+drop policy if exists dotobot_memory_authenticated_insert_own on public.dotobot_memory_embeddings;
+drop policy if exists dotobot_memory_authenticated_update_own on public.dotobot_memory_embeddings;
+
+create policy dotobot_memory_service_all
+  on public.dotobot_memory_embeddings
+  for all
+  to service_role
+  using (true)
+  with check (true);
+
+create policy dotobot_memory_authenticated_read_own
+  on public.dotobot_memory_embeddings
+  for select
+  to authenticated
+  using (
+    session_id = auth.uid()::text
+    or session_id = 'anonymous'
+    or session_id like 'workspace_%'
+  );
+
+create policy dotobot_memory_authenticated_insert_own
+  on public.dotobot_memory_embeddings
+  for insert
+  to authenticated
+  with check (
+    session_id = auth.uid()::text
+    or session_id = 'anonymous'
+  );
+
+create policy dotobot_memory_authenticated_update_own
+  on public.dotobot_memory_embeddings
+  for update
+  to authenticated
+  using (
+    session_id = auth.uid()::text
+    or session_id = 'anonymous'
+  )
+  with check (
+    session_id = auth.uid()::text
+    or session_id = 'anonymous'
+  );
 
 create or replace function public.upsert_dotobot_memory_embedding(payload jsonb)
 returns public.dotobot_memory_embeddings

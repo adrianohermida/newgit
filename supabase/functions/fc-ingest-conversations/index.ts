@@ -4,7 +4,7 @@
  * Ingere conversas do Freshchat v2 no Supabase, alimentando:
  *   - agentlab_conversation_threads  → histórico visível em /interno/agentlab/conversations
  *   - agentlab_conversation_messages → mensagens por thread
- *   - dotobot_memory_embeddings      → memória RAG semântica (gte-small 384d)
+ *   - dotobot_memory_embeddings      → memória RAG semântica (gte-small 768d)
  *   - agentlab_source_states         → cursor de paginação para sync incremental
  *   - agentlab_source_sync_runs      → auditoria de cada execução
  *
@@ -159,7 +159,7 @@ async function fcGet(path: string, authHeader: string): Promise<Record<string, u
   return res.json();
 }
 
-// ─── Embedding (Supabase built-in gte-small, 384d) ───────────────────────────
+// ─── Embedding (Supabase built-in gte-small, 768d) ───────────────────────────
 
 async function generateEmbedding(text: string): Promise<number[] | null> {
   if (!text?.trim()) return null;
@@ -279,7 +279,7 @@ async function upsertMessage(threadId: string | null, convId: string, msg: FcMes
       status:               'ok',
       steps_count:          0,
       embedding_model:      'supabase/gte-small',
-      embedding_dimensions: 384,
+      embedding_dimensions: embedding.length,
       metadata: {
         source:          'freshchat',
         conversation_id: convId,

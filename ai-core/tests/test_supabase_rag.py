@@ -45,7 +45,7 @@ class TestGenerateEmbedding(unittest.TestCase):
         }
 
     def test_returns_vector(self) -> None:
-        expected = [0.1] * 384
+        expected = [0.1] * 768
         with patch.dict('os.environ', self._env()):
             with patch('adapters.supabase_rag_adapter._post', return_value={'ok': True, 'embedding': expected}) as mock_post:
                 result = generate_embedding('hello world')
@@ -71,7 +71,7 @@ class TestGenerateEmbedding(unittest.TestCase):
 
         def fake_post(url: str, payload: dict, headers: dict, timeout: float = 15.0) -> dict:
             captured.append(headers)
-            return {'embedding': [0.0] * 384}
+            return {'embedding': [0.0] * 768}
 
         with patch.dict('os.environ', env):
             with patch('adapters.supabase_rag_adapter._post', side_effect=fake_post):
@@ -105,7 +105,7 @@ class TestSearchByVector(unittest.TestCase):
     def test_returns_matches(self) -> None:
         with patch.dict('os.environ', self._env()):
             with patch('adapters.supabase_rag_adapter._post', return_value=self._fake_rows()):
-                results = search_by_vector([0.1] * 384, top_k=5)
+                results = search_by_vector([0.1] * 768, top_k=5)
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0].query, 'What is the deadline?')
         self.assertAlmostEqual(results[0].similarity, 0.92)
@@ -114,7 +114,7 @@ class TestSearchByVector(unittest.TestCase):
         with patch.dict('os.environ', self._env()):
             with patch('adapters.supabase_rag_adapter._post', return_value={'error': 'oops'}):
                 with self.assertRaises(SupabaseRagError):
-                    search_by_vector([0.1] * 384)
+                    search_by_vector([0.1] * 768)
 
 
 class TestSearchSupabaseContext(unittest.TestCase):
@@ -125,7 +125,7 @@ class TestSearchSupabaseContext(unittest.TestCase):
         self.assertIsNotNone(ctx.error)
 
     def test_returns_enabled_with_matches(self) -> None:
-        fake_embedding = [0.1] * 384
+        fake_embedding = [0.1] * 768
         fake_rows = [
             {
                 'id': 'x1',
@@ -171,7 +171,7 @@ class TestPersistMemory(unittest.TestCase):
 
     def test_persist_generates_source_key(self) -> None:
         with patch.dict('os.environ', self._env()):
-            with patch('adapters.supabase_rag_adapter.generate_embedding', return_value=[0.0] * 384):
+            with patch('adapters.supabase_rag_adapter.generate_embedding', return_value=[0.0] * 768):
                 with patch('adapters.supabase_rag_adapter._post', return_value={}):
                     key = persist_memory(
                         query='What is the deadline?',
@@ -182,7 +182,7 @@ class TestPersistMemory(unittest.TestCase):
         self.assertEqual(len(key), 64)  # sha256 hex digest
 
     def test_persist_skips_embedding_when_provided(self) -> None:
-        embedding = [0.5] * 384
+        embedding = [0.5] * 768
         with patch.dict('os.environ', self._env()):
             with patch('adapters.supabase_rag_adapter.generate_embedding') as mock_embed:
                 with patch('adapters.supabase_rag_adapter._post', return_value={}):

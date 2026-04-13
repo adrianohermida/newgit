@@ -35,10 +35,10 @@ as $$
     m.embedding_model,
     m.embedding_dimensions,
     m.metadata,
-    1 - (m.embedding <=> (query_embedding::text)::vector(384)) as similarity,
+    1 - (m.embedding <=> (query_embedding::text)::vector(768)) as similarity,
     m.created_at
   from public.dotobot_memory_embeddings as m
-  where match_threshold is null or 1 - (m.embedding <=> (query_embedding::text)::vector(384)) >= match_threshold
-  order by m.embedding <=> (query_embedding::text)::vector(384)
+  where match_threshold is null or 1 - (m.embedding <=> (query_embedding::text)::vector(768)) >= match_threshold
+  order by m.embedding <=> (query_embedding::text)::vector(768)
   limit greatest(match_count, 1);
 $$;

@@ -44,6 +44,8 @@ create index if not exists agentlab_conversation_threads_status_idx
 create index if not exists agentlab_conversation_threads_last_message_at_idx
   on public.agentlab_conversation_threads (last_message_at desc);
 
+drop trigger if exists set_agentlab_conversation_threads_updated_at on public.agentlab_conversation_threads;
+
 create trigger set_agentlab_conversation_threads_updated_at
 before update on public.agentlab_conversation_threads
 for each row
@@ -86,6 +88,8 @@ create index if not exists agentlab_incidents_status_idx
 
 create index if not exists agentlab_incidents_occurred_at_idx
   on public.agentlab_incidents (occurred_at desc);
+
+drop trigger if exists set_agentlab_incidents_updated_at on public.agentlab_incidents;
 
 create trigger set_agentlab_incidents_updated_at
 before update on public.agentlab_incidents

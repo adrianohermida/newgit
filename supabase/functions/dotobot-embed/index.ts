@@ -89,6 +89,7 @@ Deno.serve(async (req: Request) => {
   return new Response(JSON.stringify({
     ok: true,
     model: modelName,
+    dimensions: vector.length,
     embedding: vector,
   }), {
     headers: JSON_HEADERS,
