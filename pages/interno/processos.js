@@ -2876,7 +2876,7 @@ function InternoProcessosContent() {
   const isResultView = view === "resultado";
   const isDockedProcessView = view === "operacao" || view === "resultado";
 
-  return <div className={`${isResultView ? "space-y-6" : "space-y-8"} ${isDockedProcessView ? "min-h-[calc(100vh-28rem)]" : ""}`.trim()}>
+  return <div className={`${isResultView ? "space-y-6" : "space-y-8"} ${isDockedProcessView ? "flex min-h-full flex-1 flex-col" : ""}`.trim()}>
     {copilotContext ? (
       <section className="rounded-[22px] border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-4 text-sm text-[#C6D1CC]">
         <p className="text-[10px] uppercase tracking-[0.18em] text-[#7FC4AF]">Contexto vindo do Copilot</p>
@@ -2979,7 +2979,7 @@ function InternoProcessosContent() {
 
     {!isResultView ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{quickStats.map((card) => <MetricCard key={card.label} label={card.label} value={card.value} helper={card.helper} />)}</div> : null}
 
-    {view === "operacao" ? <div id="operacao" className="grid auto-rows-fr gap-6 xl:grid-cols-2">
+    {view === "operacao" ? <div id="operacao" className="grid flex-1 auto-rows-fr gap-6 xl:grid-cols-2">
       <Panel title="Fila operacional" eyebrow="Sincronismo Freshsales + Supabase" className="h-full">
         <div className="space-y-4">
           {latestJob ? <JobCard job={latestJob} active={latestJob.id === activeJobId} /> : null}
@@ -3245,7 +3245,7 @@ function InternoProcessosContent() {
       </Panel>
     </div> : null}
 
-    {view === "resultado" ? <div id="resultado" className="grid auto-rows-fr items-stretch gap-6 2xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+    {view === "resultado" ? <div id="resultado" className="grid flex-1 auto-rows-fr items-stretch gap-6 2xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
       <OperationalResultCard
         className="h-full"
         loading={actionState.loading}

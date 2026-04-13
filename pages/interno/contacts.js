@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/router";
 import InternoLayout from "../../components/interno/InternoLayout";
 import { OperationalHistoryCompactCard, OperationalResultCard } from "../../components/interno/OperationalResultPanels";
 import RequireAdmin from "../../components/interno/RequireAdmin";
@@ -227,11 +228,23 @@ function renderResultSummary(result) {
   return null;
 }
 
-export default function InternoContactsPage() {
-  return <RequireAdmin>{(profile) => <InternoLayout profile={profile} title="Gestao de Contacts" description="Sincronizacao, detalhe, reconciliacao com partes, duplicados, CRUD e enriquecimento de contatos do Freshsales."><ContactsContent /></InternoLayout>}</RequireAdmin>;
+function parseCopilotContext(rawValue) {
+  if (!rawValue) return null;
+  try {
+    return JSON.parse(String(rawValue));
+  } catch {
+    return null;
+  }
 }
 
-function ContactsContent() {
+export default function InternoContactsPage() {
+  const router = useRouter();
+  const copilotContext = parseCopilotContext(typeof router.query.copilotContext === "string" ? router.query.copilotContext : "");
+  const email = typeof router.query.email === "string" ? router.query.email : "";
+  return <RequireAdmin>{(profile) => <InternoLayout profile={profile} title="Gestao de Contacts" description="Sincronizacao, detalhe, reconciliacao com partes, duplicados, CRUD e enriquecimento de contatos do Freshsales."><ContactsContent copilotContext={copilotContext} initialEmail={email} /></InternoLayout>}</RequireAdmin>;
+}
+
+function ContactsContent({ copilotContext, initialEmail }) {
   const [overview, setOverview] = useState({ loading: true, error: null, data: null });
   const [listState, setListState] = useState({ loading: true, error: null, items: [], totalRows: 0 });
   const [detailState, setDetailState] = useState({ loading: false, error: null, data: null });
@@ -262,6 +275,28 @@ function ContactsContent() {
   const [bulkCreateIntervalMs, setBulkCreateIntervalMs] = useState(1200);
   const [scheduleAt, setScheduleAt] = useState("");
   const [contactsLogEntries, setContactsLogEntries] = useState(() => getActivityLogSnapshot().filter((entry) => entry?.module === "contacts"));
+  const copilotSeedAppliedRef = useRef(false);
+  const copilotContactFocusAppliedRef = useRef(false);
+
+  useEffect(() => {
+    if (copilotSeedAppliedRef.current) return;
+    const seedEmail = String(initialEmail || copilotContext?.entities?.primaryEmail || "").trim();
+    if (!seedEmail) return;
+    copilotSeedAppliedRef.current = true;
+    setPage(1);
+    setQuery(seedEmail);
+    setCreateForm((current) => ({ ...current, email: current.email || seedEmail }));
+  }, [copilotContext, initialEmail]);
+
+  useEffect(() => {
+    if (copilotContactFocusAppliedRef.current) return;
+    const seedEmail = String(initialEmail || copilotContext?.entities?.primaryEmail || "").trim().toLowerCase();
+    if (!seedEmail || !Array.isArray(listState.items) || !listState.items.length) return;
+    const matchedContact = listState.items.find((item) => String(item?.email || "").trim().toLowerCase() === seedEmail);
+    if (!matchedContact?.freshsales_contact_id) return;
+    copilotContactFocusAppliedRef.current = true;
+    setSelectedContactId(matchedContact.freshsales_contact_id);
+  }, [copilotContext, initialEmail, listState.items]);
   const [fingerprintStates, setFingerprintStates] = useState(() => getFingerprintStates());
   const [editForm, setEditForm] = useState(buildEditableForm(null));
   const [mergeTargetId, setMergeTargetId] = useState("");
@@ -693,6 +728,15 @@ function ContactsContent() {
   }
 
   return <div className="space-y-8">
+    {copilotContext ? (
+      <Panel title="Contexto vindo do Copilot" eyebrow="Handoff operacional">
+        <div className="space-y-2 text-sm opacity-75">
+          <p className="font-semibold text-[#F5F1E8]">{copilotContext.conversationTitle || "Conversa ativa"}</p>
+          {copilotContext.mission ? <p>{copilotContext.mission}</p> : null}
+          {copilotContext?.entities?.primaryEmail ? <p>E-mail em foco: {copilotContext.entities.primaryEmail}</p> : null}
+        </div>
+      </Panel>
+    ) : null}
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
       <MetricCard label="Contacts espelhados" value={overviewData.total || 0} helper="Contatos persistidos em public.freshsales_contacts." />
       <MetricCard label="Com e-mail" value={overviewData.comEmail || 0} helper="Aptos para match forte por identificador." />

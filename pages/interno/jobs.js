@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/router";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch } from "../../lib/admin/api";
@@ -242,11 +243,25 @@ function SlaBadge({ job }) {
   return <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${tones[state.tone]}`}>SLA {state.label}</span>;
 }
 
-function JobsContent() {
+function parseCopilotContext(rawValue) {
+  if (!rawValue) return null;
+  try {
+    return JSON.parse(String(rawValue));
+  } catch {
+    return null;
+  }
+}
+
+function normalizeContextValue(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function JobsContent({ copilotContext, initialSource }) {
   const [jobsState, setJobsState] = useState({ loading: true, error: null, items: [] });
   const [selectedJobId, setSelectedJobId] = useState(null);
   const [commandState, setCommandState] = useState({ loading: false, error: null, action: "" });
-  const [filters, setFilters] = useState({ modulo: "todos", status: "todos", source: "todos", query: "" });
+  const [filters, setFilters] = useState({ modulo: "todos", status: "todos", source: initialSource || "todos", query: "" });
+  const copilotJobFocusAppliedRef = useRef(false);
 
   async function loadJobs() {
     setJobsState((current) => ({ ...current, loading: true, error: null }));
@@ -328,6 +343,33 @@ function JobsContent() {
     [filteredJobs, jobsState.items, selectedJobId]
   );
 
+  useEffect(() => {
+    if (copilotJobFocusAppliedRef.current) return;
+    if (!copilotContext || !jobsState.items.length) return;
+    const mission = normalizeContextValue(copilotContext.mission);
+    const moduleHint = normalizeContextValue(copilotContext.module);
+    const sourceHint = normalizeContextValue(initialSource);
+    const matchedJob = jobsState.items.find((job) => {
+      const haystack = [
+        job?.acao,
+        job?.modulo,
+        job?.id,
+        job?.last_error,
+        JSON.stringify(job?.payload || {}),
+      ]
+        .filter(Boolean)
+        .map((item) => normalizeContextValue(item))
+        .join(" ");
+      if (moduleHint && normalizeContextValue(job?.modulo) === moduleHint) return true;
+      if (mission && haystack.includes(mission.slice(0, 24))) return true;
+      if (sourceHint && normalizeContextValue(getJobControl(job).source) === sourceHint) return true;
+      return false;
+    });
+    if (!matchedJob?.id) return;
+    copilotJobFocusAppliedRef.current = true;
+    setSelectedJobId(matchedJob.id);
+  }, [copilotContext, initialSource, jobsState.items]);
+
   const metrics = useMemo(() => {
     const items = jobsState.items;
     return {
@@ -359,6 +401,15 @@ function JobsContent() {
 
   return (
     <div className="space-y-8">
+      {copilotContext ? (
+        <Panel title="Contexto vindo do Copilot" eyebrow="Handoff operacional">
+          <div className="space-y-2 text-sm opacity-75">
+            <p className="font-semibold text-[#F5F1E8]">{copilotContext.conversationTitle || "Conversa ativa"}</p>
+            {copilotContext.mission ? <p>{copilotContext.mission}</p> : null}
+            <p>Origem sugerida: {initialSource || "interno"}</p>
+          </div>
+        </Panel>
+      ) : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Jobs totais" value={metrics.total} helper="Execucoes persistidas visiveis na camada central." />
         <MetricCard label="Executando" value={metrics.running} helper="Jobs ativos consumindo fila agora." />
@@ -550,6 +601,9 @@ function JobsContent() {
 }
 
 export default function InternoJobsPage() {
+  const router = useRouter();
+  const copilotContext = parseCopilotContext(typeof router.query.copilotContext === "string" ? router.query.copilotContext : "");
+  const source = typeof router.query.source === "string" ? router.query.source : "";
   return (
     <RequireAdmin>
       {(profile) => (
@@ -558,7 +612,7 @@ export default function InternoJobsPage() {
           title="Jobs"
           description="Mesa central de execucao em lote para controlar backlog, evitar rate limit e acompanhar jobs do interno em uma trilha unica."
         >
-          <JobsContent />
+          <JobsContent copilotContext={copilotContext} initialSource={source} />
         </InternoLayout>
       )}
     </RequireAdmin>

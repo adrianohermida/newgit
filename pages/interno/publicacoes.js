@@ -2543,7 +2543,7 @@ function PublicacoesContent() {
   const isDockedPublicacoesView = view === "operacao" || view === "resultado";
 
   return (
-    <div className={`${isResultView ? "space-y-6" : "space-y-8"} ${isDockedPublicacoesView ? "min-h-[calc(100vh-28rem)]" : ""}`.trim()}>
+    <div className={`${isResultView ? "space-y-6" : "space-y-8"} ${isDockedPublicacoesView ? "flex min-h-full flex-1 flex-col" : ""}`.trim()}>
       {copilotContext ? (
         <section className="rounded-[22px] border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-4 text-sm text-[#C6D1CC]">
           <p className="text-[10px] uppercase tracking-[0.18em] text-[#7FC4AF]">Contexto vindo do Copilot</p>
@@ -2650,7 +2650,7 @@ function PublicacoesContent() {
         </Panel>
       ) : null}
 
-      {view === "operacao" ? <div id="operacao" className="grid auto-rows-fr gap-6 xl:grid-cols-2">
+      {view === "operacao" ? <div id="operacao" className="grid flex-1 auto-rows-fr gap-6 xl:grid-cols-2">
         <Panel title="Criacao de processos a partir das publicacoes" eyebrow="Operacao orientada por fila" className="h-full">
           <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
@@ -3069,7 +3069,7 @@ function PublicacoesContent() {
         </div>
       </div> : null}
 
-      {view === "resultado" ? <div id="resultado" className="grid auto-rows-fr items-stretch gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      {view === "resultado" ? <div id="resultado" className="grid flex-1 auto-rows-fr items-stretch gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <OperationalResultCard
           className="h-full"
           loading={actionState.loading}

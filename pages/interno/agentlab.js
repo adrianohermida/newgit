@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { useRouter } from "next/router";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../components/interno/agentlab/AgentLabModuleNav";
@@ -30,8 +31,19 @@ function Panel({ title, children, eyebrow }) {
   );
 }
 
+function parseCopilotContext(rawValue) {
+  if (!rawValue) return null;
+  try {
+    return JSON.parse(String(rawValue));
+  } catch {
+    return null;
+  }
+}
+
 export default function AgentLabPage() {
+  const router = useRouter();
   const state = useAgentLabData();
+  const copilotContext = parseCopilotContext(typeof router.query.copilotContext === "string" ? router.query.copilotContext : "");
 
   return (
     <RequireAdmin>
@@ -42,14 +54,14 @@ export default function AgentLabPage() {
           description="Laboratorio de inteligencia para treinar agentes, comparar provedores, validar guardrails e transformar correcoes em melhoria continua."
         >
           <AgentLabModuleNav />
-          <AgentLabContent state={state} />
+          <AgentLabContent state={state} copilotContext={copilotContext} />
         </InternoLayout>
       )}
     </RequireAdmin>
   );
 }
 
-function AgentLabContent({ state }) {
+function AgentLabContent({ state, copilotContext }) {
   if (state.loading) {
     return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando AgentLab...</div>;
   }
@@ -171,6 +183,15 @@ function AgentLabContent({ state }) {
 
   return (
     <div className="space-y-8">
+      {copilotContext ? (
+        <Panel title="Contexto vindo do Copilot" eyebrow="Handoff operacional">
+          <div className="space-y-2 text-sm opacity-75">
+            <p className="font-semibold text-[#F5F1E8]">{copilotContext.conversationTitle || "Conversa ativa"}</p>
+            {copilotContext.mission ? <p>{copilotContext.mission}</p> : null}
+            <p>Use esta abertura para revisar subagentes, treinamento e roteamento antes de retomar a missão.</p>
+          </div>
+        </Panel>
+      ) : null}
       {environment.mode === "degraded" ? (
         <Panel title="Modo de contingencia" eyebrow="Operacao">
           <div className="space-y-3 text-sm opacity-75">

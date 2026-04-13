@@ -1568,7 +1568,7 @@ export default function InternoLayout({
               </div>
             </div>
           </header>
-          <div className="space-y-6 px-6 pb-6">
+          <div className="flex min-h-full flex-col gap-6 px-6 pb-6">
             <IntegrationGuideCard guide={integrationGuide} />
             {children}
             {showExtensionManager ? <DotobotExtensionManager /> : null}
