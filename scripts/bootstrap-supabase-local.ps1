@@ -23,6 +23,19 @@ function Test-LocalSupabaseCli {
   return Test-Path -LiteralPath $packagePath
 }
 
+function Test-DockerEngineAvailable {
+  if (-not (Test-CommandExists "docker")) {
+    return $false
+  }
+
+  try {
+    & docker info *> $null
+    return $LASTEXITCODE -eq 0
+  } catch {
+    return $false
+  }
+}
+
 function Get-LocalSupabaseStatusEnv {
   if (-not (Test-LocalSupabaseCli)) {
     return $null
@@ -77,6 +90,7 @@ $artifactChecks = @(
 )
 
 $dockerAvailable = Test-CommandExists "docker"
+$dockerEngineAvailable = Test-DockerEngineAvailable
 $supabaseCliAvailable = Test-CommandExists "supabase"
 $localSupabaseCliAvailable = Test-LocalSupabaseCli
 $localSupabaseStatusEnv = Get-LocalSupabaseStatusEnv
@@ -136,6 +150,8 @@ $nextSteps = @(
 
 if (-not $dockerAvailable) {
   $nextSteps = @("Instale ou ligue o Docker Desktop antes de subir o Supabase local.") + $nextSteps
+} elseif (-not $dockerEngineAvailable) {
+  $nextSteps = @("Abra o Docker Desktop e aguarde o engine Linux ficar disponivel antes de rodar o Supabase local.") + $nextSteps
 }
 
 if (-not $supabaseCliAvailable -and -not $localSupabaseCliAvailable) {
@@ -151,6 +167,7 @@ if ($missingArtifacts.Count -gt 0) {
   ok = ($missingArtifacts.Count -eq 0)
   supabaseUrl = $resolvedSupabaseUrl
   dockerAvailable = $dockerAvailable
+  dockerEngineAvailable = $dockerEngineAvailable
   supabaseCliAvailable = $supabaseCliAvailable
   localSupabaseCliAvailable = $localSupabaseCliAvailable
   localSupabaseRunning = [bool]$localSupabaseStatusEnv

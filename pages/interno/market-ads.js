@@ -1,3 +1,3 @@
-import MarketAdsPage from "../../components/interno/market-ads/MarketAdsPage";
+import MarketAdsPage from "../../components/interno/market-ads";
 
 export default MarketAdsPage;

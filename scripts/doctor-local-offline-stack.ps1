@@ -24,6 +24,28 @@ function Parse-Bool([string]$Value) {
   return @("1", "true", "yes", "y", "on") -contains $Value.Trim().ToLowerInvariant()
 }
 
+function Test-CommandExists([string]$Name) {
+  try {
+    $null = Get-Command $Name -ErrorAction Stop
+    return $true
+  } catch {
+    return $false
+  }
+}
+
+function Test-DockerEngineAvailable {
+  if (-not (Test-CommandExists "docker")) {
+    return $false
+  }
+
+  try {
+    & docker info *> $null
+    return $LASTEXITCODE -eq 0
+  } catch {
+    return $false
+  }
+}
+
 function Invoke-JsonRequest {
   param(
     [string]$Uri,
@@ -350,6 +372,18 @@ $offlineMode = Parse-Bool(First-Value @(
 
 $checks = @()
 $diagnosis = @()
+$dockerAvailable = Test-CommandExists "docker"
+$dockerEngineAvailable = Test-DockerEngineAvailable
+
+$checks += Build-Check -Id "docker-engine" -Label "Docker Desktop" -Ok $dockerEngineAvailable -Status ($(if ($dockerEngineAvailable) { "ok" } elseif ($dockerAvailable) { "warning" } else { "error" })) -Details ([ordered]@{
+  dockerInstalled = $dockerAvailable
+  dockerEngineAvailable = $dockerEngineAvailable
+})
+if (-not $dockerAvailable) {
+  $diagnosis += "Instale o Docker Desktop para subir o Supabase local."
+} elseif (-not $dockerEngineAvailable) {
+  $diagnosis += "Abra o Docker Desktop e aguarde o engine Linux iniciar antes de rodar npm run supabase:start-local."
+}
 
 $envCheck = Build-Check -Id "offline-flags" -Label "Flags de offline" -Ok $offlineMode -Status ($(if ($offlineMode) { "ok" } else { "warning" })) -Details ([ordered]@{
   offlineMode = $offlineMode

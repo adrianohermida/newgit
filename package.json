@@ -79,6 +79,7 @@
     "test:providers-health": "node --experimental-vm-modules tests/lawdesk/providers-health.test.cjs",
     "test:admin-providers-route": "node --experimental-vm-modules tests/lawdesk/admin-lawdesk-providers-route.test.cjs",
     "test:aitask-ui": "node --experimental-vm-modules tests/lawdesk/aitask-ui-modules.test.cjs",
+    "test:market-ads-ui": "node tests/lawdesk/market-ads-module-structure.test.cjs",
     "test:llm-test": "node --experimental-vm-modules tests/lawdesk/llm-test-console.test.cjs",
     "test:task-runs": "node --experimental-vm-modules tests/lawdesk/task-runs-backend.test.cjs",
     "test:console-log": "node --experimental-vm-modules tests/lawdesk/console-log-utils.test.cjs"
