@@ -2,20 +2,24 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
   INTERNAL_THEME_STORAGE_KEY,
   applyInternalTheme,
-  resolveInitialInternalTheme,
+  resolveInitialInternalThemeState,
+  resolveInternalTheme,
   sanitizeInternalThemePreference,
 } from "../../lib/interno/theme";
 
 const InternalThemeContext = createContext(null);
 
 export function InternalThemeProvider({ children }) {
-  const [theme, setTheme] = useState(() => resolveInitialInternalTheme());
+  const [themeState, setThemeState] = useState(() => resolveInitialInternalThemeState());
+  const preference = themeState.preference;
+  const theme = themeState.resolvedTheme;
 
   useEffect(() => {
-    applyInternalTheme(theme);
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(INTERNAL_THEME_STORAGE_KEY, theme);
-  }, [theme]);
+
+    applyInternalTheme(theme, preference);
+    window.localStorage.setItem(INTERNAL_THEME_STORAGE_KEY, preference);
+  }, [preference, theme]);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -25,10 +29,11 @@ export function InternalThemeProvider({ children }) {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: light)");
 
     const syncWithSystem = () => {
-      const persisted = sanitizeInternalThemePreference(window.localStorage.getItem(INTERNAL_THEME_STORAGE_KEY));
-      if (!persisted) {
-        setTheme(mediaQuery.matches ? "light" : "dark");
-      }
+      setThemeState((current) => (
+        current.preference === "system"
+          ? { preference: "system", resolvedTheme: mediaQuery.matches ? "light" : "dark" }
+          : current
+      ));
     };
 
     syncWithSystem();
@@ -47,25 +52,41 @@ export function InternalThemeProvider({ children }) {
 
     function handleStorage(event) {
       if (event.key !== INTERNAL_THEME_STORAGE_KEY) return;
-      const nextTheme = sanitizeInternalThemePreference(event.newValue);
-      if (nextTheme) {
-        setTheme(nextTheme);
-        return;
-      }
-      setTheme(resolveInitialInternalTheme());
+      const nextPreference = sanitizeInternalThemePreference(event.newValue) || "system";
+      setThemeState({
+        preference: nextPreference,
+        resolvedTheme: resolveInternalTheme(nextPreference),
+      });
     }
 
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
+  const setThemePreference = (nextPreference) => {
+    const sanitizedPreference = sanitizeInternalThemePreference(nextPreference) || "system";
+    setThemeState({
+      preference: sanitizedPreference,
+      resolvedTheme: resolveInternalTheme(sanitizedPreference),
+    });
+  };
+
   const value = useMemo(() => ({
+    preference,
     theme,
     isLightTheme: theme === "light",
     isDarkTheme: theme === "dark",
-    setTheme,
-    toggleTheme: () => setTheme((current) => (current === "light" ? "dark" : "light")),
-  }), [theme]);
+    usesSystemTheme: preference === "system",
+    setTheme: (nextTheme) => {
+      const resolvedPreference = typeof nextTheme === "function"
+        ? nextTheme(theme)
+        : nextTheme;
+      setThemePreference(resolvedPreference);
+    },
+    setThemePreference,
+    toggleTheme: () => setThemePreference(theme === "light" ? "dark" : "light"),
+    resetThemePreference: () => setThemePreference("system"),
+  }), [preference, theme]);
 
   return <InternalThemeContext.Provider value={value}>{children}</InternalThemeContext.Provider>;
 }
@@ -74,11 +95,15 @@ export function useInternalTheme() {
   const context = useContext(InternalThemeContext);
   if (!context) {
     return {
+      preference: "system",
       theme: "dark",
       isLightTheme: false,
       isDarkTheme: true,
+      usesSystemTheme: true,
       setTheme: () => undefined,
+      setThemePreference: () => undefined,
       toggleTheme: () => undefined,
+      resetThemePreference: () => undefined,
     };
   }
 

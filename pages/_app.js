@@ -8,7 +8,6 @@ import dynamic from 'next/dynamic';
 import { ToastProvider } from '../components/ui/toast';
 import { InternalThemeProvider } from '../components/interno/InternalThemeProvider';
 import useConsoleRouteInstrumentation from '../hooks/useConsoleRouteInstrumentation';
-import { buildInternalThemeBootScript } from '../lib/interno/theme';
 
 const FreshchatWebMessenger = dynamic(() => import('../components/FreshchatWebMessenger'), { ssr: false });
 
@@ -121,12 +120,6 @@ export default function App({ Component, pageProps }) {
         <link rel="icon" type="image/webp" href="/images/OIP.webp" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#07110E" />
-        {isInternalRoute ? (
-          <script
-            id="hmadv-internal-theme-bootstrap"
-            dangerouslySetInnerHTML={{ __html: buildInternalThemeBootScript() }}
-          />
-        ) : null}
         {/* Google Tag Manager Head (GTM-TMBHHW6 e GTM-56WQHDR) */}
         <script dangerouslySetInnerHTML={{ __html: `
           (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':

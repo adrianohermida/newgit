@@ -105,6 +105,7 @@ registerTest("admin-lawdesk-providers returns fallback catalog when health probe
     },
     "../../lib/lawdesk/providers": {
       getDefaultLawdeskProvider: () => "gpt",
+      isLawdeskOfflineMode: () => false,
       listLawdeskProviders: () => [
         { id: "gpt", configured: true },
         { id: "custom", configured: false },
@@ -141,6 +142,7 @@ registerTest("admin-lawdesk-providers preserves auth degradation details without
     },
     "../../lib/lawdesk/providers": {
       getDefaultLawdeskProvider: () => "gpt",
+      isLawdeskOfflineMode: () => false,
       listLawdeskProviders: () => [],
       runLawdeskProvidersHealth: async () => null,
     },
@@ -165,6 +167,7 @@ registerTest("admin-lawdesk-providers returns 500 on unexpected handler failure"
     },
     "../../lib/lawdesk/providers": {
       getDefaultLawdeskProvider: () => "gpt",
+      isLawdeskOfflineMode: () => false,
       listLawdeskProviders: () => [],
       runLawdeskProvidersHealth: async () => null,
     },

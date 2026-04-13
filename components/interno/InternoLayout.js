@@ -1631,7 +1631,7 @@ export default function InternoLayout({
             </button>
             <button
               type="button"
-              onClick={() => setTheme((current) => current === "light" ? "dark" : "light")}
+              onClick={toggleTheme}
               className={`flex h-10 w-10 items-center justify-center rounded-[14px] border transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
               title={isLightTheme ? "Ativar modo escuro" : "Ativar modo claro"}
             >

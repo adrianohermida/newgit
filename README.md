@@ -19,6 +19,13 @@ Deploy manual:
 npm run deploy:pages
 ```
 
+Importante:
+
+- `wrangler pages deploy out` publica apenas o conteudo estatico de `out`
+- esse fluxo nao envia `functions/` nem `_routes.json`
+- se usado sozinho, pode deixar `/api/*` indisponivel em producao
+- para runtime administrativo completo, prefira o build conectado do Cloudflare Pages a partir do repositorio
+
 Observacao sobre o modulo `HMADV Market Ads`:
 
 - o frontend publicado no Pages continua funcional mesmo se `/api/admin-market-ads` estiver indisponivel
@@ -32,7 +39,7 @@ npm run diagnose:pages-admin
 
 Deploy por GitHub Actions:
 
-- o workflow [`.github/workflows/nextjs.yml`](/workspaces/newgit/.github/workflows/nextjs.yml) publica em `newgit-pages`
+- o workflow [`.github/workflows/nextjs.yml`](/workspaces/newgit/.github/workflows/nextjs.yml) nao deve mais sobrescrever producao com upload estatico puro
 - exige `CLOUDFLARE_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` nos secrets do GitHub
 
 ## Desenvolvimento local

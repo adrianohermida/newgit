@@ -21,7 +21,7 @@
     - O frontend consome a resposta em chunks, exibindo status incremental (thinking, running, ok).
 
 ### API Frontend
-- **POST** `/functions/api/admin-lawdesk-chat`
+- **POST** `/api/admin-lawdesk-chat`
   - Encaminha para o orquestrador Python se a flag `pythonOrchestrator` estiver ativada.
 
 ---

@@ -318,6 +318,33 @@ registerTest("resolvePreferredLawdeskProvider falls back to available provider w
   assert.equal(selected, "local");
 });
 
+registerTest("getDefaultLawdeskProvider prefers custom when primary backend is absent", async () => {
+  const providers = await loadProvidersModule();
+  const selected = providers.getDefaultLawdeskProvider({
+    CUSTOM_LLM_BASE_URL: "https://custom.example.test",
+    CUSTOM_LLM_MODEL: "aetherlab-legal-v1",
+  });
+
+  assert.equal(selected, "custom");
+});
+
+registerTest("buildLawdeskExecutionPlan uses custom fallback when gpt stack is unavailable", async () => {
+  const providers = await loadProvidersModule();
+  const plan = providers.buildLawdeskExecutionPlan(
+    {
+      CUSTOM_LLM_BASE_URL: "https://custom.example.test",
+      CUSTOM_LLM_MODEL: "aetherlab-legal-v1",
+    },
+    "gpt",
+    {}
+  );
+
+  assert.equal(plan.plan.length, 1);
+  assert.equal(plan.plan[0].kind, "custom_llm_api");
+  assert.equal(plan.plan[0].provider, "custom");
+  assert.equal(plan.plan[0].fallback, true);
+});
+
 async function run() {
   let failures = 0;
   for (const entry of tests) {

@@ -1,4 +1,4 @@
-name: Deploy to Cloudflare Pages
+name: Validate Cloudflare Pages Runtime
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  build-and-validate:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -48,11 +48,11 @@ jobs:
             exit 1
           fi
 
-      - name: Deploy to Cloudflare Pages
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler pages deploy out --project-name=newgit-pages --commit-dirty=true
+      - name: Guard against static-only Pages deploy
+        run: |
+          echo "::warning::Deploy automatico via 'wrangler pages deploy out' foi desabilitado."
+          echo "::warning::Esse fluxo publica apenas assets estaticos e pode derrubar /api/* em producao."
+          echo "::warning::Use o build conectado do Cloudflare Pages para publicar frontend + functions."
 
       - name: Remind post-deploy verification
         run: |
