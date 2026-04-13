@@ -2,12 +2,13 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
+import { useInternalTheme } from "../../components/interno/InternalThemeProvider";
 import { FALLBACK_BLOG_POSTS } from "../../lib/blog/fallback-posts";
 import { adminFetch } from "../../lib/admin/api";
 
-function StatCard({ label, value, helper }) {
+function StatCard({ label, value, helper, isLightTheme }) {
   return (
-    <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
+    <div className={`border p-6 ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.9)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
       <p className="text-xs font-semibold tracking-[0.15em] uppercase mb-3 opacity-50">{label}</p>
       <p className="font-serif text-4xl mb-2">{value}</p>
       <p className="text-sm opacity-55 leading-relaxed">{helper}</p>
@@ -15,36 +16,38 @@ function StatCard({ label, value, helper }) {
   );
 }
 
-function ModeBadge({ active, label }) {
+function ModeBadge({ active, label, isLightTheme }) {
   return (
     <span className={`inline-flex items-center border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${
-      active ? "border-[#C5A059] bg-[rgba(197,160,89,0.12)] text-[#E7C98C]" : "border-[#2D2E2E] opacity-65"
+      active
+        ? `border-[#C5A059] bg-[rgba(197,160,89,0.12)] ${isLightTheme ? "text-[#9A6E2D]" : "text-[#E7C98C]"}`
+        : `${isLightTheme ? "border-[#D4DEE8]" : "border-[#2D2E2E]"} opacity-65`
     }`}>
       {label}
     </span>
   );
 }
 
-function FocusLink({ href, title, helper }) {
+function FocusLink({ href, title, helper, isLightTheme }) {
   return (
-    <Link href={href} prefetch={false} className="block border border-[#2D2E2E] bg-[rgba(10,12,11,0.82)] p-4 hover:border-[#C5A059]">
+    <Link href={href} prefetch={false} className={`block border p-4 hover:border-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.88)]" : "border-[#2D2E2E] bg-[rgba(10,12,11,0.82)]"}`}>
       <p className="text-sm font-semibold mb-1">{title}</p>
       <p className="text-sm opacity-65">{helper}</p>
     </Link>
   );
 }
 
-function RecentJobList({ title, items }) {
+function RecentJobList({ title, items, isLightTheme }) {
   return (
-    <div className="border border-[#2D2E2E] p-4 text-sm">
+    <div className={`border p-4 text-sm ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.82)]" : "border-[#2D2E2E]"}`}>
       <p className="font-semibold mb-2">{title}</p>
       {items?.length ? (
         <div className="space-y-2">
           {items.map((item) => (
-            <div key={item.id} className="border border-[#2D2E2E] p-3">
+            <div key={item.id} className={`border p-3 ${isLightTheme ? "border-[#D4DEE8] bg-[#F7FAFC]" : "border-[#2D2E2E]"}`}>
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 <span className="font-semibold">{item.acao || "acao"}</span>
-                <ModeBadge active={true} label={String(item.status || "desconhecido")} />
+                <ModeBadge active={true} label={String(item.status || "desconhecido")} isLightTheme={isLightTheme} />
               </div>
               <p className="opacity-65">
                 {item.updated_at ? new Date(item.updated_at).toLocaleString("pt-BR") : "Sem horario"}
@@ -59,7 +62,7 @@ function RecentJobList({ title, items }) {
   );
 }
 
-function CycleCard({ title, cycle }) {
+function CycleCard({ title, cycle, isLightTheme }) {
   const perfClass =
     cycle?.performanceStatus === "good"
       ? "border-[#3A5E46] bg-[rgba(58,94,70,0.12)] text-[#A7D7B4]"
@@ -67,13 +70,13 @@ function CycleCard({ title, cycle }) {
         ? "border-[#7A6431] bg-[rgba(122,100,49,0.12)] text-[#E7C98C]"
         : "border-[#5B3535] bg-[rgba(91,53,53,0.12)] text-[#E7B3B3]";
   return (
-    <div className="border border-[#2D2E2E] p-4 text-sm">
+    <div className={`border p-4 text-sm ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.82)]" : "border-[#2D2E2E]"}`}>
       <p className="font-semibold mb-2">{title}</p>
       {cycle ? (
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold">{cycle.acao || "acao"}</span>
-            <ModeBadge active={true} label={String(cycle.status || "desconhecido")} />
+            <ModeBadge active={true} label={String(cycle.status || "desconhecido")} isLightTheme={isLightTheme} />
             <span className={`inline-flex items-center border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${perfClass}`}>
               {cycle.performanceLabel || "Sem leitura"}
             </span>
@@ -82,29 +85,29 @@ function CycleCard({ title, cycle }) {
             {cycle.updatedAt ? new Date(cycle.updatedAt).toLocaleString("pt-BR") : "Sem horario"}
           </p>
           <div className="grid gap-2 sm:grid-cols-4">
-            <div className="border border-[#2D2E2E] p-2">
+            <div className={`border p-2 ${isLightTheme ? "border-[#D4DEE8] bg-[#F7FAFC]" : "border-[#2D2E2E]"}`}>
               <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Solicitados</p>
               <p className="font-semibold">{cycle.requestedCount || 0}</p>
             </div>
-            <div className="border border-[#2D2E2E] p-2">
+            <div className={`border p-2 ${isLightTheme ? "border-[#D4DEE8] bg-[#F7FAFC]" : "border-[#2D2E2E]"}`}>
               <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Processados</p>
               <p className="font-semibold">{cycle.processedCount || 0}</p>
             </div>
-            <div className="border border-[#2D2E2E] p-2">
+            <div className={`border p-2 ${isLightTheme ? "border-[#D4DEE8] bg-[#F7FAFC]" : "border-[#2D2E2E]"}`}>
               <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Sucessos</p>
               <p className="font-semibold">{cycle.successCount || 0}</p>
             </div>
-            <div className="border border-[#2D2E2E] p-2">
+            <div className={`border p-2 ${isLightTheme ? "border-[#D4DEE8] bg-[#F7FAFC]" : "border-[#2D2E2E]"}`}>
               <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Falhas</p>
               <p className="font-semibold">{cycle.errorCount || 0}</p>
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
-            <div className="border border-[#2D2E2E] p-2">
+            <div className={`border p-2 ${isLightTheme ? "border-[#D4DEE8] bg-[#F7FAFC]" : "border-[#2D2E2E]"}`}>
               <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Taxa de sucesso</p>
               <p className="font-semibold">{cycle.successRate ?? 0}%</p>
             </div>
-            <div className="border border-[#2D2E2E] p-2">
+            <div className={`border p-2 ${isLightTheme ? "border-[#D4DEE8] bg-[#F7FAFC]" : "border-[#2D2E2E]"}`}>
               <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Cobertura do lote</p>
               <p className="font-semibold">{cycle.coverageRate ?? 0}%</p>
             </div>
@@ -117,7 +120,7 @@ function CycleCard({ title, cycle }) {
   );
 }
 
-function TrendCard({ title, trend }) {
+function TrendCard({ title, trend, isLightTheme }) {
   const toneClass =
     trend?.label === "Melhorando"
       ? "border-[#3A5E46] bg-[rgba(58,94,70,0.12)] text-[#A7D7B4]"
@@ -125,7 +128,7 @@ function TrendCard({ title, trend }) {
         ? "border-[#5B3535] bg-[rgba(91,53,53,0.12)] text-[#E7B3B3]"
         : "border-[#7A6431] bg-[rgba(122,100,49,0.12)] text-[#E7C98C]";
   return (
-    <div className="border border-[#2D2E2E] p-4 text-sm">
+    <div className={`border p-4 text-sm ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.82)]" : "border-[#2D2E2E]"}`}>
       <p className="font-semibold mb-2">{title}</p>
       {trend ? (
         <div className="space-y-2">
@@ -141,7 +144,7 @@ function TrendCard({ title, trend }) {
   );
 }
 
-function AlertCard({ alert }) {
+function AlertCard({ alert, isLightTheme }) {
   const toneClass =
     alert?.level === "critico"
       ? "border-[#5B3535] bg-[rgba(91,53,53,0.12)]"
@@ -149,7 +152,7 @@ function AlertCard({ alert }) {
         ? "border-[#7A6431] bg-[rgba(122,100,49,0.12)]"
         : "border-[#2D4E63] bg-[rgba(45,78,99,0.12)]";
   return (
-    <div className={`border p-4 text-sm ${toneClass}`}>
+    <div className={`border p-4 text-sm ${toneClass} ${isLightTheme ? "text-[#13201D]" : ""}`}>
       <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">{alert?.level || "info"}</p>
       <p className="font-semibold mb-1">{alert?.title || "Alerta"}</p>
       <p className="opacity-75">{alert?.message || ""}</p>
@@ -157,7 +160,7 @@ function AlertCard({ alert }) {
   );
 }
 
-function ModuleCommandCard({ module }) {
+function ModuleCommandCard({ module, isLightTheme }) {
   const urgencyClass =
     module?.urgency === "Critica"
       ? "border-[#5B3535] bg-[rgba(91,53,53,0.12)] text-[#E7B3B3]"
@@ -171,26 +174,30 @@ function ModuleCommandCard({ module }) {
       href={module?.href || "/interno"}
       prefetch={false}
       className={`block border p-4 text-sm hover:border-[#C5A059] ${
-        module?.focused ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]" : "border-[#2D2E2E] bg-[rgba(10,12,11,0.82)]"
+        module?.focused
+          ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]"
+          : isLightTheme
+            ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.88)]"
+            : "border-[#2D2E2E] bg-[rgba(10,12,11,0.82)]"
       }`}
     >
       <div className="flex flex-wrap items-center gap-2 mb-2">
         <p className="font-semibold">{module?.label || "Modulo"}</p>
-        {module?.focused ? <ModeBadge active={true} label="foco" /> : null}
+        {module?.focused ? <ModeBadge active={true} label="foco" isLightTheme={isLightTheme} /> : null}
         <span className={`inline-flex items-center border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${urgencyClass}`}>
           {module?.urgency || "Baixa"}
         </span>
       </div>
       <div className="grid gap-2 sm:grid-cols-3 mb-3">
-        <div className="border border-[#2D2E2E] p-2">
+        <div className={`border p-2 ${isLightTheme ? "border-[#D4DEE8] bg-[#F7FAFC]" : "border-[#2D2E2E]"}`}>
           <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Pendentes</p>
           <p className="font-semibold">{module?.pending || 0}</p>
         </div>
-        <div className="border border-[#2D2E2E] p-2">
+        <div className={`border p-2 ${isLightTheme ? "border-[#D4DEE8] bg-[#F7FAFC]" : "border-[#2D2E2E]"}`}>
           <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Erros</p>
           <p className="font-semibold">{module?.errors || 0}</p>
         </div>
-        <div className="border border-[#2D2E2E] p-2">
+        <div className={`border p-2 ${isLightTheme ? "border-[#D4DEE8] bg-[#F7FAFC]" : "border-[#2D2E2E]"}`}>
           <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Backlog</p>
           <p className="font-semibold">{module?.backlog || 0}</p>
         </div>
@@ -208,6 +215,7 @@ function formatPercent(value) {
 }
 
 export default function InternoHomePage() {
+  const { isLightTheme } = useInternalTheme();
   const [hmadvOps, setHmadvOps] = useState({ loading: true, error: null, data: null });
   const [draining, setDraining] = useState(false);
 

@@ -69,6 +69,22 @@ function supabaseFunctionHeaders(extra: Record<string, string> = {}): Record<str
   };
 }
 
+function normalizeKeyword(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase();
+}
+
+function isAuctionPublication(pub: Record<string, unknown>): boolean {
+  const raw = (pub.raw_payload ?? {}) as Record<string, unknown>;
+  const palavras = Array.isArray(raw.palavrasChave) ? raw.palavrasChave : [];
+  return palavras
+    .map((item) => normalizeKeyword(item))
+    .some((item) => item === 'LEILAO' || item === 'LEILOES');
+}
+
 // ─── Log ────────────────────────────────────────────────────────────────────
 type Etapa = 'normalizar_cnj'|'buscar_processo'|'datajud_enrich'|'upsert_processo'
             |'vincular_publicacao'|'persistir_partes'|'extractor_crm'
@@ -499,7 +515,7 @@ async function actionSync(batchSize:number): Promise<Record<string,unknown>> {
   const {data:pubs,error} = await db.from('publicacoes')
     .select('id,numero_processo_api,processo_id,freshsales_activity_id,data_publicacao,'+
             'nome_diario,cidade_comarca_descricao,vara_descricao,nome_caderno_diario,'+
-            'pagina_inicial_publicacao,pagina_final_publicacao,despacho,conteudo')
+            'pagina_inicial_publicacao,pagina_final_publicacao,despacho,conteudo,raw_payload')
     .is('freshsales_activity_id',null)
     .not('numero_processo_api','is',null)
     .order('data_publicacao',{ascending:false})
@@ -507,14 +523,20 @@ async function actionSync(batchSize:number): Promise<Record<string,unknown>> {
 
   if (error) throw error;
 
-  const stats = {total:pubs?.length??0, criados:0, enriquecidos:0, incompletos:0,
+  const ignoredPubs = (pubs ?? []).filter((pub) => isAuctionPublication(pub as Record<string, unknown>));
+  for (const pub of ignoredPubs) {
+    await db.from('publicacoes').update({ freshsales_activity_id: 'LEILAO_IGNORADO' }).eq('id', pub.id);
+  }
+  const validPubs = (pubs ?? []).filter((pub) => !isAuctionPublication(pub as Record<string, unknown>));
+
+  const stats = {total:validPubs.length, leiloes_ignorados: ignoredPubs.length, criados:0, enriquecidos:0, incompletos:0,
                  sucesso:0, sem_account:0, cnj_invalido:0, checksum_invalido:0, erro:0};
   const det: unknown[] = [];
   const accountCache       = new Map<string,string|null>();
   const accountFieldsFeito = new Set<string>();
   const partesFeito        = new Set<string>();
 
-  for (const pub of pubs??[]) {
+  for (const pub of validPubs) {
     const pubId  = String(pub.id);
     const rawCNJ = String(pub.numero_processo_api??'').trim();
 

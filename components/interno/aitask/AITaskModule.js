@@ -47,6 +47,7 @@ import {
   hydrateBrowserLocalProviderOptions,
   persistBrowserLocalRuntimeConfig,
   probeBrowserLocalStackSummary,
+  shouldAutoProbeBrowserLocalRuntime,
 } from "../../../lib/lawdesk/browser-local-runtime";
 import { resolvePreferredLawdeskProvider } from "../../../lib/lawdesk/providers.js";
 import { listSkills } from "../../../lib/lawdesk/skill_registry.js";
@@ -356,6 +357,7 @@ export default function AITaskModule({ profile, routePath }) {
             value: item.id,
             label: `${item.label}${item.model ? ` · ${item.model}` : ""}${item.status ? ` · ${item.status}` : ""}`,
             disabled: !item.available,
+            configured: Boolean(item.configured),
             displayLabel: item.label,
             model: item.model || null,
             status: item.status || null,
@@ -381,6 +383,9 @@ export default function AITaskModule({ profile, routePath }) {
   }, []);
 
   useEffect(() => {
+    if (!shouldAutoProbeBrowserLocalRuntime() && !providerCatalog.some((item) => item.value === "local" && item.configured)) {
+      return undefined;
+    }
     let active = true;
     hydrateBrowserLocalProviderOptions(providerCatalog)
       .then((hydratedProviders) => {
@@ -406,6 +411,7 @@ export default function AITaskModule({ profile, routePath }) {
   }, [localStackSummary, providerCatalog, setProvider]);
 
   useEffect(() => {
+    if (!shouldAutoProbeBrowserLocalRuntime()) return undefined;
     let active = true;
     probeBrowserLocalStackSummary()
       .then((summary) => {
@@ -441,11 +447,6 @@ export default function AITaskModule({ profile, routePath }) {
   }, [localStackSummary]);
 
   const localStackReady = Boolean(localStackSummary?.ok && localStackSummary?.localProvider?.available);
-
-  useEffect(() => {
-    if (!localStackReady) return;
-    setProvider((current) => (current === "gpt" || current === "cloudflare" ? "local" : current));
-  }, [localStackReady, setProvider]);
 
   useEffect(() => {
     if (!localStackSummary?.offlineMode) return;

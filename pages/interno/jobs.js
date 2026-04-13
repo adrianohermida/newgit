@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import InternoLayout from "../../components/interno/InternoLayout";
+import { useInternalTheme } from "../../components/interno/InternalThemeProvider";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch } from "../../lib/admin/api";
 
@@ -29,9 +30,9 @@ const SOURCE_LABELS = {
   portal: "Portal",
 };
 
-function Panel({ title, eyebrow, actions, children }) {
+function Panel({ title, eyebrow, actions, children, isLightTheme }) {
   return (
-    <section className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
+    <section className={`border p-6 ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.9)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           {eyebrow ? <p className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-[#C5A059]">{eyebrow}</p> : null}
@@ -44,9 +45,9 @@ function Panel({ title, eyebrow, actions, children }) {
   );
 }
 
-function ActionButton({ children, tone = "subtle", ...props }) {
+function ActionButton({ children, tone = "subtle", isLightTheme, ...props }) {
   const tones = {
-    subtle: "border border-[#2D2E2E] hover:border-[#C5A059] hover:text-[#C5A059]",
+    subtle: `${isLightTheme ? "border border-[#D4DEE8]" : "border border-[#2D2E2E]"} hover:border-[#C5A059] hover:text-[#C5A059]`,
     primary: "border border-[#C5A059] bg-[#C5A059] text-[#050706]",
     danger: "border border-[#5C2A2A] text-[#F4C1C1] hover:border-[#C96A6A]",
   };
@@ -57,9 +58,9 @@ function ActionButton({ children, tone = "subtle", ...props }) {
   );
 }
 
-function MetricCard({ label, value, helper }) {
+function MetricCard({ label, value, helper, isLightTheme }) {
   return (
-    <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-5">
+    <div className={`border p-5 ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.9)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
       <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] opacity-50">{label}</p>
       <p className="mb-2 font-serif text-3xl">{value}</p>
       {helper ? <p className="text-sm leading-relaxed opacity-65">{helper}</p> : null}
@@ -257,6 +258,7 @@ function normalizeContextValue(value) {
 }
 
 function JobsContent({ copilotContext, initialSource }) {
+  const { isLightTheme } = useInternalTheme();
   const [jobsState, setJobsState] = useState({ loading: true, error: null, items: [] });
   const [selectedJobId, setSelectedJobId] = useState(null);
   const [commandState, setCommandState] = useState({ loading: false, error: null, action: "" });
@@ -284,6 +286,9 @@ function JobsContent({ copilotContext, initialSource }) {
 
   useEffect(() => {
     const timer = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return;
+      }
       loadJobs();
     }, 15000);
     return () => clearInterval(timer);

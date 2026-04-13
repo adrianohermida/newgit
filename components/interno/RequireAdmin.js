@@ -1,11 +1,13 @@
 import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { useAdminSession } from "../../lib/admin/useAdminSession";
+import { useInternalTheme } from "./InternalThemeProvider";
 
 function MessageState({ title, body }) {
+  const { isLightTheme } = useInternalTheme();
   return (
-    <div className="min-h-screen bg-[#050706] text-[#F4F1EA] flex items-center justify-center px-6">
-      <div className="max-w-xl border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-8">
+    <div className={`min-h-screen flex items-center justify-center px-6 ${isLightTheme ? "bg-[#EEF2F6] text-[#13201D]" : "bg-[#050706] text-[#F4F1EA]"}`}>
+      <div className={`max-w-xl border p-8 ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
         <p className="text-xs font-semibold tracking-[0.25em] uppercase mb-4" style={{ color: "#C5A059" }}>
           Area Interna
         </p>

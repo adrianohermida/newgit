@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import InternoLayout from "../../components/interno/InternoLayout";
+import { useInternalTheme } from "../../components/interno/InternalThemeProvider";
 import { OperationalHistoryCompactCard, OperationalResultCard } from "../../components/interno/OperationalResultPanels";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch as adminFetchRaw } from "../../lib/admin/api";
@@ -153,17 +154,17 @@ function deriveContactsOperationalGuardrail({
   };
 }
 
-function MetricCard({ label, value, helper }) {
-  return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-5"><p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] opacity-50">{label}</p><p className="mb-2 font-serif text-3xl">{value}</p>{helper ? <p className="text-sm leading-relaxed opacity-65">{helper}</p> : null}</div>;
+function MetricCard({ label, value, helper, isLightTheme }) {
+  return <div className={`border p-5 ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.9)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}><p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] opacity-50">{label}</p><p className="mb-2 font-serif text-3xl">{value}</p>{helper ? <p className="text-sm leading-relaxed opacity-65">{helper}</p> : null}</div>;
 }
 
-function Panel({ title, eyebrow, children }) {
-  return <section className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">{eyebrow ? <p className="mb-3 text-xs font-semibold uppercase tracking-[0.15em]" style={{ color: "#C5A059" }}>{eyebrow}</p> : null}<h3 className="mb-4 font-serif text-2xl">{title}</h3>{children}</section>;
+function Panel({ title, eyebrow, children, isLightTheme }) {
+  return <section className={`border p-6 ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.9)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>{eyebrow ? <p className="mb-3 text-xs font-semibold uppercase tracking-[0.15em]" style={{ color: "#C5A059" }}>{eyebrow}</p> : null}<h3 className="mb-4 font-serif text-2xl">{title}</h3>{children}</section>;
 }
 
-function ActionButton({ children, tone = "subtle", ...props }) {
+function ActionButton({ children, tone = "subtle", isLightTheme, ...props }) {
   const tones = {
-    subtle: "border border-[#2D2E2E] hover:border-[#C5A059] hover:text-[#C5A059]",
+    subtle: `${isLightTheme ? "border border-[#D4DEE8]" : "border border-[#2D2E2E]"} hover:border-[#C5A059] hover:text-[#C5A059]`,
     primary: "bg-[#C5A059] text-[#050706]",
     danger: "border border-[#4B2222] text-red-200 hover:border-[#C96A6A]",
   };
@@ -245,6 +246,7 @@ export default function InternoContactsPage() {
 }
 
 function ContactsContent({ copilotContext, initialEmail }) {
+  const { isLightTheme } = useInternalTheme();
   const [overview, setOverview] = useState({ loading: true, error: null, data: null });
   const [listState, setListState] = useState({ loading: true, error: null, items: [], totalRows: 0 });
   const [detailState, setDetailState] = useState({ loading: false, error: null, data: null });
@@ -277,6 +279,7 @@ function ContactsContent({ copilotContext, initialEmail }) {
   const [contactsLogEntries, setContactsLogEntries] = useState(() => getActivityLogSnapshot().filter((entry) => entry?.module === "contacts"));
   const copilotSeedAppliedRef = useRef(false);
   const copilotContactFocusAppliedRef = useRef(false);
+  const initialBootRef = useRef(false);
 
   useEffect(() => {
     if (copilotSeedAppliedRef.current) return;
@@ -359,12 +362,34 @@ function ContactsContent({ copilotContext, initialEmail }) {
     }
   }
 
-  useEffect(() => { loadOverview(); }, []);
-  useEffect(() => { loadList(page, query, type, contactPageSize); }, [contactPageSize, page, query, type]);
-  useEffect(() => { loadDuplicates(duplicatesPage); }, [duplicatesPage]);
-  useEffect(() => { loadPartesPendentes(partesPage, partesQuery); }, [partesPage, partesQuery]);
-  useEffect(() => { loadPartesVinculadas(linkedPage, linkedQuery, linkedType); }, [linkedPage, linkedQuery, linkedType]);
-  useEffect(() => { loadJobs(); }, []);
+  useEffect(() => {
+    if (initialBootRef.current) return;
+    initialBootRef.current = true;
+    Promise.all([
+      loadOverview(),
+      loadList(page, query, type, contactPageSize),
+      loadDuplicates(duplicatesPage),
+      loadPartesPendentes(partesPage, partesQuery),
+      loadPartesVinculadas(linkedPage, linkedQuery, linkedType),
+      loadJobs(),
+    ]).catch(() => null);
+  }, [contactPageSize, duplicatesPage, linkedPage, linkedQuery, linkedType, page, partesPage, partesQuery, query, type]);
+  useEffect(() => {
+    if (!initialBootRef.current) return;
+    loadList(page, query, type, contactPageSize);
+  }, [contactPageSize, page, query, type]);
+  useEffect(() => {
+    if (!initialBootRef.current) return;
+    loadDuplicates(duplicatesPage);
+  }, [duplicatesPage]);
+  useEffect(() => {
+    if (!initialBootRef.current) return;
+    loadPartesPendentes(partesPage, partesQuery);
+  }, [partesPage, partesQuery]);
+  useEffect(() => {
+    if (!initialBootRef.current) return;
+    loadPartesVinculadas(linkedPage, linkedQuery, linkedType);
+  }, [linkedPage, linkedQuery, linkedType]);
   useEffect(() => {
     if (!selectedContactId) {
       setDetailState({ loading: false, error: null, data: null });

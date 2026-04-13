@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { adminFetch } from "../../lib/admin/api";
 import { appendActivityLog, setModuleHistory } from "../../lib/admin/activity-log";
 import { buildModuleSnapshot } from "../../lib/admin/module-registry";
+import { useInternalTheme } from "./InternalThemeProvider";
 
 const DEPARTMENTS = [
   {
@@ -40,13 +41,17 @@ function SummaryPair({ label, value }) {
   );
 }
 
-function DepartmentTab({ item, active, count, onClick }) {
+function DepartmentTab({ item, active, count, onClick, isLightTheme }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={`rounded-[22px] border px-4 py-4 text-left transition-colors ${
-        active ? "border-[#C5A059] bg-[rgba(197,160,89,0.12)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"
+        active
+          ? "border-[#C5A059] bg-[rgba(197,160,89,0.12)]"
+          : isLightTheme
+            ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.9)]"
+            : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"
       }`}
     >
       <div className="flex items-start justify-between gap-4">
@@ -60,12 +65,12 @@ function DepartmentTab({ item, active, count, onClick }) {
   );
 }
 
-function PlaceholderDepartment({ title, description, stats }) {
+function PlaceholderDepartment({ title, description, stats, isLightTheme }) {
   return (
     <section className="space-y-6">
       <div className="grid gap-4 md:grid-cols-3">
         {stats.map((item) => (
-          <div key={item.label} className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-5">
+          <div key={item.label} className={`rounded-[24px] border p-5 ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.9)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
             <p className="text-xs uppercase tracking-[0.16em] opacity-45">{item.label}</p>
             <p className="mt-3 font-serif text-3xl">{item.value}</p>
             <p className="mt-2 text-sm opacity-60">{item.helper}</p>
@@ -73,7 +78,7 @@ function PlaceholderDepartment({ title, description, stats }) {
         ))}
       </div>
 
-      <div className="rounded-[28px] border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
+      <div className={`rounded-[28px] border p-6 ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.9)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
         <p className="text-xs uppercase tracking-[0.16em] opacity-45">{title}</p>
         <p className="mt-4 max-w-3xl text-sm leading-relaxed opacity-70">{description}</p>
       </div>
@@ -81,30 +86,30 @@ function PlaceholderDepartment({ title, description, stats }) {
   );
 }
 
-function CadastroDepartment({ state, load, handleReview, handleCpfLock, handleNameLock, focusContext }) {
+function CadastroDepartment({ state, load, handleReview, handleCpfLock, handleNameLock, focusContext, isLightTheme }) {
   if (state.loading) {
-    return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando fila cadastral...</div>;
+    return <div className={`border p-6 ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.9)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>Carregando fila cadastral...</div>;
   }
 
   return (
     <section className="space-y-6">
       <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-5">
+        <div className={`rounded-[24px] border p-5 ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.9)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
           <p className="text-xs uppercase tracking-[0.16em] opacity-45">Pendencias</p>
           <p className="mt-3 font-serif text-3xl">{state.items.length}</p>
           <p className="mt-2 text-sm opacity-60">Solicitacoes aguardando analise e decisao do escritorio.</p>
         </div>
-        <div className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-5">
+        <div className={`rounded-[24px] border p-5 ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.9)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
           <p className="text-xs uppercase tracking-[0.16em] opacity-45">Escopo atual</p>
           <p className="mt-3 font-serif text-3xl">Perfil</p>
           <p className="mt-2 text-sm opacity-60">Nome, contatos, enderecos, profissao, estado civil e travas cadastrais.</p>
         </div>
-        <div className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-5">
+        <div className={`rounded-[24px] border p-5 ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.9)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
           <p className="text-xs uppercase tracking-[0.16em] opacity-45">Acao rapida</p>
           <button
             type="button"
             onClick={load}
-            className="mt-3 border border-[#2D2E2E] px-4 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059]"
+            className={`mt-3 border px-4 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8]" : "border-[#2D2E2E]"}`}
           >
             Atualizar fila
           </button>
@@ -115,7 +120,7 @@ function CadastroDepartment({ state, load, handleReview, handleCpfLock, handleNa
       {state.message ? <div className="border border-[#24533D] bg-[rgba(19,72,49,0.22)] p-4 text-sm">{state.message}</div> : null}
 
       {!state.items.length ? (
-        <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6 text-sm opacity-70">
+        <div className={`border p-6 text-sm opacity-70 ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.9)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
           Nenhuma solicitacao cadastral pendente no momento.
         </div>
       ) : null}
@@ -130,7 +135,7 @@ function CadastroDepartment({ state, load, handleReview, handleCpfLock, handleNa
           (focusContext?.clientId && String(item.client_id) === String(focusContext.clientId));
 
         return (
-          <section key={item.id} className={`border p-6 ${isFocused ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
+          <section key={item.id} className={`border p-6 ${isFocused ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]" : isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.9)]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.16em] opacity-45">Cliente</p>
@@ -142,7 +147,7 @@ function CadastroDepartment({ state, load, handleReview, handleCpfLock, handleNa
             </div>
 
             <div className="mt-6 grid gap-6 xl:grid-cols-2">
-              <div className="rounded-[24px] border border-[#2D2E2E] bg-[#050706] p-5">
+              <div className={`rounded-[24px] border p-5 ${isLightTheme ? "border-[#D4DEE8] bg-[#F7FAFC]" : "border-[#2D2E2E] bg-[#050706]"}`}>
                 <p className="text-xs uppercase tracking-[0.16em] opacity-45">Cadastro atual</p>
                 <div className="mt-4 space-y-3">
                   <SummaryPair label="Nome" value={currentSnapshot.full_name} />
@@ -209,6 +214,7 @@ function CadastroDepartment({ state, load, handleReview, handleCpfLock, handleNa
 }
 
 export default function AprovacoesModule({ initialDepartment = "cadastro", focusContext = null }) {
+  const { isLightTheme } = useInternalTheme();
   const [activeDepartment, setActiveDepartment] = useState(initialDepartment);
   const [state, setState] = useState({
     loading: true,
