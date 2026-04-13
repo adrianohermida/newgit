@@ -1,3 +1,5 @@
+create schema if not exists judiciario;
+
 create table if not exists judiciario.sync_worker_status (
   id bigint primary key,
   em_execucao boolean not null default false,
@@ -23,7 +25,7 @@ insert into judiciario.sync_worker_status (
   erro_ultimo,
   versao
 )
-values (
+select
   1,
   false,
   null,
@@ -34,5 +36,8 @@ values (
   0,
   null,
   1
-)
-on conflict (id) do nothing;
+where not exists (
+  select 1
+  from judiciario.sync_worker_status
+  where id = 1
+);

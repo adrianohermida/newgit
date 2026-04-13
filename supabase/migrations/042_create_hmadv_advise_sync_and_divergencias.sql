@@ -1,3 +1,5 @@
+create schema if not exists judiciario;
+
 create table if not exists judiciario.sync_divergencias (
   id bigserial primary key,
   processo_id uuid null,
@@ -24,13 +26,13 @@ create table if not exists judiciario.advise_sync_status (
 );
 
 insert into judiciario.advise_sync_status (
-  id,
   ultima_data_movimento,
   ultima_execucao
 )
-values (
-  1,
+select
   '2000-01-01T00:00:00+00:00',
   null
-)
-on conflict (id) do nothing;
+where not exists (
+  select 1
+  from judiciario.advise_sync_status
+);
