@@ -142,11 +142,12 @@ function SidebarItem({ item, active, collapsed, isLightTheme, onNavigate }) {
 }
 
 function RailPanel({ title, subtitle, children }) {
+  const { isLightTheme } = useInternalTheme();
   return (
-    <section className="rounded-[20px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
-      <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">{title}</p>
-      {subtitle ? <p className="mt-2 text-sm font-medium text-[#F5F1E8]">{subtitle}</p> : null}
-      <div className="mt-3 text-sm leading-6 text-[#92A59F]">{children}</div>
+    <section className={`rounded-[20px] border p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))]"}`}>
+      <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>{title}</p>
+      {subtitle ? <p className={`mt-2 text-sm font-medium ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{subtitle}</p> : null}
+      <div className={`mt-3 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#92A59F]"}`}>{children}</div>
     </section>
   );
 }
@@ -285,24 +286,25 @@ function getModuleIntegrationGuide(pathname = "") {
 
 function IntegrationGuideCard({ guide }) {
   if (!guide) return null;
+  const { isLightTheme } = useInternalTheme();
   return (
-    <section className="rounded-[24px] border border-[#2D2E2E] bg-[rgba(10,12,11,0.58)] p-5">
+    <section className={`rounded-[24px] border p-5 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#2D2E2E] bg-[rgba(10,12,11,0.58)]"}`}>
       <div className="flex flex-col gap-2 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C5A059]">Integracoes operacionais</p>
-          <h3 className="mt-2 text-lg font-semibold text-[#F8F4EB]">{guide.title}</h3>
-          {guide.subtitle ? <p className="mt-2 max-w-4xl text-sm leading-6 text-[#99ADA6]">{guide.subtitle}</p> : null}
+          <h3 className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F8F4EB]"}`}>{guide.title}</h3>
+          {guide.subtitle ? <p className={`mt-2 max-w-4xl text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#99ADA6]"}`}>{guide.subtitle}</p> : null}
         </div>
       </div>
       <div className="mt-4 grid gap-3 xl:grid-cols-2">
         {guide.items.map((item) => (
-          <div key={`${guide.title}-${item.label}`} className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+          <div key={`${guide.title}-${item.label}`} className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F4E7C2]">{item.label}</p>
-            <p className="mt-2 text-sm leading-6 text-[#C7D0CA]">{item.helper}</p>
-            <p className="mt-3 text-[11px] uppercase tracking-[0.16em] text-[#7F928C]">Endpoint / funcao</p>
+            <p className={`mt-2 text-sm leading-6 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>{item.helper}</p>
+            <p className={`mt-3 text-[11px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Endpoint / funcao</p>
             <p className="mt-1 break-all text-sm text-[#D9B46A]">{item.endpoint}</p>
-            <p className="mt-3 text-[11px] uppercase tracking-[0.16em] text-[#7F928C]">Quando acionar</p>
-            <p className="mt-1 text-sm leading-6 text-[#99ADA6]">{item.trigger}</p>
+            <p className={`mt-3 text-[11px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Quando acionar</p>
+            <p className={`mt-1 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#99ADA6]"}`}>{item.trigger}</p>
           </div>
         ))}
       </div>
@@ -641,20 +643,20 @@ function OperationalRightRail({ data, onOpenConsole, onOpenJobsLog }) {
         </div>
       </div>
 
-      {data.activeJobs.length ? <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">Jobs ativos</p>
+      {data.activeJobs.length ? <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>Jobs ativos</p>
         <div className="mt-3 space-y-2">
           {data.activeJobs.map((job) => {
             const requested = Number(job?.requested_count || 0);
             const processed = Number(job?.processed_count || 0);
             const progress = requested ? Math.max(0, Math.min(100, Math.round((processed / requested) * 100))) : 0;
             return (
-              <div key={job.id} className={`rounded-xl border p-3 ${job.id === data.activeJobId ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]" : "border-[#1E2E29] bg-[rgba(8,10,9,0.45)]"}`}>
+              <div key={job.id} className={`rounded-xl border p-3 ${job.id === data.activeJobId ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]" : isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(8,10,9,0.45)]"}`}>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold text-[#F5F1E8]">{job.acao || "job"}</span>
+                  <span className={`text-[11px] font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{job.acao || "job"}</span>
                   <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${getJobStatusTone(job.status)}`}>{job.status || "pending"}</span>
                 </div>
-                <p className="mt-2 text-[11px] text-[#9BAEA8]">{processed}/{requested || processed} processado(s) • atualizado ha {formatRelativeTime(job.updated_at || job.started_at || job.created_at)}</p>
+                <p className={`mt-2 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{processed}/{requested || processed} processado(s) • atualizado ha {formatRelativeTime(job.updated_at || job.started_at || job.created_at)}</p>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-[rgba(255,255,255,0.06)]">
                   <div className="h-full bg-[#C5A059]" style={{ width: `${progress}%` }} />
                 </div>
@@ -665,26 +667,26 @@ function OperationalRightRail({ data, onOpenConsole, onOpenJobsLog }) {
         </div>
       </div> : null}
 
-      {data.queues.length ? <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">Filas monitoradas</p>
+      {data.queues.length ? <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>Filas monitoradas</p>
         <div className="mt-3 space-y-2">
           {data.queues.map((queue) => (
-            <div key={queue.key} className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.45)] p-3">
+            <div key={queue.key} className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(8,10,9,0.45)]"}`}>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold text-[#F5F1E8]">{queue.label}</span>
+                <span className={`text-[11px] font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{queue.label}</span>
                 <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${queue.error ? "border-[#5B2D2D] text-[#FECACA]" : "border-[#22342F] text-[#D8DEDA]"}`}>{queue.totalRows} itens</span>
               </div>
-              <p className="mt-2 text-[11px] text-[#9BAEA8]">Atualizada ha {formatRelativeTime(queue.updatedAt)}{queue.limited ? " • leitura limitada" : ""}</p>
+              <p className={`mt-2 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Atualizada ha {formatRelativeTime(queue.updatedAt)}{queue.limited ? " • leitura limitada" : ""}</p>
               {queue.error ? <p className="mt-2 text-[11px] text-[#FECACA]">{queue.error}</p> : null}
             </div>
           ))}
         </div>
       </div> : null}
 
-      {data.batchHints.length ? <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7E918B]">Janela segura de lote</p>
+      {data.batchHints.length ? <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>Janela segura de lote</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {data.batchHints.map((item) => <span key={item.key} className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#D8DEDA]">{item.label}: {item.value}</span>)}
+          {data.batchHints.map((item) => <span key={item.key} className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>{item.label}: {item.value}</span>)}
         </div>
       </div> : null}
 
