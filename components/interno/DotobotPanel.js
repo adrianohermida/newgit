@@ -17,6 +17,7 @@ import {
   isBrowserLocalProvider,
   persistBrowserLocalRuntimeConfig,
   probeBrowserLocalStackSummary,
+  shouldAutoProbeBrowserLocalRuntime,
 } from "../../lib/lawdesk/browser-local-runtime";
 import { resolvePreferredLawdeskProvider } from "../../lib/lawdesk/providers.js";
 import { listSkills } from "../../lib/lawdesk/skill_registry.js";
@@ -965,6 +966,7 @@ export default function DotobotCopilot({
   embeddedInInternoShell = false,
 }) {
   const isFullscreenCopilot = routePath === "/interno/copilot";
+  const isFocusedCopilotShell = embeddedInInternoShell && isFullscreenCopilot;
   const isCompactViewport = useMediaQuery({ maxWidth: 640 });
   // Estado de autenticaÃ§Ã£o/admin
   const { supabase, loading: supaLoading, configError } = useSupabaseBrowser();
@@ -1084,7 +1086,7 @@ export default function DotobotCopilot({
 
 const [workspaceOpen, setWorkspaceOpen] = useState(initialWorkspaceOpen);
 const [mode, setMode] = useState(() => (isFullscreenCopilot ? "chat" : "task"));
-const [provider, setProvider] = useState(() => (isFullscreenCopilot ? "local" : "gpt"));
+const [provider, setProvider] = useState("gpt");
 const [workspaceLayoutMode, setWorkspaceLayoutMode] = useState(() => (isFullscreenCopilot ? "immersive" : "snap"));
 const [providerCatalog, setProviderCatalog] = useState(PROVIDER_OPTIONS);
 const [skillCatalog, setSkillCatalog] = useState(SKILL_OPTIONS);
@@ -1139,7 +1141,7 @@ const [uiToasts, setUiToasts] = useState([]);
     }
     if (isFullscreenCopilot) {
       setMode("chat");
-      setProvider((current) => current || "local");
+      setProvider((current) => current || "gpt");
       setWorkspaceLayoutMode("immersive");
       setRightPanelTab("modules");
     }
@@ -1157,6 +1159,7 @@ const [uiToasts, setUiToasts] = useState([]);
           value: item.id,
           label: `${item.label}${item.model ? ` · ${item.model}` : ""}${item.status ? ` · ${item.status}` : ""}`,
           disabled: !item.available,
+          configured: Boolean(item.configured),
           displayLabel: item.label,
           model: item.model || null,
           status: item.status || null,
@@ -1167,7 +1170,10 @@ const [uiToasts, setUiToasts] = useState([]);
           reason: item.reason || null,
           offlineMode: Boolean(payload?.data?.offlineMode),
         }));
-        const hydratedProviders = await hydrateBrowserLocalProviderOptions(mappedProviders);
+        const hydratedProviders =
+          shouldAutoProbeBrowserLocalRuntime() || mappedProviders.some((item) => item.value === "local" && item.configured)
+            ? await hydrateBrowserLocalProviderOptions(mappedProviders)
+            : mappedProviders;
         if (!active) return;
         setProviderCatalog(hydratedProviders);
         setProvider((current) =>
@@ -1278,6 +1284,7 @@ const [uiToasts, setUiToasts] = useState([]);
   }, []);
 
   useEffect(() => {
+    if (!shouldAutoProbeBrowserLocalRuntime()) return undefined;
     let active = true;
     probeBrowserLocalStackSummary()
       .then((summary) => {
@@ -2666,7 +2673,7 @@ const [uiToasts, setUiToasts] = useState([]);
         : "w-full max-w-[1320px]";
   const workspaceShellGridClass =
     effectiveWorkspaceLayout === "immersive"
-      ? "xl:grid-cols-[220px_minmax(0,1.35fr)_280px] 2xl:grid-cols-[240px_minmax(0,1.5fr)_320px]"
+      ? "xl:grid-cols-[260px_minmax(0,1.55fr)_320px] 2xl:grid-cols-[300px_minmax(0,1.75fr)_360px]"
       : effectiveWorkspaceLayout === "balanced"
         ? "xl:grid-cols-[210px_minmax(0,1.25fr)_260px] 2xl:grid-cols-[230px_minmax(0,1.4fr)_280px]"
         : "xl:grid-cols-[190px_minmax(0,1.12fr)_240px] 2xl:grid-cols-[210px_minmax(0,1.2fr)_260px]";
@@ -2808,15 +2815,14 @@ const [uiToasts, setUiToasts] = useState([]);
   const isComposerBlocked = Boolean(composerBlockedReason);
 
   useEffect(() => {
-    if (!localStackReady && !localStackSummary?.offlineMode) return;
+    if (!localStackSummary?.offlineMode) return;
     setProvider((current) => {
       const currentOption = providerCatalog.find((item) => item.value === current);
       if (localStackSummary?.offlineMode && current !== "local") return "local";
       if (currentOption?.disabled) return "local";
-      if (current === "gpt" || current === "cloudflare") return "local";
       return current;
     });
-  }, [localStackReady, localStackSummary?.offlineMode, providerCatalog]);
+  }, [localStackSummary?.offlineMode, providerCatalog]);
 
   // Exemplo de fluxo de login Supabase
   async function handleLogin() {
@@ -3857,13 +3863,29 @@ const [uiToasts, setUiToasts] = useState([]);
                       </span>
                     ) : null}
                   </div>
-                  {localStackSummary ? (
+                  {localStackSummary && !isFocusedCopilotShell ? (
                     <p className="mt-2 max-w-3xl text-[11px] leading-6 text-[#7F928C]">
                       {localStackReady
                         ? `Runtime local pronto${localStackSummary.offlineMode ? " em offline" : ""}, servido por ${localStackSummary.localProvider?.model || "modelo local"}.`
                         : "Runtime local ainda nao confirmado nesta sessao. Use o bootstrap offline local ou suba manualmente o ai-core."}
                     </p>
                   ) : null}
+                  {isFocusedCopilotShell ? (
+                    <div className="mt-4 flex flex-wrap gap-2 text-[11px]">
+                      <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#D8DEDA]">
+                        histórico {filteredConversations.length}
+                      </span>
+                      <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#D8DEDA]">
+                        mensagens {messages.length}
+                      </span>
+                      <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#D8DEDA]">
+                        tarefas {taskHistory.length}
+                      </span>
+                      <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#D8DEDA]">
+                        foco {activeProjectLabel}
+                      </span>
+                    </div>
+                  ) : (
                   <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
                     <div className="rounded-[22px] border border-[#3C3320] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.14),transparent_60%),rgba(255,255,255,0.02)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
                       <p className="text-[10px] uppercase tracking-[0.18em] text-[#D9B46A]">Conversa operacional</p>
@@ -3946,7 +3968,8 @@ const [uiToasts, setUiToasts] = useState([]);
                       </div>
                     </div>
                   </div>
-                  {localStackSummary?.recommendations?.length ? (
+                  )}
+                  {localStackSummary?.recommendations?.length && !isFocusedCopilotShell ? (
                     <div className="mt-2 flex max-w-3xl flex-wrap gap-2 text-[11px]">
                       {localStackSummary.recommendations.slice(0, 3).map((item) => (
                         <span key={item} className="rounded-full border border-[#3B3523] bg-[rgba(197,160,89,0.08)] px-3 py-1.5 text-[#D9C38A]">
@@ -3955,7 +3978,7 @@ const [uiToasts, setUiToasts] = useState([]);
                       ))}
                     </div>
                   ) : null}
-                  {localStackSummary?.actions?.length ? (
+                  {localStackSummary?.actions?.length && !isFocusedCopilotShell ? (
                     <div className="mt-2 flex max-w-3xl flex-wrap gap-2">
                       {localStackSummary.actions.slice(0, 3).map((action) => (
                         <button
@@ -3969,10 +3992,10 @@ const [uiToasts, setUiToasts] = useState([]);
                       ))}
                     </div>
                   ) : null}
-                  {activeProviderPresentation.reason ? (
+                  {activeProviderPresentation.reason && !isFocusedCopilotShell ? (
                     <p className="mt-2 max-w-3xl text-[11px] leading-6 text-[#7F928C]">{activeProviderPresentation.reason}</p>
                   ) : null}
-                  {ragAlert ? (
+                  {ragAlert && !isFocusedCopilotShell ? (
                     <div className={`mt-4 max-w-3xl rounded-[20px] border px-4 py-3 text-sm ${
                       ragAlert.tone === "danger"
                         ? "border-[#5b2d2d] bg-[rgba(91,45,45,0.22)] text-[#f2d0d0]"
@@ -4034,6 +4057,7 @@ const [uiToasts, setUiToasts] = useState([]);
                       </option>
                     ))}
                   </select>
+                  {!isFocusedCopilotShell ? (
                   <button
                     type="button"
                     onClick={() => setContextEnabled((value) => !value)}
@@ -4045,6 +4069,7 @@ const [uiToasts, setUiToasts] = useState([]);
                   >
                     Contexto {contextEnabled ? "ON" : "OFF"}
                   </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => router.push("/interno/ai-task")}
@@ -4052,7 +4077,7 @@ const [uiToasts, setUiToasts] = useState([]);
                   >
                     Abrir no AI Task
                   </button>
-                  {[
+                  {!isFocusedCopilotShell ? [
                     { id: "snap", label: "Snap" },
                     { id: "balanced", label: "Balanceado" },
                     { id: "immersive", label: "Imersivo" },
@@ -4081,7 +4106,8 @@ const [uiToasts, setUiToasts] = useState([]);
                     >
                       {item.label}
                     </button>
-                  ))}
+                  )) : null}
+                  {!isFocusedCopilotShell ? (
                   <button
                     type="button"
                     onClick={() => openLlmTest(provider, input)}
@@ -4089,6 +4115,7 @@ const [uiToasts, setUiToasts] = useState([]);
                   >
                     Testar provider
                   </button>
+                  ) : null}
                   {!embeddedInInternoShell ? (
                     <button
                       type="button"

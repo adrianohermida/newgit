@@ -49,18 +49,17 @@ Deno.serve(async () => {
     const itens = (api?.itens ?? []) as Record<string, unknown>[];
 
     // ── Filtro leilão ──────────────────────────────────────────────────
-    const itensFiltrados  = itens.filter(i => !ehLeilao(i));
-    const filtradosLeilao = itens.length - itensFiltrados.length;
+    const filtradosLeilao = itens.filter(i => ehLeilao(i)).length;
 
     console.info(JSON.stringify({
       ts: new Date().toISOString(),
       msg: 'advise_realtime',
       total_recebidos: itens.length,
       filtrados_leilao: filtradosLeilao,
-      a_inserir: itensFiltrados.length,
+      a_inserir: itens.length,
     }));
 
-    const publicacoes = itensFiltrados.map(item => ({
+    const publicacoes = itens.map(item => ({
       advise_id_publicacao_cliente:  item.id,
       advise_id_publicacao:          item.idPublicacao,
       advise_id_mov_usuario_cliente: item.idMovUsuarioCliente,
@@ -118,7 +117,7 @@ Deno.serve(async () => {
 
     return new Response(JSON.stringify({
       novas_publicacoes:   publicacoes.length,
-      filtrados_leilao:    filtradosLeilao,
+      publicacoes_leilao:  filtradosLeilao,
       total_api:           itens.length,
     }), { headers: { 'Content-Type': 'application/json' } });
 

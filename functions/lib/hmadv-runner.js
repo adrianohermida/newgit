@@ -406,24 +406,47 @@ async function runDatajudTaggedPipeline(env) {
 }
 
 async function runAdviseSyncPipeline(env) {
+  const result = {
+    ok: true,
+    backfill: null,
+    incremental: null,
+  };
+
   try {
-    const data = await callHmadvFunction(
+    result.backfill = await callHmadvFunction(
+      env,
+      "sync-advise-backfill",
+      {},
+      { method: "POST", body: {} }
+    );
+  } catch (error) {
+    result.ok = false;
+    result.backfill = {
+      ok: false,
+      error: error?.message || "Falha ao rodar backfill Advise.",
+    };
+  }
+
+  try {
+    result.incremental = await callHmadvFunction(
       env,
       "advise-sync",
       {
         action: "sync",
-        por_pagina: 50,
-        max_paginas: 2,
+        por_pagina: 100,
+        max_paginas: 5,
       },
       { method: "POST", body: {} }
     );
-    return { ok: true, data };
   } catch (error) {
-    return {
+    result.ok = false;
+    result.incremental = {
       ok: false,
-      error: error?.message || "Falha ao rodar pipeline Advise.",
+      error: error?.message || "Falha ao rodar pipeline incremental Advise.",
     };
   }
+
+  return result;
 }
 
 async function runFreshsalesCoveragePipeline(env) {

@@ -8,17 +8,20 @@ import TestimonialsSection from "../components/home/TestimonialsSection";
 import BlogSection from "../components/home/BlogSection";
 import CTASection from "../components/home/CTASection";
 import Head from "next/head";
+import { useInternalTheme } from "../components/interno/InternalThemeProvider";
 
 export default function Home() {
+  const { isLightTheme } = useInternalTheme();
+
   return (
     <Layout>
       <Head>
-        <title>Advogado Especialista em Superendividamento, Juros Abusivos e Contratos Bancários | Hermida Maia</title>
-        <meta name="description" content="Consultoria jurídica em superendividamento, revisão de contratos, defesa contra juros abusivos, empréstimo consignado, cartão de crédito e direito bancário. Atendimento nacional." />
-        <meta name="keywords" content="advogado, superendividamento, revisão bancária, contratos, juros abusivo, empréstimo consignado, cartão de crédito, reserva de margem consignada, defesa do consumidor, negociação de dívidas, recuperação judicial, direito bancário, consultoria jurídica" />
+        <title>Advogado Especialista em Superendividamento, Juros Abusivos e Contratos BancÃ¡rios | Hermida Maia</title>
+        <meta name="description" content="Consultoria jurÃ­dica em superendividamento, revisÃ£o de contratos, defesa contra juros abusivos, emprÃ©stimo consignado, cartÃ£o de crÃ©dito e direito bancÃ¡rio. Atendimento nacional." />
+        <meta name="keywords" content="advogado, superendividamento, revisÃ£o bancÃ¡ria, contratos, juros abusivo, emprÃ©stimo consignado, cartÃ£o de crÃ©dito, reserva de margem consignada, defesa do consumidor, negociaÃ§Ã£o de dÃ­vidas, recuperaÃ§Ã£o judicial, direito bancÃ¡rio, consultoria jurÃ­dica" />
       </Head>
       <HeroSection />
-      <div style={{ background: "#050706", color: "#F4F1EA" }}>
+      <div style={{ background: isLightTheme ? "#F3F6FA" : "#050706", color: isLightTheme ? "#13201D" : "#F4F1EA" }}>
         <SocialProofBar />
         <ServicesSection />
         <CalculatorSection />

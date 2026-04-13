@@ -672,6 +672,12 @@ export function detectAuctionKeyword(rawPayload) {
     .some((item) => item === "LEILAO" || item === "LEILOES");
 }
 
+function isAuctionPublicationRow(row) {
+  if (!row) return false;
+  if (String(row.freshsales_activity_id || "").trim().toUpperCase() === "LEILAO_IGNORADO") return true;
+  return detectAuctionKeyword(row.raw_payload || {});
+}
+
 function testAudienciaSignal(text) {
   const clean = normalizeText(text);
   if (!clean) return false;
@@ -1057,9 +1063,9 @@ async function loadPublicacoesByProcessIds(env, processIds, limitPerProcess = 50
   for (const chunk of splitIntoChunks(processIds, 25)) {
     const rows = await hmadvRest(
       env,
-      `publicacoes?${buildInFilter("processo_id", chunk)}&select=id,processo_id,conteudo,data_publicacao&order=data_publicacao.desc.nullslast&limit=${Math.max(chunk.length * limitPerProcess, chunk.length)}`
+      `publicacoes?${buildInFilter("processo_id", chunk)}&select=id,processo_id,conteudo,data_publicacao,raw_payload,freshsales_activity_id&order=data_publicacao.desc.nullslast&limit=${Math.max(chunk.length * limitPerProcess, chunk.length)}`
     );
-    output.push(...rows);
+    output.push(...rows.filter((row) => !isAuctionPublicationRow(row)));
   }
   return output;
 }
@@ -1071,7 +1077,7 @@ async function loadPendingPublicacoesByProcessIds(env, processIds, limitPerProce
     try {
       rows = await hmadvRest(
         env,
-        `publicacoes?${buildInFilter("processo_id", chunk)}&freshsales_activity_id=is.null&select=id,processo_id,conteudo,data_publicacao,fonte,numero_processo_api,freshsales_activity_id&order=data_publicacao.desc.nullslast&limit=${Math.max(chunk.length * limitPerProcess, chunk.length)}`
+        `publicacoes?${buildInFilter("processo_id", chunk)}&freshsales_activity_id=is.null&select=id,processo_id,conteudo,data_publicacao,fonte,numero_processo_api,freshsales_activity_id,raw_payload&order=data_publicacao.desc.nullslast&limit=${Math.max(chunk.length * limitPerProcess, chunk.length)}`
       );
     } catch (error) {
       if (!schemaMessageMatches(error?.message || "", "publicacoes.fonte")) {
@@ -1079,10 +1085,10 @@ async function loadPendingPublicacoesByProcessIds(env, processIds, limitPerProce
       }
       rows = await hmadvRest(
         env,
-        `publicacoes?${buildInFilter("processo_id", chunk)}&freshsales_activity_id=is.null&select=id,processo_id,conteudo,data_publicacao,numero_processo_api,freshsales_activity_id&order=data_publicacao.desc.nullslast&limit=${Math.max(chunk.length * limitPerProcess, chunk.length)}`
+        `publicacoes?${buildInFilter("processo_id", chunk)}&freshsales_activity_id=is.null&select=id,processo_id,conteudo,data_publicacao,numero_processo_api,freshsales_activity_id,raw_payload&order=data_publicacao.desc.nullslast&limit=${Math.max(chunk.length * limitPerProcess, chunk.length)}`
       );
     }
-    output.push(...rows);
+    output.push(...rows.filter((row) => !isAuctionPublicationRow(row)));
   }
   return output;
 }
@@ -1138,8 +1144,8 @@ async function loadPartesByProcessIds(env, processIds) {
 async function loadPublicacoesSemProcesso(env, limit = 100, offset = 0) {
   return hmadvRest(
     env,
-    `publicacoes?processo_id=is.null&numero_processo_api=not.is.null&select=id,numero_processo_api,data_publicacao,conteudo&order=data_publicacao.desc.nullslast&limit=${limit}&offset=${offset}`
-  );
+    `publicacoes?processo_id=is.null&numero_processo_api=not.is.null&select=id,numero_processo_api,data_publicacao,conteudo,raw_payload,freshsales_activity_id&order=data_publicacao.desc.nullslast&limit=${limit}&offset=${offset}`
+  ).then((rows) => rows.filter((row) => !isAuctionPublicationRow(row)));
 }
 
 async function loadAllPublicacoesSemProcesso(env) {
@@ -2257,8 +2263,9 @@ export async function listPublicationActivityBacklog(env, { page = 1, pageSize =
     rawBatchSize: 150,
     maxScans: 30,
     maxProcessLoad: 30,
-    path: `publicacoes?select=id,processo_id,data_publicacao,conteudo,freshsales_activity_id&processo_id=not.is.null&freshsales_activity_id=is.null&order=data_publicacao.desc.nullslast`,
+    path: `publicacoes?select=id,processo_id,data_publicacao,conteudo,freshsales_activity_id,raw_payload&processo_id=not.is.null&freshsales_activity_id=is.null&order=data_publicacao.desc.nullslast`,
     mapRow(grouped, row) {
+      if (isAuctionPublicationRow(row)) return;
       if (!row?.processo_id) return;
       const current = grouped.get(row.processo_id) || {
         processo_id: row.processo_id,
@@ -4041,16 +4048,16 @@ export async function createProcessesFromPublicacoes(env, { processNumbers = [],
       for (const chunk of splitIntoChunks(missingTargets, 25)) {
         const rows = await hmadvRest(
           env,
-          `publicacoes?processo_id=is.null&${buildInFilter("numero_processo_api", chunk)}&select=id,processo_id,numero_processo_api,conteudo,data_publicacao,raw_payload&limit=${Math.max(chunk.length * 5, chunk.length)}`
+          `publicacoes?processo_id=is.null&${buildInFilter("numero_processo_api", chunk)}&select=id,processo_id,numero_processo_api,conteudo,data_publicacao,raw_payload,freshsales_activity_id&limit=${Math.max(chunk.length * 5, chunk.length)}`
         );
-        publicacoes.push(...rows);
+        publicacoes.push(...rows.filter((row) => !isAuctionPublicationRow(row)));
       }
     }
   } else {
-    publicacoes = await hmadvRest(
+    publicacoes = (await hmadvRest(
       env,
-      `publicacoes?processo_id=is.null&numero_processo_api=not.is.null&select=id,processo_id,numero_processo_api,conteudo,data_publicacao,raw_payload&order=data_publicacao.desc.nullslast&limit=${safeLimit}`
-    );
+      `publicacoes?processo_id=is.null&numero_processo_api=not.is.null&select=id,processo_id,numero_processo_api,conteudo,data_publicacao,raw_payload,freshsales_activity_id&order=data_publicacao.desc.nullslast&limit=${safeLimit}`
+    )).filter((row) => !isAuctionPublicationRow(row));
   }
 
   const uniqueTargets = [];

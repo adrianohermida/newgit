@@ -58,18 +58,17 @@ Deno.serve(async (req) => {
     const itens        = (api?.itens ?? []) as Record<string, unknown>[];
 
     // ── Filtro leilão ──────────────────────────────────────────────
-    const itensFiltrados  = itens.filter(i => !ehLeilao(i));
-    const filtradosLeilao = itens.length - itensFiltrados.length;
+    const filtradosLeilao = itens.filter(i => ehLeilao(i)).length;
 
     console.info(JSON.stringify({
       msg: 'backfill_filtro',
       pagina,
       total_recebidos:  itens.length,
       filtrados_leilao: filtradosLeilao,
-      a_inserir:        itensFiltrados.length,
+      a_inserir:        itens.length,
     }));
 
-    const lote = itensFiltrados.map(item => ({
+    const lote = itens.map(item => ({
       advise_id_publicacao_cliente:  item.id,
       advise_id_publicacao:          item.idPublicacao,
       advise_id_mov_usuario_cliente: item.idMovUsuarioCliente,
@@ -127,7 +126,7 @@ Deno.serve(async (req) => {
       proxima_pagina:      proximaPagina,
       total_paginas:       totalPaginas,
       registros:           lote.length,
-      filtrados_leilao:    filtradosLeilao,
+      publicacoes_leilao:  filtradosLeilao,
     }), { headers: { 'Content-Type': 'application/json' } });
 
   } catch (error: unknown) {

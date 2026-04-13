@@ -3,79 +3,79 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Search, MessageSquare, Phone, Send } from "lucide-react";
 import Layout from "../components/Layout";
 import Head from "next/head";
+import { useInternalTheme } from "../components/interno/InternalThemeProvider";
 
-const GREEN = "#11d473"; // não será mais usado para botões/headers
-const DARK = "#050706"; // reforça darkmode igual ao header do Layout
+const DARK = "#050706";
 
 const FAQS = [
   {
     category: "geral",
-    q: "O que é a Lei do Superendividamento?",
-    a: "A Lei do Superendividamento (Lei 14.181/2021) é um instrumento jurídico que permite aos consumidores que não conseguem pagar suas dívidas sem comprometer o mínimo para sua sobrevivência, renegociarem todos os seus débitos de forma conjunta e organizada, garantindo a dignidade da pessoa humana.",
+    q: "O que Ã© a Lei do Superendividamento?",
+    a: "A Lei do Superendividamento (Lei 14.181/2021) Ã© um instrumento jurÃ­dico que permite aos consumidores que nÃ£o conseguem pagar suas dÃ­vidas sem comprometer o mÃ­nimo para sua sobrevivÃªncia, renegociarem todos os seus dÃ©bitos de forma conjunta e organizada, garantindo a dignidade da pessoa humana.",
   },
   {
     category: "bancario",
-    q: "Como identificar se os juros do meu contrato são abusivos?",
-    a: "Juros abusivos são identificados quando a taxa cobrada pelo banco é significativamente superior à taxa média de mercado divulgada pelo Banco Central para a mesma modalidade de crédito na época da contratação. Realizamos uma perícia técnica detalhada para comprovar essas irregularidades.",
+    q: "Como identificar se os juros do meu contrato sÃ£o abusivos?",
+    a: "Juros abusivos sÃ£o identificados quando a taxa cobrada pelo banco Ã© significativamente superior Ã  taxa mÃ©dia de mercado divulgada pelo Banco Central para a mesma modalidade de crÃ©dito na Ã©poca da contrataÃ§Ã£o. Realizamos uma perÃ­cia tÃ©cnica detalhada para comprovar essas irregularidades.",
   },
   {
     category: "superendividamento",
-    q: "Posso limpar meu nome antes de pagar toda a dívida?",
-    a: "Em muitos casos, ao iniciar uma ação revisional ou um processo de repactuação de dívidas baseado no superendividamento, é possível solicitar uma liminar para suspender os efeitos da inadimplência e retirar as restrições nos órgãos de proteção ao crédito (SPC/SERASA).",
+    q: "Posso limpar meu nome antes de pagar toda a dÃ­vida?",
+    a: "Em muitos casos, ao iniciar uma aÃ§Ã£o revisional ou um processo de repactuaÃ§Ã£o de dÃ­vidas baseado no superendividamento, Ã© possÃ­vel solicitar uma liminar para suspender os efeitos da inadimplÃªncia e retirar as restriÃ§Ãµes nos Ã³rgÃ£os de proteÃ§Ã£o ao crÃ©dito (SPC/SERASA).",
   },
   {
     category: "recuperacao",
-    q: "O que é a Recuperação Judicial para Produtores Rurais?",
-    a: "É um benefício legal que permite ao produtor rural reestruturar suas dívidas, suspender execuções e manter sua produção ativa durante momentos de crise financeira, permitindo o pagamento dos credores em prazos e condições compatíveis com a realidade do campo.",
+    q: "O que Ã© a RecuperaÃ§Ã£o Judicial para Produtores Rurais?",
+    a: "Ã‰ um benefÃ­cio legal que permite ao produtor rural reestruturar suas dÃ­vidas, suspender execuÃ§Ãµes e manter sua produÃ§Ã£o ativa durante momentos de crise financeira, permitindo o pagamento dos credores em prazos e condiÃ§Ãµes compatÃ­veis com a realidade do campo.",
   },
   {
     category: "bancario",
-    q: "Quanto tempo demora um processo de revisão de juros?",
-    a: "O tempo médio de um processo judicial de revisão de juros varia entre 12 a 24 meses. No entanto, em muitos casos, conseguimos obter liminares favoráveis logo no início do processo e propostas de acordo por parte das instituições financeiras que podem acelerar a resolução.",
+    q: "Quanto tempo demora um processo de revisÃ£o de juros?",
+    a: "O tempo mÃ©dio de um processo judicial de revisÃ£o de juros varia entre 12 a 24 meses. No entanto, em muitos casos, conseguimos obter liminares favorÃ¡veis logo no inÃ­cio do processo e propostas de acordo por parte das instituiÃ§Ãµes financeiras que podem acelerar a resoluÃ§Ã£o.",
   },
   {
     category: "bancario",
-    q: "O banco pode tomar meu veículo durante o processo?",
-    a: "Nossa estratégia jurídica visa justamente impedir a busca e apreensão. Através do depósito do valor que entendemos como justo e da demonstração de abusividade contratual, solicitamos liminares para manter a posse do bem com o consumidor enquanto o mérito é discutido.",
+    q: "O banco pode tomar meu veÃ­culo durante o processo?",
+    a: "Nossa estratÃ©gia jurÃ­dica visa justamente impedir a busca e apreensÃ£o. AtravÃ©s do depÃ³sito do valor que entendemos como justo e da demonstraÃ§Ã£o de abusividade contratual, solicitamos liminares para manter a posse do bem com o consumidor enquanto o mÃ©rito Ã© discutido.",
   },
   {
     category: "geral",
-    q: "Quais documentos são necessários para iniciar o atendimento?",
-    a: "Para uma análise preliminar, geralmente precisamos da cópia do contrato bancário (ou extratos), documentos pessoais (RG/CPF), comprovante de residência e, se possível, os últimos comprovantes de pagamento das parcelas.",
+    q: "Quais documentos sÃ£o necessÃ¡rios para iniciar o atendimento?",
+    a: "Para uma anÃ¡lise preliminar, geralmente precisamos da cÃ³pia do contrato bancÃ¡rio (ou extratos), documentos pessoais (RG/CPF), comprovante de residÃªncia e, se possÃ­vel, os Ãºltimos comprovantes de pagamento das parcelas.",
   },
   {
     category: "geral",
-    q: "Atendem clientes de outros estados além de São Paulo?",
-    a: "Sim. Graças ao processo judicial 100% digital e às ferramentas de atendimento online, prestamos assessoria jurídica para consumidores e produtores rurais em todo o território nacional, mantendo o mesmo padrão de excelência e proximidade.",
+    q: "Atendem clientes de outros estados alÃ©m de SÃ£o Paulo?",
+    a: "Sim. GraÃ§as ao processo judicial 100% digital e Ã s ferramentas de atendimento online, prestamos assessoria jurÃ­dica para consumidores e produtores rurais em todo o territÃ³rio nacional, mantendo o mesmo padrÃ£o de excelÃªncia e proximidade.",
   },
 ];
 
 const CATEGORIES = [
   { id: "all", label: "Geral" },
-  { id: "bancario", label: "Direito Bancário" },
+  { id: "bancario", label: "Direito BancÃ¡rio" },
   { id: "superendividamento", label: "Superendividamento" },
-  { id: "recuperacao", label: "Recuperação Judicial" },
+  { id: "recuperacao", label: "RecuperaÃ§Ã£o Judicial" },
 ];
 
-
-function FAQItem({ item, defaultOpen }) {
+function FAQItem({ item, defaultOpen, isLightTheme }) {
   const [open, setOpen] = useState(defaultOpen || false);
+
   return (
     <div
       className="rounded-xl border overflow-hidden"
-      style={{ background: "#181a1b", borderColor: open ? "#C5A059" : "#232323" }}
+      style={{ background: isLightTheme ? "#FFFFFF" : "#181a1b", borderColor: open ? "#C5A059" : (isLightTheme ? "#D4DEE8" : "#232323") }}
     >
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between p-6 text-left"
       >
-        <h3 className="font-bold text-lg pr-4" style={{ color: "#F4F1EA" }}>{item.q}</h3>
+        <h3 className="font-bold text-lg pr-4" style={{ color: isLightTheme ? "#13201D" : "#F4F1EA" }}>{item.q}</h3>
         <ChevronDown
           size={22}
-          style={{ color: open ? "#C5A059" : "#F4F1EA", flexShrink: 0, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.3s" }}
+          style={{ color: open ? "#C5A059" : (isLightTheme ? "#13201D" : "#F4F1EA"), flexShrink: 0, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.3s" }}
         />
       </button>
-      <div style={{ background: "#232323", color: "#F4F1EA" }}>
+      <div style={{ background: isLightTheme ? "#F7FAFC" : "#232323", color: isLightTheme ? "#13201D" : "#F4F1EA" }}>
         <AnimatePresence>
           {open && (
             <motion.div
@@ -85,7 +85,7 @@ function FAQItem({ item, defaultOpen }) {
               transition={{ duration: 0.3 }}
               style={{ overflow: "hidden" }}
             >
-              <div className="px-6 pb-6 leading-relaxed border-t" style={{ color: "#C5A059", borderColor: "#2D2E2E" }}>
+              <div className="px-6 pb-6 leading-relaxed border-t" style={{ color: isLightTheme ? "#4F5F5B" : "#C5A059", borderColor: isLightTheme ? "#D4DEE8" : "#2D2E2E" }}>
                 <div className="pt-4">{item.a}</div>
               </div>
             </motion.div>
@@ -99,29 +99,32 @@ function FAQItem({ item, defaultOpen }) {
 export default function FAQ() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [search, setSearch] = useState("");
+  const { isLightTheme } = useInternalTheme();
+
   const filtered = FAQS.filter((f) => {
     const matchCat = activeCategory === "all" || f.category === activeCategory;
     const matchSearch = search === "" || f.q.toLowerCase().includes(search.toLowerCase()) || f.a.toLowerCase().includes(search.toLowerCase());
     return matchCat && matchSearch;
   });
+
   return (
     <Layout>
       <Head>
-        <title>Dúvidas Frequentes: Superendividamento, Juros Abusivos, Contratos e Direito Bancário | Hermida Maia</title>
-        <meta name="description" content="Perguntas e respostas sobre superendividamento, revisão bancária, contratos, empréstimo consignado, cartão de crédito, defesa do consumidor e direito bancário." />
-        <meta name="keywords" content="advogado, faq, dúvidas frequentes, superendividamento, revisão bancária, contratos, juros abusivo, empréstimo consignado, cartão de crédito, defesa do consumidor, direito bancário" />
+        <title>DÃºvidas Frequentes: Superendividamento, Juros Abusivos, Contratos e Direito BancÃ¡rio | Hermida Maia</title>
+        <meta name="description" content="Perguntas e respostas sobre superendividamento, revisÃ£o bancÃ¡ria, contratos, emprÃ©stimo consignado, cartÃ£o de crÃ©dito, defesa do consumidor e direito bancÃ¡rio." />
+        <meta name="keywords" content="advogado, faq, dÃºvidas frequentes, superendividamento, revisÃ£o bancÃ¡ria, contratos, juros abusivo, emprÃ©stimo consignado, cartÃ£o de crÃ©dito, defesa do consumidor, direito bancÃ¡rio" />
       </Head>
 
-      <div style={{ background: "#181a1b", color: "#F4F1EA" }}>
-        {/* Hero */}
-        <section className="relative py-20 overflow-hidden" style={{ background: DARK }}>
+      <div style={{ background: isLightTheme ? "#F3F6FA" : "#181a1b", color: isLightTheme ? "#13201D" : "#F4F1EA" }}>
+        <section className="relative py-20 overflow-hidden" style={{ background: isLightTheme ? "#EEF2F6" : DARK }}>
           <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, rgba(197,160,89,0.10) 0%, transparent 60%)" }} />
           <div className="relative max-w-4xl mx-auto px-4 text-center">
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="text-[#F4F1EA] text-4xl md:text-6xl font-black mb-6"
+              className="text-4xl md:text-6xl font-black mb-6"
+              style={{ color: isLightTheme ? "#13201D" : "#F4F1EA" }}
             >
               Perguntas Frequentes
             </motion.h1>
@@ -131,21 +134,20 @@ export default function FAQ() {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="text-[#C5A059] text-lg md:text-xl leading-relaxed"
             >
-              Esclareça suas dúvidas sobre seus direitos e encontre as melhores soluções jurídicas para recuperar sua saúde financeira e tranquilidade.
+              EsclareÃ§a suas dÃºvidas sobre seus direitos e encontre as melhores soluÃ§Ãµes jurÃ­dicas para recuperar sua saÃºde financeira e tranquilidade.
             </motion.p>
           </div>
         </section>
 
-        {/* Search & Categories */}
         <section className="max-w-4xl mx-auto px-4 -mt-8 relative z-10">
-          <div className="rounded-xl shadow-2xl p-6 border" style={{ background: "#232323", borderColor: "#2D2E2E" }}>
+          <div className="rounded-xl shadow-2xl p-6 border" style={{ background: isLightTheme ? "#FFFFFF" : "#232323", borderColor: isLightTheme ? "#D4DEE8" : "#2D2E2E" }}>
             <div className="relative">
               <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: "#C5A059" }} />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-12 pr-4 py-4 rounded-lg outline-none"
-                style={{ background: "#181a1b", color: "#F4F1EA" }}
+                style={{ background: isLightTheme ? "#F7FAFC" : "#181a1b", color: isLightTheme ? "#13201D" : "#F4F1EA" }}
                 placeholder="Busque por um tema (ex: Superendividamento, Juros Abusivos...)"
               />
             </div>
@@ -158,7 +160,7 @@ export default function FAQ() {
                   style={
                     activeCategory === cat.id
                       ? { background: "#C5A059", color: DARK }
-                      : { background: "#232323", color: "#F4F1EA", border: "1px solid #2D2E2E" }
+                      : { background: isLightTheme ? "#FFFFFF" : "#232323", color: isLightTheme ? "#13201D" : "#F4F1EA", border: `1px solid ${isLightTheme ? "#D4DEE8" : "#2D2E2E"}` }
                   }
                 >
                   {cat.label}
@@ -168,28 +170,26 @@ export default function FAQ() {
           </div>
         </section>
 
-        {/* FAQ List */}
         <section className="max-w-4xl mx-auto px-4 py-20">
           <div className="space-y-4">
             {filtered.length === 0 ? (
               <p className="text-center py-12" style={{ color: "#94a3b8" }}>Nenhum resultado encontrado.</p>
             ) : (
               filtered.map((item, i) => (
-                <FAQItem key={i} item={item} defaultOpen={i === 0} />
+                <FAQItem key={i} item={item} defaultOpen={i === 0} isLightTheme={isLightTheme} />
               ))
             )}
           </div>
         </section>
 
-        {/* CTA */}
-        <section className="py-20" style={{ background: DARK }}>
+        <section className="py-20" style={{ background: isLightTheme ? "#E7EDF4" : DARK }}>
           <div className="max-w-4xl mx-auto px-4 text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-8" style={{ background: "rgba(197,160,89,0.10)" }}>
               <MessageSquare size={28} style={{ color: "#C5A059" }} />
             </div>
-            <h2 className="text-3xl md:text-4xl font-bold text-[#F4F1EA] mb-6">Ainda tem dúvidas?</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-6" style={{ color: isLightTheme ? "#13201D" : "#F4F1EA" }}>Ainda tem dÃºvidas?</h2>
             <p className="text-lg mb-10" style={{ color: "#C5A059" }}>
-              Cada caso é único. Nossos especialistas estão prontos para analisar sua situação específica e oferecer o melhor caminho jurídico.
+              Cada caso Ã© Ãºnico. Nossos especialistas estÃ£o prontos para analisar sua situaÃ§Ã£o especÃ­fica e oferecer o melhor caminho jurÃ­dico.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <a
