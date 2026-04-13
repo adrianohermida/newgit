@@ -35,6 +35,7 @@ function normalizeText(value) {
 function cleanPartyName(value) {
   return String(value || "")
     .replace(/^[\s,;:\.\-–—]+/g, "")
+    .replace(/^\d+\s+(?=\S)/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
