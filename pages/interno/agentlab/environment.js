@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/router";
 import InternoLayout from "../../../components/interno/InternoLayout";
+import { useInternalTheme } from "../../../components/interno/InternalThemeProvider";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
 import { useAgentLabData } from "../../../lib/agentlab/useAgentLabData";
@@ -8,8 +9,9 @@ import { setModuleHistory } from "../../../lib/admin/activity-log";
 import { buildModuleSnapshot } from "../../../lib/admin/module-registry";
 
 function Panel({ title, children }) {
+  const { isLightTheme } = useInternalTheme();
   return (
-    <section className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
+    <section className={`border p-6 ${isLightTheme ? "border-[#d7d4cb] bg-[rgba(255,255,255,0.92)] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
       <h3 className="mb-4 font-serif text-2xl">{title}</h3>
       {children}
     </section>
@@ -22,7 +24,7 @@ function getDotobotRagHealthStatus(health) {
       tone: "text-emerald-400",
       label: "Operacional",
       headline: "OK",
-      summary: "Embedding e consulta vetorial estão funcionais em pelo menos um backend principal.",
+      summary: "Embedding e consulta vetorial estao funcionais em pelo menos um backend principal.",
     };
   }
 
@@ -31,7 +33,7 @@ function getDotobotRagHealthStatus(health) {
       tone: "text-amber-300",
       label: "Degradado",
       headline: "Degradado",
-      summary: "O fallback local está ativo, mas os provedores principais de embedding e busca vetorial não estão saudáveis.",
+      summary: "O fallback local esta ativo, mas os provedores principais de embedding e busca vetorial nao estao saudaveis.",
     };
   }
 
@@ -45,7 +47,7 @@ function getDotobotRagHealthStatus(health) {
       tone: "text-emerald-400",
       label: "Operacional",
       headline: "OK",
-      summary: "Embedding e consulta vetorial estão funcionais em pelo menos um backend principal.",
+      summary: "Embedding e consulta vetorial estao funcionais em pelo menos um backend principal.",
     };
   }
 
@@ -54,7 +56,7 @@ function getDotobotRagHealthStatus(health) {
       tone: "text-amber-300",
       label: "Degradado",
       headline: "Degradado",
-      summary: "O fallback local está ativo, mas os provedores principais de embedding e busca vetorial não estão saudáveis.",
+      summary: "O fallback local esta ativo, mas os provedores principais de embedding e busca vetorial nao estao saudaveis.",
     };
   }
 
@@ -62,7 +64,7 @@ function getDotobotRagHealthStatus(health) {
     tone: "text-rose-300",
     label: "Falha",
     headline: "Falha",
-    summary: "Nenhum backend de RAG está operacional no momento.",
+    summary: "Nenhum backend de RAG esta operacional no momento.",
   };
 }
 
@@ -81,7 +83,7 @@ function getProvidersHealthStatus(health) {
       tone: "text-amber-300",
       label: "Degradado",
       headline: "Degradado",
-      summary: "Há providers configurados, mas nenhum deles está integralmente saudável.",
+      summary: "Ha providers configurados, mas nenhum deles esta integralmente saudavel.",
     };
   }
 
@@ -89,7 +91,7 @@ function getProvidersHealthStatus(health) {
     tone: "text-rose-300",
     label: "Falha",
     headline: "Falha",
-    summary: "Nenhum provider LLM utilizável foi detectado.",
+    summary: "Nenhum provider LLM utilizavel foi detectado.",
   };
 }
 
@@ -100,6 +102,10 @@ function parseCopilotContext(rawValue) {
   } catch {
     return null;
   }
+}
+
+function StatusInline({ ok, yesLabel = "OK", noLabel = "Falhou" }) {
+  return <span className={ok ? "text-emerald-400" : "text-amber-300"}>{ok ? yesLabel : noLabel}</span>;
 }
 
 export default function AgentLabEnvironmentPage() {
@@ -113,7 +119,7 @@ export default function AgentLabEnvironmentPage() {
         <InternoLayout
           profile={profile}
           title="AgentLab - Ambiente"
-          description="Diagnóstico do schema, bootstrap do Supabase e estado operacional do ambiente do AgentLab."
+          description="Diagnostico do schema, bootstrap do Supabase e estado operacional do ambiente do AgentLab."
         >
           <AgentLabModuleNav />
           <EnvironmentContent state={state} copilotContext={copilotContext} />
@@ -124,8 +130,10 @@ export default function AgentLabEnvironmentPage() {
 }
 
 function EnvironmentContent({ state, copilotContext }) {
+  const { isLightTheme } = useInternalTheme();
+
   if (state.loading) {
-    return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando diagnóstico do laboratório...</div>;
+    return <div className={`border p-6 ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#4b5563]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>Carregando diagnostico do laboratorio...</div>;
   }
 
   if (state.error) {
@@ -183,56 +191,59 @@ function EnvironmentContent({ state, copilotContext }) {
     widgetEventSummary.total,
   ]);
 
+  const muted = isLightTheme ? "text-[#4b5563]" : "opacity-75";
+  const subtle = isLightTheme ? "text-[#6b7280]" : "opacity-50";
+  const cardTone = isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]";
+
   return (
     <div className="space-y-8">
       {copilotContext ? (
         <Panel title="Contexto vindo do Copilot">
-          <div className="space-y-2 text-sm opacity-75">
+          <div className={`space-y-2 text-sm ${muted}`}>
             <p className="font-semibold">{copilotContext.conversationTitle || "Conversa ativa"}</p>
             {copilotContext.mission ? <p>{copilotContext.mission}</p> : null}
-            <p>Use esta trilha para revisar runtime, schema, RAG e providers antes de retomar a operação.</p>
+            <p>Use esta trilha para revisar runtime, schema, RAG e providers antes de retomar a operacao.</p>
           </div>
         </Panel>
       ) : null}
+
       <div className="grid gap-4 md:grid-cols-3">
-        <Panel title={`Modo: ${environment.mode === "degraded" ? "Contingência" : "Conectado"}`}>
-          <p className="text-sm opacity-75">{environment.message}</p>
+        <Panel title={`Modo: ${environment.mode === "degraded" ? "Contingencia" : "Conectado"}`}>
+          <p className={`text-sm ${muted}`}>{environment.message}</p>
         </Panel>
         <Panel title={`Tabelas prontas: ${readyCount}`}>
-          <p className="text-sm opacity-75">Tabelas do AgentLab encontradas no schema atual e prontas para evolução do laboratório.</p>
+          <p className={`text-sm ${muted}`}>Tabelas do AgentLab encontradas no schema atual e prontas para evolucao do laboratorio.</p>
         </Panel>
         <Panel title={`Tabelas ausentes: ${missingCount}`}>
-          <p className="text-sm opacity-75">Tabelas que ainda precisam existir no projeto Supabase do Pages.</p>
+          <p className={`text-sm ${muted}`}>Tabelas que ainda precisam existir no projeto Supabase do Pages.</p>
         </Panel>
       </div>
 
       <Panel title="Bootstrap recomendado">
-        <div className="space-y-3 text-sm opacity-75">
+        <div className={`space-y-3 text-sm ${muted}`}>
           <p>
-            SQL consolidado:
-            {" "}
+            SQL consolidado:{" "}
             [agentlab-bootstrap-supabase.sql](/D:/Github/newgit/docs/agentlab-bootstrap-supabase.sql)
           </p>
           <p>
-            Runbook:
-            {" "}
+            Runbook:{" "}
             [agentlab-bootstrap-supabase.md](/D:/Github/newgit/docs/agentlab-bootstrap-supabase.md)
           </p>
-          <p>Depois de aplicar o SQL no projeto correto, faça um hard refresh autenticado e valide o painel novamente.</p>
+          <p>Depois de aplicar o SQL no projeto correto, faca um hard refresh autenticado e valide o painel novamente.</p>
         </div>
       </Panel>
 
-      <Panel title="Diagnóstico Freshchat API">
-        <div className="space-y-3 text-sm opacity-75">
+      <Panel title="Diagnostico Freshchat API">
+        <div className={`space-y-3 text-sm ${muted}`}>
           <p>
             Status:{" "}
             <span className={freshchatApi.ok ? "text-emerald-400" : "text-amber-300"}>
-              {freshchatApi.ok ? "Válido" : freshchatApi.configured ? "Configurado com ressalvas" : "Não configurado"}
+              {freshchatApi.ok ? "Valido" : freshchatApi.configured ? "Configurado com ressalvas" : "Nao configurado"}
             </span>
           </p>
-          <p>Base configurada: {freshchatApi.baseUrlPreview || "não informada"}</p>
+          <p>Base configurada: {freshchatApi.baseUrlPreview || "nao informada"}</p>
           <p>Tipo de token: {freshchatApi.tokenType || "missing"}</p>
-          <p>{freshchatApi.message || "Sem diagnóstico adicional."}</p>
+          <p>{freshchatApi.message || "Sem diagnostico adicional."}</p>
           {(freshchatApi.issues || []).length ? (
             <div>
               <p className="font-semibold">Sinais detectados:</p>
@@ -246,23 +257,23 @@ function EnvironmentContent({ state, copilotContext }) {
         </div>
       </Panel>
 
-      <Panel title="Diagnóstico Freshchat Web Messenger">
-        <div className="space-y-3 text-sm opacity-75">
+      <Panel title="Diagnostico Freshchat Web Messenger">
+        <div className={`space-y-3 text-sm ${muted}`}>
           <p>
             Status:{" "}
             <span className={freshchatWeb.enabled ? "text-emerald-400" : "text-amber-300"}>
               {freshchatWeb.enabled ? "Widget habilitado" : "Widget desabilitado"}
             </span>
           </p>
-          <p>Modo: {freshchatWeb.mode || "não configurado"}</p>
-          <p>Script embed: {freshchatWeb.scriptUrl || "não informado"}</p>
-          <p>Host do widget: {freshchatWeb.widgetHost || "não informado"}</p>
+          <p>Modo: {freshchatWeb.mode || "nao configurado"}</p>
+          <p>Script embed: {freshchatWeb.scriptUrl || "nao informado"}</p>
+          <p>Host do widget: {freshchatWeb.widgetHost || "nao informado"}</p>
           <p>Token do Web Messenger: {freshchatWeb.messengerTokenPresent ? "presente" : "ausente"}</p>
-          <p>JWT: {freshchatWeb.jwtEnabled ? "habilitado" : "não configurado"}</p>
+          <p>JWT: {freshchatWeb.jwtEnabled ? "habilitado" : "nao configurado"}</p>
           <p>Env do host em uso: {freshchatWeb.resolvedKeys?.host || "nenhuma detectada"}</p>
           <p>Env do token em uso: {freshchatWeb.resolvedKeys?.token || "nenhuma detectada"}</p>
           <p>Env do JWT em uso: {freshchatWeb.resolvedKeys?.jwtSecret || "nenhuma detectada"}</p>
-          <p>{freshchatWeb.message || "Sem diagnóstico adicional."}</p>
+          <p>{freshchatWeb.message || "Sem diagnostico adicional."}</p>
           {(freshchatWeb.issues || []).length ? (
             <div>
               <p className="font-semibold">Sinais detectados:</p>
@@ -285,22 +296,12 @@ function EnvironmentContent({ state, copilotContext }) {
       </Panel>
 
       <Panel title={`Healthcheck Dotobot RAG: ${dotobotRagStatus.headline}`}>
-        <div className="space-y-3 text-sm opacity-75">
-          <p>
-            Status:{" "}
-            <span className={dotobotRagStatus.tone}>
-              {dotobotRagStatus.label}
-            </span>
-          </p>
+        <div className={`space-y-3 text-sm ${muted}`}>
+          <p>Status: <span className={dotobotRagStatus.tone}>{dotobotRagStatus.label}</span></p>
           <p>{dotobotRagStatus.summary}</p>
           <p>Estado do backend: <span className={dotobotRagStatus.tone}>{dotobotRagHealth.status || "desconhecido"}</span></p>
-          <p>Atualizado em: {dotobotRagReport.timestamp ? new Date(dotobotRagReport.timestamp).toLocaleString("pt-BR") : "não informado"}</p>
-          <p>
-            Embedding Cloudflare:{" "}
-            <span className={dotobotRagReport.embedding?.ok ? "text-emerald-400" : "text-amber-300"}>
-              {dotobotRagReport.embedding?.ok ? `OK${dotobotRagReport.embedding?.dimensions ? ` (${dotobotRagReport.embedding.dimensions} dims)` : ""}` : "falhou"}
-            </span>
-          </p>
+          <p>Atualizado em: {dotobotRagReport.timestamp ? new Date(dotobotRagReport.timestamp).toLocaleString("pt-BR") : "nao informado"}</p>
+          <p>Embedding Cloudflare: <StatusInline ok={dotobotRagReport.embedding?.ok} yesLabel={`OK${dotobotRagReport.embedding?.dimensions ? ` (${dotobotRagReport.embedding.dimensions} dims)` : ""}`} /></p>
           <p>
             Consulta vetorial Cloudflare:{" "}
             <span className={dotobotRagReport.query?.skipped ? "text-slate-300" : dotobotRagReport.query?.ok ? "text-emerald-400" : "text-amber-300"}>
@@ -311,14 +312,7 @@ function EnvironmentContent({ state, copilotContext }) {
                 : "falhou"}
             </span>
           </p>
-          <p>
-            Embedding Supabase:{" "}
-            <span className={dotobotRagReport.supabaseEmbedding?.ok ? "text-emerald-400" : "text-amber-300"}>
-              {dotobotRagReport.supabaseEmbedding?.ok
-                ? `OK${dotobotRagReport.supabaseEmbedding?.dimensions ? ` (${dotobotRagReport.supabaseEmbedding.dimensions} dims)` : ""}`
-                : "falhou"}
-            </span>
-          </p>
+          <p>Embedding Supabase: <StatusInline ok={dotobotRagReport.supabaseEmbedding?.ok} yesLabel={`OK${dotobotRagReport.supabaseEmbedding?.dimensions ? ` (${dotobotRagReport.supabaseEmbedding.dimensions} dims)` : ""}`} /></p>
           <p>
             Consulta vetorial Supabase:{" "}
             <span className={dotobotRagReport.supabaseQuery?.skipped ? "text-slate-300" : dotobotRagReport.supabaseQuery?.ok ? "text-emerald-400" : "text-amber-300"}>
@@ -336,18 +330,13 @@ function EnvironmentContent({ state, copilotContext }) {
             </span>
           </p>
           <p>
-            Persistência Supabase:{" "}
+            Persistencia Supabase:{" "}
             <span className={dotobotRagReport.supabaseUpsert?.skipped ? "text-slate-300" : dotobotRagReport.supabaseUpsert?.ok ? "text-emerald-400" : "text-amber-300"}>
               {dotobotRagReport.supabaseUpsert?.skipped ? "ignorada" : dotobotRagReport.supabaseUpsert?.ok ? "OK" : "falhou"}
             </span>
           </p>
           {dotobotSupabase?.enabled !== undefined ? (
-            <p>
-              Backend Supabase:{" "}
-              <span className={dotobotSupabase.enabled ? "text-emerald-400" : "text-amber-300"}>
-                {dotobotSupabase.enabled ? "habilitado" : "não configurado"}
-              </span>
-            </p>
+            <p>Backend Supabase: <span className={dotobotSupabase.enabled ? "text-emerald-400" : "text-amber-300"}>{dotobotSupabase.enabled ? "habilitado" : "nao configurado"}</span></p>
           ) : null}
           <p>SUPABASE_URL: {dotobotSupabase.baseUrlConfigured ? "configurado" : "ausente"}</p>
           {dotobotSupabase.baseUrlSource ? <p>Fonte SUPABASE_URL: {dotobotSupabase.baseUrlSource}</p> : null}
@@ -355,29 +344,20 @@ function EnvironmentContent({ state, copilotContext }) {
           {dotobotSupabase.serviceKeySource ? <p>Fonte service role: {dotobotSupabase.serviceKeySource}</p> : null}
           <p>DOTOBOT_SUPABASE_EMBED_SECRET: {dotobotSupabase.embedSecretConfigured ? "configurado" : "ausente"}</p>
           {dotobotSupabase.embedSecretSource ? <p>Fonte embed secret: {dotobotSupabase.embedSecretSource}</p> : null}
-          {dotobotSignals.appEmbedSecretMissing ? (
-            <p className="text-amber-300">Sinal: o app que chama o healthcheck não tem DOTOBOT_SUPABASE_EMBED_SECRET configurado.</p>
-          ) : null}
-          {dotobotSignals.supabaseAuthMismatch ? (
-            <p className="text-amber-300">Sinal: a autenticação do dotobot-embed falhou; confira se o mesmo segredo está presente no app e na Edge Function.</p>
-          ) : null}
+          {dotobotSignals.appEmbedSecretMissing ? <p className="text-amber-300">Sinal: o app que chama o healthcheck nao tem DOTOBOT_SUPABASE_EMBED_SECRET configurado.</p> : null}
+          {dotobotSignals.supabaseAuthMismatch ? <p className="text-amber-300">Sinal: a autenticacao do dotobot-embed falhou; confira se o mesmo segredo esta presente no app e na Edge Function.</p> : null}
           {dotobotSupabase?.memoryTable ? <p>Tabela: {dotobotSupabase.memoryTable}</p> : null}
           {dotobotSupabase?.embeddingFunction ? <p>Function: {dotobotSupabase.embeddingFunction}</p> : null}
           {dotobotSupabase?.embeddingFunctionSource ? <p>Fonte function: {dotobotSupabase.embeddingFunctionSource}</p> : null}
           {dotobotSupabase?.embeddingModel ? <p>Modelo: {dotobotSupabase.embeddingModel}</p> : null}
           {dotobotSupabase?.embeddingModelSource ? <p>Fonte modelo: {dotobotSupabase.embeddingModelSource}</p> : null}
           {dotobotObsidian?.enabled !== undefined ? (
-            <p>
-              Obsidian fallback:{" "}
-              <span className={dotobotObsidian.enabled ? "text-emerald-400" : "text-amber-300"}>
-                {dotobotObsidian.enabled ? "habilitado" : "não configurado"}
-              </span>
-            </p>
+            <p>Obsidian fallback: <span className={dotobotObsidian.enabled ? "text-emerald-400" : "text-amber-300"}>{dotobotObsidian.enabled ? "habilitado" : "nao configurado"}</span></p>
           ) : null}
           {dotobotObsidian?.memoryDir ? <p>Vault memory dir: {dotobotObsidian.memoryDir}</p> : null}
           {(dotobotRagHealth.recommendations || []).length ? (
             <div>
-              <p className="font-semibold">Recomendações:</p>
+              <p className="font-semibold">Recomendacoes:</p>
               <ul className="mt-2 space-y-1">
                 {dotobotRagHealth.recommendations.map((item) => (
                   <li key={item}>- {item}</li>
@@ -385,8 +365,8 @@ function EnvironmentContent({ state, copilotContext }) {
               </ul>
             </div>
           ) : null}
-          <p className="text-xs uppercase tracking-[0.16em] opacity-50">
-            Query: {dotobotRagReport.query?.skipped ? "healthcheck superficial sem upsert: rode o diagnóstico profundo e verifique as secrets do RAG" : dotobotRagReport.query?.ok ? "healthcheck dotobot memory retrieval" : "verifique as secrets do RAG"}
+          <p className={`text-xs uppercase tracking-[0.16em] ${subtle}`}>
+            Query: {dotobotRagReport.query?.skipped ? "healthcheck superficial sem upsert: rode o diagnostico profundo e verifique as secrets do RAG" : dotobotRagReport.query?.ok ? "healthcheck dotobot memory retrieval" : "verifique as secrets do RAG"}
           </p>
           {dotobotRagHealth.error ? <p className="text-[#f2b2b2]">{dotobotRagHealth.error}</p> : null}
           {(dotobotRagReport.embedding?.error || dotobotRagReport.query?.error || dotobotRagReport.supabaseEmbedding?.error || dotobotRagReport.supabaseQuery?.error || dotobotRagReport.upsert?.error || dotobotRagReport.supabaseUpsert?.error) ? (
@@ -399,40 +379,35 @@ function EnvironmentContent({ state, copilotContext }) {
       </Panel>
 
       <Panel title={`Healthcheck Providers LLM: ${providersHealthStatus.headline}`}>
-        <div className="space-y-3 text-sm opacity-75">
-          <p>
-            Status:{" "}
-            <span className={providersHealthStatus.tone}>
-              {providersHealthStatus.label}
-            </span>
-          </p>
+        <div className={`space-y-3 text-sm ${muted}`}>
+          <p>Status: <span className={providersHealthStatus.tone}>{providersHealthStatus.label}</span></p>
           <p>{providersHealthStatus.summary}</p>
           <p>Estado agregado: <span className={providersHealthStatus.tone}>{lawdeskProvidersHealth.status || "desconhecido"}</span></p>
           <p>Providers operacionais: {lawdeskProvidersHealth.summary?.operational ?? 0}</p>
           <p>Providers configurados: {lawdeskProvidersHealth.summary?.configured ?? 0}</p>
-          <p>Provider padrão: {lawdeskProvidersHealth.summary?.defaultProvider || "gpt"}</p>
+          <p>Provider padrao: {lawdeskProvidersHealth.summary?.defaultProvider || "gpt"}</p>
           {(lawdeskProvidersHealth.providers || []).length ? (
             <div className="space-y-3 pt-2">
               {lawdeskProvidersHealth.providers.map((provider) => (
-                <div key={provider.id} className="rounded-[18px] border border-[#2D2E2E] bg-[rgba(255,255,255,0.02)] p-4">
+                <div key={provider.id} className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(255,255,255,0.02)]"}`}>
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-white">{provider.label || provider.id}</p>
-                      <p className="text-xs text-white/60">{provider.transport || "n/a"}</p>
+                      <p className={`font-semibold ${isLightTheme ? "text-[#1f2937]" : "text-white"}`}>{provider.label || provider.id}</p>
+                      <p className={`text-xs ${isLightTheme ? "text-[#6b7280]" : "text-white/60"}`}>{provider.transport || "n/a"}</p>
                     </div>
                     <span className={provider.status === "operational" ? "text-emerald-400" : provider.status === "degraded" ? "text-amber-300" : "text-rose-300"}>
                       {provider.status || "unknown"}
                     </span>
                   </div>
-                  <p className="mt-2">Configurado: {provider.configured ? "sim" : "não"}</p>
-                  <p>Disponível: {provider.available ? "sim" : "não"}</p>
+                  <p className="mt-2">Configurado: {provider.configured ? "sim" : "nao"}</p>
+                  <p>Disponivel: {provider.available ? "sim" : "nao"}</p>
                   <p>Modelo: {provider.model || "n/a"}</p>
                   {provider.modelSource ? <p>Fonte modelo: {provider.modelSource}</p> : null}
                   {provider.baseUrlSource ? <p>Fonte base URL: {provider.baseUrlSource}</p> : null}
                   {provider.apiKeySource ? <p>Fonte API key: {provider.apiKeySource}</p> : null}
                   {provider.authTokenSource ? <p>Fonte auth token: {provider.authTokenSource}</p> : null}
                   {provider.sharedSecretSource ? <p>Fonte shared secret: {provider.sharedSecretSource}</p> : null}
-                  <p>Diagnóstico: {provider.reason || "Sem mensagem."}</p>
+                  <p>Diagnostico: {provider.reason || "Sem mensagem."}</p>
                 </div>
               ))}
             </div>
@@ -442,33 +417,33 @@ function EnvironmentContent({ state, copilotContext }) {
         </div>
       </Panel>
 
-      <Panel title="Saúde do widget em produção">
-        <div className="grid gap-3 text-sm opacity-75 md:grid-cols-4">
+      <Panel title="Saude do widget em producao">
+        <div className={`grid gap-3 text-sm md:grid-cols-4 ${muted}`}>
           <p>Eventos: {widgetEventSummary.total || 0}</p>
           <p>Aberturas: {widgetEventSummary.openedCount || 0}</p>
           <p>Auth: {widgetEventSummary.authCount || 0}</p>
           <p>Falhas: {widgetEventSummary.failureCount || 0}</p>
         </div>
         {(widgetEventSummary.byEvent || []).length ? (
-          <div className="mt-4 space-y-2 text-sm opacity-75">
+          <div className={`mt-4 space-y-2 text-sm ${muted}`}>
             {widgetEventSummary.byEvent.slice(0, 8).map((item) => (
               <p key={item.label}>{item.label}: {item.value}</p>
             ))}
           </div>
         ) : (
-          <p className="mt-4 text-sm opacity-75">
-            Ainda não existem eventos suficientes do widget para análise. Abra e autentique o chat no site para popular esta visão.
+          <p className={`mt-4 text-sm ${muted}`}>
+            Ainda nao existem eventos suficientes do widget para analise. Abra e autentique o chat no site para popular esta visao.
           </p>
         )}
       </Panel>
 
       <Panel title="Checklist do schema">
-        <div className="grid gap-3 text-sm opacity-75 md:grid-cols-2 xl:grid-cols-3">
+        <div className={`grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-3 ${muted}`}>
           {schemaChecklist.map((item) => (
-            <div key={item.table} className="border border-[#2D2E2E] p-3">
+            <div key={item.table} className={`border p-3 ${cardTone}`}>
               <p className="font-semibold">{item.table}</p>
               <p className={item.status === "ready" ? "text-emerald-400" : "text-amber-300"}>
-                {item.status === "ready" ? "Disponível" : "Ausente"}
+                {item.status === "ready" ? "Disponivel" : "Ausente"}
               </p>
             </div>
           ))}
@@ -477,7 +452,7 @@ function EnvironmentContent({ state, copilotContext }) {
 
       {warnings.length ? (
         <Panel title="Avisos recebidos neste ambiente">
-          <div className="space-y-3 text-sm opacity-75">
+          <div className={`space-y-3 text-sm ${muted}`}>
             {warnings.map((item) => (
               <p key={`${item.source}-${item.message}`}>
                 <span className="font-semibold">{item.source}</span>

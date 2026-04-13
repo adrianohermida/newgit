@@ -88,7 +88,7 @@ async function collectIntegratedQueueSlice({ source = "todos", page = 1, pageSiz
   const safePage = Math.max(1, Number(page || 1));
   const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
   const targetEnd = safePage * safePageSize;
-  const maxScans = 6;
+  const maxScans = Math.min(60, Math.max(6, Math.ceil((targetEnd + safePageSize) / 50) + 2));
   const queueSources = source === "todos" ? ["processos", "partes"] : [source];
   const loaders = {
     processos: async (nextPage) => listCreateProcessCandidates({ page: nextPage, pageSize: 50 }),
@@ -142,7 +142,8 @@ async function collectIntegratedQueueSlice({ source = "todos", page = 1, pageSiz
 }
 
 async function collectIntegratedSelection({ source = "todos", query = "", limit = 500 } = {}) {
-  const safeLimit = Math.max(1, Math.min(Number(limit || 500), 1000));
+  const safeLimit = Math.max(1, Math.min(Number(limit || 500), 5000));
+  const maxScans = Math.min(120, Math.max(12, Math.ceil(safeLimit / 50) + 4));
   const queueSources = source === "todos" ? ["processos", "partes"] : [source];
   const loaders = {
     processos: async (nextPage) => listCreateProcessCandidates({ page: nextPage, pageSize: 50 }),
@@ -153,7 +154,7 @@ async function collectIntegratedSelection({ source = "todos", query = "", limit 
     let nextPage = 1;
     let scans = 0;
     let hasMore = true;
-    while (hasMore && scans < 12 && selected.size < safeLimit) {
+    while (hasMore && scans < maxScans && selected.size < safeLimit) {
       const payload = await loaders[queueSource](nextPage);
       for (const item of payload?.items || []) {
         if (matchesIntegratedQuery(item, query) && item?.numero_cnj) selected.add(item.numero_cnj);

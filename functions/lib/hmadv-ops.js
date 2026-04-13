@@ -1167,7 +1167,8 @@ async function collectCreateProcessCandidatePage(env, { page = 1, pageSize = 20 
   const targetStart = (safePage - 1) * safePageSize;
   const targetEnd = targetStart + safePageSize;
   const rawBatchSize = Math.max(120, safePageSize * 8);
-  const maxScans = 24;
+  const estimatedScansForPage = Math.ceil((targetEnd * 1.5) / Math.max(1, rawBatchSize));
+  const maxScans = Math.min(240, Math.max(24, estimatedScansForPage + 6));
   const grouped = new Map();
   let offset = 0;
   let scans = 0;
@@ -1225,7 +1226,7 @@ async function collectPartesExtractionCandidatePage(env, { page = 1, pageSize = 
   const targetEnd = targetStart + safePageSize;
   // Keep each candidate scan small enough to stay under Cloudflare worker limits.
   const processBatchSize = Math.min(40, Math.max(24, safePageSize * 2));
-  const maxScans = 8;
+  const maxScans = Math.min(40, Math.max(8, Math.ceil(targetEnd / Math.max(1, processBatchSize)) + 4));
   const collected = [];
   const seen = new Set();
   let offset = 0;

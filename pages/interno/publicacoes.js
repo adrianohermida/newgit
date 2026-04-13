@@ -1995,7 +1995,15 @@ function PublicacoesContent() {
       return;
     }
     try {
-      const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=mesa_integrada_selecao&query=${encodeURIComponent(integratedFilters.query || "")}&source=${encodeURIComponent(integratedFilters.source || "todos")}&limit=500`, {}, {
+      const selectionLimit = Math.min(
+        5000,
+        Math.max(
+          Number(integratedQueue.totalRows || 0) || 0,
+          filteredIntegratedRows.length || 0,
+          integratedPageSize
+        )
+      );
+      const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=mesa_integrada_selecao&query=${encodeURIComponent(integratedFilters.query || "")}&source=${encodeURIComponent(integratedFilters.source || "todos")}&limit=${selectionLimit}`, {}, {
         action: "mesa_integrada_selecao",
         component: "publicacoes-mesa-integrada",
         label: "Selecionar todos os itens filtrados",
@@ -2003,6 +2011,13 @@ function PublicacoesContent() {
       });
       const numbers = payload.data?.items || [];
       setSelectedIntegratedNumbers((current) => [...new Set([...current, ...numbers])]);
+      if (payload.data?.limited) {
+        setActionState({
+          loading: false,
+          error: `A selecao filtrada atingiu o teto operacional de ${selectionLimit} itens. Refine os filtros para continuar a drenagem com seguranca.`,
+          result: payload.data,
+        });
+      }
     } catch (error) {
       setActionState({ loading: false, error: error.message || "Falha ao selecionar todos os itens filtrados.", result: null });
     }
