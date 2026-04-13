@@ -52,7 +52,7 @@ Deno.serve(async () => {
     console.info(JSON.stringify({ ts: new Date().toISOString(), msg: "backfill_pagina", pagina }));
 
     const response = await fetch(
-      `${ADVISE_URL}?paginaAtual=${pagina}&registrosPorPagina=${REGISTROS_POR_PAGINA}&Lido=false`,
+      `${ADVISE_URL}?paginaAtual=${pagina}&registrosPorPagina=${REGISTROS_POR_PAGINA}`,
       { headers: { Authorization: `Bearer ${ADVISE_TOKEN}` } }
     );
     if (!response.ok) throw new Error(`Erro API Advise: ${await response.text()}`);

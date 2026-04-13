@@ -70,7 +70,7 @@ serve(async () => {
       console.log("Importando pagina:", pagina);
 
       const response = await fetch(
-        `${ADVISE_URL}?paginaAtual=${pagina}&registrosPorPagina=${REGISTROS_POR_PAGINA}&Lido=false`,
+        `${ADVISE_URL}?paginaAtual=${pagina}&registrosPorPagina=${REGISTROS_POR_PAGINA}`,
         {
           headers: {
             Authorization: `Bearer ${ADVISE_TOKEN}`,

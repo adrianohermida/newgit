@@ -161,7 +161,6 @@ async function buscarPublicacoesAdvise(
     const params = new URLSearchParams({
       paginaAtual: String(pagina),
       registrosPorPagina: String(porPagina),
-      Lido: 'false',
       dataMovimentoInicial: dataInicio,
     });
     const data = await adviseCoreGet(params) as Record<string,unknown>;
