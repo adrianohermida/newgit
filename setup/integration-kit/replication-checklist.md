@@ -38,6 +38,8 @@ Use este checklist para replicar o kit em um repo novo, um Supabase novo e conta
 - Autorizar a conta
 - Trocar o code por refresh token
 - Salvar `FRESHSALES_REFRESH_TOKEN`
+- Se houver app separado para contacts, salvar `FRESHSALES_CONTACTS_REFRESH_TOKEN`
+- Se houver app separado para contacts, revisar `FRESHSALES_CONTACTS_SCOPES`
 - Validar scopes exigidos
 
 ## 5. Nova conta Freshdesk
@@ -72,4 +74,3 @@ Use este checklist para replicar o kit em um repo novo, um Supabase novo e conta
 - Confirmar que o runner web nao esta habilitado em producao
 - Confirmar que `go` e `ops` continuam exigindo confirmacao explicita
 - Confirmar que o bootstrap falha fechado sem setup file, exceto com `--allow-ambient-env`
-
