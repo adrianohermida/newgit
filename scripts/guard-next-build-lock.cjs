@@ -5,7 +5,11 @@ const { execSync, spawnSync } = require('node:child_process');
 
 const nextDir = path.join(process.cwd(), '.next');
 const lockPath = path.join(nextDir, 'lock');
-const MAX_ATTEMPTS = 2;
+const MAX_ATTEMPTS = 3;
+
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
 
 function hasConcurrentNextBuild() {
   try {
@@ -24,10 +28,30 @@ function hasConcurrentNextBuild() {
   }
 }
 
+function killLingeringNextProcesses() {
+  try {
+    if (os.platform() === 'win32') {
+      execSync(
+        `powershell -NoProfile -ExecutionPolicy Bypass -Command "$targets = Get-CimInstance Win32_Process -Filter \"name = 'node.exe'\" | Where-Object { $_.CommandLine -match 'next\\\\dist\\\\bin\\\\next\" build|\\.next\\\\build\\\\postcss\\.js' } | Select-Object -ExpandProperty ProcessId; foreach ($target in $targets) { Stop-Process -Id $target -Force -ErrorAction SilentlyContinue }"`,
+        { stdio: ['ignore', 'pipe', 'ignore'] }
+      );
+    } else {
+      execSync("pkill -f 'next(.+)?dist/bin/next build|/.next/build/postcss.js'", {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        shell: '/bin/sh',
+      });
+    }
+  } catch {
+    // nothing to kill
+  }
+}
+
 function cleanNextDir() {
+  killLingeringNextProcesses();
+  sleep(750);
   if (!fs.existsSync(nextDir)) return;
   try {
-    fs.rmSync(nextDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+    fs.rmSync(nextDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
     console.log('guard-next-build-lock: cleaned stale .next directory.');
   } catch (error) {
     if (fs.existsSync(lockPath)) {
@@ -64,6 +88,8 @@ for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
 
   if (attempt < MAX_ATTEMPTS) {
     console.error(`guard-next-build-lock: build failed (attempt ${attempt}). Retrying after clean.`);
+    killLingeringNextProcesses();
+    sleep(1200);
   }
 }
 

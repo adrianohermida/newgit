@@ -2608,49 +2608,49 @@ export default function InternoLayout({
                       )}
                     </div>
                     </div> : null}
-                    {logPane === "frontend" ? <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                    {logPane === "frontend" ? <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(8,10,9,0.5)]"}`}>
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Frontend UX</p>
-                          <p className="mt-1 text-[11px] text-[#9BAEA8]">Registre bugs de interface e debitos tecnicos por pagina.</p>
+                          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Frontend UX</p>
+                          <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Registre bugs de interface e debitos tecnicos por pagina.</p>
                         </div>
                         <button
                           type="button"
                           onClick={handleCopyFrontendIssues}
-                          className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                          className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
                         >
                           Copiar UX
                         </button>
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em] text-[#7F928C]">
+                      <div className={`mt-3 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
                         <input
                           value={frontendForm.page}
                           onChange={(event) => setFrontendForm({ ...frontendForm, page: event.target.value })}
                           placeholder="Pagina"
-                          className="h-7 w-[140px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                          className={`h-7 w-[140px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
                         />
                         <input
                           value={frontendForm.component}
                           onChange={(event) => setFrontendForm({ ...frontendForm, component: event.target.value })}
                           placeholder="Componente"
-                          className="h-7 w-[160px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                          className={`h-7 w-[160px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
                         />
                         <input
                           value={frontendForm.status}
                           onChange={(event) => setFrontendForm({ ...frontendForm, status: event.target.value })}
                           placeholder="Status"
-                          className="h-7 w-[110px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                          className={`h-7 w-[110px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
                         />
                         <input
                           value={frontendForm.detail}
                           onChange={(event) => setFrontendForm({ ...frontendForm, detail: event.target.value })}
                           placeholder="Detalhe do bug/UX"
-                          className="h-7 flex-1 min-w-[220px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                          className={`h-7 flex-1 min-w-[220px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
                         />
                         <button
                           type="button"
                           onClick={handleAddFrontendIssue}
-                          className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                          className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
                         >
                           Adicionar
                         </button>
@@ -2658,13 +2658,13 @@ export default function InternoLayout({
                       {frontendIssues.length ? (
                         <div className="mt-3 space-y-2">
                           {frontendIssues.slice(0, 8).map((issue) => (
-                            <div key={issue.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2 text-[11px]">
+                            <div key={issue.id} className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                               <div className="flex items-center justify-between">
-                                <span className="font-semibold">{issue.page || "pagina n/a"}</span>
+                                <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>{issue.page || "pagina n/a"}</span>
                                 <span className="text-[#D9B46A]">{issue.status || "aberto"}</span>
                               </div>
-                              {issue.component ? <div className="mt-1 text-[#9BAEA8]">{issue.component}</div> : null}
-                              <div className="mt-1 text-[#C7D0CA]">{issue.detail}</div>
+                              {issue.component ? <div className={`mt-1 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{issue.component}</div> : null}
+                              <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>{issue.detail}</div>
                             </div>
                           ))}
                         </div>
@@ -2672,55 +2672,55 @@ export default function InternoLayout({
                         <div className="mt-2 text-[11px] opacity-60">Nenhum bug/UX registrado.</div>
                       )}
                     </div> : null}
-                    {logPane === "schema" ? <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.5)] p-3">
+                    {logPane === "schema" ? <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(8,10,9,0.5)]"}`}>
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Schema</p>
-                          <p className="mt-1 text-[11px] text-[#9BAEA8]">Mapeie rotas quebradas, SQL e ajustes de schema.</p>
+                          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Schema</p>
+                          <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Mapeie rotas quebradas, SQL e ajustes de schema.</p>
                         </div>
                         <button
                           type="button"
                           onClick={handleCopySchemaIssues}
-                          className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                          className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
                         >
                           Copiar Schema
                         </button>
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em] text-[#7F928C]">
+                      <div className={`mt-3 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
                         <input
                           value={schemaForm.type}
                           onChange={(event) => setSchemaForm({ ...schemaForm, type: event.target.value })}
                           placeholder="Tipo"
-                          className="h-7 w-[120px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                          className={`h-7 w-[120px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
                         />
                         <input
                           value={schemaForm.table}
                           onChange={(event) => setSchemaForm({ ...schemaForm, table: event.target.value })}
                           placeholder="Tabela"
-                          className="h-7 w-[140px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                          className={`h-7 w-[140px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
                         />
                         <input
                           value={schemaForm.column}
                           onChange={(event) => setSchemaForm({ ...schemaForm, column: event.target.value })}
                           placeholder="Coluna"
-                          className="h-7 w-[140px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                          className={`h-7 w-[140px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
                         />
                         <input
                           value={schemaForm.code}
                           onChange={(event) => setSchemaForm({ ...schemaForm, code: event.target.value })}
                           placeholder="Codigo"
-                          className="h-7 w-[120px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                          className={`h-7 w-[120px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
                         />
                         <input
                           value={schemaForm.detail}
                           onChange={(event) => setSchemaForm({ ...schemaForm, detail: event.target.value })}
                           placeholder="Detalhe/SQL"
-                          className="h-7 flex-1 min-w-[220px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                          className={`h-7 flex-1 min-w-[220px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
                         />
                         <button
                           type="button"
                           onClick={handleAddSchemaIssue}
-                          className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                          className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
                         >
                           Adicionar
                         </button>
@@ -2728,16 +2728,16 @@ export default function InternoLayout({
                       {schemaIssues.length ? (
                         <div className="mt-3 space-y-2">
                           {schemaIssues.slice(0, 8).map((issue) => (
-                            <div key={issue.id || issue.createdAt} className="rounded-lg border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] px-3 py-2 text-[11px]">
+                            <div key={issue.id || issue.createdAt} className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                               <div className="flex flex-wrap items-center justify-between gap-2">
-                                <span className="font-semibold">{issue.issue?.type || "schema_issue"}</span>
+                                <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>{issue.issue?.type || "schema_issue"}</span>
                                 {issue.issue?.code ? <span className="text-[#D9B46A]">{issue.issue.code}</span> : null}
                               </div>
-                              <div className="mt-1 text-[#9BAEA8]">
+                              <div className={`mt-1 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                                 {issue.issue?.table ? `Tabela: ${issue.issue.table}` : "Tabela: n/a"}
                                 {issue.issue?.column ? ` | Coluna: ${issue.issue.column}` : ""}
                               </div>
-                              {issue.issue?.detail ? <div className="mt-1 text-[#C7D0CA]">{issue.issue.detail}</div> : null}
+                              {issue.issue?.detail ? <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>{issue.issue.detail}</div> : null}
                             </div>
                           ))}
                         </div>
@@ -2748,13 +2748,13 @@ export default function InternoLayout({
                     {paneEntries.length ? (
                       <div className="space-y-2">
                         {paneEntries.slice(0, 30).map((entry) => (
-                          <div key={entry.id} className="rounded-lg border border-[#1E2E29] bg-[rgba(8,10,9,0.6)] px-3 py-2 text-[11px]">
+                          <div key={entry.id} className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(8,10,9,0.6)]"}`}>
                             {entry.fingerprint ? <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                               <div className="flex flex-wrap gap-2">
                                 <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${getFingerprintStatusTone(fingerprintStates?.[entry.fingerprint]?.status || "aberto")}`}>
                                   {fingerprintStates?.[entry.fingerprint]?.status || "aberto"}
                                 </span>
-                                {fingerprintStates?.[entry.fingerprint]?.updatedAt ? <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8]">
+                                {fingerprintStates?.[entry.fingerprint]?.updatedAt ? <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
                                   {new Date(fingerprintStates[entry.fingerprint].updatedAt).toLocaleString("pt-BR")}
                                 </span> : null}
                               </div>
@@ -2776,14 +2776,14 @@ export default function InternoLayout({
                                 <button
                                   type="button"
                                   onClick={() => handleFingerprintNote(entry)}
-                                  className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8]"
+                                  className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
                                 >
                                   Nota
                                 </button>
                               </div>
                             </div> : null}
                             <div className="flex items-center justify-between">
-                              <span className="font-semibold">{entry.label || entry.action}</span>
+                              <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>{entry.label || entry.action}</span>
                               <span
                                 className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(entry.severity || (entry.status === "error" ? "error" : entry.status === "running" ? "warn" : "info"))}`}
                               >
@@ -2793,18 +2793,18 @@ export default function InternoLayout({
                             <div className="opacity-60">
                               {(entry.method || "").toUpperCase()} {entry.action || entry.path || entry.page}
                             </div>
-                            <div className="mt-1 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em] text-[#6F7E78]">
-                              {entry.module ? <span className="rounded-full border border-[#22342F] px-2 py-1">{entry.module}</span> : null}
-                              {entry.page ? <span className="rounded-full border border-[#22342F] px-2 py-1">{entry.page}</span> : null}
-                              {entry.component ? <span className="rounded-full border border-[#22342F] px-2 py-1">{entry.component}</span> : null}
-                              {entry.durationMs !== undefined ? <span className="rounded-full border border-[#22342F] px-2 py-1">{entry.durationMs}ms</span> : null}
-                              {entry.fingerprint ? <span className="rounded-full border border-[#22342F] px-2 py-1">{entry.fingerprint}</span> : null}
-                              {(entry.tags || []).length ? <span className="rounded-full border border-[#22342F] px-2 py-1">tags: {(entry.tags || []).join(", ")}</span> : null}
+                            <div className={`mt-1 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#6F7E78]"}`}>
+                              {entry.module ? <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>{entry.module}</span> : null}
+                              {entry.page ? <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>{entry.page}</span> : null}
+                              {entry.component ? <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>{entry.component}</span> : null}
+                              {entry.durationMs !== undefined ? <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>{entry.durationMs}ms</span> : null}
+                              {entry.fingerprint ? <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>{entry.fingerprint}</span> : null}
+                              {(entry.tags || []).length ? <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>tags: {(entry.tags || []).join(", ")}</span> : null}
                             </div>
-                            {entry.recommendedAction ? <div className="mt-2 rounded-lg border border-[#22342F] bg-[rgba(10,12,11,0.45)] px-3 py-2 text-[11px] text-[#C7D0CA]">
+                            {entry.recommendedAction ? <div className={`mt-2 rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#FFF8EA] text-[#5B6670]" : "border-[#22342F] bg-[rgba(10,12,11,0.45)] text-[#C7D0CA]"}`}>
                               <span className="text-[#D9B46A]">Proxima acao:</span> {entry.recommendedAction}
                             </div> : null}
-                            {entry.fingerprint && fingerprintStates?.[entry.fingerprint]?.note ? <div className="mt-2 rounded-lg border border-[#22342F] bg-[rgba(10,12,11,0.45)] px-3 py-2 text-[11px] text-[#C7D0CA]">
+                            {entry.fingerprint && fingerprintStates?.[entry.fingerprint]?.note ? <div className={`mt-2 rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#5B6670]" : "border-[#22342F] bg-[rgba(10,12,11,0.45)] text-[#C7D0CA]"}`}>
                               <span className="text-[#D9B46A]">Observacao:</span> {fingerprintStates[entry.fingerprint].note}
                             </div> : null}
                             <div className="mt-2">
@@ -2817,11 +2817,11 @@ export default function InternoLayout({
                               </button>
                             </div>
                             {logExpanded === entry.id ? (
-                              <div className="mt-2 space-y-2 text-[11px] text-[#C7D0CA]">
+                              <div className={`mt-2 space-y-2 text-[11px] ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>
                                 {entry.request ? (
                                   <div>
-                                    <p className="text-[10px] uppercase tracking-[0.14em] text-[#7F928C]">Request</p>
-                                    <pre className="mt-1 max-h-[160px] overflow-auto rounded-lg border border-[#1E2E29] bg-[rgba(9,12,11,0.6)] p-2 text-[10px] text-[#DADFD8]">{entry.request}</pre>
+                                    <p className={`text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Request</p>
+                                    <pre className={`mt-1 max-h-[160px] overflow-auto rounded-lg border p-2 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#1E2E29] bg-[rgba(9,12,11,0.6)] text-[#DADFD8]"}`}>{entry.request}</pre>
                                   </div>
                                 ) : null}
                                 {getActivityLogResponseText(entry) ? (
