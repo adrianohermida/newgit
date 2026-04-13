@@ -90,13 +90,22 @@ function New-EndpointResult {
   param(
     [string]$Name,
     [string]$Path,
-    [object]$Response
+    [object]$Response,
+    [bool]$ExpectAuth = $false
   )
+
+  $reachable = $false
+  if ($Response.status -eq 200 -or $Response.status -eq 204) {
+    $reachable = $true
+  } elseif ($ExpectAuth -and ($Response.status -eq 400 -or $Response.status -eq 401 -or $Response.status -eq 405)) {
+    $reachable = $true
+  }
 
   [pscustomobject]@{
     name = $Name
     path = $Path
     ok = $Response.ok
+    reachable = $reachable
     status = $Response.status
     error = if ($Response.json.error) { $Response.json.error } else { $Response.error }
     errorType = if ($Response.json.errorType) { $Response.json.errorType } else { $null }
@@ -113,15 +122,17 @@ $resolvedAdminToken = Resolve-EnvValue -ExplicitValue $AdminToken -Names @(
 
 $root = $BaseUrl.Trim().TrimEnd("/")
 $publicChecks = @(
-  @{ name = "admin-auth-config"; path = "/api/admin-auth-config"; method = "GET"; body = $null },
-  @{ name = "public-chat-config"; path = "/api/public-chat-config"; method = "GET"; body = $null },
-  @{ name = "admin-market-ads"; path = "/api/admin-market-ads"; method = "GET"; body = $null }
+  @{ name = "admin-auth-config"; path = "/api/admin-auth-config"; method = "GET"; body = $null; expectAuth = $false },
+  @{ name = "public-chat-config"; path = "/api/public-chat-config"; method = "GET"; body = $null; expectAuth = $false },
+  @{ name = "admin-market-ads"; path = "/api/admin-market-ads"; method = "GET"; body = $null; expectAuth = $true }
 )
 
 $protectedChecks = @(
-  @{ name = "admin-lawdesk-providers"; path = "/api/admin-lawdesk-providers?include_health=1"; method = "GET"; body = $null },
-  @{ name = "admin-dotobot-rag-health"; path = "/api/admin-dotobot-rag-health?include_upsert=0"; method = "GET"; body = $null },
-  @{ name = "admin-lawdesk-chat"; path = "/api/admin-lawdesk-chat"; method = "POST"; body = @{ query = "smoke"; context = @{ route = "/diagnose-pages-admin-runtime" } } }
+  @{ name = "admin-lawdesk-providers"; path = "/api/admin-lawdesk-providers?include_health=1"; method = "GET"; body = $null; expectAuth = $true },
+  @{ name = "admin-dotobot-rag-health"; path = "/api/admin-dotobot-rag-health?include_upsert=0"; method = "GET"; body = $null; expectAuth = $true },
+  @{ name = "admin-lawdesk-chat"; path = "/api/admin-lawdesk-chat"; method = "POST"; body = @{ query = "smoke"; context = @{ route = "/diagnose-pages-admin-runtime" } }; expectAuth = $true },
+  @{ name = "legacy-admin-lawdesk-chat"; path = "/functions/api/admin-lawdesk-chat"; method = "POST"; body = @{ query = "smoke"; context = @{ route = "/diagnose-pages-admin-runtime" } }; expectAuth = $true },
+  @{ name = "legacy-admin-lawdesk-providers"; path = "/functions/api/admin-lawdesk-providers?include_health=1"; method = "GET"; body = $null; expectAuth = $true }
 )
 
 $headers = @{}
@@ -132,13 +143,18 @@ if (-not [string]::IsNullOrWhiteSpace($resolvedAdminToken)) {
 $results = @()
 foreach ($check in $publicChecks) {
   $response = Invoke-DiagnosticRequest -Uri ($root + $check.path) -Method $check.method -Body $check.body
-  $results += New-EndpointResult -Name $check.name -Path $check.path -Response $response
+  $results += New-EndpointResult -Name $check.name -Path $check.path -Response $response -ExpectAuth $check.expectAuth
 }
 
 if ($IncludeProtected -or -not [string]::IsNullOrWhiteSpace($resolvedAdminToken)) {
   foreach ($check in $protectedChecks) {
     $response = Invoke-DiagnosticRequest -Uri ($root + $check.path) -Method $check.method -Headers $headers -Body $check.body
-    $results += New-EndpointResult -Name $check.name -Path $check.path -Response $response
+    $results += New-EndpointResult -Name $check.name -Path $check.path -Response $response -ExpectAuth $check.expectAuth
+  }
+} else {
+  foreach ($check in $protectedChecks) {
+    $response = Invoke-DiagnosticRequest -Uri ($root + $check.path) -Method $check.method -Body $check.body
+    $results += New-EndpointResult -Name $check.name -Path $check.path -Response $response -ExpectAuth $check.expectAuth
   }
 }
 
@@ -147,6 +163,8 @@ $diagnosis = New-Object System.Collections.Generic.List[string]
 $providersCheck = $results | Where-Object { $_.name -eq "admin-lawdesk-providers" } | Select-Object -First 1
 $ragCheck = $results | Where-Object { $_.name -eq "admin-dotobot-rag-health" } | Select-Object -First 1
 $chatCheck = $results | Where-Object { $_.name -eq "admin-lawdesk-chat" } | Select-Object -First 1
+$legacyChatCheck = $results | Where-Object { $_.name -eq "legacy-admin-lawdesk-chat" } | Select-Object -First 1
+$legacyProvidersCheck = $results | Where-Object { $_.name -eq "legacy-admin-lawdesk-providers" } | Select-Object -First 1
 $authConfigCheck = $results | Where-Object { $_.name -eq "admin-auth-config" } | Select-Object -First 1
 $publicChatConfigCheck = $results | Where-Object { $_.name -eq "public-chat-config" } | Select-Object -First 1
 $marketAdsCheck = $results | Where-Object { $_.name -eq "admin-market-ads" } | Select-Object -First 1
@@ -168,13 +186,15 @@ if ($publicChatConfigCheck) {
 if ($marketAdsCheck) {
   if ($marketAdsCheck.status -eq 404) {
     $diagnosis.Add("A rota /api/admin-market-ads nao esta publicada no runtime atual; o frontend deve operar em modo local.")
+  } elseif ($marketAdsCheck.status -eq 401) {
+    $diagnosis.Add("A rota /api/admin-market-ads existe e esta protegida por autenticacao administrativa.")
   } elseif ($marketAdsCheck.status -ge 500) {
     $diagnosis.Add("A rota /api/admin-market-ads respondeu com erro interno; o modulo pode cair para modo local.")
   }
 }
 
 if ($providersCheck) {
-  if ($providersCheck.status -eq 404) {
+  if (-not $providersCheck.reachable) {
     $diagnosis.Add("A rota canonica /api/admin-lawdesk-providers nao esta publicada no Pages runtime.")
   } elseif ($providersCheck.errorType) {
     $diagnosis.Add("Providers route respondeu com errorType=$($providersCheck.errorType).")
@@ -198,8 +218,18 @@ if ($chatCheck -and $chatCheck.errorType) {
   }
 }
 
-if (-not $providersCheck -and -not $ragCheck -and -not $chatCheck) {
-  $diagnosis.Add("Somente rotas publicas foram verificadas. Informe -AdminToken ou -IncludeProtected para validar o runtime administrativo.")
+if ($chatCheck -and $chatCheck.reachable -and $legacyChatCheck -and $legacyChatCheck.reachable) {
+  $diagnosis.Add("A rota canônica /api/admin-lawdesk-chat e o alias legado /functions/api/admin-lawdesk-chat estão publicados.")
+}
+
+if ($providersCheck -and $providersCheck.reachable -and $legacyProvidersCheck -and $legacyProvidersCheck.reachable) {
+  $diagnosis.Add("A rota canônica /api/admin-lawdesk-providers e o alias legado /functions/api/admin-lawdesk-providers estão publicados.")
+}
+
+if (($providersCheck -or $ragCheck -or $chatCheck) -and -not [string]::IsNullOrWhiteSpace($resolvedAdminToken)) {
+  $diagnosis.Add("Token admin fornecido; o diagnóstico protegido foi executado com autenticação.")
+} elseif (($providersCheck -or $ragCheck -or $chatCheck) -and [string]::IsNullOrWhiteSpace($resolvedAdminToken)) {
+  $diagnosis.Add("Diagnóstico protegido executado sem token: respostas 401/400/405 foram tratadas como evidência de publicação da rota.")
 }
 
 $report = [ordered]@{

@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import { setModuleHistory } from "../../lib/admin/activity-log";
+import { useInternalTheme } from "../interno/InternalThemeProvider";
 
 const FRESHWORKS_PORTAL_SCRIPT_URL = "//eu.fw-cdn.com/10713913/375987.js";
 const FRESHWORKS_PORTAL_WIDGET_ID = "2bb07572-34a4-4ea6-9708-4ec2ed23589d";
@@ -203,6 +204,7 @@ export default function PortalLayout({
 }) {
   const router = useRouter();
   const { supabase } = useSupabaseBrowser();
+  const { isLightTheme, preference, setThemePreference, toggleTheme } = useInternalTheme();
   const [isRailOpen, setIsRailOpen] = useState(rightRailDefaultOpen);
 
   const officeWhatsapp = useMemo(() => {
@@ -237,7 +239,7 @@ export default function PortalLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(24,43,38,0.42),transparent_28%),linear-gradient(180deg,#07110E_0%,#091612_100%)] text-[#F4F1EA]">
+    <div className={`min-h-screen ${isLightTheme ? "bg-[radial-gradient(circle_at_top_left,rgba(202,214,226,0.8),transparent_26%),linear-gradient(180deg,#F3F6FA_0%,#E7EDF4_100%)] text-[#13201D]" : "bg-[radial-gradient(circle_at_top_left,rgba(24,43,38,0.42),transparent_28%),linear-gradient(180deg,#07110E_0%,#091612_100%)] text-[#F4F1EA]"}`}>
       <Script
         id="freshworks_portal_widget_script"
         src={FRESHWORKS_PORTAL_SCRIPT_URL}
@@ -326,6 +328,38 @@ export default function PortalLayout({
                   {description ? <p className="mt-3 max-w-3xl text-sm leading-7 text-[#99ADA6]">{description}</p> : null}
                 </div>
                 <div className="flex flex-wrap gap-3">
+                  <div className={`flex flex-wrap items-center gap-2 rounded-2xl border px-3 py-2 ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.84)]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                    {[
+                      { key: "light", label: "Claro" },
+                      { key: "system", label: "Sistema" },
+                      { key: "dark", label: "Escuro" },
+                    ].map((option) => {
+                      const active = preference === option.key;
+                      return (
+                        <button
+                          key={option.key}
+                          type="button"
+                          onClick={() => setThemePreference(option.key)}
+                          className={`rounded-[12px] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] transition ${
+                            active
+                              ? "bg-[linear-gradient(180deg,#C49C56,#AE8645)] text-[#07110E]"
+                              : isLightTheme
+                                ? "border border-[#D4DEE8] text-[#60706A] hover:bg-[rgba(213,222,233,0.7)] hover:text-[#22312F]"
+                                : "border border-[#22342F] text-[#9BAEA8] hover:bg-[rgba(255,255,255,0.05)] hover:text-[#F5E6C5]"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={toggleTheme}
+                      className={`rounded-2xl border px-4 py-2 text-sm transition hover:border-[#C49C56] hover:text-[#C49C56] ${isLightTheme ? "border-[#D4DEE8] text-[#22312F]" : "border-[#22342F] text-[#D8DEDA]"}`}
+                    >
+                      Alternar
+                    </button>
+                  </div>
                   {actions}
                   <button
                     type="button"

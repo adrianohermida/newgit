@@ -4,6 +4,7 @@ const path = require("path");
 const root = process.cwd();
 const outDir = path.join(root, "out");
 const nextStaticDir = path.join(outDir, "_next", "static");
+const passthroughFiles = ["_redirects", "_headers", "_routes.json"];
 
 function walk(dir, bucket = []) {
   if (!fs.existsSync(dir)) return bucket;
@@ -19,8 +20,28 @@ function normalizeAssetName(name) {
   return name.replace(/\[/g, "%5B").replace(/\]/g, "%5D");
 }
 
+function copyPassthroughFiles() {
+  if (!fs.existsSync(outDir)) return [];
+  const copied = [];
+
+  for (const fileName of passthroughFiles) {
+    const source = path.join(root, fileName);
+    if (!fs.existsSync(source)) continue;
+    const target = path.join(outDir, fileName);
+    fs.copyFileSync(source, target);
+    copied.push(fileName);
+  }
+
+  return copied;
+}
+
 function main() {
+  const copiedPassthrough = copyPassthroughFiles();
+
   if (!fs.existsSync(outDir) || !fs.existsSync(nextStaticDir)) {
+    if (copiedPassthrough.length) {
+      console.log(`normalize-pages-export-assets: copied passthrough file(s): ${copiedPassthrough.join(", ")}`);
+    }
     console.log("skip: out/_next/static not found");
     return;
   }
@@ -39,6 +60,9 @@ function main() {
   }
 
   if (!renamed.length) {
+    if (copiedPassthrough.length) {
+      console.log(`normalize-pages-export-assets: copied passthrough file(s): ${copiedPassthrough.join(", ")}`);
+    }
     console.log("normalize-pages-export-assets: no bracketed assets found");
     return;
   }
@@ -60,6 +84,9 @@ function main() {
   console.log(`normalize-pages-export-assets: normalized ${renamed.length} asset(s)`);
   for (const item of renamed) {
     console.log(` - ${item.raw} -> ${item.encoded}`);
+  }
+  if (copiedPassthrough.length) {
+    console.log(`normalize-pages-export-assets: copied passthrough file(s): ${copiedPassthrough.join(", ")}`);
   }
 }
 

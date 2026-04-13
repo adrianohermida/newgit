@@ -38,6 +38,26 @@ import {
 import { inferModuleKeyFromPathname, listModuleRegistryEntries } from "../../lib/admin/module-registry.js";
 
 const INTERNAL_RIGHT_RAIL_MODE_STORAGE_KEY = "hmadv:interno:right-rail-mode";
+const INTERNAL_SHELL_PREFERENCES_STORAGE_KEY = "hmadv:interno:shell-preferences";
+
+function readInternalShellPreferences() {
+  if (typeof window === "undefined") return null;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(INTERNAL_SHELL_PREFERENCES_STORAGE_KEY) || "null");
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeInternalShellPreferences(nextValue) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(INTERNAL_SHELL_PREFERENCES_STORAGE_KEY, JSON.stringify(nextValue));
+  } catch {
+    // noop
+  }
+}
 
 const NAV_ITEMS = [
   { href: "/interno", label: "Visao geral" },
@@ -938,7 +958,7 @@ export default function InternoLayout({
 }) {
   const router = useRouter();
   const { supabase } = useSupabaseBrowser();
-  const { isLightTheme, toggleTheme } = useInternalTheme();
+  const { isLightTheme, preference, setThemePreference, toggleTheme } = useInternalTheme();
   const isCopilotWorkspace = router.pathname === "/interno/copilot";
   const initialWorkspaceOpen = router.pathname === "/interno/agentlab/conversations";
   const shouldStartWithOpenRail = rightRailFullscreen || router.pathname === "/interno/agentlab/conversations";
@@ -977,6 +997,7 @@ export default function InternoLayout({
   const [logSearch, setLogSearch] = useState("");
   const [logExpanded, setLogExpanded] = useState(null);
   const dragStateRef = useRef({ dragging: false, startY: 0, startHeight: 260 });
+  const shellPreferencesHydratedRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -997,17 +1018,67 @@ export default function InternoLayout({
       const width = window.innerWidth;
       const mobile = width < 900;
       setIsMobileShell(mobile);
-      setLeftCollapsed(isCopilotWorkspace ? width < 900 : width < 1180);
-      if (width < 1024) {
-        setRightCollapsed(true);
-        setCopilotOpen(false);
-        setRightRailMode("compact");
+      if (!shellPreferencesHydratedRef.current) {
+        setLeftCollapsed(isCopilotWorkspace ? width < 900 : width < 1180);
+        if (width < 1024) {
+          setRightCollapsed(true);
+          setCopilotOpen(false);
+          setRightRailMode("compact");
+        }
       }
     }
     syncResponsiveShell();
     window.addEventListener("resize", syncResponsiveShell);
     return () => window.removeEventListener("resize", syncResponsiveShell);
   }, [isCopilotWorkspace]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const persisted = readInternalShellPreferences();
+    const limits = getConsoleHeightLimits();
+    if (persisted) {
+      if (typeof persisted.desktopLeftCollapsed === "boolean" && window.innerWidth >= 900) {
+        setLeftCollapsed(persisted.desktopLeftCollapsed);
+      }
+      if (typeof persisted.mobileLeftCollapsed === "boolean" && window.innerWidth < 900) {
+        setLeftCollapsed(persisted.mobileLeftCollapsed);
+      }
+      if (typeof persisted.consoleOpen === "boolean") {
+        setConsoleOpen(persisted.consoleOpen);
+      }
+      if (persisted.consoleTab === "console" || persisted.consoleTab === "log") {
+        setConsoleTab(persisted.consoleTab);
+      }
+      if (typeof persisted.logPane === "string" && persisted.logPane) {
+        setLogPane(persisted.logPane);
+      }
+      if (typeof persisted.desktopRightCollapsed === "boolean" && window.innerWidth >= 1024) {
+        setRightCollapsed(persisted.desktopRightCollapsed);
+        setCopilotOpen(!persisted.desktopRightCollapsed);
+      }
+      if ((persisted.rightRailMode === "compact" || persisted.rightRailMode === "expanded") && window.innerWidth >= 1024) {
+        setRightRailMode(persisted.rightRailMode);
+      }
+      if (typeof persisted.consoleHeight === "number") {
+        setConsoleHeight(Math.min(limits.max, Math.max(limits.min, persisted.consoleHeight)));
+      }
+    }
+    shellPreferencesHydratedRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!shellPreferencesHydratedRef.current) return;
+    writeInternalShellPreferences({
+      desktopLeftCollapsed: !isMobileShell ? leftCollapsed : undefined,
+      mobileLeftCollapsed: isMobileShell ? leftCollapsed : undefined,
+      desktopRightCollapsed: !isMobileShell ? rightCollapsed : true,
+      rightRailMode,
+      consoleOpen,
+      consoleTab,
+      logPane,
+      consoleHeight,
+    });
+  }, [consoleHeight, consoleOpen, consoleTab, isMobileShell, leftCollapsed, logPane, rightCollapsed, rightRailMode]);
 
   function closeMobileSidebar() {
     if (isMobileShell) {
@@ -1100,11 +1171,6 @@ export default function InternoLayout({
       window.removeEventListener("resize", syncConsoleHeightToViewport);
     };
   }, []);
-
-  useEffect(() => {
-    const limits = getConsoleHeightLimits();
-    setConsoleHeight(limits.preferred);
-  }, [router.pathname]);
 
   useEffect(() => {
     persistModuleHistory("interno-shell", {
@@ -1502,9 +1568,17 @@ export default function InternoLayout({
   }
 
   useEffect(() => {
-    setRightCollapsed(!shouldStartWithOpenRail);
-    setCopilotOpen(shouldStartWithOpenRail);
-  }, [shouldStartWithOpenRail]);
+    if (!shellPreferencesHydratedRef.current) return;
+    if (isMobileShell) {
+      setRightCollapsed(true);
+      setCopilotOpen(false);
+      return;
+    }
+    if (shouldStartWithOpenRail) {
+      setRightCollapsed(false);
+      setCopilotOpen(true);
+    }
+  }, [isMobileShell, shouldStartWithOpenRail]);
 
   function handleToggleRightRail() {
     if (!shouldRenderDotobotRail) return;
@@ -1599,7 +1673,7 @@ export default function InternoLayout({
         <div className={`${isMobileShell ? "ml-0" : "ml-2 md:ml-3"} flex h-full min-h-0 flex-1`}>
         {/* CONTEÚDO PRINCIPAL */}
         <div className={`relative flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden rounded-[26px] border shadow-[0_20px_56px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#CBD5E1] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,247,250,0.96))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.985),rgba(7,9,8,0.95))]"}`}>
-          <div className={`shrink-0 flex flex-wrap items-center justify-between gap-4 border-b px-4 py-3 md:px-5 md:py-3.5 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(247,249,251,0.88))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015))]"}`}>
+          <div className={`sticky top-0 z-20 shrink-0 flex flex-wrap items-center justify-between gap-4 border-b px-4 py-3 md:px-5 md:py-3.5 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(247,249,251,0.92))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.99),rgba(7,9,8,0.96))]"}`}>
             <div className={`rounded-[16px] border px-3 py-2 ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.82)]" : "border-[#1F2D29] bg-[rgba(255,255,255,0.02)]"}`}>
               <p className="text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">Workspace</p>
               <p className="mt-1 text-[11px] text-[#C6D1CC]">{router.pathname}</p>
@@ -1654,6 +1728,32 @@ export default function InternoLayout({
                 </svg>
               )}
             </button>
+            <div className={`hidden items-center gap-1 rounded-[14px] border px-1 py-1 md:flex ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.88)]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+              {[
+                { key: "light", label: "Claro" },
+                { key: "system", label: "Sistema" },
+                { key: "dark", label: "Escuro" },
+              ].map((option) => {
+                const active = preference === option.key;
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setThemePreference(option.key)}
+                    className={`rounded-[10px] px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] transition ${
+                      active
+                        ? "bg-[linear-gradient(180deg,#C5A059,#B08B46)] text-[#07110E] shadow-[0_6px_18px_rgba(197,160,89,0.18)]"
+                        : isLightTheme
+                          ? "text-[#60706A] hover:bg-[rgba(213,222,233,0.76)] hover:text-[#22312F]"
+                          : "text-[#9BAEA8] hover:bg-[rgba(255,255,255,0.05)] hover:text-[#F5E6C5]"
+                    }`}
+                    title={`Usar tema ${option.label.toLowerCase()}`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
             <button
               type="button"
               onClick={() => setLeftCollapsed((current) => !current)}
@@ -1718,9 +1818,11 @@ export default function InternoLayout({
           <div
             className={`fixed bottom-3 z-30 min-h-[52px] overflow-hidden rounded-[24px] border shadow-[0_-12px_38px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all ${isLightTheme ? "border-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,245,249,0.98))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(10,12,11,0.985),rgba(6,8,7,0.98))]"} ${consoleOpen ? "flex flex-col" : "block h-[52px]"}`}
             style={{
-              left: `${consoleDockLeft + (isMobileShell ? 8 : 12)}px`,
-              right: `${consoleDockRight + 12}px`,
+              left: `${isMobileShell ? 8 : consoleDockLeft + 12}px`,
+              right: `${isMobileShell ? 8 : consoleDockRight + 12}px`,
               height: consoleOpen ? `${consoleHeight}px` : undefined,
+              width: isMobileShell ? "calc(100vw - 16px)" : undefined,
+              maxWidth: isMobileShell ? "calc(100vw - 16px)" : undefined,
             }}
           >
             {consoleOpen ? (
