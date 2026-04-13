@@ -2,10 +2,11 @@
 
 const fs = require('fs');
 const path = require('path');
+const { loadRuntimeEnv } = require('../lib/integration-kit/runtime');
 
 const ENV_PATH = path.join(process.cwd(), '.dev.vars');
 
-loadLocalEnv();
+loadRuntimeEnv(process.cwd(), process.env);
 
 async function main() {
   const args = process.argv.slice(2);
@@ -69,19 +70,6 @@ async function main() {
     persisted: fs.existsSync(ENV_PATH),
     has_refresh_token: Boolean(cleanValue(payload.refresh_token)),
   }, null, 2));
-}
-
-function loadLocalEnv() {
-  if (!fs.existsSync(ENV_PATH)) return;
-  const lines = fs.readFileSync(ENV_PATH, 'utf8').split(/\r?\n/);
-  for (const line of lines) {
-    if (!line || line.trim().startsWith('#')) continue;
-    const idx = line.indexOf('=');
-    if (idx === -1) continue;
-    const key = line.slice(0, idx).trim();
-    const value = line.slice(idx + 1);
-    if (key && process.env[key] === undefined) process.env[key] = value;
-  }
 }
 
 function cleanValue(value) {
