@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
+import { useInternalTheme } from "../../../components/interno/InternalThemeProvider";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import AgentLabModuleNav from "../../../components/interno/agentlab/AgentLabModuleNav";
 import { adminFetch } from "../../../lib/admin/api";
@@ -8,11 +9,21 @@ import { setModuleHistory } from "../../../lib/admin/activity-log";
 import { buildModuleSnapshot } from "../../../lib/admin/module-registry";
 
 function Panel({ title, children }) {
+  const { isLightTheme } = useInternalTheme();
   return (
-    <section className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">
+    <section className={`border p-6 ${isLightTheme ? "border-[#d7d4cb] bg-[rgba(255,255,255,0.92)] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
       <h3 className="mb-4 font-serif text-2xl">{title}</h3>
       {children}
     </section>
+  );
+}
+
+function StatCard({ title, helper }) {
+  const { isLightTheme } = useInternalTheme();
+  return (
+    <Panel title={title}>
+      <p className={`text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>{helper}</p>
+    </Panel>
   );
 }
 
@@ -37,6 +48,7 @@ export default function AgentLabEvaluationPage() {
 }
 
 function EvaluationContent({ state, message, setMessage }) {
+  const { isLightTheme } = useInternalTheme();
   const incidents = state.data?.intelligence?.incidents || [];
   const queue = state.data?.governance?.queue || [];
   const threads = state.data?.conversations?.threads || [];
@@ -81,7 +93,7 @@ function EvaluationContent({ state, message, setMessage }) {
   ]);
 
   if (state.loading) {
-    return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando avaliacao...</div>;
+    return <div className={`border p-6 ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#4b5563]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>Carregando avaliacao...</div>;
   }
 
   if (state.error) {
@@ -166,20 +178,27 @@ function EvaluationContent({ state, message, setMessage }) {
     }
   }
 
+  const boxTone = isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]";
+  const muted = isLightTheme ? "text-[#4b5563]" : "opacity-75";
+  const subtle = isLightTheme ? "text-[#6b7280]" : "opacity-50";
+  const actionTone = isLightTheme
+    ? "border-[#d7d4cb] bg-white text-[#374151] hover:border-[#9a6d14] hover:text-[#9a6d14]"
+    : "border-[#2D2E2E]";
+
   return (
     <div className="space-y-8">
-      {message ? <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm opacity-80">{message}</div> : null}
+      {message ? <div className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#4b5563]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] opacity-80"}`}>{message}</div> : null}
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Panel title={`Incidentes abertos: ${summary.open || 0}`}><p className="text-sm opacity-75">Falhas em classificacao, coerencia, seguranca juridica e operacao.</p></Panel>
-        <Panel title={`Gaps de intent: ${unresolvedThreads.length}`}><p className="text-sm opacity-75">Conversas sem intencao classificada e prontas para treino ou correcao.</p></Panel>
-        <Panel title={`Backlog de avaliacao: ${backlog.length}`}><p className="text-sm opacity-75">Itens que ja viraram trabalho operacional para a sprint de evolucao.</p></Panel>
-        <Panel title={`Sinais de mensagem: ${messageSummary.qualityEvents || 0}`}><p className="text-sm opacity-75">Mensagens com baixa qualidade, handoff generico, risco operacional ou perda de contexto.</p></Panel>
+        <StatCard title={`Incidentes abertos: ${summary.open || 0}`} helper="Falhas em classificacao, coerencia, seguranca juridica e operacao." />
+        <StatCard title={`Gaps de intent: ${unresolvedThreads.length}`} helper="Conversas sem intencao classificada e prontas para treino ou correcao." />
+        <StatCard title={`Backlog de avaliacao: ${backlog.length}`} helper="Itens que ja viraram trabalho operacional para a sprint de evolucao." />
+        <StatCard title={`Sinais de mensagem: ${messageSummary.qualityEvents || 0}`} helper="Mensagens com baixa qualidade, handoff generico, risco operacional ou perda de contexto." />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Panel title="Cadencia semanal">
-          <ul className="space-y-3 text-sm opacity-75">
+          <ul className={`space-y-3 text-sm ${muted}`}>
             <li>Top 20 unanswered</li>
             <li>Top 10 poor responses</li>
             <li>Top 5 workflows novos</li>
@@ -188,7 +207,7 @@ function EvaluationContent({ state, message, setMessage }) {
         </Panel>
 
         <Panel title="Categorias de incidente">
-          <div className="space-y-3 text-sm opacity-75">
+          <div className={`space-y-3 text-sm ${muted}`}>
             {(summary.byCategory || []).length ? (
               summary.byCategory.map((item) => <p key={item.label}>{item.label}: {item.value}</p>)
             ) : (
@@ -199,10 +218,10 @@ function EvaluationContent({ state, message, setMessage }) {
       </div>
 
       <Panel title="Incidentes abertos">
-        <div className="space-y-4 text-sm opacity-75">
+        <div className={`space-y-4 text-sm ${muted}`}>
           {incidents.length ? incidents.map((item) => (
-            <div key={item.id} className="border border-[#2D2E2E] p-4">
-              <div className="mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
+            <div key={item.id} className={`border p-4 ${boxTone}`}>
+              <div className={`mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] ${subtle}`}>
                 <span>{item.category}</span>
                 <span>{item.severity}</span>
                 <span>{item.status}</span>
@@ -210,13 +229,13 @@ function EvaluationContent({ state, message, setMessage }) {
               <p className="font-semibold">{item.title}</p>
               <p className="mt-2">{item.description}</p>
               <div className="mt-4 flex flex-wrap gap-3">
-                <button type="button" onClick={() => createBacklogFromIncident(item)} className="border border-[#2D2E2E] px-3 py-2 text-xs">
+                <button type="button" onClick={() => createBacklogFromIncident(item)} className={`border px-3 py-2 text-xs transition ${actionTone}`}>
                   Virar backlog
                 </button>
-                <button type="button" onClick={() => moveIncident(item.id, "reviewing")} className="border border-[#2D2E2E] px-3 py-2 text-xs">
+                <button type="button" onClick={() => moveIncident(item.id, "reviewing")} className={`border px-3 py-2 text-xs transition ${actionTone}`}>
                   Em revisao
                 </button>
-                <button type="button" onClick={() => moveIncident(item.id, "resolved")} className="border border-[#2D2E2E] px-3 py-2 text-xs">
+                <button type="button" onClick={() => moveIncident(item.id, "resolved")} className={`border px-3 py-2 text-xs transition ${actionTone}`}>
                   Resolver
                 </button>
               </div>
@@ -226,10 +245,10 @@ function EvaluationContent({ state, message, setMessage }) {
       </Panel>
 
       <Panel title="Conversas sem intent para treino">
-        <div className="space-y-4 text-sm opacity-75">
+        <div className={`space-y-4 text-sm ${muted}`}>
           {unresolvedThreads.length ? unresolvedThreads.map((item) => (
-            <div key={item.id} className="border border-[#2D2E2E] p-4">
-              <div className="mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
+            <div key={item.id} className={`border p-4 ${boxTone}`}>
+              <div className={`mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] ${subtle}`}>
                 <span>{item.channel || "sem canal"}</span>
                 <span>{item.source_system || "sem origem"}</span>
                 <span>{item.issue_category || "gap"}</span>
@@ -237,7 +256,7 @@ function EvaluationContent({ state, message, setMessage }) {
               <p className="font-semibold">{item.subject || "Sem assunto"}</p>
               <p className="mt-2">{item.last_message || "Sem ultima mensagem"}</p>
               <div className="mt-4">
-                <button type="button" onClick={() => createBacklogFromThread(item)} className="border border-[#2D2E2E] px-3 py-2 text-xs">
+                <button type="button" onClick={() => createBacklogFromThread(item)} className={`border px-3 py-2 text-xs transition ${actionTone}`}>
                   Criar backlog de treino
                 </button>
               </div>
@@ -247,10 +266,10 @@ function EvaluationContent({ state, message, setMessage }) {
       </Panel>
 
       <Panel title="Backlog de avaliacao">
-        <div className="space-y-4 text-sm opacity-75">
+        <div className={`space-y-4 text-sm ${muted}`}>
           {backlog.length ? backlog.map((item) => (
-            <div key={item.id} className="border border-[#2D2E2E] p-4">
-              <div className="mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
+            <div key={item.id} className={`border p-4 ${boxTone}`}>
+              <div className={`mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] ${subtle}`}>
                 <span>{item.priority}</span>
                 <span>{item.status}</span>
                 <span>{item.sprint_bucket || "Sem sprint"}</span>
@@ -263,10 +282,10 @@ function EvaluationContent({ state, message, setMessage }) {
       </Panel>
 
       <Panel title="Mensagens com risco operacional">
-        <div className="space-y-4 text-sm opacity-75">
+        <div className={`space-y-4 text-sm ${muted}`}>
           {riskyMessages.length ? riskyMessages.map((item) => (
-            <div key={item.id} className="border border-[#2D2E2E] p-4">
-              <div className="mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] opacity-50">
+            <div key={item.id} className={`border p-4 ${boxTone}`}>
+              <div className={`mb-2 flex flex-wrap gap-3 text-xs uppercase tracking-[0.15em] ${subtle}`}>
                 <span>{item.role}</span>
                 <span>{item.suggested_agent_ref}</span>
                 <span>{item.source_system}</span>
