@@ -946,6 +946,7 @@ export default function DotobotCopilot({
   compactRail = false,
   showCollapsedTrigger = true,
 }) {
+  const isFullscreenCopilot = routePath === "/interno/copilot";
   const isCompactViewport = useMediaQuery({ maxWidth: 640 });
   // Estado de autenticaÃ§Ã£o/admin
   const { supabase, loading: supaLoading, configError } = useSupabaseBrowser();
@@ -1064,9 +1065,9 @@ export default function DotobotCopilot({
 
 
 const [workspaceOpen, setWorkspaceOpen] = useState(initialWorkspaceOpen);
-const [mode, setMode] = useState("task");
-const [provider, setProvider] = useState("gpt");
-const [workspaceLayoutMode, setWorkspaceLayoutMode] = useState("snap");
+const [mode, setMode] = useState(() => (isFullscreenCopilot ? "chat" : "task"));
+const [provider, setProvider] = useState(() => (isFullscreenCopilot ? "local" : "gpt"));
+const [workspaceLayoutMode, setWorkspaceLayoutMode] = useState(() => (isFullscreenCopilot ? "immersive" : "snap"));
 const [providerCatalog, setProviderCatalog] = useState(PROVIDER_OPTIONS);
 const [skillCatalog, setSkillCatalog] = useState(SKILL_OPTIONS);
 const [selectedSkillId, setSelectedSkillId] = useState("");
@@ -1076,7 +1077,7 @@ const [localStackSummary, setLocalStackSummary] = useState(null);
 const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
 const [localRuntimeConfigOpen, setLocalRuntimeConfigOpen] = useState(false);
 const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocalRuntimeConfig());
-  const [rightPanelTab, setRightPanelTab] = useState("ai-task");
+  const [rightPanelTab, setRightPanelTab] = useState(() => (isFullscreenCopilot ? "modules" : "ai-task"));
   const [selectedProjectFilter, setSelectedProjectFilter] = useState("all");
 const [agentLabSnapshot, setAgentLabSnapshot] = useState({ loading: true, error: null, data: null });
 const [agentLabActionState, setAgentLabActionState] = useState({ loading: false, scope: null, message: null, tone: "idle" });
@@ -1109,16 +1110,22 @@ const [uiToasts, setUiToasts] = useState([]);
     setMessages(persistedState.messages);
     setTaskHistory(persistedState.taskHistory);
     setAttachments(persistedState.attachments);
-    if (persistedState.prefs.mode) setMode(persistedState.prefs.mode);
-    if (persistedState.prefs.provider) setProvider(persistedState.prefs.provider);
+    if (persistedState.prefs.mode && !isFullscreenCopilot) setMode(persistedState.prefs.mode);
+    if (persistedState.prefs.provider && !isFullscreenCopilot) setProvider(persistedState.prefs.provider);
     if (typeof persistedState.prefs.selectedSkillId === "string") setSelectedSkillId(persistedState.prefs.selectedSkillId);
     if (typeof persistedState.prefs.contextEnabled === "boolean") setContextEnabled(persistedState.prefs.contextEnabled);
     setWorkspaceOpen(persistedState.prefs.workspaceOpen);
-    const persistedLayoutMode = safeLocalGet(layoutStorageKey, "snap");
+    const persistedLayoutMode = safeLocalGet(layoutStorageKey, isFullscreenCopilot ? "immersive" : "snap");
     if (["snap", "balanced", "immersive"].includes(persistedLayoutMode)) {
-      setWorkspaceLayoutMode(persistedLayoutMode);
+      setWorkspaceLayoutMode(isFullscreenCopilot ? "immersive" : persistedLayoutMode);
     }
-  }, [chatStorageKey, taskStorageKey, prefStorageKey, layoutStorageKey, conversationStorageKey, initialWorkspaceOpen]);
+    if (isFullscreenCopilot) {
+      setMode("chat");
+      setProvider((current) => current || "local");
+      setWorkspaceLayoutMode("immersive");
+      setRightPanelTab("modules");
+    }
+  }, [chatStorageKey, taskStorageKey, prefStorageKey, layoutStorageKey, conversationStorageKey, initialWorkspaceOpen, isFullscreenCopilot]);
 
   useEffect(() => {
     let active = true;

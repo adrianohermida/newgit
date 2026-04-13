@@ -7,6 +7,7 @@ import {
   subscribeActivityLog,
   updateActivityLog,
 } from "../lib/admin/activity-log";
+import { invokeBrowserLocalMessages, isBrowserLocalProvider } from "../lib/lawdesk/browser-local-runtime";
 import { formatLawdeskProviderLabel } from "../lib/lawdesk/providers";
 import {
   applyLlmTestConsoleFilters,
@@ -479,7 +480,7 @@ function ConsoleRail({
 export default function LLMTestChat() {
   const router = useRouter();
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
-  const [provider, setProvider] = useState("gpt");
+  const [provider, setProvider] = useState("");
   const [providerCatalog, setProviderCatalog] = useState([]);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -500,7 +501,7 @@ export default function LLMTestChat() {
         const defaultProvider = typeof payload?.data?.defaultProvider === "string" ? payload.data.defaultProvider : "gpt";
         setProvidersHealth(payload?.data?.health || { loaded: true, status: "failed", providers: [], summary: { total: providers.length, operational: 0, configured: 0, failed: providers.length } });
         setProviderCatalog(providers.length ? providers : FALLBACK_PROVIDER_CATALOG);
-        setProvider((current) => current || defaultProvider || providers.find((item) => item.available)?.id || "gpt");
+        setProvider((current) => current || providers.find((item) => item.id === "local" && item.available)?.id || providers.find((item) => item.available)?.id || defaultProvider || "gpt");
       })
       .catch((fetchError) => {
         if (!active) return;
@@ -655,6 +656,8 @@ export default function LLMTestChat() {
     const providerLabel = providerEntry?.label || formatLawdeskProviderLabel(selectedProvider);
     const activityId = `llm_test_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const startedAt = Date.now();
+    const isLocalProvider = isBrowserLocalProvider(selectedProvider);
+    const requestPath = isLocalProvider ? "browser-local:/v1/messages" : "/api/admin-lawdesk-chat";
 
     setLoading(true);
     setError("");
@@ -667,18 +670,18 @@ export default function LLMTestChat() {
       label: `LLM Test: ${providerLabel}`,
       action: "llm_smoke_test",
       method: "POST",
-      path: "/api/admin-lawdesk-chat",
+      path: requestPath,
       page: "/llm-test",
       status: "running",
       consolePane: ["ai-task", "dotobot", "functions"],
       domain: "llm-test",
       system: "ai",
-      traceHints: ["provider-selection", "admin-lawdesk-chat", "llm-smoke-test"],
+      traceHints: ["provider-selection", isLocalProvider ? "browser-local-runtime" : "admin-lawdesk-chat", "llm-smoke-test"],
       request: buildDiagnosticReport({
         title: "LLM smoke test request",
         summary: `Provider ${providerLabel} selecionado para validacao.`,
         sections: [
-          { label: "request", value: { provider: selectedProvider, prompt: trimmedPrompt, route: "/llm-test" } },
+          { label: "request", value: { provider: selectedProvider, prompt: trimmedPrompt, route: "/llm-test", transport: isLocalProvider ? "browser_local_runtime" : "admin_route" } },
         ],
       }),
     });
@@ -686,22 +689,36 @@ export default function LLMTestChat() {
     setSelectedConsoleEntryId(activityId);
 
     try {
-      const payload = await adminFetch("/api/admin-lawdesk-chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: trimmedPrompt,
-          provider: selectedProvider,
-          mode: "analysis",
-          context: {
-            route: "/llm-test",
-            assistant: {
-              mode: "analysis",
-              role: "smoke-test",
+      const payload = isLocalProvider
+        ? await invokeBrowserLocalMessages({
+            query: trimmedPrompt,
+            mode: "analysis",
+            routePath: "/llm-test",
+            contextEnabled: true,
+            context: {
+              route: "/llm-test",
+              assistant: {
+                mode: "analysis",
+                role: "smoke-test",
+              },
             },
-          },
-        }),
-      });
+          })
+        : await adminFetch("/api/admin-lawdesk-chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              query: trimmedPrompt,
+              provider: selectedProvider,
+              mode: "analysis",
+              context: {
+                route: "/llm-test",
+                assistant: {
+                  mode: "analysis",
+                  role: "smoke-test",
+                },
+              },
+            }),
+          });
 
       const responseData = payload?.data || {};
       const durationMs = Date.now() - startedAt;
@@ -720,6 +737,7 @@ export default function LLMTestChat() {
         status: "success",
         provider: selectedProvider,
         source: resultRecord.source || "",
+        path: requestPath,
         durationMs,
         response: buildDiagnosticReport({
           title: "LLM smoke test response",
@@ -760,6 +778,7 @@ export default function LLMTestChat() {
         status: "error",
         provider: selectedProvider,
         source: "",
+        path: requestPath,
         errorType: classifyLlmTestError(runError?.message || ""),
         durationMs,
         response: buildDiagnosticReport({
@@ -796,7 +815,7 @@ export default function LLMTestChat() {
           title: "LLM smoke test request",
           summary: `Provider ${providerLabel} selecionado para validacao.`,
           sections: [
-            { label: "request", value: { provider: selectedProvider, prompt: trimmedPrompt, route: "/llm-test" } },
+            { label: "request", value: { provider: selectedProvider, prompt: trimmedPrompt, route: "/llm-test", transport: isLocalProvider ? "browser_local_runtime" : "admin_route" } },
           ],
         }),
       });

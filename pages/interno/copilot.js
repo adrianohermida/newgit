@@ -1,4 +1,3 @@
-import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import DotobotCopilot from "../../components/interno/DotobotPanel";
 
@@ -6,13 +5,8 @@ export default function InternoCopilotPage() {
   return (
     <RequireAdmin>
       {(profile) => (
-        <InternoLayout
-          profile={profile}
-          title="Dotobot Copilot"
-          description="Painel fullscreen do Dotobot local, com histórico contextual, chat central e hub operacional inspirado no Windows 11."
-          hideDotobotRail={true}
-        >
-          <div className="flex min-h-0 flex-1 overflow-hidden rounded-[28px] border border-[#1C2623] bg-[linear-gradient(180deg,rgba(11,15,14,0.98),rgba(7,10,9,0.98))] shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
+        <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(197,160,89,0.14),transparent_34%),linear-gradient(180deg,#0a0f0d_0%,#060908_100%)] px-3 py-3 text-[#F5F1E8] sm:px-4 sm:py-4">
+          <div className="mx-auto flex min-h-[calc(100vh-1.5rem)] w-full max-w-[1900px] overflow-hidden rounded-[30px] border border-[#1C2623] bg-[linear-gradient(180deg,rgba(12,16,15,0.98),rgba(6,8,8,0.98))] shadow-[0_24px_80px_rgba(0,0,0,0.32)] sm:min-h-[calc(100vh-2rem)]">
             <DotobotCopilot
               profile={profile}
               routePath="/interno/copilot"
@@ -22,7 +16,7 @@ export default function InternoCopilotPage() {
               showCollapsedTrigger={false}
             />
           </div>
-        </InternoLayout>
+        </div>
       )}
     </RequireAdmin>
   );

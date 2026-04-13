@@ -2885,7 +2885,7 @@ function InternoProcessosContent() {
         {processNumbers ? <p className="mt-2 text-xs leading-6 text-[#7F928C]">CNJs pré-carregados no campo de foco manual.</p> : null}
       </section>
     ) : null}
-    <section className={`rounded-[34px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-6 md:px-7 ${isResultView ? "py-5" : "py-6"}`}>
+    <section className={`rounded-[30px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-4 md:px-6 ${isResultView ? "py-4 md:py-5" : "py-5 md:py-6"}`}>
       <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
         <div className="max-w-3xl">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C5A059]">Centro operacional</p>
@@ -2977,9 +2977,9 @@ function InternoProcessosContent() {
       </div>
     </section>
 
-    {!isResultView ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{quickStats.map((card) => <MetricCard key={card.label} label={card.label} value={card.value} helper={card.helper} />)}</div> : null}
+    {!isResultView ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{quickStats.map((card) => <MetricCard key={card.label} label={card.label} value={card.value} helper={card.helper} />)}</div> : null}
 
-    {view === "operacao" ? <div id="operacao" className="grid flex-1 auto-rows-fr gap-6 xl:grid-cols-2">
+    {view === "operacao" ? <div id="operacao" className="grid flex-1 auto-rows-fr gap-6 lg:grid-cols-2">
       <Panel title="Fila operacional" eyebrow="Sincronismo Freshsales + Supabase" className="h-full">
         <div className="space-y-4">
           {latestJob ? <JobCard job={latestJob} active={latestJob.id === activeJobId} /> : null}

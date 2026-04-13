@@ -2552,7 +2552,7 @@ function PublicacoesContent() {
           {processNumbers ? <p className="mt-2 text-xs leading-6 text-[#7F928C]">CNJs pré-carregados para operação de publicações.</p> : null}
         </section>
       ) : null}
-      <section className="rounded-[34px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-6 py-6 md:px-7">
+      <section className="rounded-[30px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-4 py-5 md:px-6 md:py-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C5A059]">Centro de publicacoes</p>
@@ -2618,7 +2618,7 @@ function PublicacoesContent() {
         </div>
       </section>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Publicacoes totais" value={data.publicacoesTotal || 0} helper="Estoque atualmente persistido no HMADV." />
         <MetricCard label="Com activity" value={data.publicacoesComActivity || 0} helper="Ja refletidas como activity no Freshsales." />
         <MetricCard label="Pendentes" value={data.publicacoesPendentesComAccount || 0} helper="Ainda sem activity em processos com account vinculado." />
@@ -2634,7 +2634,7 @@ function PublicacoesContent() {
               <HealthBadge label={`cursor ${String(adviseCursor?.status || "desconhecido")}`} tone={String(adviseCursor?.erro || "") ? "danger" : "default"} />
               <HealthBadge label={adviseLastRunAt ? `ultimo ciclo ${new Date(adviseLastRunAt).toLocaleString("pt-BR")}` : "ultimo ciclo indisponivel"} tone="default" />
             </div>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <QueueSummaryCard title="Recebidas do Advise" count={Number(adviseSync.publicacoes_total || 0)} helper="Estoque de publicacoes de origem Advise no projeto HMADV." />
               <QueueSummaryCard title="Pendentes CRM" count={Number(adviseSync.publicacoes_pendentes_fs || 0)} helper="Publicacoes Advise ainda sem reflexo no Freshsales." />
               <QueueSummaryCard title="Ultimo ciclo" count={adviseLastCycleTotal} helper="Total reportado pelo cursor do advise-sync no ciclo mais recente." />
@@ -2650,7 +2650,7 @@ function PublicacoesContent() {
         </Panel>
       ) : null}
 
-      {view === "operacao" ? <div id="operacao" className="grid flex-1 auto-rows-fr gap-6 xl:grid-cols-2">
+      {view === "operacao" ? <div id="operacao" className="grid flex-1 auto-rows-fr gap-6 lg:grid-cols-2">
         <Panel title="Criacao de processos a partir das publicacoes" eyebrow="Operacao orientada por fila" className="h-full">
           <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
