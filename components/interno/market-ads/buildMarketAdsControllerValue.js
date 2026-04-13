@@ -9,6 +9,7 @@ export default function buildMarketAdsControllerValue({
 }) {
   return {
     state,
+    meta: state.meta,
     data: derived.data,
     campaigns: derived.campaigns,
     adItems: derived.adItems,

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { adminFetch } from "../../../lib/admin/api";
+import executeMarketAdsAction from "./executeMarketAdsAction";
 import { toNumber } from "./shared";
 
 export default function useMarketAdsCrudActions({
@@ -24,22 +24,17 @@ export default function useMarketAdsCrudActions({
   async function saveCampaign() {
     setCampaignState({ loading: true, error: null, result: null });
     try {
-      const payload = await adminFetch("/api/admin-market-ads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: editingCampaignId ? "update_campaign" : "save_campaign",
-          campaignId: editingCampaignId || null,
-          input: {
-            ...campaignForm,
-            budget: toNumber(campaignForm.budget),
-            roi: toNumber(campaignForm.roi),
-            ctr: toNumber(campaignForm.ctr),
-            cpc: toNumber(campaignForm.cpc),
-            cpa: toNumber(campaignForm.cpa),
-            conversionRate: toNumber(campaignForm.conversionRate),
-          },
-        }),
+      const { payload } = await executeMarketAdsAction(editingCampaignId ? "update_campaign" : "save_campaign", {
+        campaignId: editingCampaignId || null,
+        input: {
+          ...campaignForm,
+          budget: toNumber(campaignForm.budget),
+          roi: toNumber(campaignForm.roi),
+          ctr: toNumber(campaignForm.ctr),
+          cpc: toNumber(campaignForm.cpc),
+          cpa: toNumber(campaignForm.cpa),
+          conversionRate: toNumber(campaignForm.conversionRate),
+        },
       });
       setCampaignState({ loading: false, error: null, result: payload.data || null });
       setEditingCampaignId("");
@@ -53,11 +48,7 @@ export default function useMarketAdsCrudActions({
   async function recommendLanding() {
     setLandingState({ loading: true, error: null, result: null });
     try {
-      const payload = await adminFetch("/api/admin-market-ads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "recommend_landing", input: { legalArea: campaignForm.legalArea, objective: campaignForm.objective } }),
-      });
+      const { payload } = await executeMarketAdsAction("recommend_landing", { input: { legalArea: campaignForm.legalArea, objective: campaignForm.objective } });
       setLandingState({ loading: false, error: null, result: payload.data || null });
     } catch (error) {
       setLandingState({ loading: false, error: error.message || "Falha ao recomendar landing page.", result: null });
@@ -73,14 +64,9 @@ export default function useMarketAdsCrudActions({
   async function saveAdItem() {
     setAdState({ loading: true, error: null, result: null });
     try {
-      const payload = await adminFetch("/api/admin-market-ads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: editingAdId ? "update_ad_item" : "save_ad_item",
-          itemId: editingAdId || null,
-          input: { ...adForm, keywordSuggestions: String(adForm.keywordSuggestions || "").split(",").map((item) => item.trim()).filter(Boolean) },
-        }),
+      const { payload } = await executeMarketAdsAction(editingAdId ? "update_ad_item" : "save_ad_item", {
+        itemId: editingAdId || null,
+        input: { ...adForm, keywordSuggestions: String(adForm.keywordSuggestions || "").split(",").map((item) => item.trim()).filter(Boolean) },
       });
       setAdState({ loading: false, error: null, result: payload.data || null });
       setEditingAdId("");
@@ -94,14 +80,9 @@ export default function useMarketAdsCrudActions({
   async function saveAbTest() {
     setAbState({ loading: true, error: null, result: null });
     try {
-      const payload = await adminFetch("/api/admin-market-ads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: editingAbId ? "update_ab_test" : "save_ab_test",
-          testId: editingAbId || null,
-          input: { ...abForm, uplift: toNumber(abForm.uplift) },
-        }),
+      const { payload } = await executeMarketAdsAction(editingAbId ? "update_ab_test" : "save_ab_test", {
+        testId: editingAbId || null,
+        input: { ...abForm, uplift: toNumber(abForm.uplift) },
       });
       setAbState({ loading: false, error: null, result: payload.data || null });
       setEditingAbId("");

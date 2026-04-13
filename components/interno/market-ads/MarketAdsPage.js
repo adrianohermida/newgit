@@ -29,7 +29,7 @@ function MarketAdsContent() {
   const { state, data } = controller;
 
   return (
-    <div className="space-y-10 pb-10">
+    <div className="space-y-10">
       <SummarySection state={state} data={data} load={controller.load} generateOptimizations={controller.generateOptimizations} />
 
       {!state.loading && !state.error && data ? (

@@ -38,6 +38,7 @@ import { inferModuleKeyFromPathname, listModuleRegistryEntries } from "../../lib
 
 const NAV_ITEMS = [
   { href: "/interno", label: "Visao geral" },
+  { href: "/interno/copilot", label: "Copilot" },
   { href: "/interno/ai-task", label: "AI Task" },
   { href: "/interno/aprovacoes", label: "Aprovacoes" },
   { href: "/interno/financeiro", label: "Financeiro" },
@@ -1443,9 +1444,9 @@ export default function InternoLayout({
   const consoleDockRight = shouldRenderDotobotRail && !rightCollapsed ? 360 : 0;
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.24),transparent_30%),linear-gradient(180deg,#050706_0%,#070A09_100%)] text-[#F4F1EA]">
+    <div className="flex h-screen w-full overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.18),transparent_26%),linear-gradient(180deg,#040605_0%,#070A09_100%)] p-3 text-[#F4F1EA]">
       {/* SIDEBAR */}
-      <aside className={`shrink-0 flex h-full flex-col border-r border-[#22342F] bg-[linear-gradient(180deg,rgba(10,18,16,0.98),rgba(8,15,13,0.94))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.22)] transition-all ${leftCollapsed ? "w-[88px] min-w-[88px]" : "w-[272px] min-w-[220px] max-w-[320px]"}`}>
+      <aside className={`shrink-0 flex h-full flex-col rounded-[28px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(10,18,16,0.98),rgba(8,15,13,0.94))] px-5 py-5 shadow-[0_22px_60px_rgba(0,0,0,0.28)] transition-all ${leftCollapsed ? "w-[88px] min-w-[88px]" : "w-[272px] min-w-[220px] max-w-[320px]"}`}>
         <Link href="/interno" prefetch={false} className="mb-8 block">
           {!leftCollapsed ? (
             <>
@@ -1495,13 +1496,13 @@ export default function InternoLayout({
         </div>
       </aside>
       {/* MAIN + COPILOT */}
-      <div className="flex h-full min-h-0 flex-1">
+      <div className="ml-3 flex h-full min-h-0 flex-1">
         {/* CONTEÚDO PRINCIPAL */}
-        <div className="relative flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden">
-          <div className="shrink-0 flex items-center justify-between gap-4 border-b border-[#1E2E29] px-6 py-4">
-            <div className="text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">Workspace</div>
-            <div className="flex-1 px-6">
-              <div className="mx-auto flex max-w-xl items-center gap-3 rounded-full border border-[#22342F] bg-[rgba(8,10,9,0.7)] px-4 py-2 text-sm">
+        <div className="relative flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden rounded-[30px] border border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.98),rgba(7,9,8,0.94))] shadow-[0_24px_64px_rgba(0,0,0,0.28)]">
+          <div className="shrink-0 flex items-center justify-between gap-4 border-b border-[#1E2E29] bg-[rgba(255,255,255,0.02)] px-6 py-4">
+            <div className="rounded-2xl border border-[#1F2D29] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">Workspace</div>
+            <div className="flex-1 px-4 xl:px-6">
+              <div className="mx-auto flex max-w-xl items-center gap-3 rounded-[20px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(12,15,14,0.86),rgba(8,10,9,0.9))] px-4 py-2.5 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
                 <input
                   type="text"
                   placeholder="Buscar por processos, publicacoes, contas..."
@@ -1510,17 +1511,17 @@ export default function InternoLayout({
                 <button
                   type="button"
                   onClick={handleToggleCopilot}
-                  className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[#C5A059] transition hover:border-[#C5A059] hover:text-[#F5E6C5]"
+                  className="rounded-xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] text-[#C5A059] transition hover:border-[#C5A059] hover:text-[#F5E6C5]"
                 >
                   Chat
                 </button>
               </div>
             </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2 rounded-[20px] border border-[#1F2D29] bg-[rgba(255,255,255,0.02)] px-2 py-2">
             <button
               type="button"
               onClick={handlePageDebug}
-              className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+              className="rounded-xl border border-[#22342F] px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
               title="Registrar debug desta pagina"
             >
               Debug
@@ -1528,7 +1529,7 @@ export default function InternoLayout({
             <button
               type="button"
               onClick={() => setLeftCollapsed((current) => !current)}
-                className="h-9 w-9 rounded-lg border border-[#22342F] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                className="h-10 w-10 rounded-xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                 title="Alternar sidebar"
               >
                 <span className="sr-only">Sidebar</span>
@@ -1537,7 +1538,7 @@ export default function InternoLayout({
               <button
                 type="button"
                 onClick={handleToggleRightRail}
-                className="h-9 w-9 rounded-lg border border-[#22342F] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                className="h-10 w-10 rounded-xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                 title="Alternar painel direito"
               >
                 <span className="sr-only">Painel</span>
@@ -1546,7 +1547,7 @@ export default function InternoLayout({
               <button
                 type="button"
                 onClick={() => setConsoleOpen((current) => !current)}
-                className="h-9 w-9 rounded-lg border border-[#22342F] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                className="h-10 w-10 rounded-xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                 title="Alternar console"
               >
                 <span className="sr-only">Console</span>
@@ -1555,7 +1556,7 @@ export default function InternoLayout({
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden" style={{ paddingBottom: `${consoleReservedSpace}px` }}>
-          <header className="mb-6 shrink-0 border-b border-[#1E2E29] pb-5 px-6 pt-6">
+          <header className="mb-6 shrink-0 border-b border-[#1E2E29] bg-[rgba(255,255,255,0.015)] pb-5 px-6 pt-6">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
               <div className="min-w-0">
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">Operacao interna</p>
@@ -1571,28 +1572,28 @@ export default function InternoLayout({
           </div>
           </div>
           <div
-            className={`fixed bottom-0 z-30 min-h-[44px] border-t border-[#1E2E29] bg-[rgba(6,8,7,0.96)] shadow-[0_-18px_44px_rgba(0,0,0,0.38)] transition-all ${consoleOpen ? "flex flex-col" : "block h-[44px]"}`}
+            className={`fixed bottom-3 z-30 min-h-[44px] overflow-hidden rounded-t-[24px] border border-[#1E2E29] bg-[linear-gradient(180deg,rgba(9,11,10,0.98),rgba(6,8,7,0.98))] shadow-[0_-20px_44px_rgba(0,0,0,0.32)] transition-all ${consoleOpen ? "flex flex-col" : "block h-[44px]"}`}
             style={{
-              left: `${consoleDockLeft}px`,
-              right: `${consoleDockRight}px`,
+              left: `${consoleDockLeft + 12}px`,
+              right: `${consoleDockRight + 12}px`,
               height: consoleOpen ? `${consoleHeight}px` : undefined,
             }}
           >
             {consoleOpen ? (
               <div
                 onMouseDown={handleStartResize}
-                className="shrink-0 flex h-3 cursor-row-resize items-center justify-center border-b border-[#1E2E29] text-[#60706A]"
+                className="shrink-0 flex h-3 cursor-row-resize items-center justify-center border-b border-[#1E2E29] bg-[rgba(255,255,255,0.02)] text-[#60706A]"
                 title="Arraste para redimensionar"
               >
                 <span className="h-1 w-10 rounded-full bg-[#22342F]" />
               </div>
             ) : null}
-            <div className="shrink-0 flex items-center justify-between px-5 py-2 text-xs uppercase tracking-[0.18em] text-[#C5A059]">
+            <div className="shrink-0 flex items-center justify-between border-b border-[#1A2421] px-5 py-2 text-xs uppercase tracking-[0.18em] text-[#C5A059]">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setConsoleTab("console")}
-                  className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] transition ${
+                  className={`rounded-xl border px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] transition ${
                     consoleTab === "console"
                       ? "border-[#C5A059] text-[#C5A059]"
                       : "border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059]"
@@ -1603,7 +1604,7 @@ export default function InternoLayout({
                 <button
                   type="button"
                   onClick={() => setConsoleTab("log")}
-                  className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] transition ${
+                  className={`rounded-xl border px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] transition ${
                     consoleTab === "log"
                       ? "border-[#C5A059] text-[#C5A059]"
                       : "border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059]"
@@ -1635,7 +1636,7 @@ export default function InternoLayout({
               <button
                 type="button"
                 onClick={() => setConsoleOpen((current) => !current)}
-                className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                className="rounded-xl border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
               >
                 {consoleOpen ? "Minimizar" : "Abrir"}
               </button>
@@ -2623,9 +2624,9 @@ export default function InternoLayout({
           </div>
         </div>
         {shouldRenderDotobotRail && !rightCollapsed ? (
-          <div className="fixed inset-y-0 right-0 z-40 flex w-[min(100vw,420px)] flex-col border-l border-[#22342F] bg-[rgba(8,10,9,0.98)] shadow-[-24px_0_48px_rgba(0,0,0,0.35)] xl:relative xl:z-auto xl:h-full xl:w-[360px] xl:min-w-[320px] xl:max-w-[420px] xl:bg-[rgba(8,10,9,0.94)] xl:shadow-none">
+          <div className="fixed inset-y-3 right-3 z-40 flex w-[min(100vw-0.75rem,420px)] flex-col overflow-hidden rounded-[28px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(8,10,9,0.985),rgba(7,9,8,0.96))] shadow-[-24px_0_56px_rgba(0,0,0,0.35)] xl:relative xl:inset-y-auto xl:right-auto xl:z-auto xl:h-full xl:w-[360px] xl:min-w-[320px] xl:max-w-[420px] xl:rounded-[30px] xl:bg-[linear-gradient(180deg,rgba(8,10,9,0.96),rgba(7,9,8,0.94))] xl:shadow-none">
             {currentOperationalRail || resolvedRightRail ? (
-              <div className="max-h-[42%] shrink-0 overflow-auto border-b border-[#22342F] p-4 xl:max-h-[48%]">
+              <div className="max-h-[42%] shrink-0 overflow-auto border-b border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 xl:max-h-[48%]">
                 {currentOperationalRail ? (
                   <OperationalRightRail
                     data={currentOperationalRail}
@@ -2666,7 +2667,7 @@ export default function InternoLayout({
           <button
             type="button"
             onClick={handleToggleCopilot}
-            className="group fixed bottom-24 right-3 z-[80] rounded-full border border-[#C5A059] bg-[#C5A059] px-3 py-3 text-[10px] uppercase tracking-[0.2em] text-[#07110E] shadow-[0_10px_30px_rgba(197,160,89,0.3)] xl:right-0 xl:top-1/2 xl:bottom-auto xl:-translate-y-1/2 xl:rounded-l-2xl xl:rounded-r-none xl:px-2 xl:py-5 xl:tracking-[0.32em]"
+            className="group fixed bottom-24 right-4 z-[80] rounded-full border border-[#C5A059] bg-[#C5A059] px-3 py-3 text-[10px] uppercase tracking-[0.2em] text-[#07110E] shadow-[0_10px_30px_rgba(197,160,89,0.3)] xl:right-3 xl:top-1/2 xl:bottom-auto xl:-translate-y-1/2 xl:rounded-[20px] xl:px-2 xl:py-5 xl:tracking-[0.32em]"
             style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
           >
             <span className="group-hover:hidden">{copilotOpen && !rightCollapsed ? "Fechar" : "Copilot"}</span>

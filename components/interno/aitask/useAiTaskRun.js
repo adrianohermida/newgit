@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { adminFetch } from "../../../lib/admin/api";
 import { appendActivityLog, updateActivityLog } from "../../../lib/admin/activity-log";
 import { invokeBrowserLocalExecute, isBrowserLocalProvider, normalizeBrowserLocalTaskRun } from "../../../lib/lawdesk/browser-local-runtime";
+import { summarizeTaskRunOrchestration } from "./aiTaskAdapters";
 
 const AI_TASK_CONSOLE_META = {
   consolePane: ["ai-task", "functions", "jobs"],
@@ -183,6 +184,7 @@ export function useAiTaskRun({
         if (normalized.steps.length) {
           const mappedTasks = normalized.steps.map((step, index) => {
             const label = step?.action || step?.title || `Etapa ${index + 1}`;
+            const dependencies = Array.isArray(step?.dependencies) ? step.dependencies : Array.isArray(step?.dependsOn) ? step.dependsOn : [];
             return {
               id: `${run?.id || runId}_step_${index + 1}`,
               title: label,
@@ -193,10 +195,15 @@ export function useAiTaskRun({
               status: normalizeTaskStepStatus(step?.status),
               priority: inferTaskPriority(step),
               assignedAgent: classifyTaskAgent(step),
+              stage: step?.stage || null,
+              parallelGroup: step?.parallel_group || null,
+              moduleKeys: Array.isArray(step?.module_keys) ? step.module_keys : [],
+              orchestrationTaskId: step?.id || step?.task_id || null,
               created_at: nowIso(),
               updated_at: nowIso(),
               logs: step?.error ? [step.error] : [],
-              dependencies: Array.isArray(step?.dependencies) ? step.dependencies : Array.isArray(step?.dependsOn) ? step.dependsOn : [],
+              dependencies,
+              dependencyCount: dependencies.length,
             };
           });
           setTasks(mappedTasks);
@@ -211,7 +218,23 @@ export function useAiTaskRun({
             documents: normalized.rag?.documents || [],
             ragEnabled: Boolean(normalized.rag?.retrieval?.enabled || normalized.rag?.documents?.length),
             route: routePath || "/interno/ai-task",
+            orchestration: normalized.orchestration || current?.orchestration || null,
           }));
+        }
+
+        if (normalized.orchestration) {
+          const orchestrationSummary = summarizeTaskRunOrchestration(normalized.orchestration);
+          setMissionHistory((current) =>
+            current.map((item) =>
+              item.id === runId
+                ? {
+                    ...item,
+                    orchestration: normalized.orchestration,
+                    module: orchestrationSummary.moduleKeys.join(", ") || item.module || null,
+                  }
+                : item
+            )
+          );
         }
 
         if (runStatus === "completed" || runStatus === "failed" || runStatus === "canceled") {
@@ -347,6 +370,8 @@ export function useAiTaskRun({
         status: "running",
         source: null,
         model: null,
+        orchestration: null,
+        module: blueprint.modules.join(", ") || null,
         created_at: nowIso(),
         updated_at: nowIso(),
       },
@@ -472,6 +497,10 @@ export function useAiTaskRun({
             status: normalizeTaskStepStatus(step?.status),
             priority: inferTaskPriority(step),
             assignedAgent: classifyTaskAgent(step),
+            stage: step?.stage || null,
+            parallelGroup: step?.parallel_group || null,
+            moduleKeys: Array.isArray(step?.module_keys) ? step.module_keys : [],
+            orchestrationTaskId: step?.id || step?.task_id || null,
             created_at: localStartedAt,
             updated_at: nowIso(),
             logs: step?.error ? [step.error] : [],
@@ -504,6 +533,8 @@ export function useAiTaskRun({
           });
         }
 
+        const orchestrationSummary = summarizeTaskRunOrchestration(normalized.orchestration);
+
         patchThinking((current) => [
           {
             id: `${Date.now()}_local_response`,
@@ -529,16 +560,19 @@ export function useAiTaskRun({
           current.map((item) =>
             item.id === localRunId
               ? {
-                  ...item,
-                  id: normalized.run?.id || item.id,
-                  status: normalized.status === "completed" ? "done" : "failed",
-                  updated_at: nowIso(),
-                  result: normalized.run?.result?.status || normalized.status,
-                  source: normalized.source || null,
-                  model: normalized.model || null,
-                }
-              : item
-          )
+                ...item,
+                id: normalized.run?.id || item.id,
+                status: normalized.status === "completed" ? "done" : "failed",
+                updated_at: nowIso(),
+                result: normalized.run?.result?.status || normalized.status,
+                source: normalized.source || null,
+                model: normalized.model || null,
+                orchestration: normalized.orchestration || null,
+                module: orchestrationSummary.moduleKeys.join(", ") || item.module || null,
+                eventsTotal: normalized.eventsTotal != null ? normalized.eventsTotal : item.eventsTotal,
+              }
+            : item
+        )
         );
 
         setAutomation(normalized.status === "completed" ? "done" : "failed");
@@ -725,10 +759,14 @@ export function useAiTaskRun({
           status: step?.status === "ok" ? "done" : step?.status === "fail" ? "failed" : "running",
           priority: "high",
           assignedAgent: step?.tool || "Dotobot",
+          stage: step?.stage || null,
+          parallelGroup: step?.parallel_group || null,
+          moduleKeys: Array.isArray(step?.module_keys) ? step.module_keys : [],
+          orchestrationTaskId: step?.id || step?.task_id || null,
           created_at: nowIso(),
           updated_at: nowIso(),
           logs: step?.error ? [step.error] : [],
-          dependencies: [],
+          dependencies: Array.isArray(step?.dependencies) ? step.dependencies : Array.isArray(step?.dependsOn) ? step.dependsOn : [],
         }));
         setTasks(mappedTasks);
         setSelectedTaskId(mappedTasks[0]?.id || null);
@@ -790,6 +828,7 @@ export function useAiTaskRun({
       }
 
       const runStatus = normalized.status;
+      const orchestrationSummary = summarizeTaskRunOrchestration(normalized.orchestration);
       if (runStatus === "completed" || runStatus === "failed" || runStatus === "canceled") {
         setActiveRun(null);
       }
@@ -804,6 +843,9 @@ export function useAiTaskRun({
                 result: run?.result?.status || runStatus,
                 source: responseSource || item.source || null,
                 model: responseModel || item.model || null,
+                orchestration: normalized.orchestration || item.orchestration || null,
+                module: orchestrationSummary.moduleKeys.join(", ") || item.module || null,
+                eventsTotal: normalized.eventsTotal != null ? normalized.eventsTotal : item.eventsTotal,
               }
             : item
         )

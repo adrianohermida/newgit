@@ -114,7 +114,8 @@ $resolvedAdminToken = Resolve-EnvValue -ExplicitValue $AdminToken -Names @(
 $root = $BaseUrl.Trim().TrimEnd("/")
 $publicChecks = @(
   @{ name = "admin-auth-config"; path = "/api/admin-auth-config"; method = "GET"; body = $null },
-  @{ name = "public-chat-config"; path = "/api/public-chat-config"; method = "GET"; body = $null }
+  @{ name = "public-chat-config"; path = "/api/public-chat-config"; method = "GET"; body = $null },
+  @{ name = "admin-market-ads"; path = "/api/admin-market-ads"; method = "GET"; body = $null }
 )
 
 $protectedChecks = @(
@@ -148,6 +149,7 @@ $ragCheck = $results | Where-Object { $_.name -eq "admin-dotobot-rag-health" } |
 $chatCheck = $results | Where-Object { $_.name -eq "admin-lawdesk-chat" } | Select-Object -First 1
 $authConfigCheck = $results | Where-Object { $_.name -eq "admin-auth-config" } | Select-Object -First 1
 $publicChatConfigCheck = $results | Where-Object { $_.name -eq "public-chat-config" } | Select-Object -First 1
+$marketAdsCheck = $results | Where-Object { $_.name -eq "admin-market-ads" } | Select-Object -First 1
 
 if ($authConfigCheck) {
   if ($authConfigCheck.status -ge 500) {
@@ -160,6 +162,14 @@ if ($authConfigCheck) {
 if ($publicChatConfigCheck) {
   if ($publicChatConfigCheck.status -ge 500) {
     $diagnosis.Add("A rota publica /api/public-chat-config falhou; o bootstrap do chat pode estar quebrado.")
+  }
+}
+
+if ($marketAdsCheck) {
+  if ($marketAdsCheck.status -eq 404) {
+    $diagnosis.Add("A rota /api/admin-market-ads nao esta publicada no runtime atual; o frontend deve operar em modo local.")
+  } elseif ($marketAdsCheck.status -ge 500) {
+    $diagnosis.Add("A rota /api/admin-market-ads respondeu com erro interno; o modulo pode cair para modo local.")
   }
 }
 

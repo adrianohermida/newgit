@@ -112,8 +112,8 @@ registerTest("buildTaskColumns groups tasks by execution status", async () => {
 registerTest("buildAgentLanes keeps a visible running count for running and pending tasks", async () => {
   const { state } = await loadAiTaskModules();
   const lanes = state.buildAgentLanes([
-    { id: "1", assignedAgent: "Planner", status: "running" },
-    { id: "2", assignedAgent: "Planner", status: "pending" },
+    { id: "1", assignedAgent: "Planner", status: "running", stage: "planning", parallelGroup: "analysis", moduleKeys: ["processos"], dependencies: ["0"] },
+    { id: "2", assignedAgent: "Planner", status: "pending", stage: "planning", parallelGroup: "analysis", moduleKeys: ["agentlab"], dependencies: [] },
     { id: "3", assignedAgent: "Planner", status: "done" },
     { id: "4", assignedAgent: "Critic", status: "failed" },
   ]);
@@ -123,6 +123,10 @@ registerTest("buildAgentLanes keeps a visible running count for running and pend
 
   assert.equal(planner.runningCount, 2);
   assert.equal(planner.tasks.length, 3);
+  assert.equal(planner.parallelGroups.length, 1);
+  assert.equal(planner.stages[0], "planning");
+  assert.equal(planner.moduleKeys.length, 2);
+  assert.equal(planner.dependencyCount, 1);
   assert.equal(critic.runningCount, 0);
 });
 
@@ -224,6 +228,20 @@ registerTest("adapter helpers classify mission intent and approval risk", async 
   assert.equal(adapters.normalizeTaskStepStatus("ok"), "done");
   assert.equal(adapters.normalizeTaskStepStatus("error"), "failed");
   assert.equal(adapters.inferTaskPriority({ action: "Recuperar contexto RAG" }), "medium");
+  const orchestration = adapters.summarizeTaskRunOrchestration({
+    multi_agent: true,
+    subagents: [{ role: "Planner" }, { role: "Retriever" }],
+    tasks: [
+      { stage: "planning", parallel_group: "analysis", module_keys: ["processos"], depends_on: [] },
+      { stage: "retrieval", parallel_group: "analysis", module_keys: ["agentlab"], depends_on: ["task_1"] },
+    ],
+    available_modules: [{ key: "processos" }, { key: "agentlab" }],
+  });
+  assert.equal(orchestration.enabled, true);
+  assert.equal(orchestration.parallelGroups.length, 1);
+  assert.equal(orchestration.stages.length, 2);
+  assert.equal(orchestration.moduleKeys.length, 2);
+  assert.equal(orchestration.dependencyEdges, 1);
 });
 
 registerTest("supabase local bootstrap exposes readiness checklist for offline persistence", async () => {

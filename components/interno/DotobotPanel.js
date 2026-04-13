@@ -42,6 +42,7 @@ import {
   deleteConversationFromCollection,
   extractAssistantResponseText,
   filterVisibleConversations,
+  groupConversationsByProject,
   inferConversationTitle,
   isTaskCommand,
   loadPersistedDotobotState,
@@ -115,12 +116,74 @@ const QUICK_PROMPTS = [
   "Resuma riscos, fatos e inferencias deste contexto.",
 ];
 
-function buildConversationRuntimeMetadata({ mode, provider, selectedSkillId, contextEnabled }) {
+const MODULE_WORKSPACES = [
+  { key: "processos", label: "Processos", href: "/interno/processos", helper: "Monitoramento, CNJ, tarefas jurídicas e gaps operacionais." },
+  { key: "publicacoes", label: "Publicações", href: "/interno/publicacoes", helper: "Fila de reflexo, análise de andamentos e vínculo com processos." },
+  { key: "contatos", label: "Contatos", href: "/interno/contacts", helper: "Perfil 360, relacionamento, enriquecimento e reconciliação." },
+  { key: "leads", label: "Leads", href: "/interno/leads", helper: "Origem, triagem comercial e handoff para CRM." },
+  { key: "agenda", label: "Agenda", href: "/interno/agendamentos", helper: "Compromissos, confirmações e preparo de audiência." },
+  { key: "conteudo", label: "Conteúdo", href: "/interno/posts", helper: "Planejamento editorial, rascunhos e peças publicáveis." },
+  { key: "market_ads", label: "Market Ads", href: "/interno/market-ads", helper: "Campanhas, compliance e inteligência criativa." },
+  { key: "financeiro", label: "Financeiro", href: "/interno/financeiro", helper: "Faturas, deals, recebíveis e pendências críticas." },
+  { key: "aprovacoes", label: "Aprovações", href: "/interno/aprovacoes", helper: "Decisões humanas, validações e governança de ações." },
+  { key: "jobs", label: "Jobs", href: "/interno/jobs", helper: "Execuções em lote, backlog e saúde das filas." },
+];
+
+function buildProjectInsights(groups = []) {
+  return groups.map((group) => ({
+    key: group.key,
+    label: group.label,
+    count: group.items.length,
+    updatedAt: group.updatedAt,
+    latestTitle: group.items[0]?.title || "Sem conversa",
+  }));
+}
+
+function buildConversationConcatBlock(conversation) {
+  const transcript = Array.isArray(conversation?.messages)
+    ? conversation.messages
+        .slice(-12)
+        .map((message) => `${message.role === "assistant" ? "Dotobot" : message.role === "system" ? "Sistema" : "Equipe"}: ${message.text}`)
+        .join("\n")
+    : "";
+  return [
+    `Projeto: ${conversation?.projectLabel || "Geral"}`,
+    `Conversa: ${conversation?.title || "Sem titulo"}`,
+    transcript ? `Transcricao:\n${transcript}` : "",
+  ].filter(Boolean).join("\n\n");
+}
+
+function extractAgentLabSubagents(agentLabData, activeTask) {
+  const orchestrationAgents = Array.isArray(activeTask?.orchestration?.subagents) ? activeTask.orchestration.subagents : [];
+  const governanceAgents = Array.isArray(agentLabData?.governance?.profiles) ? agentLabData.governance.profiles : [];
+  if (orchestrationAgents.length) {
+    return orchestrationAgents.map((agent, index) => ({
+      id: agent?.id || `subagent_${index}`,
+      role: agent?.role || agent?.label || `Subagente ${index + 1}`,
+      stageCount: Array.isArray(agent?.stages) ? agent.stages.length : 0,
+      moduleCount: Array.isArray(agent?.module_keys) ? agent.module_keys.length : 0,
+      status: activeTask?.status || "running",
+    }));
+  }
+  return governanceAgents.slice(0, 6).map((agent, index) => ({
+    id: agent?.id || `agentlab_${index}`,
+    role: agent?.label || agent?.name || `AgentLab ${index + 1}`,
+    stageCount: 0,
+    moduleCount: 0,
+    status: agent?.status || "ready",
+  }));
+}
+
+function buildConversationRuntimeMetadata({ mode, provider, selectedSkillId, contextEnabled, routePath }) {
+  const matchedProject = MODULE_WORKSPACES.find((item) => String(routePath || "").startsWith(item.href));
   return {
     mode,
     provider,
     selectedSkillId: selectedSkillId || "",
     contextEnabled,
+    routePath: routePath || "/interno",
+    projectKey: matchedProject?.key || "geral",
+    projectLabel: matchedProject?.label || "Geral",
   };
 }
 
@@ -573,7 +636,10 @@ const [localStackSummary, setLocalStackSummary] = useState(null);
 const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
 const [localRuntimeConfigOpen, setLocalRuntimeConfigOpen] = useState(false);
 const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocalRuntimeConfig());
-  const [rightPanelTab, setRightPanelTab] = useState("tasks");
+  const [rightPanelTab, setRightPanelTab] = useState("modules");
+  const [selectedProjectFilter, setSelectedProjectFilter] = useState("all");
+  const [agentLabSnapshot, setAgentLabSnapshot] = useState({ loading: true, error: null, data: null });
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [attachments, setAttachments] = useState([]);
   const [showSlashCommands, setShowSlashCommands] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -585,6 +651,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
   const composerRef = useRef(null);
   const fileInputRef = useRef(null);
   const recognitionRef = useRef(null);
+  const taskStatusRef = useRef(new Map());
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -664,6 +731,35 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    adminFetch("/api/admin-agentlab", { method: "GET" })
+      .then((payload) => {
+        if (!active) return;
+        setAgentLabSnapshot({
+          loading: false,
+          error: null,
+          data: payload?.data || null,
+        });
+      })
+      .catch((fetchError) => {
+        if (!active) return;
+        setAgentLabSnapshot({
+          loading: false,
+          error: fetchError?.message || "Falha ao carregar AgentLab.",
+          data: null,
+        });
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    setNotificationsEnabled(window.Notification.permission === "granted");
   }, []);
 
   useEffect(() => {
@@ -815,7 +911,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
       messages,
       taskHistory,
       attachments,
-      metadata: buildConversationRuntimeMetadata({ mode, provider, selectedSkillId, contextEnabled }),
+      metadata: buildConversationRuntimeMetadata({ mode, provider, selectedSkillId, contextEnabled, routePath }),
     });
     safeLocalSet(conversationStorageKey, JSON.stringify(next));
     setConversations(next);
@@ -894,6 +990,25 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
     uiState,
     workspaceOpen,
   ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !notificationsEnabled || !("Notification" in window)) return;
+    taskHistory.forEach((task) => {
+      const previousStatus = taskStatusRef.current.get(task.id);
+      if (
+        previousStatus &&
+        previousStatus !== task.status &&
+        ["completed", "done", "failed", "error", "canceled"].includes(String(task.status || "").toLowerCase())
+      ) {
+        const title = task.status === "failed" || task.status === "error" ? "Dotobot: tarefa com falha" : "Dotobot: tarefa concluída";
+        const body = task.query || task.title || "Execução finalizada";
+        try {
+          new window.Notification(title, { body });
+        } catch {}
+      }
+      taskStatusRef.current.set(task.id, task.status);
+    });
+  }, [notificationsEnabled, taskHistory]);
 
   // Copilot sempre disponÃ­vel, apenas colapsa visualmente
   useEffect(() => {
@@ -1373,6 +1488,12 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
     event.target.value = "";
   }
 
+  async function handleEnableNotifications() {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    const permission = await window.Notification.requestPermission();
+    setNotificationsEnabled(permission === "granted");
+  }
+
   function updateConversationById(conversationId, updater) {
     if (!conversationId) return;
     setConversations((current) => updateConversationCollection(current, conversationId, updater));
@@ -1385,7 +1506,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
       messages,
       taskHistory,
       attachments,
-      metadata: buildConversationRuntimeMetadata({ mode, provider, selectedSkillId, contextEnabled }),
+      metadata: buildConversationRuntimeMetadata({ mode, provider, selectedSkillId, contextEnabled, routePath }),
     });
     setConversations((current) => [nextConversation, ...current].slice(0, MAX_CONVERSATIONS));
     setActiveConversationId(nextConversation.id);
@@ -1406,6 +1527,13 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
     }
     setError(null);
     setWorkspaceOpen(true);
+  }
+
+  function handleConcatConversation(conversation) {
+    const nextBlock = buildConversationConcatBlock(conversation);
+    setInput((current) => [current, nextBlock].filter(Boolean).join("\n\n---\n\n"));
+    setWorkspaceOpen(true);
+    setTimeout(() => composerRef.current?.focus(), 60);
   }
 
   function renameConversation(conversation) {
@@ -1438,7 +1566,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
         }
         const replacement = createEmptyConversation(
           "Nova conversa",
-          buildConversationRuntimeMetadata({ mode, provider, selectedSkillId, contextEnabled })
+          buildConversationRuntimeMetadata({ mode, provider, selectedSkillId, contextEnabled, routePath })
         );
         setConversations([replacement]);
         setActiveConversationId(replacement.id);
@@ -1673,6 +1801,9 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
   if (!showArchived) {
     filteredConversations = filteredConversations.filter(c => !c.archived);
   }
+  if (selectedProjectFilter !== "all") {
+    filteredConversations = filteredConversations.filter((conversation) => conversation.projectKey === selectedProjectFilter);
+  }
   if (conversationSort === "recent") {
     filteredConversations = filteredConversations
       .slice()
@@ -1684,6 +1815,19 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
   } else if (conversationSort === "title") {
     filteredConversations = filteredConversations.slice().sort((a, b) => (a.title || "").localeCompare(b.title || ""));
   }
+  const conversationProjectGroups = groupConversationsByProject(filteredConversations);
+  const projectInsights = buildProjectInsights(groupConversationsByProject(conversations.filter((conversation) => showArchived || !conversation.archived)));
+  const activeProjectLabel = activeConversation?.projectLabel || "Geral";
+  const moduleWorkspaceCards = MODULE_WORKSPACES.map((module) => {
+    const matchedConversations = conversations.filter((conversation) => conversation.projectKey === module.key);
+    return {
+      ...module,
+      count: matchedConversations.length,
+      active: activeConversation?.projectKey === module.key || String(routePath || "").includes(module.key.replace("_", "-")),
+      latestConversation: matchedConversations[0]?.title || null,
+    };
+  });
+  const agentLabSubagents = extractAgentLabSubagents(agentLabSnapshot.data, activeTask);
   const compactRecentConversations = filteredConversations.slice(0, 4);
   const compactTranscript = messages.slice(-4);
   const activeConversationPreview =
@@ -1766,7 +1910,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
       />
       {showCollapsedTrigger ? <CollapsedTrigger /> : null}
       {!isCollapsed ? (
-      <section className={`min-h-0 overflow-hidden rounded-[28px] border border-[#22342F] bg-[rgba(10,12,11,0.98)] backdrop-blur-sm ${compactRail ? "" : "mr-10 md:mr-0"}`}>
+        <section className={`min-h-0 overflow-hidden rounded-[26px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(10,12,11,0.98),rgba(8,10,9,0.98))] shadow-[0_18px_44px_rgba(0,0,0,0.22)] backdrop-blur-sm ${compactRail ? "" : "mr-10 md:mr-0"}`}>
         <header className="border-b border-[#22342F] px-4 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -2923,12 +3067,12 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
 
             <div className="flex-1 overflow-hidden p-3 md:p-5">
               <div className="grid h-full min-h-0 gap-4 2xl:grid-cols-[260px_minmax(0,1.35fr)_300px]">
-                <aside className="flex min-h-0 flex-col overflow-hidden rounded-[24px] border border-[#1C2623] bg-[rgba(255,255,255,0.015)] shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
+                <aside className="flex min-h-0 flex-col overflow-hidden rounded-[22px] border border-[#1C2623] bg-[rgba(255,255,255,0.018)] shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
                   <div className="border-b border-[#22342F] px-4 py-4 md:px-5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Historico</p>
-                        <p className="mt-1 text-sm text-[#9BAEA8]">Conversa estilo Copilot com busca contextual.</p>
+                        <p className="mt-1 text-sm text-[#9BAEA8]">Busca contextual, agrupamento por projeto e continuidade entre diálogos.</p>
                       </div>
                       <button
                         type="button"
@@ -2939,13 +3083,24 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                       </button>
                     </div>
                     <div className="mt-4 flex flex-col gap-2">
-                      <input
-                        value={conversationSearch}
-                        onChange={(event) => setConversationSearch(event.target.value)}
-                        placeholder="Buscar conversas"
-                        className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.98)] px-4 text-sm text-[#F5F1E8] outline-none placeholder:text-[#60706A] focus:border-[#C5A059]"
+                        <input
+                          value={conversationSearch}
+                          onChange={(event) => setConversationSearch(event.target.value)}
+                          placeholder="Buscar por tema, projeto, mensagem ou tag"
+                          className="h-11 w-full rounded-[18px] border border-[#22342F] bg-[rgba(7,9,8,0.98)] px-4 text-sm text-[#F5F1E8] outline-none placeholder:text-[#60706A] focus:border-[#C5A059]"
                       />
-                      <div className="flex gap-2 mt-2">
+                      <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
+                        <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[#D8DEDA]">
+                          projetos {projectInsights.length}
+                        </span>
+                        <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[#D8DEDA]">
+                          conversas {filteredConversations.length}
+                        </span>
+                        <span className="rounded-full border border-[#35554B] px-2.5 py-1 text-[#B7D5CB]">
+                          foco {activeProjectLabel}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex gap-2">
                         <select
                           value={conversationSort}
                           onChange={e => setConversationSort(e.target.value)}
@@ -2953,7 +3108,19 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                         >
                           <option value="recent">Mais recentes</option>
                           <option value="oldest">Mais antigas</option>
-                      <option value="title">Título (A-Z)</option>
+                          <option value="title">Título (A-Z)</option>
+                        </select>
+                        <select
+                          value={selectedProjectFilter}
+                          onChange={(event) => setSelectedProjectFilter(event.target.value)}
+                          className="rounded-xl border border-[#22342F] bg-[#181B19] px-2 py-1 text-xs text-[#C5A059] focus:border-[#C5A059]"
+                        >
+                          <option value="all">Todos os projetos</option>
+                          {projectInsights.map((project) => (
+                            <option key={project.key} value={project.key}>
+                              {project.label}
+                            </option>
+                          ))}
                         </select>
                         <label className="flex items-center gap-1 text-xs text-[#C5A059] cursor-pointer">
                           <input
@@ -2976,61 +3143,86 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                       handleDrop(event);
                     }}
                   >
-                    {filteredConversations.length ? (
-                      filteredConversations.map((conversation) => {
-                        const active = conversation.id === activeConversationId;
-                        return (
-                          <article
-                            key={conversation.id}
-                            className={`rounded-[18px] border p-3 transition ${
-                              active
-                                ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]"
-                                : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#35554B]"
-                            }`}
-                          >
-                            <button type="button" onClick={() => selectConversation(conversation)} className="w-full text-left">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-semibold text-[#F5F1E8]">{conversation.title}</p>
-                                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#9BAEA8]">{conversation.preview}</p>
-                                </div>
-                                <div className="text-right">
-                                  <span className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">
-                                    {conversation.messages?.length || 0}
-                                  </span>
-                                  <p className="mt-1 text-[10px] text-[#60706A]">
-                                    {conversation.updatedAt ? new Date(conversation.updatedAt).toLocaleDateString("pt-BR") : ""}
-                                  </p>
-                                </div>
-                              </div>
-                            </button>
-
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                onClick={() => renameConversation(conversation)}
-                                className="rounded-full border border-[#22342F] px-2.5 py-1 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-                              >
-                                Renomear
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => archiveConversation(conversation)}
-                                className="rounded-full border border-[#22342F] px-2.5 py-1 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-                              >
-                                {conversation.archived ? "Desarquivar" : "Arquivar"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => deleteConversation(conversation)}
-                                className="rounded-full border border-[#4f2525] px-2.5 py-1 text-[11px] text-[#f2b2b2] transition hover:border-[#f2b2b2]"
-                              >
-                                Excluir
-                              </button>
+                    {conversationProjectGroups.length ? (
+                      conversationProjectGroups.map((group) => (
+                        <section key={group.key} className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.015)] p-2">
+                          <div className="flex items-center justify-between gap-2 px-2 py-2">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">{group.label}</p>
+                              <p className="text-[11px] text-[#60706A]">{group.items.length} conversa(s)</p>
                             </div>
-                          </article>
-                        );
-                      })
+                            <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#D8DEDA]">
+                              {group.updatedAt ? new Date(group.updatedAt).toLocaleDateString("pt-BR") : "sem data"}
+                            </span>
+                          </div>
+                          <div className="space-y-2">
+                            {group.items.map((conversation) => {
+                              const active = conversation.id === activeConversationId;
+                              return (
+                                <article
+                                  key={conversation.id}
+                                  className={`rounded-[18px] border p-3 transition ${
+                                    active
+                                      ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]"
+                                      : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#35554B]"
+                                  }`}
+                                >
+                                  <button type="button" onClick={() => selectConversation(conversation)} className="w-full text-left">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="truncate text-sm font-semibold text-[#F5F1E8]">{conversation.title}</p>
+                                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#9BAEA8]">{conversation.preview}</p>
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">
+                                          {conversation.messages?.length || 0}
+                                        </span>
+                                        <p className="mt-1 text-[10px] text-[#60706A]">
+                                          {conversation.updatedAt ? new Date(conversation.updatedAt).toLocaleDateString("pt-BR") : ""}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </button>
+
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    <span className="rounded-full border border-[#35554B] px-2.5 py-1 text-[10px] text-[#B7D5CB]">
+                                      {conversation.projectLabel || "Geral"}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleConcatConversation(conversation)}
+                                      className="rounded-full border border-[#35554B] px-2.5 py-1 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                                    >
+                                      Concatenar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => renameConversation(conversation)}
+                                      className="rounded-full border border-[#22342F] px-2.5 py-1 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                    >
+                                      Renomear
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => archiveConversation(conversation)}
+                                      className="rounded-full border border-[#22342F] px-2.5 py-1 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                    >
+                                      {conversation.archived ? "Desarquivar" : "Arquivar"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteConversation(conversation)}
+                                      className="rounded-full border border-[#4f2525] px-2.5 py-1 text-[11px] text-[#f2b2b2] transition hover:border-[#f2b2b2]"
+                                    >
+                                      Excluir
+                                    </button>
+                                  </div>
+                                </article>
+                              );
+                            })}
+                          </div>
+                        </section>
+                      ))
                     ) : (
                       <div className="rounded-[24px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm text-[#9BAEA8]">
                         Nenhuma conversa encontrada.
@@ -3245,13 +3437,27 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                   <div className="border-b border-[#22342F] px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Painel</p>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
-                          onClick={() => setRightPanelTab("tasks")}
-                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "tasks" ? "border-[#C5A059] text-[#F1D39A]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                          onClick={() => setRightPanelTab("modules")}
+                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "modules" ? "border-[#C5A059] text-[#F1D39A]" : "border-[#22342F] text-[#9BAEA8]"}`}
                         >
-                          Tarefas
+                          Módulos
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRightPanelTab("ai-task")}
+                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "ai-task" ? "border-[#C5A059] text-[#F1D39A]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                        >
+                          AI Task
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRightPanelTab("agentlabs")}
+                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "agentlabs" ? "border-[#C5A059] text-[#F1D39A]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                        >
+                          AgentLabs
                         </button>
                         <button
                           type="button"
@@ -3265,13 +3471,109 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                   </div>
 
                   <div className="max-h-[calc(100vh-14rem)] overflow-y-auto p-4">
-                    {rightPanelTab === "tasks" ? (
+                    {rightPanelTab === "modules" ? (
+                      <div className="space-y-3">
+                        <div className="rounded-[18px] border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-4">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Workspace ativo</p>
+                          <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeProjectLabel}</p>
+                          <p className="mt-2 text-xs leading-6 text-[#9BAEA8]">
+                            Atalhos rápidos para os módulos internos com a mesma lógica de painel lateral do Copilot.
+                          </p>
+                        </div>
+                        <div className="grid gap-3">
+                          {moduleWorkspaceCards.map((module) => (
+                            <article
+                              key={module.key}
+                              className={`rounded-[18px] border p-4 ${
+                                module.active
+                                  ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]"
+                                  : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-[#F5F1E8]">{module.label}</p>
+                                  <p className="mt-2 text-xs leading-6 text-[#9BAEA8]">{module.helper}</p>
+                                </div>
+                                <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                                  {module.count}
+                                </span>
+                              </div>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => router.push(module.href)}
+                                  className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                                >
+                                  Abrir módulo
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedProjectFilter(module.key)}
+                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                >
+                                  Filtrar histórico
+                                </button>
+                              </div>
+                              {module.latestConversation ? (
+                                <p className="mt-3 text-[11px] text-[#7F928C]">Última conversa: {module.latestConversation}</p>
+                              ) : null}
+                            </article>
+                          ))}
+                        </div>
+                      </div>
+                    ) : rightPanelTab === "ai-task" ? (
                       <div className="space-y-3">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm text-[#9BAEA8]">Execucoes recentes e estado operacional.</p>
-                          <button type="button" onClick={handleResetTasks} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
-                            Limpar
-                          </button>
+                          <p className="text-sm text-[#9BAEA8]">Subtarefas, replay e continuidade com o AI Task.</p>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => router.push("/interno/ai-task")}
+                              className="rounded-2xl border border-[#35554B] px-3 py-2 text-xs text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                            >
+                              Abrir AI Task
+                            </button>
+                            <button type="button" onClick={handleResetTasks} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                              Limpar
+                            </button>
+                          </div>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-3">
+                          <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+                            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Ativas</p>
+                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{runningCount}</p>
+                          </div>
+                          <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+                            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Etapas</p>
+                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{activeTaskStepCount}</p>
+                          </div>
+                          <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+                            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Provider</p>
+                            <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeTaskProviderLabel}</p>
+                          </div>
+                        </div>
+                        <div className="rounded-[18px] border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-4">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Missão em foco</p>
+                          <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeTaskLabel}</p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {!notificationsEnabled ? (
+                              <button
+                                type="button"
+                                onClick={handleEnableNotifications}
+                                className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                              >
+                                Ativar notificações
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => router.push("/interno/ai-task")}
+                              className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                            >
+                              Abrir cockpit
+                            </button>
+                          </div>
                         </div>
                         {taskHistory.length ? (
                           taskHistory.map((task) => (
@@ -3306,18 +3608,104 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                           </div>
                         )}
                       </div>
+                    ) : rightPanelTab === "agentlabs" ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm text-[#9BAEA8]">Subagentes, governança e inteligência conversacional do ai-core.</p>
+                          <button
+                            type="button"
+                            onClick={() => router.push("/interno/agentlab")}
+                            className="rounded-2xl border border-[#35554B] px-3 py-2 text-xs text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                          >
+                            Abrir AgentLabs
+                          </button>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-3">
+                          <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+                            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Subagentes</p>
+                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{agentLabSubagents.length}</p>
+                          </div>
+                          <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+                            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Threads</p>
+                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{agentLabSnapshot.data?.intelligence?.threads?.length || 0}</p>
+                          </div>
+                          <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+                            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Incidentes</p>
+                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{agentLabSnapshot.data?.intelligence?.incidents?.length || 0}</p>
+                          </div>
+                        </div>
+                        {agentLabSnapshot.loading ? (
+                          <div className="rounded-[20px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm text-[#9BAEA8]">
+                            Carregando AgentLab...
+                          </div>
+                        ) : agentLabSnapshot.error ? (
+                          <div className="rounded-[20px] border border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] px-4 py-3 text-sm text-[#f2b2b2]">
+                            {agentLabSnapshot.error}
+                          </div>
+                        ) : (
+                          <>
+                            <div className="space-y-2">
+                              {agentLabSubagents.length ? agentLabSubagents.map((agent) => (
+                                <article key={agent.id} className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                      <p className="text-sm font-semibold text-[#F5F1E8]">{agent.role}</p>
+                                      <p className="mt-1 text-xs text-[#9BAEA8]">
+                                        {agent.stageCount} estágio(s) · {agent.moduleCount} módulo(s)
+                                      </p>
+                                    </div>
+                                    <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                                      {agent.status}
+                                    </span>
+                                  </div>
+                                </article>
+                              )) : (
+                                <div className="rounded-[20px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm text-[#9BAEA8]">
+                                  Nenhum subagente ativo neste momento.
+                                </div>
+                              )}
+                            </div>
+                            <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                              <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Ações rápidas</p>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => router.push("/interno/agentlab/orquestracao")}
+                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                >
+                                  Orquestração
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => router.push("/interno/agentlab/conversations")}
+                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                >
+                                  Conversas
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => router.push("/interno/agentlab/environment")}
+                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                >
+                                  Ambiente
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     ) : (
                       <div className="space-y-4 text-sm text-[#C6D1CC]">
                         <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-                          <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Modulo</p>
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Módulo</p>
                           <p className="mt-2 font-medium text-[#F5F1E8]">{routePath || "/interno"}</p>
                         </div>
                         <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Memoria</p>
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Memória</p>
                             <span className="text-[10px] text-[#C5A059]">{contextEnabled ? "ON" : "OFF"}</span>
                           </div>
-                          <p className="mt-2 font-medium text-[#F5F1E8]">{ragSummary.count ? `${ragSummary.count} itens relevantes` : "Sem memoria carregada"}</p>
+                          <p className="mt-2 font-medium text-[#F5F1E8]">{ragSummary.count ? `${ragSummary.count} itens relevantes` : "Sem memória carregada"}</p>
                           {ragSummary.sources.length ? <p className="mt-2 text-xs text-[#9BAEA8]">Fontes: {ragSummary.sources.join(", ")}</p> : null}
                         </div>
                         <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">

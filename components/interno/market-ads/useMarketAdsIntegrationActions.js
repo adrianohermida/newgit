@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { adminFetch } from "../../../lib/admin/api";
+import executeMarketAdsAction from "./executeMarketAdsAction";
 
 export default function useMarketAdsIntegrationActions({ load, patchDashboardData, refreshDashboardSilently }) {
   const [integrationState, setIntegrationState] = useState({ loading: false, error: null, result: null });
@@ -13,11 +13,7 @@ export default function useMarketAdsIntegrationActions({ load, patchDashboardDat
   async function postAction(action, setter, errorMessage) {
     setter({ loading: true, error: null, result: null });
     try {
-      const payload = await adminFetch("/api/admin-market-ads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
+      const { payload } = await executeMarketAdsAction(action);
       setter({ loading: false, error: null, result: payload.data || null });
       return payload;
     } catch (error) {

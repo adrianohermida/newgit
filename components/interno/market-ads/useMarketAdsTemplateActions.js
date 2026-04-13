@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { adminFetch } from "../../../lib/admin/api";
+import executeMarketAdsAction from "./executeMarketAdsAction";
 
 export default function useMarketAdsTemplateActions({ patchTemplateLibraryTemplate, refreshDashboardSilently }) {
   const [templateState, setTemplateState] = useState({ loading: false, error: null, result: null });
@@ -26,11 +26,7 @@ export default function useMarketAdsTemplateActions({ patchTemplateLibraryTempla
   async function updateTemplateRequest(body, errorMessage) {
     setTemplateState({ loading: true, error: null, result: null });
     try {
-      const payload = await adminFetch("/api/admin-market-ads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      const { payload } = await executeMarketAdsAction(body.action, body);
       setTemplateState({ loading: false, error: null, result: payload.data || null });
       if (payload.data?.template) patchTemplateLibraryTemplate(payload.data.template, { prepend: true, limit: 24 });
       refreshDashboardSilently();

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { adminFetch } from "../../../lib/admin/api";
 import { appendActivityLog } from "../../../lib/admin/activity-log";
 import buildMarketAdsControllerValue from "./buildMarketAdsControllerValue";
+import { isMarketAdsLocalModeError, loadMarketAdsLocalData } from "./marketAdsLocalMode";
 import { mergeById } from "./shared";
 import useMarketAdsCreativeActions from "./useMarketAdsCreativeActions";
 import useMarketAdsDerivedData from "./useMarketAdsDerivedData";
@@ -10,34 +11,8 @@ import useMarketAdsCrudActions from "./useMarketAdsCrudActions";
 import useMarketAdsIntegrationActions from "./useMarketAdsIntegrationActions";
 
 export default function useMarketAdsController() {
-    const [state, setState] = useState({ loading: true, error: null, data: null });
+    const [state, setState] = useState({ loading: true, error: null, data: null, meta: { localMode: false, localModeReason: "" } });
     const forms = useMarketAdsForms();
-    const {
-      generator,
-      setGenerator,
-      campaignForm,
-      setCampaignForm,
-      editingCampaignId,
-      setEditingCampaignId,
-      attributionForm,
-      setAttributionForm,
-      adForm,
-      setAdForm,
-      editingAdId,
-      setEditingAdId,
-      abForm,
-      setAbForm,
-      editingAbId,
-      setEditingAbId,
-      complianceInput,
-      setComplianceInput,
-      beginEditCampaign,
-      beginEditAd,
-      beginEditAbTest,
-      resetCampaignForm,
-      resetAdForm,
-      resetAbForm,
-    } = forms;
     function patchDashboardData(updater) {
       setState((current) => {
         if (!current.data) return current;
@@ -76,7 +51,7 @@ export default function useMarketAdsController() {
       }
       try {
         const payload = await adminFetch("/api/admin-market-ads");
-        setState((current) => ({ ...current, loading: false, error: null, data: payload.data || null }));
+        setState((current) => ({ ...current, loading: false, error: null, data: payload.data || null, meta: { localMode: false, localModeReason: "" } }));
         appendActivityLog({
           label: "Leitura HMADV Market Ads",
           action: "market_ads_load",
@@ -88,6 +63,17 @@ export default function useMarketAdsController() {
           tags: ["market-ads", "ads", "compliance"],
         });
       } catch (error) {
+        if (isMarketAdsLocalModeError(error)) {
+          const fallback = loadMarketAdsLocalData();
+          setState((current) => ({
+            ...current,
+            loading: false,
+            error: null,
+            data: fallback.data,
+            meta: fallback.meta,
+          }));
+          return;
+        }
         setState((current) => ({
           ...current,
           loading: false,
@@ -101,26 +87,26 @@ export default function useMarketAdsController() {
       void load({ silent: true });
     }
     const creativeActions = useMarketAdsCreativeActions({
-      generator,
-      setGenerator,
-      attributionForm,
-      complianceInput,
+      generator: forms.generator,
+      setGenerator: forms.setGenerator,
+      attributionForm: forms.attributionForm,
+      complianceInput: forms.complianceInput,
       patchDashboardCollection,
       patchTemplateLibraryTemplate,
       refreshDashboardSilently,
     });
 
     const crudActions = useMarketAdsCrudActions({
-      campaignForm,
-      setCampaignForm,
-      editingCampaignId,
-      setEditingCampaignId,
-      adForm,
-      editingAdId,
-      setEditingAdId,
-      abForm,
-      editingAbId,
-      setEditingAbId,
+      campaignForm: forms.campaignForm,
+      setCampaignForm: forms.setCampaignForm,
+      editingCampaignId: forms.editingCampaignId,
+      setEditingCampaignId: forms.setEditingCampaignId,
+      adForm: forms.adForm,
+      editingAdId: forms.editingAdId,
+      setEditingAdId: forms.setEditingAdId,
+      abForm: forms.abForm,
+      editingAbId: forms.editingAbId,
+      setEditingAbId: forms.setEditingAbId,
       patchDashboardCollection,
       refreshDashboardSilently,
     });

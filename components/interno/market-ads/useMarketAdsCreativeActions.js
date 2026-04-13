@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { adminFetch } from "../../../lib/admin/api";
+import executeMarketAdsAction from "./executeMarketAdsAction";
 import { toNumber } from "./shared";
 import useMarketAdsTemplateActions from "./useMarketAdsTemplateActions";
 
@@ -21,11 +21,7 @@ export default function useMarketAdsCreativeActions({
   async function generatePreview() {
     setPreviewState({ loading: true, error: null, result: null });
     try {
-      const payload = await adminFetch("/api/admin-market-ads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "generate_preview", input: generator }),
-      });
+      const { payload } = await executeMarketAdsAction("generate_preview", { input: generator });
       setPreviewState({ loading: false, error: null, result: payload.data || null });
     } catch (error) {
       setPreviewState({ loading: false, error: error.message || "Falha ao gerar preview.", result: null });
@@ -37,11 +33,7 @@ export default function useMarketAdsCreativeActions({
     try {
       const nextGenerator = { area: item.area || generator.area, audience: item.audience || generator.audience, objective: item.objective || generator.objective, platform: item.platform || generator.platform, location: generator.location };
       setGenerator(nextGenerator);
-      const payload = await adminFetch("/api/admin-market-ads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "generate_from_winner", input: { ...nextGenerator, source: item } }),
-      });
+      const { payload } = await executeMarketAdsAction("generate_from_winner", { input: { ...nextGenerator, source: item } });
       setPreviewState({ loading: false, error: null, result: payload.data || null });
     } catch (error) {
       setPreviewState({ loading: false, error: error.message || "Falha ao gerar variacoes a partir do criativo vencedor.", result: null });
@@ -53,11 +45,7 @@ export default function useMarketAdsCreativeActions({
     try {
       const nextGenerator = { area: template.area || generator.area, audience: template.audience || generator.audience, objective: template.objective || generator.objective, platform: template.platform || generator.platform, location: generator.location };
       setGenerator(nextGenerator);
-      const payload = await adminFetch("/api/admin-market-ads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "generate_from_template", input: { ...nextGenerator, template } }),
-      });
+      const { payload } = await executeMarketAdsAction("generate_from_template", { input: { ...nextGenerator, template } });
       setPreviewState({ loading: false, error: null, result: payload.data || null });
     } catch (error) {
       setPreviewState({ loading: false, error: error.message || "Falha ao gerar variacoes a partir do template.", result: null });
@@ -67,11 +55,7 @@ export default function useMarketAdsCreativeActions({
   async function saveAttribution() {
     setAttributionState({ loading: true, error: null, result: null });
     try {
-      const payload = await adminFetch("/api/admin-market-ads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "save_attribution", input: { ...attributionForm, value: toNumber(attributionForm.value) } }),
-      });
+      const { payload } = await executeMarketAdsAction("save_attribution", { input: { ...attributionForm, value: toNumber(attributionForm.value) } });
       setAttributionState({ loading: false, error: null, result: payload.data || null });
       if (payload.data?.attribution) patchDashboardCollection("attributions", payload.data.attribution, { prepend: true, limit: 50 });
       refreshDashboardSilently();
@@ -83,11 +67,7 @@ export default function useMarketAdsCreativeActions({
   async function validateCompliance() {
     setComplianceState({ loading: true, error: null, result: null });
     try {
-      const payload = await adminFetch("/api/admin-market-ads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "validate_copy", input: complianceInput }),
-      });
+      const { payload } = await executeMarketAdsAction("validate_copy", { input: complianceInput });
       setComplianceState({ loading: false, error: null, result: payload.data || null });
     } catch (error) {
       setComplianceState({ loading: false, error: error.message || "Falha ao validar compliance.", result: null });
@@ -97,11 +77,7 @@ export default function useMarketAdsCreativeActions({
   async function saveDraft() {
     setDraftState({ loading: true, error: null, result: null });
     try {
-      const payload = await adminFetch("/api/admin-market-ads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "save_draft", input: generator }),
-      });
+      const { payload } = await executeMarketAdsAction("save_draft", { input: generator });
       setDraftState({ loading: false, error: null, result: payload.data || null });
       if (payload.data?.draft) patchDashboardCollection("drafts", payload.data.draft, { prepend: true, limit: 6 });
       refreshDashboardSilently();

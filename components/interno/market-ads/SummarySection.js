@@ -26,6 +26,22 @@ export default function SummarySection({ state, data, load, generateOptimization
 
   return (
     <div className="space-y-6">
+      {state.meta?.localMode ? (
+        <Panel
+          eyebrow="Modo local"
+          title="Backend administrativo indisponivel neste ambiente"
+          helper={state.meta.localModeReason}
+          className="border-[#6E5630] bg-[linear-gradient(180deg,rgba(67,49,18,0.28),rgba(12,12,10,0.92))]"
+          contentClassName="mt-4"
+        >
+          <div className="flex flex-wrap gap-2">
+            <Tag tone="warn">Dados locais</Tag>
+            <Tag tone="neutral">Persistencia no navegador</Tag>
+            <Tag tone="neutral">Sem sync com Google Ads e Meta Ads</Tag>
+          </div>
+        </Panel>
+      ) : null}
+
       <Panel
         eyebrow="Publicidade juridica"
         title="HMADV Market Ads"

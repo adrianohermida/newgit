@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
+import { OperationalHistoryCompactCard, OperationalResultCard } from "../../components/interno/OperationalResultPanels";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch as adminFetchRaw } from "../../lib/admin/api";
 import { appendActivityLog, getActivityLogSnapshot, getFingerprintStates, setModuleHistory, subscribeActivityLog, updateActivityLog } from "../../lib/admin/activity-log";
@@ -1019,35 +1020,33 @@ function ContactsContent() {
     </Panel>
     </div>
 
-    <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">
-      {actionState.loading ? <p className="text-sm opacity-60">Executando acao...</p> : null}
-      {actionState.error ? <p className="text-sm text-red-300">{actionState.error}</p> : null}
-      {!actionState.loading && !actionState.error && actionState.result ? <div className="space-y-4">
-        <div className="flex flex-wrap gap-2 text-xs">
-          {actionState.result.partesAtualizadas ? <StatusBadge tone="success">{actionState.result.partesAtualizadas} partes atualizadas</StatusBadge> : null}
-          {actionState.result.contatosVinculados ? <StatusBadge tone="success">{actionState.result.contatosVinculados} contatos vinculados</StatusBadge> : null}
-          {actionState.result.contatosCriados ? <StatusBadge tone="success">{actionState.result.contatosCriados} contatos criados</StatusBadge> : null}
-          {actionState.result.processosLidos ? <StatusBadge tone="neutral">{actionState.result.processosLidos} processos lidos</StatusBadge> : null}
-        </div>
-        {renderResultSummary(actionState.result)}
-        <pre className="overflow-x-auto whitespace-pre-wrap text-xs opacity-70">{JSON.stringify(actionState.result, null, 2)}</pre>
-      </div> : null}
-      {!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-60">Nenhuma acao executada nesta sessao.</p> : null}
-    </Panel>
-
-    <Panel title="Historico operacional local" eyebrow="Console integrado">
-      {!executionHistory.length ? <p className="text-sm opacity-60">As proximas acoes deste modulo passam a aparecer aqui e no console lateral.</p> : null}
-      {executionHistory.length ? <div className="space-y-3">
-        {executionHistory.slice(0, 8).map((entry) => <div key={entry.id} className="border border-[#2D2E2E] p-4 text-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="font-semibold">{entry.label}</p>
-            <StatusBadge tone={entry.status === "error" ? "danger" : entry.status === "success" ? "success" : "warn"}>{entry.status}</StatusBadge>
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+      <OperationalResultCard
+        loading={actionState.loading}
+        error={actionState.error}
+        result={actionState.result ? <div className="space-y-4">
+          <div className="flex flex-wrap gap-2 text-xs">
+            {actionState.result.partesAtualizadas ? <StatusBadge tone="success">{actionState.result.partesAtualizadas} partes atualizadas</StatusBadge> : null}
+            {actionState.result.contatosVinculados ? <StatusBadge tone="success">{actionState.result.contatosVinculados} contatos vinculados</StatusBadge> : null}
+            {actionState.result.contatosCriados ? <StatusBadge tone="success">{actionState.result.contatosCriados} contatos criados</StatusBadge> : null}
+            {actionState.result.processosLidos ? <StatusBadge tone="neutral">{actionState.result.processosLidos} processos lidos</StatusBadge> : null}
           </div>
-          <p className="mt-1 text-xs opacity-60">{entry.startedAt ? new Date(entry.startedAt).toLocaleString("pt-BR") : "sem data"}</p>
-          {entry.preview ? <p className="mt-2 opacity-75">{entry.preview}</p> : null}
-        </div>)}
-      </div> : null}
-    </Panel>
+          {renderResultSummary(actionState.result)}
+          <pre className="overflow-x-auto whitespace-pre-wrap text-xs opacity-70">{JSON.stringify(actionState.result, null, 2)}</pre>
+        </div> : null}
+        emptyText="Nenhuma acao executada nesta sessao."
+        footer="Resultado unificado com o shell, sem competir visualmente com o console inferior."
+      />
+      <OperationalHistoryCompactCard
+        title="Historico operacional local"
+        primaryLabel="Ultima execucao"
+        primaryText={executionHistory[0] ? `${executionHistory[0].label} • ${executionHistory[0].status}` : ""}
+        secondaryLabel="Progresso do modulo"
+        secondaryText={executionHistory[0]?.preview || ""}
+        emptyPrimaryText="As proximas acoes deste modulo passam a aparecer aqui e no console lateral."
+        emptySecondaryText="Sem resumo consolidado ainda."
+      />
+    </div>
 
     <Panel title="Fila de contatos" eyebrow="Jobs agendados">
       <div className="flex flex-wrap gap-3">

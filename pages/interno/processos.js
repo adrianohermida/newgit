@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
+import { OperationalHistoryCompactCard, OperationalResultCard } from "../../components/interno/OperationalResultPanels";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch as adminFetchRaw } from "../../lib/admin/api";
 import { appendActivityLog, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
@@ -3216,8 +3217,18 @@ function InternoProcessosContent() {
     </div> : null}
 
     {view === "resultado" ? <div id="resultado" className="grid items-start gap-6 2xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-      <Panel title="Resultado da ultima acao" eyebrow="Retorno operacional">{actionState.loading ? <p className="text-sm opacity-65">Executando acao...</p> : null}{actionState.error ? <p className="rounded-2xl border border-[#4B2222] bg-[rgba(127,29,29,0.18)] p-4 text-sm text-red-200">{actionState.error}</p> : null}{!actionState.loading && actionState.result?.drain ? <div className="mb-4 rounded-[20px] border border-[#30543A] bg-[rgba(48,84,58,0.12)] p-4 text-sm"><p className="font-semibold">Drenagem de fila</p><p className="mt-2 opacity-75">{buildDrainPreview(actionState.result.drain)}</p></div> : null}{jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}{!actionState.loading && !actionState.error && actionState.result ? <OperationResult result={actionState.result} /> : null}{!actionState.loading && !actionState.error && !actionState.result ? <p className="text-sm opacity-65">Nenhuma acao executada ainda nesta sessao.</p> : null}<div className="pt-4 text-xs text-[#7F928C]">Resultado compacto, sem esticar o modulo antes do console.</div></Panel>
-      <CompactHistoryPanel localHistory={executionHistory} remoteHistory={remoteHistory} />
+      <OperationalResultCard
+        loading={actionState.loading}
+        error={actionState.error}
+        result={actionState.result ? <>{actionState.result?.drain ? <div className="mb-4 rounded-[20px] border border-[#30543A] bg-[rgba(48,84,58,0.12)] p-4 text-sm"><p className="font-semibold">Drenagem de fila</p><p className="mt-2 opacity-75">{buildDrainPreview(actionState.result.drain)}</p></div> : null}{jobs.length ? <div className="mb-4 space-y-3"><p className="text-xs uppercase tracking-[0.16em] opacity-55">Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}<OperationResult result={actionState.result} /></> : null}
+        emptyText="Nenhuma acao executada ainda nesta sessao."
+        footer="Resultado compacto, sem esticar o modulo antes do console."
+      />
+      <OperationalHistoryCompactCard
+        primaryText={executionHistory[0] ? `${executionHistory[0].label || executionHistory[0].action} • ${executionHistory[0].status}` : ""}
+        secondaryLabel="Ultimo HMADV"
+        secondaryText={remoteHistory[0] ? `${getProcessActionLabel(remoteHistory[0].acao, remoteHistory[0].payload || {})} • ${remoteHistory[0].status}` : ""}
+      />
     </div> : null}
   </div>;
 }

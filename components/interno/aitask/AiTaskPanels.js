@@ -135,6 +135,10 @@ function summarizeOrchestration(orchestration) {
   const availableModules = Array.isArray(orchestration?.available_modules) ? orchestration.available_modules : [];
   const parallelGroups = new Set(tasks.map((task) => task?.parallel_group).filter(Boolean));
   const stages = Array.from(new Set(tasks.map((task) => task?.stage).filter(Boolean)));
+  const dependencyEdges = tasks.reduce((total, task) => {
+    const dependsOn = Array.isArray(task?.depends_on) ? task.depends_on : Array.isArray(task?.dependencies) ? task.dependencies : [];
+    return total + dependsOn.filter(Boolean).length;
+  }, 0);
   return {
     enabled: Boolean(orchestration?.multi_agent || subagents.length || tasks.length),
     multiAgent: Boolean(orchestration?.multi_agent),
@@ -143,10 +147,12 @@ function summarizeOrchestration(orchestration) {
     availableModules,
     parallelGroups,
     stages,
+    dependencyEdges,
   };
 }
 
 export function RunHistoryCard({ item, isActive, onSelect, formatHistoryStatus, formatExecutionSourceLabel, nowIso }) {
+  const orchestrationSummary = summarizeOrchestration(item?.orchestration);
   return (
     <button
       type="button"
@@ -165,6 +171,16 @@ export function RunHistoryCard({ item, isActive, onSelect, formatHistoryStatus, 
       <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-[#9BAEA8]">
         <span className="rounded-full border border-[#22342F] px-2 py-1">{formatExecutionSourceLabel(item.source)}</span>
         <span className="rounded-full border border-[#22342F] px-2 py-1">{item.model || "n/a"}</span>
+        {orchestrationSummary.enabled ? (
+          <span className="rounded-full border border-[#35554B] px-2 py-1 text-[#B7D5CB]">
+            {orchestrationSummary.subagents.length || 1} agentes / {orchestrationSummary.tasks.length} tarefas
+          </span>
+        ) : null}
+        {orchestrationSummary.parallelGroups.size ? (
+          <span className="rounded-full border border-[#234034] px-2 py-1 text-[#8FCFA9]">
+            paralelo {orchestrationSummary.parallelGroups.size}
+          </span>
+        ) : null}
       </div>
     </button>
   );
@@ -889,10 +905,27 @@ export function TaskInspector({
               <p className="mt-1 text-xs leading-6 text-[#9BAEA8]">
                 {lane.tasks.length} tarefa(s) roteadas nesta faixa operacional.
               </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
+                <MetricPill label="Ativas" value={lane.runningCount} tone={lane.runningCount ? "accent" : "default"} />
+                <MetricPill label="Paralelo" value={lane.parallelGroups.length} tone={lane.parallelGroups.length ? "success" : "default"} />
+                <MetricPill label="Depend." value={lane.dependencyCount} />
+              </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {lane.tasks.slice(0, 3).map((task) => (
                   <span key={task.id} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
                     {task.title}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {lane.stages.slice(0, 3).map((stage) => (
+                  <span key={`${lane.agent}_${stage}`} className="rounded-full border border-[#35554B] px-2.5 py-1 text-[10px] text-[#B7D5CB]">
+                    {stage}
+                  </span>
+                ))}
+                {lane.moduleKeys.slice(0, 2).map((moduleKey) => (
+                  <span key={`${lane.agent}_${moduleKey}`} className="rounded-full border border-[#3C3320] px-2.5 py-1 text-[10px] text-[#E7C987]">
+                    {moduleKey}
                   </span>
                 ))}
               </div>
@@ -908,6 +941,13 @@ export function TaskInspector({
           <div className="mt-3 flex flex-wrap gap-2">
             <span className="rounded-full border border-[#3C3320] px-2.5 py-1 text-[10px] text-[#E7C987]">{selectedTask.assignedAgent}</span>
             <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">{selectedTask.priority}</span>
+            {selectedTask.stage ? <span className="rounded-full border border-[#35554B] px-2.5 py-1 text-[10px] text-[#B7D5CB]">{selectedTask.stage}</span> : null}
+            {selectedTask.parallelGroup ? <span className="rounded-full border border-[#234034] px-2.5 py-1 text-[10px] text-[#8FCFA9]">{selectedTask.parallelGroup}</span> : null}
+            {Array.isArray(selectedTask.moduleKeys) ? selectedTask.moduleKeys.slice(0, 3).map((moduleKey) => (
+              <span key={`${selectedTask.id}_${moduleKey}`} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                {moduleKey}
+              </span>
+            )) : null}
           </div>
         </div>
       ) : null}

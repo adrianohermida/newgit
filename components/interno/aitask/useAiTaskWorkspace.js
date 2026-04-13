@@ -340,6 +340,13 @@ export function useAiTaskWorkspace({ missionInputRef, normalizeAttachmentsFromEv
     setAutomation(typeof item.status === "string" ? item.status : "idle");
     setExecutionSource(typeof item.source === "string" ? item.source : null);
     setExecutionModel(typeof item.model === "string" ? item.model : null);
+    setEventsTotal(Number.isFinite(Number(item.eventsTotal)) ? Number(item.eventsTotal) : 0);
+    setContextSnapshot((current) => ({
+      ...(current || {}),
+      orchestration: item.orchestration || current?.orchestration || null,
+      module: item.module || current?.module || null,
+      route: item.route || current?.route || "/interno/ai-task",
+    }));
   }
 
   return {

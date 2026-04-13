@@ -19,6 +19,17 @@ Deploy manual:
 npm run deploy:pages
 ```
 
+Observacao sobre o modulo `HMADV Market Ads`:
+
+- o frontend publicado no Pages continua funcional mesmo se `/api/admin-market-ads` estiver indisponivel
+- nesse caso, o modulo entra em `modo local`, carrega dados locais e persiste operacoes no navegador
+- o backend administrativo completo do modulo ainda depende de um runtime server compativel com dependencias Node que hoje nao estao fechando no Pages Functions
+- apos cada deploy, valide com:
+
+```bash
+npm run diagnose:pages-admin
+```
+
 Deploy por GitHub Actions:
 
 - o workflow [`.github/workflows/nextjs.yml`](/workspaces/newgit/.github/workflows/nextjs.yml) publica em `newgit-pages`

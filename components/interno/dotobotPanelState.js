@@ -7,6 +7,21 @@ export const MAX_TASKS = 80;
 export const MAX_ATTACHMENTS = 8;
 export const MAX_CONVERSATIONS = 30;
 
+const PROJECT_ROUTE_CATALOG = [
+  { key: "processos", label: "Processos", match: ["/interno/processos", "/interno/portal/processos"] },
+  { key: "publicacoes", label: "Publicações", match: ["/interno/publicacoes"] },
+  { key: "contatos", label: "Contatos", match: ["/interno/contacts", "/interno/clientes"] },
+  { key: "leads", label: "Leads", match: ["/interno/leads"] },
+  { key: "agenda", label: "Agenda", match: ["/interno/agendamentos"] },
+  { key: "conteudo", label: "Conteúdo", match: ["/interno/posts"] },
+  { key: "market_ads", label: "Market Ads", match: ["/interno/market-ads"] },
+  { key: "financeiro", label: "Financeiro", match: ["/interno/financeiro"] },
+  { key: "aprovacoes", label: "Aprovações", match: ["/interno/aprovacoes"] },
+  { key: "jobs", label: "Jobs", match: ["/interno/jobs"] },
+  { key: "agentlabs", label: "AgentLabs", match: ["/interno/agentlab"] },
+  { key: "ai_task", label: "AI Task", match: ["/interno/ai-task"] },
+];
+
 export function buildStorageKey(prefix, profile) {
   const profileId = profile?.id || profile?.email || "anonymous";
   return `${prefix}:${profileId}`;
@@ -60,6 +75,7 @@ export function summarizeConversation(conversation) {
   const lastMessage = messages[messages.length - 1];
   const attachments = Array.isArray(conversation?.attachments) ? conversation.attachments : [];
   const taskHistory = Array.isArray(conversation?.taskHistory) ? conversation.taskHistory : [];
+  const project = resolveConversationProject(conversation);
   return {
     id: conversation?.id || `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     title: safeText(conversation?.title, inferConversationTitle(messages)),
@@ -71,8 +87,52 @@ export function summarizeConversation(conversation) {
     taskHistory,
     attachments,
     metadata: conversation?.metadata || {},
+    projectKey: project.key,
+    projectLabel: project.label,
     preview: safeText(conversation?.preview, lastMessage?.text || "Sem mensagens ainda"),
   };
+}
+
+export function resolveConversationProject(conversation) {
+  const metadata = conversation?.metadata || {};
+  const explicitLabel = safeText(metadata.projectLabel || conversation?.projectLabel || metadata.moduleLabel || "");
+  const explicitKey = safeText(metadata.projectKey || conversation?.projectKey || "");
+  if (explicitLabel || explicitKey) {
+    return {
+      key: explicitKey || slugifyProjectLabel(explicitLabel),
+      label: explicitLabel || humanizeProjectKey(explicitKey),
+    };
+  }
+
+  const route = safeText(metadata.route || metadata.routePath || conversation?.routePath || "");
+  const matched = PROJECT_ROUTE_CATALOG.find((item) => item.match.some((prefix) => route.startsWith(prefix)));
+  if (matched) {
+    return { key: matched.key, label: matched.label };
+  }
+
+  const tagMatch = Array.isArray(conversation?.tags)
+    ? PROJECT_ROUTE_CATALOG.find((item) => conversation.tags.some((tag) => String(tag).toLowerCase().includes(item.key.replace("_", "-"))))
+    : null;
+  if (tagMatch) {
+    return { key: tagMatch.key, label: tagMatch.label };
+  }
+
+  return { key: "geral", label: "Geral" };
+}
+
+function slugifyProjectLabel(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "") || "geral";
+}
+
+function humanizeProjectKey(value) {
+  return String(value || "geral")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 export function createConversationFromState(state) {
@@ -280,6 +340,8 @@ export function filterVisibleConversations(conversations, conversationSearch) {
     const haystack = [
       conversation.title,
       conversation.preview,
+      conversation.projectLabel,
+      conversation.projectKey,
       ...(conversation.tags || []),
       ...(Array.isArray(conversation.messages) ? conversation.messages.map((message) => message.text) : []),
     ]
@@ -308,6 +370,35 @@ export function buildConversationSelectionState(conversation) {
     attachments: Array.isArray(conversation.attachments) ? conversation.attachments : [],
     metadata: conversation.metadata || {},
   };
+}
+
+export function groupConversationsByProject(conversations = []) {
+  const groups = new Map();
+  conversations.forEach((conversation) => {
+    const projectKey = conversation?.projectKey || "geral";
+    const projectLabel = conversation?.projectLabel || humanizeProjectKey(projectKey);
+    if (!groups.has(projectKey)) {
+      groups.set(projectKey, {
+        key: projectKey,
+        label: projectLabel,
+        items: [],
+        updatedAt: conversation?.updatedAt || conversation?.createdAt || nowIso(),
+      });
+    }
+    const group = groups.get(projectKey);
+    group.items.push(conversation);
+    const candidateTimestamp = Date.parse(conversation?.updatedAt || conversation?.createdAt || 0);
+    const currentTimestamp = Date.parse(group.updatedAt || 0);
+    if (Number.isFinite(candidateTimestamp) && (!Number.isFinite(currentTimestamp) || candidateTimestamp > currentTimestamp)) {
+      group.updatedAt = conversation.updatedAt || conversation.createdAt || group.updatedAt;
+    }
+  });
+
+  return Array.from(groups.values()).sort((a, b) => {
+    const aTime = Date.parse(a.updatedAt || 0);
+    const bTime = Date.parse(b.updatedAt || 0);
+    return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+  });
 }
 
 export function mergeConversationAttachments(conversations, conversationId, attachmentsToAdd) {

@@ -93,15 +93,34 @@ export function buildAgentLanes(tasks = []) {
   tasks.forEach((task) => {
     const key = task.assignedAgent || "Dotobot";
     if (!lanes.has(key)) {
-      lanes.set(key, { agent: key, tasks: [], runningCount: 0 });
+      lanes.set(key, {
+        agent: key,
+        tasks: [],
+        runningCount: 0,
+        parallelGroups: new Set(),
+        stages: new Set(),
+        moduleKeys: new Set(),
+        dependencyCount: 0,
+      });
     }
     const lane = lanes.get(key);
     lane.tasks.push(task);
     if (task.status === "running" || task.status === "pending") {
       lane.runningCount += 1;
     }
+    if (task.parallelGroup) lane.parallelGroups.add(task.parallelGroup);
+    if (task.stage) lane.stages.add(task.stage);
+    if (Array.isArray(task.moduleKeys)) {
+      task.moduleKeys.filter(Boolean).forEach((item) => lane.moduleKeys.add(item));
+    }
+    lane.dependencyCount += Array.isArray(task.dependencies) ? task.dependencies.filter(Boolean).length : 0;
   });
-  return Array.from(lanes.values());
+  return Array.from(lanes.values()).map((lane) => ({
+    ...lane,
+    parallelGroups: Array.from(lane.parallelGroups),
+    stages: Array.from(lane.stages),
+    moduleKeys: Array.from(lane.moduleKeys),
+  }));
 }
 
 export function filterLogsByType(logs = [], selectedLogFilter = "all") {
