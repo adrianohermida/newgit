@@ -392,7 +392,6 @@ async function actionSync(
       // FILTRO LEILÃO — excluí antes de qualquer persistência
       if (isPublicacaoExcluida(pub)) {
         stats.excluidas_leilao++;
-        continue;
       }
 
       const record = advPubToRecord(pub);
@@ -400,7 +399,7 @@ async function actionSync(
 
       // Upsert por advise_id_publicacao (evita duplicatas em re-execuções)
       const { data: inserted, error } = await db.from('publicacoes')
-        .upsert(record, { onConflict: 'advise_id_publicacao', ignoreDuplicates: true })
+        .upsert(record, { onConflict: 'advise_id_publicacao_cliente', ignoreDuplicates: true })
         .select('id');
 
       if (error) {
