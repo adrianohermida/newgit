@@ -1279,6 +1279,18 @@ async function collectPartesExtractionCandidatePage(env, { page = 1, pageSize = 
     if (processRows.length < processBatchSize) hasMore = false;
   }
 
+  if (!collected.length) {
+    return {
+      page: safePage,
+      pageSize: safePageSize,
+      totalRows: 0,
+      totalEstimated: false,
+      hasMore: false,
+      limited: false,
+      items: [],
+    };
+  }
+
   return {
     page: safePage,
     pageSize: safePageSize,
