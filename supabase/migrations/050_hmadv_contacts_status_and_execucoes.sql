@@ -80,13 +80,19 @@ create unique index if not exists processo_contato_sync_unq
 create index if not exists processo_contato_sync_proc_idx
   on judiciario.processo_contato_sync (processo_id);
 
-create index if not exists partes_cliente_hmadv_idx
-  on judiciario.partes (cliente_hmadv)
-  where cliente_hmadv is true;
-
-create index if not exists partes_representada_escritorio_idx
-  on judiciario.partes (representada_pelo_escritorio)
-  where representada_pelo_escritorio is true;
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'judiciario'
+      and table_name = 'partes'
+  ) then
+    execute 'create index if not exists partes_cliente_hmadv_idx on judiciario.partes (cliente_hmadv) where cliente_hmadv is true';
+    execute 'create index if not exists partes_representada_escritorio_idx on judiciario.partes (representada_pelo_escritorio) where representada_pelo_escritorio is true';
+  end if;
+end
+$$;
 
 create table if not exists judiciario.operacao_execucoes (
   id uuid primary key default gen_random_uuid(),

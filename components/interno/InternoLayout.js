@@ -1445,7 +1445,7 @@ export default function InternoLayout({
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.24),transparent_30%),linear-gradient(180deg,#050706_0%,#070A09_100%)] text-[#F4F1EA]">
       {/* SIDEBAR */}
-      <aside className={`flex flex-col h-full border-r border-[#22342F] bg-[linear-gradient(180deg,rgba(10,18,16,0.98),rgba(8,15,13,0.94))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.22)] transition-all ${leftCollapsed ? "w-[88px]" : "w-[272px] min-w-[220px] max-w-[320px]"}`}>
+      <aside className={`shrink-0 flex h-full flex-col border-r border-[#22342F] bg-[linear-gradient(180deg,rgba(10,18,16,0.98),rgba(8,15,13,0.94))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.22)] transition-all ${leftCollapsed ? "w-[88px] min-w-[88px]" : "w-[272px] min-w-[220px] max-w-[320px]"}`}>
         <Link href="/interno" prefetch={false} className="mb-8 block">
           {!leftCollapsed ? (
             <>
