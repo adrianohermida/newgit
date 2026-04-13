@@ -258,6 +258,89 @@ Leitura atual:
 - [x] `salvar_validacao`
   - API exposta e persistencia habilitada por CNJ.
 
+## Revalidacao complementar em 2026-04-13 (fim do dia)
+
+### O que esta confirmado agora
+
+- [x] O cron/tagged do DataJud realmente consegue montar um escopo de CNJs e repassar esse universo para o `advise-sync`.
+- [x] O `advise-sync` aceita `processNumbers` no body/query, extrai os CNJs, aplica filtro por escopo e retorna metrica `scope_count`.
+- [x] O `advise-sync` persiste novas publicacoes em `judiciario.publicacoes`.
+- [x] O `advise-sync` tenta vincular `processo_id` automaticamente para as novas publicacoes inseridas.
+- [x] O `advise-sync` registra status em `advise_sync_status` e historico em `advise_sync_log`.
+- [x] O modulo interno `publicacoes` ja consome `overview`, filas, mesa integrada, detalhe integrado, validacao e acoes operacionais principais.
+
+### Ajuste importante de leitura arquitetural
+
+- [x] O comentario de cabecalho do `supabase/functions/advise-sync/index.ts` diz que ao final dispara `publicacoes-freshsales`.
+- [ ] Na implementacao real, o `advise-sync` chama `sync-worker?action=run`, nao `publicacoes-freshsales`.
+
+Leitura operacional:
+
+- Isso nao impede o fluxo, mas cria ambiguidade.
+- Hoje a ultima milha do Advise para CRM depende do `sync-worker`, e nao diretamente da function `publicacoes-freshsales`.
+- O codigo e a documentacao interna deveriam convergir para um unico contrato operacional.
+
+### Checklist objetivo do fluxo `Advise -> Publicacoes -> CRM`
+
+- [x] `datajud-webhook` tem action dedicada para fluxo tagged:
+  - `cron_tagged_datajud`
+  - `advise_tagged_sync`
+- [x] `datajud-webhook` coleta CNJs das accounts com tag `datajud`.
+- [x] `datajud-webhook` envia `processNumbers` para `advise-sync`.
+- [x] `advise-sync` filtra o lote do Advise pelo escopo recebido.
+- [x] `advise-sync` grava publicacoes novas no Supabase alvo.
+- [x] `advise-sync` tenta vincular cada publicacao ao processo HMADV.
+- [x] `advise-sync` atualiza cursor/status da execucao.
+- [x] `advise-sync` tenta disparar a esteira de CRM ao final quando ha novas publicacoes.
+- [x] `pages/interno/publicacoes.js` mostra observabilidade do Advise.
+- [x] `functions/api/admin-hmadv-publicacoes.js` expoe a API principal usada pela tela.
+- [x] `functions/lib/hmadv-ops.js#syncPublicationActivities` possui fallback local quando a edge function remota falha.
+- [ ] Ainda falta uma prova operacional persistida de "cobertura por processo taggeado" mostrando:
+  - ultimo fetch Advise por CNJ
+  - quantidade de publicacoes retornadas por CNJ
+  - quantidade efetivamente refletida em activity por CNJ
+
+### Checklist de funcoes do modulo interno/publicacoes
+
+- [x] `getPublicacoesOverview`
+  - Consolida contadores da operacao, status do Advise e backlog.
+- [x] `listCreateProcessCandidates`
+  - Lista publicacoes sem processo pronto para criacao/vinculo.
+- [x] `listPartesExtractionCandidates`
+  - Lista processos/publicacoes que ainda dependem de extracao de partes.
+- [x] `collectIntegratedQueueSlice`
+  - Monta a mesa integrada paginada combinando filas de processo e partes.
+- [x] `collectIntegratedSelection`
+  - Permite selecao massiva por filtro na mesa integrada.
+- [x] `loadIntegratedDetail`
+  - Carrega cobertura, partes vinculadas, partes pendentes, contato e historico de validacao.
+- [x] `createProcessesFromPublicacoes`
+  - Cria processo HMADV a partir de publicacoes ainda sem `processo_id`.
+- [x] `backfillPartesFromPublicacoes`
+  - Extrai partes retroativamente das publicacoes.
+- [x] `syncPartesFromPublicacoes`
+  - Persiste partes extraidas e atualiza polos/metadados.
+- [x] `reconcilePartesContacts`
+  - Faz a conciliacao entre partes e contatos do Freshsales.
+- [x] `syncPublicationActivities`
+  - Cria/reflete activities de publicacao no CRM.
+- [x] `runSyncWorker`
+  - Fecha a esteira de CRM quando o Advise terminou a ingestao.
+- [x] `savePublicacoesValidation`
+  - Persiste validacao operacional/manual por CNJ.
+- [ ] `getPublicationActivityTypes`
+  - Existe e esta exposta, mas depende de disponibilidade real do endpoint/tenant Freshsales no ambiente.
+
+### Pendencias reais apos a auditoria
+
+- [ ] Corrigir a divergencia entre comentario e implementacao do `advise-sync` sobre quem faz o push final para o CRM.
+- [ ] Criar telemetria por CNJ para comprovar cobertura do universo taggeado.
+- [ ] Reexecutar a prova ponta-a-ponta com um conjunto pequeno de CNJs taggeados e registrar:
+  - publicacoes retornadas pelo Advise
+  - publicacoes inseridas no Supabase
+  - publicacoes com `processo_id`
+  - publicacoes com `freshsales_activity_id`
+
 ### Checklist de integracao Advise + DataJud + Freshsales + Supabase
 
 - [x] O cron/orquestracao do `datajud-webhook` consegue acionar o fluxo tagged por processos com tag `datajud`.
