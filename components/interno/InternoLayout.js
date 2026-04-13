@@ -1649,28 +1649,42 @@ export default function InternoLayout({
             <button
               type="button"
               onClick={() => setLeftCollapsed((current) => !current)}
-                className={`flex h-10 w-10 items-center justify-center rounded-[14px] border transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
+                className={`flex h-10 w-10 items-center justify-center rounded-[14px] border text-[0px] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
                 title="Alternar sidebar"
               >
                 <span className="sr-only">Sidebar</span>
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                  <path d="M4 6h16" />
+                  <path d="M4 12h16" />
+                  <path d="M4 18h16" />
+                </svg>
                 <span className="text-lg">≡</span>
               </button>
               <button
                 type="button"
                 onClick={handleToggleRightRail}
-                className={`flex h-10 w-10 items-center justify-center rounded-[14px] border transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
+                className={`flex h-10 w-10 items-center justify-center rounded-[14px] border text-[0px] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
                 title="Alternar painel direito"
               >
                 <span className="sr-only">Painel</span>
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="16" rx="2" />
+                  <path d="M15 4v16" />
+                </svg>
                 <span className="text-lg">▣</span>
               </button>
               <button
                 type="button"
                 onClick={() => setConsoleOpen((current) => !current)}
-                className={`flex h-10 w-10 items-center justify-center rounded-[14px] border transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
+                className={`flex h-10 w-10 items-center justify-center rounded-[14px] border text-[0px] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
                 title="Alternar console"
               >
                 <span className="sr-only">Console</span>
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="16" rx="2" />
+                  <path d="m8 10 2 2-2 2" />
+                  <path d="M13 16h3" />
+                </svg>
                 <span className="text-lg">▤</span>
               </button>
             </div>
@@ -1702,13 +1716,13 @@ export default function InternoLayout({
             {consoleOpen ? (
               <div
                 onMouseDown={handleStartResize}
-                className="shrink-0 flex h-3 cursor-row-resize items-center justify-center border-b border-[#1E2E29] bg-[rgba(255,255,255,0.02)] text-[#60706A]"
+                className={`shrink-0 flex h-3 cursor-row-resize items-center justify-center border-b text-[#60706A] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(210,219,229,0.55)]" : "border-[#1E2E29] bg-[rgba(255,255,255,0.02)]"}`}
                 title="Arraste para redimensionar"
               >
-                <span className="h-1 w-10 rounded-full bg-[#22342F]" />
+                <span className={`h-1 w-10 rounded-full ${isLightTheme ? "bg-[#A5B4C3]" : "bg-[#22342F]"}`} />
               </div>
             ) : null}
-            <div className="shrink-0 flex items-center justify-between border-b border-[#1A2421] px-5 py-3 text-xs uppercase tracking-[0.18em] text-[#C5A059]">
+            <div className={`shrink-0 flex items-center justify-between border-b px-5 py-3 text-xs uppercase tracking-[0.18em] text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8]" : "border-[#1A2421]"}`}>
               <div className="flex items-center gap-3">
                 <button
                   type="button"

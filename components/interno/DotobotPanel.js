@@ -2635,14 +2635,14 @@ const [uiToasts, setUiToasts] = useState([]);
     effectiveWorkspaceLayout === "immersive"
       ? "w-full"
       : effectiveWorkspaceLayout === "balanced"
-        ? "w-full max-w-[1680px]"
-        : "w-full max-w-[1440px]";
+        ? "w-full max-w-[1520px]"
+        : "w-full max-w-[1320px]";
   const workspaceShellGridClass =
     effectiveWorkspaceLayout === "immersive"
-      ? "xl:grid-cols-[240px_minmax(0,1.45fr)_300px] 2xl:grid-cols-[260px_minmax(0,1.65fr)_340px]"
+      ? "xl:grid-cols-[220px_minmax(0,1.35fr)_280px] 2xl:grid-cols-[240px_minmax(0,1.5fr)_320px]"
       : effectiveWorkspaceLayout === "balanced"
-        ? "xl:grid-cols-[220px_minmax(0,1.35fr)_280px] 2xl:grid-cols-[240px_minmax(0,1.45fr)_300px]"
-        : "xl:grid-cols-[200px_minmax(0,1.2fr)_260px] 2xl:grid-cols-[220px_minmax(0,1.28fr)_280px]";
+        ? "xl:grid-cols-[210px_minmax(0,1.25fr)_260px] 2xl:grid-cols-[230px_minmax(0,1.4fr)_280px]"
+        : "xl:grid-cols-[190px_minmax(0,1.12fr)_240px] 2xl:grid-cols-[210px_minmax(0,1.2fr)_260px]";
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
   const visibleLegalActions = LEGAL_ACTIONS.slice(0, isCompactViewport ? 1 : 3);
   const visibleQuickPrompts = QUICK_PROMPTS.slice(0, isCompactViewport ? 1 : 2);

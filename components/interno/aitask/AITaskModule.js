@@ -905,9 +905,9 @@ export default function AITaskModule({ profile, routePath }) {
           formatExecutionSourceLabel={formatExecutionSourceLabel}
         />
 
-      <div className="grid gap-5 2xl:grid-cols-[280px_minmax(0,1fr)_340px]">
+      <div className="grid gap-5 xl:grid-cols-[240px_minmax(0,1fr)] 2xl:grid-cols-[260px_minmax(0,1fr)_320px]">
         <RunsPane
-          className="order-2 2xl:order-1"
+          className="order-2 xl:order-1"
           recentHistory={recentHistory}
           visibleHistory={pagedHistory}
           activeRunId={activeRun?.id || null}
@@ -921,7 +921,7 @@ export default function AITaskModule({ profile, routePath }) {
           onNextPage={() => setHistoryPage((current) => Math.min(historyTotalPages, current + 1))}
         />
 
-        <section className="order-1 flex min-h-[680px] min-w-0 flex-col overflow-hidden rounded-[30px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] shadow-[0_16px_48px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.02)] 2xl:order-2">
+        <section className="order-1 flex min-h-[560px] min-w-0 flex-col overflow-hidden rounded-[28px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] shadow-[0_16px_48px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.02)] md:min-h-[620px] xl:order-2">
           <div className="border-b border-[#1B2925] bg-[rgba(255,255,255,0.015)] px-5 py-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -961,7 +961,7 @@ export default function AITaskModule({ profile, routePath }) {
             </div>
           </div>
 
-          <div ref={chatViewportRef} className="min-h-[360px] flex-1 space-y-3 overflow-y-auto px-5 py-5">
+          <div ref={chatViewportRef} className="min-h-[280px] flex-1 space-y-3 overflow-y-auto px-4 py-4 md:min-h-[340px] md:px-5 md:py-5">
             {mission ? <Bubble role="user" title="Missão" body={mission} time={activeRun?.startedAt || nowIso()} /> : null}
             {thinking.length ? thinking.map((block) => <ThinkingBlock key={block.id} block={block} />) : null}
             {latestResult ? <Bubble role="assistant" title="Hermida Maia IA" body={typeof latestResult === "string" ? latestResult : "Resultado estruturado entregue."} time={nowIso()} /> : null}
@@ -985,7 +985,7 @@ export default function AITaskModule({ profile, routePath }) {
           />
         </section>
 
-        <div className="order-3 space-y-4">
+        <div className="order-3 space-y-4 2xl:order-3">
           <TaskInspector
             tasks={tasks}
             visibleTasks={visibleTasks}
