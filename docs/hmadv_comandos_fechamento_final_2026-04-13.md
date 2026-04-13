@@ -11,6 +11,17 @@ Executar, com comandos prontos, os ultimos passos para fechar:
 - espelho `freshsales_contacts`
 - piloto final
 
+## Precondicao importante
+
+Os scripts locais de diagnostico e refresh leem primeiro o arquivo `D:\Github\newgit\.dev.vars`.
+
+Hoje o ambiente local ainda reconhece apenas o token global de deals e nao encontrou:
+
+- `FRESHSALES_CONTACTS_REFRESH_TOKEN`
+- `FRESHSALES_CONTACTS_ACCESS_TOKEN`
+
+Entao, mesmo que o token de contacts exista em outro lugar, o fechamento local so vai passar sem fallback quando essas chaves estiverem disponiveis no runtime carregado pelo projeto.
+
 ## 1. Aplicar a migration de monitoramento
 
 Arquivo:
