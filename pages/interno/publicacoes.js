@@ -114,6 +114,9 @@ function buildHistoryPreview(result) {
   if (!result) return "";
   if (result.erro) return String(result.erro);
   if (result.uiHint) return String(result.uiHint);
+  if (result.activityTypeStatus && result.activityTypeStatus.matchedName) {
+    return `Tipo Freshsales: ${result.activityTypeStatus.matchedName}`;
+  }
   if (typeof result.processosCriados === "number") return `Processos criados: ${result.processosCriados}`;
   if (typeof result.partesInseridas === "number") return `Partes inseridas: ${result.partesInseridas}`;
   if (typeof result.processosAtualizados === "number") return `Processos atualizados: ${result.processosAtualizados}`;
@@ -1074,6 +1077,7 @@ function OperationResult({ result }) {
     if (row.result?.ok === false || row.freshsales_repair?.ok === false) acc.falhas += 1;
     return acc;
   }, { processosCriados: 0, detectadas: 0, polosAtualizados: 0, crmReparado: 0, pendentes: 0, falhas: 0 });
+  const activityTypeStatus = result?.activityTypeStatus || null;
 
   return (
     <div className="space-y-4">
@@ -1088,6 +1092,18 @@ function OperationResult({ result }) {
         <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#FDE68A]">
           <p className="font-semibold">Leitura operacional</p>
           <p className="mt-2 opacity-90">{result.uiHint}</p>
+        </div>
+      ) : null}
+      {activityTypeStatus ? (
+        <div className={`rounded-[20px] border p-4 text-sm ${activityTypeStatus.matched ? "border-[#30543A] bg-[rgba(48,84,58,0.12)] text-[#C7F1D7]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]"}`}>
+          <p className="font-semibold">Freshsales activity type</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <HealthBadge label={activityTypeStatus.ok ? "catalogo ok" : "catalogo indisponivel"} tone={activityTypeStatus.ok ? "success" : "danger"} />
+            <HealthBadge label={`tipos ${Number(activityTypeStatus.total || 0)}`} tone="default" />
+            <HealthBadge label={activityTypeStatus.matched ? `tipo ${activityTypeStatus.matchedName}` : "tipo nao localizado"} tone={activityTypeStatus.matched ? "success" : "warning"} />
+            {activityTypeStatus.fallbackOnly ? <HealthBadge label="catalogo em fallback" tone="warning" /> : null}
+          </div>
+          {activityTypeStatus.error ? <p className="mt-2 opacity-90">{activityTypeStatus.error}</p> : null}
         </div>
       ) : null}
       <div className="grid gap-3 md:grid-cols-6 text-sm">
@@ -2256,6 +2272,12 @@ function PublicacoesContent() {
   );
   const data = overview.data || {};
   const publicationActivityTypes = data.publicationActivityTypes || {};
+  const noPublicationActivityTypeConfigured = publicationActivityTypes?.matched === false;
+  const publicationActivityTypeHint = noPublicationActivityTypeConfigured
+    ? (publicationActivityTypes.error
+      ? `Freshsales bloqueado: ${publicationActivityTypes.error}`
+      : "Nao ha sales activity type compativel para publicacao no Freshsales.")
+    : "";
   const adviseSync = data.adviseSync || null;
   const adviseConfig = adviseSync?.config || {};
   const adviseCursor = adviseSync?.status_cursor || adviseSync?.ultima_execucao || {};
@@ -2587,6 +2609,29 @@ function PublicacoesContent() {
             uiHint: "A ingestao incremental do Advise traz publicacoes novas. Se ainda houver delta estrutural, rode tambem o backfill historico.",
           };
         }
+        if (action === "sincronizar_publicacoes_activity") {
+          const activityTypeStatus = payload.data?.activityTypeStatus || overview.data?.publicationActivityTypes || null;
+          if (activityTypeStatus && !activityTypeStatus.matched) {
+            return {
+              ...payload.data,
+              activityTypeStatus,
+              uiHint: activityTypeStatus.error
+                ? `O sync de publicacoes esta bloqueado pelo catalogo do Freshsales: ${activityTypeStatus.error}`
+                : "O sync de publicacoes nao encontrou um sales activity type compativel para publicacao no Freshsales.",
+            };
+          }
+          if (activityTypeStatus?.fallbackOnly) {
+            return {
+              ...payload.data,
+              activityTypeStatus,
+              uiHint: `O sync de publicacoes esta operando com catalogo em fallback. Tipo atual: ${activityTypeStatus.matchedName || "nao identificado"}.`,
+            };
+          }
+          return {
+            ...payload.data,
+            activityTypeStatus,
+          };
+        }
         return payload.data;
       })();
       setActionState({ loading: false, error: null, result: resultData });
@@ -2834,7 +2879,8 @@ function PublicacoesContent() {
               <button
                 type="button"
                 onClick={() => handleAction("sincronizar_publicacoes_activity", false, selectedUnifiedNumbers)}
-                disabled={actionState.loading || hasBlockingJob}
+                disabled={actionState.loading || hasBlockingJob || noPublicationActivityTypeConfigured}
+                title={publicationActivityTypeHint || undefined}
                 className="border border-[#6E5630] bg-[rgba(197,160,89,0.08)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#F8E7B5] hover:border-[#C5A059] disabled:opacity-50"
               >
                 Sincronizar publicacoes vinculadas
@@ -2900,6 +2946,12 @@ function PublicacoesContent() {
                 </p>
               </div>
             ) : null}
+            {noPublicationActivityTypeConfigured ? (
+              <div className="rounded-[20px] border border-[#4B2222] bg-[rgba(127,29,29,0.12)] p-4 text-sm text-red-100">
+                <p className="font-semibold">Sincronizacao no Freshsales bloqueada</p>
+                <p className="mt-2 opacity-80">{publicationActivityTypeHint}</p>
+              </div>
+            ) : null}
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
@@ -2911,7 +2963,8 @@ function PublicacoesContent() {
               <button
                 type="button"
                 onClick={() => handleAction("sincronizar_publicacoes_activity", false, selectedUnifiedNumbers)}
-                disabled={actionState.loading || hasBlockingJob}
+                disabled={actionState.loading || hasBlockingJob || noPublicationActivityTypeConfigured}
+                title={publicationActivityTypeHint || undefined}
                 className="border border-[#2D2E2E] px-5 py-3 text-sm hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
               >
                 Simular sincronizacao
@@ -2919,7 +2972,8 @@ function PublicacoesContent() {
               <button
                 type="button"
                 onClick={() => handleAction("sincronizar_publicacoes_activity", true, selectedUnifiedNumbers)}
-                disabled={actionState.loading || hasBlockingJob}
+                disabled={actionState.loading || hasBlockingJob || noPublicationActivityTypeConfigured}
+                title={publicationActivityTypeHint || undefined}
                 className="bg-[#C5A059] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#050706] disabled:opacity-50"
               >
                 Aplicar sincronizacao
@@ -3121,7 +3175,7 @@ function PublicacoesContent() {
                   <button type="button" onClick={() => handleAction("criar_processos_publicacoes", true, selectedUnifiedNumbers)} disabled={actionState.loading || hasBlockingJob || !selectedUnifiedNumbers.length} className="border border-[#2D2E2E] px-3 py-2 text-xs disabled:opacity-40">
                     Criar processos
                   </button>
-                  <button type="button" onClick={() => handleAction("sincronizar_publicacoes_activity", true, selectedUnifiedNumbers)} disabled={actionState.loading || hasBlockingJob || !selectedUnifiedNumbers.length} className="border border-[#6E5630] px-3 py-2 text-xs text-[#F8E7B5] disabled:opacity-40">
+                  <button type="button" onClick={() => handleAction("sincronizar_publicacoes_activity", true, selectedUnifiedNumbers)} disabled={actionState.loading || hasBlockingJob || !selectedUnifiedNumbers.length || noPublicationActivityTypeConfigured} title={publicationActivityTypeHint || undefined} className="border border-[#6E5630] px-3 py-2 text-xs text-[#F8E7B5] disabled:opacity-40">
                     Sincronizar publicacoes
                   </button>
                   <a href="/interno/processos" className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">

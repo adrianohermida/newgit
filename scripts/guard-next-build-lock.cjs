@@ -43,6 +43,7 @@ if (hasConcurrentNextBuild()) {
 }
 
 const nextBin = path.join(process.cwd(), 'node_modules', '.bin', 'next');
+const buildArgs = ['build', '--webpack'];
 let exitCode = 1;
 
 for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -52,7 +53,7 @@ for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     console.error(`\nguard-next-build-lock: retrying build (attempt ${attempt}/${MAX_ATTEMPTS})...\n`);
   }
 
-  const result = spawnSync(nextBin, ['build'], {
+  const result = spawnSync(nextBin, buildArgs, {
     stdio: 'inherit',
     shell: os.platform() === 'win32',
     env: process.env,

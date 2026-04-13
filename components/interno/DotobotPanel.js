@@ -2784,7 +2784,7 @@ const [uiToasts, setUiToasts] = useState([]);
       ? "grid-cols-1"
       : effectiveWorkspaceLayout === "immersive"
       ? isFocusedCopilotShell
-        ? "lg:grid-cols-[372px_minmax(0,1fr)_316px] xl:grid-cols-[392px_minmax(0,1fr)_332px] 2xl:grid-cols-[408px_minmax(0,1fr)_348px]"
+        ? "lg:grid-cols-[432px_minmax(0,1fr)_304px] xl:grid-cols-[448px_minmax(0,1fr)_320px] 2xl:grid-cols-[468px_minmax(0,1fr)_336px]"
         : "lg:grid-cols-[320px_minmax(0,1.6fr)_320px] xl:grid-cols-[360px_minmax(0,2.05fr)_360px] 2xl:grid-cols-[420px_minmax(0,2.45fr)_420px]"
       : effectiveWorkspaceLayout === "balanced"
         ? "lg:grid-cols-[220px_minmax(0,1.25fr)_240px] xl:grid-cols-[240px_minmax(0,1.5fr)_260px] 2xl:grid-cols-[260px_minmax(0,1.65fr)_280px]"
@@ -2813,7 +2813,8 @@ const [uiToasts, setUiToasts] = useState([]);
       ? "rounded-[24px] border border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(245,247,250,0.98))]"
       : "rounded-[24px] border border-[#1C2623] bg-[rgba(255,255,255,0.015)]";
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
-  const focusedConversationColumnClass = isFocusedCopilotShell ? "mx-auto flex h-full w-full max-w-[860px] flex-col" : isRailConversationShell ? "w-full" : "";
+  const focusedConversationColumnClass = isFocusedCopilotShell ? "mx-auto flex h-full w-full max-w-[980px] flex-col" : isRailConversationShell ? "w-full" : "";
+  const useCondensedRightRail = isFocusedCopilotShell;
   const visibleLegalActions = isRailConversationShell ? [] : LEGAL_ACTIONS.slice(0, isCompactViewport ? 1 : 3);
   const visibleQuickPrompts = QUICK_PROMPTS.slice(0, isCompactViewport ? 1 : isConversationCentricShell ? 1 : 2);
   let filteredConversations = filterVisibleConversations(conversations, conversationSearch);
@@ -4597,7 +4598,7 @@ const [uiToasts, setUiToasts] = useState([]);
                     )}
                   </div>
 
-                  <footer className={`shrink-0 border-t px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8] bg-[rgba(255,255,255,0.96)]" : "border-[#22342F] bg-[rgba(12,15,14,0.95)]"} ${isConversationCentricShell ? "sticky bottom-0" : ""}`}>
+                  <footer className={`mt-auto shrink-0 border-t px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8] bg-[rgba(255,255,255,0.96)]" : "border-[#22342F] bg-[rgba(12,15,14,0.95)]"}`}>
                     <div className="flex items-center gap-3">
                       <div className={`flex h-11 w-11 items-center justify-center rounded-full border text-sm font-semibold ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#152421]" : "border-[#22342F] bg-[rgba(255,255,255,0.03)] text-[#F5F1E8]"}`}>
                         {(profile?.full_name || profile?.email || "HM").slice(0, 2).toUpperCase()}
@@ -4931,18 +4932,20 @@ const [uiToasts, setUiToasts] = useState([]);
 
                   <TransitionGroup component={null}>
                     <CSSTransition key={rightPanelTab} timeout={180} classNames="dotobot-panel-tab">
-                      <div className={`overflow-y-auto p-4 ${isFocusedCopilotShell ? "h-full" : "h-[calc(100vh-14rem)]"}`}>
+                      <div className={`overflow-y-auto ${useCondensedRightRail ? "h-full p-3" : "h-[calc(100vh-14rem)] p-4"}`}>
                     {rightPanelTab === "modules" ? (
                       <div className="space-y-3">
                         <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-[#F8FAFC]" : "border-[#35554B] bg-[rgba(12,22,19,0.72)]"}`}>
                           <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Workspace ativo</p>
                           <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeProjectLabel}</p>
                           <p className={`mt-2 text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                            Módulos integrados em leitura rápida, sem tirar foco da conversa.
+                            {useCondensedRightRail
+                              ? "Atalhos contextuais e navegação lateral sem poluir o centro da conversa."
+                              : "Módulos integrados em leitura rápida, sem tirar foco da conversa."}
                           </p>
                         </div>
                         <div className="grid gap-3">
-                          {moduleWorkspaceCards.map((module) => (
+                          {moduleWorkspaceCards.slice(0, useCondensedRightRail ? 6 : moduleWorkspaceCards.length).map((module) => (
                             <article
                               key={module.key}
                               className={`rounded-[18px] border p-4 ${
@@ -4978,7 +4981,7 @@ const [uiToasts, setUiToasts] = useState([]);
                                   Filtrar histórico
                                 </button>
                               </div>
-                              {module.contextualHref !== module.href ? (
+                              {module.contextualHref !== module.href && !useCondensedRightRail ? (
                                 <p className={`mt-3 text-[11px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
                                   Contexto detectado: {module.key === "processos" || module.key === "publicacoes"
                                     ? `${conversationEntities.processNumbers.length} CNJ(s)`
@@ -4987,7 +4990,7 @@ const [uiToasts, setUiToasts] = useState([]);
                                       : activeConversation?.title || "conversa ativa"}
                                 </p>
                               ) : null}
-                              {module.latestConversation ? (
+                              {module.latestConversation && !useCondensedRightRail ? (
                                 <p className={`mt-3 text-[11px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Última conversa: {module.latestConversation}</p>
                               ) : null}
                             </article>
@@ -5280,6 +5283,8 @@ const [uiToasts, setUiToasts] = useState([]);
                                 <p className={`mt-3 text-xs ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Nenhuma execução do Dotobot vinculada diretamente a esta rota ou conversa ainda.</p>
                               )}
                             </div>
+                            {!useCondensedRightRail ? (
+                            <>
                             <div className="grid gap-3 xl:grid-cols-2">
                               <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                                 <div className="flex items-center justify-between gap-2">
@@ -5475,6 +5480,60 @@ const [uiToasts, setUiToasts] = useState([]);
                                 </button>
                               </div>
                             </div>
+                            </>
+                            ) : (
+                            <div className="space-y-3">
+                              <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>Subagentes ativos</p>
+                                  <span className={`text-[10px] ${isLightTheme ? "text-[#7C8B96]" : "text-[#60706A]"}`}>{agentLabSubagents.length}</span>
+                                </div>
+                                <div className="mt-3 space-y-2">
+                                  {agentLabSubagents.length ? agentLabSubagents.slice(0, 3).map((agent) => (
+                                    <article key={agent.id} className={`rounded-[16px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F8FAFC]" : "border-[#22342F] bg-[rgba(7,9,8,0.76)]"}`}>
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                          <p className={`text-[11px] font-medium ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{agent.role}</p>
+                                          <p className={`mt-1 text-[10px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>{agent.stageCount} estágio(s) · {agent.moduleCount} módulo(s)</p>
+                                        </div>
+                                        <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>{agent.status}</span>
+                                      </div>
+                                    </article>
+                                  )) : (
+                                    <div className={`rounded-[16px] border border-dashed px-3 py-3 text-xs ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
+                                      Nenhum subagente ativo neste momento.
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                                <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>Ações rápidas</p>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => router.push("/interno/agentlab/conversations")}
+                                    className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B] hover:border-[#C5A059] hover:text-[#8A5A16]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
+                                  >
+                                    Conversas
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => router.push("/interno/agentlab/orquestracao")}
+                                    className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B] hover:border-[#C5A059] hover:text-[#8A5A16]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
+                                  >
+                                    Orquestração
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => router.push("/interno/agentlab/environment")}
+                                    className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B] hover:border-[#C5A059] hover:text-[#8A5A16]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
+                                  >
+                                    Ambiente
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                            )}
                           </>
                         )}
                       </div>
