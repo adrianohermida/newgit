@@ -772,7 +772,12 @@ export default function LLMTestChat() {
 
       setResults((current) => [resultRecord, ...current]);
       setSelectedResultId(resultRecord.id);
-      setError(runError?.message || "Falha ao executar smoke test.");
+      const authErrorType = String(runError?.payload?.errorType || "");
+      setError(
+        runError?.status === 401 || runError?.status === 403 || ["authentication", "missing_session", "invalid_session", "inactive_profile", "missing_token"].includes(authErrorType)
+          ? "Sua sessão administrativa expirou ou perdeu permissão. Faça login novamente no interno antes de rodar o LLM Test."
+          : runError?.message || "Falha ao executar smoke test."
+      );
 
       updateActivityLog(activityId, {
         status: "error",

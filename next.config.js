@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
+const isStaticExport =
+  process.env.CF_PAGES === "1" ||
+  process.env.GITHUB_PAGES === "true" ||
+  process.env.STATIC_EXPORT === "1" ||
+  process.env.NEXT_OUTPUT_MODE === "export";
+
 const nextConfig = {
-  output: 'export',
+  ...(isStaticExport ? { output: "export" } : {}),
   images: { unoptimized: true },
   env: {
     NEXT_PUBLIC_SUPABASE_URL:

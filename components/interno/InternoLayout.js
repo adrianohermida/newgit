@@ -1676,7 +1676,13 @@ export default function InternoLayout({
       {/* MAIN + COPILOT */}
         <div className={`${isMobileShell || hideShellSidebar ? "ml-0" : "ml-2 md:ml-3"} flex h-full min-h-0 flex-1`}>
         {/* CONTEÚDO PRINCIPAL */}
-        <div className={`relative flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden rounded-[26px] border shadow-[0_20px_56px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#CBD5E1] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,247,250,0.96))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.985),rgba(7,9,8,0.95))]"}`}>
+        <div className={`relative flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden ${
+          isCopilotWorkspace
+            ? isLightTheme
+              ? "bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(244,247,251,0.86))]"
+              : "bg-[linear-gradient(180deg,rgba(6,8,7,0.92),rgba(8,10,9,0.94))]"
+            : `rounded-[26px] border shadow-[0_20px_56px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#CBD5E1] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,247,250,0.96))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.985),rgba(7,9,8,0.95))]"}`
+        }`}>
           <div className={`sticky top-0 z-20 shrink-0 flex flex-wrap items-center justify-between gap-4 border-b px-4 py-3 md:px-5 md:py-3.5 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(247,249,251,0.92))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.99),rgba(7,9,8,0.96))]"}`}>
             <div className={`rounded-[16px] border px-3 py-2 ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.82)]" : "border-[#1F2D29] bg-[rgba(255,255,255,0.02)]"}`}>
               <p className="text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">Workspace</p>
@@ -1814,7 +1820,7 @@ export default function InternoLayout({
             </header>
           ) : null}
           <div
-            className={`flex min-h-0 flex-1 flex-col ${isCopilotWorkspace ? "overflow-hidden px-3 pt-3 md:px-4 md:pt-4" : "gap-6 px-4 pb-4 md:px-6 md:pb-6"}`}
+            className={`flex min-h-0 flex-1 flex-col ${isCopilotWorkspace ? "overflow-hidden px-0 pt-0" : "gap-6 px-4 pb-4 md:px-6 md:pb-6"}`}
             style={isCopilotWorkspace ? { paddingBottom: `${copilotConsoleInset}px` } : undefined}
           >
             {!isCopilotWorkspace ? <IntegrationGuideCard guide={integrationGuide} /> : null}

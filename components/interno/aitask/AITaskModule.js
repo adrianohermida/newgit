@@ -44,6 +44,7 @@ import { extractModuleKeysFromContext, resolveModuleEntries } from "../../../lib
 import {
   applyBrowserLocalOfflinePolicy,
   getBrowserLocalRuntimeConfig,
+  hasPersistedBrowserLocalRuntimeConfig,
   hydrateBrowserLocalProviderOptions,
   persistBrowserLocalRuntimeConfig,
   probeBrowserLocalStackSummary,
@@ -119,14 +120,26 @@ const FALLBACK_SKILL_OPTIONS = listSkills().map((skill) => ({
 
 function shouldHydrateLocalProviderForAiTask(selectedProvider = "", providers = []) {
   if (!Array.isArray(providers) || !providers.length) return false;
+  const hasLocalBrowserConfig = hasPersistedBrowserLocalRuntimeConfig();
   const localOption = Array.isArray(providers)
     ? providers.find((item) => String(item?.value || item?.id || "").toLowerCase() === "local")
     : null;
   if (!localOption) return false;
   if (String(selectedProvider || "").toLowerCase() === "local") {
-    return localOption.disabled !== true && (Boolean(localOption.configured) || shouldAutoProbeBrowserLocalRuntime());
+    return localOption.disabled !== true && hasLocalBrowserConfig;
   }
-  return shouldAutoProbeBrowserLocalRuntime() && Boolean(localOption.configured) && localOption.disabled !== true;
+  return shouldAutoProbeBrowserLocalRuntime() && hasLocalBrowserConfig && localOption.disabled !== true;
+}
+
+function resolveAiTaskProviderSelection({ currentProvider, defaultProvider, providers = [] }) {
+  const preferred = resolvePreferredLawdeskProvider({
+    currentProvider,
+    defaultProvider,
+    providers,
+  });
+  if (String(preferred || "").toLowerCase() !== "local") return preferred;
+  if (hasPersistedBrowserLocalRuntimeConfig()) return preferred;
+  return providers.find((item) => String(item?.value || "").toLowerCase() !== "local" && item?.disabled !== true)?.value || preferred;
 }
 
 function buildRagAlert(health) {
@@ -364,8 +377,7 @@ export default function AITaskModule({ profile, routePath }) {
         const providers = Array.isArray(payload?.data?.providers) ? payload.data.providers : [];
         const defaultProvider = typeof payload?.data?.defaultProvider === "string" ? payload.data.defaultProvider : "gpt";
         if (!providers.length) return;
-        setProviderCatalog(
-          providers.map((item) => ({
+        const mappedProviders = providers.map((item) => ({
             value: item.id,
             label: `${item.label}${item.model ? ` · ${item.model}` : ""}${item.status ? ` · ${item.status}` : ""}`,
             disabled: !item.available,
@@ -378,13 +390,13 @@ export default function AITaskModule({ profile, routePath }) {
             host: item.details?.config?.host || null,
             endpoint: item.details?.probe?.endpoint || item.details?.config?.baseUrl || null,
             reason: item.reason || null,
-          }))
-        );
+          }));
+        setProviderCatalog(mappedProviders);
         setProvider((current) =>
-          resolvePreferredLawdeskProvider({
+          resolveAiTaskProviderSelection({
             currentProvider: current,
             defaultProvider,
-            providers,
+            providers: mappedProviders,
           })
         );
       })
@@ -408,7 +420,7 @@ export default function AITaskModule({ profile, routePath }) {
         if (before !== after) {
           setProviderCatalog(governedProviders);
           setProvider((current) =>
-            resolvePreferredLawdeskProvider({
+            resolveAiTaskProviderSelection({
               currentProvider: current,
               defaultProvider: localStackSummary?.offlineMode ? "local" : "gpt",
               providers: governedProviders,
@@ -468,7 +480,7 @@ export default function AITaskModule({ profile, routePath }) {
   useEffect(() => {
     const currentOption = providerCatalog.find((item) => item.value === provider);
     if (!currentOption?.disabled) return;
-    setProvider("local");
+    setProvider(providerCatalog.find((item) => !item.disabled)?.value || "gpt");
   }, [provider, providerCatalog, setProvider]);
 
   async function refreshLocalStackStatus() {
@@ -480,7 +492,7 @@ export default function AITaskModule({ profile, routePath }) {
       const governedProviders = applyBrowserLocalOfflinePolicy(hydratedProviders, summary);
       setProviderCatalog(governedProviders);
       setProvider((current) =>
-        resolvePreferredLawdeskProvider({
+        resolveAiTaskProviderSelection({
           currentProvider: current,
           defaultProvider: summary?.offlineMode ? "local" : "gpt",
           providers: governedProviders,

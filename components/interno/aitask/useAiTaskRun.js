@@ -16,6 +16,22 @@ function isAdminRuntimeUnavailable(error) {
   return status === 404 || status === 405 || errorType === "admin_runtime_unavailable";
 }
 
+function isAdminAuthenticationFailure(error) {
+  const status = Number(error?.status || 0);
+  const errorType = String(error?.payload?.errorType || "");
+  return status === 401 || status === 403 || ["authentication", "missing_session", "invalid_session", "inactive_profile", "missing_token"].includes(errorType);
+}
+
+function buildAdminInteractionMessage(error, fallbackMessage) {
+  if (isAdminAuthenticationFailure(error)) {
+    return "Sua sessao administrativa expirou ou perdeu permissao. Faca login novamente no interno para reativar chat e AI Task.";
+  }
+  if (isAdminRuntimeUnavailable(error)) {
+    return "O runtime administrativo do AI Task nao esta publicado neste deploy.";
+  }
+  return error?.message || fallbackMessage;
+}
+
 function stringifyDiagnostic(value, limit = 12000) {
   if (value === undefined || value === null) return "";
   let text = "";
@@ -313,6 +329,12 @@ export function useAiTaskRun({
         if (!disposed && isAdminRuntimeUnavailable(pollError)) {
           disposed = true;
           setError(pollError?.message || "Runtime administrativo indisponivel.");
+          setAutomation("failed");
+          setActiveRun(null);
+          nextDelayMs = 0;
+        } else if (!disposed && isAdminAuthenticationFailure(pollError)) {
+          disposed = true;
+          setError(buildAdminInteractionMessage(pollError, "Sessao administrativa indisponivel."));
           setAutomation("failed");
           setActiveRun(null);
           nextDelayMs = 0;
@@ -877,7 +899,7 @@ export function useAiTaskRun({
               : "Execucao iniciada no backend e aguardando conclusao.",
       });
     } catch (missionError) {
-      const message = missionError?.message || "Falha ao executar a missão.";
+      const message = buildAdminInteractionMessage(missionError, "Falha ao executar a missao.");
       appendActivityLog({
         id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         module: "ai-task",
@@ -1108,7 +1130,7 @@ export function useAiTaskRun({
           : "Run anterior ainda estava em execucao; acompanhamento mantido.",
       });
     } catch (continueError) {
-      const message = continueError?.message || "Falha ao retomar run.";
+      const message = buildAdminInteractionMessage(continueError, "Falha ao retomar run.");
       appendActivityLog({
         id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         module: "ai-task",

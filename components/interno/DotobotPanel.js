@@ -11,6 +11,7 @@ import {
   applyBrowserLocalOfflinePolicy,
   clearBrowserLocalInferenceFailure,
   getBrowserLocalRuntimeConfig,
+  hasPersistedBrowserLocalRuntimeConfig,
   hydrateBrowserLocalProviderOptions,
   invokeBrowserLocalExecute,
   invokeBrowserLocalMessages,
@@ -146,11 +147,23 @@ const MODULE_WORKSPACES = [
 
 function shouldHydrateBrowserLocalProvider({ focusedWorkspace = false, selectedProvider = "", providers = [] } = {}) {
   if (!Array.isArray(providers) || !providers.length) return false;
-  if (String(selectedProvider || "").toLowerCase() === "local") return true;
+  const hasLocalBrowserConfig = hasPersistedBrowserLocalRuntimeConfig();
+  if (String(selectedProvider || "").toLowerCase() === "local") return hasLocalBrowserConfig;
   if (focusedWorkspace) return false;
   const localOption = providers.find((item) => String(item?.value || item?.id || "").toLowerCase() === "local");
   if (!localOption) return false;
-  return shouldAutoProbeBrowserLocalRuntime() || Boolean(localOption.configured);
+  return hasLocalBrowserConfig || shouldAutoProbeBrowserLocalRuntime();
+}
+
+function resolveWorkspaceProviderSelection({ currentProvider, defaultProvider, providers = [] }) {
+  const preferred = resolvePreferredLawdeskProvider({
+    currentProvider,
+    defaultProvider,
+    providers,
+  });
+  if (String(preferred || "").toLowerCase() !== "local") return preferred;
+  if (hasPersistedBrowserLocalRuntimeConfig()) return preferred;
+  return providers.find((item) => String(item?.value || "").toLowerCase() !== "local" && item?.disabled !== true)?.value || preferred;
 }
 
 function buildProjectInsights(groups = []) {
@@ -1219,7 +1232,7 @@ const [uiToasts, setUiToasts] = useState([]);
         if (!active) return;
         setProviderCatalog(hydratedProviders);
         setProvider((current) =>
-          resolvePreferredLawdeskProvider({
+          resolveWorkspaceProviderSelection({
             currentProvider: current,
             defaultProvider,
             providers: hydratedProviders,
@@ -1373,7 +1386,7 @@ const [uiToasts, setUiToasts] = useState([]);
       const governedCatalog = applyBrowserLocalOfflinePolicy(hydratedCatalog, summary);
       setProviderCatalog(governedCatalog);
       setProvider((current) =>
-        resolvePreferredLawdeskProvider({
+        resolveWorkspaceProviderSelection({
           currentProvider: current,
           defaultProvider: summary?.offlineMode ? "local" : "gpt",
           providers: governedCatalog,
@@ -2080,14 +2093,17 @@ const [uiToasts, setUiToasts] = useState([]);
         setUiState("idle");
         return;
       }
+      const authErrorType = String(err?.payload?.errorType || "");
       const message =
-        err?.payload?.errorType === "admin_runtime_unavailable" || err?.status === 404 || err?.status === 405
-          ? "O runtime administrativo do chat não está publicado neste deploy. O frontend está pronto, mas a rota /api/admin-lawdesk-chat precisa estar ativa no ambiente."
-          : err?.code === "LOCAL_RUNTIME_INSUFFICIENT_MEMORY"
-            ? "Inferência local indisponível: a máquina não tem memória suficiente para o modelo atual. O painel segue operando em modo degradado."
-            : err?.code === "LOCAL_RUNTIME_INFERENCE_FAILED"
-              ? "Inferência local indisponível: o runtime local falhou ao responder. O painel segue operando em modo degradado."
-              : err.message || "Erro ao conectar ao backend.";
+        err?.status === 401 || err?.status === 403 || ["authentication", "missing_session", "invalid_session", "inactive_profile", "missing_token"].includes(authErrorType)
+          ? "Sua sessão administrativa expirou ou perdeu permissão. Faça login novamente no interno para reativar o chat do Dotobot."
+          : err?.payload?.errorType === "admin_runtime_unavailable" || err?.status === 404 || err?.status === 405
+            ? "O runtime administrativo do chat não está publicado neste deploy. O frontend está pronto, mas a rota /api/admin-lawdesk-chat precisa estar ativa no ambiente."
+            : err?.code === "LOCAL_RUNTIME_INSUFFICIENT_MEMORY"
+              ? "Inferência local indisponível: a máquina não tem memória suficiente para o modelo atual. O painel segue operando em modo degradado."
+              : err?.code === "LOCAL_RUNTIME_INFERENCE_FAILED"
+                ? "Inferência local indisponível: o runtime local falhou ao responder. O painel segue operando em modo degradado."
+                : err.message || "Erro ao conectar ao backend.";
       setError(message);
       setMessages((msgs) => {
         const last = msgs[msgs.length - 1];
@@ -2727,11 +2743,35 @@ const [uiToasts, setUiToasts] = useState([]);
         : "w-full max-w-[1320px]";
   const workspaceShellGridClass =
     effectiveWorkspaceLayout === "immersive"
-      ? "lg:grid-cols-[320px_minmax(0,1.6fr)_320px] xl:grid-cols-[360px_minmax(0,2.05fr)_360px] 2xl:grid-cols-[420px_minmax(0,2.45fr)_420px]"
+      ? isFocusedCopilotShell
+        ? "lg:grid-cols-[328px_minmax(0,1fr)_340px] xl:grid-cols-[344px_minmax(0,1.18fr)_368px] 2xl:grid-cols-[360px_minmax(0,1.3fr)_392px]"
+        : "lg:grid-cols-[320px_minmax(0,1.6fr)_320px] xl:grid-cols-[360px_minmax(0,2.05fr)_360px] 2xl:grid-cols-[420px_minmax(0,2.45fr)_420px]"
       : effectiveWorkspaceLayout === "balanced"
         ? "lg:grid-cols-[220px_minmax(0,1.25fr)_240px] xl:grid-cols-[240px_minmax(0,1.5fr)_260px] 2xl:grid-cols-[260px_minmax(0,1.65fr)_280px]"
         : "lg:grid-cols-[180px_minmax(0,1fr)_220px] xl:grid-cols-[190px_minmax(0,1.12fr)_240px] 2xl:grid-cols-[210px_minmax(0,1.2fr)_260px]";
-  const focusedShellContentClass = suppressInnerChrome ? "px-0 pt-0 pb-3 md:pb-4" : "p-3 md:p-5";
+  const focusedShellContentClass = suppressInnerChrome ? "px-0 pt-0 pb-0" : "p-3 md:p-5";
+  const workspaceGridGapClass = isFocusedCopilotShell ? "gap-0" : "gap-4";
+  const leftRailShellClass = isFocusedCopilotShell
+    ? isLightTheme
+      ? "border-r border-y-0 border-l-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.99))] rounded-none shadow-none"
+      : "border-r border-y-0 border-l-0 border-[#1C2623] bg-[rgba(9,11,10,0.98)] rounded-none shadow-none"
+    : isLightTheme
+      ? "rounded-[22px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,248,251,0.98))]"
+      : "rounded-[22px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] border-[#1C2623] bg-[rgba(255,255,255,0.018)]";
+  const centerShellClass = isFocusedCopilotShell
+    ? isLightTheme
+      ? "border-x border-y-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(247,249,252,0.99))] rounded-none shadow-none"
+      : "border-x border-y-0 border-[#1C2623] bg-[rgba(11,13,12,0.985)] rounded-none shadow-none"
+    : isLightTheme
+      ? "rounded-[24px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,248,251,0.98))]"
+      : "rounded-[24px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] border-[#1C2623] bg-[rgba(255,255,255,0.015)]";
+  const rightRailShellClass = isFocusedCopilotShell
+    ? isLightTheme
+      ? "border-l border-y-0 border-r-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,249,252,0.99))] rounded-none shadow-none"
+      : "border-l border-y-0 border-r-0 border-[#1C2623] bg-[rgba(9,11,10,0.98)] rounded-none shadow-none"
+    : isLightTheme
+      ? "rounded-[24px] border border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(245,247,250,0.98))]"
+      : "rounded-[24px] border border-[#1C2623] bg-[rgba(255,255,255,0.015)]";
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
   const visibleLegalActions = LEGAL_ACTIONS.slice(0, isCompactViewport ? 1 : 3);
   const visibleQuickPrompts = QUICK_PROMPTS.slice(0, isCompactViewport ? 1 : isFocusedCopilotShell ? 1 : 2);
@@ -4047,7 +4087,7 @@ const [uiToasts, setUiToasts] = useState([]);
                         </span>
                       </div>
                     </div>
-                    <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                    {!isFocusedCopilotShell ? <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Atalhos do cockpit</p>
@@ -4095,7 +4135,7 @@ const [uiToasts, setUiToasts] = useState([]);
                           </span>
                         )}
                       </div>
-                    </div>
+                    </div> : null}
                   </div>
                   )}
                   {localStackSummary?.recommendations?.length && !isFocusedCopilotShell ? (
@@ -4147,7 +4187,7 @@ const [uiToasts, setUiToasts] = useState([]);
                 </div>
 
                 <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row lg:flex-wrap lg:items-center">
-                  {MODE_OPTIONS.map((item) => (
+                  {!isFocusedCopilotShell ? MODE_OPTIONS.map((item) => (
                     <button
                       key={item.value}
                       type="button"
@@ -4160,8 +4200,8 @@ const [uiToasts, setUiToasts] = useState([]);
                     >
                       {item.label}
                     </button>
-                  ))}
-                  <select
+                  )) : null}
+                  {!isFocusedCopilotShell ? <select
                     value={provider}
                     onChange={(event) => setProvider(event.target.value)}
                     aria-label="Selecionar LLM do Copilot"
@@ -4172,8 +4212,8 @@ const [uiToasts, setUiToasts] = useState([]);
                         {item.label}
                       </option>
                     ))}
-                  </select>
-                  <select
+                  </select> : null}
+                  {!isFocusedCopilotShell ? <select
                     value={selectedSkillId}
                     onChange={(event) => setSelectedSkillId(event.target.value)}
                     aria-label="Selecionar skill do Copilot"
@@ -4185,7 +4225,17 @@ const [uiToasts, setUiToasts] = useState([]);
                         {item.label}
                       </option>
                     ))}
-                  </select>
+                  </select> : null}
+                  {isFocusedCopilotShell ? (
+                    <div className="flex flex-wrap gap-2">
+                      <span className={`rounded-full border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] bg-[rgba(7,9,8,0.72)] text-[#D8DEDA]"}`}>
+                        Conversa centralizada
+                      </span>
+                      <span className={`rounded-full border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] bg-[rgba(7,9,8,0.72)] text-[#D8DEDA]"}`}>
+                        {activeProjectLabel}
+                      </span>
+                    </div>
+                  ) : null}
                   {!isFocusedCopilotShell ? (
                   <button
                     type="button"
@@ -4261,12 +4311,8 @@ const [uiToasts, setUiToasts] = useState([]);
             ) : null}
 
             <div className={`flex-1 overflow-hidden ${focusedShellContentClass}`}>
-              <div className={`grid h-full min-h-0 gap-4 transition-all duration-300 ease-out ${workspaceShellGridClass}`}>
-                <aside className={`hidden lg:flex min-h-0 flex-col overflow-hidden rounded-[22px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] ${
-                  isLightTheme
-                    ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,248,251,0.98))]"
-                    : "border-[#1C2623] bg-[rgba(255,255,255,0.018)]"
-                }`}>
+              <div className={`grid h-full min-h-0 transition-all duration-300 ease-out ${workspaceGridGapClass} ${workspaceShellGridClass}`}>
+                <aside className={`hidden lg:flex min-h-0 flex-col overflow-hidden ${leftRailShellClass}`}>
                   <div className={`border-b px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -4478,11 +4524,7 @@ const [uiToasts, setUiToasts] = useState([]);
                   </footer>
                 </aside>
 
-                <section className={`flex min-h-0 flex-col rounded-[24px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] ${
-                  isLightTheme
-                    ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,248,251,0.98))]"
-                    : "border-[#1C2623] bg-[rgba(255,255,255,0.015)]"
-                }`}>
+                <section className={`flex min-h-0 flex-col ${centerShellClass}`}>
                   <div className={`border-b px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -4690,11 +4732,7 @@ const [uiToasts, setUiToasts] = useState([]);
                   </div>
                 </section>
 
-                <aside className={`hidden lg:block min-h-0 overflow-hidden rounded-[24px] border ${
-                  isLightTheme
-                    ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(245,247,250,0.98))]"
-                    : "border-[#1C2623] bg-[rgba(255,255,255,0.015)]"
-                }`}>
+                <aside className={`hidden lg:block min-h-0 overflow-hidden ${rightRailShellClass}`}>
                   <div className={`border-b px-4 py-4 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
                     <div className="flex flex-col gap-3">
                       <div>

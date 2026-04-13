@@ -82,6 +82,15 @@ async function loadHandlerWithMocks(mocks) {
   return module.namespace.default;
 }
 
+async function loadAliasHandlerWithMocks(mocks) {
+  moduleCache.clear();
+  const module = await evaluateModule(
+    await loadEsmModule("D:/Github/newgit/pages/api/admin-dotobot-chat.js", mocks),
+    mocks
+  );
+  return module.namespace.default;
+}
+
 function createMockRes() {
   return {
     statusCode: 200,
@@ -167,6 +176,24 @@ registerTest("admin-lawdesk-chat returns 405 for invalid method", async () => {
   assert.equal(res.statusCode, 405);
   assert.equal(res.body.ok, false);
   assert.equal(res.body.error, "Metodo nao permitido.");
+});
+
+registerTest("admin-dotobot-chat proxies to canonical handler", async () => {
+  const handler = await loadAliasHandlerWithMocks({
+    "./admin-lawdesk-chat": {
+      default: async (_req, res) => {
+        res.status(207).json({ ok: true, source: "canonical" });
+      },
+    },
+  });
+
+  const req = { method: "POST", headers: {}, body: { query: "teste alias" } };
+  const res = createMockRes();
+  await handler(req, res);
+
+  assert.equal(res.statusCode, 207);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.source, "canonical");
 });
 
 async function run() {

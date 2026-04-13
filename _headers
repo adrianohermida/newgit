@@ -1,0 +1,21 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+/interno
+  Cache-Control: no-store, no-cache, must-revalidate
+
+/interno/*
+  Cache-Control: no-store, no-cache, must-revalidate
+
+/llm-test
+  Cache-Control: no-store, no-cache, must-revalidate
+
+/api/*
+  Cache-Control: no-store, no-cache, must-revalidate
+
+/_next/data/*
+  Cache-Control: no-store, no-cache, must-revalidate
+
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
