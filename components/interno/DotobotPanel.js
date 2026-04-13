@@ -174,6 +174,142 @@ function extractAgentLabSubagents(agentLabData, activeTask) {
   }));
 }
 
+function formatRuntimeTimeLabel(value) {
+  if (!value) return "agora";
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return "sem data";
+  const diffMs = Date.now() - parsed;
+  const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
+  if (diffMinutes < 1) return "agora";
+  if (diffMinutes < 60) return `${diffMinutes} min`;
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} h`;
+  const diffDays = Math.round(diffHours / 24);
+  return `${diffDays} d`;
+}
+
+function buildAgentLabQueuePreview(queue = [], limit = 4) {
+  return queue.slice(0, limit).map((item, index) => ({
+    id: item?.id || `queue_${index}`,
+    title: item?.title || item?.description || `Fila ${index + 1}`,
+    priority: item?.priority || "media",
+    status: item?.status || "backlog",
+    agentRef: item?.agent_ref || "dotobot-ai",
+    updatedAt: item?.updated_at || item?.created_at || null,
+  }));
+}
+
+function buildAgentLabSyncPreview(syncRuns = [], limit = 4) {
+  return syncRuns.slice(0, limit).map((item, index) => ({
+    id: item?.id || `sync_${index}`,
+    source: item?.source_name || item?.entity || "fonte",
+    scope: item?.sync_scope || item?.filter_name || "sync",
+    status: item?.status || "completed",
+    records: Number(item?.records_synced || item?.source_total || 0) || 0,
+    createdAt: item?.created_at || item?.started_at || item?.completed_at || null,
+  }));
+}
+
+function buildAgentLabTrainingPreview(runs = [], limit = 3) {
+  return runs.slice(0, limit).map((item, index) => ({
+    id: item?.id || `training_${index}`,
+    agentRef: item?.agent_ref || "dotobot-ai",
+    status: item?.status || "completed",
+    provider: item?.provider || "local",
+    score: Number(item?.scores?.overall ?? 0),
+    createdAt: item?.created_at || null,
+  }));
+}
+
+function buildAgentLabIncidentPreview(incidents = [], limit = 4) {
+  return incidents.slice(0, limit).map((item, index) => ({
+    id: item?.id || `incident_${index}`,
+    title: item?.title || item?.description || `Incidente ${index + 1}`,
+    severity: item?.severity || "media",
+    status: item?.status || "open",
+    category: item?.category || "geral",
+    occurredAt: item?.occurred_at || item?.created_at || null,
+  }));
+}
+
+function buildLinkedDotobotTaskRuns(taskRuns = [], { routePath, activeTask, activeConversation } = {}) {
+  const normalizedMission = String(activeTask?.query || activeTask?.title || "").trim().toLowerCase();
+  const normalizedConversation = String(activeConversation?.title || "").trim().toLowerCase();
+
+  return taskRuns
+    .filter((run) => {
+      if (!run) return false;
+      if (activeTask?.id && run.id === activeTask.id) return true;
+      if (routePath && run.route === routePath) return true;
+      const mission = String(run.mission || "").trim().toLowerCase();
+      if (normalizedMission && mission && mission.includes(normalizedMission.slice(0, 24))) return true;
+      if (normalizedConversation && mission && mission.includes(normalizedConversation.slice(0, 24))) return true;
+      return false;
+    })
+    .slice(0, 4);
+}
+
+function extractConversationEntities(activeConversation, activeTask) {
+  const textPool = [
+    activeConversation?.title,
+    activeConversation?.preview,
+    ...(Array.isArray(activeConversation?.messages) ? activeConversation.messages.map((item) => item?.text) : []),
+    activeTask?.query,
+    activeTask?.title,
+    activeTask?.mission,
+    ...(Array.isArray(activeTask?.logs) ? activeTask.logs : []),
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const processNumbers = [...new Set((textPool.match(/\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b/g) || []).slice(0, 6))];
+  const emails = [...new Set((textPool.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi) || []).slice(0, 4))];
+
+  return {
+    processNumbers,
+    primaryProcessNumber: processNumbers[0] || "",
+    emails,
+    primaryEmail: emails[0] || "",
+  };
+}
+
+function buildCopilotContextPayload({ module, activeConversation, activeTask, routePath, projectLabel }) {
+  return JSON.stringify({
+    source: "dotobot-copilot",
+    module: module?.key || "geral",
+    routePath: routePath || "/interno",
+    projectLabel: projectLabel || "Geral",
+    conversationTitle: activeConversation?.title || "Nova conversa",
+    mission: activeTask?.query || activeTask?.title || activeTask?.mission || "",
+  });
+}
+
+function buildContextualModuleHref(module, context) {
+  const params = new URLSearchParams();
+  params.set("copilotContext", buildCopilotContextPayload({ module, ...context }));
+
+  if (module.key === "processos") {
+    params.set("view", "operacao");
+    if (context.entities?.processNumbers?.length) {
+      params.set("processNumbers", context.entities.processNumbers.join("\n"));
+    }
+  }
+
+  if (module.key === "publicacoes") {
+    params.set("view", "operacao");
+    if (context.entities?.processNumbers?.length) {
+      params.set("processNumbers", context.entities.processNumbers.join("\n"));
+    }
+  }
+
+  if (module.key === "leads" && context.entities?.primaryEmail) {
+    params.set("email", context.entities.primaryEmail);
+  }
+
+  const query = params.toString();
+  return query ? `${module.href}?${query}` : module.href;
+}
+
 function buildConversationRuntimeMetadata({ mode, provider, selectedSkillId, contextEnabled, routePath }) {
   const matchedProject = MODULE_WORKSPACES.find((item) => String(routePath || "").startsWith(item.href));
   return {
@@ -193,6 +329,13 @@ const SLASH_COMMANDS = [
   { value: "/plano", label: "Criar plano", hint: "Fluxo operacional com etapas." },
   { value: "/resumo", label: "Resumir documentos", hint: "Sintese tecnica e util." },
   { value: "/tarefas", label: "Ver tarefas", hint: "Abre o modo de acompanhamento operacional." },
+];
+
+const COPILOT_QUICK_SHORTCUTS = [
+  { id: "command-k", label: "Ctrl/Cmd+K", detail: "foco no compositor" },
+  { id: "command-dot", label: "Ctrl+.", detail: "abrir ou recolher" },
+  { id: "shift-enter", label: "Shift+Enter", detail: "quebrar linha" },
+  { id: "notifications", label: "Notificações", detail: "alerta de task finalizada" },
 ];
 
 function formatBytes(bytes) {
@@ -639,6 +782,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
   const [rightPanelTab, setRightPanelTab] = useState("modules");
   const [selectedProjectFilter, setSelectedProjectFilter] = useState("all");
   const [agentLabSnapshot, setAgentLabSnapshot] = useState({ loading: true, error: null, data: null });
+  const [agentLabActionState, setAgentLabActionState] = useState({ loading: false, scope: null, message: null, tone: "idle" });
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [attachments, setAttachments] = useState([]);
   const [showSlashCommands, setShowSlashCommands] = useState(false);
@@ -733,28 +877,35 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
     };
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    adminFetch("/api/admin-agentlab", { method: "GET" })
-      .then((payload) => {
-        if (!active) return;
-        setAgentLabSnapshot({
-          loading: false,
-          error: null,
-          data: payload?.data || null,
-        });
-      })
-      .catch((fetchError) => {
-        if (!active) return;
-        setAgentLabSnapshot({
-          loading: false,
-          error: fetchError?.message || "Falha ao carregar AgentLab.",
-          data: null,
-        });
+  async function loadAgentLabSnapshot(options = {}) {
+    const silent = options?.silent === true;
+    if (!silent) {
+      setAgentLabSnapshot((current) => ({
+        loading: true,
+        error: null,
+        data: current?.data || null,
+      }));
+    }
+    try {
+      const payload = await adminFetch("/api/admin-agentlab", { method: "GET" });
+      setAgentLabSnapshot({
+        loading: false,
+        error: null,
+        data: payload?.data || null,
       });
-    return () => {
-      active = false;
-    };
+      return payload?.data || null;
+    } catch (fetchError) {
+      setAgentLabSnapshot({
+        loading: false,
+        error: fetchError?.message || "Falha ao carregar AgentLab.",
+        data: null,
+      });
+      return null;
+    }
+  }
+
+  useEffect(() => {
+    loadAgentLabSnapshot();
   }, []);
 
   useEffect(() => {
@@ -1379,16 +1530,15 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
       isCollapsed && (
         <button
           type="button"
-          className={`fixed z-[75] border border-[#2D2E2E] bg-[rgba(14,16,15,0.95)] text-[11px] uppercase text-[#C5A059] shadow-[0_10px_30px_rgba(0,0,0,0.35)] transition hover:border-[#C5A059] hover:text-[#F5E6C5] ${
+          className={`fixed z-[75] border border-[#C5A059] bg-[linear-gradient(180deg,#C5A059,#B08B46)] text-[11px] font-semibold uppercase text-[#07110E] shadow-[0_10px_30px_rgba(0,0,0,0.35)] transition hover:brightness-105 ${
             isCompactViewport
-              ? "bottom-24 right-3 rounded-full px-4 py-3 tracking-[0.18em]"
-              : "right-0 top-1/2 -translate-y-1/2 rounded-l-2xl px-3 py-5 tracking-[0.28em]"
+              ? "bottom-24 right-3 rounded-[18px] px-4 py-3 tracking-[0.18em]"
+              : "bottom-24 right-4 rounded-[18px] px-4 py-3 tracking-[0.18em]"
           }`}
           onClick={() => setIsCollapsed(false)}
-          style={isCompactViewport ? undefined : { writingMode: "vertical-rl", textOrientation: "mixed" }}
           title="Abrir Copilot (Ctrl + .)"
         >
-          Copilot
+          Abrir copilot
         </button>
       )
     );
@@ -1534,6 +1684,145 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
     setInput((current) => [current, nextBlock].filter(Boolean).join("\n\n---\n\n"));
     setWorkspaceOpen(true);
     setTimeout(() => composerRef.current?.focus(), 60);
+  }
+
+  function handleReuseTaskMission(task) {
+    const mission = String(task?.mission || task?.query || task?.title || "").trim();
+    if (!mission) return;
+    setInput(mission);
+    setMode(task?.mode || mode);
+    setProvider(task?.provider || provider);
+    setWorkspaceOpen(true);
+    setRightPanelTab("ai-task");
+    setTimeout(() => composerRef.current?.focus(), 60);
+  }
+
+  async function runAgentLabSync(action, scopeLabel) {
+    setAgentLabActionState({ loading: true, scope: action, message: null, tone: "idle" });
+    try {
+      const payload = await adminFetch("/api/admin-agentlab-sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action }),
+      });
+      const message =
+        payload?.result?.message ||
+        (payload?.result?.unavailable
+          ? payload.result.message
+          : `${scopeLabel} executado com sucesso.`);
+      setAgentLabActionState({
+        loading: false,
+        scope: action,
+        message,
+        tone: payload?.result?.unavailable ? "warning" : "success",
+      });
+      await loadAgentLabSnapshot({ silent: true });
+    } catch (error) {
+      setAgentLabActionState({
+        loading: false,
+        scope: action,
+        message: error?.message || `Falha ao executar ${scopeLabel}.`,
+        tone: "error",
+      });
+    }
+  }
+
+  async function runAgentLabTrainingScenario(scenarioId) {
+    if (!scenarioId) return;
+    setAgentLabActionState({ loading: true, scope: scenarioId, message: null, tone: "idle" });
+    try {
+      const payload = await adminFetch("/api/admin-agentlab-training", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ scenario_id: scenarioId }),
+      });
+      const score = payload?.result?.run?.scores?.overall;
+      setAgentLabActionState({
+        loading: false,
+        scope: scenarioId,
+        message: `Treino executado. Score geral ${score != null ? `${Math.round(Number(score) * 100)}%` : "indisponível"}.`,
+        tone: "success",
+      });
+      await loadAgentLabSnapshot({ silent: true });
+    } catch (error) {
+      setAgentLabActionState({
+        loading: false,
+        scope: scenarioId,
+        message: error?.message || "Falha ao executar treinamento.",
+        tone: "error",
+      });
+    }
+  }
+
+  async function updateAgentLabQueueItemStatus(item, status) {
+    if (!item?.id) return;
+    setAgentLabActionState({ loading: true, scope: item.id, message: null, tone: "idle" });
+    try {
+      await adminFetch("/api/admin-agentlab-governance", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "update_queue_item",
+          id: item.id,
+          status,
+          priority: item.priority || "media",
+        }),
+      });
+      setAgentLabActionState({
+        loading: false,
+        scope: item.id,
+        message: `Fila atualizada para ${status}.`,
+        tone: "success",
+      });
+      await loadAgentLabSnapshot({ silent: true });
+    } catch (error) {
+      setAgentLabActionState({
+        loading: false,
+        scope: item.id,
+        message: error?.message || "Falha ao atualizar fila.",
+        tone: "error",
+      });
+    }
+  }
+
+  async function updateAgentLabIncidentItemStatus(item, status) {
+    if (!item?.id) return;
+    setAgentLabActionState({ loading: true, scope: item.id, message: null, tone: "idle" });
+    try {
+      await adminFetch("/api/admin-agentlab-governance", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "update_incident_item",
+          id: item.id,
+          status,
+          severity: item.severity || "media",
+          description: item.title || null,
+        }),
+      });
+      setAgentLabActionState({
+        loading: false,
+        scope: item.id,
+        message: `Incidente atualizado para ${status}.`,
+        tone: "success",
+      });
+      await loadAgentLabSnapshot({ silent: true });
+    } catch (error) {
+      setAgentLabActionState({
+        loading: false,
+        scope: item.id,
+        message: error?.message || "Falha ao atualizar incidente.",
+        tone: "error",
+      });
+    }
   }
 
   function renameConversation(conversation) {
@@ -1818,6 +2107,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
   const conversationProjectGroups = groupConversationsByProject(filteredConversations);
   const projectInsights = buildProjectInsights(groupConversationsByProject(conversations.filter((conversation) => showArchived || !conversation.archived)));
   const activeProjectLabel = activeConversation?.projectLabel || "Geral";
+  const conversationEntities = extractConversationEntities(activeConversation, activeTask);
   const moduleWorkspaceCards = MODULE_WORKSPACES.map((module) => {
     const matchedConversations = conversations.filter((conversation) => conversation.projectKey === module.key);
     return {
@@ -1825,9 +2115,53 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
       count: matchedConversations.length,
       active: activeConversation?.projectKey === module.key || String(routePath || "").includes(module.key.replace("_", "-")),
       latestConversation: matchedConversations[0]?.title || null,
+      contextualHref: buildContextualModuleHref(module, {
+        activeConversation,
+        activeTask,
+        routePath,
+        projectLabel: activeProjectLabel,
+        entities: conversationEntities,
+      }),
     };
   });
+  const agentLabData = agentLabSnapshot.data || null;
   const agentLabSubagents = extractAgentLabSubagents(agentLabSnapshot.data, activeTask);
+  const agentLabOverview = agentLabData?.overview || {};
+  const agentLabEnvironment = agentLabData?.environment || {};
+  const agentLabConversationSummary = agentLabData?.conversations?.summary || {};
+  const agentLabIncidentsSummary = agentLabData?.intelligence?.summary || {};
+  const agentLabTrainingSummary = agentLabData?.training?.summary || {};
+  const agentLabQueuePreview = buildAgentLabQueuePreview(agentLabData?.governance?.queue || []);
+  const agentLabSyncPreview = buildAgentLabSyncPreview(agentLabData?.intelligence?.syncRuns || []);
+  const agentLabTrainingPreview = buildAgentLabTrainingPreview(agentLabData?.training?.runs || []);
+  const agentLabIncidentPreview = buildAgentLabIncidentPreview(agentLabData?.intelligence?.incidents || []);
+  const featuredTrainingScenario =
+    (agentLabData?.training?.scenarios || []).find((item) => item?.agent_ref === "dotobot-ai") ||
+    (agentLabData?.training?.scenarios || [])[0] ||
+    null;
+  const linkedAgentLabTaskRuns = buildLinkedDotobotTaskRuns(agentLabData?.dotobot?.taskRuns || [], {
+    routePath,
+    activeTask,
+    activeConversation,
+  });
+  const agentLabHealthSignals = [
+    {
+      label: "Ambiente",
+      value: agentLabEnvironment.mode === "connected" ? "conectado" : agentLabEnvironment.mode === "degraded" ? "contingência" : "parcial",
+    },
+    {
+      label: "RAG",
+      value: agentLabEnvironment.dotobotRagHealth?.ok ? "ok" : "atenção",
+    },
+    {
+      label: "Providers",
+      value: `${agentLabEnvironment.lawdeskProvidersHealth?.summary?.operational || 0} online`,
+    },
+    {
+      label: "Threads",
+      value: String(agentLabConversationSummary.total || 0),
+    },
+  ];
   const compactRecentConversations = filteredConversations.slice(0, 4);
   const compactTranscript = messages.slice(-4);
   const activeConversationPreview =
@@ -2858,9 +3192,9 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
       ) : null}
 
         {isWorkspaceShell ? (
-          <div className="fixed inset-0 z-[70] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.16),transparent_28%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.96))] text-[#F4F1EA] backdrop-blur-xl">
+          <div className="fixed inset-0 z-[70] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.14),transparent_26%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.96))] text-[#F4F1EA] backdrop-blur-xl">
           <div className="flex h-full flex-col">
-            <header className="border-b border-[#22342F]/80 bg-[rgba(7,10,9,0.78)] px-4 py-4 backdrop-blur-xl md:px-5">
+            <header className="border-b border-[#22342F]/80 bg-[linear-gradient(180deg,rgba(11,14,13,0.82),rgba(7,10,9,0.78))] px-4 py-4 backdrop-blur-xl md:px-5">
               <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-3">
@@ -2909,7 +3243,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                     </p>
                   ) : null}
                   <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                    <div className="rounded-[20px] border border-[#3C3320] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.14),transparent_60%),rgba(255,255,255,0.02)] p-4">
+                    <div className="rounded-[22px] border border-[#3C3320] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.14),transparent_60%),rgba(255,255,255,0.02)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
                       <p className="text-[10px] uppercase tracking-[0.18em] text-[#D9B46A]">Conversa operacional</p>
                       <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{activeConversation?.title || "Nova conversa"}</p>
                       <p className="mt-2 max-w-2xl line-clamp-3 text-sm leading-6 text-[#C6D1CC]">{activeConversationPreview}</p>
@@ -2925,7 +3259,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                         </span>
                       </div>
                     </div>
-                    <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                    <div className="rounded-[22px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
                       <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Missão em foco</p>
                       <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeTaskLabel}</p>
                       <div className="mt-3 grid gap-2 sm:grid-cols-3">
@@ -2938,6 +3272,48 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                         <span className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.72)] px-3 py-2 text-[11px] text-[#D8DEDA]">
                           Ativas {runningCount}
                         </span>
+                      </div>
+                    </div>
+                    <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Atalhos do cockpit</p>
+                          <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">Shell pronto para operar como painel lateral.</p>
+                        </div>
+                        <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D8DEDA]">
+                          {routePath === "/interno/copilot" ? "fullscreen ativo" : "painel lateral"}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {COPILOT_QUICK_SHORTCUTS.map((item) => (
+                          <span key={item.id} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+                            {item.label} · {item.detail}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {routePath !== "/interno/copilot" ? (
+                          <button
+                            type="button"
+                            onClick={() => router.push("/interno/copilot")}
+                            className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                          >
+                            Abrir fullscreen
+                          </button>
+                        ) : null}
+                        {!notificationsEnabled ? (
+                          <button
+                            type="button"
+                            onClick={handleEnableNotifications}
+                            className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                          >
+                            Ativar notificações
+                          </button>
+                        ) : (
+                          <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB]">
+                            Notificações ativas
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -3066,7 +3442,7 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
             </header>
 
             <div className="flex-1 overflow-hidden p-3 md:p-5">
-              <div className="grid h-full min-h-0 gap-4 2xl:grid-cols-[260px_minmax(0,1.35fr)_300px]">
+              <div className="grid h-full min-h-0 gap-4 2xl:grid-cols-[280px_minmax(0,1.35fr)_340px]">
                 <aside className="flex min-h-0 flex-col overflow-hidden rounded-[22px] border border-[#1C2623] bg-[rgba(255,255,255,0.018)] shadow-[0_18px_48px_rgba(0,0,0,0.18)]">
                   <div className="border-b border-[#22342F] px-4 py-4 md:px-5">
                     <div className="flex items-center justify-between gap-3">
@@ -3502,10 +3878,10 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                               <div className="mt-3 flex flex-wrap gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => router.push(module.href)}
+                                  onClick={() => router.push(module.contextualHref || module.href)}
                                   className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
                                 >
-                                  Abrir módulo
+                                  Abrir em contexto
                                 </button>
                                 <button
                                   type="button"
@@ -3515,6 +3891,15 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                                   Filtrar histórico
                                 </button>
                               </div>
+                              {module.contextualHref !== module.href ? (
+                                <p className="mt-3 text-[11px] text-[#7F928C]">
+                                  Contexto detectado: {module.key === "processos" || module.key === "publicacoes"
+                                    ? `${conversationEntities.processNumbers.length} CNJ(s)`
+                                    : module.key === "leads"
+                                      ? conversationEntities.primaryEmail
+                                      : activeConversation?.title || "conversa ativa"}
+                                </p>
+                              ) : null}
                               {module.latestConversation ? (
                                 <p className="mt-3 text-[11px] text-[#7F928C]">Última conversa: {module.latestConversation}</p>
                               ) : null}
@@ -3620,18 +4005,30 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                             Abrir AgentLabs
                           </button>
                         </div>
-                        <div className="grid gap-2 sm:grid-cols-3">
+                        <div className="grid gap-2 sm:grid-cols-2">
                           <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
                             <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Subagentes</p>
                             <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{agentLabSubagents.length}</p>
                           </div>
                           <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
                             <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Threads</p>
-                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{agentLabSnapshot.data?.intelligence?.threads?.length || 0}</p>
+                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{agentLabConversationSummary.total || 0}</p>
+                          </div>
+                          <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+                            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Fila</p>
+                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{agentLabOverview.queueItems || 0}</p>
                           </div>
                           <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
                             <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Incidentes</p>
-                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{agentLabSnapshot.data?.intelligence?.incidents?.length || 0}</p>
+                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{agentLabIncidentsSummary.open || agentLabOverview.openIncidents || 0}</p>
+                          </div>
+                          <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+                            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Syncs</p>
+                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{agentLabOverview.syncRuns || 0}</p>
+                          </div>
+                          <div className="rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+                            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Treino médio</p>
+                            <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{agentLabTrainingSummary.averageScore || agentLabOverview.trainingAverageScore || 0}%</p>
                           </div>
                         </div>
                         {agentLabSnapshot.loading ? (
@@ -3644,6 +4041,283 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                           </div>
                         ) : (
                           <>
+                            <div className="rounded-[18px] border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Saúde operacional</p>
+                                  <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{agentLabEnvironment.message || "Painel AgentLab conectado ao copilot local."}</p>
+                                </div>
+                                <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                                  {agentLabEnvironment.mode || "n/a"}
+                                </span>
+                              </div>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {agentLabHealthSignals.map((signal) => (
+                                  <span key={signal.label} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                                    {signal.label} {signal.value}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Controles rápidos</p>
+                                  <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">Operações do AgentLab sem sair do Copilot.</p>
+                                  <p className="mt-2 text-xs leading-6 text-[#9BAEA8]">
+                                    Sync conversacional, treino focal e atualização operacional com refresh automático do painel.
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => loadAgentLabSnapshot()}
+                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                                >
+                                  Atualizar
+                                </button>
+                              </div>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  disabled={agentLabActionState.loading}
+                                  onClick={() => runAgentLabSync("sync_workspace_conversations", "Sync do workspace")}
+                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  Sync workspace
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={agentLabActionState.loading}
+                                  onClick={() => runAgentLabSync("sync_freshsales_activities", "Sync do Freshsales")}
+                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  Sync Freshsales
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={agentLabActionState.loading}
+                                  onClick={() => runAgentLabSync("sync_freshchat_conversations", "Sync do Freshchat")}
+                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  Sync Freshchat
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={agentLabActionState.loading || !featuredTrainingScenario?.id}
+                                  onClick={() => runAgentLabTrainingScenario(featuredTrainingScenario?.id)}
+                                  className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  Rodar treino focal
+                                </button>
+                              </div>
+                              {agentLabActionState.message ? (
+                                <div
+                                  className={`mt-3 rounded-[16px] border px-3 py-3 text-xs ${
+                                    agentLabActionState.tone === "error"
+                                      ? "border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] text-[#f2b2b2]"
+                                      : agentLabActionState.tone === "warning"
+                                        ? "border-[#6a5a27] bg-[rgba(197,160,89,0.12)] text-[#F1D39A]"
+                                        : "border-[#35554B] bg-[rgba(12,22,19,0.72)] text-[#B7D5CB]"
+                                  }`}
+                                >
+                                  {agentLabActionState.message}
+                                </div>
+                              ) : null}
+                            </div>
+                            <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Handoff atual</p>
+                                  <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeConversation?.title || "Nova conversa"}</p>
+                                  <p className="mt-2 text-xs leading-6 text-[#9BAEA8]">
+                                    {activeConversationPreview}
+                                  </p>
+                                </div>
+                                <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                                  {activeProjectLabel}
+                                </span>
+                              </div>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                                  missão {activeTask ? "ativa" : "livre"}
+                                </span>
+                                <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                                  route {routePath || "/interno"}
+                                </span>
+                                <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                                  runs {linkedAgentLabTaskRuns.length}
+                                </span>
+                              </div>
+                              {linkedAgentLabTaskRuns.length ? (
+                                <div className="mt-3 space-y-2">
+                                  {linkedAgentLabTaskRuns.map((run) => (
+                                    <article key={run.id} className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.76)] px-3 py-3">
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                          <p className="text-[11px] font-medium text-[#F5F1E8] line-clamp-2">{run.mission || "Execução sem missão"}</p>
+                                          <p className="mt-1 text-[10px] text-[#7F928C]">{formatRuntimeTimeLabel(run.updated_at || run.created_at)}</p>
+                                        </div>
+                                        <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#D8DEDA]">
+                                          <TaskStatusChip status={run.status} />
+                                        </span>
+                                      </div>
+                                      <div className="mt-3 flex flex-wrap gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleReuseTaskMission(run)}
+                                          className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                        >
+                                          Reusar missão
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setRightPanelTab("ai-task")}
+                                          className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                                        >
+                                          Ver no AI Task
+                                        </button>
+                                      </div>
+                                    </article>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="mt-3 text-xs text-[#7F928C]">Nenhuma execução do Dotobot vinculada diretamente a esta rota ou conversa ainda.</p>
+                              )}
+                            </div>
+                            <div className="grid gap-3 xl:grid-cols-2">
+                              <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Fila de melhoria</p>
+                                  <span className="text-[10px] text-[#60706A]">{agentLabOverview.queueItems || 0}</span>
+                                </div>
+                                <div className="mt-3 space-y-2">
+                                  {agentLabQueuePreview.length ? agentLabQueuePreview.map((item) => (
+                                    <article key={item.id} className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.76)] px-3 py-3">
+                                      <p className="text-[11px] font-medium text-[#F5F1E8] line-clamp-2">{item.title}</p>
+                                      <div className="mt-2 flex flex-wrap gap-2">
+                                        <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#D8DEDA]">{item.priority}</span>
+                                        <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#D8DEDA]">{item.status}</span>
+                                        <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#7F928C]">{item.agentRef}</span>
+                                      </div>
+                                      <div className="mt-3 flex flex-wrap gap-2">
+                                        <button
+                                          type="button"
+                                          disabled={agentLabActionState.loading}
+                                          onClick={() => updateAgentLabQueueItemStatus(item, "in_progress")}
+                                          className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                          Assumir
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={agentLabActionState.loading}
+                                          onClick={() => updateAgentLabQueueItemStatus(item, "done")}
+                                          className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF] disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                          Concluir
+                                        </button>
+                                      </div>
+                                    </article>
+                                  )) : (
+                                    <div className="rounded-[16px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3 text-xs text-[#9BAEA8]">
+                                      Nenhum item pendente na fila do AgentLab.
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Últimos syncs</p>
+                                  <span className="text-[10px] text-[#60706A]">{agentLabOverview.syncRuns || 0}</span>
+                                </div>
+                                <div className="mt-3 space-y-2">
+                                  {agentLabSyncPreview.length ? agentLabSyncPreview.map((run) => (
+                                    <article key={run.id} className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.76)] px-3 py-3">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <p className="text-[11px] font-medium text-[#F5F1E8]">{run.source}</p>
+                                        <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#D8DEDA]">{run.status}</span>
+                                      </div>
+                                      <p className="mt-1 text-[10px] text-[#7F928C]">{run.scope} · {run.records} registros · {formatRuntimeTimeLabel(run.createdAt)}</p>
+                                    </article>
+                                  )) : (
+                                    <div className="rounded-[16px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3 text-xs text-[#9BAEA8]">
+                                      Ainda não há syncs recentes registrados.
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="grid gap-3 xl:grid-cols-2">
+                              <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Treinamento</p>
+                                  <span className="text-[10px] text-[#60706A]">{agentLabOverview.trainingRuns || 0}</span>
+                                </div>
+                                <div className="mt-3 space-y-2">
+                                  {agentLabTrainingPreview.length ? agentLabTrainingPreview.map((run) => (
+                                    <article key={run.id} className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.76)] px-3 py-3">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <p className="text-[11px] font-medium text-[#F5F1E8]">{run.agentRef}</p>
+                                        <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#D8DEDA]">{run.status}</span>
+                                      </div>
+                                      <p className="mt-1 text-[10px] text-[#7F928C]">score {Math.round((run.score || 0) * 100)}% · {run.provider} · {formatRuntimeTimeLabel(run.createdAt)}</p>
+                                    </article>
+                                  )) : (
+                                    <div className="rounded-[16px] border border-dashed border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3 text-xs text-[#9BAEA8]">
+                                      Nenhum treino recente disponível.
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Incidentes</p>
+                                  <span className="text-[10px] text-[#60706A]">{agentLabIncidentsSummary.total || 0}</span>
+                                </div>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">abertos {agentLabIncidentsSummary.open || 0}</span>
+                                  {(agentLabIncidentsSummary.bySeverity || []).slice(0, 3).map((item) => (
+                                    <span key={item.label} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                                      {item.label} {item.value}
+                                    </span>
+                                  ))}
+                                </div>
+                                <p className="mt-3 text-xs leading-6 text-[#9BAEA8]">
+                                  {agentLabConversationSummary.handoffs || 0} handoff(s) detectados e {agentLabConversationSummary.withErrors || 0} thread(s) com erro sinalizado.
+                                </p>
+                                <div className="mt-3 space-y-2">
+                                  {agentLabIncidentPreview.length ? agentLabIncidentPreview.map((item) => (
+                                    <article key={item.id} className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.76)] px-3 py-3">
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                          <p className="text-[11px] font-medium text-[#F5F1E8] line-clamp-2">{item.title}</p>
+                                          <p className="mt-1 text-[10px] text-[#7F928C]">{item.category} · {item.severity} · {formatRuntimeTimeLabel(item.occurredAt)}</p>
+                                        </div>
+                                        <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#D8DEDA]">{item.status}</span>
+                                      </div>
+                                      <div className="mt-3 flex flex-wrap gap-2">
+                                        <button
+                                          type="button"
+                                          disabled={agentLabActionState.loading}
+                                          onClick={() => updateAgentLabIncidentItemStatus(item, "investigating")}
+                                          className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                          Investigar
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={agentLabActionState.loading}
+                                          onClick={() => updateAgentLabIncidentItemStatus(item, "resolved")}
+                                          className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF] disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                          Resolver
+                                        </button>
+                                      </div>
+                                    </article>
+                                  )) : null}
+                                </div>
+                              </div>
+                            </div>
                             <div className="space-y-2">
                               {agentLabSubagents.length ? agentLabSubagents.map((agent) => (
                                 <article key={agent.id} className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
@@ -3681,6 +4355,20 @@ const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocal
                                   className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
                                 >
                                   Conversas
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => router.push("/interno/agentlab/training")}
+                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                >
+                                  Training
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => router.push("/interno/agentlab/workflows")}
+                                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                                >
+                                  Workflows
                                 </button>
                                 <button
                                   type="button"

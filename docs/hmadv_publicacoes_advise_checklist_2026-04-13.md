@@ -204,3 +204,82 @@ Leitura atual:
 - `publicacoes-freshsales?action=sync&batch=1` criou activity e prazo com sucesso para a publicacao `56c908ef-27e9-459d-9f37-ca61715fa116`.
 - `datajud-webhook?action=cron_integracao_total` concluiu com `advise.ok = true`, `publicacoes.sucesso = 1` e `worker.ok = true`.
 - O fluxo operacional `DataJud + Advise + Publicacoes + sync-worker` esta funcional no ambiente `sspvizogbcyigquqycsz`.
+
+## Auditoria complementar do modulo `interno/publicacoes` em 2026-04-13
+
+### Checklist funcional do modulo interno/publicacoes
+
+- [x] `overview`
+  - API: `pages/api/admin-hmadv-publicacoes.js`
+  - Runtime: `functions/lib/hmadv-ops.js#getPublicacoesOverview`
+  - Validado com contadores consistentes de total, com activity, pendentes com account, leilao ignorado e sem processo.
+- [x] `candidatos_processos`
+  - API exposta e consumida pela UI.
+  - Estado atual: sem candidatos relevantes no lote auditado.
+- [x] `candidatos_partes`
+  - API exposta e consumida pela UI.
+  - Achado: havia falso positivo por nomes com prefixo de pontuacao; a limpeza foi corrigida na extracao admin.
+- [x] `historico`
+  - API exposta e usada para leitura operacional do modulo.
+- [x] `jobs`
+  - API exposta e integrada com polling da UI.
+- [x] `job_status`
+  - Endpoint existe na API ativa e no runtime.
+- [x] `mesa_integrada`
+  - Endpoint existe na API ativa e no runtime.
+- [x] `mesa_integrada_selecao`
+  - Endpoint existe na API ativa e no runtime.
+- [x] `detalhe_integrado`
+  - Endpoint existe na API ativa e no runtime.
+  - Carrega cobertura, partes vinculadas, partes pendentes e validacao por CNJ.
+- [x] `publicacoes_pendentes`
+  - Endpoint existe na API ativa e no runtime.
+  - Validado em runtime com `98` linhas no recorte consultado.
+- [x] `activity_types`
+  - Endpoint existe na API ativa e no runtime.
+  - Validado com lista real de activity types do tenant Freshsales.
+- [x] `create_job`
+  - API exposta e integrada na UI.
+- [x] `run_pending_jobs`
+  - API exposta e integrada na UI com polling/drain loop.
+- [x] `run_job_chunk`
+  - API exposta.
+- [x] `backfill_partes`
+  - API exposta.
+- [x] `sincronizar_partes`
+  - API exposta e runtime existente.
+- [x] `criar_processos_publicacoes`
+  - API exposta e runtime existente.
+- [x] `sincronizar_publicacoes_activity`
+  - API exposta e runtime existente.
+  - Fluxo validado indiretamente pelo `publicacoes-freshsales` e pela queda do backlog.
+- [x] `reconciliar_partes_contatos`
+  - API exposta e runtime existente.
+- [x] `salvar_validacao`
+  - API exposta e persistencia habilitada por CNJ.
+
+### Checklist de integracao Advise + DataJud + Freshsales + Supabase
+
+- [x] O cron/orquestracao do `datajud-webhook` consegue acionar o fluxo tagged por processos com tag `datajud`.
+- [x] O `advise-sync` aceita escopo por `processNumbers` e filtra publicacoes fora do universo informado.
+- [x] As publicacoes do Advise estao chegando ao banco HMADV.
+- [x] O modulo/runtimes enxergam backlog real de publicacoes pendentes de CRM.
+- [x] O `publicacoes-freshsales` cria activities e prazos no Freshsales com sucesso.
+- [x] O tenant retorna activity types reais, sem fallback quebrado.
+- [x] O `sync-worker` e o `cron_integracao_total` seguem operacionais apos os ajustes de auth/header forwarding.
+- [ ] Ainda existem pendencias residuais de qualidade na extracao de partes a partir do texto da publicacao.
+  - Exemplo atual: nome com prefixo numerico (`"8 I EMPREENDIMENTOS SPE 1 LTDA"`), indicando necessidade de saneamento adicional na heuristica.
+
+### Estado operacional apos nova drenagem
+
+- Antes da rodada desta secao: `publicacoesComActivity = 2897` e `publicacoesPendentesComAccount = 101`.
+- A execucao real `node scripts/hmadv-drain-publicacoes-freshsales.js --batch=30 --iterations=1` processou `30/30` com sucesso.
+- Depois da rodada: `publicacoesComActivity = 2927` e `publicacoesPendentesComAccount = 71`.
+- Lote seguro observado para operacao manual/assistida: `batch=30`.
+- `batch=50` ja havia falhado anteriormente com limite de compute do Worker, entao nao deve ser usado como padrao operacional.
+
+### Script operacional adicionado
+
+- Arquivo: `scripts/hmadv-drain-publicacoes-freshsales.js`
+- Atalho npm: `npm run drain:hmadv-publicacoes -- --batch=30 --iterations=1`
+- Objetivo: drenar a fila de `publicacoes-freshsales` com carregamento automatico de `.dev.vars`, sem depender de variaveis previamente exportadas no shell.

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/router";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch } from "../../lib/admin/api";
@@ -29,9 +30,26 @@ function countByStatus(items, status) {
   return items.filter((item) => item.status === status).length;
 }
 
+function parseCopilotContext(rawValue) {
+  if (!rawValue) return null;
+  try {
+    return JSON.parse(String(rawValue));
+  } catch {
+    return null;
+  }
+}
+
 export default function InternoLeadsPage() {
+  const router = useRouter();
   const [filters, setFilters] = useState({ email: "" });
   const [state, setState] = useState({ loading: true, error: null, warning: null, items: [] });
+  const copilotContext = parseCopilotContext(typeof router.query.copilotContext === "string" ? router.query.copilotContext : "");
+
+  useEffect(() => {
+    if (typeof router.query.email === "string" && router.query.email) {
+      setFilters((current) => (current.email === router.query.email ? current : { ...current, email: router.query.email }));
+    }
+  }, [router.query.email]);
 
   return (
     <RequireAdmin>
@@ -41,14 +59,14 @@ export default function InternoLeadsPage() {
           title="Leads"
           description="Visao inicial dos tickets e contatos recebidos pelo Freshdesk, centralizada no painel interno."
         >
-          <LeadsContent filters={filters} setFilters={setFilters} state={state} setState={setState} />
+          <LeadsContent filters={filters} setFilters={setFilters} state={state} setState={setState} copilotContext={copilotContext} />
         </InternoLayout>
       )}
     </RequireAdmin>
   );
 }
 
-function LeadsContent({ filters, setFilters, state, setState }) {
+function LeadsContent({ filters, setFilters, state, setState, copilotContext }) {
   useEffect(() => {
     let cancelled = false;
 
@@ -134,6 +152,13 @@ function LeadsContent({ filters, setFilters, state, setState }) {
 
   return (
     <div>
+      {copilotContext ? (
+        <div className="mb-6 border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-4 text-sm text-[#C6D1CC]">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7FC4AF]">Contexto vindo do Copilot</p>
+          <p className="mt-2 font-semibold text-[#F5F1E8]">{copilotContext.conversationTitle || "Conversa ativa"}</p>
+          {copilotContext.mission ? <p className="mt-2 leading-6 text-[#9BAEA8]">{copilotContext.mission}</p> : null}
+        </div>
+      ) : null}
       <div className="grid gap-4 md:grid-cols-4 mb-6">
         <SummaryCard label="Total" value={total} />
         <SummaryCard label="Abertos" value={abertos} />

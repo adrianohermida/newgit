@@ -12,6 +12,7 @@
     "deploy:hmadv-ai": "powershell -ExecutionPolicy Bypass -File scripts/deploy-hmadv-process-ai.ps1",
     "diagnose:hmadv-ai": "powershell -ExecutionPolicy Bypass -File scripts/diagnose-hmadv-process-ai.ps1",
     "diagnose:hmadv-publicacoes": "node scripts/hmadv-validate-publicacoes-runtime.js",
+    "drain:hmadv-publicacoes": "node scripts/hmadv-drain-publicacoes-freshsales.js",
     "diagnose:local-llm": "powershell -ExecutionPolicy Bypass -File scripts/diagnose-local-llm.ps1",
     "doctor:offline-local": "powershell -ExecutionPolicy Bypass -File scripts/doctor-local-offline-stack.ps1",
     "diagnose:supabase-local": "powershell -ExecutionPolicy Bypass -File scripts/doctor-local-offline-stack.ps1",
