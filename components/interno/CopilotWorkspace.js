@@ -8,8 +8,8 @@ export default function CopilotWorkspace({ profile }) {
     <div
       className={`flex min-h-0 flex-1 flex-col overflow-hidden ${
         isLightTheme
-          ? "bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(244,247,251,0.94))]"
-          : "bg-[linear-gradient(180deg,rgba(6,8,7,0.95),rgba(8,10,9,0.96))]"
+          ? "bg-transparent"
+          : "bg-transparent"
       }`}
     >
       <div className="min-h-0 flex-1 overflow-hidden">

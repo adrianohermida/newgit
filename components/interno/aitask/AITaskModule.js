@@ -122,14 +122,16 @@ const FALLBACK_SKILL_OPTIONS = listSkills().map((skill) => ({
 function shouldHydrateLocalProviderForAiTask(selectedProvider = "", providers = []) {
   if (!Array.isArray(providers) || !providers.length) return false;
   const hasLocalBrowserConfig = hasPersistedBrowserLocalRuntimeConfig();
+  const hasExplicitOptIn = hasExplicitBrowserLocalRuntimeOptIn();
+  const canAutoProbe = shouldAutoProbeBrowserLocalRuntime();
   const localOption = Array.isArray(providers)
     ? providers.find((item) => String(item?.value || item?.id || "").toLowerCase() === "local")
     : null;
   if (!localOption) return false;
   if (String(selectedProvider || "").toLowerCase() === "local") {
-    return localOption.disabled !== true && hasLocalBrowserConfig;
+    return localOption.disabled !== true && hasLocalBrowserConfig && hasExplicitOptIn && canAutoProbe;
   }
-  return shouldAutoProbeBrowserLocalRuntime() && hasLocalBrowserConfig && localOption.disabled !== true;
+  return canAutoProbe && hasLocalBrowserConfig && hasExplicitOptIn && localOption.disabled !== true;
 }
 
 function resolveAiTaskProviderSelection({ currentProvider, defaultProvider, providers = [] }) {

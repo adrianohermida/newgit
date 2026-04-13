@@ -2,6 +2,7 @@ import { useRouter } from "next/router";
 import InternoLayout from "../../components/interno/InternoLayout";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import AprovacoesModule from "../../components/interno/AprovacoesModule";
+import { useInternalTheme } from "../../components/interno/InternalThemeProvider";
 
 function parseCopilotContext(rawValue) {
   if (!rawValue) return null;
@@ -14,6 +15,7 @@ function parseCopilotContext(rawValue) {
 
 export default function InternoAprovacoesPage() {
   const router = useRouter();
+  const { isLightTheme } = useInternalTheme();
   const focus = {
     requestId: typeof router.query.requestId === "string" ? router.query.requestId : "",
     clientId: typeof router.query.clientId === "string" ? router.query.clientId : "",
@@ -33,10 +35,10 @@ export default function InternoAprovacoesPage() {
         >
           <div className="space-y-6">
             {copilotContext ? (
-              <section className="border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#7FC4AF]">Contexto vindo do Copilot</p>
-                <p className="mt-3 text-sm font-semibold text-[#F5F1E8]">{copilotContext.conversationTitle || "Conversa ativa"}</p>
-                {copilotContext.mission ? <p className="mt-3 text-sm opacity-70">{copilotContext.mission}</p> : null}
+              <section className={`border p-5 ${isLightTheme ? "border-[#bdd8cf] bg-[#f3fbf8] text-[#25403a]" : "border-[#35554B] bg-[rgba(12,22,19,0.72)]"}`}>
+                <p className={`text-xs font-semibold uppercase tracking-[0.15em] ${isLightTheme ? "text-[#2c7a66]" : "text-[#7FC4AF]"}`}>Contexto vindo do Copilot</p>
+                <p className={`mt-3 text-sm font-semibold ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{copilotContext.conversationTitle || "Conversa ativa"}</p>
+                {copilotContext.mission ? <p className={`mt-3 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>{copilotContext.mission}</p> : null}
               </section>
             ) : null}
             {hasFocus ? (

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
+import { useInternalTheme } from "../../components/interno/InternalThemeProvider";
 import { OperationalHistoryCompactCard, OperationalResultCard } from "../../components/interno/OperationalResultPanels";
 import RequireAdmin from "../../components/interno/RequireAdmin";
 import { adminFetch as adminFetchRaw } from "../../lib/admin/api";
@@ -1205,6 +1206,7 @@ export default function InternoPublicacoesPage() {
 }
 
 function PublicacoesContent() {
+  const { isLightTheme } = useInternalTheme();
   const [view, setView] = useState("operacao");
   const [overview, setOverview] = useState({ loading: true, error: null, data: null });
   const [processCandidates, setProcessCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20, updatedAt: null, limited: false, errorUntil: null });
@@ -2253,6 +2255,7 @@ function PublicacoesContent() {
     [partesCandidates.items, selectedPartesKeys]
   );
   const data = overview.data || {};
+  const publicationActivityTypes = data.publicationActivityTypes || {};
   const adviseSync = data.adviseSync || null;
   const adviseConfig = adviseSync?.config || {};
   const adviseCursor = adviseSync?.status_cursor || adviseSync?.ultima_execucao || {};
@@ -2261,6 +2264,11 @@ function PublicacoesContent() {
   const adviseMode = adviseConfig?.modo || "indisponivel";
   const adviseLastCycleTotal = Number(adviseCursor?.total_registros || 0);
   const advisePersistedDelta = Number(data.advisePersistedDelta || 0);
+  const adviseBackfillPage = Number(adviseCursor?.ultima_pagina || 0);
+  const adviseBackfillTotalPages = Number(adviseCursor?.total_paginas || 0);
+  const adviseBackfillProgress = adviseBackfillTotalPages > 0
+    ? `${Math.min(adviseBackfillPage, adviseBackfillTotalPages)}/${adviseBackfillTotalPages}`
+    : "cursor sem pagina total";
   const publicacoesSemProcesso = Number(data.publicacoesSemProcesso || 0);
   const publicacoesPendentesComAccount = Number(data.publicacoesPendentesComAccount || 0);
   const syncWorkerLastPublicacoes = Number(data?.syncWorker?.worker?.ultimo_lote?.publicacoes || 0);
@@ -2619,11 +2627,11 @@ function PublicacoesContent() {
   return (
     <div className={`${isDockedPublicacoesView ? "flex min-h-full flex-1 flex-col gap-6" : isResultView ? "space-y-6" : "space-y-8"}`.trim()}>
       {copilotContext ? (
-        <section className="rounded-[22px] border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-4 text-sm text-[#C6D1CC]">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7FC4AF]">Contexto vindo do Copilot</p>
-          <p className="mt-2 font-semibold text-[#F5F1E8]">{copilotContext.conversationTitle || "Conversa ativa"}</p>
-          {copilotContext.mission ? <p className="mt-2 leading-6 text-[#9BAEA8]">{copilotContext.mission}</p> : null}
-          {processNumbers ? <p className="mt-2 text-xs leading-6 text-[#7F928C]">CNJs pré-carregados para operação de publicações.</p> : null}
+        <section className={`rounded-[22px] border p-4 text-sm ${isLightTheme ? "border-[#bdd8cf] bg-[#f3fbf8] text-[#25403a]" : "border-[#35554B] bg-[rgba(12,22,19,0.72)] text-[#C6D1CC]"}`}>
+          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#2c7a66]" : "text-[#7FC4AF]"}`}>Contexto vindo do Copilot</p>
+          <p className={`mt-2 font-semibold ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{copilotContext.conversationTitle || "Conversa ativa"}</p>
+          {copilotContext.mission ? <p className={`mt-2 leading-6 ${isLightTheme ? "text-[#4b5563]" : "text-[#9BAEA8]"}`}>{copilotContext.mission}</p> : null}
+          {processNumbers ? <p className={`mt-2 text-xs leading-6 ${isLightTheme ? "text-[#2c7a66]" : "text-[#7F928C]"}`}>CNJs pré-carregados para operação de publicações.</p> : null}
         </section>
       ) : null}
       <section className="rounded-[30px] border border-[#2D2E2E] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_35%),linear-gradient(180deg,rgba(13,15,14,0.98),rgba(8,10,10,0.98))] px-4 py-5 md:px-6 md:py-6">
@@ -2707,6 +2715,7 @@ function PublicacoesContent() {
               <HealthBadge label={`modo ${adviseMode}`} tone="default" />
               <HealthBadge label={`cursor ${String(adviseCursor?.status || "desconhecido")}`} tone={String(adviseCursor?.erro || "") ? "danger" : "default"} />
               <HealthBadge label={adviseLastRunAt ? `ultimo ciclo ${new Date(adviseLastRunAt).toLocaleString("pt-BR")}` : "ultimo ciclo indisponivel"} tone="default" />
+              <HealthBadge label={`backfill ${adviseBackfillProgress}`} tone={advisePersistedDelta > 0 ? "warning" : "default"} />
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <QueueSummaryCard title="Recebidas do Advise" count={Number(adviseSync.publicacoes_total || 0)} helper="Estoque de publicacoes de origem Advise persistido no HMADV." />
@@ -2714,6 +2723,18 @@ function PublicacoesContent() {
               <QueueSummaryCard title="Ultimo ciclo" count={adviseLastCycleTotal} helper="Total reportado pelo cursor do advise-sync no ciclo mais recente." />
               <QueueSummaryCard title="Ultimo lote worker" count={syncWorkerLastPublicacoes} helper="Quantidade de publicacoes no ultimo lote do sync-worker." />
             </div>
+            <div className="flex flex-wrap gap-2">
+              <HealthBadge label={publicationActivityTypes.ok ? "catalogo freshsales ok" : "catalogo freshsales indisponivel"} tone={publicationActivityTypes.ok ? "success" : "danger"} />
+              <HealthBadge label={`tipos ${Number(publicationActivityTypes.total || 0)}`} tone="default" />
+              <HealthBadge label={publicationActivityTypes.matched ? `tipo publicacao ${publicationActivityTypes.matchedName}` : "tipo de publicacao nao localizado"} tone={publicationActivityTypes.matched ? "success" : "warning"} />
+              {publicationActivityTypes.fallbackOnly ? <HealthBadge label="catalogo em fallback" tone="warning" /> : null}
+            </div>
+            {publicationActivityTypes.error ? (
+              <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.16)] p-4 text-sm text-[#F8E7B5]">
+                <p className="font-semibold">Diagnostico do Freshsales</p>
+                <p className="mt-2 opacity-80">{publicationActivityTypes.error}</p>
+              </div>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -2941,6 +2962,8 @@ function PublicacoesContent() {
               <p>Delta Advise x banco: {data.advisePersistedDelta || 0}</p>
               <p>Publicacoes sem processo: {data.publicacoesSemProcesso || 0}</p>
               <p>Publicacoes marcadas como leilao ignorado: {data.publicacoesLeilaoIgnorado || 0}</p>
+              <p>Catalogo Freshsales: {publicationActivityTypes.ok ? `${publicationActivityTypes.total || 0} tipo(s)` : "indisponivel"}</p>
+              <p>Tipo de publicacao: {publicationActivityTypes.matchedName || "nao localizado"}</p>
             </div>
           ) : null}
         </Panel>

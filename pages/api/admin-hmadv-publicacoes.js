@@ -119,7 +119,7 @@ async function collectIntegratedQueueSlice({ source = "todos", page = 1, pageSiz
   const safePage = Math.max(1, Number(page || 1));
   const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
   const targetEnd = safePage * safePageSize;
-  const maxScans = Math.min(60, Math.max(6, Math.ceil((targetEnd + safePageSize) / 50) + 2));
+  const maxScans = Math.min(240, Math.max(12, Math.ceil((targetEnd * 1.5) / 50) + 6));
   const queueSources = source === "todos" ? ["processos", "partes"] : [source];
   const loaders = {
     processos: async (nextPage) => listCreateProcessCandidates({ page: nextPage, pageSize: 50 }),
@@ -174,13 +174,14 @@ async function collectIntegratedQueueSlice({ source = "todos", page = 1, pageSiz
 
 async function collectIntegratedSelection({ source = "todos", query = "", limit = 500 } = {}) {
   const safeLimit = Math.max(1, Math.min(Number(limit || 500), 5000));
-  const maxScans = Math.min(120, Math.max(12, Math.ceil(safeLimit / 50) + 4));
+  const maxScans = Math.min(240, Math.max(12, Math.ceil((safeLimit * 1.5) / 50) + 8));
   const queueSources = source === "todos" ? ["processos", "partes"] : [source];
   const loaders = {
     processos: async (nextPage) => listCreateProcessCandidates({ page: nextPage, pageSize: 50 }),
     partes: async (nextPage) => listPartesExtractionCandidates({ page: nextPage, pageSize: 50 }),
   };
   const selected = new Set();
+  let limited = false;
   for (const queueSource of queueSources) {
     let nextPage = 1;
     let scans = 0;
@@ -196,11 +197,12 @@ async function collectIntegratedSelection({ source = "todos", query = "", limit 
       scans += 1;
       if (!(payload?.items || []).length) break;
     }
+    if (hasMore) limited = true;
   }
   return {
     totalRows: selected.size,
     items: [...selected],
-    limited: selected.size >= safeLimit,
+    limited: selected.size >= safeLimit || limited,
   };
 }
 

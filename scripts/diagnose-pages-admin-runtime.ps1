@@ -114,6 +114,79 @@ function New-EndpointResult {
   }
 }
 
+function Get-AssetReferencesFromHtml {
+  param(
+    [string]$Html
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Html)) {
+    return @()
+  }
+
+  $matches = [regex]::Matches($Html, '(?:src|href)="([^"]+)"')
+  $assets = New-Object System.Collections.Generic.List[string]
+  foreach ($match in $matches) {
+    $value = $match.Groups[1].Value
+    if ([string]::IsNullOrWhiteSpace($value)) { continue }
+    if ($value.StartsWith("/_next/")) {
+      [void]$assets.Add($value)
+    }
+  }
+  return @($assets | Select-Object -Unique)
+}
+
+function New-PageRuntimeResult {
+  param(
+    [string]$Name,
+    [string]$Path,
+    [object]$Response,
+    [string]$BaseUrl
+  )
+
+  $assetFailures = @()
+  $assetChecks = @()
+  $pageOk = $false
+  $isHtml = $false
+
+  if ($Response.status -eq 200 -and -not [string]::IsNullOrWhiteSpace($Response.raw)) {
+    $content = [string]$Response.raw
+    $isHtml = $content -match '<!doctype html|<html[\s>]'
+    if ($isHtml) {
+      $assetRefs = Get-AssetReferencesFromHtml -Html $content
+      foreach ($asset in ($assetRefs | Select-Object -First 12)) {
+        $assetResponse = Invoke-DiagnosticRequest -Uri ($BaseUrl + $asset) -Method "GET"
+        $assetChecks += [pscustomobject]@{
+          asset = $asset
+          status = $assetResponse.status
+          ok = [bool]($assetResponse.status -eq 200)
+          error = $assetResponse.error
+        }
+        if ($assetResponse.status -ne 200) {
+          $assetFailures += $asset
+        }
+      }
+      $pageOk = $assetFailures.Count -eq 0
+    }
+  }
+
+  return [pscustomobject]@{
+    name = $Name
+    path = $Path
+    ok = $pageOk
+    reachable = [bool]($Response.status -eq 200)
+    status = $Response.status
+    error = if ($Response.error) { $Response.error } else { $null }
+    errorType = if ($isHtml -and $assetFailures.Count -gt 0) { "asset_runtime_failure" } else { $null }
+    details = [pscustomobject]@{
+      htmlDetected = $isHtml
+      assetChecks = $assetChecks
+      failedAssets = $assetFailures
+      checkedAssets = @($assetChecks).Count
+    }
+    body = $null
+  }
+}
+
 $resolvedAdminToken = Resolve-EnvValue -ExplicitValue $AdminToken -Names @(
   "LAW_DESK_ADMIN_TOKEN",
   "LAWDESK_ADMIN_TOKEN",
@@ -125,6 +198,12 @@ $publicChecks = @(
   @{ name = "admin-auth-config"; path = "/api/admin-auth-config"; method = "GET"; body = $null; expectAuth = $false },
   @{ name = "public-chat-config"; path = "/api/public-chat-config"; method = "GET"; body = $null; expectAuth = $false },
   @{ name = "admin-market-ads"; path = "/api/admin-market-ads"; method = "GET"; body = $null; expectAuth = $true }
+)
+
+$pageChecks = @(
+  @{ name = "page-interno-copilot"; path = "/interno/copilot" },
+  @{ name = "page-interno-processos"; path = "/interno/processos" },
+  @{ name = "page-interno-publicacoes"; path = "/interno/publicacoes" }
 )
 
 $protectedChecks = @(
@@ -144,6 +223,11 @@ $results = @()
 foreach ($check in $publicChecks) {
   $response = Invoke-DiagnosticRequest -Uri ($root + $check.path) -Method $check.method -Body $check.body
   $results += New-EndpointResult -Name $check.name -Path $check.path -Response $response -ExpectAuth $check.expectAuth
+}
+
+foreach ($check in $pageChecks) {
+  $response = Invoke-DiagnosticRequest -Uri ($root + $check.path) -Method "GET"
+  $results += New-PageRuntimeResult -Name $check.name -Path $check.path -Response $response -BaseUrl $root
 }
 
 if ($IncludeProtected -or -not [string]::IsNullOrWhiteSpace($resolvedAdminToken)) {
@@ -168,6 +252,9 @@ $legacyProvidersCheck = $results | Where-Object { $_.name -eq "legacy-admin-lawd
 $authConfigCheck = $results | Where-Object { $_.name -eq "admin-auth-config" } | Select-Object -First 1
 $publicChatConfigCheck = $results | Where-Object { $_.name -eq "public-chat-config" } | Select-Object -First 1
 $marketAdsCheck = $results | Where-Object { $_.name -eq "admin-market-ads" } | Select-Object -First 1
+$copilotPageCheck = $results | Where-Object { $_.name -eq "page-interno-copilot" } | Select-Object -First 1
+$processosPageCheck = $results | Where-Object { $_.name -eq "page-interno-processos" } | Select-Object -First 1
+$publicacoesPageCheck = $results | Where-Object { $_.name -eq "page-interno-publicacoes" } | Select-Object -First 1
 
 $canonicalAdminRuntimeMissing = $false
 if ($providersCheck -and $providersCheck.status -eq 404) {
@@ -201,6 +288,18 @@ if ($marketAdsCheck) {
     $diagnosis.Add("A rota /api/admin-market-ads existe e esta protegida por autenticacao administrativa.")
   } elseif ($marketAdsCheck.status -ge 500) {
     $diagnosis.Add("A rota /api/admin-market-ads respondeu com erro interno; o modulo pode cair para modo local.")
+  }
+}
+
+foreach ($pageCheck in @($copilotPageCheck, $processosPageCheck, $publicacoesPageCheck)) {
+  if (-not $pageCheck) { continue }
+  if ($pageCheck.status -ne 200) {
+    $diagnosis.Add("A pagina $($pageCheck.path) nao respondeu com 200.")
+    continue
+  }
+  if ($pageCheck.errorType -eq "asset_runtime_failure") {
+    $failedAssets = @($pageCheck.details.failedAssets | Select-Object -First 3)
+    $diagnosis.Add("A pagina $($pageCheck.path) carregou HTML, mas publicou assets _next com falha: $($failedAssets -join ', ').")
   }
 }
 

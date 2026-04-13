@@ -272,6 +272,152 @@ function buildProcessTitle(row) {
   return row?.titulo || cnj || "Processo";
 }
 
+function inferTribunalFromPublicationDiary(value) {
+  const diary = normalizeText(value).toUpperCase();
+  if (!diary) return null;
+  if (diary.includes("DJSP") || diary.includes("TJSP")) return "TJSP";
+  if (diary.includes("DJAM") || diary.includes("TJAM")) return "TJAM";
+  if (diary.includes("DJRJ") || diary.includes("TJRJ")) return "TJRJ";
+  if (diary.includes("DJMG") || diary.includes("TJMG")) return "TJMG";
+  if (diary.includes("TRF1")) return "TRF1";
+  if (diary.includes("TRF2")) return "TRF2";
+  if (diary.includes("TRF3")) return "TRF3";
+  if (diary.includes("TRF4")) return "TRF4";
+  if (diary.includes("TRF5")) return "TRF5";
+  if (diary.includes("TST")) return "TST";
+  if (diary.includes("STJ")) return "STJ";
+  if (diary.includes("STF")) return "STF";
+  return null;
+}
+
+function extractProcessFallbackFieldsFromPublication(text) {
+  const source = String(text || "");
+  if (!source) return {};
+  const next = {};
+  const orgao = source.match(/[OoÓó]rg[aã]o:\s*([^\n]+?)(?:\s*-\s*([^\n]+))?(?:\n|Tipo|Classe|Assunto|Inteiro)/i);
+  if (orgao) {
+    const comarca = String(orgao[1] || "").trim();
+    const vara = String(orgao[2] || "").trim();
+    if (comarca) next.comarca = comarca;
+    if (vara) next.orgao_julgador = vara;
+  }
+  const classe = source.match(/(?:Classe|A[cç][aã]o):\s*([^\n]{3,120})/i);
+  if (classe) next.classe = String(classe[1] || "").trim();
+  const assunto = source.match(/Assunto:\s*([^\n]{3,160})/i);
+  if (assunto) next.assunto_principal = String(assunto[1] || "").trim();
+  if (/[Ss]egredo de [Jj]usti[cç]a/i.test(source)) next.segredo_justica = true;
+  return next;
+}
+
+function normalizeActivityTypeStatusLabel(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function summarizePublicationActivityTypes(payload) {
+  const items = Array.isArray(payload?.sales_activity_types)
+    ? payload.sales_activity_types
+    : Array.isArray(payload?.items)
+      ? payload.items
+      : Array.isArray(payload)
+        ? payload
+        : [];
+  const normalizedCandidates = [
+    "Publicacao judicial",
+    "Publicacao",
+    "Publicacoes",
+    "Intimacao",
+    "Intimacoes",
+    "Nota processual",
+    "Andamento processual",
+    "Publicacao processual",
+  ].map(normalizeActivityTypeStatusLabel).filter(Boolean);
+  const normalizedItems = items.map((item) => ({
+    id: item?.id ?? item?.value ?? null,
+    name: item?.name ?? item?.label ?? item?.value ?? null,
+    fallback: Boolean(item?.fallback),
+  })).filter((item) => item.id && item.name);
+  const matched = normalizedItems.find((item) => {
+    const normalizedName = normalizeActivityTypeStatusLabel(item.name);
+    return normalizedCandidates.some((candidate) => normalizedName.includes(candidate) || candidate.includes(normalizedName));
+  }) || null;
+  return {
+    ok: normalizedItems.length > 0,
+    total: normalizedItems.length,
+    unavailable: Boolean(payload?.unavailable),
+    fallbackOnly: normalizedItems.length > 0 && normalizedItems.every((item) => item.fallback),
+    matched: Boolean(matched?.id),
+    matchedId: matched?.id ? String(matched.id) : null,
+    matchedName: matched?.name ? String(matched.name) : null,
+    error: payload?.error ? String(payload.error) : null,
+    sample: normalizedItems.slice(0, 8),
+  };
+}
+
+async function ensureFallbackProcessFromPublication(env, publication, numero) {
+  const rawPayload = safeJsonObject(publication?.raw_payload);
+  const diary =
+    rawPayload?.diario ||
+    rawPayload?.nome_diario ||
+    rawPayload?.tribunal ||
+    rawPayload?.origem ||
+    null;
+  const parsedFields = extractProcessFallbackFieldsFromPublication(publication?.conteudo || "");
+  const processSeed = {
+    numero_cnj: numero,
+    numero_processo: numero,
+    titulo: formatCnj(numero),
+    tribunal: inferTribunalFromPublicationDiary(diary) || (typeof diary === "string" ? diary : null),
+    comarca: parsedFields.comarca || null,
+    orgao_julgador: parsedFields.orgao_julgador || null,
+    classe: parsedFields.classe || null,
+    assunto_principal: parsedFields.assunto_principal || null,
+    segredo_justica: parsedFields.segredo_justica === true ? true : undefined,
+    dados_incompletos: true,
+    fonte_criacao: "ADVISE_PARSER",
+    updated_at: new Date().toISOString(),
+  };
+  const rows = await hmadvRest(
+    env,
+    "processos?on_conflict=numero_cnj",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Profile": "judiciario",
+        Prefer: "resolution=merge-duplicates,return=representation",
+      },
+      body: JSON.stringify(processSeed),
+    },
+    "judiciario"
+  );
+  const created = Array.isArray(rows) ? rows[0] || null : null;
+  return created || (await loadProcessesByNumbers(env, [numero]))[0] || null;
+}
+
+async function patchPublicationProcessLink(env, publicationId, processId) {
+  if (!publicationId || !processId) return;
+  await hmadvRest(
+    env,
+    `publicacoes?id=eq.${encodeURIComponent(String(publicationId))}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Profile": "judiciario",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        processo_id: String(processId),
+      }),
+    },
+    "judiciario"
+  );
+}
+
 function summarizeChunkFailures(result = {}) {
   const rows = Array.isArray(result?.sample)
     ? result.sample
@@ -1625,18 +1771,24 @@ export async function getProcessosOverview(env) {
 }
 
 export async function getPublicacoesOverview(env) {
-  const [publicacoesTotal, publicacoesComActivity, publicacoesPendentesComAccount, publicacoesLeilaoIgnorado, publicacoesSemProcesso, partesTotal, adviseSync] = await Promise.all([
+  const [publicacoesTotal, publicacoesComActivity, publicacoesPendentesComAccount, publicacoesLeilaoIgnorado, publicacoesSemProcesso, partesTotal, syncWorker, adviseSync, activityTypesPayload] = await Promise.all([
     countTable(env, "publicacoes"),
     countTable(env, "publicacoes", "freshsales_activity_id=not.is.null"),
     countTable(env, "publicacoes", "freshsales_activity_id=is.null&processo_id=not.is.null"),
     countTable(env, "publicacoes", "freshsales_activity_id=eq.LEILAO_IGNORADO"),
     countTable(env, "publicacoes", "processo_id=is.null"),
     countTable(env, "partes"),
+    getSyncWorkerStatusSafe(env),
     hmadvFunction(env, "advise-sync", { action: "status" }).catch((error) => ({
       ok: false,
       unavailable: true,
       error: error?.message || "Falha ao consultar o status do advise-sync.",
       functionName: "advise-sync",
+    })),
+    getPublicationActivityTypes(env).catch((error) => ({
+      unavailable: true,
+      error: error?.message || "Falha ao consultar sales_activity_types do Freshsales.",
+      sales_activity_types: [],
     })),
   ]);
   const publicacoesOperacionais = Math.max(0, Number(publicacoesTotal || 0) - Number(publicacoesLeilaoIgnorado || 0));
@@ -1644,6 +1796,7 @@ export async function getPublicacoesOverview(env) {
   const adviseCursor = adviseSync?.status_cursor || adviseSync?.ultima_execucao || null;
   const adviseCursorTotal = Number(adviseCursor?.total_registros || adviseSync?.publicacoes_total || 0);
   const advisePersistedDelta = adviseCursorTotal > 0 ? Math.max(0, adviseCursorTotal - Number(publicacoesTotal || 0)) : 0;
+  const publicationActivityTypes = summarizePublicationActivityTypes(activityTypesPayload);
   return {
     publicacoesTotal,
     publicacoesOperacionais,
@@ -1653,9 +1806,11 @@ export async function getPublicacoesOverview(env) {
     publicacoesLeilaoIgnorado,
     publicacoesSemProcesso,
     partesTotal,
+    syncWorker,
     adviseSync,
     adviseCursorTotal,
     advisePersistedDelta,
+    publicationActivityTypes,
   };
 }
 
@@ -1729,6 +1884,13 @@ async function patchAudienciaFreshsalesSync(env, audienciaId, { activityId = nul
 export async function syncPublicationActivities(env, { processNumbers = [], limit = 5 } = {}) {
   const safeLimit = Math.max(1, Math.min(Number(limit || 5), 10));
   let upstreamWarning = null;
+  const activityTypeStatus = summarizePublicationActivityTypes(
+    await getPublicationActivityTypes(env).catch((error) => ({
+      unavailable: true,
+      error: error?.message || "Falha ao consultar sales_activity_types do Freshsales.",
+      sales_activity_types: [],
+    }))
+  );
   if (!processNumbers.length) {
     try {
       const remoteResponse = await hmadvFunction(
@@ -1883,6 +2045,9 @@ export async function syncPublicationActivities(env, { processNumbers = [], limi
             error: error.message || "Falha ao criar activity de publicacao.",
           });
         }
+        if (/tipo de activity de publicacao/i.test(String(error?.message || ""))) {
+          row.reason = "activity_type_missing";
+        }
       }
     }
     sample.push(row);
@@ -1893,6 +2058,7 @@ export async function syncPublicationActivities(env, { processNumbers = [], limi
     source: "local_worker_fallback",
     fallbackReason: upstreamWarning ? "edge_function_unavailable" : "local_backlog_path",
     upstreamWarning,
+    activityTypeStatus,
     processosLidos: processesRead,
     publicacoes: publicacoesUpdated,
     activitiesCriadas: activitiesCreated,
@@ -4096,47 +4262,72 @@ export async function createProcessesFromPublicacoes(env, { processNumbers = [],
 
   const uniqueTargets = [];
   for (const pub of publicacoes) {
-    const numero = String(pub.numero_processo_api || pub.raw_payload?.numero || "").replace(/\D+/g, "");
-    if (numero.length < 15) continue;
+    const numero = normalizeProcessNumber(pub.numero_processo_api || pub.raw_payload?.numero || "");
+    if (numero.length !== 20) continue;
     if (!uniqueTargets.some((item) => item.numero === numero)) {
       uniqueTargets.push({ numero, publication: pub });
     }
   }
 
   const sample = [];
+  let createdCount = 0;
+  let linkedCount = 0;
   for (const item of uniqueTargets.slice(0, safeLimit)) {
     const beforeRows = await loadProcessesByNumbers(env, [item.numero]);
-    const result = await hmadvFunction(
-      env,
-      "datajud-search",
-      {},
-      {
-        method: "POST",
-        body: {
-          numeroProcesso: item.numero,
-          persistir: true,
-        },
+    let datajudResult = null;
+    let datajudError = null;
+    try {
+      datajudResult = await hmadvFunction(
+        env,
+        "datajud-search",
+        {},
+        {
+          method: "POST",
+          body: {
+            numeroProcesso: item.numero,
+            persistir: true,
+          },
+        }
+      );
+    } catch (error) {
+      datajudError = error?.message || "Falha ao consultar o DataJud.";
+    }
+    let afterRows = await loadProcessesByNumbers(env, [item.numero]);
+    let createdProcess = afterRows[0] || null;
+    let processSource = beforeRows[0]?.id ? "existing" : "datajud";
+    if (!createdProcess) {
+      createdProcess = await ensureFallbackProcessFromPublication(env, item.publication, item.numero);
+      afterRows = createdProcess ? [createdProcess] : [];
+      if (createdProcess) {
+        processSource = "fallback_publicacao";
       }
-    );
-    const afterRows = await loadProcessesByNumbers(env, [item.numero]);
-    const createdProcess = afterRows[0] || null;
+    }
+    if (createdProcess?.id && String(item.publication?.processo_id || "") !== String(createdProcess.id)) {
+      await patchPublicationProcessLink(env, item.publication.id, createdProcess.id);
+      linkedCount += 1;
+    }
+    if (!beforeRows.length && createdProcess?.id) createdCount += 1;
     sample.push({
       numero_cnj: item.numero,
       publicacao_id: item.publication.id,
       processo_antes: beforeRows[0]?.id || null,
       processo_depois: createdProcess?.id || null,
       processo_criado: !beforeRows.length && Boolean(createdProcess?.id),
+      processo_fonte: processSource,
+      publicacao_vinculada: Boolean(createdProcess?.id),
       titulo_processo: createdProcess?.titulo || null,
       account_id_freshsales: createdProcess?.account_id_freshsales || null,
-      result,
+      datajud: datajudResult,
+      datajud_error: datajudError,
     });
   }
 
   return {
     checkedAt: new Date().toISOString(),
     publicacoesLidas: publicacoes.length,
-    processosCriados: sample.length,
+    processosCriados: createdCount,
     processosDisparados: sample.length,
+    publicacoesVinculadas: linkedCount,
     sample,
   };
 }

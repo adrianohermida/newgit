@@ -149,11 +149,15 @@ const MODULE_WORKSPACES = [
 function shouldHydrateBrowserLocalProvider({ focusedWorkspace = false, selectedProvider = "", providers = [] } = {}) {
   if (!Array.isArray(providers) || !providers.length) return false;
   const hasLocalBrowserConfig = hasPersistedBrowserLocalRuntimeConfig();
-  if (String(selectedProvider || "").toLowerCase() === "local") return hasLocalBrowserConfig;
+  const hasExplicitOptIn = hasExplicitBrowserLocalRuntimeOptIn();
+  const canAutoProbe = shouldAutoProbeBrowserLocalRuntime();
+  if (String(selectedProvider || "").toLowerCase() === "local") {
+    return hasLocalBrowserConfig && hasExplicitOptIn && canAutoProbe;
+  }
   if (focusedWorkspace) return false;
   const localOption = providers.find((item) => String(item?.value || item?.id || "").toLowerCase() === "local");
   if (!localOption) return false;
-  return hasLocalBrowserConfig || shouldAutoProbeBrowserLocalRuntime();
+  return hasLocalBrowserConfig && hasExplicitOptIn && canAutoProbe;
 }
 
 function resolveWorkspaceProviderSelection({ currentProvider, defaultProvider, providers = [] }) {
@@ -169,7 +173,13 @@ function resolveWorkspaceProviderSelection({ currentProvider, defaultProvider, p
 
 function normalizeWorkspaceProvider(provider, providers = []) {
   if (String(provider || "").toLowerCase() !== "local") return provider || "gpt";
-  if (hasPersistedBrowserLocalRuntimeConfig() && hasExplicitBrowserLocalRuntimeOptIn()) return provider;
+  if (
+    hasPersistedBrowserLocalRuntimeConfig() &&
+    hasExplicitBrowserLocalRuntimeOptIn() &&
+    shouldAutoProbeBrowserLocalRuntime()
+  ) {
+    return provider;
+  }
   return providers.find((item) => String(item?.value || "").toLowerCase() !== "local" && item?.disabled !== true)?.value || "gpt";
 }
 
@@ -969,20 +979,21 @@ function DotobotModal({
   onCancel,
 }) {
   if (!open) return null;
+  const { isLightTheme } = useInternalTheme();
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[rgba(3,5,4,0.74)] px-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-[28px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(12,16,15,0.98),rgba(8,11,10,0.98))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.4)]">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#C5A059]">Hermida Maia Advocacia</p>
-        <h3 className="mt-3 text-xl font-semibold text-[#F5F1E8]">{title}</h3>
-        {body ? <p className="mt-3 text-sm leading-7 text-[#9BAEA8]">{body}</p> : null}
+      <div className={`w-full max-w-md rounded-[28px] border p-5 shadow-[0_24px_80px_rgba(0,0,0,0.4)] ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,#FFFFFF,#F6F8FB)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(12,16,15,0.98),rgba(8,11,10,0.98))]"}`}>
+        <p className={`text-[11px] font-semibold uppercase tracking-[0.24em] ${isLightTheme ? "text-[#9A6E2D]" : "text-[#C5A059]"}`}>Hermida Maia Advocacia</p>
+        <h3 className={`mt-3 text-xl font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{title}</h3>
+        {body ? <p className={`mt-3 text-sm leading-7 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{body}</p> : null}
         {inputLabel ? (
           <label className="mt-4 block">
-            <span className="mb-2 block text-xs uppercase tracking-[0.16em] text-[#7F928C]">{inputLabel}</span>
+            <span className={`mb-2 block text-xs uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{inputLabel}</span>
             <input
               value={inputValue}
               onChange={(event) => onInputChange?.(event.target.value)}
-              className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.98)] px-4 text-sm text-[#F5F1E8] outline-none placeholder:text-[#60706A] focus:border-[#C5A059]"
+              className={`h-11 w-full rounded-2xl border px-4 text-sm outline-none ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#152421] placeholder:text-[#94A3B8] focus:border-[#9A6E2D]" : "border-[#22342F] bg-[rgba(7,9,8,0.98)] text-[#F5F1E8] placeholder:text-[#60706A] focus:border-[#C5A059]"}`}
             />
           </label>
         ) : null}
@@ -990,7 +1001,7 @@ function DotobotModal({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-full border border-[#22342F] px-4 py-2 text-sm text-[#D8DEDA] transition hover:border-[#35554B]"
+            className={`rounded-full border px-4 py-2 text-sm transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#35554B]"}`}
           >
             {cancelLabel}
           </button>
@@ -1025,6 +1036,8 @@ export default function DotobotCopilot({
   const { isLightTheme } = useInternalTheme();
   const isFullscreenCopilot = routePath === "/interno/copilot";
   const isFocusedCopilotShell = focusedWorkspaceMode || (embeddedInInternoShell && isFullscreenCopilot);
+  const isRailConversationShell = embeddedInInternoShell && !isFullscreenCopilot;
+  const isConversationCentricShell = isFocusedCopilotShell || isRailConversationShell;
   const suppressInnerChrome = isFocusedCopilotShell;
   const isCompactViewport = useMediaQuery({ maxWidth: 640 });
   // Estado de autenticaÃ§Ã£o/admin
@@ -1176,6 +1189,20 @@ const [uiToasts, setUiToasts] = useState([]);
   const taskStatusRef = useRef(new Map());
 
   useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    function handleFocusComposer() {
+      setWorkspaceOpen(true);
+      requestAnimationFrame(() => {
+        composerRef.current?.focus();
+      });
+    }
+    window.addEventListener("hmadv:copilot-focus-composer", handleFocusComposer);
+    return () => {
+      window.removeEventListener("hmadv:copilot-focus-composer", handleFocusComposer);
+    };
+  }, []);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
     const persistedState = loadPersistedDotobotState({
       chatStorageKey,
@@ -1202,11 +1229,11 @@ const [uiToasts, setUiToasts] = useState([]);
     }
     if (isFullscreenCopilot) {
       setMode("chat");
-      setProvider((current) => current || "gpt");
+      setProvider((current) => normalizeWorkspaceProvider(current || "gpt", providerCatalog));
       setWorkspaceLayoutMode("immersive");
       setRightPanelTab("modules");
     }
-  }, [chatStorageKey, taskStorageKey, prefStorageKey, layoutStorageKey, conversationStorageKey, initialWorkspaceOpen, isFullscreenCopilot]);
+  }, [chatStorageKey, taskStorageKey, prefStorageKey, layoutStorageKey, conversationStorageKey, initialWorkspaceOpen, isFullscreenCopilot, providerCatalog]);
 
   useEffect(() => {
     let active = true;
@@ -1736,7 +1763,7 @@ const [uiToasts, setUiToasts] = useState([]);
 
     const nextAttachments = submitOptions.attachments || attachments;
     const nextMode = submitOptions.mode || mode;
-    const nextProvider = submitOptions.provider || provider;
+    const nextProvider = normalizeWorkspaceProvider(submitOptions.provider || provider, providerCatalog);
     const nextContextEnabled = typeof submitOptions.contextEnabled === "boolean" ? submitOptions.contextEnabled : contextEnabled;
 
     setError(null);
@@ -2753,19 +2780,21 @@ const [uiToasts, setUiToasts] = useState([]);
         ? "w-full max-w-[1520px]"
         : "w-full max-w-[1320px]";
   const workspaceShellGridClass =
-    effectiveWorkspaceLayout === "immersive"
+    isRailConversationShell
+      ? "grid-cols-1"
+      : effectiveWorkspaceLayout === "immersive"
       ? isFocusedCopilotShell
-        ? "lg:grid-cols-[328px_minmax(0,1fr)_340px] xl:grid-cols-[344px_minmax(0,1.18fr)_368px] 2xl:grid-cols-[360px_minmax(0,1.3fr)_392px]"
+        ? "lg:grid-cols-[372px_minmax(0,1fr)_316px] xl:grid-cols-[392px_minmax(0,1fr)_332px] 2xl:grid-cols-[408px_minmax(0,1fr)_348px]"
         : "lg:grid-cols-[320px_minmax(0,1.6fr)_320px] xl:grid-cols-[360px_minmax(0,2.05fr)_360px] 2xl:grid-cols-[420px_minmax(0,2.45fr)_420px]"
       : effectiveWorkspaceLayout === "balanced"
         ? "lg:grid-cols-[220px_minmax(0,1.25fr)_240px] xl:grid-cols-[240px_minmax(0,1.5fr)_260px] 2xl:grid-cols-[260px_minmax(0,1.65fr)_280px]"
         : "lg:grid-cols-[180px_minmax(0,1fr)_220px] xl:grid-cols-[190px_minmax(0,1.12fr)_240px] 2xl:grid-cols-[210px_minmax(0,1.2fr)_260px]";
   const focusedShellContentClass = suppressInnerChrome ? "px-0 pt-0 pb-0" : "p-3 md:p-5";
-  const workspaceGridGapClass = isFocusedCopilotShell ? "gap-0" : "gap-4";
+  const workspaceGridGapClass = isConversationCentricShell ? "gap-0" : "gap-4";
   const leftRailShellClass = isFocusedCopilotShell
     ? isLightTheme
-      ? "border-r border-y-0 border-l-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.99))] rounded-none shadow-none"
-      : "border-r border-y-0 border-l-0 border-[#1C2623] bg-[rgba(9,11,10,0.98)] rounded-none shadow-none"
+      ? "h-full border-r border-y-0 border-l-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.99))] rounded-none shadow-none"
+      : "h-full border-r border-y-0 border-l-0 border-[#1C2623] bg-[rgba(9,11,10,0.98)] rounded-none shadow-none"
     : isLightTheme
       ? "rounded-[22px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,248,251,0.98))]"
       : "rounded-[22px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] border-[#1C2623] bg-[rgba(255,255,255,0.018)]";
@@ -2778,15 +2807,15 @@ const [uiToasts, setUiToasts] = useState([]);
       : "rounded-[24px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] border-[#1C2623] bg-[rgba(255,255,255,0.015)]";
   const rightRailShellClass = isFocusedCopilotShell
     ? isLightTheme
-      ? "border-l border-y-0 border-r-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,249,252,0.99))] rounded-none shadow-none"
-      : "border-l border-y-0 border-r-0 border-[#1C2623] bg-[rgba(9,11,10,0.98)] rounded-none shadow-none"
+      ? "h-full border-l border-y-0 border-r-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,249,252,0.99))] rounded-none shadow-none"
+      : "h-full border-l border-y-0 border-r-0 border-[#1C2623] bg-[rgba(9,11,10,0.98)] rounded-none shadow-none"
     : isLightTheme
       ? "rounded-[24px] border border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(245,247,250,0.98))]"
       : "rounded-[24px] border border-[#1C2623] bg-[rgba(255,255,255,0.015)]";
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
-  const focusedConversationColumnClass = isFocusedCopilotShell ? "mx-auto w-full max-w-[960px]" : "";
-  const visibleLegalActions = LEGAL_ACTIONS.slice(0, isCompactViewport ? 1 : 3);
-  const visibleQuickPrompts = QUICK_PROMPTS.slice(0, isCompactViewport ? 1 : isFocusedCopilotShell ? 1 : 2);
+  const focusedConversationColumnClass = isFocusedCopilotShell ? "mx-auto flex h-full w-full max-w-[860px] flex-col" : isRailConversationShell ? "w-full" : "";
+  const visibleLegalActions = isRailConversationShell ? [] : LEGAL_ACTIONS.slice(0, isCompactViewport ? 1 : 3);
+  const visibleQuickPrompts = QUICK_PROMPTS.slice(0, isCompactViewport ? 1 : isConversationCentricShell ? 1 : 2);
   let filteredConversations = filterVisibleConversations(conversations, conversationSearch);
   if (!showArchived) {
     filteredConversations = filteredConversations.filter(c => !c.archived);
@@ -2920,6 +2949,10 @@ const [uiToasts, setUiToasts] = useState([]);
       ? "Envio pausado até o runtime local responder."
       : "";
   const isComposerBlocked = Boolean(composerBlockedReason);
+  const showConversationCockpitCards = !isFocusedCopilotShell;
+  const showRuntimeOpsHeader = !isFocusedCopilotShell && !compactRail;
+  const showRuntimeOpsFullscreen = !isFocusedCopilotShell;
+  const fullscreenConversationSubtitle = "Histórico à esquerda, conversa ao centro e contexto operacional à direita.";
 
   useEffect(() => {
     if (!localStackSummary?.offlineMode) return;
@@ -2931,6 +2964,17 @@ const [uiToasts, setUiToasts] = useState([]);
       return current;
     });
   }, [localStackSummary?.offlineMode, providerCatalog]);
+
+  useEffect(() => {
+    if (provider !== "local") return;
+    if (shouldAutoProbeBrowserLocalRuntime()) return;
+    const fallbackProvider = providerCatalog.find(
+      (item) => String(item?.value || "").toLowerCase() !== "local" && item?.disabled !== true
+    )?.value;
+    if (fallbackProvider) {
+      setProvider(fallbackProvider);
+    }
+  }, [provider, providerCatalog]);
 
   // Exemplo de fluxo de login Supabase
   async function handleLogin() {
@@ -2991,94 +3035,100 @@ const [uiToasts, setUiToasts] = useState([]);
       />
       {showCollapsedTrigger ? <CollapsedTrigger /> : null}
       {!isCollapsed && !embeddedInInternoShell ? (
-        <section className={`min-h-0 overflow-hidden rounded-[26px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(10,12,11,0.98),rgba(8,10,9,0.98))] shadow-[0_18px_44px_rgba(0,0,0,0.22)] backdrop-blur-sm ${compactRail ? "" : "mr-10 md:mr-0"}`}>
-        <header className="border-b border-[#22342F] px-4 py-4">
+        <section className={`min-h-0 overflow-hidden rounded-[26px] border shadow-[0_18px_44px_rgba(0,0,0,0.22)] backdrop-blur-sm ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,#FCFDFE,#F3F7FB)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(10,12,11,0.98),rgba(8,10,9,0.98))]"} ${compactRail ? "" : "mr-10 md:mr-0"}`}>
+        <header className={`border-b px-4 py-4 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Copilot operacional</p>
+              <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Copilot operacional</p>
               <div className="mt-2 flex items-center gap-3">
-                <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#F5F1E8]">Dotobot</h3>
+                <h3 className={`text-lg font-semibold tracking-[-0.02em] ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Dotobot</h3>
                 <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] ${activeStatus === "processing" ? "border-[#8b6f33] text-[#D9B46A]" : "border-[#234034] text-[#80C7A1]"}`}>
                   <span className={`h-2 w-2 rounded-full ${activeStatus === "processing" ? "bg-[#D9B46A]" : "bg-[#80C7A1]"}`} />
                   {activeStatus === "processing" ? uiStateLabel : "Idle"}
                 </span>
               </div>
-              <p className="mt-2 max-w-md text-xs leading-6 text-[#8FA19B]">
-                {isCompactViewport ? "Chat para execucao e handoff com AI Task." : "Chat focado em execucao, contexto e handoff com AI Task."}
+              <p className={`mt-2 max-w-md text-xs leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#8FA19B]"}`}>
+                {isFocusedCopilotShell
+                  ? fullscreenConversationSubtitle
+                  : isCompactViewport
+                    ? "Chat para execucao e handoff com AI Task."
+                    : "Chat focado em execucao, contexto e handoff com AI Task."}
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
-                <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#D8DEDA]">
+                <span className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                   Provider: {activeProviderPresentation.name}
                 </span>
-                <span className={`rounded-full border px-3 py-1.5 ${localStackTone}`}>
-                  {localStackLabel}
-                </span>
+                {!isFocusedCopilotShell ? (
+                  <span className={`rounded-full border px-3 py-1.5 ${localStackTone}`}>
+                    {localStackLabel}
+                  </span>
+                ) : null}
                 {activeProviderPresentation.meta.map((item) => (
-                  <span key={item} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#9BAEA8]">
+                  <span key={item} className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
                     {item}
                   </span>
                 ))}
-                {localStackSummary?.runtimeBaseUrl ? (
+                {!isFocusedCopilotShell && localStackSummary?.runtimeBaseUrl ? (
                   <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
                     runtime {localStackSummary.runtimeBaseUrl}
                   </span>
                 ) : null}
-                {localStackSummary?.localProvider?.transport ? (
+                {!isFocusedCopilotShell && localStackSummary?.localProvider?.transport ? (
                   <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
                     {localRuntimeLabel}
                   </span>
                 ) : null}
-                {capabilitiesSkills?.total ? (
-                  <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#9BAEA8]">
+                {!isFocusedCopilotShell && capabilitiesSkills?.total ? (
+                  <span className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
                     Skills {capabilitiesSkills.total}
                   </span>
                 ) : null}
-                {capabilitiesCommands?.executable ? (
-                  <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#9BAEA8]">
+                {!isFocusedCopilotShell && capabilitiesCommands?.executable ? (
+                  <span className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
                     Comandos {capabilitiesCommands.executable}/{capabilitiesCommands.total}
                   </span>
                 ) : null}
-                {activeBrowserProfile?.label ? (
+                {!isFocusedCopilotShell && activeBrowserProfile?.label ? (
                   <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
                     Extensao {activeBrowserProfile.label}
                   </span>
                 ) : null}
-                {activeProviderPresentation.endpoint ? (
+                {!isFocusedCopilotShell && activeProviderPresentation.endpoint ? (
                   <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
                     {activeProviderPresentation.endpoint}
                   </span>
                 ) : null}
               </div>
-              {localStackSummary ? (
-                <p className="mt-2 max-w-2xl text-[11px] leading-6 text-[#7F928C]">
+              {localStackSummary && !isFocusedCopilotShell ? (
+                <p className={`mt-2 max-w-2xl text-[11px] leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>
                   {localStackReady
                     ? `ai-core local ativo${localStackSummary.offlineMode ? " em modo offline" : ""} com modelo ${localStackSummary.localProvider?.model || "local"}.`
                     : "O runtime local ainda nao respondeu; suba o ai-core e a extensao local para habilitar o modo da sua maquina."}
                 </p>
               ) : null}
-              <div className="mt-4 grid gap-3">
-                <div className="rounded-[20px] border border-[#3C3320] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.14),transparent_60%),rgba(255,255,255,0.02)] p-4">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#D9B46A]">Cockpit ativo</p>
-                  <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeConversation?.title || "Nova conversa"}</p>
-                  <p className="mt-2 line-clamp-3 text-[12px] leading-6 text-[#C6D1CC]">{activeConversationPreview}</p>
+              {showConversationCockpitCards ? <div className="mt-4 grid gap-3">
+                <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#E6D29A] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_60%),#FFFDF7]" : "border-[#3C3320] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.14),transparent_60%),rgba(255,255,255,0.02)]"}`}>
+                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#9A6E2D]" : "text-[#D9B46A]"}`}>Cockpit ativo</p>
+                  <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeConversation?.title || "Nova conversa"}</p>
+                  <p className={`mt-2 line-clamp-3 text-[12px] leading-6 ${isLightTheme ? "text-[#51606B]" : "text-[#C6D1CC]"}`}>{activeConversationPreview}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="rounded-full border border-[#4B3F22] px-3 py-1.5 text-[10px] text-[#F1D39A]">
+                    <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#E6D29A] bg-[#FFF6DF] text-[#8A6217]" : "border-[#4B3F22] text-[#F1D39A]"}`}>
                       histórico {filteredConversations.length}
                     </span>
-                    <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D8DEDA]">
+                    <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                       mensagens {messages.length}
                     </span>
-                    <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D8DEDA]">
+                    <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                       tarefas {taskHistory.length}
                     </span>
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Missão em foco</p>
-                      <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeTaskLabel}</p>
+                      <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Missão em foco</p>
+                      <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeTaskLabel}</p>
                     </div>
                     <span className={`rounded-full border px-2.5 py-1 text-[10px] ${
                       runningCount ? "border-[#C5A059] text-[#F1D39A]" : "border-[#22342F] text-[#9BAEA8]"
@@ -3087,21 +3137,21 @@ const [uiToasts, setUiToasts] = useState([]);
                     </span>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D8DEDA]">
+                    <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                       provider {activeTaskProviderLabel}
                     </span>
-                    <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D8DEDA]">
+                    <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                       etapas {activeTaskStepCount}
                     </span>
                     {activeConversationTimestamp ? (
-                      <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#9BAEA8]">
+                      <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
                         {new Date(activeConversationTimestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                       </span>
                     ) : null}
                   </div>
                 </div>
-              </div>
-              {offlineHealthSnapshot.items.length ? (
+              </div> : null}
+              {showRuntimeOpsFullscreen && offlineHealthSnapshot.items.length ? (
                 <div className="mt-3 flex max-w-3xl flex-wrap gap-2">
                   {offlineHealthSnapshot.items.map((item) => (
                     <span
@@ -3120,12 +3170,12 @@ const [uiToasts, setUiToasts] = useState([]);
                   ))}
                 </div>
               ) : null}
-              {localBootstrapPlan.steps.length ? (
-                <div className="mt-4 rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+              {showRuntimeOpsFullscreen && localBootstrapPlan.steps.length ? (
+                <div className={`mt-4 rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Bootstrap local</p>
-                      <p className="mt-1 text-sm text-[#F5F1E8]">
+                      <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Bootstrap local</p>
+                      <p className={`mt-1 text-sm ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
                         {localBootstrapPlan.requiredCompleted}/{localBootstrapPlan.requiredTotal} etapas essenciais concluídas
                       </p>
                     </div>
@@ -3139,11 +3189,11 @@ const [uiToasts, setUiToasts] = useState([]);
                   </div>
                   <div className="mt-3 grid gap-2 xl:grid-cols-2">
                     {localBootstrapPlan.steps.map((step) => (
-                      <div key={step.id} className="rounded-[18px] border border-[#22342F] bg-[rgba(7,9,8,0.65)] px-3 py-3">
+                      <div key={step.id} className={`rounded-[18px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(7,9,8,0.65)]"}`}>
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-[11px] font-semibold text-[#F5F1E8]">{step.title}</p>
-                            <p className="mt-1 text-[11px] leading-6 text-[#9BAEA8]">{step.detail}</p>
+                            <p className={`text-[11px] font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{step.title}</p>
+                            <p className={`mt-1 text-[11px] leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{step.detail}</p>
                           </div>
                           <span className={`rounded-full border px-2.5 py-1 text-[10px] ${
                             step.done
@@ -3159,7 +3209,7 @@ const [uiToasts, setUiToasts] = useState([]);
                           <button
                             type="button"
                             onClick={() => handleLocalStackAction(step.action)}
-                            className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                            className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                           >
                             {step.action === "testar_llm_local" ? "Testar runtime" : "Abrir diagnóstico"}
                           </button>
@@ -3169,11 +3219,11 @@ const [uiToasts, setUiToasts] = useState([]);
                   </div>
                 </div>
               ) : null}
-              <div className="mt-4 rounded-[20px] border border-[#22342F] bg-[rgba(7,9,8,0.7)] p-4">
+              {showRuntimeOpsFullscreen ? <div className={`mt-4 rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(7,9,8,0.7)]"}`}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Persistência local</p>
-                    <p className="mt-1 text-sm text-[#F5F1E8]">{supabaseBootstrap.label}</p>
+                    <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Persistência local</p>
+                    <p className={`mt-1 text-sm ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{supabaseBootstrap.label}</p>
                   </div>
                   <span className={`rounded-full border px-3 py-1.5 text-[11px] ${
                     supabaseBootstrap.tone === "success"
@@ -3189,40 +3239,40 @@ const [uiToasts, setUiToasts] = useState([]);
                         : "Não verificado"}
                   </span>
                 </div>
-                <p className="mt-2 text-[11px] leading-6 text-[#9BAEA8]">
+                <p className={`mt-2 text-[11px] leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                   {supabaseBootstrap.detail}
                   {supabaseBootstrap.baseUrlPreview ? ` Endpoint atual: ${supabaseBootstrap.baseUrlPreview}.` : ""}
                 </p>
                 <div className="mt-3 grid gap-3 xl:grid-cols-2">
-                  <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3">
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Envs sugeridas</p>
+                  <div className={`rounded-[18px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                    <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Envs sugeridas</p>
                     <div className="mt-2 space-y-2">
                       {supabaseBootstrap.envs.map((line) => (
-                        <p key={line} className="rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.75)] px-3 py-2 text-[11px] text-[#C6D1CC]">
+                        <p key={line} className={`rounded-2xl border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] bg-[rgba(7,9,8,0.75)] text-[#C6D1CC]"}`}>
                           {line}
                         </p>
                       ))}
                     </div>
                   </div>
-                  <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3">
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Bootstrap Supabase local</p>
+                  <div className={`rounded-[18px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                    <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Bootstrap Supabase local</p>
                     <div className="mt-2 space-y-2">
                       {supabaseBootstrap.commands.map((line) => (
-                        <p key={line} className="rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.75)] px-3 py-2 text-[11px] text-[#C6D1CC]">
+                        <p key={line} className={`rounded-2xl border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] bg-[rgba(7,9,8,0.75)] text-[#C6D1CC]"}`}>
                           {line}
                         </p>
                       ))}
                     </div>
                   </div>
                 </div>
-                <div className="mt-3 rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3">
-                  <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Schema offline</p>
+                <div className={`mt-3 rounded-[18px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                  <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Schema offline</p>
                   <div className="mt-2 grid gap-2 xl:grid-cols-2">
                     {supabaseBootstrap.schema.map((item) => (
-                      <div key={item.id} className="rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.75)] px-3 py-3">
-                        <p className="text-[11px] font-semibold text-[#F5F1E8]">{item.label}</p>
-                        <p className="mt-1 text-[11px] leading-6 text-[#9BAEA8]">{item.detail}</p>
-                        <p className="mt-2 text-[10px] text-[#7F928C]">{item.migration}</p>
+                      <div key={item.id} className={`rounded-2xl border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(7,9,8,0.75)]"}`}>
+                        <p className={`text-[11px] font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{item.label}</p>
+                        <p className={`mt-1 text-[11px] leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{item.detail}</p>
+                        <p className={`mt-2 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{item.migration}</p>
                       </div>
                     ))}
                   </div>
@@ -3233,7 +3283,7 @@ const [uiToasts, setUiToasts] = useState([]);
                       key={actionId}
                       type="button"
                       onClick={() => handleLocalStackAction(actionId)}
-                      className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                      className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                     >
                       {actionId === "retry_runtime_local"
                         ? "Tentar novamente"
@@ -3247,33 +3297,33 @@ const [uiToasts, setUiToasts] = useState([]);
                     </button>
                   ))}
                 </div>
-              </div>
-              {localRuntimeConfigOpen ? (
-                <div className="mt-4 rounded-[20px] border border-[#22342F] bg-[rgba(7,9,8,0.7)] p-4">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Configuração persistente do runtime local</p>
+              </div> : null}
+              {showRuntimeOpsFullscreen && localRuntimeConfigOpen ? (
+                <div className={`mt-4 rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(7,9,8,0.7)]"}`}>
+                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Configuração persistente do runtime local</p>
                   <div className="mt-3 grid gap-3 xl:grid-cols-3">
-                    <label className="text-[11px] text-[#D8DEDA]">
-                      <span className="mb-2 block text-[#7F928C]">Runtime base URL</span>
+                    <label className={`text-[11px] ${isLightTheme ? "text-[#51606B]" : "text-[#D8DEDA]"}`}>
+                      <span className={`mb-2 block ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Runtime base URL</span>
                       <input
                         value={localRuntimeDraft.runtimeBaseUrl || ""}
                         onChange={(event) => setLocalRuntimeDraft((current) => ({ ...current, runtimeBaseUrl: event.target.value }))}
-                        className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
+                        className={`h-11 w-full rounded-2xl border px-4 text-sm outline-none ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#152421] focus:border-[#9A6E2D]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#F5F1E8] focus:border-[#C5A059]"}`}
                       />
                     </label>
-                    <label className="text-[11px] text-[#D8DEDA]">
-                      <span className="mb-2 block text-[#7F928C]">Modelo local</span>
+                    <label className={`text-[11px] ${isLightTheme ? "text-[#51606B]" : "text-[#D8DEDA]"}`}>
+                      <span className={`mb-2 block ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Modelo local</span>
                       <input
                         value={localRuntimeDraft.localModel || ""}
                         onChange={(event) => setLocalRuntimeDraft((current) => ({ ...current, localModel: event.target.value }))}
-                        className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
+                        className={`h-11 w-full rounded-2xl border px-4 text-sm outline-none ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#152421] focus:border-[#9A6E2D]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#F5F1E8] focus:border-[#C5A059]"}`}
                       />
                     </label>
-                    <label className="text-[11px] text-[#D8DEDA]">
-                      <span className="mb-2 block text-[#7F928C]">Extensão local URL</span>
+                    <label className={`text-[11px] ${isLightTheme ? "text-[#51606B]" : "text-[#D8DEDA]"}`}>
+                      <span className={`mb-2 block ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Extensão local URL</span>
                       <input
                         value={localRuntimeDraft.extensionBaseUrl || ""}
                         onChange={(event) => setLocalRuntimeDraft((current) => ({ ...current, extensionBaseUrl: event.target.value }))}
-                        className="h-11 w-full rounded-2xl border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"
+                        className={`h-11 w-full rounded-2xl border px-4 text-sm outline-none ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#152421] focus:border-[#9A6E2D]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#F5F1E8] focus:border-[#C5A059]"}`}
                       />
                     </label>
                   </div>
@@ -3281,22 +3331,22 @@ const [uiToasts, setUiToasts] = useState([]);
                     <button
                       type="button"
                       onClick={handleSaveLocalRuntimeConfig}
-                      className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                      className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                     >
                       Salvar e recarregar
                     </button>
                     <button
                       type="button"
                       onClick={() => setLocalRuntimeDraft(getBrowserLocalRuntimeConfig())}
-                      className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                      className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                     >
                       Restaurar valores atuais
                     </button>
                   </div>
                 </div>
               ) : null}
-              {capabilitiesSkills?.total || capabilitiesCommands?.total ? (
-                <p className="mt-2 max-w-3xl text-[11px] leading-6 text-[#7F928C]">
+              {showRuntimeOpsFullscreen && (capabilitiesSkills?.total || capabilitiesCommands?.total) ? (
+                <p className={`mt-2 max-w-3xl text-[11px] leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>
                   {[
                     capabilitiesSkills?.total ? `${capabilitiesSkills.total} skills catalogadas` : null,
                     capabilitiesSkills?.offline_ready ? `${capabilitiesSkills.offline_ready} prontas para offline` : null,
@@ -3305,40 +3355,40 @@ const [uiToasts, setUiToasts] = useState([]);
                   ].filter(Boolean).join(" · ")}
                 </p>
               ) : null}
-              {!compactRail && localStackSummary?.recommendations?.length ? (
+              {showRuntimeOpsHeader && localStackSummary?.recommendations?.length ? (
                 <div className="mt-2 flex max-w-3xl flex-wrap gap-2 text-[11px]">
                   {localStackSummary.recommendations.slice(0, 3).map((item) => (
-                    <span key={item} className="rounded-full border border-[#3B3523] bg-[rgba(197,160,89,0.08)] px-3 py-1.5 text-[#D9C38A]">
+                    <span key={item} className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#E6D29A] bg-[#FFF8EA] text-[#8A6217]" : "border-[#3B3523] bg-[rgba(197,160,89,0.08)] text-[#D9C38A]"}`}>
                       {item}
                     </span>
                   ))}
                 </div>
               ) : null}
-              {!compactRail && localStackSummary?.actions?.length ? (
+              {showRuntimeOpsHeader && localStackSummary?.actions?.length ? (
                 <div className="mt-2 flex max-w-3xl flex-wrap gap-2">
                   {localStackSummary.actions.slice(0, 3).map((action) => (
                     <button
                       key={action.id}
                       type="button"
                       onClick={() => handleLocalStackAction(action.id)}
-                      className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                      className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                     >
                       {action.label}
                     </button>
                   ))}
                 </div>
               ) : null}
-              {!compactRail && activeProviderPresentation.reason ? (
-                <p className="mt-2 max-w-2xl text-[11px] leading-6 text-[#7F928C]">{activeProviderPresentation.reason}</p>
+              {showRuntimeOpsHeader && activeProviderPresentation.reason ? (
+                <p className={`mt-2 max-w-2xl text-[11px] leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>{activeProviderPresentation.reason}</p>
               ) : null}
-              {!compactRail && localInferenceAlert ? (
+              {showRuntimeOpsHeader && localInferenceAlert ? (
                 <div className={`mt-4 max-w-3xl rounded-[20px] border px-4 py-3 text-sm ${
                   localInferenceAlert.tone === "danger"
                     ? "border-[#5b2d2d] bg-[rgba(91,45,45,0.22)] text-[#f2d0d0]"
                     : "border-[#6f5a2d] bg-[rgba(98,79,34,0.2)] text-[#f1dfb5]"
                 }`}>
                   <p className="text-[10px] uppercase tracking-[0.18em] opacity-80">Contingência local</p>
-                  <p className="mt-2 font-medium text-[#F5F1E8]">{localInferenceAlert.title}</p>
+                  <p className={`mt-2 font-medium ${isLightTheme ? "text-[#6A4B12]" : "text-[#F5F1E8]"}`}>{localInferenceAlert.title}</p>
                   <p className="mt-1 leading-6">{localInferenceAlert.body}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {localInferenceAlert.actions.map((actionId) => (
@@ -3346,7 +3396,7 @@ const [uiToasts, setUiToasts] = useState([]);
                         key={actionId}
                         type="button"
                         onClick={() => handleLocalStackAction(actionId)}
-                        className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                        className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                       >
                         {actionId === "retry_runtime_local"
                           ? "Tentar novamente"
@@ -3364,12 +3414,12 @@ const [uiToasts, setUiToasts] = useState([]);
               ) : null}
             </div>
             <div className="flex w-full flex-wrap items-start gap-2 lg:w-auto lg:justify-end">
-              {!compactRail ? (
+              {showRuntimeOpsHeader ? (
                 <>
                   <button
                     type="button"
                     onClick={handleCopilotDebug}
-                    className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                    className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                   >
                     Debug
                   </button>
@@ -3377,14 +3427,14 @@ const [uiToasts, setUiToasts] = useState([]);
                     type="button"
                     onClick={refreshLocalStackStatus}
                     disabled={refreshingLocalStack}
-                    className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:cursor-wait disabled:opacity-60"
+                    className={`rounded-2xl border px-3 py-2 text-xs transition disabled:cursor-wait disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                   >
                     {refreshingLocalStack ? "Atualizando stack..." : "Atualizar stack local"}
                   </button>
                   <button
                     type="button"
                     onClick={() => setLocalRuntimeConfigOpen((current) => !current)}
-                    className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                    className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                   >
                     {localRuntimeConfigOpen ? "Fechar runtime local" : "Editar runtime local"}
                   </button>
@@ -3402,7 +3452,7 @@ const [uiToasts, setUiToasts] = useState([]);
                   <button
                     type="button"
                     onClick={() => createConversationFromCurrentState("Nova conversa")}
-                    className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                    className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                   >
                     Nova conversa
                   </button>
@@ -3451,7 +3501,7 @@ const [uiToasts, setUiToasts] = useState([]);
                 </button>
               </div>
               <div className="mt-4 flex flex-wrap gap-2 text-[10px]">
-                <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[#D8DEDA]">
+                <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                   {activeProviderPresentation.name}
                 </span>
                 {selectedSkillId ? (
@@ -3471,28 +3521,28 @@ const [uiToasts, setUiToasts] = useState([]);
                   Contexto {contextEnabled ? "ON" : "OFF"}
                 </button>
                 {activeConversationTimestamp ? (
-                  <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[#7F928C]">
+                  <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#7F928C]"}`}>
                     {new Date(activeConversationTimestamp).toLocaleDateString("pt-BR")}
                   </span>
                 ) : null}
                 {localStackSummary?.localProvider?.transport ? (
-                  <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[#7F928C]">
+                  <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#7F928C]"}`}>
                     {localRuntimeLabel}
                   </span>
                 ) : null}
               </div>
             </div>
             <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4">
-              <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+              <div className={`rounded-[24px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Conversas recentes</p>
-                    <p className="mt-1 text-[12px] text-[#9BAEA8]">Acesso rápido às últimas trilhas abertas.</p>
+                    <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Conversas recentes</p>
+                    <p className={`mt-1 text-[12px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Acesso rápido às últimas trilhas abertas.</p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setWorkspaceOpen(true)}
-                    className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                    className={`rounded-full border px-3 py-1.5 text-[10px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                   >
                     Ver tudo
                   </button>
@@ -3508,16 +3558,20 @@ const [uiToasts, setUiToasts] = useState([]);
                           onClick={() => selectConversation(conversation)}
                           className={`w-full rounded-[18px] border px-3 py-3 text-left transition ${
                             isActive
-                              ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]"
-                              : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#35554B]"
+                              ? isLightTheme
+                                ? "border-[#D2B06A] bg-[#FFF8EA]"
+                                : "border-[#C5A059] bg-[rgba(197,160,89,0.08)]"
+                              : isLightTheme
+                                ? "border-[#D7DEE8] bg-[#F7F9FC] hover:border-[#BAC8D6]"
+                                : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#35554B]"
                           }`}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="truncate text-[12px] font-semibold text-[#F5F1E8]">{conversation.title}</p>
-                              <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-[#9BAEA8]">{conversation.preview}</p>
+                              <p className={`truncate text-[12px] font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{conversation.title}</p>
+                              <p className={`mt-1 line-clamp-2 text-[11px] leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{conversation.preview}</p>
                             </div>
-                            <span className="shrink-0 text-[10px] text-[#60706A]">
+                            <span className={`shrink-0 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#60706A]"}`}>
                               {conversation.messages?.length || 0}
                             </span>
                           </div>
@@ -3525,20 +3579,20 @@ const [uiToasts, setUiToasts] = useState([]);
                       );
                     })
                   ) : (
-                    <div className="rounded-[18px] border border-dashed border-[#22342F] px-3 py-4 text-[12px] text-[#9BAEA8]">
+                    <div className={`rounded-[18px] border border-dashed px-3 py-4 text-[12px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
                       Nenhuma conversa salva ainda.
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="min-h-0 flex-1 rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+              <div className={`min-h-0 flex-1 rounded-[24px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Conversa ativa</p>
-                    <p className="mt-1 text-[12px] text-[#9BAEA8]">A visualização já nasce no trecho mais recente da conversa.</p>
+                    <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Conversa ativa</p>
+                    <p className={`mt-1 text-[12px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>A visualização já nasce no trecho mais recente da conversa.</p>
                   </div>
-                  <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D8DEDA]">
+                  <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                     {messages.length} mensagens
                   </span>
                 </div>
@@ -3550,32 +3604,36 @@ const [uiToasts, setUiToasts] = useState([]);
                           key={message.id || `${message.role}-${message.createdAt || index}`}
                           className={`rounded-[18px] border px-3 py-3 ${
                             message.role === "user"
-                              ? "border-[#3B3523] bg-[rgba(197,160,89,0.08)]"
-                              : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"
+                              ? isLightTheme
+                                ? "border-[#E6D29A] bg-[#FFF8EA]"
+                                : "border-[#3B3523] bg-[rgba(197,160,89,0.08)]"
+                              : isLightTheme
+                                ? "border-[#D7DEE8] bg-[#F7F9FC]"
+                                : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"
                           }`}
                         >
                           <div className="flex items-center justify-between gap-3">
-                            <span className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">
+                            <span className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
                               {message.role === "user" ? "Você" : "Dotobot"}
                             </span>
                             {message.createdAt ? (
-                              <span className="text-[10px] text-[#60706A]">
+                              <span className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#60706A]"}`}>
                                 {new Date(message.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                               </span>
                             ) : null}
                           </div>
-                          <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-[12px] leading-6 text-[#D8DEDA]">
+                          <p className={`mt-2 line-clamp-4 whitespace-pre-wrap text-[12px] leading-6 ${isLightTheme ? "text-[#2B3A42]" : "text-[#D8DEDA]"}`}>
                             {message.text || (message.role === "assistant" && loading ? "Processando resposta..." : "Sem texto")}
                           </p>
                         </div>
                       ))
                     ) : (
-                      <div className="rounded-[18px] border border-dashed border-[#22342F] px-3 py-4 text-[12px] text-[#9BAEA8]">
+                      <div className={`rounded-[18px] border border-dashed px-3 py-4 text-[12px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
                         A conversa começa aqui. Use um prompt curto e siga para o modo full quando precisar de trilha completa.
                       </div>
                     )}
                     {loading ? (
-                      <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-3 text-[12px] text-[#9BAEA8]">
+                      <div className={`rounded-[18px] border px-3 py-3 text-[12px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
                         Dotobot está preparando a próxima resposta...
                       </div>
                     ) : null}
@@ -3584,14 +3642,14 @@ const [uiToasts, setUiToasts] = useState([]);
               </div>
             </div>
 
-            <details className="mt-4 rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-              <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7F928C]">
+            <details className={`mt-4 rounded-[24px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+              <summary className={`cursor-pointer list-none text-[11px] font-semibold uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
                 Diagnóstico e runtime
               </summary>
               <div className="mt-4 space-y-4">
                 {offlineHealthSnapshot.items.length ? (
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Saúde offline</p>
+                    <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Saúde offline</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {offlineHealthSnapshot.items.map((item) => (
                         <span
@@ -3618,7 +3676,7 @@ const [uiToasts, setUiToasts] = useState([]);
                       : "border-[#6f5a2d] bg-[rgba(98,79,34,0.2)] text-[#f1dfb5]"
                   }`}>
                     <p className="text-[10px] uppercase tracking-[0.16em] opacity-80">Diagnóstico RAG</p>
-                    <p className="mt-2 font-medium text-[#F5F1E8]">{ragAlert.title}</p>
+                    <p className={`mt-2 font-medium ${isLightTheme ? "text-[#6A4B12]" : "text-[#F5F1E8]"}`}>{ragAlert.title}</p>
                     <p className="mt-1 text-[12px] leading-6">{ragAlert.body}</p>
                   </div>
                 ) : null}
@@ -3629,7 +3687,7 @@ const [uiToasts, setUiToasts] = useState([]);
                       : "border-[#6f5a2d] bg-[rgba(98,79,34,0.2)] text-[#f1dfb5]"
                   }`}>
                     <p className="text-[10px] uppercase tracking-[0.16em] opacity-80">Contingência local</p>
-                    <p className="mt-2 font-medium text-[#F5F1E8]">{localInferenceAlert.title}</p>
+                    <p className={`mt-2 font-medium ${isLightTheme ? "text-[#6A4B12]" : "text-[#F5F1E8]"}`}>{localInferenceAlert.title}</p>
                     <p className="mt-1 text-[12px] leading-6">{localInferenceAlert.body}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {localInferenceAlert.actions.slice(0, 2).map((actionId) => (
@@ -3637,7 +3695,7 @@ const [uiToasts, setUiToasts] = useState([]);
                           key={actionId}
                           type="button"
                           onClick={() => handleLocalStackAction(actionId)}
-                          className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                         >
                           {actionId === "retry_runtime_local" ? "Tentar" : actionId === "open_runtime_config" ? "Editar runtime" : actionId === "open_llm_test" ? "Testar" : "Diagnóstico"}
                         </button>
@@ -3645,9 +3703,9 @@ const [uiToasts, setUiToasts] = useState([]);
                     </div>
                   </div>
                 ) : null}
-                <div className="rounded-[18px] border border-[#22342F] px-3 py-3">
+                <div className={`rounded-[18px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Persistência</p>
+                    <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Persistência</p>
                     <span className={`rounded-full border px-2 py-1 text-[10px] ${
                       supabaseBootstrap.tone === "success"
                         ? "border-[#234034] text-[#8FCFA9]"
@@ -3659,16 +3717,16 @@ const [uiToasts, setUiToasts] = useState([]);
                         ? "Local"
                         : supabaseBootstrap.baseUrlKind === "remote"
                           ? "Remoto"
-                          : "Pendente"}
+                      : "Pendente"}
                     </span>
                   </div>
-                  <p className="mt-2 text-[12px] font-semibold text-[#F5F1E8]">{supabaseBootstrap.label}</p>
-                  <p className="mt-1 text-[11px] leading-5 text-[#9BAEA8]">{supabaseBootstrap.detail}</p>
+                  <p className={`mt-2 text-[12px] font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{supabaseBootstrap.label}</p>
+                  <p className={`mt-1 text-[11px] leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{supabaseBootstrap.detail}</p>
                 </div>
               </div>
             </details>
 
-            <div className="mt-4 rounded-[24px] border border-[#22342F] bg-[rgba(7,9,8,0.98)] p-4">
+            <div className={`mt-4 rounded-[24px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(7,9,8,0.98)]"}`}>
               <form onSubmit={handleSubmit} className="space-y-3">
                 <textarea
                   ref={composerRef}
@@ -3683,14 +3741,14 @@ const [uiToasts, setUiToasts] = useState([]);
                   onDrop={handleDrop}
                   rows={3}
                   placeholder="Converse com o Dotobot, delegue uma tarefa ou faça um handoff..."
-                  className="w-full resize-none rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-sm outline-none transition focus:border-[#C5A059]"
+                  className={`w-full resize-none rounded-[18px] border px-4 py-3 text-sm outline-none transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#152421] placeholder:text-[#94A3B8] focus:border-[#9A6E2D]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] focus:border-[#C5A059]"}`}
                 />
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => setWorkspaceOpen(true)}
-                      className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                      className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                     >
                       Abrir conversa completa
                     </button>
@@ -3708,14 +3766,14 @@ const [uiToasts, setUiToasts] = useState([]);
           </div>
         ) : !railCollapsed ? (
           <>
-            <div className="border-b border-[#22342F] px-4 py-3">
+            <div className={`border-b px-4 py-3 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
               <div className="flex flex-wrap gap-1.5 sm:gap-2">
                 {visibleLegalActions.slice(0, 2).map((action) => (
                   <button
                     key={action.label}
                     type="button"
                     onClick={() => handleQuickAction(action.prompt)}
-                    className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D9E0DB] transition hover:border-[#C5A059] hover:text-[#C5A059] sm:text-[11px]"
+                    className={`rounded-full border px-3 py-1.5 text-[10px] transition sm:text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D9E0DB] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                   >
                     {action.label}
                   </button>
@@ -3738,8 +3796,8 @@ const [uiToasts, setUiToasts] = useState([]);
                   ))}
                 </div>
               ) : (
-                <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 text-sm text-[#9BAEA8]">
-                  <p className="font-medium text-[#F5F1E8]">Pronto para operar.</p>
+                <div className={`rounded-[24px] border p-4 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
+                  <p className={`font-medium ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Pronto para operar.</p>
                   <p className="mt-2 leading-7">
                     Envie uma ordem, analise de caso, pedido de fluxo ou instrucao de treinamento. O Dotobot responde em PT-BR, com foco interno, seguranca juridica e proximos passos.
                   </p>
@@ -3752,37 +3810,37 @@ const [uiToasts, setUiToasts] = useState([]);
                 />
               ) : null}
               {localInferenceAlert && !messages.length ? (
-                <div className="rounded-[24px] border border-[#6f5a2d] bg-[rgba(98,79,34,0.16)] p-4 text-sm text-[#f1dfb5]">
-                  <p className="font-medium text-[#F5F1E8]">{localInferenceAlert.title}</p>
+                <div className={`rounded-[24px] border p-4 text-sm ${isLightTheme ? "border-[#E6D29A] bg-[#FFF8E8] text-[#8A6217]" : "border-[#6f5a2d] bg-[rgba(98,79,34,0.16)] text-[#f1dfb5]"}`}>
+                  <p className={`font-medium ${isLightTheme ? "text-[#6A4B12]" : "text-[#F5F1E8]"}`}>{localInferenceAlert.title}</p>
                   <p className="mt-2 leading-7">{localInferenceAlert.body}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => handleLocalStackAction("open_runtime_config")}
-                      className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                      className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                     >
                       Editar runtime local
                     </button>
                     <button
                       type="button"
                       onClick={() => handleLocalStackAction("open_ai_task")}
-                      className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                      className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                     >
                       Continuar via AI Task
                     </button>
                   </div>
                 </div>
               ) : null}
-              {error ? <p className="text-sm text-[#f2b2b2]">{error}</p> : null}
+              {error ? <p className={`text-sm ${isLightTheme ? "text-[#B94A48]" : "text-[#f2b2b2]"}`}>{error}</p> : null}
             </div>
 
-            <div className="border-t border-[#22342F] px-4 py-4">
+            <div className={`border-t px-4 py-4 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
               <div className="mb-3 flex flex-wrap gap-1.5 sm:gap-2">
                 {visibleQuickPrompts.map((prompt) => (
                   <button
                     key={prompt}
                     type="button"
-                    className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#C6D1CC] transition hover:border-[#C5A059] hover:text-[#C5A059] sm:text-[11px]"
+                    className={`rounded-full border px-3 py-1.5 text-[10px] transition sm:text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#C6D1CC] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                     onClick={() => setInput(prompt)}
                   >
                     {prompt}
@@ -3804,20 +3862,20 @@ const [uiToasts, setUiToasts] = useState([]);
                   rows={isCompactViewport ? 3 : 4}
                   disabled={isComposerBlocked}
                   placeholder="Descreva a tarefa, caso, ordem do administrador ou instrucao de treinamento..."
-                  className="w-full resize-y rounded-[22px] border border-[#22342F] bg-[rgba(7,9,8,0.98)] px-4 py-3 text-sm outline-none transition focus:border-[#C5A059] disabled:cursor-not-allowed disabled:opacity-50"
+                  className={`w-full resize-y rounded-[22px] border px-4 py-3 text-sm outline-none transition disabled:cursor-not-allowed disabled:opacity-50 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#152421] placeholder:text-[#94A3B8] focus:border-[#9A6E2D]" : "border-[#22342F] bg-[rgba(7,9,8,0.98)] focus:border-[#C5A059]"}`}
                 />
                 {composerBlockedReason ? (
-                  <p className="text-[11px] leading-5 text-[#f1dfb5]">{composerBlockedReason}</p>
+                  <p className={`text-[11px] leading-5 ${isLightTheme ? "text-[#8A6217]" : "text-[#f1dfb5]"}`}>{composerBlockedReason}</p>
                 ) : null}
 
                 {attachments.length ? (
                   <div className="flex flex-wrap gap-2">
                     {attachments.map((attachment) => (
-                      <div key={attachment.id} className="flex items-center gap-3 rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs text-[#C6D1CC]">
+                      <div key={attachment.id} className={`flex items-center gap-3 rounded-full border px-3 py-2 text-xs ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#C6D1CC]"}`}>
                         {attachment.previewUrl ? (
                           <img src={attachment.previewUrl} alt={attachment.name} className="h-8 w-8 rounded-lg object-cover" />
                         ) : (
-                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#22342F] text-[10px] uppercase text-[#9BAEA8]">
+                          <span className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border text-[10px] uppercase ${isLightTheme ? "border-[#D7DEE8] text-[#7B8B98]" : "border-[#22342F] text-[#9BAEA8]"}`}>
                             {attachment.kind}
                           </span>
                         )}
@@ -3831,19 +3889,19 @@ const [uiToasts, setUiToasts] = useState([]);
                 ) : null}
 
                 {showSlashCommands && input.trim().startsWith("/") ? (
-                  <div className="rounded-[22px] border border-[#22342F] bg-[rgba(7,9,8,0.98)] p-2">
+                  <div className={`rounded-[22px] border p-2 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(7,9,8,0.98)]"}`}>
                     {SLASH_COMMANDS.map((command) => (
                       <button
                         key={command.value}
                         type="button"
                         onClick={() => handleSlashCommand(command)}
-                        className="flex w-full items-start justify-between gap-4 rounded-2xl px-3 py-2 text-left text-xs text-[#C6D1CC] transition hover:bg-[rgba(255,255,255,0.03)]"
+                        className={`flex w-full items-start justify-between gap-4 rounded-2xl px-3 py-2 text-left text-xs transition ${isLightTheme ? "text-[#51606B] hover:bg-white" : "text-[#C6D1CC] hover:bg-[rgba(255,255,255,0.03)]"}`}
                       >
                         <span>
-                          <span className="font-semibold text-[#F5F1E8]">{command.label}</span>
-                          <span className="ml-2 text-[#9BAEA8]">{command.value}</span>
+                          <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{command.label}</span>
+                          <span className={`ml-2 ${isLightTheme ? "text-[#7B8B98]" : "text-[#9BAEA8]"}`}>{command.value}</span>
                         </span>
-                        <span className="max-w-[16rem] text-right text-[11px] text-[#9BAEA8]">{command.hint}</span>
+                        <span className={`max-w-[16rem] text-right text-[11px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#9BAEA8]"}`}>{command.hint}</span>
                       </button>
                     ))}
                   </div>
@@ -3851,16 +3909,16 @@ const [uiToasts, setUiToasts] = useState([]);
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={handleResetChat} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                    <button type="button" onClick={handleResetChat} className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
                       Limpar conversas
                     </button>
-                    <button type="button" onClick={handleOpenFiles} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                    <button type="button" onClick={handleOpenFiles} className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
                       Anexar arquivos
                     </button>
-                    <button type="button" onClick={toggleVoiceInput} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                    <button type="button" onClick={toggleVoiceInput} className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
                       {isRecording ? "Parar voz" : "Ditado"}
                     </button>
-                    <button type="button" onClick={() => composerRef.current?.focus()} className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                    <button type="button" onClick={() => composerRef.current?.focus()} className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
                       Cmd+K
                     </button>
                   </div>
@@ -3876,8 +3934,16 @@ const [uiToasts, setUiToasts] = useState([]);
       ) : null}
 
         {isWorkspaceShell ? (
-          <div className={`${embeddedInInternoShell ? suppressInnerChrome ? "relative min-h-0 h-full overflow-hidden" : "relative min-h-0 h-full overflow-hidden rounded-[28px] border border-[#1C2623] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.1),transparent_24%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.97))]" : "fixed inset-0 z-[70] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.14),transparent_26%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.96))] backdrop-blur-xl"} text-[#F4F1EA]`}>
-          <div className={`${embeddedInInternoShell ? "flex h-full w-full flex-col" : `ml-auto flex h-full ${workspaceShellWidthClass} flex-col border-l border-[#1C2623]/70 bg-[rgba(4,7,6,0.68)] shadow-[-24px_0_54px_rgba(0,0,0,0.24)]`} transition-[max-width,width] duration-300 ease-out`}>
+          <div className={`${embeddedInInternoShell
+            ? suppressInnerChrome
+              ? "relative min-h-0 h-full overflow-hidden"
+              : isLightTheme
+                ? "relative min-h-0 h-full overflow-hidden rounded-[28px] border border-[#D7DEE8] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.08),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,248,252,0.98))]"
+                : "relative min-h-0 h-full overflow-hidden rounded-[28px] border border-[#1C2623] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.1),transparent_24%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.97))]"
+            : isLightTheme
+              ? "fixed inset-0 z-[70] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.08),transparent_26%),linear-gradient(180deg,rgba(239,243,248,0.98),rgba(228,234,241,0.96))] backdrop-blur-xl"
+              : "fixed inset-0 z-[70] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.14),transparent_26%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.96))] backdrop-blur-xl"} ${isLightTheme ? "text-[#152421]" : "text-[#F4F1EA]"}`}>
+          <div className={`${embeddedInInternoShell ? "flex h-full w-full flex-col" : `ml-auto flex h-full ${workspaceShellWidthClass} flex-col ${isLightTheme ? "border-l border-[#D7DEE8] bg-[rgba(255,255,255,0.72)]" : "border-l border-[#1C2623]/70 bg-[rgba(4,7,6,0.68)]"} shadow-[-24px_0_54px_rgba(0,0,0,0.24)]`} transition-[max-width,width] duration-300 ease-out`}>
             <style jsx>{`
               .dotobot-panel-tab-enter {
                 opacity: 0;
@@ -3931,7 +3997,7 @@ const [uiToasts, setUiToasts] = useState([]);
               </div>
             ) : null}
             {!suppressInnerChrome ? (
-            <header className={`border-b border-[#22342F]/80 bg-[linear-gradient(180deg,rgba(11,14,13,0.82),rgba(7,10,9,0.78))] backdrop-blur-xl ${isFocusedCopilotShell ? "px-4 py-3 md:px-5" : "px-4 py-4 md:px-5"}`}>
+            <header className={`border-b backdrop-blur-xl ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,248,252,0.96))]" : "border-[#22342F]/80 bg-[linear-gradient(180deg,rgba(11,14,13,0.82),rgba(7,10,9,0.78))]"} ${isFocusedCopilotShell ? "px-4 py-3 md:px-5" : "px-4 py-4 md:px-5"}`}>
               {isFocusedCopilotShell ? (
                 <div className="flex flex-col gap-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -3941,24 +4007,24 @@ const [uiToasts, setUiToasts] = useState([]);
                           <span className={`h-2 w-2 rounded-full ${activeStatus === "processing" ? "bg-[#D9B46A]" : "bg-[#80C7A1]"}`} />
                           {activeStatus === "processing" ? "Processando" : "Online"}
                         </span>
-                        <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+                        <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                           {activeProjectLabel}
                         </span>
-                        <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+                        <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                           {messages.length} msg
                         </span>
                       </div>
-                      <p className="mt-3 truncate text-base font-semibold text-[#F5F1E8]">
+                      <p className={`mt-3 truncate text-base font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
                         {activeConversation?.title || "Nova conversa"}
                       </p>
-                      <p className="mt-1 text-sm leading-6 text-[#9BAEA8]">
+                      <p className={`mt-1 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                         Histórico à esquerda, conversa ao centro e módulos fixos na lateral direita.
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => router.push("/interno/ai-task")}
-                      className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                      className={`rounded-full border px-4 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                     >
                       Abrir AI Task
                     </button>
@@ -3971,8 +4037,12 @@ const [uiToasts, setUiToasts] = useState([]);
                         onClick={() => setMode(item.value)}
                         className={`rounded-full border px-3 py-1.5 text-[11px] font-medium transition ${
                           mode === item.value
-                            ? "border-[#C5A059] bg-[rgba(197,160,89,0.14)] text-[#F1D39A]"
-                            : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"
+                            ? isLightTheme
+                              ? "border-[#C79B2C] bg-[#FFF6DF] text-[#8A6217]"
+                              : "border-[#C5A059] bg-[rgba(197,160,89,0.14)] text-[#F1D39A]"
+                            : isLightTheme
+                              ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]"
+                              : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"
                         }`}
                       >
                         {item.label}
@@ -3980,9 +4050,9 @@ const [uiToasts, setUiToasts] = useState([]);
                     ))}
                     <select
                       value={provider}
-                      onChange={(event) => setProvider(event.target.value)}
+                      onChange={(event) => setProvider(normalizeWorkspaceProvider(event.target.value, providerCatalog))}
                       aria-label="Selecionar LLM do Copilot"
-                      className="h-9 rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-[11px] text-[#D8DEDA] outline-none transition focus:border-[#C5A059]"
+                      className={`h-9 rounded-full border px-4 text-[11px] outline-none transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] focus:border-[#9A6E2D]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA] focus:border-[#C5A059]"}`}
                     >
                       {providerCatalog.map((item) => (
                         <option key={item.value} value={item.value} disabled={item.disabled}>
@@ -3996,7 +4066,9 @@ const [uiToasts, setUiToasts] = useState([]);
                       className={`rounded-full border px-3 py-1.5 text-[11px] font-medium transition ${
                         contextEnabled
                           ? "border-[#3E5B50] bg-[rgba(64,122,97,0.16)] text-[#A9E3C3]"
-                          : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"
+                          : isLightTheme
+                            ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]"
+                            : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"
                       }`}
                     >
                       Contexto {contextEnabled ? "ON" : "OFF"}
@@ -4004,33 +4076,32 @@ const [uiToasts, setUiToasts] = useState([]);
                   </div>
                 </div>
               ) : null}
-              {!isFocusedCopilotShell ? (
               <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-2xl font-semibold tracking-[-0.03em] text-[#F5F1E8] md:text-[28px]">Dotobot</h2>
-                    {!isFocusedCopilotShell ? (
+                    <h2 className={`text-2xl font-semibold tracking-[-0.03em] md:text-[28px] ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Dotobot</h2>
+                    {!isConversationCentricShell ? (
                       <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] ${activeStatus === "processing" ? "border-[#8b6f33] text-[#D9B46A]" : "border-[#234034] text-[#80C7A1]"}`}>
                         <span className={`h-2 w-2 rounded-full ${activeStatus === "processing" ? "bg-[#D9B46A]" : "bg-[#80C7A1]"}`} />
                         {activeStatus === "processing" ? "Processando" : "Online"}
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-[#9BAEA8]">
-                    {isFocusedCopilotShell
-                      ? "Conversa centralizada com histórico à esquerda e módulos de apoio na lateral direita."
-                      : `${activeConversation?.title || "Nova conversa"} · conversa principal ao centro, historico e contexto como apoio.`}
+                  <p className={`mt-2 max-w-3xl text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
+                    {isConversationCentricShell
+                      ? `${activeConversation?.title || "Nova conversa"} · conversa central, histórico persistente à esquerda e módulos acoplados na lateral direita.`
+                      : `${activeConversation?.title || "Nova conversa"} · conversa principal ao centro, histórico e contexto como apoio.`}
                   </p>
-                  {!isFocusedCopilotShell ? (
+                  {!isConversationCentricShell ? (
                     <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
-                      <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#D8DEDA]">
+                      <span className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                         Provider: {activeProviderPresentation.name}
                       </span>
                       <span className={`rounded-full border px-3 py-1.5 ${localStackTone}`}>
                         {localStackLabel}
                       </span>
                       {activeProviderPresentation.meta.map((item) => (
-                        <span key={item} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#9BAEA8]">
+                        <span key={item} className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
                           {item}
                         </span>
                       ))}
@@ -4050,141 +4121,144 @@ const [uiToasts, setUiToasts] = useState([]);
                         </span>
                       ) : null}
                     </div>
-                  ) : null}
-                  {localStackSummary && !isFocusedCopilotShell ? (
-                    <p className="mt-2 max-w-3xl text-[11px] leading-6 text-[#7F928C]">
-                      {localStackReady
-                        ? `Runtime local pronto${localStackSummary.offlineMode ? " em offline" : ""}, servido por ${localStackSummary.localProvider?.model || "modelo local"}.`
-                        : "Runtime local ainda nao confirmado nesta sessao. Use o bootstrap offline local ou suba manualmente o ai-core."}
-                    </p>
-                  ) : null}
-                  {isFocusedCopilotShell ? (
+                  ) : (
                     <div className="mt-4 flex flex-wrap gap-2 text-[11px]">
-                      <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[#D8DEDA]">
+                      <span className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                         foco {activeProjectLabel}
                       </span>
                       <span className={`rounded-full border px-3 py-1.5 ${localStackTone}`}>
                         {localStackLabel}
                       </span>
+                      <span className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] bg-[rgba(7,9,8,0.72)] text-[#D8DEDA]"}`}>
+                        mensagens {messages.length}
+                      </span>
                     </div>
-                  ) : (
-                  <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                    <div className="rounded-[22px] border border-[#3C3320] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.14),transparent_60%),rgba(255,255,255,0.02)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#D9B46A]">Conversa operacional</p>
-                      <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{activeConversation?.title || "Nova conversa"}</p>
-                      <p className="mt-2 max-w-2xl line-clamp-3 text-sm leading-6 text-[#C6D1CC]">{activeConversationPreview}</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <span className="rounded-full border border-[#4B3F22] px-3 py-1.5 text-[11px] text-[#F1D39A]">
-                          histórico {filteredConversations.length}
-                        </span>
-                        <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
-                          mensagens {messages.length}
-                        </span>
-                        <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
-                          tarefas {taskHistory.length}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="rounded-[22px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Missão em foco</p>
-                      <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeTaskLabel}</p>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                        <span className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.72)] px-3 py-2 text-[11px] text-[#D8DEDA]">
-                          Provider {activeTaskProviderLabel}
-                        </span>
-                        <span className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.72)] px-3 py-2 text-[11px] text-[#D8DEDA]">
-                          Etapas {activeTaskStepCount}
-                        </span>
-                        <span className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.72)] px-3 py-2 text-[11px] text-[#D8DEDA]">
-                          Ativas {runningCount}
-                        </span>
-                      </div>
-                    </div>
-                    {!isFocusedCopilotShell ? <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Atalhos do cockpit</p>
-                          <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">Shell pronto para operar como painel lateral.</p>
-                        </div>
-                        <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D8DEDA]">
-                          {routePath === "/interno/copilot" ? "fullscreen ativo" : "painel lateral"}
-                        </span>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {COPILOT_QUICK_SHORTCUTS.map((item) => (
-                          <span key={item.id} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
-                            {item.label} · {item.detail}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="mt-3 grid gap-2 md:grid-cols-2">
-                        {cockpitCommandActions.map((action) => (
-                          <button
-                            key={action.id}
-                            type="button"
-                            onClick={action.onClick}
-                            className="flex items-center justify-between rounded-[16px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-left transition hover:border-[#C5A059] hover:bg-[rgba(197,160,89,0.06)]"
-                          >
-                            <span>
-                              <span className="block text-[11px] font-semibold text-[#F5F1E8]">{action.label}</span>
-                              <span className="mt-1 block text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">{action.hint}</span>
-                            </span>
-                            <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] text-[#D8DEDA]">Ir</span>
-                          </button>
-                        ))}
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {!notificationsEnabled ? (
-                          <button
-                            type="button"
-                            onClick={handleEnableNotifications}
-                            className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-                          >
-                            Ativar notificações
-                          </button>
-                        ) : (
-                          <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB]">
-                            Notificações ativas
-                          </span>
-                        )}
-                      </div>
-                    </div> : null}
-                  </div>
                   )}
-                  {localStackSummary?.recommendations?.length && !isFocusedCopilotShell ? (
+                  {localStackSummary && !isConversationCentricShell ? (
+                    <p className={`mt-2 max-w-3xl text-[11px] leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>
+                      {localStackReady
+                        ? `Runtime local pronto${localStackSummary.offlineMode ? " em offline" : ""}, servido por ${localStackSummary.localProvider?.model || "modelo local"}.`
+                        : "Runtime local ainda nao confirmado nesta sessao. Use o bootstrap offline local ou suba manualmente o ai-core."}
+                    </p>
+                  ) : null}
+                  {!isConversationCentricShell ? (
+                    <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                      <div className={`rounded-[22px] border p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#E6D29A] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_60%),#FFFDF7]" : "border-[#3C3320] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.14),transparent_60%),rgba(255,255,255,0.02)]"}`}>
+                        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#9A6E2D]" : "text-[#D9B46A]"}`}>Conversa operacional</p>
+                        <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeConversation?.title || "Nova conversa"}</p>
+                        <p className={`mt-2 max-w-2xl line-clamp-3 text-sm leading-6 ${isLightTheme ? "text-[#51606B]" : "text-[#C6D1CC]"}`}>{activeConversationPreview}</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#E6D29A] bg-[#FFF6DF] text-[#8A6217]" : "border-[#4B3F22] text-[#F1D39A]"}`}>
+                            histórico {filteredConversations.length}
+                          </span>
+                          <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
+                            mensagens {messages.length}
+                          </span>
+                          <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
+                            tarefas {taskHistory.length}
+                          </span>
+                        </div>
+                      </div>
+                      <div className={`rounded-[22px] border p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))]"}`}>
+                        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Missão em foco</p>
+                        <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeTaskLabel}</p>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                          <span className={`rounded-[16px] border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] bg-[rgba(7,9,8,0.72)] text-[#D8DEDA]"}`}>
+                            Provider {activeTaskProviderLabel}
+                          </span>
+                          <span className={`rounded-[16px] border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] bg-[rgba(7,9,8,0.72)] text-[#D8DEDA]"}`}>
+                            Etapas {activeTaskStepCount}
+                          </span>
+                          <span className={`rounded-[16px] border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] bg-[rgba(7,9,8,0.72)] text-[#D8DEDA]"}`}>
+                            Ativas {runningCount}
+                          </span>
+                        </div>
+                      </div>
+                      <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Atalhos do cockpit</p>
+                            <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Shell pronto para operar como painel lateral.</p>
+                          </div>
+                          <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
+                            {routePath === "/interno/copilot" ? "fullscreen ativo" : "painel lateral"}
+                          </span>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {COPILOT_QUICK_SHORTCUTS.map((item) => (
+                            <span key={item.id} className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
+                              {item.label} · {item.detail}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="mt-3 grid gap-2 md:grid-cols-2">
+                          {cockpitCommandActions.map((action) => (
+                            <button
+                              key={action.id}
+                              type="button"
+                              onClick={action.onClick}
+                              className={`flex items-center justify-between rounded-[16px] border px-3 py-2 text-left transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] hover:border-[#C79B2C] hover:bg-[#FFF8EA]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#C5A059] hover:bg-[rgba(197,160,89,0.06)]"}`}
+                            >
+                              <span>
+                                <span className={`block text-[11px] font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{action.label}</span>
+                                <span className={`mt-1 block text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{action.hint}</span>
+                              </span>
+                              <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>Ir</span>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {!notificationsEnabled ? (
+                            <button
+                              type="button"
+                              onClick={handleEnableNotifications}
+                              className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
+                            >
+                              Ativar notificações
+                            </button>
+                          ) : (
+                            <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB]">
+                              Notificações ativas
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                  {localStackSummary?.recommendations?.length && !isConversationCentricShell ? (
                     <div className="mt-2 flex max-w-3xl flex-wrap gap-2 text-[11px]">
                       {localStackSummary.recommendations.slice(0, 3).map((item) => (
-                        <span key={item} className="rounded-full border border-[#3B3523] bg-[rgba(197,160,89,0.08)] px-3 py-1.5 text-[#D9C38A]">
+                        <span key={item} className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#E6D29A] bg-[#FFF8EA] text-[#8A6217]" : "border-[#3B3523] bg-[rgba(197,160,89,0.08)] text-[#D9C38A]"}`}>
                           {item}
                         </span>
                       ))}
                     </div>
                   ) : null}
-                  {localStackSummary?.actions?.length && !isFocusedCopilotShell ? (
+                  {localStackSummary?.actions?.length && !isConversationCentricShell ? (
                     <div className="mt-2 flex max-w-3xl flex-wrap gap-2">
                       {localStackSummary.actions.slice(0, 3).map((action) => (
                         <button
                           key={action.id}
                           type="button"
                           onClick={() => handleLocalStackAction(action.id)}
-                          className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                         >
                           {action.label}
                         </button>
                       ))}
                     </div>
                   ) : null}
-                  {activeProviderPresentation.reason && !isFocusedCopilotShell ? (
-                    <p className="mt-2 max-w-3xl text-[11px] leading-6 text-[#7F928C]">{activeProviderPresentation.reason}</p>
+                  {activeProviderPresentation.reason && !isConversationCentricShell ? (
+                    <p className={`mt-2 max-w-3xl text-[11px] leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>{activeProviderPresentation.reason}</p>
                   ) : null}
-                  {ragAlert && !isFocusedCopilotShell ? (
+                  {ragAlert && !isConversationCentricShell ? (
                     <div className={`mt-4 max-w-3xl rounded-[20px] border px-4 py-3 text-sm ${
                       ragAlert.tone === "danger"
                         ? "border-[#5b2d2d] bg-[rgba(91,45,45,0.22)] text-[#f2d0d0]"
                         : "border-[#6f5a2d] bg-[rgba(98,79,34,0.2)] text-[#f1dfb5]"
                     }`}>
                       <p className="text-[10px] uppercase tracking-[0.18em] opacity-80">Diagnóstico RAG</p>
-                      <p className="mt-2 font-medium text-[#F5F1E8]">{ragAlert.title}</p>
+                      <p className={`mt-2 font-medium ${isLightTheme ? "text-[#6A4B12]" : "text-[#F5F1E8]"}`}>{ragAlert.title}</p>
                       <p className="mt-1 leading-6">{ragAlert.body}</p>
                       <div className="mt-3">
                         <button
@@ -4200,25 +4274,27 @@ const [uiToasts, setUiToasts] = useState([]);
                 </div>
 
                 <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row lg:flex-wrap lg:items-center">
-                  {!isFocusedCopilotShell ? MODE_OPTIONS.map((item) => (
+                  {!isConversationCentricShell ? MODE_OPTIONS.map((item) => (
                     <button
                       key={item.value}
-                      type="button"
-                      onClick={() => setMode(item.value)}
-                      className={`rounded-full border px-4 py-2 text-xs font-medium transition ${
-                        mode === item.value
-                          ? "border-[#C5A059] bg-[#C5A059] text-[#07110E]"
-                          : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
-                      }`}
+                        type="button"
+                        onClick={() => setMode(item.value)}
+                        className={`rounded-full border px-4 py-2 text-xs font-medium transition ${
+                          mode === item.value
+                            ? "border-[#C5A059] bg-[#C5A059] text-[#07110E]"
+                          : isLightTheme
+                            ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]"
+                            : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
+                        }`}
                     >
                       {item.label}
                     </button>
                   )) : null}
-                  {!isFocusedCopilotShell ? <select
+                  {!isConversationCentricShell ? <select
                     value={provider}
-                    onChange={(event) => setProvider(event.target.value)}
+                    onChange={(event) => setProvider(normalizeWorkspaceProvider(event.target.value, providerCatalog))}
                     aria-label="Selecionar LLM do Copilot"
-                    className="h-10 w-full rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-xs text-[#D8DEDA] outline-none transition focus:border-[#C5A059] lg:w-auto"
+                    className={`h-10 w-full rounded-full border px-4 text-xs outline-none transition lg:w-auto ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] focus:border-[#9A6E2D]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA] focus:border-[#C5A059]"}`}
                   >
                     {providerCatalog.map((item) => (
                       <option key={item.value} value={item.value} disabled={item.disabled}>
@@ -4226,11 +4302,11 @@ const [uiToasts, setUiToasts] = useState([]);
                       </option>
                     ))}
                   </select> : null}
-                  {!isFocusedCopilotShell ? <select
+                  {!isConversationCentricShell ? <select
                     value={selectedSkillId}
                     onChange={(event) => setSelectedSkillId(event.target.value)}
                     aria-label="Selecionar skill do Copilot"
-                    className="h-10 w-full rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-xs text-[#D8DEDA] outline-none transition focus:border-[#C5A059] lg:w-auto"
+                    className={`h-10 w-full rounded-full border px-4 text-xs outline-none transition lg:w-auto ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] focus:border-[#9A6E2D]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA] focus:border-[#C5A059]"}`}
                   >
                     <option value="">Skill automática</option>
                     {skillCatalog.map((item) => (
@@ -4239,7 +4315,7 @@ const [uiToasts, setUiToasts] = useState([]);
                       </option>
                     ))}
                   </select> : null}
-                  {isFocusedCopilotShell ? (
+                  {isConversationCentricShell ? (
                     <div className="flex flex-wrap gap-2">
                       <span className={`rounded-full border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] bg-[rgba(7,9,8,0.72)] text-[#D8DEDA]"}`}>
                         Conversa centralizada
@@ -4249,14 +4325,16 @@ const [uiToasts, setUiToasts] = useState([]);
                       </span>
                     </div>
                   ) : null}
-                  {!isFocusedCopilotShell ? (
+                  {!isConversationCentricShell ? (
                   <button
                     type="button"
                     onClick={() => setContextEnabled((value) => !value)}
                     className={`rounded-full border px-4 py-2 text-xs font-medium transition ${
                       contextEnabled
                         ? "border-[#3E5B50] bg-[rgba(64,122,97,0.16)] text-[#A9E3C3]"
-                        : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
+                        : isLightTheme
+                          ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]"
+                          : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
                     }`}
                   >
                     Contexto {contextEnabled ? "ON" : "OFF"}
@@ -4265,11 +4343,11 @@ const [uiToasts, setUiToasts] = useState([]);
                   <button
                     type="button"
                     onClick={() => router.push("/interno/ai-task")}
-                    className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                    className={`rounded-full border px-4 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                   >
                     Abrir no AI Task
                   </button>
-                  {!isFocusedCopilotShell ? [
+                  {!isConversationCentricShell ? [
                     { id: "snap", label: "Snap" },
                     { id: "balanced", label: "Balanceado" },
                     { id: "immersive", label: "Imersivo" },
@@ -4292,18 +4370,22 @@ const [uiToasts, setUiToasts] = useState([]);
                       }}
                       className={`rounded-full border px-4 py-2 text-xs font-medium transition ${
                         workspaceLayoutMode === item.id
-                          ? "border-[#C5A059] bg-[rgba(197,160,89,0.12)] text-[#F1D39A]"
-                          : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
+                          ? isLightTheme
+                            ? "border-[#C79B2C] bg-[#FFF6DF] text-[#8A6217]"
+                            : "border-[#C5A059] bg-[rgba(197,160,89,0.12)] text-[#F1D39A]"
+                          : isLightTheme
+                            ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]"
+                            : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
                       }`}
                     >
                       {item.label}
                     </button>
                   )) : null}
-                  {!isFocusedCopilotShell ? (
+                  {!isConversationCentricShell ? (
                   <button
                     type="button"
                     onClick={() => openLlmTest(provider, input)}
-                    className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                    className={`rounded-full border px-4 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                   >
                     Testar provider
                   </button>
@@ -4312,27 +4394,27 @@ const [uiToasts, setUiToasts] = useState([]);
                     <button
                       type="button"
                       onClick={() => setWorkspaceOpen(false)}
-                      className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                      className={`rounded-full border px-4 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                     >
                       Fechar
                     </button>
                   ) : null}
                 </div>
               </div>
-              ) : null}
             </header>
             ) : null}
 
             <div className={`flex-1 overflow-hidden ${focusedShellContentClass}`}>
               <div className={`grid h-full min-h-0 transition-all duration-300 ease-out ${workspaceGridGapClass} ${workspaceShellGridClass}`}>
-                <aside className={`hidden lg:flex min-h-0 flex-col overflow-hidden ${leftRailShellClass}`}>
+                {!isRailConversationShell ? (
+                <aside className={`${isFocusedCopilotShell ? "flex" : "hidden lg:flex"} min-h-0 flex-col overflow-hidden ${leftRailShellClass}`}>
                   <div className={`border-b px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Historico</p>
                         <p className={`mt-1 text-sm ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                          {isFocusedCopilotShell
-                            ? "Conversas, busca contextual e agrupamento por projeto no mesmo padrão de um workspace conversacional."
+                          {isConversationCentricShell
+                            ? "Conversas persistidas, busca contextual e agrupamento por projeto com leitura limpa."
                             : "Histórico enxuto para retomar contexto sem competir com a conversa central."}
                         </p>
                       </div>
@@ -4370,13 +4452,13 @@ const [uiToasts, setUiToasts] = useState([]);
                           foco {activeProjectLabel}
                         </span>
                       </div>
-                      <div className="mt-2 flex gap-2">
+                      <div className="mt-2 flex flex-wrap gap-2">
                         <select
                           value={conversationSort}
                           onChange={e => setConversationSort(e.target.value)}
                           className={`rounded-xl border px-2 py-1 text-xs outline-none transition ${
                             isLightTheme
-                              ? "border-[#D7DEE8] bg-white text-[#9A6E2D] focus:border-[#9A6E2D]"
+                              ? "border-[#D7DEE8] bg-white text-[#51606B] focus:border-[#9A6E2D]"
                               : "border-[#22342F] bg-[#181B19] text-[#C5A059] focus:border-[#C5A059]"
                           }`}
                         >
@@ -4389,7 +4471,7 @@ const [uiToasts, setUiToasts] = useState([]);
                           onChange={(event) => setSelectedProjectFilter(event.target.value)}
                           className={`rounded-xl border px-2 py-1 text-xs outline-none transition ${
                             isLightTheme
-                              ? "border-[#D7DEE8] bg-white text-[#9A6E2D] focus:border-[#9A6E2D]"
+                              ? "border-[#D7DEE8] bg-white text-[#51606B] focus:border-[#9A6E2D]"
                               : "border-[#22342F] bg-[#181B19] text-[#C5A059] focus:border-[#C5A059]"
                           }`}
                         >
@@ -4400,7 +4482,7 @@ const [uiToasts, setUiToasts] = useState([]);
                             </option>
                           ))}
                         </select>
-                        <label className={`flex cursor-pointer items-center gap-1 text-xs ${isLightTheme ? "text-[#9A6E2D]" : "text-[#C5A059]"}`}>
+                        <label className={`flex cursor-pointer items-center gap-1 text-xs ${isLightTheme ? "text-[#6B7C88]" : "text-[#C5A059]"}`}>
                           <input
                             type="checkbox"
                             checked={showArchived}
@@ -4426,7 +4508,7 @@ const [uiToasts, setUiToasts] = useState([]);
                         <section
                           key={group.key}
                           className={
-                            isFocusedCopilotShell
+                            isConversationCentricShell
                               ? `border-b px-1 pb-3 pt-1 ${isLightTheme ? "border-[#E3E8EF]" : "border-[#17211E]"}`
                               : `rounded-[20px] border p-2 ${isLightTheme ? "border-[#D7DEE8] bg-[rgba(255,255,255,0.92)]" : "border-[#22342F] bg-[rgba(255,255,255,0.015)]"}`
                           }
@@ -4447,7 +4529,7 @@ const [uiToasts, setUiToasts] = useState([]);
                                 <article
                                   key={conversation.id}
                                   className={
-                                    isFocusedCopilotShell
+                                    isConversationCentricShell
                                       ? `rounded-[18px] border px-3 py-3 transition ${
                                           active
                                             ? isLightTheme
@@ -4515,7 +4597,7 @@ const [uiToasts, setUiToasts] = useState([]);
                     )}
                   </div>
 
-                  <footer className={`shrink-0 border-t px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8] bg-[rgba(255,255,255,0.96)]" : "border-[#22342F] bg-[rgba(12,15,14,0.95)]"} ${isFocusedCopilotShell ? "sticky bottom-0" : ""}`}>
+                  <footer className={`shrink-0 border-t px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8] bg-[rgba(255,255,255,0.96)]" : "border-[#22342F] bg-[rgba(12,15,14,0.95)]"} ${isConversationCentricShell ? "sticky bottom-0" : ""}`}>
                     <div className="flex items-center gap-3">
                       <div className={`flex h-11 w-11 items-center justify-center rounded-full border text-sm font-semibold ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#152421]" : "border-[#22342F] bg-[rgba(255,255,255,0.03)] text-[#F5F1E8]"}`}>
                         {(profile?.full_name || profile?.email || "HM").slice(0, 2).toUpperCase()}
@@ -4525,13 +4607,13 @@ const [uiToasts, setUiToasts] = useState([]);
                         <p className={`text-xs ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{profile?.role || "Equipe interna"}</p>
                       </div>
                     </div>
-                    <div className={`mt-4 grid gap-2 text-xs ${isFocusedCopilotShell ? "grid-cols-1" : "grid-cols-2"}`}>
-                      {!isFocusedCopilotShell ? (
+                    <div className={`mt-4 grid gap-2 text-xs ${isConversationCentricShell ? "grid-cols-1" : "grid-cols-2"}`}>
+                      {!isConversationCentricShell ? (
                         <a href="/interno" className={`rounded-2xl border px-3 py-2 text-center transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
                           Dashboard
                         </a>
                       ) : null}
-                      {!isFocusedCopilotShell ? (
+                      {!isConversationCentricShell ? (
                         <button
                           type="button"
                           onClick={() => router.push("/interno/agentlab")}
@@ -4545,47 +4627,72 @@ const [uiToasts, setUiToasts] = useState([]);
                         onClick={handleResetChat}
                         className={`rounded-2xl border px-3 py-2 text-center transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                       >
-                        Nova sessão
+                        {isConversationCentricShell ? "Nova conversa" : "Nova sessão"}
                       </button>
                     </div>
                     <p className={`mt-4 text-[11px] leading-5 ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
-                      {isFocusedCopilotShell
-                        ? "Sidebar esquerda dedicada a retomada de contexto, concatenação e navegação por projetos."
+                      {isConversationCentricShell
+                        ? "Coluna esquerda dedicada ao histórico, concatenação de diálogos e retomada rápida de contexto."
                         : "Histórico lateral focado em retomada rápida, sem excesso de ações simultâneas."}
                     </p>
                   </footer>
                 </aside>
+                ) : null}
 
                 <section className={`flex min-h-0 flex-col ${centerShellClass}`}>
                   <div className={`border-b px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Conversa</p>
-                        <p className={`mt-2 truncate text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
-                          {activeConversation?.title || "Nova conversa"}
-                        </p>
-                        <p className={`mt-1 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                          {isFocusedCopilotShell
-                            ? "Área principal dedicada à conversa ativa, com histórico e módulos fixos nas laterais."
-                            : "Conversa principal com contexto, execução assistida e handoff operacional."}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                          {activeProjectLabel}
-                        </span>
-                        {!isFocusedCopilotShell ? visibleLegalActions.slice(0, 3).map((action) => (
+                    {isConversationCentricShell ? (
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Conversa</p>
+                          <p className={`mt-2 truncate text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
+                            {activeConversation?.title || "Nova conversa"}
+                          </p>
+                          <div className={`mt-2 flex flex-wrap items-center gap-2 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
+                            <span className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
+                              {activeProjectLabel}
+                            </span>
+                            <span>{messages.length} mensagem(ns)</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
                           <button
-                            key={action.label}
                             type="button"
-                            onClick={() => handleQuickAction(action.prompt)}
+                            onClick={() => setRightPanelTab("agentlabs")}
                             className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                           >
-                            {action.label}
+                            AgentLabs
                           </button>
-                        )) : null}
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Conversa</p>
+                          <p className={`mt-2 truncate text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
+                            {activeConversation?.title || "Nova conversa"}
+                          </p>
+                          <p className={`mt-1 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
+                            Conversa principal com contexto, execução assistida e handoff operacional.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
+                            {activeProjectLabel}
+                          </span>
+                          {visibleLegalActions.slice(0, 3).map((action) => (
+                            <button
+                              key={action.label}
+                              type="button"
+                              onClick={() => handleQuickAction(action.prompt)}
+                              className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
+                            >
+                              {action.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-5">
@@ -4616,21 +4723,21 @@ const [uiToasts, setUiToasts] = useState([]);
                         />
                       ) : null}
                       {localInferenceAlert && !messages.length ? (
-                        <div className="rounded-[20px] border border-[#6f5a2d] bg-[rgba(98,79,34,0.16)] p-5 text-sm text-[#f1dfb5]">
-                          <p className="text-base font-semibold text-[#F5F1E8]">{localInferenceAlert.title}</p>
+                        <div className={`rounded-[20px] border p-5 text-sm ${isLightTheme ? "border-[#E6D29A] bg-[#FFF8E8] text-[#8A6217]" : "border-[#6f5a2d] bg-[rgba(98,79,34,0.16)] text-[#f1dfb5]"}`}>
+                          <p className={`text-base font-semibold ${isLightTheme ? "text-[#6A4B12]" : "text-[#F5F1E8]"}`}>{localInferenceAlert.title}</p>
                           <p className="mt-2 leading-6">{localInferenceAlert.body}</p>
                           <div className="mt-3 flex flex-wrap gap-2">
                             <button
                               type="button"
                               onClick={() => handleLocalStackAction("open_runtime_config")}
-                              className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                              className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                             >
                               Editar runtime local
                             </button>
                             <button
                               type="button"
                               onClick={() => handleLocalStackAction("open_ai_task")}
-                              className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
+                              className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                             >
                               Continuar via AI Task
                             </button>
@@ -4638,7 +4745,7 @@ const [uiToasts, setUiToasts] = useState([]);
                         </div>
                       ) : null}
                       {error ? (
-                        <div className="rounded-[24px] border border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] px-4 py-3 text-sm text-[#f2b2b2]">
+                        <div className={`rounded-[24px] border px-4 py-3 text-sm ${isLightTheme ? "border-[#E9B4B4] bg-[#FFF1F1] text-[#B94A48]" : "border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] text-[#f2b2b2]"}`}>
                           {error}
                         </div>
                       ) : null}
@@ -4647,15 +4754,20 @@ const [uiToasts, setUiToasts] = useState([]);
 
                   <div className={`shrink-0 border-t px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
                     <div className={focusedConversationColumnClass}>
+                    {!isConversationCentricShell ? (
                     <div className="mb-3 flex flex-wrap gap-2">
                       {visibleQuickPrompts.map((prompt) => (
                         <button
                           key={prompt}
                           type="button"
                           className={`rounded-full border px-3 py-1.5 text-[11px] transition ${
-                            isFocusedCopilotShell
-                              ? "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"
-                              : "border-[#22342F] text-[#C6D1CC] hover:border-[#C5A059] hover:text-[#C5A059]"
+                            isConversationCentricShell
+                              ? isLightTheme
+                                ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]"
+                                : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"
+                              : isLightTheme
+                                ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]"
+                                : "border-[#22342F] text-[#C6D1CC] hover:border-[#C5A059] hover:text-[#C5A059]"
                           }`}
                           onClick={() => setInput(prompt)}
                         >
@@ -4663,17 +4775,18 @@ const [uiToasts, setUiToasts] = useState([]);
                         </button>
                       ))}
                     </div>
+                    ) : null}
                     <form onSubmit={handleSubmit} className="space-y-3">
                       <div className={`rounded-[20px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1C2623] bg-[rgba(7,9,8,0.98)]"}`} onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}>
                         <div className={`mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
                           <div className="flex flex-wrap items-center gap-2">
                             <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>
-                              {isFocusedCopilotShell ? "Conversa ativa" : `/${showSlashCommands ? "comandos ativos" : "comandos"}`}
+                              {isConversationCentricShell ? "Conversa ativa" : `/${showSlashCommands ? "comandos ativos" : "comandos"}`}
                             </span>
-                            {!isFocusedCopilotShell ? (
+                            {!isConversationCentricShell ? (
                               <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>Enter envia</span>
                             ) : null}
-                            {!isFocusedCopilotShell ? (
+                            {!isConversationCentricShell ? (
                               <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>Shift+Enter quebra</span>
                             ) : null}
                           </div>
@@ -4697,11 +4810,11 @@ const [uiToasts, setUiToasts] = useState([]);
                           onPaste={handlePaste}
                           rows={4}
                           disabled={isComposerBlocked}
-                          placeholder={isFocusedCopilotShell ? "Converse com o Dotobot, continue um contexto ou delegue uma ação..." : "Pergunte, delegue uma tarefa ou cole o contexto que precisa operar..."}
+                          placeholder={isConversationCentricShell ? "Converse com o Dotobot, continue um contexto ou delegue uma ação..." : "Pergunte, delegue uma tarefa ou cole o contexto que precisa operar..."}
                           className={`w-full resize-none border-0 bg-transparent px-1 py-1 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50 ${isLightTheme ? "text-[#152421] placeholder:text-[#94A3B8]" : "placeholder:text-[#60706A]"}`}
                         />
                         {composerBlockedReason ? (
-                          <p className="mt-2 px-1 text-[11px] leading-5 text-[#f1dfb5]">{composerBlockedReason}</p>
+                          <p className={`mt-2 px-1 text-[11px] leading-5 ${isLightTheme ? "text-[#8A6217]" : "text-[#f1dfb5]"}`}>{composerBlockedReason}</p>
                         ) : null}
 
                         {attachments.length ? (
@@ -4743,7 +4856,7 @@ const [uiToasts, setUiToasts] = useState([]);
 
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex flex-wrap gap-2">
-                          {!isFocusedCopilotShell ? (
+                          {!isConversationCentricShell ? (
                             <button type="button" onClick={handleResetChat} className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
                               Limpar
                             </button>
@@ -4751,7 +4864,7 @@ const [uiToasts, setUiToasts] = useState([]);
                           <button type="button" onClick={() => router.push("/interno/ai-task")} className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
                             AI Task
                           </button>
-                          {!isFocusedCopilotShell ? (
+                          {!isConversationCentricShell ? (
                           <button type="button" onClick={() => openLlmTest(provider, input)} className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
                             LLM Test
                           </button>
@@ -4766,7 +4879,8 @@ const [uiToasts, setUiToasts] = useState([]);
                   </div>
                 </section>
 
-                <aside className={`hidden lg:block min-h-0 overflow-hidden ${rightRailShellClass}`}>
+                {!isRailConversationShell ? (
+                <aside className={`${isFocusedCopilotShell ? "block" : "hidden lg:block"} min-h-0 overflow-hidden ${rightRailShellClass}`}>
                   <div className={`border-b px-4 py-4 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
                     <div className="flex flex-col gap-3">
                       <div>
@@ -4795,15 +4909,13 @@ const [uiToasts, setUiToasts] = useState([]);
                           >
                             AI Task
                           </button>
-                          {!isFocusedCopilotShell ? (
-                            <button
-                              type="button"
-                              onClick={() => setRightPanelTab("agentlabs")}
-                              className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "agentlabs" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#9A6E2D] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"}`}
-                            >
-                              AgentLabs
-                            </button>
-                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => setRightPanelTab("agentlabs")}
+                            className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "agentlabs" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#9A6E2D] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"}`}
+                          >
+                            AgentLabs
+                          </button>
                         {!isFocusedCopilotShell ? (
                           <button
                             type="button"
@@ -4881,50 +4993,6 @@ const [uiToasts, setUiToasts] = useState([]);
                             </article>
                           ))}
                         </div>
-                        {isFocusedCopilotShell ? (
-                          <>
-                            <div className="rounded-[18px] border border-[#35554B] bg-[rgba(12,22,19,0.72)] p-4">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">AI Task</p>
-                                  <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{activeTaskLabel}</p>
-                                  <p className="mt-2 text-xs leading-5 text-[#9BAEA8]">
-                                    {activeTask
-                                      ? `${activeTaskStepCount} etapa(s) em andamento com ${activeTaskProviderLabel}.`
-                                      : "Nenhuma missão ativa. A conversa atual pode ser enviada ao AI Task quando precisar de execução em etapas."}
-                                  </p>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setRightPanelTab("ai-task")}
-                                  className="rounded-full border border-[#35554B] px-3 py-1.5 text-[11px] text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
-                                >
-                                  Abrir
-                                </button>
-                              </div>
-                            </div>
-                            <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">AgentLabs</p>
-                                  <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">
-                                    {agentLabSubagents.length} subagente(s) · {agentLabConversationSummary.total || 0} thread(s)
-                                  </p>
-                                  <p className="mt-2 text-xs leading-5 text-[#9BAEA8]">
-                                    Saúde {agentLabEnvironment.mode || "n/a"} com {agentLabOverview.queueItems || 0} item(ns) na fila e {agentLabIncidentsSummary.open || 0} incidente(s) abertos.
-                                  </p>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => router.push("/interno/agentlab")}
-                                  className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                                >
-                                  Abrir
-                                </button>
-                              </div>
-                            </div>
-                          </>
-                        ) : null}
                       </div>
                     ) : rightPanelTab === "ai-task" ? (
                       <div className="space-y-3">
@@ -4975,7 +5043,7 @@ const [uiToasts, setUiToasts] = useState([]);
                               onClick={() => router.push("/interno/ai-task")}
                               className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                             >
-                              Abrir cockpit
+                              Abrir workspace
                             </button>
                           </div>
                         </div>
@@ -5445,6 +5513,7 @@ const [uiToasts, setUiToasts] = useState([]);
                     </CSSTransition>
                   </TransitionGroup>
                 </aside>
+                ) : null}
               </div>
             </div>
           </div>

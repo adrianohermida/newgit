@@ -558,6 +558,65 @@ def _normalize_message_text(payload: dict[str, Any]) -> str:
     return _ensure_query(payload.get('query') or payload.get('prompt') or payload.get('input'))
 
 
+def _is_provider_memory_error(error: Exception) -> bool:
+    message = str(error or '').strip().lower()
+    return 'requires more system memory' in message or 'memória' in message or 'memory' in message
+
+
+def _build_degraded_local_messages_response(
+    payload: dict[str, Any],
+    error: Exception,
+) -> dict[str, Any]:
+    text = _normalize_message_text(payload)
+    context = payload.get('context') if isinstance(payload.get('context'), dict) else {}
+    fallback_message = (
+        "O runtime local ficou sem memória para executar o modelo configurado. "
+        "O Dotobot respondeu em modo degradado com orientação operacional até o provider local ser estabilizado."
+    )
+
+    execute_payload = None
+    response_text = fallback_message
+    try:
+        execute_payload = execute_request(ExecuteRequest(query=text, context=context))
+        result = execute_payload.get('result') if isinstance(execute_payload, dict) else {}
+        if isinstance(result, dict):
+            execute_text = (
+                _get_clean(result.get('message'))
+                or _get_clean(result.get('final_output'))
+                or _get_clean(result.get('output'))
+                or ''
+            )
+            if execute_text and 'No tool selected; step processed as reasoning-only action.' not in execute_text:
+                response_text = f"{fallback_message}\n\n{execute_text}".strip()
+        elif isinstance(result, str) and result.strip():
+            if 'No tool selected; step processed as reasoning-only action.' not in result:
+                response_text = f"{fallback_message}\n\n{result.strip()}".strip()
+    except Exception:
+        execute_payload = None
+
+    return {
+        'id': 'msg_local_degraded',
+        'type': 'message',
+        'role': 'assistant',
+        'model': payload.get('model') or 'local-degraded-fallback',
+        'content': [{'type': 'text', 'text': response_text}],
+        'usage': {},
+        'request_id': 'msg_local_degraded',
+        'metadata': {
+            'provider': 'local',
+            'requested_model': _get_clean(payload.get('model')),
+            'effective_model': None,
+            'resolved_model': None,
+            'transport_default_model': None,
+            'route': 'degraded_execute_fallback',
+            'transport_endpoint': None,
+            'degraded': True,
+            'fallback_reason': str(error),
+            'execute_payload': execute_payload,
+        },
+    }
+
+
 def _resolve_runtime_provider(payload: dict[str, Any], env: Mapping[str, Any]) -> str:
     explicit = _get_clean(payload.get('provider'))
     if explicit in {'local', 'cloud'}:
@@ -872,7 +931,12 @@ def messages_json(payload: dict[str, Any], env: Mapping[str, Any] | None = None)
     if _is_offline_mode(runtime_env) and provider_id != 'local':
         raise RuntimeError(f"Offline mode is active. Provider '{provider_id}' is blocked.")
     config = build_local_provider_config(runtime_env) if provider_id == 'local' else build_cloud_provider_config(runtime_env)
-    return _invoke_compatible_provider(config, payload)
+    try:
+        return _invoke_compatible_provider(config, payload)
+    except RuntimeError as error:
+        if provider_id == 'local' and _is_provider_memory_error(error):
+            return _build_degraded_local_messages_response(payload, error)
+        raise
 
 
 def browser_execute_json(payload: dict[str, Any], env: Mapping[str, Any] | None = None) -> dict[str, Any]:

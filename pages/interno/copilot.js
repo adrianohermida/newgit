@@ -11,7 +11,6 @@ export default function InternoCopilotPage() {
           title="Copilot"
           description="Workspace conversacional do Dotobot integrado ao shell interno, com histórico à esquerda, chat central e módulos operacionais na lateral direita."
           hideDotobotRail={true}
-          hideShellSidebar={true}
         >
           <div className="min-h-0 flex-1 overflow-hidden">
             <CopilotWorkspace profile={profile} />

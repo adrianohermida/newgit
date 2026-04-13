@@ -7,7 +7,11 @@ import {
   subscribeActivityLog,
   updateActivityLog,
 } from "../lib/admin/activity-log";
-import { invokeBrowserLocalMessages, isBrowserLocalProvider } from "../lib/lawdesk/browser-local-runtime";
+import {
+  invokeBrowserLocalMessages,
+  isBrowserLocalProvider,
+  shouldAutoProbeBrowserLocalRuntime,
+} from "../lib/lawdesk/browser-local-runtime";
 import { formatLawdeskProviderLabel } from "../lib/lawdesk/providers";
 import {
   applyLlmTestConsoleFilters,
@@ -27,6 +31,12 @@ const FALLBACK_PROVIDER_CATALOG = [
   { id: "cloudflare", label: "Cloudflare Workers AI", available: false, configured: false, transport: "workers_ai_direct" },
   { id: "custom", label: "Endpoint custom", available: false, configured: false, transport: "custom_llm_api" },
 ];
+
+function resolveLlmTestProvider(provider, catalog = []) {
+  if (!isBrowserLocalProvider(provider)) return provider;
+  if (shouldAutoProbeBrowserLocalRuntime()) return provider;
+  return catalog.find((item) => item.id !== "local" && item.available)?.id || "gpt";
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -501,7 +511,15 @@ export default function LLMTestChat() {
         const defaultProvider = typeof payload?.data?.defaultProvider === "string" ? payload.data.defaultProvider : "gpt";
         setProvidersHealth(payload?.data?.health || { loaded: true, status: "failed", providers: [], summary: { total: providers.length, operational: 0, configured: 0, failed: providers.length } });
         setProviderCatalog(providers.length ? providers : FALLBACK_PROVIDER_CATALOG);
-        setProvider((current) => current || providers.find((item) => item.id === "local" && item.available)?.id || providers.find((item) => item.available)?.id || defaultProvider || "gpt");
+        setProvider((current) => {
+          const preferred =
+            current ||
+            providers.find((item) => item.id === "local" && item.available)?.id ||
+            providers.find((item) => item.available)?.id ||
+            defaultProvider ||
+            "gpt";
+          return resolveLlmTestProvider(preferred, providers);
+        });
       })
       .catch((fetchError) => {
         if (!active) return;
@@ -555,9 +573,9 @@ export default function LLMTestChat() {
   useEffect(() => {
     const queryProvider = typeof router.query?.provider === "string" ? router.query.provider.trim() : "";
     const queryPrompt = typeof router.query?.prompt === "string" ? router.query.prompt.trim() : "";
-    if (queryProvider) setProvider(queryProvider);
+    if (queryProvider) setProvider(resolveLlmTestProvider(queryProvider, providerCatalog));
     if (queryPrompt) setPrompt(queryPrompt);
-  }, [router.query?.prompt, router.query?.provider]);
+  }, [providerCatalog, router.query?.prompt, router.query?.provider]);
 
   useEffect(() => {
     return subscribeActivityLog((entries) => {
@@ -651,12 +669,13 @@ export default function LLMTestChat() {
   async function runSmokeTest(selectedProvider) {
     const trimmedPrompt = String(prompt || "").trim();
     if (!trimmedPrompt) return;
+    const effectiveProvider = resolveLlmTestProvider(selectedProvider, providerCatalog);
 
-    const providerEntry = providerCatalog.find((item) => item.id === selectedProvider);
-    const providerLabel = providerEntry?.label || formatLawdeskProviderLabel(selectedProvider);
+    const providerEntry = providerCatalog.find((item) => item.id === effectiveProvider);
+    const providerLabel = providerEntry?.label || formatLawdeskProviderLabel(effectiveProvider);
     const activityId = `llm_test_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const startedAt = Date.now();
-    const isLocalProvider = isBrowserLocalProvider(selectedProvider);
+    const isLocalProvider = isBrowserLocalProvider(effectiveProvider);
     const requestPath = isLocalProvider ? "browser-local:/v1/messages" : "/api/admin-lawdesk-chat";
 
     setLoading(true);
@@ -665,7 +684,7 @@ export default function LLMTestChat() {
     appendActivityLog({
       id: activityId,
       module: "llm-test",
-      provider: selectedProvider,
+      provider: effectiveProvider,
       component: "LLMTestChat",
       label: `LLM Test: ${providerLabel}`,
       action: "llm_smoke_test",
@@ -681,7 +700,7 @@ export default function LLMTestChat() {
         title: "LLM smoke test request",
         summary: `Provider ${providerLabel} selecionado para validacao.`,
         sections: [
-          { label: "request", value: { provider: selectedProvider, prompt: trimmedPrompt, route: "/llm-test", transport: isLocalProvider ? "browser_local_runtime" : "admin_route" } },
+          { label: "request", value: { provider: effectiveProvider, prompt: trimmedPrompt, route: "/llm-test", transport: isLocalProvider ? "browser_local_runtime" : "admin_route" } },
         ],
       }),
     });
@@ -708,7 +727,7 @@ export default function LLMTestChat() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               query: trimmedPrompt,
-              provider: selectedProvider,
+              provider: effectiveProvider,
               mode: "analysis",
               context: {
                 route: "/llm-test",
@@ -723,7 +742,7 @@ export default function LLMTestChat() {
       const responseData = payload?.data || {};
       const durationMs = Date.now() - startedAt;
       const resultRecord = buildLlmTestResultRecord({
-        provider: selectedProvider,
+        provider: effectiveProvider,
         providerLabel,
         responseData,
         createdAt: new Date(startedAt).toISOString(),
@@ -735,7 +754,7 @@ export default function LLMTestChat() {
 
       updateActivityLog(activityId, {
         status: "success",
-        provider: selectedProvider,
+        provider: effectiveProvider,
         source: resultRecord.source || "",
         path: requestPath,
         durationMs,
@@ -790,7 +809,7 @@ export default function LLMTestChat() {
           title: "LLM smoke test failure context",
           summary: "A execucao falhou antes de retornar resposta valida.",
           sections: [
-            { label: "meta", value: { provider: selectedProvider, providerLabel, durationMs } },
+            { label: "meta", value: { provider: effectiveProvider, providerLabel, durationMs } },
             {
               label: "health_snapshot",
               value: {
@@ -813,14 +832,14 @@ export default function LLMTestChat() {
           title: "Falha ao executar smoke test",
           summary: runError?.message || "Falha desconhecida.",
           sections: [
-            { label: "request", value: { provider: selectedProvider, prompt: trimmedPrompt } },
+            { label: "request", value: { provider: effectiveProvider, prompt: trimmedPrompt } },
           ],
         }),
         request: buildDiagnosticReport({
           title: "LLM smoke test request",
           summary: `Provider ${providerLabel} selecionado para validacao.`,
           sections: [
-            { label: "request", value: { provider: selectedProvider, prompt: trimmedPrompt, route: "/llm-test", transport: isLocalProvider ? "browser_local_runtime" : "admin_route" } },
+            { label: "request", value: { provider: effectiveProvider, prompt: trimmedPrompt, route: "/llm-test", transport: isLocalProvider ? "browser_local_runtime" : "admin_route" } },
           ],
         }),
       });
@@ -829,7 +848,7 @@ export default function LLMTestChat() {
           title: "LLM smoke test failure context",
           summary: "A execucao falhou antes de retornar resposta valida.",
           sections: [
-            { label: "meta", value: { provider: selectedProvider, providerLabel, durationMs } },
+            { label: "meta", value: { provider: effectiveProvider, providerLabel, durationMs } },
             {
               label: "health_snapshot",
               value: {
@@ -849,10 +868,10 @@ export default function LLMTestChat() {
           ],
         })}\n\n---\n\n${buildTechnicalDebugger({
           errorMessage: runError?.message || "Falha desconhecida.",
-          provider: selectedProvider,
+          provider: effectiveProvider,
           providerLabel,
           durationMs,
-          request: { provider: selectedProvider, prompt: trimmedPrompt, route: "/llm-test" },
+          request: { provider: effectiveProvider, prompt: trimmedPrompt, route: "/llm-test" },
           providersHealth,
           ragHealth,
           providerCatalog,
@@ -892,7 +911,7 @@ export default function LLMTestChat() {
                   key={action.id}
                   type="button"
                   onClick={() => {
-                    setProvider(action.provider);
+                    setProvider(resolveLlmTestProvider(action.provider, providerCatalog));
                     runSmokeTest(action.provider);
                   }}
                   disabled={loading}
@@ -915,7 +934,7 @@ export default function LLMTestChat() {
               <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Provider</p>
               <select
                 value={provider}
-                onChange={(event) => setProvider(event.target.value)}
+                onChange={(event) => setProvider(resolveLlmTestProvider(event.target.value, providerCatalog))}
                 className="mt-3 h-12 w-full rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.98)] px-3 text-sm text-[#F5F1E8] outline-none"
               >
                 {providerCatalog.map((item) => (

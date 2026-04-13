@@ -1,7 +1,12 @@
 import { useEffect, useRef } from "react";
 import { adminFetch } from "../../../lib/admin/api";
 import { appendActivityLog, updateActivityLog } from "../../../lib/admin/activity-log";
-import { invokeBrowserLocalExecute, isBrowserLocalProvider, normalizeBrowserLocalTaskRun } from "../../../lib/lawdesk/browser-local-runtime";
+import {
+  invokeBrowserLocalExecute,
+  isBrowserLocalProvider,
+  normalizeBrowserLocalTaskRun,
+  shouldAutoProbeBrowserLocalRuntime,
+} from "../../../lib/lawdesk/browser-local-runtime";
 import { summarizeTaskRunOrchestration } from "./aiTaskAdapters";
 
 const AI_TASK_CONSOLE_META = {
@@ -53,6 +58,11 @@ function buildAiTaskDiagnostic({ title, summary = "", sections = [] }) {
   ]
     .filter(Boolean)
     .join("\n\n---\n\n");
+}
+
+function resolveAiTaskProvider(provider) {
+  if (!isBrowserLocalProvider(provider)) return provider;
+  return shouldAutoProbeBrowserLocalRuntime() ? provider : "gpt";
 }
 
 export function useAiTaskRun({
@@ -381,8 +391,9 @@ export function useAiTaskRun({
   async function executeMission(overrideMission = mission) {
     const normalizedMission = normalizeMission(overrideMission);
     if (!normalizedMission || automation === "running") return;
+    const effectiveProvider = resolveAiTaskProvider(provider);
 
-    const blueprint = buildBlueprint(normalizedMission, profile, mode, provider);
+    const blueprint = buildBlueprint(normalizedMission, profile, mode, effectiveProvider);
     const localRunId = `${Date.now()}_run`;
     setError(null);
     runEventIdsRef.current.clear();
@@ -394,7 +405,7 @@ export function useAiTaskRun({
     setExecutionModel(null);
     setPaused(false);
     pauseRef.current = false;
-    if (!isBrowserLocalProvider(provider)) {
+    if (!isBrowserLocalProvider(effectiveProvider)) {
       setActiveRun({ id: localRunId, startedAt: nowIso(), mission: normalizedMission });
     }
     setMissionHistory((current) => [
@@ -402,7 +413,7 @@ export function useAiTaskRun({
         id: localRunId,
         mission: normalizedMission,
         mode,
-        provider,
+        provider: effectiveProvider,
         status: "running",
         source: null,
         model: null,
@@ -440,7 +451,7 @@ export function useAiTaskRun({
       return;
     }
 
-    if (isBrowserLocalProvider(provider)) {
+    if (isBrowserLocalProvider(effectiveProvider)) {
       const localStartedAt = nowIso();
       const startStartedAt = Date.now();
       const startLogId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -448,7 +459,7 @@ export function useAiTaskRun({
         route: routePath || "/interno/ai-task",
         mission: normalizedMission,
         mode,
-        provider,
+        provider: effectiveProvider,
         forceIntent: selectedSkillId ? "skill" : undefined,
         selectedSkillId: selectedSkillId || undefined,
         selectedSkill: selectedSkillId ? { id: selectedSkillId } : undefined,
@@ -484,7 +495,7 @@ export function useAiTaskRun({
           sections: [
             { label: "mission", value: normalizedMission },
             { label: "mode", value: mode },
-            { label: "provider", value: provider },
+            { label: "provider", value: effectiveProvider },
             { label: "attachments", value: attachments },
             { label: "context", value: localContext },
           ],
@@ -502,7 +513,7 @@ export function useAiTaskRun({
           runId: localRunId,
           mission: normalizedMission,
           mode,
-          provider,
+          provider: effectiveProvider,
           startedAt: localStartedAt,
         });
         const backendSteps = normalized.steps || [];
@@ -689,7 +700,7 @@ export function useAiTaskRun({
           sections: [
             { label: "mission", value: normalizedMission },
             { label: "mode", value: mode },
-            { label: "provider", value: provider },
+            { label: "provider", value: effectiveProvider },
             { label: "attachments", value: attachments },
             { label: "context", value: {
               route: routePath || "/interno/ai-task",
@@ -714,12 +725,12 @@ export function useAiTaskRun({
           action: "task_run_start",
           query: normalizedMission,
           mode,
-          provider,
+          provider: effectiveProvider,
           context: {
             route: routePath || "/interno/ai-task",
             mission: normalizedMission,
             mode,
-            provider,
+            provider: effectiveProvider,
             forceIntent: selectedSkillId ? "skill" : undefined,
             selectedSkillId: selectedSkillId || undefined,
             selectedSkill: selectedSkillId ? { id: selectedSkillId } : undefined,

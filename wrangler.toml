@@ -10,11 +10,12 @@ binding = "AI"
 # O recurso `newgit` nao deve ser usado como alvo de deploy deste repositorio.
 #
 # No Pages Dashboard:
-#   Build command: npm run build
+#   Build command: npm run build:pages
 #   Build output directory: out
 #   Deploy command: (deixe vazio)
 #
 # Importante:
+#   `npm run build` sozinho nao deve ser tratado como contrato de publish do Pages.
 #   Evite publicar apenas `out/` manualmente via `wrangler pages deploy out`.
 #   Esse fluxo envia só os assets estáticos e pode deixar `functions/` e `/api/*`
 #   fora do ar ou dessincronizados em produção.

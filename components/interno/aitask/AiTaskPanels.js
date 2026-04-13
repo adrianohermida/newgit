@@ -1,10 +1,12 @@
 import { buildOfflineHealthSnapshot } from "../../../lib/lawdesk/offline-health.js";
 import { buildLocalBootstrapPlan } from "../../../lib/lawdesk/local-bootstrap.js";
 import { buildSupabaseLocalBootstrap } from "../../../lib/lawdesk/supabase-local-bootstrap.js";
+import { useInternalTheme } from "../InternalThemeProvider";
 
 export function TaskCard({ task, isSelected, onSelect, compact = false, draggable = false, onDragStart = null }) {
+  const { isLightTheme } = useInternalTheme();
   const statusTone = {
-    pending: "text-[#9BAEA8] border-[#22342F]",
+    pending: isLightTheme ? "text-[#6B7C88] border-[#D7DEE8]" : "text-[#9BAEA8] border-[#22342F]",
     running: "text-[#D9B46A] border-[#8b6f33]",
     done: "text-[#8FCFA9] border-[#234034]",
     failed: "text-[#f2b2b2] border-[#5b2d2d]",
@@ -17,7 +19,13 @@ export function TaskCard({ task, isSelected, onSelect, compact = false, draggabl
       onDragStart={onDragStart}
       onClick={() => onSelect(task.id)}
       className={`w-full rounded-[22px] border p-4 text-left transition ${
-        isSelected ? "border-[#C5A059] bg-[linear-gradient(180deg,rgba(197,160,89,0.12),rgba(197,160,89,0.06))] shadow-[0_10px_26px_rgba(197,160,89,0.12)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] hover:border-[#35554B]"
+        isSelected
+          ? isLightTheme
+            ? "border-[#C79B2C] bg-[#FFF8EA] shadow-[0_10px_26px_rgba(197,160,89,0.12)]"
+            : "border-[#C5A059] bg-[linear-gradient(180deg,rgba(197,160,89,0.12),rgba(197,160,89,0.06))] shadow-[0_10px_26px_rgba(197,160,89,0.12)]"
+          : isLightTheme
+            ? "border-[#D7DEE8] bg-white hover:border-[#BAC8D6]"
+            : "border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] hover:border-[#35554B]"
       }`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -25,38 +33,39 @@ export function TaskCard({ task, isSelected, onSelect, compact = false, draggabl
           <p className={`text-[10px] uppercase tracking-[0.18em] ${statusTone[task.status] || "text-[#9BAEA8]"}`}>
             {task.status}
           </p>
-          <h4 className="mt-2 text-sm font-semibold text-[#F5F1E8]">{task.title}</h4>
+          <h4 className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{task.title}</h4>
         </div>
-        <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-[#9BAEA8]">
+        <span className={`rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
           {task.priority}
         </span>
       </div>
-      <p className={`mt-2 text-sm leading-6 text-[#9BAEA8] ${compact ? "line-clamp-3" : ""}`}>{task.description}</p>
-      <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[#9BAEA8]">
-        <span className="rounded-full border border-[#22342F] px-2.5 py-1">Agente: {task.assignedAgent}</span>
-        {task.dependencies?.length ? <span className="rounded-full border border-[#22342F] px-2.5 py-1">Depende: {task.dependencies.join(", ")}</span> : null}
+      <p className={`mt-2 text-sm leading-6 ${compact ? "line-clamp-3" : ""} ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{task.description}</p>
+      <div className={`mt-3 flex flex-wrap gap-2 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
+        <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>Agente: {task.assignedAgent}</span>
+        {task.dependencies?.length ? <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>Depende: {task.dependencies.join(", ")}</span> : null}
       </div>
     </button>
   );
 }
 
 export function ThinkingBlock({ block }) {
+  const { isLightTheme } = useInternalTheme();
   return (
-    <details open={Boolean(block.expanded)} className="rounded-[22px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+    <details open={Boolean(block.expanded)} className={`rounded-[22px] border p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))]"}`}>
       <summary className="cursor-pointer list-none">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">{block.title}</p>
-            <p className="mt-2 text-sm leading-6 text-[#F5F1E8]">{block.summary}</p>
+            <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{block.title}</p>
+            <p className={`mt-2 text-sm leading-6 ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{block.summary}</p>
           </div>
-          <span className="text-[10px] text-[#9BAEA8]">
+          <span className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#9BAEA8]"}`}>
             {new Date(block.timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
           </span>
         </div>
       </summary>
-      <div className="mt-3 space-y-2 text-sm text-[#C6D1CC]">
+      <div className={`mt-3 space-y-2 text-sm ${isLightTheme ? "text-[#51606B]" : "text-[#C6D1CC]"}`}>
         {block.details.map((line) => (
-          <p key={line} className="rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.75)] px-3 py-2 leading-6">
+          <p key={line} className={`rounded-2xl border px-3 py-2 leading-6 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(7,9,8,0.75)]"}`}>
             {line}
           </p>
         ))}
@@ -66,29 +75,37 @@ export function ThinkingBlock({ block }) {
 }
 
 export function LogRow({ log }) {
+  const { isLightTheme } = useInternalTheme();
   return (
-    <div className="rounded-[18px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.012))] px-4 py-3">
+    <div className={`rounded-[18px] border px-4 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.012))]"}`}>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">{log.type}</p>
-        <span className="text-[10px] text-[#9BAEA8]">
+        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{log.type}</p>
+        <span className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#9BAEA8]"}`}>
           {new Date(log.timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
         </span>
       </div>
-      <p className="mt-2 text-sm text-[#F5F1E8]">{log.action}</p>
-      <p className="mt-1 text-sm leading-6 text-[#9BAEA8]">{log.result}</p>
+      <p className={`mt-2 text-sm ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{log.action}</p>
+      <p className={`mt-1 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{log.result}</p>
     </div>
   );
 }
 
 export function Bubble({ role = "assistant", title, body, details = [], time }) {
+  const { isLightTheme } = useInternalTheme();
   const isUser = role === "user";
   const isSystem = role === "system";
   const alignClass = isUser ? "justify-end" : "justify-start";
   const bubbleClass = isUser
-    ? "border-[#3C3320] bg-[rgba(40,32,19,0.28)] text-[#F7F1E6]"
+    ? isLightTheme
+      ? "border-[#E6D29A] bg-[#FFF8EA] text-[#5B4A22]"
+      : "border-[#3C3320] bg-[rgba(40,32,19,0.28)] text-[#F7F1E6]"
     : isSystem
-      ? "border-[#2E3A36] bg-[rgba(255,255,255,0.02)] text-[#9FB1AA]"
-      : "border-[#22342F] bg-[rgba(255,255,255,0.03)] text-[#F4F1EA]";
+      ? isLightTheme
+        ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]"
+        : "border-[#2E3A36] bg-[rgba(255,255,255,0.02)] text-[#9FB1AA]"
+      : isLightTheme
+        ? "border-[#D7DEE8] bg-white text-[#2B3A42]"
+        : "border-[#22342F] bg-[rgba(255,255,255,0.03)] text-[#F4F1EA]";
 
   return (
     <div className={`flex ${alignClass}`}>
@@ -101,7 +118,7 @@ export function Bubble({ role = "assistant", title, body, details = [], time }) 
         {Array.isArray(details) && details.length ? (
           <div className="mt-3 space-y-2">
             {details.slice(0, 6).map((line, index) => (
-              <p key={`${index}_${line}`} className="rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.75)] px-3 py-2 text-xs leading-6 text-[#C6D1CC]">
+              <p key={`${index}_${line}`} className={`rounded-2xl border px-3 py-2 text-xs leading-6 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] bg-[rgba(7,9,8,0.75)] text-[#C6D1CC]"}`}>
                 {line}
               </p>
             ))}
@@ -113,6 +130,7 @@ export function Bubble({ role = "assistant", title, body, details = [], time }) 
 }
 
 export function MetricPill({ label, value, tone = "default" }) {
+  const { isLightTheme } = useInternalTheme();
   const toneClass =
     tone === "accent"
       ? "border-[#C5A059] text-[#F1D39A]"
@@ -120,9 +138,11 @@ export function MetricPill({ label, value, tone = "default" }) {
         ? "border-[#234034] text-[#8FCFA9]"
         : tone === "danger"
           ? "border-[#5b2d2d] text-[#f2b2b2]"
-          : "border-[#22342F] text-[#D8DEDA]";
+          : isLightTheme
+            ? "border-[#D7DEE8] text-[#51606B]"
+            : "border-[#22342F] text-[#D8DEDA]";
   return (
-    <div className={`rounded-[18px] border bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.012))] px-3 py-2 ${toneClass}`}>
+    <div className={`rounded-[18px] border px-3 py-2 ${isLightTheme ? "bg-white" : "bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.012))]"} ${toneClass}`}>
       <p className="text-[10px] uppercase tracking-[0.18em] opacity-70">{label}</p>
       <p className="mt-1 text-sm font-medium">{formatInlineValue(value)}</p>
     </div>
@@ -169,25 +189,32 @@ function summarizeOrchestration(orchestration) {
 }
 
 export function RunHistoryCard({ item, isActive, onSelect, formatHistoryStatus, formatExecutionSourceLabel, nowIso }) {
+  const { isLightTheme } = useInternalTheme();
   const orchestrationSummary = summarizeOrchestration(item?.orchestration);
   return (
     <button
       type="button"
       onClick={() => onSelect?.(item)}
       className={`w-full rounded-[20px] border p-4 text-left transition ${
-        isActive ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#35554B]"
+        isActive
+          ? isLightTheme
+            ? "border-[#D2B06A] bg-[#FFF8EA]"
+            : "border-[#C5A059] bg-[rgba(197,160,89,0.08)]"
+          : isLightTheme
+            ? "border-[#D7DEE8] bg-white hover:border-[#BAC8D6]"
+            : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#35554B]"
       }`}
     >
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">{formatHistoryStatus(item.status)}</p>
-        <p className="text-[10px] text-[#9BAEA8]">
+        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{formatHistoryStatus(item.status)}</p>
+        <p className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#9BAEA8]"}`}>
           {new Date(item.updated_at || item.created_at || nowIso()).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
         </p>
       </div>
-      <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#F5F1E8]">{String(item.mission || "Sem conversa registrada")}</p>
-      <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-[#9BAEA8]">
-        <span className="rounded-full border border-[#22342F] px-2 py-1">{formatExecutionSourceLabel(item.source)}</span>
-        <span className="rounded-full border border-[#22342F] px-2 py-1">{item.model || "n/a"}</span>
+      <p className={`mt-2 line-clamp-2 text-sm leading-6 ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{String(item.mission || "Sem conversa registrada")}</p>
+      <div className={`mt-3 flex flex-wrap gap-2 text-[10px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
+        <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>{formatExecutionSourceLabel(item.source)}</span>
+        <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>{item.model || "n/a"}</span>
         {orchestrationSummary.enabled ? (
           <span className="rounded-full border border-[#35554B] px-2 py-1 text-[#B7D5CB]">
             {orchestrationSummary.subagents.length || 1} agentes / {orchestrationSummary.tasks.length} tarefas
@@ -271,13 +298,14 @@ export function WorkspaceHeader({
   const orchestrationSummary = summarizeOrchestration(contextSnapshot?.orchestration);
   const activeModuleLabel = contextSnapshot?.moduleLabel || contextSnapshot?.module || "Workspace geral";
   const activeRouteLabel = contextSnapshot?.routePath || contextSnapshot?.route || "/interno/ai-task";
+  const { isLightTheme } = useInternalTheme();
   return (
-    <section className="rounded-[30px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(11,15,14,0.98),rgba(7,10,9,0.98))] px-5 py-4 shadow-[0_18px_54px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.02)]">
+    <section className={`rounded-[30px] border px-5 py-4 shadow-[0_18px_54px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,#FDFEFD,#F3F7FA)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(11,15,14,0.98),rgba(7,10,9,0.98))]"}`}>
       <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C5A059]">Hermida Maia Advocacia</p>
-          <h2 className="mt-2 text-[30px] font-semibold tracking-[-0.04em] text-[#F5F1E8]">AI Task Hermida Maia</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-7 text-[#9BAEA8]">
+          <h2 className={`mt-2 text-[30px] font-semibold tracking-[-0.04em] ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>AI Task Hermida Maia</h2>
+          <p className={`mt-2 max-w-2xl text-sm leading-7 ${isLightTheme ? "text-[#5E707C]" : "text-[#9BAEA8]"}`}>
             Histórico na esquerda, conversa no centro e contexto operacional na direita para conduzir tarefas jurídicas com clareza.
           </p>
         </div>
@@ -289,13 +317,13 @@ export function WorkspaceHeader({
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#1A2622] pt-4">
-        <label className="flex items-center gap-2 rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
-          <span className="uppercase tracking-[0.16em] text-[#7F928C]">Provider</span>
+      <div className={`mt-4 flex flex-wrap items-center gap-2 border-t pt-4 ${isLightTheme ? "border-[#E3EAF2]" : "border-[#1A2622]"}`}>
+        <label className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
+          <span className={`uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Provider</span>
           <select
             value={provider}
             onChange={(event) => onProviderChange?.(event.target.value)}
-            className="min-w-[180px] bg-transparent text-[11px] text-[#F5F1E8] outline-none"
+            className={`min-w-[180px] bg-transparent text-[11px] outline-none ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}
           >
             {providerOptions.map((item) => (
               <option key={item.value} value={item.value} disabled={item.disabled}>
@@ -304,12 +332,12 @@ export function WorkspaceHeader({
             ))}
           </select>
         </label>
-        <label className="flex items-center gap-2 rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
-          <span className="uppercase tracking-[0.16em] text-[#7F928C]">Skill</span>
+        <label className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
+          <span className={`uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Skill</span>
           <select
             value={selectedSkillId}
             onChange={(event) => onSkillChange?.(event.target.value)}
-            className="min-w-[180px] bg-transparent text-[11px] text-[#F5F1E8] outline-none"
+            className={`min-w-[180px] bg-transparent text-[11px] outline-none ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}
           >
             <option value="">Auto</option>
             {skillOptions.map((item) => (
@@ -319,7 +347,7 @@ export function WorkspaceHeader({
             ))}
           </select>
         </label>
-        <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+        <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
           Execução: {`${formatExecutionSourceLabel(executionSource)}${executionModel ? ` / ${executionModel}` : ""}`}
         </span>
         <span
@@ -330,7 +358,7 @@ export function WorkspaceHeader({
           {localStackReady ? "Stack local pronto" : "Stack local pendente"}
         </span>
         {resolvedProviderMeta.map((item) => (
-          <span key={item} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#9BAEA8]">
+          <span key={item} className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
             {item}
           </span>
         ))}
@@ -345,12 +373,12 @@ export function WorkspaceHeader({
           </span>
         ) : null}
         {capabilitiesSkills?.total ? (
-          <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#9BAEA8]">
+          <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
             Skills {capabilitiesSkills.total}
           </span>
         ) : null}
         {capabilitiesCommands?.executable ? (
-          <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#9BAEA8]">
+          <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
             Comandos {capabilitiesCommands.executable}/{capabilitiesCommands.total}
           </span>
         ) : null}
@@ -377,7 +405,7 @@ export function WorkspaceHeader({
             {activeProvider.endpoint}
           </span>
         ) : null}
-        <button type="button" onClick={handlePause} className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+        <button type="button" onClick={handlePause} className={`rounded-full border px-4 py-2 text-xs transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
           {paused ? "Retomar fluxo" : "Pausar fluxo"}
         </button>
         <button type="button" onClick={handleStop} className="rounded-full border border-[#4f2525] px-4 py-2 text-xs text-[#f2b2b2] transition hover:border-[#f2b2b2]">
@@ -389,7 +417,7 @@ export function WorkspaceHeader({
         <button type="button" onClick={handleApprove} className="rounded-full border border-[#234034] px-4 py-2 text-xs text-[#8FCFA9] transition hover:border-[#8FCFA9]">
           Aprovar ação
         </button>
-        <button type="button" onClick={handleOpenLlmTest} className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+        <button type="button" onClick={handleOpenLlmTest} className={`rounded-full border px-4 py-2 text-xs transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
           Testar provider
         </button>
         <button type="button" onClick={handleOpenDotobot} className="rounded-full border border-[#35554B] px-4 py-2 text-xs text-[#B7D5CB] transition hover:border-[#7FC4AF] hover:text-[#7FC4AF]">
@@ -399,39 +427,39 @@ export function WorkspaceHeader({
           type="button"
           onClick={handleRefreshLocalStack}
           disabled={refreshingLocalStack}
-          className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:cursor-wait disabled:opacity-60"
+          className={`rounded-full border px-4 py-2 text-xs transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:cursor-wait disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}
         >
           {refreshingLocalStack ? "Atualizando stack..." : "Atualizar stack local"}
         </button>
         <button
           type="button"
           onClick={onToggleLocalRuntimeConfig}
-          className="rounded-full border border-[#22342F] px-4 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+          className={`rounded-full border px-4 py-2 text-xs transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}
         >
           {localRuntimeConfigOpen ? "Fechar runtime local" : "Editar runtime local"}
         </button>
       </div>
       <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <div className="rounded-[24px] border border-[#3C3320] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.16),transparent_55%),rgba(255,255,255,0.02)] p-4">
+        <div className={`rounded-[24px] border p-4 ${isLightTheme ? "border-[#E6D29A] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_55%),#FFFDF8]" : "border-[#3C3320] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.16),transparent_55%),rgba(255,255,255,0.02)]"}`}>
           <p className="text-[10px] uppercase tracking-[0.22em] text-[#D9B46A]">Faixa da missão</p>
-          <p className="mt-2 text-lg font-semibold tracking-[-0.03em] text-[#F5F1E8]">{activeModuleLabel}</p>
-          <p className="mt-2 text-sm leading-6 text-[#C6D1CC]">
+          <p className={`mt-2 text-lg font-semibold tracking-[-0.03em] ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeModuleLabel}</p>
+          <p className={`mt-2 text-sm leading-6 ${isLightTheme ? "text-[#5B6670]" : "text-[#C6D1CC]"}`}>
             O cockpit mantém provider, contexto e runtime alinhados na mesma trilha operacional.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <span className="rounded-full border border-[#4B3F22] px-3 py-1.5 text-[11px] text-[#F1D39A]">
               rota {activeRouteLabel}
             </span>
-            <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+            <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
               skill {selectedSkillId || "auto"}
             </span>
-            <span className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+            <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
               execução {formatExecutionSourceLabel(executionSource)}
             </span>
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(15,19,18,0.92),rgba(7,10,9,0.92))] p-4">
+        <div className={`rounded-[24px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,#FFFFFF,#F5F8FB)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(15,19,18,0.92),rgba(7,10,9,0.92))]"}`}>
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Orquestração</p>
@@ -458,7 +486,7 @@ export function WorkspaceHeader({
             {(orchestrationSummary.subagents.length
               ? orchestrationSummary.subagents.map((agent) => agent?.role || agent?.label).filter(Boolean)
               : ["coordinator"]).slice(0, 5).map((label) => (
-              <span key={label} className="rounded-full border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+              <span key={label} className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}>
                 {label}
               </span>
             ))}
@@ -470,7 +498,7 @@ export function WorkspaceHeader({
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+        <div className={`rounded-[24px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
           <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Cobertura do stack</p>
           <p className="mt-2 text-lg font-semibold tracking-[-0.03em] text-[#F5F1E8]">
             {localStackReady ? "Pronto para operar" : "Setup em progresso"}
@@ -485,7 +513,7 @@ export function WorkspaceHeader({
                 ? [contextSnapshot.module]
                 : []
             ).slice(0, 6).map((moduleKey) => (
-              <span key={moduleKey} className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA]">
+              <span key={moduleKey} className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                 {moduleKey}
               </span>
             ))}
@@ -790,18 +818,19 @@ export function ConfirmModal({
   onCancel,
 }) {
   if (!open) return null;
+  const { isLightTheme } = useInternalTheme();
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(3,5,4,0.74)] px-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-[28px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(12,16,15,0.98),rgba(8,11,10,0.98))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.4)]">
+    <div className={`fixed inset-0 z-[80] flex items-center justify-center px-4 backdrop-blur-sm ${isLightTheme ? "bg-[rgba(225,233,240,0.7)]" : "bg-[rgba(3,5,4,0.74)]"}`}>
+      <div className={`w-full max-w-md rounded-[28px] border p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,#FFFFFF,#F5F8FB)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(12,16,15,0.98),rgba(8,11,10,0.98))]"}`}>
         <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#C5A059]">Hermida Maia Advocacia</p>
-        <h3 className="mt-3 text-xl font-semibold text-[#F5F1E8]">{title}</h3>
-        <p className="mt-3 text-sm leading-7 text-[#9BAEA8]">{body}</p>
+        <h3 className={`mt-3 text-xl font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{title}</h3>
+        <p className={`mt-3 text-sm leading-7 ${isLightTheme ? "text-[#5E707C]" : "text-[#9BAEA8]"}`}>{body}</p>
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-full border border-[#22342F] px-4 py-2 text-sm text-[#D8DEDA] transition hover:border-[#35554B]"
+            className={`rounded-full border px-4 py-2 text-sm transition hover:border-[#35554B] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}
           >
             {cancelLabel}
           </button>
@@ -832,14 +861,15 @@ export function RunsPane({
   onPrevPage,
   onNextPage,
 }) {
+  const { isLightTheme } = useInternalTheme();
   return (
-    <aside className={`min-h-0 rounded-[28px] border border-[#22342F] bg-[rgba(255,255,255,0.025)] p-4 shadow-[0_16px_48px_rgba(0,0,0,0.2)] ${className}`.trim()}>
+    <aside className={`min-h-0 rounded-[28px] border p-4 shadow-[0_16px_48px_rgba(0,0,0,0.12)] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.025)]"} ${className}`.trim()}>
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Histórico</p>
           <p className="mt-1 text-sm text-[#9BAEA8]">Conversas, runs e retomadas mais recentes.</p>
         </div>
-        <span className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] text-[#9BAEA8]">{recentHistory.length}</span>
+        <span className={`rounded-full border px-3 py-1 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>{recentHistory.length}</span>
       </div>
       <div className="mt-4 max-h-[34vh] space-y-3 overflow-y-auto pr-1 2xl:max-h-none">
         {visibleHistory.length ? visibleHistory.map((item) => (
@@ -855,12 +885,12 @@ export function RunsPane({
         )) : <p className="text-sm text-[#9BAEA8]">Nenhuma conversa registrada.</p>}
       </div>
       {historyTotalPages > 1 ? (
-        <div className="mt-4 flex items-center justify-between gap-2 border-t border-[#1B2925] pt-4">
-          <button type="button" onClick={onPrevPage} disabled={historyPage <= 1} className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] text-[#D8DEDA] transition disabled:opacity-40">
+        <div className={`mt-4 flex items-center justify-between gap-2 border-t pt-4 ${isLightTheme ? "border-[#E3EAF2]" : "border-[#1B2925]"}`}>
+          <button type="button" onClick={onPrevPage} disabled={historyPage <= 1} className={`rounded-full border px-3 py-1 text-[11px] transition disabled:opacity-40 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
             Anterior
           </button>
           <span className="text-[11px] text-[#7F928C]">Página {historyPage} de {historyTotalPages}</span>
-          <button type="button" onClick={onNextPage} disabled={historyPage >= historyTotalPages} className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] text-[#D8DEDA] transition disabled:opacity-40">
+          <button type="button" onClick={onNextPage} disabled={historyPage >= historyTotalPages} className={`rounded-full border px-3 py-1 text-[11px] transition disabled:opacity-40 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
             Próxima
           </button>
         </div>
@@ -892,23 +922,24 @@ export function TaskInspector({
     done: tasks.filter((task) => task.status === "done"),
     failed: tasks.filter((task) => task.status === "failed"),
   };
+  const { isLightTheme } = useInternalTheme();
   return (
-    <section className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+    <section className={`rounded-[24px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Orquestração</p>
           <p className="mt-1 text-sm text-[#9BAEA8]">Kanban com drag and drop, lista paginada e foco atual da execução.</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="rounded-full border border-[#22342F] p-1">
-            <button type="button" onClick={() => onTaskViewModeChange?.("kanban")} className={`rounded-full px-3 py-1 text-[11px] transition ${taskViewMode === "kanban" ? "bg-[#C5A059] text-[#07110E]" : "text-[#D8DEDA]"}`}>
+          <div className={`rounded-full border p-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>
+            <button type="button" onClick={() => onTaskViewModeChange?.("kanban")} className={`rounded-full px-3 py-1 text-[11px] transition ${taskViewMode === "kanban" ? "bg-[#C5A059] text-[#07110E]" : isLightTheme ? "text-[#51606B]" : "text-[#D8DEDA]"}`}>
               Kanban
             </button>
-            <button type="button" onClick={() => onTaskViewModeChange?.("list")} className={`rounded-full px-3 py-1 text-[11px] transition ${taskViewMode === "list" ? "bg-[#C5A059] text-[#07110E]" : "text-[#D8DEDA]"}`}>
+            <button type="button" onClick={() => onTaskViewModeChange?.("list")} className={`rounded-full px-3 py-1 text-[11px] transition ${taskViewMode === "list" ? "bg-[#C5A059] text-[#07110E]" : isLightTheme ? "text-[#51606B]" : "text-[#D8DEDA]"}`}>
               Lista
             </button>
           </div>
-          <button type="button" onClick={() => setShowTasks((value) => !value)} className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] text-[#D8DEDA]">
+          <button type="button" onClick={() => setShowTasks((value) => !value)} className={`rounded-full border px-3 py-1 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
             {showTasks ? "Ocultar" : "Mostrar"}
           </button>
         </div>
@@ -916,10 +947,10 @@ export function TaskInspector({
       {agentLanes.length ? (
         <div className="mt-4 grid gap-3 xl:grid-cols-3">
           {agentLanes.slice(0, 3).map((lane) => (
-            <div key={lane.agent} className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Agente</p>
-              <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{lane.agent}</p>
-              <p className="mt-1 text-xs leading-6 text-[#9BAEA8]">
+            <div key={lane.agent} className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+              <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Agente</p>
+              <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{lane.agent}</p>
+              <p className={`mt-1 text-xs leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                 {lane.tasks.length} tarefa(s) roteadas nesta faixa operacional.
               </p>
               <div className="mt-3 grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
@@ -929,7 +960,7 @@ export function TaskInspector({
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {lane.tasks.slice(0, 3).map((task) => (
-                  <span key={task.id} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                  <span key={task.id} className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                     {task.title}
                   </span>
                 ))}
@@ -951,17 +982,17 @@ export function TaskInspector({
         </div>
       ) : null}
       {selectedTask ? (
-        <div className="mt-4 rounded-[20px] border border-[#C5A059] bg-[rgba(197,160,89,0.07)] p-4">
+        <div className={`mt-4 rounded-[20px] border p-4 ${isLightTheme ? "border-[#E6D29A] bg-[#FFF8EA]" : "border-[#C5A059] bg-[rgba(197,160,89,0.07)]"}`}>
           <p className="text-[10px] uppercase tracking-[0.2em] text-[#D9B46A]">Em foco</p>
-          <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{selectedTask.title}</p>
-          <p className="mt-2 text-sm leading-6 text-[#C6D1CC]">{selectedTask.goal}</p>
+          <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{selectedTask.title}</p>
+          <p className={`mt-2 text-sm leading-6 ${isLightTheme ? "text-[#5B6670]" : "text-[#C6D1CC]"}`}>{selectedTask.goal}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <span className="rounded-full border border-[#3C3320] px-2.5 py-1 text-[10px] text-[#E7C987]">{selectedTask.assignedAgent}</span>
-            <span className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">{selectedTask.priority}</span>
+            <span className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>{selectedTask.priority}</span>
             {selectedTask.stage ? <span className="rounded-full border border-[#35554B] px-2.5 py-1 text-[10px] text-[#B7D5CB]">{selectedTask.stage}</span> : null}
             {selectedTask.parallelGroup ? <span className="rounded-full border border-[#234034] px-2.5 py-1 text-[10px] text-[#8FCFA9]">{selectedTask.parallelGroup}</span> : null}
             {Array.isArray(selectedTask.moduleKeys) ? selectedTask.moduleKeys.slice(0, 3).map((moduleKey) => (
-              <span key={`${selectedTask.id}_${moduleKey}`} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+              <span key={`${selectedTask.id}_${moduleKey}`} className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                 {moduleKey}
               </span>
             )) : null}
@@ -987,7 +1018,7 @@ export function TaskInspector({
                     const taskId = event.dataTransfer.getData("text/task-id") || draggedTaskId;
                     if (taskId) onTaskMove?.(taskId, status);
                   }}
-                  className="flex min-h-[320px] flex-col rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3"
+                  className={`flex min-h-[320px] flex-col rounded-[22px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}
                 >
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <div>
@@ -1012,7 +1043,7 @@ export function TaskInspector({
                         }}
                       />
                     )) : (
-                      <div className="rounded-[18px] border border-dashed border-[#22342F] px-3 py-6 text-center text-sm text-[#7F928C]">
+                      <div className={`rounded-[18px] border border-dashed px-3 py-6 text-center text-sm ${isLightTheme ? "border-[#D7DEE8] text-[#7B8B98]" : "border-[#22342F] text-[#7F928C]"}`}>
                         Solte uma tarefa aqui.
                       </div>
                     )}
@@ -1022,38 +1053,38 @@ export function TaskInspector({
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="overflow-x-auto rounded-[20px] border border-[#22342F]">
-                <div className="grid min-w-[640px] grid-cols-[minmax(0,1.5fr)_120px_120px_140px] gap-3 border-b border-[#1B2925] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">
+              <div className={`overflow-x-auto rounded-[20px] border ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F]"}`}>
+                <div className={`grid min-w-[640px] grid-cols-[minmax(0,1.5fr)_120px_120px_140px] gap-3 border-b px-4 py-3 text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "border-[#E3EAF2] bg-[#F7F9FC] text-[#7B8B98]" : "border-[#1B2925] bg-[rgba(255,255,255,0.02)] text-[#7F928C]"}`}>
                   <span>Tarefa</span>
                   <span>Status</span>
                   <span>Prioridade</span>
                   <span>Agente</span>
                 </div>
-                <div className="divide-y divide-[#1B2925]">
+                <div className={`divide-y ${isLightTheme ? "divide-[#E3EAF2]" : "divide-[#1B2925]"}`}>
                   {visibleTasks.length ? visibleTasks.map((task) => (
                     <button
                       key={task.id}
                       type="button"
                       onClick={() => onSelectTask(task.id)}
                       className={`grid min-w-[640px] w-full grid-cols-[minmax(0,1.5fr)_120px_120px_140px] gap-3 px-4 py-3 text-left transition ${
-                        selectedTaskId === task.id ? "bg-[rgba(197,160,89,0.08)]" : "bg-[rgba(255,255,255,0.01)] hover:bg-[rgba(255,255,255,0.03)]"
+                        selectedTaskId === task.id ? "bg-[rgba(197,160,89,0.08)]" : isLightTheme ? "bg-white hover:bg-[#F7F9FC]" : "bg-[rgba(255,255,255,0.01)] hover:bg-[rgba(255,255,255,0.03)]"
                       }`}
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-[#F5F1E8]">{task.title}</p>
-                        <p className="mt-1 truncate text-xs text-[#8FA39C]">{task.description}</p>
+                        <p className={`truncate text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{task.title}</p>
+                        <p className={`mt-1 truncate text-xs ${isLightTheme ? "text-[#7B8B98]" : "text-[#8FA39C]"}`}>{task.description}</p>
                       </div>
                       <span className={`text-xs ${task.status === "running" ? "text-[#D9B46A]" : task.status === "done" ? "text-[#8FCFA9]" : task.status === "failed" ? "text-[#f2b2b2]" : "text-[#9BAEA8]"}`}>{task.status}</span>
-                      <span className="text-xs text-[#D8DEDA]">{task.priority}</span>
-                      <span className="text-xs text-[#D8DEDA]">{task.assignedAgent}</span>
+                      <span className={`text-xs ${isLightTheme ? "text-[#51606B]" : "text-[#D8DEDA]"}`}>{task.priority}</span>
+                      <span className={`text-xs ${isLightTheme ? "text-[#51606B]" : "text-[#D8DEDA]"}`}>{task.assignedAgent}</span>
                     </button>
-                  )) : <p className="px-4 py-6 text-sm text-[#9BAEA8]">Nenhuma tarefa ainda.</p>}
+                  )) : <p className={`px-4 py-6 text-sm ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Nenhuma tarefa ainda.</p>}
                 </div>
               </div>
               {hasMoreTasks ? (
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-[#7F928C]">Mostrando {visibleTasks.length} de {tasks.length} tarefas.</span>
-                  <button type="button" onClick={onLoadMoreTasks} className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+                  <span className={`text-xs ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Mostrando {visibleTasks.length} de {tasks.length} tarefas.</span>
+                  <button type="button" onClick={onLoadMoreTasks} className={`rounded-full border px-3 py-1 text-[11px] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                     Carregar mais
                   </button>
                 </div>
@@ -1093,24 +1124,25 @@ export function ContextRail({
   const tasksCount = Array.isArray(contact360?.data?.tasks) ? contact360.data.tasks.length : 0;
   const memoryMatches = Array.isArray(contact360?.data?.memory_matches) ? contact360.data.memory_matches.length : 0;
   const orchestrationSummary = summarizeOrchestration(contextSnapshot?.orchestration);
+  const { isLightTheme } = useInternalTheme();
   return (
     <aside className="space-y-4">
-      <section className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+      <section className={`rounded-[24px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
         <div className="flex items-center justify-between gap-2">
           <div>
             <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Contexto</p>
             <p className="mt-1 text-sm text-[#9BAEA8]">Memória, documentos, replay e atalhos operacionais.</p>
           </div>
-          <button type="button" onClick={() => setShowContext((value) => !value)} className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] text-[#D8DEDA]">
+          <button type="button" onClick={() => setShowContext((value) => !value)} className={`rounded-full border px-3 py-1 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
             {showContext ? "Ocultar" : "Mostrar"}
           </button>
         </div>
 
         {showContext ? (
-          <div className="mt-4 space-y-3 text-sm text-[#9BAEA8]">
-            <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Módulo ativo</p>
-              <p className="mt-2 text-[#F5F1E8]">{contextSnapshot?.module || detectModules(mission || "").join(", ")}</p>
+          <div className={`mt-4 space-y-3 text-sm ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
+            <div className={`rounded-[18px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+              <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Módulo ativo</p>
+              <p className={`mt-2 ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{contextSnapshot?.module || detectModules(mission || "").join(", ")}</p>
               <p className="mt-1 text-xs">Rota: {contextSnapshot?.route || routePath || "/interno/ai-task"}</p>
             </div>
 
@@ -1121,11 +1153,11 @@ export function ContextRail({
             </div>
 
             {orchestrationSummary.enabled ? (
-              <div className="rounded-[18px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(12,17,16,0.96),rgba(7,9,8,0.78))] p-3">
+              <div className={`rounded-[18px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,#FFFFFF,#F5F8FB)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(12,17,16,0.96),rgba(7,9,8,0.78))]"}`}>
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Orquestração ativa</p>
-                    <p className="mt-1 text-sm font-semibold text-[#F5F1E8]">
+                    <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Orquestração ativa</p>
+                    <p className={`mt-1 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
                       {orchestrationSummary.multiAgent ? "Subagentes coordenados" : "Execução encadeada"}
                     </p>
                   </div>
@@ -1140,7 +1172,7 @@ export function ContextRail({
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {orchestrationSummary.subagents.slice(0, 5).map((agent, index) => (
-                    <span key={`${agent?.role || agent?.label || "agent"}_${index}`} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#D8DEDA]">
+                    <span key={`${agent?.role || agent?.label || "agent"}_${index}`} className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                       {agent?.role || agent?.label || `agent-${index + 1}`}
                     </span>
                   ))}
@@ -1148,11 +1180,11 @@ export function ContextRail({
               </div>
             ) : null}
 
-            <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+            <div className={`rounded-[18px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Contexto 360</p>
-                  <p className="mt-1 text-xs leading-5 text-[#8FA39C]">Busque email ou identificador do cliente para enriquecer a missão.</p>
+                  <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Contexto 360</p>
+                  <p className={`mt-1 text-xs leading-5 ${isLightTheme ? "text-[#7B8B98]" : "text-[#8FA39C]"}`}>Busque email ou identificador do cliente para enriquecer a missão.</p>
                 </div>
                 <button
                   type="button"
@@ -1166,12 +1198,12 @@ export function ContextRail({
                 value={contact360Query}
                 onChange={(event) => onContact360QueryChange?.(event.target.value)}
                 placeholder="email@cliente.com"
-                className="mt-3 h-10 w-full rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.98)] px-3 text-sm text-[#F5F1E8] outline-none placeholder:text-[#60706A]"
+                className={`mt-3 h-10 w-full rounded-2xl border px-3 text-sm outline-none ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#152421] placeholder:text-[#93A1AD]" : "border-[#22342F] bg-[rgba(7,9,8,0.98)] text-[#F5F1E8] placeholder:text-[#60706A]"}`}
               />
               {summary ? (
-                <div className="mt-3 rounded-[16px] border border-[#3C3320] bg-[rgba(40,32,19,0.18)] p-3">
-                  <p className="text-sm font-semibold text-[#F5F1E8]">{contactName || "Contato identificado"}</p>
-                  <p className="mt-2 text-xs leading-6 text-[#D9D4C7]">{summary}</p>
+                <div className={`mt-3 rounded-[16px] border p-3 ${isLightTheme ? "border-[#E6D29A] bg-[#FFF8EA]" : "border-[#3C3320] bg-[rgba(40,32,19,0.18)]"}`}>
+                  <p className={`text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{contactName || "Contato identificado"}</p>
+                  <p className={`mt-2 text-xs leading-6 ${isLightTheme ? "text-[#5B6670]" : "text-[#D9D4C7]"}`}>{summary}</p>
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     <MetricPill label="Deals" value={dealsCount} />
                     <MetricPill label="Tasks" value={tasksCount} />
@@ -1204,10 +1236,10 @@ export function ContextRail({
             </div>
 
             {contextSnapshot?.selectedAction ? (
-              <div className="rounded-[18px] border border-[#3C3320] bg-[rgba(40,32,19,0.18)] p-3">
+              <div className={`rounded-[18px] border p-3 ${isLightTheme ? "border-[#E6D29A] bg-[#FFF8EA]" : "border-[#3C3320] bg-[rgba(40,32,19,0.18)]"}`}>
                 <p className="text-[10px] uppercase tracking-[0.2em] text-[#D9B46A]">Playbook armado</p>
-                <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{contextSnapshot.selectedAction.label}</p>
-                <p className="mt-1 text-xs leading-6 text-[#C6D1CC]">{contextSnapshot.selectedAction.moduleLabel || contextSnapshot.moduleLabel || "Modulo atual"}</p>
+                <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{contextSnapshot.selectedAction.label}</p>
+                <p className={`mt-1 text-xs leading-6 ${isLightTheme ? "text-[#5B6670]" : "text-[#C6D1CC]"}`}>{contextSnapshot.selectedAction.moduleLabel || contextSnapshot.moduleLabel || "Modulo atual"}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -1221,16 +1253,16 @@ export function ContextRail({
             ) : null}
 
             {contextModuleEntries?.length ? (
-              <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Capacidades por módulo</p>
+              <div className={`rounded-[18px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Capacidades por módulo</p>
                 <div className="mt-3 space-y-3">
                   {contextModuleEntries.slice(0, 4).map((entry) => (
-                    <div key={entry.key} className="rounded-[16px] border border-[#22342F] bg-[rgba(7,9,8,0.75)] p-3">
-                      <p className="text-sm font-semibold text-[#F5F1E8]">{entry.label}</p>
-                      <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-[#7F928C]">{entry.routePath || "sem rota"}</p>
+                    <div key={entry.key} className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(7,9,8,0.75)]"}`}>
+                      <p className={`text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{entry.label}</p>
+                      <p className={`mt-1 text-[11px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{entry.routePath || "sem rota"}</p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {(entry.capabilities || []).slice(0, 5).map((capability) => (
-                          <span key={`${entry.key}_${capability}`} className="rounded-full border border-[#22342F] px-2.5 py-1 text-[10px] text-[#9BAEA8]">
+                          <span key={`${entry.key}_${capability}`} className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
                             {capability}
                           </span>
                         ))}
@@ -1260,7 +1292,7 @@ export function ContextRail({
                       ) : null}
                       {(entry.quickActions || []).length ? (
                         <div className="mt-3">
-                          <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Playbooks do console</p>
+                          <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Playbooks do console</p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {entry.quickActions.slice(0, 3).map((action) => (
                               <button
@@ -1282,11 +1314,11 @@ export function ContextRail({
             ) : null}
 
             {selectedTask ? (
-              <div className="rounded-[18px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">Reexecutar foco</p>
-                <p className="mt-2 text-sm text-[#F5F1E8]">{selectedTask.title}</p>
-                <p className="mt-2 text-xs leading-6 text-[#9BAEA8]">{selectedTask.goal}</p>
-                <button type="button" onClick={() => handleReplay(selectedTask)} className="mt-3 rounded-full border border-[#22342F] px-3 py-1 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+              <div className={`rounded-[18px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Reexecutar foco</p>
+                <p className={`mt-2 text-sm ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{selectedTask.title}</p>
+                <p className={`mt-2 text-xs leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{selectedTask.goal}</p>
+                <button type="button" onClick={() => handleReplay(selectedTask)} className={`mt-3 rounded-full border px-3 py-1 text-[11px] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                   Reexecutar missão
                 </button>
               </div>

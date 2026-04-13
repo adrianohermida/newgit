@@ -408,8 +408,8 @@ function JobsContent({ copilotContext, initialSource }) {
     <div className="space-y-8">
       {copilotContext ? (
         <Panel title="Contexto vindo do Copilot" eyebrow="Handoff operacional">
-          <div className="space-y-2 text-sm opacity-75">
-            <p className="font-semibold text-[#F5F1E8]">{copilotContext.conversationTitle || "Conversa ativa"}</p>
+          <div className={`space-y-2 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>
+            <p className={`font-semibold ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{copilotContext.conversationTitle || "Conversa ativa"}</p>
             {copilotContext.mission ? <p>{copilotContext.mission}</p> : null}
             <p>Origem sugerida: {initialSource || "interno"}</p>
           </div>

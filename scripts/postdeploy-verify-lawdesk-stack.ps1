@@ -90,14 +90,18 @@ $ragRoute = @($pagesReport.results) | Where-Object { $_.name -eq "admin-dotobot-
 $chatRoute = @($pagesReport.results) | Where-Object { $_.name -eq "admin-lawdesk-chat" } | Select-Object -First 1
 $legacyChatRoute = @($pagesReport.results) | Where-Object { $_.name -eq "legacy-admin-lawdesk-chat" } | Select-Object -First 1
 $legacyProvidersRoute = @($pagesReport.results) | Where-Object { $_.name -eq "legacy-admin-lawdesk-providers" } | Select-Object -First 1
+$copilotPage = @($pagesReport.results) | Where-Object { $_.name -eq "page-interno-copilot" } | Select-Object -First 1
+$processosPage = @($pagesReport.results) | Where-Object { $_.name -eq "page-interno-processos" } | Select-Object -First 1
+$publicacoesPage = @($pagesReport.results) | Where-Object { $_.name -eq "page-interno-publicacoes" } | Select-Object -First 1
 
 $stackHealthy = $false
 if ($providersRoute -and $ragRoute -and $chatRoute) {
   $providersOk = ($providersRoute.status -ne 404 -and $providersRoute.errorType -ne "missing_token")
   $chatOk = ($chatRoute.status -ne 404)
   $ragOk = ($ragRoute.status -ne 404)
+  $pagesOk = @($copilotPage, $processosPage, $publicacoesPage) | Where-Object { $_ } | ForEach-Object { $_.ok -eq $true } | Where-Object { $_ -eq $false } | Measure-Object | Select-Object -ExpandProperty Count
   $aiOk = $aiReport.execute.ok -and $aiReport.executeV1.ok
-  $stackHealthy = [bool]($providersOk -and $chatOk -and $ragOk -and $aiOk)
+  $stackHealthy = [bool]($providersOk -and $chatOk -and $ragOk -and $aiOk -and $pagesOk -eq 0)
 }
 
 if (-not $providersRoute -and -not [string]::IsNullOrWhiteSpace($resolvedAdminToken)) {
@@ -118,6 +122,13 @@ if (
   Add-Diagnosis -Target $diagnosis -Message "Republique o projeto newgit-pages pelo build conectado do Cloudflare Pages; evite upload manual apenas do diretorio out."
 }
 
+foreach ($pageCheck in @($copilotPage, $processosPage, $publicacoesPage)) {
+  if (-not $pageCheck) { continue }
+  if ($pageCheck.ok -ne $true) {
+    Add-Diagnosis -Target $diagnosis -Message "A pagina $($pageCheck.path) carregou com falha de assets ou runtime publico."
+  }
+}
+
 $report = [ordered]@{
   checkedAt = (Get-Date).ToString("o")
   pagesBaseUrl = $PagesBaseUrl
@@ -136,6 +147,9 @@ $report = [ordered]@{
     chatRouteErrorType = if ($chatRoute) { $chatRoute.errorType } else { $null }
     legacyChatRouteStatus = if ($legacyChatRoute) { $legacyChatRoute.status } else { $null }
     legacyProvidersRouteStatus = if ($legacyProvidersRoute) { $legacyProvidersRoute.status } else { $null }
+    copilotPageOk = if ($copilotPage) { $copilotPage.ok } else { $null }
+    processosPageOk = if ($processosPage) { $processosPage.ok } else { $null }
+    publicacoesPageOk = if ($publicacoesPage) { $publicacoesPage.ok } else { $null }
     executeOk = $aiReport.execute.ok
     executeV1Ok = $aiReport.executeV1.ok
   }

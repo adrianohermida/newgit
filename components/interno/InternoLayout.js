@@ -961,9 +961,9 @@ export default function InternoLayout({
   const { supabase } = useSupabaseBrowser();
   const { isLightTheme, preference, setThemePreference, toggleTheme } = useInternalTheme();
   const isCopilotWorkspace = router.pathname === "/interno/copilot";
-  const initialWorkspaceOpen = router.pathname === "/interno/agentlab/conversations";
-  const shouldStartWithOpenRail = rightRailFullscreen || router.pathname === "/interno/agentlab/conversations";
   const shouldRenderDotobotRail = !hideDotobotRail || forceDotobotRail;
+  const initialWorkspaceOpen = true;
+  const shouldStartWithOpenRail = rightRailFullscreen || router.pathname === "/interno/agentlab/conversations" || shouldRenderDotobotRail;
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(!shouldStartWithOpenRail);
   const [rightRailMode, setRightRailMode] = useState("expanded");
@@ -1601,6 +1601,11 @@ export default function InternoLayout({
     });
   }
 
+  function handleFocusCopilotComposer() {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("hmadv:copilot-focus-composer"));
+  }
+
   const showExtensionManager = router.pathname === "/interno/ai-task" || router.pathname === "/interno/agentlab";
   const resolvedRightRail = typeof rightRail === "function"
     ? rightRail({ moduleKey: currentModuleKey, moduleHistory, activityLog })
@@ -1610,6 +1615,7 @@ export default function InternoLayout({
   const consoleDockLeft = hideShellSidebar ? 0 : isMobileShell ? 0 : leftCollapsed ? 88 : 272;
   const desktopRightRailWidth = rightRailMode === "compact" ? 320 : 388;
   const consoleDockRight = !isMobileShell && shouldRenderDotobotRail && !rightCollapsed ? desktopRightRailWidth : 0;
+  const rightRailConversationFirst = !rightRailFullscreen;
 
   return (
     <div className={`relative flex h-screen w-full overflow-hidden text-[Arial,sans-serif] ${isCopilotWorkspace ? "p-0" : "p-2 md:p-3"} ${isLightTheme ? "bg-[linear-gradient(180deg,#EEF2F6_0%,#E4EAF1_100%)] text-[#13201D]" : "bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.16),transparent_24%),linear-gradient(180deg,#040605_0%,#070A09_100%)] text-[#F4F1EA]"}`}>
@@ -1697,10 +1703,10 @@ export default function InternoLayout({
                 />
                 <button
                   type="button"
-                  onClick={handleToggleCopilot}
+                  onClick={isCopilotWorkspace ? handleFocusCopilotComposer : handleToggleCopilot}
                   className={`rounded-[12px] border px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] transition ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#9A6E2D] hover:border-[#C5A059]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#C5A059] hover:border-[#C5A059] hover:text-[#F5E6C5]"}`}
                 >
-                  Chat
+                  Conversar
                 </button>
               </div>
             </div>
@@ -1778,19 +1784,21 @@ export default function InternoLayout({
                 </svg>
                 <span className="text-lg">≡</span>
               </button>
-              <button
-                type="button"
-                onClick={handleToggleRightRail}
-                className={`flex h-10 w-10 items-center justify-center rounded-[14px] border text-[0px] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
-                title="Alternar painel direito"
-              >
-                <span className="sr-only">Painel</span>
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="4" width="18" height="16" rx="2" />
-                  <path d="M15 4v16" />
-                </svg>
-                <span className="text-lg">▣</span>
-              </button>
+              {!isCopilotWorkspace ? (
+                <button
+                  type="button"
+                  onClick={handleToggleRightRail}
+                  className={`flex h-10 w-10 items-center justify-center rounded-[14px] border text-[0px] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
+                  title="Alternar painel direito"
+                >
+                  <span className="sr-only">Painel</span>
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                    <path d="M15 4v16" />
+                  </svg>
+                  <span className="text-lg">▣</span>
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => setConsoleOpen((current) => !current)}
@@ -1855,7 +1863,9 @@ export default function InternoLayout({
                   className={`rounded-[14px] border px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] transition ${
                     consoleTab === "console"
                       ? "border-[#C5A059] text-[#C5A059]"
-                      : "border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059]"
+                      : isLightTheme
+                        ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#C5A059]"
+                        : "border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059]"
                   }`}
                 >
                   Console
@@ -1866,24 +1876,26 @@ export default function InternoLayout({
                   className={`rounded-[14px] border px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] transition ${
                     consoleTab === "log"
                       ? "border-[#C5A059] text-[#C5A059]"
-                      : "border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059]"
+                      : isLightTheme
+                        ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#C5A059]"
+                        : "border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059]"
                   }`}
                 >
                   Log
                 </button>
                 {consoleTab === "log" ? (
                   <div className="flex max-w-[70vw] flex-wrap items-start gap-3">
-                    <span className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8]">
+                    <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
                       {activityLog.length} entradas
                     </span>
                     {visibleLogPaneGroups.map((group) => (
                       <div key={group.key} className="flex flex-wrap items-center gap-2">
-                        <span className="text-[10px] uppercase tracking-[0.16em] text-[#60706A]">{group.label}</span>
+                        <span className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#60706A]"}`}>{group.label}</span>
                         {group.panes.map((pane) => <button
                           key={pane.key}
                           type="button"
                           onClick={() => setLogPane(pane.key)}
-                          className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === pane.key ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)] text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
+                           className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === pane.key ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)] text-[#C5A059]" : isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#C5A059] hover:text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                         >
                           {pane.label} {formatPaneCountLabel(paneCounts[pane.key] || 0)}
                         </button>)}
@@ -1895,40 +1907,40 @@ export default function InternoLayout({
               <button
                 type="button"
                 onClick={() => setConsoleOpen((current) => !current)}
-                className="rounded-[14px] border border-[#22342F] px-3 py-1.5 text-[10px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                className={`rounded-[14px] border px-3 py-1.5 text-[10px] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}
               >
                 {consoleOpen ? "Minimizar" : "Abrir"}
               </button>
             </div>
             {consoleOpen ? (
-              <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4 text-xs text-[#9BAEA8]">
+              <div className={`min-h-0 flex-1 overflow-y-auto px-5 pb-4 text-xs ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                 {consoleTab === "console" ? (
                   <div className="space-y-3">
                     <div className="grid gap-3 md:grid-cols-4">
-                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3">
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Snapshots</p>
-                        <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{coverageCards.length}</p>
-                        <p className="mt-1 text-[11px] text-[#9BAEA8]">Módulos e shells publicados no console.</p>
+                      <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
+                        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Snapshots</p>
+                        <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{coverageCards.length}</p>
+                        <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Módulos e shells publicados no console.</p>
                       </div>
-                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3">
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Rotas cobertas</p>
-                        <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{coverageRouteCount}</p>
-                        <p className="mt-1 text-[11px] text-[#9BAEA8]">Rotas com telemetria ou snapshot ativo.</p>
+                      <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
+                        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Rotas cobertas</p>
+                        <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{coverageRouteCount}</p>
+                        <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Rotas com telemetria ou snapshot ativo.</p>
                       </div>
-                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3">
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Com erro</p>
-                        <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{coverageErrorCount}</p>
-                        <p className="mt-1 text-[11px] text-[#9BAEA8]">Snapshots que reportaram falha visível.</p>
+                      <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
+                        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Com erro</p>
+                        <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{coverageErrorCount}</p>
+                        <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Snapshots que reportaram falha visível.</p>
                       </div>
-                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3">
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Issues abertas</p>
-                        <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{frontendIssues.length + schemaIssues.length}</p>
-                        <p className="mt-1 text-[11px] text-[#9BAEA8]">UX e schema consolidados no workspace.</p>
+                      <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
+                        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Issues abertas</p>
+                        <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{frontendIssues.length + schemaIssues.length}</p>
+                        <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>UX e schema consolidados no workspace.</p>
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 text-[11px] text-[#9BAEA8]">
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Cobertura ativa</p>
+                    <div className={`rounded-xl border p-3 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)] text-[#9BAEA8]"}`}>
+                      <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Cobertura ativa</p>
                       <p className="mt-2">
                         O console agora agrega snapshots do app shell, layouts público e portal, shell interno e módulos operacionais.
                         Isso substitui o placeholder anterior e cria uma base única para expansão da cobertura por página e componente.
@@ -1937,10 +1949,10 @@ export default function InternoLayout({
 
                     <div className="grid gap-3 xl:grid-cols-2">
                       {coverageCards.length ? coverageCards.map((item) => (
-                        <div key={item.key} className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.55)] p-3 text-[11px]">
-                          {moduleAlerts.has(item.key) ? <div className="mb-3 rounded-lg border border-[#22342F] bg-[rgba(10,12,11,0.45)] px-3 py-2">
+                        <div key={item.key} className={`rounded-xl border p-3 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(8,10,9,0.55)]"}`}>
+                          {moduleAlerts.has(item.key) ? <div className={`mb-3 rounded-lg border px-3 py-2 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(10,12,11,0.45)]"}`}>
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                              <span className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Alerta do modulo</span>
+                              <span className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Alerta do modulo</span>
                               <span className={
                                 moduleAlerts.get(item.key)?.tone === "danger"
                                   ? "text-red-200"
@@ -1954,25 +1966,25 @@ export default function InternoLayout({
                             <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
                               <span className="rounded-full border border-[#5B2D2D] px-2 py-0.5 text-[#FECACA]">erros {moduleAlerts.get(item.key)?.errors || 0}</span>
                               <span className="rounded-full border border-[#6E5630] px-2 py-0.5 text-[#FDE68A]">warn {moduleAlerts.get(item.key)?.warnings || 0}</span>
-                              <span className="rounded-full border border-[#22342F] px-2 py-0.5 text-[#E6E0D3]">abertos {moduleAlerts.get(item.key)?.recurringOpen || 0}</span>
-                              <span className="rounded-full border border-[#22342F] px-2 py-0.5 text-[#E6E0D3]">acima 72h {moduleAlerts.get(item.key)?.stale || 0}</span>
+                              <span className={`rounded-full border px-2 py-0.5 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#E6E0D3]"}`}>abertos {moduleAlerts.get(item.key)?.recurringOpen || 0}</span>
+                              <span className={`rounded-full border px-2 py-0.5 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#E6E0D3]"}`}>acima 72h {moduleAlerts.get(item.key)?.stale || 0}</span>
                             </div>
-                            {moduleAlerts.get(item.key)?.safeWindow ? <div className="mt-3 rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2">
+                            {moduleAlerts.get(item.key)?.safeWindow ? <div className={`mt-3 rounded-lg border px-3 py-2 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
                               <div className="flex flex-wrap items-center justify-between gap-2">
-                                <span className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">
+                                <span className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
                                   {moduleAlerts.get(item.key).safeWindow.blocked ? "trava preventiva" : "janela segura"}
                                 </span>
                                 <div className="flex flex-wrap gap-2 text-[10px]">
                                   {moduleAlerts.get(item.key).safeWindow.chips.map((chip) => (
-                                    <span key={`${item.key}_${chip}`} className="rounded-full border border-[#22342F] px-2 py-0.5 text-[#E6E0D3]">{chip}</span>
+                                    <span key={`${item.key}_${chip}`} className={`rounded-full border px-2 py-0.5 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#E6E0D3]"}`}>{chip}</span>
                                   ))}
                                 </div>
                               </div>
-                              <p className="mt-2 text-[#C7D0CA]">{moduleAlerts.get(item.key).safeWindow.summary}</p>
+                              <p className={`mt-2 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>{moduleAlerts.get(item.key).safeWindow.summary}</p>
                             </div> : null}
-                            {getModulePlaybook(item.key)?.checklist?.length ? <div className="mt-3 space-y-1 text-[11px] text-[#C7D0CA]">
+                            {getModulePlaybook(item.key)?.checklist?.length ? <div className={`mt-3 space-y-1 text-[11px] ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>
                               {getModulePlaybook(item.key).checklist.map((step) => (
-                                <div key={`${item.key}_${step}`} className="rounded-lg border border-[#1E2E29] bg-[rgba(8,10,9,0.45)] px-2 py-1.5">
+                                <div key={`${item.key}_${step}`} className={`rounded-lg border px-2 py-1.5 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(8,10,9,0.45)]"}`}>
                                   {step}
                                 </div>
                               ))}
@@ -1994,7 +2006,7 @@ export default function InternoLayout({
                                   updateFilters({ module: item.key });
                                   setLogSearch("");
                                 }}
-                                className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8]"
+                                className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
                               >
                                 Ver atividade
                               </button>
@@ -2002,8 +2014,8 @@ export default function InternoLayout({
                           </div> : null}
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div>
-                              <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">{item.key}</p>
-                              <p className="mt-1 font-semibold text-[#F5F1E8]">{item.routePath || "sem rota declarada"}</p>
+                              <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{item.key}</p>
+                              <p className={`mt-1 font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{item.routePath || "sem rota declarada"}</p>
                             </div>
                             <span
                               className={
@@ -2017,14 +2029,14 @@ export default function InternoLayout({
                               {item.tone === "danger" ? "erro" : item.tone === "warn" ? "atencao" : "ok"}
                             </span>
                           </div>
-                          <p className="mt-2 text-[#C7D0CA]">{item.summary}</p>
-                          <div className="mt-2 text-[10px] text-[#7E918B]">
+                          <p className={`mt-2 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>{item.summary}</p>
+                          <div className={`mt-2 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>
                             Atualizado em {item.updatedAt ? new Date(item.updatedAt).toLocaleString("pt-BR") : "sem horario"}
                           </div>
                           {item.capabilities?.length ? (
                             <div className="mt-2 flex flex-wrap gap-1.5">
                               {item.capabilities.slice(0, 4).map((capability) => (
-                                <span key={`${item.key}_${capability}`} className="rounded-full border border-[#22342F] px-2 py-0.5 text-[10px] text-[#9BAEA8]">
+                                <span key={`${item.key}_${capability}`} className={`rounded-full border px-2 py-0.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
                                   {capability}
                                 </span>
                               ))}
@@ -2042,7 +2054,7 @@ export default function InternoLayout({
                           {item.quickActions?.length ? (
                             <div className="mt-2 flex flex-wrap gap-1.5">
                               {item.quickActions.slice(0, 2).map((action) => (
-                                <span key={`${item.key}_${action.id}`} className="rounded-full border border-[#35554B] px-2 py-0.5 text-[10px] text-[#B7D5CB]">
+                                <span key={`${item.key}_${action.id}`} className={`rounded-full border px-2 py-0.5 text-[10px] ${isLightTheme ? "border-[#CFE2DA] bg-[#F4FBF8] text-[#4D7A69]" : "border-[#35554B] text-[#B7D5CB]"}`}>
                                   {action.label}
                                 </span>
                               ))}
@@ -2050,7 +2062,7 @@ export default function InternoLayout({
                           ) : null}
                         </div>
                       )) : (
-                        <div className="rounded-xl border border-[#1E2E29] bg-[rgba(8,10,9,0.55)] p-3 text-[11px] text-[#9BAEA8]">
+                        <div className={`rounded-xl border p-3 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#1E2E29] bg-[rgba(8,10,9,0.55)] text-[#9BAEA8]"}`}>
                           Nenhum snapshot publicado ainda.
                         </div>
                       )}
@@ -2058,82 +2070,82 @@ export default function InternoLayout({
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.45)] px-3 py-2 text-[11px] text-[#7F928C]">
+                    <div className={`rounded-xl border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#7B8B98]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.45)] text-[#7F928C]"}`}>
                       Itens organizados por grupos de visao, auditoria, integracoes, IA e governanca para reduzir mistura entre tipo de evento e origem tecnica.
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => clearActivityLog()}
-                        className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                        className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
                       >
                         Limpar (arquivar)
                       </button>
                       <button
                         type="button"
                         onClick={() => handleArchive("Arquivo manual")}
-                        className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                        className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
                       >
                         Arquivar
                       </button>
                       <button
                         type="button"
                         onClick={handleCopyLog}
-                        className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                        className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
                       >
                         Copiar log
                       </button>
                       <button
                         type="button"
                         onClick={handleExportLog}
-                        className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                        className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
                       >
                         Exportar MD
                       </button>
-                      <span className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8]">
+                      <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
                         Arquivos: {archivedCount}
                       </span>
-                      <span className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8]">
+                      <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
                         {formattedArchiveHint}
                       </span>
                     </div>
-                    {!SPECIAL_LOG_PANES.has(logPane) ? <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 text-[10px] uppercase tracking-[0.14em] text-[#7F928C]">
+                    {!SPECIAL_LOG_PANES.has(logPane) ? <div className={`flex flex-wrap items-center gap-2 rounded-xl border p-3 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#7B8B98]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)] text-[#7F928C]"}`}>
                       <span>Filtros</span>
                       <input
                         value={logFilters.module || ""}
                         onChange={(event) => updateFilters({ ...logFilters, module: event.target.value })}
                         placeholder="Modulo"
-                        className="h-7 w-[110px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                        className={`h-7 w-[110px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
                       />
                       <input
                         value={logFilters.page || ""}
                         onChange={(event) => updateFilters({ ...logFilters, page: event.target.value })}
                         placeholder="Pagina"
-                        className="h-7 w-[140px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                        className={`h-7 w-[140px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
                       />
                       <input
                         value={logFilters.component || ""}
                         onChange={(event) => updateFilters({ ...logFilters, component: event.target.value })}
                         placeholder="Componente"
-                        className="h-7 w-[140px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                        className={`h-7 w-[140px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
                       />
                       <input
                         value={logFilters.status || ""}
                         onChange={(event) => updateFilters({ ...logFilters, status: event.target.value })}
                         placeholder="Status"
-                        className="h-7 w-[90px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                        className={`h-7 w-[90px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
                       />
                       <input
                         value={logFilters.tag || ""}
                         onChange={(event) => updateFilters({ ...logFilters, tag: event.target.value })}
                         placeholder="Tag"
-                        className="h-7 w-[90px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                        className={`h-7 w-[90px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
                       />
                       <input
                         value={logSearch}
                         onChange={(event) => setLogSearch(event.target.value)}
                         placeholder="Buscar detalhes"
-                        className="h-7 flex-1 min-w-[160px] rounded-full border border-[#22342F] bg-transparent px-2 text-[10px] text-[#E6E0D3] outline-none placeholder:text-[#53625C]"
+                        className={`h-7 flex-1 min-w-[160px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
                       />
                       <button
                         type="button"
@@ -2155,24 +2167,24 @@ export default function InternoLayout({
                           setLogSearch("");
                           updateFilters({});
                         }}
-                        className="rounded-full border border-[#22342F] px-3 py-1 text-[10px] text-[#9BAEA8] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                        className={`rounded-full border px-3 py-1 text-[10px] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
                       >
                         Limpar filtros
                       </button>
                     </div> : null}
-                    {TAG_LOG_PANES.has(logPane) ? <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 text-[11px] text-[#9BAEA8]">
+                    {TAG_LOG_PANES.has(logPane) ? <div className={`rounded-xl border p-3 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)] text-[#9BAEA8]"}`}>
                       Trilha automatica por tag: <span className="text-[#F4E7C2]">{LOG_PANES.find((pane) => pane.key === logPane)?.label || logPane}</span>. Os eventos entram aqui pela taxonomia do console.
                       {!paneEntries.length && unclassifiedTagEntriesCount ? (
-                        <span className="block mt-2 text-[#C7D0CA]">
+                        <span className={`block mt-2 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>
                           Nenhuma entrada classificada nesta trilha. Existem {unclassifiedTagEntriesCount} evento(s) ainda sem tag automatica compativel.
                         </span>
                       ) : null}
                     </div> : null}
-                    {paneTagPlaybook ? <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3">
+                    {paneTagPlaybook ? <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">{paneTagPlaybook.title}</p>
-                          <p className="mt-1 text-[11px] text-[#9BAEA8]">Checklist sugerido para a trilha atual do console.</p>
+                            <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{paneTagPlaybook.title}</p>
+                            <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Checklist sugerido para a trilha atual do console.</p>
                         </div>
                         <button
                           type="button"
@@ -2189,80 +2201,80 @@ export default function InternoLayout({
                           Fixar filtro
                         </button>
                       </div>
-                      <div className="mt-3 space-y-2 text-[11px] text-[#C7D0CA]">
+                      <div className={`mt-3 space-y-2 text-[11px] ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>
                         {paneTagPlaybook.checklist.map((step) => (
-                          <div key={`${logPane}_${step}`} className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2">
+                          <div key={`${logPane}_${step}`} className={`rounded-lg border px-3 py-2 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
                             {step}
                           </div>
                         ))}
                       </div>
                     </div> : null}
-                    {paneBulkGuardrail ? <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3">
+                    {paneBulkGuardrail ? <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">{paneBulkGuardrail.title}</p>
-                          <p className="mt-1 text-[11px] text-[#9BAEA8]">{paneBulkGuardrail.summary}</p>
+                            <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{paneBulkGuardrail.title}</p>
+                            <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{paneBulkGuardrail.summary}</p>
                         </div>
                         <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(paneBulkGuardrail.tone)}`}>
                           itens {paneBulkGuardrail.metrics.total} · erros {paneBulkGuardrail.metrics.errors} · running {paneBulkGuardrail.metrics.running}
                         </span>
                       </div>
-                      <div className="mt-3 space-y-2 text-[11px] text-[#C7D0CA]">
+                      <div className={`mt-3 space-y-2 text-[11px] ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>
                         {paneBulkGuardrail.actions.map((step) => (
-                          <div key={`${logPane}_${step}`} className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2">
+                          <div key={`${logPane}_${step}`} className={`rounded-lg border px-3 py-2 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
                             {step}
                           </div>
                         ))}
                       </div>
                     </div> : null}
                     {!SPECIAL_LOG_PANES.has(logPane) && paneEntries.length ? <div className="grid gap-3 xl:grid-cols-2">
-                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 xl:col-span-2">
+                      <div className={`rounded-xl border p-3 xl:col-span-2 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
-                            <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Risco da trilha</p>
-                            <p className="mt-1 text-[11px] text-[#9BAEA8]">Score baseado em erros, warnings e recorrencia recente.</p>
+                            <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Risco da trilha</p>
+                            <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Score baseado em erros, warnings e recorrencia recente.</p>
                           </div>
                           <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(paneRisk.tone)}`}>
                             risco {paneRisk.label} · {paneRisk.score}
                           </span>
                         </div>
                       </div>
-                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 xl:col-span-2">
+                      <div className={`rounded-xl border p-3 xl:col-span-2 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
-                            <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">SLA e idade dos erros</p>
-                            <p className="mt-1 text-[11px] text-[#9BAEA8]">Envelhecimento dos erros ainda nao resolvidos nesta trilha.</p>
+                            <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>SLA e idade dos erros</p>
+                            <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Envelhecimento dos erros ainda nao resolvidos nesta trilha.</p>
                           </div>
                           <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(paneSla.tone)}`}>
                             aberto {paneSla.openRecurring} · acompanhando {paneSla.watchingRecurring} · resolvido {paneSla.resolvedRecurring}
                           </span>
                         </div>
                         <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-                          <div className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2 text-[11px]">
+                          <div className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
                             <div className="text-[#7F928C]">até 4h</div>
-                            <div className="mt-1 font-semibold text-[#F4F1EA]">{paneSla.buckets.ate_4h}</div>
+                            <div className={`mt-1 font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F4F1EA]"}`}>{paneSla.buckets.ate_4h}</div>
                           </div>
-                          <div className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2 text-[11px]">
+                          <div className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
                             <div className="text-[#7F928C]">4h - 24h</div>
-                            <div className="mt-1 font-semibold text-[#F4F1EA]">{paneSla.buckets.ate_24h}</div>
+                            <div className={`mt-1 font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F4F1EA]"}`}>{paneSla.buckets.ate_24h}</div>
                           </div>
-                          <div className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2 text-[11px]">
+                          <div className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
                             <div className="text-[#7F928C]">24h - 72h</div>
-                            <div className="mt-1 font-semibold text-[#F4F1EA]">{paneSla.buckets.ate_72h}</div>
+                            <div className={`mt-1 font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F4F1EA]"}`}>{paneSla.buckets.ate_72h}</div>
                           </div>
-                          <div className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2 text-[11px]">
+                          <div className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
                             <div className="text-[#7F928C]">acima de 72h</div>
-                            <div className={`mt-1 font-semibold ${paneSla.buckets.acima_72h ? "text-[#FECACA]" : "text-[#F4F1EA]"}`}>{paneSla.buckets.acima_72h}</div>
+                            <div className={`mt-1 font-semibold ${paneSla.buckets.acima_72h ? "text-[#FECACA]" : isLightTheme ? "text-[#152421]" : "text-[#F4F1EA]"}`}>{paneSla.buckets.acima_72h}</div>
                           </div>
-                          <div className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2 text-[11px]">
+                          <div className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
                             <div className="text-[#7F928C]">sem data</div>
-                            <div className={`mt-1 font-semibold ${paneSla.buckets.sem_data ? "text-[#FDE68A]" : "text-[#F4F1EA]"}`}>{paneSla.buckets.sem_data}</div>
+                            <div className={`mt-1 font-semibold ${paneSla.buckets.sem_data ? "text-[#FDE68A]" : isLightTheme ? "text-[#152421]" : "text-[#F4F1EA]"}`}>{paneSla.buckets.sem_data}</div>
                           </div>
                         </div>
                       </div>
-                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3">
+                      <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Recorrencia</p>
+                          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Recorrencia</p>
                           {paneFingerprintSummary.length ? <div className="flex flex-wrap gap-2">
                             <button
                               type="button"
@@ -2287,17 +2299,17 @@ export default function InternoLayout({
                             </button>
                           </div> : null}
                         </div>
-                        {!paneFingerprintSummary.length ? <p className="mt-2 text-[11px] opacity-60">Nenhum fingerprint recorrente nesta trilha.</p> : <div className="mt-2 space-y-2">
-                          {paneFingerprintSummary.map((item) => <div key={item.fingerprint} className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2 text-[11px]">
+                        {!paneFingerprintSummary.length ? <p className={`mt-2 text-[11px] opacity-60 ${isLightTheme ? "text-[#7B8B98]" : ""}`}>Nenhum fingerprint recorrente nesta trilha.</p> : <div className="mt-2 space-y-2">
+                          {paneFingerprintSummary.map((item) => <div key={item.fingerprint} className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
                             <div className="flex items-center justify-between gap-2">
-                              <span className="font-semibold">{item.label}</span>
+                              <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>{item.label}</span>
                               <div className="flex flex-wrap items-center justify-end gap-2">
                                 <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${getFingerprintStatusTone(item.status)}`}>{item.status}</span>
                                 <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(item.severity)}`}>{item.count}x</span>
                               </div>
                             </div>
-                            <div className="mt-1 text-[#7F928C]">{item.fingerprint}</div>
-                            {item.note ? <div className="mt-2 text-[#C7D0CA]">{item.note}</div> : null}
+                            <div className={`mt-1 ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{item.fingerprint}</div>
+                            {item.note ? <div className={`mt-2 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>{item.note}</div> : null}
                             <div className="mt-2 flex flex-wrap gap-2">
                               <button
                                 type="button"
@@ -2323,7 +2335,7 @@ export default function InternoLayout({
                               <button
                                 type="button"
                                 onClick={() => handleFingerprintNote(item.fingerprint)}
-                                className="rounded-full border border-[#22342F] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#9BAEA8]"
+                                className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
                               >
                                 Nota
                               </button>
@@ -2331,26 +2343,26 @@ export default function InternoLayout({
                           </div>)}
                         </div>}
                       </div>
-                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3">
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Acao recomendada</p>
-                        {!paneRecommendationSummary.length ? <p className="mt-2 text-[11px] opacity-60">Sem recomendacoes consolidadas ainda.</p> : <div className="mt-2 space-y-2">
-                          {paneRecommendationSummary.map((item) => <div key={item.action} className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2 text-[11px]">
+                      <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
+                        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Acao recomendada</p>
+                        {!paneRecommendationSummary.length ? <p className={`mt-2 text-[11px] opacity-60 ${isLightTheme ? "text-[#7B8B98]" : ""}`}>Sem recomendacoes consolidadas ainda.</p> : <div className="mt-2 space-y-2">
+                          {paneRecommendationSummary.map((item) => <div key={item.action} className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
                             <div className="flex items-center justify-between gap-2">
-                              <span className="font-semibold">{item.action}</span>
+                              <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>{item.action}</span>
                               <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(item.severity)}`}>{item.count}</span>
                             </div>
                           </div>)}
                         </div>}
                       </div>
-                      <div className="rounded-xl border border-[#1E2E29] bg-[rgba(10,12,11,0.6)] p-3 xl:col-span-2">
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Timeline operacional</p>
-                        {!paneTimeline.length ? <p className="mt-2 text-[11px] opacity-60">Sem jobId/runId/contactId/processoId identificados nesta trilha.</p> : <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                          {paneTimeline.map((item) => <div key={item.key} className="rounded-lg border border-[#22342F] bg-[rgba(8,10,9,0.45)] px-3 py-2 text-[11px]">
+                      <div className={`rounded-xl border p-3 xl:col-span-2 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
+                        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Timeline operacional</p>
+                        {!paneTimeline.length ? <p className={`mt-2 text-[11px] opacity-60 ${isLightTheme ? "text-[#7B8B98]" : ""}`}>Sem jobId/runId/contactId/processoId identificados nesta trilha.</p> : <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                          {paneTimeline.map((item) => <div key={item.key} className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
                             <div className="flex items-center justify-between gap-2">
-                              <span className="font-semibold">{item.label}</span>
+                              <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>{item.label}</span>
                               <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(item.severity)}`}>{item.count}</span>
                             </div>
-                            <div className="mt-1 text-[#7F928C]">{item.lastAt ? new Date(item.lastAt).toLocaleString("pt-BR") : "sem data"}</div>
+                            <div className={`mt-1 ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{item.lastAt ? new Date(item.lastAt).toLocaleString("pt-BR") : "sem data"}</div>
                           </div>)}
                         </div>}
                       </div>
@@ -2884,7 +2896,7 @@ export default function InternoLayout({
         </div>
         {shouldRenderDotobotRail && !rightCollapsed ? (
           <div className="fixed inset-y-3 right-3 z-40 flex w-[min(100vw-0.75rem,420px)] flex-col overflow-hidden rounded-[30px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(8,10,9,0.985),rgba(7,9,8,0.96))] shadow-[-24px_0_56px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.02)] xl:relative xl:inset-y-auto xl:right-auto xl:z-auto xl:h-full xl:w-[360px] xl:min-w-[320px] xl:max-w-[420px] xl:rounded-[30px] xl:bg-[linear-gradient(180deg,rgba(8,10,9,0.96),rgba(7,9,8,0.94))] xl:shadow-none">
-            {currentOperationalRail || resolvedRightRail ? (
+            {!rightRailConversationFirst && (currentOperationalRail || resolvedRightRail) ? (
               <div className="max-h-[42%] shrink-0 overflow-auto border-b border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 xl:max-h-[48%]">
                 {currentOperationalRail ? (
                   <OperationalRightRail
@@ -2909,10 +2921,11 @@ export default function InternoLayout({
                 <DotobotCopilot
                   profile={profile}
                   routePath={router.pathname}
-                  initialWorkspaceOpen={rightRailFullscreen ? true : false}
+                  initialWorkspaceOpen={true}
                   defaultCollapsed={false}
                   compactRail={!rightRailFullscreen}
                   showCollapsedTrigger={false}
+                  embeddedInInternoShell={true}
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-sm text-[#9BAEA8]">
@@ -2920,6 +2933,26 @@ export default function InternoLayout({
                 </div>
               )}
             </div>
+            {rightRailConversationFirst && (currentOperationalRail || resolvedRightRail) ? (
+              <div className="max-h-[34%] shrink-0 overflow-auto border-t border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+                {currentOperationalRail ? (
+                  <OperationalRightRail
+                    data={currentOperationalRail}
+                    onOpenConsole={() => {
+                      setConsoleOpen(true);
+                      setConsoleTab("console");
+                    }}
+                    onOpenJobsLog={() => {
+                      setConsoleOpen(true);
+                      setConsoleTab("log");
+                      setLogPane("jobs");
+                      updateFilters({ module: currentModuleKey, tag: "jobs" });
+                    }}
+                  />
+                ) : null}
+                {resolvedRightRail ? <div className={currentOperationalRail ? "mt-4" : ""}>{resolvedRightRail}</div> : null}
+              </div>
+            ) : null}
           </div>
         ) : null}
         {shouldRenderDotobotRail ? (

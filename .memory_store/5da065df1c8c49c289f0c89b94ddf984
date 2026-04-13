@@ -1,0 +1,7 @@
+{
+  "session_id": "5da065df1c8c49c289f0c89b94ddf984",
+  "entries": [
+    "user_query: Ol\u00e1 local",
+    "final_output: ExecutionResultPayload(kind='structured', message='No tool selected; step processed as reasoning-only action.', data={'status': 'ok', 'tool': None, 'payload': {'query': 'Ol\u00e1 local', 'step': 'Ol\u00e1 local', 'context': {'route': '/interno/copilot', 'rag': {'enabled': False, 'vault_path': None, 'memory_dir': None, 'matches': [], 'error': None, 'embedding_engine': 'hashed_token_bow', 'embedding_dimensions': 128, 'vector_backend': 'obsidian_hybrid_local_index', 'indexed_notes': 0, 'index_limit': 256}}, 'memory': [], 'rag': []}, 'message': 'No tool selected; step processed as reasoning-only action.'})"
+  ]
+}
