@@ -27,7 +27,7 @@ function NavMenu({ isOpen, onClose, isLightTheme }) {
           exit={{ clipPath: "circle(0% at calc(100% - 40px) 40px)" }}
           transition={{ duration: 0.6, ease: [0.76, 0, 0.24, 1] }}
           className="fixed inset-0 z-[100] flex items-center justify-center"
-          style={{ background: resolvedLightTheme ? "#EEF2F6" : "#050706" }}
+          style={{ background: isLightTheme ? "#EEF2F6" : "#050706" }}
         >
           <div
             className="absolute inset-0 opacity-20"
@@ -40,7 +40,7 @@ function NavMenu({ isOpen, onClose, isLightTheme }) {
           />
           <button
             onClick={onClose}
-            className={`absolute top-8 right-8 hover:text-[#C5A059] transition-colors z-10 ${resolvedLightTheme ? "text-[#13201D]" : "text-[#F4F1EA]"}`}
+            className={`absolute top-8 right-8 hover:text-[#C5A059] transition-colors z-10 ${isLightTheme ? "text-[#13201D]" : "text-[#F4F1EA]"}`}
           >
             <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="8" y1="8" x2="24" y2="24" />
@@ -59,7 +59,7 @@ function NavMenu({ isOpen, onClose, isLightTheme }) {
                 <Link href={item.href} legacyBehavior>
                   <a
                     onClick={onClose}
-                    className={`font-serif text-5xl md:text-7xl font-light hover:text-[#C5A059] transition-colors duration-300 block py-2 ${resolvedLightTheme ? "text-[#13201D]" : "text-[#F4F1EA]"}`}
+                    className={`font-serif text-5xl md:text-7xl font-light hover:text-[#C5A059] transition-colors duration-300 block py-2 ${isLightTheme ? "text-[#13201D]" : "text-[#F4F1EA]"}`}
                   >
                     {item.label}
                   </a>

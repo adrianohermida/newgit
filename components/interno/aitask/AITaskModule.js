@@ -252,8 +252,6 @@ export default function AITaskModule({ profile, routePath }) {
     setLocalRuntimeDraft(getBrowserLocalRuntimeConfig());
   }, [localStackSummary]);
 
-  const localStackReady = Boolean(localStackSummary?.ok && localStackSummary?.localProvider?.available);
-
   useEffect(() => {
     if (!localStackSummary?.offlineMode) return;
     if (!hasExplicitBrowserLocalRuntimeOptIn()) return;

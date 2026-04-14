@@ -4,7 +4,7 @@
     "runtimeModel": "aetherlab-legal-local-v1"
   },
   "cloud": {
-    "appUrl": "http://localhost:3000",
+    "appUrl": "http://127.0.0.1:3000",
     "baseUrl": "",
     "model": "aetherlab-legal-v1",
     "authToken": ""
