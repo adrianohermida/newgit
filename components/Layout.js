@@ -27,7 +27,7 @@ function NavMenu({ isOpen, onClose, isLightTheme }) {
           exit={{ clipPath: "circle(0% at calc(100% - 40px) 40px)" }}
           transition={{ duration: 0.6, ease: [0.76, 0, 0.24, 1] }}
           className="fixed inset-0 z-[100] flex items-center justify-center"
-          style={{ background: isLightTheme ? "#EEF2F6" : "#050706" }}
+          style={{ background: resolvedLightTheme ? "#EEF2F6" : "#050706" }}
         >
           <div
             className="absolute inset-0 opacity-20"
@@ -40,7 +40,7 @@ function NavMenu({ isOpen, onClose, isLightTheme }) {
           />
           <button
             onClick={onClose}
-            className={`absolute top-8 right-8 hover:text-[#C5A059] transition-colors z-10 ${isLightTheme ? "text-[#13201D]" : "text-[#F4F1EA]"}`}
+            className={`absolute top-8 right-8 hover:text-[#C5A059] transition-colors z-10 ${resolvedLightTheme ? "text-[#13201D]" : "text-[#F4F1EA]"}`}
           >
             <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="8" y1="8" x2="24" y2="24" />
@@ -59,7 +59,7 @@ function NavMenu({ isOpen, onClose, isLightTheme }) {
                 <Link href={item.href} legacyBehavior>
                   <a
                     onClick={onClose}
-                    className={`font-serif text-5xl md:text-7xl font-light hover:text-[#C5A059] transition-colors duration-300 block py-2 ${isLightTheme ? "text-[#13201D]" : "text-[#F4F1EA]"}`}
+                    className={`font-serif text-5xl md:text-7xl font-light hover:text-[#C5A059] transition-colors duration-300 block py-2 ${resolvedLightTheme ? "text-[#13201D]" : "text-[#F4F1EA]"}`}
                   >
                     {item.label}
                   </a>
@@ -89,11 +89,12 @@ function NavMenu({ isOpen, onClose, isLightTheme }) {
   );
 }
 
-export default function Layout({ children }) {
+export default function Layout({ children, forceDarkMode = false, hideThemeControls = false }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const router = useRouter();
   const { isLightTheme, preference, setThemePreference, toggleTheme } = useInternalTheme();
+  const resolvedLightTheme = forceDarkMode ? false : isLightTheme;
 
   useEffect(() => {
     setModuleHistory("public-shell", {
@@ -132,8 +133,14 @@ export default function Layout({ children }) {
     return undefined;
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (!forceDarkMode) return undefined;
+    setThemePreference("dark");
+    return undefined;
+  }, [forceDarkMode, setThemePreference]);
+
   return (
-    <div className={`min-h-screen flex flex-col ${isLightTheme ? "bg-[#F3F6FA] text-[#13201D]" : "bg-[#050706] text-[#F4F1EA]"}`}>
+    <div className={`min-h-screen flex flex-col ${resolvedLightTheme ? "bg-[#F3F6FA] text-[#13201D]" : "bg-[#050706] text-[#F4F1EA]"}`}>
       {/* Vertical side labels */}
       <div className="fixed left-4 top-1/2 -translate-y-1/2 z-40 hidden xl:flex flex-col items-center gap-4">
         <div
@@ -161,9 +168,9 @@ export default function Layout({ children }) {
           scrolled ? "py-3" : "py-5"
         }`}
         style={{
-          background: scrolled ? (isLightTheme ? "rgba(243, 246, 250, 0.92)" : "rgba(5, 7, 6, 0.9)") : "transparent",
+          background: scrolled ? (resolvedLightTheme ? "rgba(243, 246, 250, 0.92)" : "rgba(5, 7, 6, 0.9)") : "transparent",
           backdropFilter: scrolled ? "blur(20px)" : "none",
-          borderBottom: scrolled ? (isLightTheme ? "1px solid rgba(202, 214, 226, 0.9)" : "1px solid rgba(45, 46, 46, 0.5)") : "1px solid transparent",
+          borderBottom: scrolled ? (resolvedLightTheme ? "1px solid rgba(202, 214, 226, 0.9)" : "1px solid rgba(45, 46, 46, 0.5)") : "1px solid transparent",
         }}
       >
         <div className="mx-auto max-w-7xl px-6 flex items-center justify-between">
@@ -176,7 +183,7 @@ export default function Layout({ children }) {
               </svg>
             </div>
             <div>
-              <h1 className="text-base font-bold tracking-[0.1em] uppercase leading-none" style={{ color: isLightTheme ? "#13201D" : "#F4F1EA" }}>
+              <h1 className="text-base font-bold tracking-[0.1em] uppercase leading-none" style={{ color: resolvedLightTheme ? "#13201D" : "#F4F1EA" }}>
                 Hermida Maia
               </h1>
               <p className="text-[9px] font-semibold tracking-[0.25em] uppercase" style={{ color: "#C5A059" }}>
@@ -196,7 +203,7 @@ export default function Layout({ children }) {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs font-semibold tracking-[0.12em] uppercase transition-colors duration-300 hover:text-[#C5A059]"
-                    style={{ color: isLightTheme ? "#13201D" : "#F4F1EA" }}
+                    style={{ color: resolvedLightTheme ? "#13201D" : "#F4F1EA" }}
                   >
                     {item.label}
                   </a>
@@ -207,7 +214,7 @@ export default function Layout({ children }) {
                 <Link key={item.label} href={item.href} legacyBehavior>
                   <a
                     className={`text-xs font-semibold tracking-[0.12em] uppercase transition-colors duration-300 ${isActive ? "text-[#C5A059]" : "hover:text-[#C5A059]"}`}
-                    style={{ color: isActive ? "#C5A059" : (isLightTheme ? "#13201D" : "#F4F1EA") }}
+                    style={{ color: isActive ? "#C5A059" : (resolvedLightTheme ? "#13201D" : "#F4F1EA") }}
                   >
                     {item.label}
                   </a>
@@ -217,7 +224,7 @@ export default function Layout({ children }) {
           </nav>
 
           <div className="flex items-center gap-4">
-            <div className={`hidden items-center gap-1 rounded-[14px] border px-1 py-1 md:flex ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.84)]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+            {!hideThemeControls ? <div className={`hidden items-center gap-1 rounded-[14px] border px-1 py-1 md:flex ${resolvedLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.84)]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
               {[
                 { key: "light", label: "Claro" },
                 { key: "system", label: "Sistema" },
@@ -232,7 +239,7 @@ export default function Layout({ children }) {
                     className={`rounded-[10px] px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] transition ${
                       active
                         ? "bg-[linear-gradient(180deg,#C5A059,#B08B46)] text-[#07110E]"
-                        : isLightTheme
+                        : resolvedLightTheme
                           ? "text-[#60706A] hover:bg-[rgba(213,222,233,0.76)] hover:text-[#22312F]"
                           : "text-[#9BAEA8] hover:bg-[rgba(255,255,255,0.05)] hover:text-[#F5E6C5]"
                     }`}
@@ -241,14 +248,14 @@ export default function Layout({ children }) {
                   </button>
                 );
               })}
-            </div>
-            <button
+            </div> : null}
+            {!hideThemeControls ? <button
               type="button"
               onClick={toggleTheme}
-              className={`hidden rounded-[14px] border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] md:inline-flex ${isLightTheme ? "border-[#D4DEE8] text-[#22312F]" : "border-[#22342F] text-[#D8DEDA]"}`}
+              className={`hidden rounded-[14px] border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] md:inline-flex ${resolvedLightTheme ? "border-[#D4DEE8] text-[#22312F]" : "border-[#22342F] text-[#D8DEDA]"}`}
             >
               Alternar
-            </button>
+            </button> : null}
             <Link href="/agendamento" legacyBehavior>
               <a
                 className="hidden md:inline-flex items-center gap-2 border border-[#C5A059]/50 text-[#C5A059] px-6 py-2.5 text-xs font-semibold tracking-[0.12em] uppercase hover:bg-[#C5A059] hover:text-[#050706] transition-all duration-300"
@@ -263,14 +270,14 @@ export default function Layout({ children }) {
               className="lg:hidden flex flex-col gap-1.5 items-end group"
               aria-label="Abrir menu"
             >
-              <div className={`w-7 h-[2px] ${isLightTheme ? "bg-[#13201D]" : "bg-[#F4F1EA]"} group-hover:bg-[#C5A059] transition-colors`} />
-              <div className={`w-5 h-[2px] ${isLightTheme ? "bg-[#13201D]" : "bg-[#F4F1EA]"} group-hover:bg-[#C5A059] transition-colors`} />
+              <div className={`w-7 h-[2px] ${resolvedLightTheme ? "bg-[#13201D]" : "bg-[#F4F1EA]"} group-hover:bg-[#C5A059] transition-colors`} />
+              <div className={`w-5 h-[2px] ${resolvedLightTheme ? "bg-[#13201D]" : "bg-[#F4F1EA]"} group-hover:bg-[#C5A059] transition-colors`} />
             </button>
           </div>
         </div>
       </header>
 
-      <NavMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} isLightTheme={isLightTheme} />
+      <NavMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} isLightTheme={resolvedLightTheme} />
 
       <main>{children}</main>
 

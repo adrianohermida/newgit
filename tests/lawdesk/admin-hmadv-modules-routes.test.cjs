@@ -109,21 +109,11 @@ registerTest("admin-hmadv-processos returns degraded overview on auth provider u
         details: { stage: "supabase_user" },
       }),
     },
-    "../../lib/admin/hmadv-ops.js": {
-      backfillAudiencias: async () => ({}),
-      bulkSaveSuggestedRelations: async () => ({}),
-      bulkUpdateProcessRelations: async () => ({}),
-      deleteProcessRelation: async () => ({}),
-      getProcessosOverview: async () => ({}),
-      inspectAudiencias: async () => ({}),
-      listAdminJobs: async () => ({ items: [] }),
-      listAdminOperations: async () => ({ items: [] }),
-      listProcessRelations: async () => ({ items: [], totalRows: 0 }),
-      runSyncWorker: async () => ({}),
-      scanOrphanProcesses: async () => ({ items: [], totalRows: 0 }),
-      saveProcessRelation: async () => ({}),
-      searchProcesses: async () => ({ items: [] }),
-      suggestProcessRelations: async () => ({ items: [], totalRows: 0 }),
+    "../../lib/admin/processos-api-get.js": {
+      handleProcessosGet: async () => ({ ok: true, data: {} }),
+    },
+    "../../lib/admin/processos-api-post.js": {
+      handleProcessosPost: async () => ({ ok: true, data: {} }),
     },
   });
 

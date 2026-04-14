@@ -5,12 +5,12 @@ import { useInternalTheme } from "../../../components/interno/InternalThemeProvi
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import { ACTION_LABELS } from "./constants";
 import { buildJobPreview } from "./action-utils";
+import { usePublicacoesActivityLog } from "./usePublicacoesActivityLog";
 import { usePublicacoesAdminFetch } from "./usePublicacoesAdminFetch";
 import { usePublicacoesCoreState } from "./usePublicacoesCoreState";
-import { usePublicacoesQueueState } from "./usePublicacoesQueueState";
 import { usePublicacoesDetailState } from "./usePublicacoesDetailState";
 import { formatDateTimeLabel, formatFallbackReason, formatSnapshotLabel, formatValidationMeta, getPublicacaoSelectionValue, isResourceLimitError as detectResourceLimitError, validationLabel, validationTone } from "./publicacoesFormatting";
-import { usePublicacoesActivityLog } from "./usePublicacoesActivityLog";
+import { usePublicacoesQueueState } from "./usePublicacoesQueueState";
 import { PublicacoesScreenBody } from "./PublicacoesScreenBody";
 import { usePublicacoesScreenRuntime } from "./usePublicacoesScreenRuntime";
 
@@ -43,17 +43,5 @@ function PublicacoesContent() {
 }
 
 export default function PublicacoesScreen() {
-  return (
-    <RequireAdmin>
-      {(profile) => (
-        <InternoLayout
-          profile={profile}
-          title="Gestao de Publicacoes"
-          description="Triagem operacional para criar processos, drenar filas e fechar pendencias reais."
-        >
-          <PublicacoesContent />
-        </InternoLayout>
-      )}
-    </RequireAdmin>
-  );
+  return <RequireAdmin>{(profile) => <InternoLayout profile={profile} title="Gestao de Publicacoes" description="Triagem operacional para criar processos, drenar filas e fechar pendencias reais."><PublicacoesContent /></InternoLayout>}</RequireAdmin>;
 }
