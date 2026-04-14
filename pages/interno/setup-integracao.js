@@ -258,7 +258,7 @@ export default function SetupIntegracaoPage() {
         <InternoLayout
           profile={profile}
           title="Setup Inicial"
-          description="Wizard interno para coletar secrets e gerar o kit de onboarding Supabase + Freshsales + Freshdesk."
+      description="Configuração guiada para ativar integrações e deixar o produto pronto para operar."
         >
           <div className="overflow-hidden border border-[#29322F] bg-[#07110E] text-[#F5F0E7]">
             <section className="relative border-b border-[#233630] px-6 py-8 md:px-10 md:py-10">

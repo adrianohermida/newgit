@@ -134,16 +134,16 @@ const QUICK_PROMPTS = [
 const DOTOBOT_LAYOUT_STORAGE_PREFIX = "lawdesk_dotobot_layout";
 
 const MODULE_WORKSPACES = [
-  { key: "processos", label: "Processos", href: "/interno/processos", helper: "Monitoramento, CNJ, tarefas jurídicas e gaps operacionais." },
-  { key: "publicacoes", label: "Publicações", href: "/interno/publicacoes", helper: "Fila de reflexo, análise de andamentos e vínculo com processos." },
-  { key: "contatos", label: "Contatos", href: "/interno/contacts", helper: "Perfil 360, relacionamento, enriquecimento e reconciliação." },
-  { key: "leads", label: "Leads", href: "/interno/leads", helper: "Origem, triagem comercial e handoff para CRM." },
-  { key: "agenda", label: "Agenda", href: "/interno/agendamentos", helper: "Compromissos, confirmações e preparo de audiência." },
-  { key: "conteudo", label: "Conteúdo", href: "/interno/posts", helper: "Planejamento editorial, rascunhos e peças publicáveis." },
-  { key: "market_ads", label: "Market Ads", href: "/interno/market-ads", helper: "Campanhas, compliance e inteligência criativa." },
-  { key: "financeiro", label: "Financeiro", href: "/interno/financeiro", helper: "Faturas, deals, recebíveis e pendências críticas." },
-  { key: "aprovacoes", label: "Aprovações", href: "/interno/aprovacoes", helper: "Decisões humanas, validações e governança de ações." },
-  { key: "jobs", label: "Jobs", href: "/interno/jobs", helper: "Execuções em lote, backlog e saúde das filas." },
+  { key: "processos", label: "Processos", href: "/interno/processos", helper: "Carteira processual com visão clara, acompanhamento e próximos passos." },
+  { key: "publicacoes", label: "Publicações", href: "/interno/publicacoes", helper: "Atualizações jurídicas organizadas com leitura simples e ação rápida." },
+  { key: "contatos", label: "Contatos", href: "/interno/contacts", helper: "Relacionamento completo com histórico, dados e contexto comercial." },
+  { key: "leads", label: "Leads", href: "/interno/leads", helper: "Entrada comercial com priorização, origem e potencial de conversão." },
+  { key: "agenda", label: "Agenda", href: "/interno/agendamentos", helper: "Compromissos, confirmações e preparação do atendimento." },
+  { key: "conteudo", label: "Conteúdo", href: "/interno/posts", helper: "Calendário editorial para produção, revisão e publicação." },
+  { key: "market_ads", label: "Market Ads", href: "/interno/market-ads", helper: "Campanhas jurídicas com posicionamento, copy e performance." },
+  { key: "financeiro", label: "Financeiro", href: "/interno/financeiro", helper: "Receita, contratos e pendências financeiras em uma visão executiva." },
+  { key: "aprovacoes", label: "Aprovações", href: "/interno/aprovacoes", helper: "Validações pendentes com contexto e decisão em poucos cliques." },
+  { key: "jobs", label: "Jobs", href: "/interno/jobs", helper: "Automação em lote com status, fila e previsibilidade operacional." },
 ];
 
 function shouldHydrateBrowserLocalProvider({ focusedWorkspace = false, selectedProvider = "", providers = [] } = {}) {
@@ -3018,14 +3018,29 @@ const [uiToasts, setUiToasts] = useState([]);
     return nextConversations;
   }, [conversationSort, conversations, deferredConversationSearch, selectedProjectFilter, showArchived]);
   const conversationProjectGroups = useMemo(() => groupConversationsByProject(filteredConversations), [filteredConversations]);
-  const projectInsights = useMemo(
-    () => buildProjectInsights(groupConversationsByProject(conversations.filter((conversation) => showArchived || !conversation.archived))),
+  const visibleConversationsByProject = useMemo(
+    () => groupConversationsByProject(conversations.filter((conversation) => showArchived || !conversation.archived)),
     [conversations, showArchived]
+  );
+  const conversationBucketsByProjectKey = useMemo(() => {
+    const buckets = new Map();
+    for (const conversation of conversations) {
+      const key = conversation?.projectKey || "geral";
+      if (!buckets.has(key)) {
+        buckets.set(key, []);
+      }
+      buckets.get(key).push(conversation);
+    }
+    return buckets;
+  }, [conversations]);
+  const projectInsights = useMemo(
+    () => buildProjectInsights(visibleConversationsByProject),
+    [visibleConversationsByProject]
   );
   const activeProjectLabel = activeConversation?.projectLabel || "Geral";
   const conversationEntities = useMemo(() => extractConversationEntities(activeConversation, activeTask), [activeConversation, activeTask]);
   const moduleWorkspaceCards = useMemo(() => MODULE_WORKSPACES.map((module) => {
-    const matchedConversations = conversations.filter((conversation) => conversation.projectKey === module.key);
+    const matchedConversations = conversationBucketsByProjectKey.get(module.key) || [];
     return {
       ...module,
       count: matchedConversations.length,
@@ -3039,7 +3054,7 @@ const [uiToasts, setUiToasts] = useState([]);
         entities: conversationEntities,
       }),
     };
-  }), [activeConversation, activeProjectLabel, activeTask, conversationEntities, conversations, routePath]);
+  }), [activeConversation, activeProjectLabel, activeTask, conversationBucketsByProjectKey, conversationEntities, routePath]);
   const cockpitCommandActions = useMemo(() => [
     {
       id: "focus-composer",
@@ -3076,12 +3091,12 @@ const [uiToasts, setUiToasts] = useState([]);
   ], [routePath, router]);
   const activeRightPanelMeta = useMemo(() =>
     rightPanelTab === "modules"
-      ? { title: "Módulos", detail: "Atalhos contextuais para os sistemas internos." }
+      ? { title: "Módulos", detail: "Acesse áreas-chave do produto sem sair da conversa." }
       : rightPanelTab === "ai-task"
-        ? { title: "AI Task", detail: "Subtarefas e continuidade operacional ao lado da conversa." }
+        ? { title: "AI Task", detail: "Execução assistida para transformar pedidos em próximos passos." }
         : rightPanelTab === "agentlabs"
-          ? { title: "AgentLabs", detail: "Subagentes, syncs e saúde do ai-core em leitura lateral." }
-          : { title: "Contexto", detail: "Missão ativa, rota e sinais úteis para handoff." }, [rightPanelTab]);
+          ? { title: "AgentLabs", detail: "Evolução dos agentes, qualidade e repertório do produto." }
+          : { title: "Contexto", detail: "Resumo útil da conversa, missão ativa e referências rápidas." }, [rightPanelTab]);
   const agentLabData = agentLabSnapshot.data || null;
   const agentLabSubagents = useMemo(() => extractAgentLabSubagents(agentLabSnapshot.data, activeTask), [activeTask, agentLabSnapshot.data]);
   const agentLabOverview = agentLabData?.overview || {};
@@ -3199,7 +3214,7 @@ const [uiToasts, setUiToasts] = useState([]);
   const showConversationCockpitCards = !isConversationCentricShell && !compactRail;
   const showRuntimeOpsHeader = !isFocusedCopilotShell && !compactRail;
   const showRuntimeOpsFullscreen = false;
-  const fullscreenConversationSubtitle = "Histórico à esquerda, conversa ao centro e contexto operacional à direita.";
+  const fullscreenConversationSubtitle = "Histórico à esquerda, conversa ao centro e apoio inteligente na lateral.";
 
   useEffect(() => {
     if (!localStackSummary?.offlineMode) return;
@@ -3299,7 +3314,7 @@ const [uiToasts, setUiToasts] = useState([]);
         <header className={`border-b px-4 py-4 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Copilot operacional</p>
+              <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Copilot</p>
               <div className="mt-2 flex items-center gap-3">
                 <h3 className={`text-lg font-semibold tracking-[-0.02em] ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Dotobot</h3>
                 <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] ${activeStatus === "processing" ? "border-[#8b6f33] text-[#D9B46A]" : "border-[#234034] text-[#80C7A1]"}`}>
@@ -3311,8 +3326,8 @@ const [uiToasts, setUiToasts] = useState([]);
                 {isFocusedCopilotShell
                   ? fullscreenConversationSubtitle
                   : isCompactViewport
-                    ? "Chat para execucao e handoff com AI Task."
-                    : "Chat focado em execucao, contexto e handoff com AI Task."}
+                    ? "Chat inteligente para orientar próximas ações."
+                    : "Conversa assistida com contexto, histórico e próximos passos em um só lugar."}
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
                 <span className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
@@ -3362,13 +3377,13 @@ const [uiToasts, setUiToasts] = useState([]);
               {localStackSummary && !isFocusedCopilotShell ? (
                 <p className={`mt-2 max-w-2xl text-[11px] leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>
                   {localStackReady
-                    ? `ai-core local ativo${localStackSummary.offlineMode ? " em modo offline" : ""} com modelo ${localStackSummary.localProvider?.model || "local"}.`
-                    : "O runtime local ainda nao respondeu; suba o ai-core e a extensao local para habilitar o modo da sua maquina."}
+                    ? `Modo local disponível${localStackSummary.offlineMode ? " em operação offline" : ""} com ${localStackSummary.localProvider?.model || "modelo local"}.`
+                    : "O modo local ainda não respondeu; siga com a nuvem principal ou ative sua infraestrutura local quando precisar."}
                 </p>
               ) : null}
               {showConversationCockpitCards ? <div className="mt-4 grid gap-3">
                 <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#E6D29A] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_60%),#FFFDF7]" : "border-[#3C3320] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.14),transparent_60%),rgba(255,255,255,0.02)]"}`}>
-                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#9A6E2D]" : "text-[#D9B46A]"}`}>Resumo da conversa</p>
+                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#9A6E2D]" : "text-[#D9B46A]"}`}>Resumo</p>
                   <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeConversation?.title || "Nova conversa"}</p>
                   <p className={`mt-2 line-clamp-3 text-[12px] leading-6 ${isLightTheme ? "text-[#51606B]" : "text-[#C6D1CC]"}`}>{activeConversationPreview}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -3846,7 +3861,7 @@ const [uiToasts, setUiToasts] = useState([]);
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Chat rápido</p>
-                    <p className={`mt-1 text-[12px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Painel lateral enxuto para conversar sem cockpit operacional.</p>
+                    <p className={`mt-1 text-[12px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Uma visão leve para conversar, revisar contexto e seguir em frente.</p>
                   </div>
                   <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                     {messages.length} mensagens
@@ -4282,20 +4297,6 @@ const [uiToasts, setUiToasts] = useState([]);
                       >
                         Nova conversa
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => router.push("/interno/ai-task")}
-                        className={`rounded-full border px-4 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                      >
-                        AI Task
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => router.push("/interno/agentlab/conversations")}
-                        className={`rounded-full border px-4 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                      >
-                        AgentLabs
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -4644,11 +4645,15 @@ const [uiToasts, setUiToasts] = useState([]);
                   <div className={`border-b px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Workspace</p>
-                        <p className={`mt-1 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Interno/copilot</p>
+                        <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
+                          {isFocusedCopilotShell ? "Histórico" : "Workspace"}
+                        </p>
+                        <p className={`mt-1 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
+                          {isFocusedCopilotShell ? "Conversas e projetos" : "Interno/copilot"}
+                        </p>
                         <p className={`mt-1 text-sm ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                           {isConversationCentricShell
-                            ? "Histórico persistido, busca contextual e projetos com leitura contínua."
+                            ? "Busque, retome e concatene conversas sem perder o foco do chat central."
                             : "Histórico enxuto para retomar contexto sem competir com a conversa central."}
                         </p>
                       </div>
@@ -4664,23 +4669,25 @@ const [uiToasts, setUiToasts] = useState([]);
                           Nova
                         </button>
                     </div>
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      {workspaceNavigatorItems.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={item.onClick}
-                          className={`rounded-[18px] border px-3 py-3 text-left transition ${
-                            isLightTheme
-                              ? "border-[#D7DEE8] bg-white hover:border-[#C5A059] hover:shadow-[0_10px_24px_rgba(197,160,89,0.12)]"
-                              : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#C5A059] hover:bg-[rgba(197,160,89,0.08)]"
-                          }`}
-                        >
-                          <p className={`text-[11px] font-semibold uppercase tracking-[0.12em] ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{item.label}</p>
-                          <p className={`mt-1 text-[11px] leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{item.helper}</p>
-                        </button>
-                      ))}
-                    </div>
+                    {!isFocusedCopilotShell ? (
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        {workspaceNavigatorItems.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={item.onClick}
+                            className={`rounded-[18px] border px-3 py-3 text-left transition ${
+                              isLightTheme
+                                ? "border-[#D7DEE8] bg-white hover:border-[#C5A059] hover:shadow-[0_10px_24px_rgba(197,160,89,0.12)]"
+                                : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#C5A059] hover:bg-[rgba(197,160,89,0.08)]"
+                            }`}
+                          >
+                            <p className={`text-[11px] font-semibold uppercase tracking-[0.12em] ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{item.label}</p>
+                            <p className={`mt-1 text-[11px] leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{item.helper}</p>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                     <div className="mt-4 flex flex-col gap-2">
                         <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Buscar conversa</p>
                         <input
@@ -4915,11 +4922,11 @@ const [uiToasts, setUiToasts] = useState([]);
                             <span>{activeMode.label}</span>
                           </div>
                           <p className={`mt-2 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                            Concatene diálogos, recupere contexto e delegue para AI Task sem sair da conversa.
+                            Reúna contexto, mantenha a conversa organizada e avance com apoio inteligente.
                           </p>
                         </div>
                         <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                          Painel direito para módulos, AI Task e AgentLabs
+                          Apoio lateral para módulos e automações
                         </span>
                       </div>
                     ) : (
@@ -4930,7 +4937,7 @@ const [uiToasts, setUiToasts] = useState([]);
                             {activeConversation?.title || "Nova conversa"}
                           </p>
                           <p className={`mt-1 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                            Conversa principal com contexto, execução assistida e handoff operacional.
+                            Uma conversa central para decidir, executar e seguir com mais clareza.
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -5142,12 +5149,12 @@ const [uiToasts, setUiToasts] = useState([]);
                     <div className="flex flex-col gap-3">
                       <div>
                         <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
-                          {isFocusedCopilotShell ? "Módulos" : "Painel"}
+                          {isFocusedCopilotShell ? "Módulos" : "Painel lateral"}
                         </p>
                         <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeRightPanelMeta.title}</p>
                         <p className={`mt-1 max-w-[19rem] text-[11px] leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>
                           {isFocusedCopilotShell
-                            ? "Contexto operacional, subtarefas e AgentLabs como apoio lateral da conversa."
+                            ? "Módulos e automações ao alcance, sem tirar foco da conversa."
                             : activeRightPanelMeta.detail}
                         </p>
                       </div>
@@ -5192,12 +5199,12 @@ const [uiToasts, setUiToasts] = useState([]);
                     {rightPanelTab === "modules" ? (
                       <div className="space-y-3">
                         <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-[#F8FAFC]" : "border-[#35554B] bg-[rgba(12,22,19,0.72)]"}`}>
-                          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Workspace ativo</p>
+                          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Área ativa</p>
                           <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeProjectLabel}</p>
                           <p className={`mt-2 text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                             {useCondensedRightRail
-                              ? "Apoio lateral enxuto para abrir módulos, subtarefas e AgentLabs sem virar cockpit."
-                              : "Módulos integrados em leitura rápida, sem tirar foco da conversa."}
+                              ? "Atalhos objetivos para abrir áreas do produto com rapidez."
+                              : "Navegue pelos módulos com clareza, mantendo a conversa como foco principal."}
                           </p>
                         </div>
                         <div className="grid gap-3">
@@ -5227,7 +5234,7 @@ const [uiToasts, setUiToasts] = useState([]);
                                   onClick={() => router.push(module.contextualHref || module.href)}
                                   className={`rounded-full border px-2.5 py-1 text-[10px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                                 >
-                                  Abrir em contexto
+                                  Abrir módulo
                                 </button>
                                 {!useCondensedRightRail ? (
                                   <button
@@ -5258,7 +5265,9 @@ const [uiToasts, setUiToasts] = useState([]);
                     ) : rightPanelTab === "ai-task" ? (
                       <div className="space-y-3">
                         <div className="flex items-center justify-between gap-3">
-                          <p className={`text-sm ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Subtarefas e continuidade operacional.</p>
+                          <p className={`text-sm ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
+                            {isFocusedCopilotShell ? "Subtarefas e missão ativa, sem tirar o foco da conversa." : "Tarefas em andamento e próximos passos sugeridos."}
+                          </p>
                           <div className="flex gap-2">
                             <button
                               type="button"
@@ -5267,11 +5276,14 @@ const [uiToasts, setUiToasts] = useState([]);
                             >
                               Abrir AI Task
                             </button>
-                            <button type="button" onClick={handleResetTasks} className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
-                              Limpar
-                            </button>
+                            {!isFocusedCopilotShell ? (
+                              <button type="button" onClick={handleResetTasks} className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
+                                Limpar
+                              </button>
+                            ) : null}
                           </div>
                         </div>
+                        {!isFocusedCopilotShell ? (
                         <div className="grid gap-2 sm:grid-cols-3">
                           <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                             <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Ativas</p>
@@ -5286,6 +5298,19 @@ const [uiToasts, setUiToasts] = useState([]);
                             <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeTaskProviderLabel}</p>
                           </div>
                         </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
+                              ativas {runningCount}
+                            </span>
+                            <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
+                              etapas {activeTaskStepCount}
+                            </span>
+                            <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
+                              {activeTaskProviderLabel}
+                            </span>
+                          </div>
+                        )}
                         <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-[#F8FAFC]" : "border-[#35554B] bg-[rgba(12,22,19,0.72)]"}`}>
                           <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Missão em foco</p>
                           <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeTaskLabel}</p>
@@ -5353,7 +5378,9 @@ const [uiToasts, setUiToasts] = useState([]);
                     ) : rightPanelTab === "agentlabs" ? (
                       <div className="space-y-3">
                         <div className="flex items-center justify-between gap-3">
-                          <p className={`text-sm ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Subagentes e governança do ai-core.</p>
+                          <p className={`text-sm ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
+                            {isFocusedCopilotShell ? "Saúde, handoff e acesso rápido ao AgentLabs." : "Subagentes e governança do ai-core."}
+                          </p>
                           <button
                             type="button"
                             onClick={() => router.push("/interno/agentlab")}
@@ -5362,6 +5389,7 @@ const [uiToasts, setUiToasts] = useState([]);
                             Abrir AgentLabs
                           </button>
                         </div>
+                        {!isFocusedCopilotShell ? (
                         <div className="grid gap-2 sm:grid-cols-2">
                           <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                             <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Subagentes</p>
@@ -5388,6 +5416,19 @@ const [uiToasts, setUiToasts] = useState([]);
                             <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{agentLabTrainingSummary.averageScore || agentLabOverview.trainingAverageScore || 0}%</p>
                           </div>
                         </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
+                              subagentes {agentLabSubagents.length}
+                            </span>
+                            <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
+                              threads {agentLabConversationSummary.total || 0}
+                            </span>
+                            <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
+                              incidentes {agentLabIncidentsSummary.open || agentLabOverview.openIncidents || 0}
+                            </span>
+                          </div>
+                        )}
                         {agentLabSnapshot.loading ? (
                           <div className={`rounded-[20px] border border-dashed p-4 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
                             Carregando AgentLab...
@@ -5416,6 +5457,7 @@ const [uiToasts, setUiToasts] = useState([]);
                                 ))}
                               </div>
                             </div>
+                            {!isFocusedCopilotShell ? (
                             <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                               <div className="flex items-start justify-between gap-3">
                                 <div>
@@ -5481,6 +5523,7 @@ const [uiToasts, setUiToasts] = useState([]);
                                 </div>
                               ) : null}
                             </div>
+                            ) : null}
                             <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                               <div className="flex items-start justify-between gap-3">
                                 <div>

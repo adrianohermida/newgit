@@ -242,7 +242,7 @@ export default function InternoContactsPage() {
   const router = useRouter();
   const copilotContext = parseCopilotContext(typeof router.query.copilotContext === "string" ? router.query.copilotContext : "");
   const email = typeof router.query.email === "string" ? router.query.email : "";
-  return <RequireAdmin>{(profile) => <InternoLayout profile={profile} title="Gestao de Contacts" description="Sincronizacao, detalhe, reconciliacao com partes, duplicados, CRUD e enriquecimento de contatos do Freshsales."><ContactsContent copilotContext={copilotContext} initialEmail={email} /></InternoLayout>}</RequireAdmin>;
+return <RequireAdmin>{(profile) => <InternoLayout profile={profile} title="Gestão de Contatos" description="Base de contatos com visão 360, relacionamento e dados prontos para atendimento e vendas."><ContactsContent copilotContext={copilotContext} initialEmail={email} /></InternoLayout>}</RequireAdmin>;
 }
 
 function ContactsContent({ copilotContext, initialEmail }) {

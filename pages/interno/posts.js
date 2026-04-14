@@ -15,7 +15,7 @@ export default function InternoPostsPage() {
         <InternoLayout
           profile={profile}
           title="Posts"
-          description="Modulo editorial do blog com leitura administrativa real via Cloudflare Pages Functions e Supabase."
+      description="Área editorial para produzir, revisar e publicar conteúdo com mais consistência."
         >
           <PostsContent state={state} setState={setState} />
         </InternoLayout>

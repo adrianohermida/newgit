@@ -118,7 +118,7 @@ export default function InternoFinanceiroPage() {
         <InternoLayout
           profile={profile}
           title="Financeiro"
-          description="Leitura interna da base canônica de contratos, recebíveis, pendências de reconciliação e prontidão para publicação em Deals."
+      description="Visão financeira do produto com contratos, recebíveis e pendências em uma jornada mais clara."
         >
           <FinanceiroInternoContent routeFocus={routeFocus} copilotContext={copilotContext} />
         </InternoLayout>

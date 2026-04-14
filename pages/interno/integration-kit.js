@@ -102,7 +102,7 @@ export default function IntegrationKitPage() {
         <InternoLayout
           profile={profile}
           title="Integration Kit"
-          description="Bundle portatil para replicar a integracao Supabase + Freshsales + Freshdesk em novos projetos."
+      description="Kit de implantação para replicar a base do produto com mais velocidade e consistência."
         >
           <div className="space-y-8">
             <Panel title="Objetivo">

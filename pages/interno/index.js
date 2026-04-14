@@ -265,7 +265,7 @@ export default function InternoHomePage() {
         <InternoLayout
           profile={profile}
           title="Visao geral"
-          description="Base inicial do dashboard interno para operacao editorial e acompanhamento dos fluxos do escritorio."
+      description="Visão executiva do produto com indicadores, atalhos e prioridades para o dia."
         >
           <div className="grid gap-6 md:grid-cols-3 mb-8">
             <StatCard
@@ -436,22 +436,22 @@ export default function InternoHomePage() {
                       <FocusLink
                         href="/interno/financeiro"
                         title="Abrir Financeiro"
-                        helper="Base canônica de faturas e assinaturas, pendências de account e prontidão para Deals."
+                        helper="Receita, contratos e pendências organizadas em uma leitura mais executiva."
                       />
                       <FocusLink
                         href="/interno/processos"
                         title="Abrir Processos"
-                        helper="Sincronismo DataJud, monitoramento, gaps de CRM e accounts orfas."
+                        helper="Carteira processual com acompanhamento, atualização e ação guiada."
                       />
                       <FocusLink
                         href="/interno/publicacoes"
                         title="Abrir Publicacoes"
-                        helper="Criacao de processos, extracao de partes, polos e reflexo no CRM."
+                        helper="Publicações organizadas para priorizar backlog e próximas ações."
                       />
                       <FocusLink
                         href="/interno/market-ads"
                         title="Abrir HMADV Market Ads"
-                        helper="Cockpit de anuncios juridicos com inteligencia de concorrencia, gerador de copy e compliance OAB."
+                        helper="Campanhas jurídicas com posicionamento, copy e clareza comercial."
                       />
                     </div>
                   </div>

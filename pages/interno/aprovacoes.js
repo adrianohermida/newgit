@@ -31,7 +31,7 @@ export default function InternoAprovacoesPage() {
         <InternoLayout
           profile={profile}
           title="Aprovacoes"
-          description="Central de pedidos pendentes do portal do cliente. Aqui o escritorio valida alteracoes cadastrais hoje e passa a absorver, no mesmo fluxo, demandas futuras de financeiro e documentacoes."
+      description="Fila de aprovações com contexto claro para decidir rápido e manter a experiência do cliente fluida."
         >
           <div className="space-y-6">
             {copilotContext ? (

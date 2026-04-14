@@ -62,7 +62,7 @@ export default function AgentLabPage() {
         <InternoLayout
           profile={profile}
           title="AgentLab"
-          description="Laboratorio de inteligencia para treinar agentes, comparar provedores, validar guardrails e transformar correcoes em melhoria continua."
+      description="Hub de evolução dos agentes com qualidade, repertório e testes para escalar a experiência."
         >
           <AgentLabModuleNav />
           <AgentLabContent state={state} copilotContext={copilotContext} />
@@ -200,17 +200,17 @@ function AgentLabContent({ state, copilotContext }) {
   return (
     <div className="space-y-8">
       {copilotContext ? (
-        <Panel title="Contexto vindo do Copilot" eyebrow="Handoff operacional" isLightTheme={isLightTheme}>
+        <Panel title="Contexto da conversa" eyebrow="Copilot" isLightTheme={isLightTheme}>
           <div className={`space-y-2 text-sm ${textTone(isLightTheme)}`}>
             <p className={`font-semibold ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{copilotContext.conversationTitle || "Conversa ativa"}</p>
             {copilotContext.mission ? <p>{copilotContext.mission}</p> : null}
-            <p>Use esta abertura para revisar subagentes, treinamento e roteamento antes de retomar a missao.</p>
+            <p>Use este resumo para entender o momento da conversa e decidir o próximo movimento com mais clareza.</p>
           </div>
         </Panel>
       ) : null}
 
       {environment.mode === "degraded" ? (
-        <Panel title="Modo de contingencia" eyebrow="Operacao" isLightTheme={isLightTheme}>
+        <Panel title="Modo de contingência" eyebrow="Ambiente" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             <p>{environment.message}</p>
             {(environment.missingSources || []).length ? (
@@ -233,7 +233,7 @@ function AgentLabContent({ state, copilotContext }) {
       ) : null}
 
       {(environment.schemaChecklist || []).length ? (
-        <Panel title="Checklist do schema" eyebrow="Ambiente" isLightTheme={isLightTheme}>
+        <Panel title="Checklist técnico" eyebrow="Base" isLightTheme={isLightTheme}>
           <div className={`grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-3 ${textTone(isLightTheme)}`}>
             {environment.schemaChecklist.map((item) => (
               <div key={item.table} className={`border p-3 ${itemCardTone(isLightTheme)}`}>
@@ -248,7 +248,7 @@ function AgentLabContent({ state, copilotContext }) {
       ) : null}
 
       {warnings.length ? (
-        <Panel title="Avisos de fontes" eyebrow="Operacao" isLightTheme={isLightTheme}>
+        <Panel title="Avisos de integração" eyebrow="Ambiente" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             {warnings.map((item) => (
               <p key={`${item.source}-${item.message}`}>
@@ -261,7 +261,7 @@ function AgentLabContent({ state, copilotContext }) {
         </Panel>
       ) : null}
 
-      <Panel title="Laboratorio de inteligencia" eyebrow="Visao geral" isLightTheme={isLightTheme}>
+      <Panel title="Visão do produto" eyebrow="AgentLab" isLightTheme={isLightTheme}>
         <div className={`grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-5 ${textTone(isLightTheme)}`}>
           {(rollout.phases || []).map((item) => (
             <div key={item.id} className={`border p-4 ${itemCardTone(isLightTheme)}`}>
@@ -274,14 +274,14 @@ function AgentLabContent({ state, copilotContext }) {
       </Panel>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Agentes mapeados" value={overview.mappedAgents || 0} helper="Catalogo operacional ligado ao workspace, aos perfis de treinamento e aos experimentos." isLightTheme={isLightTheme} />
-        <Metric label="Conversas importadas" value={overview.importedConversations || 0} helper="Threads que alimentam inteligencia, handoff, avaliacao e melhoria continua." isLightTheme={isLightTheme} />
-        <Metric label="Incidentes abertos" value={overview.openIncidents || 0} helper="Erros de classificacao, falha de fluxo, risco juridico e gaps de atendimento." isLightTheme={isLightTheme} />
-        <Metric label="Score medio treino" value={`${overview.trainingAverageScore || 0}%`} helper="Media das ultimas avaliacoes e comparacao de qualidade do agente." isLightTheme={isLightTheme} />
+        <Metric label="Agentes ativos" value={overview.mappedAgents || 0} helper="Especialistas disponíveis para ampliar cobertura e consistência do produto." isLightTheme={isLightTheme} />
+        <Metric label="Conversas analisadas" value={overview.importedConversations || 0} helper="Base viva de aprendizados para melhorar respostas, fluxos e atendimento." isLightTheme={isLightTheme} />
+        <Metric label="Pontos de atenção" value={overview.openIncidents || 0} helper="Itens que merecem revisão para proteger qualidade e experiência do cliente." isLightTheme={isLightTheme} />
+        <Metric label="Qualidade média" value={`${overview.trainingAverageScore || 0}%`} helper="Leitura simples do desempenho recente dos agentes e das rotas de resposta." isLightTheme={isLightTheme} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <Panel title="Sprint semanal" eyebrow="Cadencia recomendada" isLightTheme={isLightTheme}>
+        <Panel title="Ritmo semanal" eyebrow="Evolução contínua" isLightTheme={isLightTheme}>
           <ul className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             <li>Top 20 unanswered</li>
             <li>Top 10 poor responses</li>
@@ -290,7 +290,7 @@ function AgentLabContent({ state, copilotContext }) {
           </ul>
         </Panel>
 
-        <Panel title="Visao do CRM e conversas" eyebrow="Fonte de contexto" isLightTheme={isLightTheme}>
+        <Panel title="CRM e conversas" eyebrow="Base de contexto" isLightTheme={isLightTheme}>
           <div className={`grid gap-4 text-sm md:grid-cols-2 ${textTone(isLightTheme)}`}>
             <p>Snapshots CRM: {overview.crmSnapshots || 0}</p>
             <p>Runs de sync: {overview.syncRuns || 0}</p>
@@ -301,7 +301,7 @@ function AgentLabContent({ state, copilotContext }) {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
-        <Panel title="Fila operacional CRM" eyebrow="Sequences e journeys" isLightTheme={isLightTheme}>
+        <Panel title="Fila de CRM" eyebrow="Relacionamento" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             <p>Ready: {actionQueueSummary.ready || 0}</p>
             <p>Pending: {actionQueueSummary.pending || 0}</p>
@@ -311,7 +311,7 @@ function AgentLabContent({ state, copilotContext }) {
           </div>
         </Panel>
 
-        <Panel title="Fila de dispatch" eyebrow="Email e WhatsApp" isLightTheme={isLightTheme}>
+        <Panel title="Fila de envios" eyebrow="Email e WhatsApp" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             <p>Pending approval: {dispatchSummary.pending_approval || 0}</p>
             <p>Approved: {dispatchSummary.approved || 0}</p>
@@ -321,7 +321,7 @@ function AgentLabContent({ state, copilotContext }) {
           </div>
         </Panel>
 
-        <Panel title="Top eventos CRM" eyebrow="Automacao" isLightTheme={isLightTheme}>
+        <Panel title="Eventos principais" eyebrow="Automação" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             {automationByEvent.length ? automationByEvent.map((item) => (
               <p key={item.label}>{item.label}: {item.value}</p>
@@ -333,7 +333,7 @@ function AgentLabContent({ state, copilotContext }) {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
-        <Panel title="Mensagens reais" eyebrow="Freshchat intelligence" isLightTheme={isLightTheme}>
+        <Panel title="Mensagens reais" eyebrow="Atendimento" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             <p>Total: {messageSummary.total || 0}</p>
             <p>Clientes: {messageSummary.customerMessages || 0}</p>
@@ -342,7 +342,7 @@ function AgentLabContent({ state, copilotContext }) {
           </div>
         </Panel>
 
-        <Panel title="Freshchat Widget" eyebrow="Telemetria do site" isLightTheme={isLightTheme}>
+        <Panel title="Widget do site" eyebrow="Uso no site" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             <p>Eventos: {widgetEventSummary.total || 0}</p>
             <p>Aberturas: {widgetEventSummary.openedCount || 0}</p>
@@ -360,7 +360,7 @@ function AgentLabContent({ state, copilotContext }) {
           </div>
         </Panel>
 
-        <Panel title="Top intents" eyebrow="Conversation intelligence" isLightTheme={isLightTheme}>
+        <Panel title="Intenções mais frequentes" eyebrow="Conversas" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             {(data.conversations?.summary?.intents || []).length ? (
               data.conversations.summary.intents.map((item) => (
@@ -372,7 +372,7 @@ function AgentLabContent({ state, copilotContext }) {
           </div>
         </Panel>
 
-        <Panel title="Categorias de incidente" eyebrow="Risco operacional" isLightTheme={isLightTheme}>
+        <Panel title="Categorias de atenção" eyebrow="Qualidade" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             {(data.intelligence?.summary?.byCategory || []).length ? (
               data.intelligence.summary.byCategory.map((item) => (
@@ -384,7 +384,7 @@ function AgentLabContent({ state, copilotContext }) {
           </div>
         </Panel>
 
-        <Panel title="Qualidade e roteamento" eyebrow="Mensagens" isLightTheme={isLightTheme}>
+        <Panel title="Qualidade e roteamento" eyebrow="Experiência" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             {(messageSummary.bySuggestedAgent || []).length ? (
               messageSummary.bySuggestedAgent.map((item) => (
@@ -398,7 +398,7 @@ function AgentLabContent({ state, copilotContext }) {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <Panel title="Sinais de qualidade" eyebrow="Mensagens" isLightTheme={isLightTheme}>
+        <Panel title="Sinais de qualidade" eyebrow="Atendimento" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             {(messageSummary.qualitySignals || []).length ? (
               messageSummary.qualitySignals.map((item) => (
@@ -410,7 +410,7 @@ function AgentLabContent({ state, copilotContext }) {
           </div>
         </Panel>
 
-        <Panel title="Knowledge packs prioritarios" eyebrow="Treinamento" isLightTheme={isLightTheme}>
+        <Panel title="Conteúdos prioritários" eyebrow="Treinamento" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             {(data.rollout?.knowledgePacks || []).map((item) => (
               <p key={item.id}>
@@ -424,7 +424,7 @@ function AgentLabContent({ state, copilotContext }) {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <Panel title="Matriz de provedores" eyebrow="Experimentos" isLightTheme={isLightTheme}>
+        <Panel title="Matriz de modelos" eyebrow="Experimentos" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             {providerMatrix.length ? providerMatrix.map((item) => (
               <div key={item.id} className={`border p-4 ${itemCardTone(isLightTheme)}`}>
@@ -438,7 +438,7 @@ function AgentLabContent({ state, copilotContext }) {
           </div>
         </Panel>
 
-        <Panel title="Rubrica de avaliacao" eyebrow="Qualidade" isLightTheme={isLightTheme}>
+        <Panel title="Critérios de avaliação" eyebrow="Qualidade" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             {evaluationRubric.length ? evaluationRubric.map((item) => (
               <div key={item.id} className={`border p-4 ${itemCardTone(isLightTheme)}`}>
@@ -452,7 +452,7 @@ function AgentLabContent({ state, copilotContext }) {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
-        <Panel title="Modo debate" eyebrow="Experimentos" isLightTheme={isLightTheme}>
+        <Panel title="Modo debate" eyebrow="Testes" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             {debateModes.length ? debateModes.map((item) => (
               <div key={item.id} className={`border p-4 ${itemCardTone(isLightTheme)}`}>
@@ -463,7 +463,7 @@ function AgentLabContent({ state, copilotContext }) {
           </div>
         </Panel>
 
-        <Panel title="Loop de aprendizado" eyebrow="Evolucao" isLightTheme={isLightTheme}>
+        <Panel title="Ciclo de aprendizado" eyebrow="Evolução" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             {learningLoop.length ? learningLoop.map((item, index) => (
               <p key={`${item}-${index}`}>{index + 1}. {item}</p>
@@ -471,7 +471,7 @@ function AgentLabContent({ state, copilotContext }) {
           </div>
         </Panel>
 
-        <Panel title="Guardrails legais" eyebrow="Etica" isLightTheme={isLightTheme}>
+        <Panel title="Diretrizes legais" eyebrow="Confiança" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             {ethicsGuardrails.length ? ethicsGuardrails.map((item) => (
               <p key={item}>{item}</p>
@@ -480,7 +480,7 @@ function AgentLabContent({ state, copilotContext }) {
         </Panel>
       </div>
 
-      <Panel title="Trilhas de experimento" eyebrow="A/B e comparacao" isLightTheme={isLightTheme}>
+      <Panel title="Trilhas de experimento" eyebrow="Comparação" isLightTheme={isLightTheme}>
         <div className={`grid gap-4 text-sm md:grid-cols-3 ${textTone(isLightTheme)}`}>
           {experimentTracks.length ? experimentTracks.map((item) => (
             <div key={item.id} className={`border p-4 ${itemCardTone(isLightTheme)}`}>

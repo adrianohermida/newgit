@@ -60,7 +60,7 @@ export default function InternoLeadsPage() {
         <InternoLayout
           profile={profile}
           title="Leads"
-          description="Visao inicial dos tickets e contatos recebidos pelo Freshdesk, centralizada no painel interno."
+      description="Entrada de oportunidades com triagem, contexto e visibilidade comercial em um só lugar."
         >
           <LeadsContent
             draftEmail={draftEmail}

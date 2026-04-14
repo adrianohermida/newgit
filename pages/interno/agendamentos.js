@@ -72,7 +72,7 @@ export default function InternoAgendamentosPage() {
         <InternoLayout
           profile={profile}
           title="Agendamentos"
-          description="Leitura inicial do fluxo de agendamento que ja opera no site. Aqui ganhamos visibilidade operacional antes de evoluir a UX publica."
+      description="Agenda comercial e jurídica com confirmações, contexto e acompanhamento dos compromissos."
         >
           <AgendamentosContent
             filters={filters}

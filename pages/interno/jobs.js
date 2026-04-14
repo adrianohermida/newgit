@@ -615,7 +615,7 @@ export default function InternoJobsPage() {
         <InternoLayout
           profile={profile}
           title="Jobs"
-          description="Mesa central de execucao em lote para controlar backlog, evitar rate limit e acompanhar jobs do interno em uma trilha unica."
+      description="Central de automações para acompanhar filas, execuções e estabilidade do produto."
         >
           <JobsContent copilotContext={copilotContext} initialSource={source} />
         </InternoLayout>

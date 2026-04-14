@@ -1996,7 +1996,11 @@ export default function InternoLayout({
           </div>
           </div>
           <div
-            className={`z-30 min-h-[52px] shrink-0 overflow-hidden rounded-[24px] border shadow-[0_-12px_38px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all ${isLightTheme ? "border-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,245,249,0.98))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(10,12,11,0.985),rgba(6,8,7,0.98))]"} ${consoleOpen ? "flex flex-col" : "block h-[52px]"} ${isMobileShell ? "fixed inset-x-2 bottom-2" : "mt-2"}`}
+            className={`z-30 min-h-[52px] shrink-0 overflow-hidden border transition-all ${
+              isCopilotWorkspace
+                ? `${isLightTheme ? "border-x-0 border-b-0 border-t-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.985),rgba(241,245,249,0.985))]" : "border-x-0 border-b-0 border-t-[#1E2E29] bg-[linear-gradient(180deg,rgba(10,12,11,0.99),rgba(6,8,7,0.99))]"} rounded-none shadow-none`
+                : `${isLightTheme ? "border-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,245,249,0.98))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(10,12,11,0.985),rgba(6,8,7,0.98))]"} rounded-[24px] shadow-[0_-12px_38px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.02)]`
+            } ${consoleOpen ? "flex flex-col" : "block h-[52px]"} ${isMobileShell ? "fixed inset-x-2 bottom-2" : isCopilotWorkspace ? "mt-0" : "mt-2"}`}
             style={isMobileShell ? { height: consoleOpen ? `${mobileConsoleHeight}px` : undefined } : { height: consoleOpen ? `${consoleHeight}px` : undefined }}
           >
             {consoleOpen ? (
