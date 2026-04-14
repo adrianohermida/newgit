@@ -9,14 +9,20 @@ function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
-async function getIntelligence() {
+function parseBoundedLimit(value, fallback = 100, max = 200) {
+  const parsed = Number.parseInt(String(value || fallback), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
+async function getIntelligence(limit = 100) {
   const threadParams = new URLSearchParams();
   threadParams.set(
     "select",
     "id,source_system,source_conversation_id,workspace_id,contact_id,process_id,channel,status,subject,last_message,started_at,last_message_at,assigned_to,sentiment_label,urgency_label,intent_label,handoff_required,metadata,raw_payload,created_at,updated_at"
   );
   threadParams.set("order", "last_message_at.desc");
-  threadParams.set("limit", "100");
+  threadParams.set("limit", String(limit));
 
   const incidentParams = new URLSearchParams();
   incidentParams.set(
@@ -24,7 +30,7 @@ async function getIntelligence() {
     "id,source_system,category,severity,status,title,description,agent_ref,conversation_id,internal_user_id,internal_user_email,metadata,occurred_at,created_at,updated_at"
   );
   incidentParams.set("order", "occurred_at.desc");
-  incidentParams.set("limit", "100");
+  incidentParams.set("limit", String(limit));
 
   const [threads, incidents] = await Promise.all([
     fetchSupabaseAdmin(`agentlab_conversation_threads?${threadParams.toString()}`),
@@ -76,7 +82,7 @@ export default async function handler(req, res) {
 
   if (req.method === "GET") {
     try {
-      const intelligence = await getIntelligence();
+      const intelligence = await getIntelligence(parseBoundedLimit(req.query.limit));
       return res.status(200).json({ ok: true, intelligence });
     } catch (error) {
       return res.status(500).json({ ok: false, error: error instanceof Error ? error.message : "Falha ao carregar intelligence." });

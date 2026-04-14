@@ -620,73 +620,30 @@ export default function InternoLayout({
             ) : null}
           </div>
         </div>
-        {shouldRenderDotobotRail && !rightCollapsed ? (
-          <div
-            className={`fixed inset-y-3 right-3 z-40 flex w-[min(100vw-0.75rem,432px)] flex-col overflow-hidden rounded-[30px] border shadow-[-24px_0_56px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.02)] xl:relative xl:inset-y-auto xl:right-auto xl:z-auto xl:h-full xl:min-w-[332px] xl:max-w-[432px] xl:rounded-[30px] xl:shadow-none ${
-              isLightTheme
-                ? "border-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.985),rgba(243,247,251,0.98))]"
-                : "border-[#22342F] bg-[linear-gradient(180deg,rgba(8,10,9,0.985),rgba(7,9,8,0.96))]"
-            } ${rightRailFullscreen ? "xl:w-[404px]" : "xl:w-[356px]"}`}
-          >
-            {!rightRailConversationFirst && showSupplementalRightRail ? (
-              <div className={`max-h-[42%] shrink-0 overflow-auto border-b p-4 xl:max-h-[48%] ${isLightTheme ? "border-[#D7DEE8] bg-[rgba(247,249,252,0.92)]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                {currentOperationalRail ? (
-                  <OperationalRightRail
-                    data={currentOperationalRail}
-                    onOpenConsole={() => {
-                      setConsoleOpen(true);
-                      setConsoleTab("console");
-                    }}
-                    onOpenJobsLog={() => {
-                      setConsoleOpen(true);
-                      setConsoleTab("log");
-                      setLogPane("jobs");
-                      updateFilters({ module: currentModuleKey, tag: "jobs" });
-                    }}
-                  />
-                ) : null}
-                {resolvedRightRail ? <div className={currentOperationalRail ? "mt-4" : ""}>{resolvedRightRail}</div> : null}
-              </div>
-            ) : null}
-            <div className="min-h-0 flex-1">
-              {copilotOpen ? (
-                <DotobotCopilot
-                  profile={profile}
-                  routePath={router.pathname}
-                  initialWorkspaceOpen={true}
-                  defaultCollapsed={false}
-                  compactRail={!rightRailFullscreen}
-                  showCollapsedTrigger={false}
-                  embeddedInInternoShell={true}
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center text-sm text-[#9BAEA8]">
-                  Painel direito fechado.
-                </div>
-              )}
-            </div>
-            {rightRailConversationFirst && showSupplementalRightRail ? (
-              <div className={`max-h-[34%] shrink-0 overflow-auto border-t p-4 ${isLightTheme ? "border-[#D7DEE8] bg-[rgba(247,249,252,0.92)]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                {currentOperationalRail ? (
-                  <OperationalRightRail
-                    data={currentOperationalRail}
-                    onOpenConsole={() => {
-                      setConsoleOpen(true);
-                      setConsoleTab("console");
-                    }}
-                    onOpenJobsLog={() => {
-                      setConsoleOpen(true);
-                      setConsoleTab("log");
-                      setLogPane("jobs");
-                      updateFilters({ module: currentModuleKey, tag: "jobs" });
-                    }}
-                  />
-                ) : null}
-                {resolvedRightRail ? <div className={currentOperationalRail ? "mt-4" : ""}>{resolvedRightRail}</div> : null}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+        <InternoShellRightRail
+          copilotOpen={copilotOpen}
+          currentModuleKey={currentModuleKey}
+          currentOperationalRail={currentOperationalRail}
+          isLightTheme={isLightTheme}
+          onOpenConsole={() => {
+            setConsoleOpen(true);
+            setConsoleTab("console");
+          }}
+          onOpenJobsLog={(moduleKey) => {
+            setConsoleOpen(true);
+            setConsoleTab("log");
+            setLogPane("jobs");
+            updateFilters({ module: moduleKey, tag: "jobs" });
+          }}
+          profile={profile}
+          resolvedRightRail={resolvedRightRail}
+          rightCollapsed={rightCollapsed}
+          rightRailConversationFirst={rightRailConversationFirst}
+          rightRailFullscreen={rightRailFullscreen}
+          routePath={router.pathname}
+          shouldRenderDotobotRail={shouldRenderDotobotRail}
+          showSupplementalRightRail={showSupplementalRightRail}
+        />
         {shouldRenderDotobotRail ? (
           <button
             type="button"
@@ -697,60 +654,7 @@ export default function InternoLayout({
             <span>{copilotOpen && !rightCollapsed ? "Fechar painel" : "Abrir copilot"}</span>
           </button>
         ) : null}
-        {settingsOpen ? (
-          <div className="absolute inset-0 z-[95] flex items-center justify-center bg-[rgba(4,7,8,0.48)] px-4 backdrop-blur-sm">
-            <div ref={settingsModalRef} className={`w-full max-w-lg rounded-[28px] border p-5 shadow-[0_24px_70px_rgba(0,0,0,0.24)] ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,#FFFFFF,#F7F9FC)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(12,16,15,0.98),rgba(8,11,10,0.98))]"}`}>
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C5A059]">ConfiguraÃ§Ãµes</p>
-                  <h3 className={`mt-2 text-xl font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>PreferÃªncias do sistema</h3>
-                  <p className={`mt-2 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Tema, preferÃªncias visuais e comportamento do shell interno.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSettingsOpen(false)}
-                  className={`rounded-full border px-3 py-1 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}
-                >
-                  Fechar
-                </button>
-              </div>
-              <div className="mt-5 space-y-4">
-                <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Tema</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {[
-                      { key: "light", label: "Claro" },
-                      { key: "system", label: "Sistema" },
-                      { key: "dark", label: "Escuro" },
-                    ].map((option) => {
-                      const active = preference === option.key;
-                      return (
-                        <button
-                          key={option.key}
-                          type="button"
-                          onClick={() => setThemePreference(option.key)}
-                          className={`rounded-[12px] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
-                            active
-                              ? "bg-[linear-gradient(180deg,#C5A059,#B08B46)] text-[#07110E] shadow-[0_6px_18px_rgba(197,160,89,0.18)]"
-                              : isLightTheme
-                                ? "border border-[#D7DEE8] bg-white text-[#60706A] hover:border-[#C5A059]"
-                                : "border border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059] hover:text-[#F5E6C5]"
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>PersistÃªncia</p>
-                  <p className={`mt-3 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>O tema e as preferÃªncias do shell sÃ£o persistidos localmente e sincronizados com o modo do sistema quando â€œSistemaâ€ estiver ativo.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
+        {settingsOpen ? <InternoSettingsModal isLightTheme={isLightTheme} onClose={() => setSettingsOpen(false)} preference={preference} setThemePreference={setThemePreference} settingsModalRef={settingsModalRef} /> : null}
       </div>
     </div>
   );
