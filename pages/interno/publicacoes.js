@@ -245,6 +245,11 @@ function formatDateTimeLabel(value) {
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("pt-BR");
 }
 
+function formatSnapshotLabel(snapshot) {
+  if (!snapshot?.updatedAt) return "snapshot ausente";
+  return `snapshot ${formatDateTimeLabel(snapshot.updatedAt)}`;
+}
+
 function formatFallbackReason(reason) {
   if (reason === "edge_function_unavailable") return "Fallback local apos falha da edge function.";
   if (reason === "local_backlog_path") return "Processamento local orientado pelo backlog.";
@@ -2446,6 +2451,10 @@ function PublicacoesContent() {
       : "Nao ha sales activity type compativel para publicacao no Freshsales.")
     : "";
   const adviseSync = data.adviseSync || null;
+  const snapshotOverview = data.snapshotOverview || {};
+  const snapshotMesaIntegrada = snapshotOverview.mesa_integrada || null;
+  const snapshotPartes = snapshotOverview.candidatos_partes || null;
+  const snapshotProcessos = snapshotOverview.candidatos_processos || null;
   const adviseConfig = adviseSync?.config || {};
   const adviseCursor = adviseSync?.status_cursor || adviseSync?.ultima_execucao || {};
   const adviseLastRunAt = adviseCursor?.ultima_execucao || null;
@@ -2793,10 +2802,11 @@ function PublicacoesContent() {
         if (action === "run_advise_backfill") {
           const partial = payload.data?.execucao_parcial;
           const nextPage = payload.data?.proxima_pagina;
+          const plannedPages = Number(payload.data?.paginas_planejadas || payload.data?.paginasPlanejadas || 0);
           return {
             ...payload.data,
             uiHint: partial
-              ? `O backfill do Advise continua pendente. A rodada atual terminou de forma parcial e a proxima pagina esperada e ${nextPage || "a seguinte do cursor"}.`
+              ? `O backfill do Advise continua pendente. Esta rodada tentou ${plannedPages || "um lote curto de"} pagina(s) e a proxima pagina esperada e ${nextPage || "a seguinte do cursor"}.`
               : "O backfill do Advise importa o historico bruto para o Supabase. Depois use Criar processos ausentes e Sincronizar publicacoes vinculadas para concluir a drenagem operacional.",
           };
         }
@@ -2970,6 +2980,8 @@ function PublicacoesContent() {
               <HealthBadge label={`cursor ${String(adviseCursor?.status || "desconhecido")}`} tone={String(adviseCursor?.erro || "") ? "danger" : "default"} />
               <HealthBadge label={adviseLastRunAt ? `ultimo ciclo ${new Date(adviseLastRunAt).toLocaleString("pt-BR")}` : "ultimo ciclo indisponivel"} tone="default" />
               <HealthBadge label={`backfill ${adviseBackfillProgress}`} tone={advisePersistedDelta > 0 ? "warning" : "default"} />
+              <HealthBadge label={`mesa ${formatSnapshotLabel(snapshotMesaIntegrada)}`} tone={snapshotMesaIntegrada?.available ? "success" : "warning"} />
+              <HealthBadge label={`partes ${formatSnapshotLabel(snapshotPartes)}`} tone={snapshotPartes?.available ? "success" : "warning"} />
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <QueueSummaryCard title="Recebidas do Advise" count={Number(adviseSync.publicacoes_total || 0)} helper="Estoque de publicacoes de origem Advise persistido no HMADV." />
@@ -3011,6 +3023,11 @@ function PublicacoesContent() {
               <QueueSummaryCard title="Persistidas no banco" count={data.publicacoesTotal || 0} helper="Contagem atual em judiciario.publicacoes." />
               <QueueSummaryCard title="Cursor Advise" count={data.adviseCursorTotal || 0} helper="Total de registros reportado pelo cursor do advise-sync." />
               <QueueSummaryCard title="Delta Advise x banco" count={data.advisePersistedDelta || 0} helper="Se maior que zero, ainda existe backlog estrutural ou de throughput a absorver." accent={(data.advisePersistedDelta || 0) > 0 ? "text-[#FDE68A]" : "text-[#B7F7C6]"} />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <QueueSummaryCard title="Snapshot mesa" count={Number(snapshotMesaIntegrada?.totalRows || 0)} helper="Itens hoje navegaveis pela leitura segura da mesa integrada." accent={snapshotMesaIntegrada?.available ? "text-[#B7F7C6]" : "text-[#FDE68A]"} />
+              <QueueSummaryCard title="Snapshot partes" count={Number(snapshotPartes?.totalRows || 0)} helper="Itens atualmente materializados para a fila de partes." accent={snapshotPartes?.available ? "text-[#B7F7C6]" : "text-[#FDE68A]"} />
+              <QueueSummaryCard title="Snapshot processos" count={Number(snapshotProcessos?.totalRows || 0)} helper="Itens materializados para criacao segura de processos." accent={snapshotProcessos?.available ? "text-[#B7F7C6]" : "text-[#FDE68A]"} />
             </div>
             {adviseCursor?.erro ? (
               <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E]" : "border-[#4B2222] bg-[rgba(127,29,29,0.12)] text-red-100"}`}>

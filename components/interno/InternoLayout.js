@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import { useInternalTheme } from "./InternalThemeProvider";
 import DotobotCopilot from "./DotobotPanel";
@@ -1004,6 +1004,7 @@ export default function InternoLayout({
   const [headerLlm, setHeaderLlm] = useState("gpt");
   const [logFilters, setLogFilters] = useState(() => getActivityLogFilters());
   const [logSearch, setLogSearch] = useState("");
+  const deferredLogSearch = useDeferredValue(logSearch);
   const [logExpanded, setLogExpanded] = useState(null);
   const dragStateRef = useRef({ dragging: false, startY: 0, startHeight: 260 });
   const shellPreferencesHydratedRef = useRef(false);
@@ -1149,12 +1150,10 @@ export default function InternoLayout({
   }, [lastArchiveAt]);
   const coverageCards = useMemo(() => buildCoverageCards(moduleHistory), [moduleHistory]);
   const currentModuleKey = useMemo(() => inferModuleKeyFromPathname(router.pathname), [router.pathname]);
-  const coverageRouteCount = useMemo(() => {
-    return new Set(coverageCards.map((item) => item.routePath).filter(Boolean)).size;
-  }, [coverageCards]);
-  const coverageErrorCount = useMemo(() => {
-    return coverageCards.filter((item) => item.tone === "danger").length;
-  }, [coverageCards]);
+  const coverageSummary = useMemo(() => ({
+    routeCount: new Set(coverageCards.map((item) => item.routePath).filter(Boolean)).size,
+    errorCount: coverageCards.filter((item) => item.tone === "danger").length,
+  }), [coverageCards]);
   const headerSearchResults = useMemo(() => {
     if (!debouncedHeaderSearch) return [];
     const needle = debouncedHeaderSearch.toLowerCase();
@@ -1601,8 +1600,8 @@ export default function InternoLayout({
   const integrationGuide = useMemo(() => getModuleIntegrationGuide(router.pathname), [router.pathname]);
 
   const filteredLog = useMemo(() => {
-    return activityLog.filter((entry) => entryMatchesConsoleFilters(entry, logFilters, logSearch));
-  }, [activityLog, logFilters, logSearch]);
+    return activityLog.filter((entry) => entryMatchesConsoleFilters(entry, logFilters, deferredLogSearch));
+  }, [activityLog, deferredLogSearch, logFilters]);
   const debugLog = useMemo(() => filteredLog.filter((entry) => entry.action === "debug_ui" || (entry.tags || []).includes("debug-ui")), [filteredLog]);
   const activityOnlyLog = useMemo(() => filteredLog.filter((entry) => !["debug_ui", "frontend_issue", "schema_issue"].includes(String(entry.action || "")) && !(entry.tags || []).includes("debug-ui")), [filteredLog]);
   const tagScopedLogs = useMemo(() => buildTagScopedLogs(filteredLog), [filteredLog]);
@@ -1695,9 +1694,11 @@ export default function InternoLayout({
   }
 
   const showExtensionManager = router.pathname === "/interno/ai-task" || router.pathname === "/interno/agentlab";
-  const resolvedRightRail = typeof rightRail === "function"
-    ? rightRail({ moduleKey: currentModuleKey, moduleHistory, activityLog })
-    : rightRail;
+  const resolvedRightRail = useMemo(() => (
+    typeof rightRail === "function"
+      ? rightRail({ moduleKey: currentModuleKey, moduleHistory, activityLog })
+      : rightRail
+  ), [activityLog, currentModuleKey, moduleHistory, rightRail]);
   const consoleReservedSpace = 0;
   const copilotConsoleInset = 0;
   const consoleDockLeft = hideShellSidebar ? 0 : isMobileShell ? 0 : leftCollapsed ? 88 : 272;
@@ -1706,6 +1707,20 @@ export default function InternoLayout({
   const mobileConsoleHeight = Math.min(Math.max(consoleHeight, 320), 560);
   const showSupplementalRightRail = rightRailFullscreen && Boolean(currentOperationalRail || resolvedRightRail);
   const rightRailConversationFirst = !showSupplementalRightRail;
+  const copilotShellSidebarClass = isCopilotWorkspace
+    ? isLightTheme
+      ? "rounded-none border-y-0 border-l-0 border-r border-[#C9D5E2] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,245,249,0.98))] shadow-none"
+      : "rounded-none border-y-0 border-l-0 border-r border-[#22342F] bg-[linear-gradient(180deg,rgba(11,18,16,0.995),rgba(8,14,13,0.985))] shadow-none"
+    : isLightTheme
+      ? "rounded-[26px] border-[#C9D5E2] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(241,245,249,0.98))]"
+      : "rounded-[26px] border-[#22342F] bg-[linear-gradient(180deg,rgba(11,18,16,0.98),rgba(8,14,13,0.95))]";
+  const copilotMainShellClass = isCopilotWorkspace
+    ? isLightTheme
+      ? "border-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(244,247,251,0.96))] shadow-none"
+      : "border-0 bg-[linear-gradient(180deg,rgba(6,8,7,0.98),rgba(8,10,9,0.985))] shadow-none"
+    : isLightTheme
+      ? "border-[#CBD5E1] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,247,250,0.96))]"
+      : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.985),rgba(7,9,8,0.95))]";
 
   return (
     <div className={`relative flex h-screen w-full flex-col overflow-hidden text-[Arial,sans-serif] ${isCopilotWorkspace ? "p-0" : "p-2 md:p-3"} ${isLightTheme ? "bg-[linear-gradient(180deg,#EEF2F6_0%,#E4EAF1_100%)] text-[#13201D]" : "bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.16),transparent_24%),linear-gradient(180deg,#040605_0%,#070A09_100%)] text-[#F4F1EA]"}`}>
@@ -1727,7 +1742,7 @@ export default function InternoLayout({
       ) : null}
       <div className="flex min-h-0 flex-1">
       {/* SIDEBAR */}
-      {!hideShellSidebar ? <aside className={`z-40 shrink-0 flex h-full flex-col rounded-[26px] border px-4 py-4 shadow-[0_18px_48px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all ${isLightTheme ? "border-[#C9D5E2] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(241,245,249,0.98))]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(11,18,16,0.98),rgba(8,14,13,0.95))]"} ${isMobileShell ? `absolute bottom-2 left-2 top-2 w-[292px] max-w-[calc(100vw-1rem)] ${leftCollapsed ? "pointer-events-none -translate-x-[110%] opacity-0" : "translate-x-0 opacity-100"}` : leftCollapsed ? "w-[88px] min-w-[88px]" : "w-[264px] min-w-[220px] max-w-[312px]"}`}>
+      {!hideShellSidebar ? <aside className={`z-40 shrink-0 flex h-full flex-col border px-4 py-4 shadow-[0_18px_48px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all ${copilotShellSidebarClass} ${isMobileShell ? `absolute bottom-2 left-2 top-2 w-[292px] max-w-[calc(100vw-1rem)] ${leftCollapsed ? "pointer-events-none -translate-x-[110%] opacity-0" : "translate-x-0 opacity-100"}` : leftCollapsed ? "w-[88px] min-w-[88px]" : isCopilotWorkspace ? "w-[284px] min-w-[264px] max-w-[320px]" : "w-[264px] min-w-[220px] max-w-[312px]"}`}>
         <Link href="/interno" prefetch={false} className="mb-8 block">
           {!leftCollapsed ? (
             <>
@@ -1783,13 +1798,11 @@ export default function InternoLayout({
         {/* CONTEÚDO PRINCIPAL */}
         <div className={`relative flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden ${
           isCopilotWorkspace
-            ? isLightTheme
-              ? "bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(244,247,251,0.86))]"
-              : "bg-[linear-gradient(180deg,rgba(6,8,7,0.92),rgba(8,10,9,0.94))]"
-            : `rounded-[26px] border shadow-[0_20px_56px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#CBD5E1] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,247,250,0.96))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.985),rgba(7,9,8,0.95))]"}`
+            ? copilotMainShellClass
+            : `rounded-[26px] border shadow-[0_20px_56px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] ${copilotMainShellClass}`
         }`}>
           <div className={`sticky top-0 z-20 shrink-0 flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3 md:items-center md:gap-4 md:px-5 md:py-3.5 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(247,249,251,0.92))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.99),rgba(7,9,8,0.96))]"}`}>
-            <div className={`rounded-[16px] border px-3 py-2 ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.82)]" : "border-[#1F2D29] bg-[rgba(255,255,255,0.02)]"}`}>
+            <div className={`order-1 rounded-[16px] border px-3 py-2 md:order-none ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.82)]" : "border-[#1F2D29] bg-[rgba(255,255,255,0.02)]"}`}>
               <p className="text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">{isCopilotWorkspace ? "Copilot" : "Workspace"}</p>
               <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#51606B]" : "text-[#C6D1CC]"}`}>
                 {isCopilotWorkspace ? "Conversa centralizada com histórico e módulos" : router.pathname}
@@ -1975,7 +1988,7 @@ export default function InternoLayout({
             style={isCopilotWorkspace ? { paddingBottom: `${copilotConsoleInset}px` } : undefined}
           >
             {!isCopilotWorkspace ? <IntegrationGuideCard guide={integrationGuide} /> : null}
-            <div className={isCopilotWorkspace ? "min-h-0 flex-1 px-2 pb-2 md:px-3 md:pb-3" : ""}>
+            <div className={isCopilotWorkspace ? "min-h-0 flex-1 px-0 pb-0" : ""}>
               {children}
             </div>
             {showExtensionManager && !isCopilotWorkspace ? <DotobotExtensionManager /> : null}
@@ -2065,12 +2078,12 @@ export default function InternoLayout({
                       </div>
                       <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                         <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Rotas cobertas</p>
-                        <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{coverageRouteCount}</p>
+                        <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{coverageSummary.routeCount}</p>
                         <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Rotas com telemetria ou snapshot ativo.</p>
                       </div>
                       <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                         <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Com erro</p>
-                        <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{coverageErrorCount}</p>
+                        <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{coverageSummary.errorCount}</p>
                         <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Snapshots que reportaram falha visível.</p>
                       </div>
                       <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>

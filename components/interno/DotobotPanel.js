@@ -1,5 +1,5 @@
 ﻿import useDotobotExtensionBridge from "./DotobotExtensionBridge";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useMediaQuery } from "react-responsive";
 import { TransitionGroup, CSSTransition } from "react-transition-group";
 
@@ -1146,6 +1146,7 @@ export default function DotobotCopilot({
   const [conversations, setConversations] = useState([]);
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [conversationSearch, setConversationSearch] = useState("");
+  const deferredConversationSearch = useDeferredValue(conversationSearch);
   const [conversationSort, setConversationSort] = useState("recent"); // "recent" | "oldest" | "title"
   const [showArchived, setShowArchived] = useState(false);
   const [input, setInput] = useState("");
@@ -1226,7 +1227,7 @@ const [localRuntimeConfigOpen, setLocalRuntimeConfigOpen] = useState(false);
 const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocalRuntimeConfig());
   const [rightPanelTab, setRightPanelTab] = useState(() => (isFullscreenCopilot ? "modules" : "ai-task"));
   const [selectedProjectFilter, setSelectedProjectFilter] = useState("all");
-const [agentLabSnapshot, setAgentLabSnapshot] = useState({ loading: true, error: null, data: null });
+const [agentLabSnapshot, setAgentLabSnapshot] = useState({ loading: false, error: null, data: null });
 const [agentLabActionState, setAgentLabActionState] = useState({ loading: false, scope: null, message: null, tone: "idle" });
 const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 const [uiToasts, setUiToasts] = useState([]);
@@ -1246,6 +1247,8 @@ const [uiToasts, setUiToasts] = useState([]);
   const conversationMenuRef = useRef(null);
   const conversationSearchInputRef = useRef(null);
   const projectFilterRef = useRef(null);
+  const agentLabSnapshotRequestedRef = useRef(false);
+  const providerCatalogRequestedRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -1297,9 +1300,9 @@ const [uiToasts, setUiToasts] = useState([]);
     setTaskHistory(persistedState.taskHistory);
     setAttachments(persistedState.attachments);
     if (persistedState.prefs.mode && !isFullscreenCopilot) setMode(persistedState.prefs.mode);
-      if (persistedState.prefs.provider && !isFullscreenCopilot) {
-        setProvider(normalizeWorkspaceProvider(persistedState.prefs.provider, providerCatalog));
-      }
+    if (persistedState.prefs.provider && !isFullscreenCopilot) {
+      setProvider(normalizeWorkspaceProvider(persistedState.prefs.provider, PROVIDER_OPTIONS));
+    }
     if (typeof persistedState.prefs.selectedSkillId === "string") setSelectedSkillId(persistedState.prefs.selectedSkillId);
     if (typeof persistedState.prefs.contextEnabled === "boolean") setContextEnabled(persistedState.prefs.contextEnabled);
     setWorkspaceOpen(persistedState.prefs.workspaceOpen);
@@ -1309,59 +1312,80 @@ const [uiToasts, setUiToasts] = useState([]);
     }
     if (isFullscreenCopilot) {
       setMode("chat");
-      setProvider((current) => normalizeWorkspaceProvider(current || "gpt", providerCatalog));
+      setProvider((current) => normalizeWorkspaceProvider(current || "gpt", PROVIDER_OPTIONS));
       setWorkspaceLayoutMode("immersive");
       setRightPanelTab("modules");
     }
-  }, [chatStorageKey, taskStorageKey, prefStorageKey, layoutStorageKey, conversationStorageKey, initialWorkspaceOpen, isFullscreenCopilot, providerCatalog]);
+  }, [chatStorageKey, taskStorageKey, prefStorageKey, layoutStorageKey, conversationStorageKey, initialWorkspaceOpen, isFullscreenCopilot]);
 
   useEffect(() => {
+    if (providerCatalogRequestedRef.current) return undefined;
+    providerCatalogRequestedRef.current = true;
     let active = true;
-    adminFetch("/api/admin-lawdesk-providers?include_health=1", { method: "GET" })
-      .then(async (payload) => {
-        if (!active) return;
-        const providers = Array.isArray(payload?.data?.providers) ? payload.data.providers : [];
-        const defaultProvider = typeof payload?.data?.defaultProvider === "string" ? payload.data.defaultProvider : "gpt";
-        if (!providers.length) return;
-        const mappedProviders = providers.map((item) => ({
-          value: item.id,
-          label: `${item.label}${item.model ? ` · ${item.model}` : ""}${item.status ? ` · ${item.status}` : ""}`,
-          disabled: !item.available,
-          configured: Boolean(item.configured),
-          displayLabel: item.label,
-          model: item.model || null,
-          status: item.status || null,
-          transport: item.transport || null,
-          runtimeMode: item.details?.probe?.mode || null,
-          host: item.details?.config?.host || null,
-          endpoint: item.details?.probe?.endpoint || item.details?.config?.baseUrl || null,
-          reason: item.reason || null,
-          offlineMode: Boolean(payload?.data?.offlineMode),
-        }));
-        const hydratedProviders = shouldHydrateBrowserLocalProvider({
-          focusedWorkspace: isFocusedCopilotShell,
-          selectedProvider: defaultProvider,
-          providers: mappedProviders,
-        })
-          ? await hydrateBrowserLocalProviderOptions(mappedProviders)
-          : mappedProviders;
-        if (!active) return;
-        setProviderCatalog(hydratedProviders);
-        setProvider((current) =>
-          resolveWorkspaceProviderSelection({
-            currentProvider: current,
-            defaultProvider,
-            providers: hydratedProviders,
+    let timeoutId = null;
+    let idleId = null;
+    const loadProviderCatalog = () => {
+      adminFetch("/api/admin-lawdesk-providers?include_health=1", { method: "GET" })
+        .then(async (payload) => {
+          if (!active) return;
+          const providers = Array.isArray(payload?.data?.providers) ? payload.data.providers : [];
+          const defaultProvider = typeof payload?.data?.defaultProvider === "string" ? payload.data.defaultProvider : "gpt";
+          if (!providers.length) return;
+          const mappedProviders = providers.map((item) => ({
+            value: item.id,
+            label: `${item.label}${item.model ? ` · ${item.model}` : ""}${item.status ? ` · ${item.status}` : ""}`,
+            disabled: !item.available,
+            configured: Boolean(item.configured),
+            displayLabel: item.label,
+            model: item.model || null,
+            status: item.status || null,
+            transport: item.transport || null,
+            runtimeMode: item.details?.probe?.mode || null,
+            host: item.details?.config?.host || null,
+            endpoint: item.details?.probe?.endpoint || item.details?.config?.baseUrl || null,
+            reason: item.reason || null,
+            offlineMode: Boolean(payload?.data?.offlineMode),
+          }));
+          const hydratedProviders = shouldHydrateBrowserLocalProvider({
+            focusedWorkspace: isFocusedCopilotShell,
+            selectedProvider: defaultProvider,
+            providers: mappedProviders,
           })
-        );
-      })
-      .catch(() => null);
+            ? await hydrateBrowserLocalProviderOptions(mappedProviders)
+            : mappedProviders;
+          if (!active) return;
+          setProviderCatalog(hydratedProviders);
+          setProvider((current) =>
+            resolveWorkspaceProviderSelection({
+              currentProvider: current,
+              defaultProvider,
+              providers: hydratedProviders,
+            })
+          );
+        })
+        .catch(() => null);
+    };
+
+    if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+      idleId = window.requestIdleCallback(loadProviderCatalog, { timeout: 500 });
+    } else {
+      timeoutId = window.setTimeout(loadProviderCatalog, isFocusedCopilotShell ? 180 : 0);
+    }
     return () => {
       active = false;
+      if (timeoutId) window.clearTimeout(timeoutId);
+      if (idleId && typeof window !== "undefined" && typeof window.cancelIdleCallback === "function") {
+        window.cancelIdleCallback(idleId);
+      }
     };
-  }, []);
+  }, [isFocusedCopilotShell]);
 
   useEffect(() => {
+    const shouldLoadRagHealth =
+      provider === "local" ||
+      localRuntimeConfigOpen ||
+      !isFocusedCopilotShell;
+    if (!shouldLoadRagHealth) return undefined;
     let active = true;
     adminFetch("/api/admin-dotobot-rag-health?include_upsert=0", { method: "GET" })
       .then((payload) => {
@@ -1379,7 +1403,7 @@ const [uiToasts, setUiToasts] = useState([]);
     return () => {
       active = false;
     };
-  }, []);
+  }, [isFocusedCopilotShell, localRuntimeConfigOpen, provider]);
 
   async function loadAgentLabSnapshot(options = {}) {
     const silent = options?.silent === true;
@@ -1438,8 +1462,13 @@ const [uiToasts, setUiToasts] = useState([]);
   }
 
   useEffect(() => {
+    const shouldLoadAgentLab =
+      rightPanelTab === "agentlabs" ||
+      String(routePath || "").includes("/agentlab");
+    if (!shouldLoadAgentLab || agentLabSnapshotRequestedRef.current) return;
+    agentLabSnapshotRequestedRef.current = true;
     loadAgentLabSnapshot();
-  }, []);
+  }, [rightPanelTab, routePath]);
 
   useEffect(() => {
     if (!uiToasts.length) return undefined;
@@ -1457,7 +1486,7 @@ const [uiToasts, setUiToasts] = useState([]);
   useEffect(() => {
     const canAutoProbe =
       shouldAutoProbeBrowserLocalRuntime() &&
-      (!isFocusedCopilotShell || provider === "local");
+      (!isFocusedCopilotShell || provider === "local" || localRuntimeConfigOpen);
     if (!canAutoProbe) return undefined;
     let active = true;
     probeBrowserLocalStackSummary()
@@ -1473,7 +1502,7 @@ const [uiToasts, setUiToasts] = useState([]);
     return () => {
       active = false;
     };
-  }, [isFocusedCopilotShell, provider]);
+  }, [isFocusedCopilotShell, localRuntimeConfigOpen, provider]);
 
   useEffect(() => {
     const runtimeSkills = Array.isArray(localStackSummary?.capabilities?.skillList)
@@ -2965,29 +2994,37 @@ const [uiToasts, setUiToasts] = useState([]);
   const useCondensedRightRail = isFocusedCopilotShell;
   const visibleLegalActions = isRailConversationShell ? [] : LEGAL_ACTIONS.slice(0, isCompactViewport ? 1 : 3);
   const visibleQuickPrompts = QUICK_PROMPTS.slice(0, isCompactViewport ? 1 : isConversationCentricShell ? 1 : 2);
-  let filteredConversations = filterVisibleConversations(conversations, conversationSearch);
-  if (!showArchived) {
-    filteredConversations = filteredConversations.filter(c => !c.archived);
-  }
-  if (selectedProjectFilter !== "all") {
-    filteredConversations = filteredConversations.filter((conversation) => conversation.projectKey === selectedProjectFilter);
-  }
-  if (conversationSort === "recent") {
-    filteredConversations = filteredConversations
-      .slice()
-      .sort((a, b) => getConversationTimestamp(b.updatedAt || b.createdAt) - getConversationTimestamp(a.updatedAt || a.createdAt));
-  } else if (conversationSort === "oldest") {
-    filteredConversations = filteredConversations
-      .slice()
-      .sort((a, b) => getConversationTimestamp(a.updatedAt || a.createdAt) - getConversationTimestamp(b.updatedAt || b.createdAt));
-  } else if (conversationSort === "title") {
-    filteredConversations = filteredConversations.slice().sort((a, b) => (a.title || "").localeCompare(b.title || ""));
-  }
-  const conversationProjectGroups = groupConversationsByProject(filteredConversations);
-  const projectInsights = buildProjectInsights(groupConversationsByProject(conversations.filter((conversation) => showArchived || !conversation.archived)));
+  const filteredConversations = useMemo(() => {
+    let nextConversations = filterVisibleConversations(conversations, deferredConversationSearch);
+    if (!showArchived) {
+      nextConversations = nextConversations.filter((conversation) => !conversation.archived);
+    }
+    if (selectedProjectFilter !== "all") {
+      nextConversations = nextConversations.filter((conversation) => conversation.projectKey === selectedProjectFilter);
+    }
+    if (conversationSort === "recent") {
+      return nextConversations
+        .slice()
+        .sort((a, b) => getConversationTimestamp(b.updatedAt || b.createdAt) - getConversationTimestamp(a.updatedAt || a.createdAt));
+    }
+    if (conversationSort === "oldest") {
+      return nextConversations
+        .slice()
+        .sort((a, b) => getConversationTimestamp(a.updatedAt || a.createdAt) - getConversationTimestamp(b.updatedAt || b.createdAt));
+    }
+    if (conversationSort === "title") {
+      return nextConversations.slice().sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+    }
+    return nextConversations;
+  }, [conversationSort, conversations, deferredConversationSearch, selectedProjectFilter, showArchived]);
+  const conversationProjectGroups = useMemo(() => groupConversationsByProject(filteredConversations), [filteredConversations]);
+  const projectInsights = useMemo(
+    () => buildProjectInsights(groupConversationsByProject(conversations.filter((conversation) => showArchived || !conversation.archived))),
+    [conversations, showArchived]
+  );
   const activeProjectLabel = activeConversation?.projectLabel || "Geral";
-  const conversationEntities = extractConversationEntities(activeConversation, activeTask);
-  const moduleWorkspaceCards = MODULE_WORKSPACES.map((module) => {
+  const conversationEntities = useMemo(() => extractConversationEntities(activeConversation, activeTask), [activeConversation, activeTask]);
+  const moduleWorkspaceCards = useMemo(() => MODULE_WORKSPACES.map((module) => {
     const matchedConversations = conversations.filter((conversation) => conversation.projectKey === module.key);
     return {
       ...module,
@@ -3002,8 +3039,8 @@ const [uiToasts, setUiToasts] = useState([]);
         entities: conversationEntities,
       }),
     };
-  });
-  const cockpitCommandActions = [
+  }), [activeConversation, activeProjectLabel, activeTask, conversationEntities, conversations, routePath]);
+  const cockpitCommandActions = useMemo(() => [
     {
       id: "focus-composer",
       label: "Focar composer",
@@ -3036,36 +3073,36 @@ const [uiToasts, setUiToasts] = useState([]);
       hint: "Ctrl/Cmd+Shift+G",
       onClick: () => router.push("/interno/agentlab"),
     },
-  ];
-  const activeRightPanelMeta =
+  ], [routePath, router]);
+  const activeRightPanelMeta = useMemo(() =>
     rightPanelTab === "modules"
       ? { title: "Módulos", detail: "Atalhos contextuais para os sistemas internos." }
       : rightPanelTab === "ai-task"
         ? { title: "AI Task", detail: "Subtarefas e continuidade operacional ao lado da conversa." }
         : rightPanelTab === "agentlabs"
           ? { title: "AgentLabs", detail: "Subagentes, syncs e saúde do ai-core em leitura lateral." }
-          : { title: "Contexto", detail: "Missão ativa, rota e sinais úteis para handoff." };
+          : { title: "Contexto", detail: "Missão ativa, rota e sinais úteis para handoff." }, [rightPanelTab]);
   const agentLabData = agentLabSnapshot.data || null;
-  const agentLabSubagents = extractAgentLabSubagents(agentLabSnapshot.data, activeTask);
+  const agentLabSubagents = useMemo(() => extractAgentLabSubagents(agentLabSnapshot.data, activeTask), [activeTask, agentLabSnapshot.data]);
   const agentLabOverview = agentLabData?.overview || {};
   const agentLabEnvironment = agentLabData?.environment || {};
   const agentLabConversationSummary = agentLabData?.conversations?.summary || {};
   const agentLabIncidentsSummary = agentLabData?.intelligence?.summary || {};
   const agentLabTrainingSummary = agentLabData?.training?.summary || {};
-  const agentLabQueuePreview = buildAgentLabQueuePreview(agentLabData?.governance?.queue || []);
-  const agentLabSyncPreview = buildAgentLabSyncPreview(agentLabData?.intelligence?.syncRuns || []);
-  const agentLabTrainingPreview = buildAgentLabTrainingPreview(agentLabData?.training?.runs || []);
-  const agentLabIncidentPreview = buildAgentLabIncidentPreview(agentLabData?.intelligence?.incidents || []);
-  const featuredTrainingScenario =
+  const agentLabQueuePreview = useMemo(() => buildAgentLabQueuePreview(agentLabData?.governance?.queue || []), [agentLabData?.governance?.queue]);
+  const agentLabSyncPreview = useMemo(() => buildAgentLabSyncPreview(agentLabData?.intelligence?.syncRuns || []), [agentLabData?.intelligence?.syncRuns]);
+  const agentLabTrainingPreview = useMemo(() => buildAgentLabTrainingPreview(agentLabData?.training?.runs || []), [agentLabData?.training?.runs]);
+  const agentLabIncidentPreview = useMemo(() => buildAgentLabIncidentPreview(agentLabData?.intelligence?.incidents || []), [agentLabData?.intelligence?.incidents]);
+  const featuredTrainingScenario = useMemo(() =>
     (agentLabData?.training?.scenarios || []).find((item) => item?.agent_ref === "dotobot-ai") ||
     (agentLabData?.training?.scenarios || [])[0] ||
-    null;
-  const linkedAgentLabTaskRuns = buildLinkedDotobotTaskRuns(agentLabData?.dotobot?.taskRuns || [], {
+    null, [agentLabData?.training?.scenarios]);
+  const linkedAgentLabTaskRuns = useMemo(() => buildLinkedDotobotTaskRuns(agentLabData?.dotobot?.taskRuns || [], {
     routePath,
     activeTask,
     activeConversation,
-  });
-  const agentLabHealthSignals = [
+  }), [activeConversation, activeTask, agentLabData?.dotobot?.taskRuns, routePath]);
+  const agentLabHealthSignals = useMemo(() => [
     {
       label: "Ambiente",
       value: agentLabEnvironment.mode === "connected" ? "conectado" : agentLabEnvironment.mode === "degraded" ? "contingência" : "parcial",
@@ -3082,9 +3119,9 @@ const [uiToasts, setUiToasts] = useState([]);
       label: "Threads",
       value: String(agentLabConversationSummary.total || 0),
     },
-  ];
-  const compactRecentConversations = filteredConversations.slice(0, 4);
-  const workspaceNavigatorItems = [
+  ], [agentLabConversationSummary.total, agentLabEnvironment.dotobotRagHealth?.ok, agentLabEnvironment.lawdeskProvidersHealth?.summary?.operational, agentLabEnvironment.mode]);
+  const compactRecentConversations = useMemo(() => filteredConversations.slice(0, 4), [filteredConversations]);
+  const workspaceNavigatorItems = useMemo(() => [
     {
       id: "new",
       label: "Nova conversa",
@@ -3144,14 +3181,14 @@ const [uiToasts, setUiToasts] = useState([]);
         setConversationSearch("");
       },
     },
-  ];
-  const compactTranscript = messages.slice(-4);
+  ], [activeProjectLabel, compactRecentConversations.length, router]);
+  const compactTranscript = useMemo(() => messages.slice(-4), [messages]);
   const activeConversationPreview =
     activeConversation?.preview ||
     activeConversation?.messages?.[activeConversation.messages.length - 1]?.text ||
     "Nova conversa pronta para receber contexto, tarefas e handoff.";
   const activeConversationTimestamp = activeConversation?.updatedAt || activeConversation?.createdAt || null;
-  const compactTaskHistory = taskHistory.slice(0, 3);
+  const compactTaskHistory = useMemo(() => taskHistory.slice(0, 3), [taskHistory]);
   const activeTaskLabel = activeTask?.query || activeTask?.label || activeTask?.title || "Nenhuma missão em andamento";
   const activeTaskStepCount = Array.isArray(activeTask?.steps) ? activeTask.steps.length : 0;
   const activeTaskProviderLabel = activeTask?.provider ? parseProviderPresentation(activeTask.provider).name : activeProviderPresentation.name;
@@ -5164,7 +5201,7 @@ const [uiToasts, setUiToasts] = useState([]);
                           </p>
                         </div>
                         <div className="grid gap-3">
-                          {moduleWorkspaceCards.slice(0, useCondensedRightRail ? 6 : moduleWorkspaceCards.length).map((module) => (
+                          {moduleWorkspaceCards.slice(0, useCondensedRightRail ? 4 : moduleWorkspaceCards.length).map((module) => (
                             <article
                               key={module.key}
                               className={`rounded-[18px] border p-4 ${
@@ -5192,13 +5229,15 @@ const [uiToasts, setUiToasts] = useState([]);
                                 >
                                   Abrir em contexto
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedProjectFilter(module.key)}
-                                  className={`rounded-full border px-2.5 py-1 text-[10px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                                >
-                                  Filtrar histórico
-                                </button>
+                                {!useCondensedRightRail ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedProjectFilter(module.key)}
+                                    className={`rounded-full border px-2.5 py-1 text-[10px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
+                                  >
+                                    Filtrar histórico
+                                  </button>
+                                ) : null}
                               </div>
                               {module.contextualHref !== module.href && !useCondensedRightRail ? (
                                 <p className={`mt-3 text-[11px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
@@ -5270,7 +5309,7 @@ const [uiToasts, setUiToasts] = useState([]);
                           </div>
                         </div>
                         {taskHistory.length ? (
-                          taskHistory.slice(0, isFocusedCopilotShell ? 3 : taskHistory.length).map((task) => (
+                          taskHistory.slice(0, isFocusedCopilotShell ? 2 : taskHistory.length).map((task) => (
                             <article key={task.id} className={`rounded-[18px] border p-4 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                               <div className="flex items-start justify-between gap-3">
                                 <div>
@@ -5301,7 +5340,7 @@ const [uiToasts, setUiToasts] = useState([]);
                             Nenhuma tarefa ainda.
                           </div>
                         )}
-                        {isFocusedCopilotShell && taskHistory.length > 3 ? (
+                        {isFocusedCopilotShell && taskHistory.length > 2 ? (
                           <button
                             type="button"
                             onClick={() => router.push("/interno/ai-task")}
@@ -5708,7 +5747,7 @@ const [uiToasts, setUiToasts] = useState([]);
                                   <span className={`text-[10px] ${isLightTheme ? "text-[#7C8B96]" : "text-[#60706A]"}`}>{agentLabSubagents.length}</span>
                                 </div>
                                 <div className="mt-3 space-y-2">
-                                  {agentLabSubagents.length ? agentLabSubagents.slice(0, 3).map((agent) => (
+                                  {agentLabSubagents.length ? agentLabSubagents.slice(0, 2).map((agent) => (
                                     <article key={agent.id} className={`rounded-[16px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F8FAFC]" : "border-[#22342F] bg-[rgba(7,9,8,0.76)]"}`}>
                                       <div className="flex items-center justify-between gap-3">
                                         <div>

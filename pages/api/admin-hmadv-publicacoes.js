@@ -804,7 +804,10 @@ export default async function handler(req, res) {
       }
       if (action === "run_advise_backfill") {
         try {
-          const data = await runAdviseBackfill();
+          const data = await runAdviseBackfill({
+            maxPaginas: Number(req.body?.limit || req.body?.maxPaginas || 5),
+            porPagina: Number(req.body?.porPagina || 100),
+          });
           return res.status(200).json({ ok: true, data });
         } catch (error) {
           const history = await listAdminOperations({
@@ -825,6 +828,7 @@ export default async function handler(req, res) {
             publicacoesSemProcesso: Number(overview?.publicacoesSemProcesso || 0),
             adviseCursorTotal: Number(overview?.adviseCursorTotal || 0),
             advisePersistedDelta: Number(overview?.advisePersistedDelta || 0),
+            paginasPlanejadas: Number(req.body?.limit || req.body?.maxPaginas || 5),
             uiHint: "O backfill do Advise falhou na edge function, mas o portal preservou o estado atual para continuarmos a drenagem sem quebrar a interface.",
           };
           try {

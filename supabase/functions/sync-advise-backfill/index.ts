@@ -11,8 +11,8 @@ const supabase = createClient(
 const ADVISE_TOKEN = Deno.env.get("ADVISE_TOKEN")!;
 const ADVISE_URL =
   "https://api.advise.com.br/core/v1/publicacoes-clientes/consulta-paginada";
-const REGISTROS_POR_PAGINA = 100;
-const PAGINAS_POR_EXECUCAO = 5;
+const REGISTROS_POR_PAGINA_PADRAO = 100;
+const PAGINAS_POR_EXECUCAO_PADRAO = 5;
 const UPSERT_CHUNK_SIZE = 25;
 
 function buildPublicacaoRecord(item: any) {
@@ -103,9 +103,42 @@ async function upsertPublicacoesResilient(publicacoes: any[], pagina: number) {
   return { inseridas, erros };
 }
 
-serve(async () => {
+serve(async (req) => {
   try {
     console.log("Iniciando sincronizacao Advise");
+    const url = new URL(req.url);
+    let body: Record<string, unknown> = {};
+    if (req.method !== "GET") {
+      try {
+        body = await req.json();
+      } catch {
+        body = {};
+      }
+    }
+    const paginasPorExecucao = Math.max(
+      1,
+      Math.min(
+        Number(
+          body.maxPaginas ??
+          body.limit ??
+          url.searchParams.get("maxPaginas") ??
+          url.searchParams.get("limit") ??
+          PAGINAS_POR_EXECUCAO_PADRAO
+        ) || PAGINAS_POR_EXECUCAO_PADRAO,
+        25
+      )
+    );
+    const registrosPorPagina = Math.max(
+      1,
+      Math.min(
+        Number(
+          body.porPagina ??
+          url.searchParams.get("porPagina") ??
+          REGISTROS_POR_PAGINA_PADRAO
+        ) || REGISTROS_POR_PAGINA_PADRAO,
+        100
+      )
+    );
 
     let { data: sync } = await supabase
       .from("advise_sync_status")
@@ -152,7 +185,7 @@ serve(async () => {
     let paginasProcessadas = 0;
     let ultimaPaginaProcessada = paginaInicial - 1;
 
-    for (let i = 0; i < PAGINAS_POR_EXECUCAO; i += 1) {
+    for (let i = 0; i < paginasPorExecucao; i += 1) {
       const pagina = paginaInicial + i;
 
       if (totalPaginas && pagina > totalPaginas) break;
@@ -160,7 +193,7 @@ serve(async () => {
       console.log("Importando pagina:", pagina);
 
       const response = await fetch(
-        `${ADVISE_URL}?paginaAtual=${pagina}&registrosPorPagina=${REGISTROS_POR_PAGINA}`,
+        `${ADVISE_URL}?paginaAtual=${pagina}&registrosPorPagina=${registrosPorPagina}`,
         {
           headers: {
             Authorization: `Bearer ${ADVISE_TOKEN}`,
@@ -221,6 +254,7 @@ serve(async () => {
         status: concluiu ? "concluido" : "parcial",
         execucao_parcial: execucaoParcial,
         pagina_inicial: paginaInicial,
+        paginas_planejadas: paginasPorExecucao,
         paginas_processadas: paginasProcessadas,
         ultima_pagina_processada: ultimaPaginaProcessada >= paginaInicial ? ultimaPaginaProcessada : null,
         registros_importados: registrosImportados,
@@ -228,6 +262,7 @@ serve(async () => {
         total_paginas: totalPaginas,
         total_registros_api: totalRegistrosApi,
         proxima_pagina: proximaPagina,
+        por_pagina: registrosPorPagina,
       }),
       { headers: { "Content-Type": "application/json" } }
     );
