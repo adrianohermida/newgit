@@ -5,6 +5,7 @@ import { useInternalTheme } from "./InternalThemeProvider";
 import DotobotCopilot from "./DotobotPanel";
 import InternoConsoleChrome from "./layout/InternoConsoleChrome";
 import InternoConsoleIssuePane from "./layout/InternoConsoleIssuePane";
+import InternoConsoleHistoryTab from "./layout/InternoConsoleHistoryTab";
 import InternoConsoleLogAnalytics from "./layout/InternoConsoleLogAnalytics";
 import InternoConsoleLogEntryCard from "./layout/InternoConsoleLogEntryCard";
 import InternoConsoleLogInsights from "./layout/InternoConsoleLogInsights";
