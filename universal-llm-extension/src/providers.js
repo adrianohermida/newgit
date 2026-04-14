@@ -9,6 +9,12 @@ function isConnectionError(error) {
   return raw.includes("econnrefused") || raw.includes("socket hang up") || raw.includes("timeout");
 }
 
+function buildCloudflareRunUrl(accountId, model) {
+  const normalizedAccountId = String(accountId || "").trim();
+  const normalizedModel = String(model || "").trim().replace(/^\/+/, "");
+  return `https://api.cloudflare.com/client/v4/accounts/${normalizedAccountId}/ai/run/${normalizedModel}`;
+}
+
 // ─── Chamadas LLM ─────────────────────────────────────────────────────────────
 
 async function callLocal(messages, model) {
@@ -58,7 +64,7 @@ async function callCloud(messages, model) {
 async function callCloudflare(messages, model) {
   const configs = getConfigs();
   if (configs.cloudflare.accountId && configs.cloudflare.apiToken) {
-    const target = `https://api.cloudflare.com/client/v4/accounts/${configs.cloudflare.accountId}/ai/run/${encodeURIComponent(model)}`;
+    const target = buildCloudflareRunUrl(configs.cloudflare.accountId, model);
     const response = await jsonPost(target, { messages }, { Authorization: `Bearer ${configs.cloudflare.apiToken}` });
     const content = extractContent(response.body?.result || response.body);
     if (response.status >= 200 && response.status < 300 && content) {
@@ -104,7 +110,7 @@ function buildCloudflareTests(configs) {
   const tests = [];
   if (configs.cloudflare.accountId && configs.cloudflare.apiToken) {
     tests.push({
-      url: `https://api.cloudflare.com/client/v4/accounts/${configs.cloudflare.accountId}/ai/run/${encodeURIComponent(configs.cloudflare.model)}`,
+      url: buildCloudflareRunUrl(configs.cloudflare.accountId, configs.cloudflare.model),
       body: { messages: [{ role: "user", content: "OK" }] },
       headers: { Authorization: `Bearer ${configs.cloudflare.apiToken}` },
       isConfigured: true,
@@ -223,6 +229,23 @@ async function diagnose(provider) {
 async function enrichLocalCatalogDiagnosis(configs, attempts) {
   const modelNotFoundAttempt = attempts.find((item) => item.issue === "model_not_found");
   if (!modelNotFoundAttempt) return;
+  const aiCoreAttempt = attempts.find((item) => item.url === joinUrl(configs.local.candidates[0], "/v1/messages"));
+  if (aiCoreAttempt) {
+    const healthInsight = await readAiCoreLocalInsight(configs.local.candidates);
+    if (healthInsight?.providerDiagnostics) {
+      modelNotFoundAttempt.aiCoreDiagnostics = healthInsight.providerDiagnostics;
+      if (healthInsight.issue === "runtime_model_unavailable") {
+        modelNotFoundAttempt.issue = "runtime_model_unavailable";
+        modelNotFoundAttempt.summary = "O ai-core esta online, mas o runtime local por tras dele nao tem um modelo carregado que responda ao alias configurado.";
+        modelNotFoundAttempt.recommendation = "Revise o runtime em 11434 e carregue o modelo/alias esperado pelo ai-core, ou ajuste LOCAL_LLM_MODEL para um modelo realmente disponivel.";
+      }
+      if (healthInsight.issue === "runtime_catalog_invalid") {
+        modelNotFoundAttempt.issue = "runtime_catalog_invalid";
+        modelNotFoundAttempt.summary = "O ai-core encontrou o runtime local, mas o catalogo publicado por ele esta invalido ou vazio.";
+        modelNotFoundAttempt.recommendation = "Corrija o runtime em 11434 para responder um catalogo valido em /v1/models ou /api/tags antes de usar o chat local.";
+      }
+    }
+  }
   for (const baseUrl of configs.local.runtimeCatalogCandidates || []) {
     const tagsUrl = joinUrl(baseUrl, "/api/tags");
     try {
@@ -245,6 +268,52 @@ async function enrichLocalCatalogDiagnosis(configs, attempts) {
       }
     } catch { /* ignora falha de catalogo */ }
   }
+}
+
+async function readAiCoreLocalInsight(candidates) {
+  for (const baseUrl of candidates || []) {
+    try {
+      const probe = await probeJsonGetEndpoint(joinUrl(baseUrl, "/health"), {}, { timeoutMs: 5000 });
+      const providerDiagnostics = probe?.body?.providers?.local?.diagnostics;
+      if (!providerDiagnostics || !probe.ok) continue;
+      const transportEndpoint = String(providerDiagnostics.transport_endpoint || "");
+      const resolvedModel = String(providerDiagnostics.resolved_model || providerDiagnostics.model || "").trim();
+      const runtimeModelsProbe = transportEndpoint.includes("/v1/chat/completions")
+        ? await probeJsonGetEndpoint(joinUrl(transportEndpoint.replace(/\/v1\/chat\/completions$/i, ""), "/v1/models"), {}, { timeoutMs: 5000 }).catch(() => null)
+        : null;
+      const models = Array.isArray(runtimeModelsProbe?.body?.data) ? runtimeModelsProbe.body.data : null;
+      if (runtimeModelsProbe?.ok && (!Array.isArray(models) || models.length === 0)) {
+        return {
+          issue: "runtime_catalog_invalid",
+          providerDiagnostics,
+          runtimeModels: {
+            url: joinUrl(transportEndpoint.replace(/\/v1\/chat\/completions$/i, ""), "/v1/models"),
+            payload: runtimeModelsProbe.body,
+          },
+        };
+      }
+      if (runtimeModelsProbe?.ok && Array.isArray(models) && models.length > 0) {
+        const availableModels = models
+          .map((item) => item?.id || item?.model || item?.name || null)
+          .filter(Boolean);
+        if (resolvedModel && !availableModels.includes(resolvedModel)) {
+          return {
+            issue: "runtime_model_unavailable",
+            providerDiagnostics,
+            runtimeModels: {
+              url: joinUrl(transportEndpoint.replace(/\/v1\/chat\/completions$/i, ""), "/v1/models"),
+              count: availableModels.length,
+              models: availableModels,
+            },
+          };
+        }
+      }
+      return { issue: null, providerDiagnostics };
+    } catch {
+      // ignora health auxiliar
+    }
+  }
+  return null;
 }
 
 module.exports = {

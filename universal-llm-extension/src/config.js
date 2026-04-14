@@ -31,7 +31,12 @@ const LOCAL_RUNTIME_CANDIDATES = [
 const DEFAULT_SETTINGS = {
   local: {
     runtimeUrl: ENV_AICORE_CANDIDATES[0] || "http://127.0.0.1:8000",
-    runtimeModel: "aetherlab-legal-local-v1",
+    runtimeModel: String(
+      process.env.LOCAL_LLM_MODEL ||
+      process.env.LLM_MODEL ||
+      process.env.AICORE_LOCAL_LLM_MODEL ||
+      "aetherlab-legal-local-v1",
+    ).trim(),
   },
   cloud: {
     appUrl: cleanUrl(process.env.APP_BASE_URL || process.env.NEXTJS_APP_URL || "http://127.0.0.1:3000"),

@@ -362,7 +362,7 @@ export default function DotobotCopilot({
     renameConversation,
     selectConversation,
     shareConversation,
-    updateConversationById,
+    updateConversationById: updateConversationRecord,
   } = conversationActions;
 
   useEffect(() => {
@@ -1374,7 +1374,7 @@ export default function DotobotCopilot({
     setAttachments([]);
     setError(null);
     if (activeConversationId) {
-      updateConversationById(activeConversationId, {
+      updateConversationRecord(activeConversationId, {
         messages: [],
         attachments: [],
         preview: "Sem mensagens ainda",
@@ -1388,7 +1388,7 @@ export default function DotobotCopilot({
   function handleResetTasks() {
     setTaskHistory([]);
     if (activeConversationId) {
-      updateConversationById(activeConversationId, {
+      updateConversationRecord(activeConversationId, {
         taskHistory: [],
       });
     }
@@ -2137,7 +2137,7 @@ export default function DotobotCopilot({
             setRenameModal({ open: false, conversationId: null, value: "" });
             return;
           }
-          updateConversationById(renameModal.conversationId, {
+          updateConversationRecord(renameModal.conversationId, {
             title: nextTitle,
           });
           setRenameModal({ open: false, conversationId: null, value: "" });
