@@ -29,7 +29,9 @@ async function writeClipboard(text) {
 }
 
 export function useInternoConsoleActions(props) {
-  const { activityLog, fingerprintStates, frontendForm, frontendIssues, logPane, moduleHistory, noteInput, operationalNotes, paneFingerprintSummary, processosLocalHistory, processosRemoteHistory, publicacoesHistory, publicacoesLocalHistory, publicacoesRemoteHistory, router, schemaForm, schemaIssues, setConsoleOpen, setConsoleTab, setFrontendForm, setLogFilters, setLogPane, setLogSearch, setNoteInput, setSchemaForm, title } = props;
+  const { activityLog, fingerprintStates, frontendForm, frontendIssues, logPane, moduleHistory, noteInput, operationalNotes, paneFingerprintSummary, router, schemaForm, schemaIssues, setConsoleOpen, setConsoleTab, setFrontendForm, setLogFilters, setLogPane, setLogSearch, setNoteInput, setSchemaForm, title } = props;
+  const processosSnapshot = moduleHistory?.processos || {};
+  const publicacoesSnapshot = moduleHistory?.publicacoes || {};
 
   function updateFilters(next) {
     const normalized = normalizeConsoleFilters(next);
@@ -96,10 +98,10 @@ export function useInternoConsoleActions(props) {
       await writeClipboard(formatActivityLogText(activityLog));
     },
     async handleCopyProcessHistory() {
-      await writeClipboard(JSON.stringify({ local: processosLocalHistory, remote: processosRemoteHistory }, null, 2));
+      await writeClipboard(JSON.stringify({ local: processosSnapshot.executionHistory || [], remote: processosSnapshot.remoteHistory || [] }, null, 2));
     },
     async handleCopyPublicacoesHistory() {
-      await writeClipboard(JSON.stringify(publicacoesHistory || { local: publicacoesLocalHistory, remote: publicacoesRemoteHistory }, null, 2));
+      await writeClipboard(JSON.stringify(publicacoesSnapshot || { local: [], remote: [] }, null, 2));
     },
     async handleCopySchemaIssues() {
       await writeClipboard(formatSchemaIssuesMarkdown(schemaIssues));
