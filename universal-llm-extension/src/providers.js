@@ -1,6 +1,61 @@
 const { getConfigs } = require("./storage");
 const { jsonPost, probeJsonEndpoint } = require("./http-client");
 const { joinUrl, extractContent, buildProviderError, htmlSnippet } = require("./utils");
+const { describeAttempt } = require("./provider-diagnostics");
+
+function isConnectionError(error) {
+  const raw = String(error?.message || "").toLowerCase();
+  return raw.includes("econnrefused") || raw.includes("socket hang up") || raw.includes("timeout");
+}
+
+function buildProxyTargets(appUrl, path, hint) {
+  try {
+    const parsed = new URL(joinUrl(appUrl, path));
+    const base = { url: parsed.toString(), hint, isConfigured: true };
+    const isLoopback = ["localhost", "127.0.0.1"].includes(parsed.hostname);
+    const port = Number(parsed.port || (parsed.protocol === "https:" ? 443 : 80));
+    if (!isLoopback || !Number.isFinite(port)) return [base];
+    const ports = [port, 3000, 3001, 3002, 3003];
+    const seen = new Set();
+    return ports
+      .filter((value) => Number.isFinite(value) && value > 0)
+      .map((value) => {
+        const next = new URL(parsed.toString());
+        next.port = String(value);
+        return {
+          url: next.toString(),
+          hint: value === port ? hint : `Porta alternativa detectada para ambiente local: ${value}.`,
+          isConfigured: value === port,
+        };
+      })
+      .filter((entry) => {
+        if (seen.has(entry.url)) return false;
+        seen.add(entry.url);
+        return true;
+      });
+  } catch {
+    return [{ url: joinUrl(appUrl, path), hint, isConfigured: true }];
+  }
+}
+
+async function callProxyProvider(appUrl, body, headers, label) {
+  const targets = buildProxyTargets(appUrl, "/api/admin-lawdesk-chat");
+  let lastError = null;
+  for (const target of targets) {
+    try {
+      const response = await jsonPost(target.url, body, headers);
+      const content = extractContent(response.body);
+      if (response.status >= 200 && response.status < 300 && content) {
+        return { ok: true, content, target: target.url };
+      }
+      throw buildProviderError(label, target.url, response);
+    } catch (error) {
+      lastError = error;
+      if (!isConnectionError(error)) break;
+    }
+  }
+  throw lastError || new Error(`${label} indisponivel.`);
+}
 
 async function callLocal(messages, model) {
   const configs = getConfigs();
@@ -29,13 +84,10 @@ async function callCloud(messages, model) {
     if (response.status >= 200 && response.status < 300 && content) return { ok: true, provider: "cloud", model, content, target };
     throw buildProviderError("Cloud", target, response);
   }
-  const target = joinUrl(configs.cloud.appUrl, "/api/admin-lawdesk-chat");
   const query = messages.map((item) => `[${item.role}] ${item.content}`).join("\n");
   const headers = configs.cloud.authToken ? { Authorization: `Bearer ${configs.cloud.authToken}` } : {};
-  const response = await jsonPost(target, { query, provider: "cloud", model }, headers);
-  const content = extractContent(response.body);
-  if (response.status >= 200 && response.status < 300 && content) return { ok: true, provider: "cloud", model, content, target };
-  throw buildProviderError("Cloud proxy", target, response);
+  const result = await callProxyProvider(configs.cloud.appUrl, { query, provider: "cloud", model }, headers, "Cloud proxy");
+  return { ok: true, provider: "cloud", model, content: result.content, target: result.target };
 }
 
 async function callCloudflare(messages, model) {
@@ -47,13 +99,10 @@ async function callCloudflare(messages, model) {
     if (response.status >= 200 && response.status < 300 && content) return { ok: true, provider: "cloudflare", model, content, target };
     throw buildProviderError("Cloudflare API", target, response);
   }
-  const target = joinUrl(configs.cloudflare.appUrl, "/api/admin-lawdesk-chat");
   const query = messages.map((item) => `[${item.role}] ${item.content}`).join("\n");
   const headers = configs.cloud.authToken ? { Authorization: `Bearer ${configs.cloud.authToken}` } : {};
-  const response = await jsonPost(target, { query, provider: "cloudflare", model }, headers);
-  const content = extractContent(response.body);
-  if (response.status >= 200 && response.status < 300 && content) return { ok: true, provider: "cloudflare", model, content, target };
-  throw buildProviderError("Cloudflare proxy", target, response);
+  const result = await callProxyProvider(configs.cloudflare.appUrl, { query, provider: "cloudflare", model }, headers, "Cloudflare proxy");
+  return { ok: true, provider: "cloudflare", model, content: result.content, target: result.target };
 }
 
 async function diagnose(provider) {
@@ -72,7 +121,17 @@ async function diagnose(provider) {
         body: { model: configs.cloud.model, max_tokens: 8, messages: [{ role: "user", content: "OK" }] },
         headers: configs.cloud.authToken ? { Authorization: `Bearer ${configs.cloud.authToken}` } : {},
       }] : []),
-      { url: joinUrl(configs.cloud.appUrl, "/api/admin-lawdesk-chat"), body: { query: "Responda com OK", provider: "cloud", model: configs.cloud.model }, headers: configs.cloud.authToken ? { Authorization: `Bearer ${configs.cloud.authToken}` } : {}, hint: "Essa rota exige token administrativo Bearer de uma sessao admin valida." },
+      ...buildProxyTargets(
+        configs.cloud.appUrl,
+        "/api/admin-lawdesk-chat",
+        "Essa rota exige token administrativo Bearer de uma sessao admin valida."
+      ).map((target) => ({
+        url: target.url,
+        body: { query: "Responda com OK", provider: "cloud", model: configs.cloud.model },
+        headers: configs.cloud.authToken ? { Authorization: `Bearer ${configs.cloud.authToken}` } : {},
+        hint: target.hint,
+        isConfigured: target.isConfigured,
+      })),
     ],
     cloudflare: [
       ...((configs.cloudflare.accountId && configs.cloudflare.apiToken) ? [{
@@ -80,7 +139,17 @@ async function diagnose(provider) {
         body: { messages: [{ role: "user", content: "OK" }] },
         headers: { Authorization: `Bearer ${configs.cloudflare.apiToken}` },
       }] : []),
-      { url: joinUrl(configs.cloudflare.appUrl, "/api/admin-lawdesk-chat"), body: { query: "Responda com OK", provider: "cloudflare", model: configs.cloudflare.model }, headers: configs.cloud.authToken ? { Authorization: `Bearer ${configs.cloud.authToken}` } : {}, hint: "Sem Account ID/API Token, o fallback usa o proxy admin e exige token Bearer." },
+      ...buildProxyTargets(
+        configs.cloudflare.appUrl,
+        "/api/admin-lawdesk-chat",
+        "Sem Account ID/API Token, o fallback usa o proxy admin e exige token Bearer."
+      ).map((target) => ({
+        url: target.url,
+        body: { query: "Responda com OK", provider: "cloudflare", model: configs.cloudflare.model },
+        headers: configs.cloud.authToken ? { Authorization: `Bearer ${configs.cloud.authToken}` } : {},
+        hint: target.hint,
+        isConfigured: target.isConfigured,
+      })),
     ],
   }[provider] || [];
 
@@ -93,77 +162,35 @@ async function diagnose(provider) {
   }
 
   const success = attempts.find((item) => item.ok);
-  if (success) return { ok: true, provider, message: `Conexao ${provider} confirmada.`, activeUrl: success.url, model: configs[provider].model, attempts };
+  const configuredAttempt = attempts.find((item) => tests.find((test) => test.url === item.url)?.isConfigured);
+  const reachableAlternative = attempts.find((item) => item.url !== configuredAttempt?.url && (item.ok || item.status));
+  if (success) {
+    const portMismatch = configuredAttempt && success.url !== configuredAttempt.url;
+    return {
+      ok: true,
+      provider,
+      issue: portMismatch ? "port_mismatch" : null,
+      message: portMismatch ? `Conexao ${provider} confirmada em porta alternativa.` : `Conexao ${provider} confirmada.`,
+      activeUrl: success.url,
+      configuredUrl: configuredAttempt?.url || tests[0]?.url || null,
+      recommendedUrl: portMismatch ? success.url : null,
+      model: configs[provider].model,
+      attempts,
+    };
+  }
+  if (configuredAttempt?.issue === "service_offline" && reachableAlternative) {
+    return {
+      ok: false,
+      provider,
+      issue: "port_mismatch",
+      message: `O provider ${provider} nao respondeu na URL configurada, mas existe um proxy semelhante em outra porta.`,
+      configuredUrl: configuredAttempt.url,
+      recommendedUrl: reachableAlternative.url,
+      model: configs[provider]?.model,
+      attempts,
+    };
+  }
   return { ok: false, provider, message: `Nao foi possivel conectar ao provider ${provider}.`, configuredUrl: tests[0]?.url || null, model: configs[provider]?.model, attempts };
-}
-
-function describeAttempt(attempt, hint) {
-  const details = classifyAttempt(attempt, hint);
-  return { ...attempt, hint: hint || null, ...details, ...extractWarnings(attempt) };
-}
-
-function classifyAttempt(attempt, hint) {
-  const raw = String(attempt?.rawSnippet || attempt?.error || "").toLowerCase();
-  const errorType = String(attempt?.body?.errorType || "").toLowerCase();
-  if (raw.includes("<!doctype") || raw.includes("<html")) {
-    return {
-      issue: "html_response",
-      summary: "A URL respondeu HTML, provavelmente uma pagina web e nao uma API JSON.",
-      recommendation: "Ajuste para um endpoint de API real. Ex.: ai-core em /v1/messages ou proxy que responda JSON.",
-    };
-  }
-  if (raw.includes("econnrefused") || raw.includes("connect econnrefused") || raw.includes("socket hang up")) {
-    return {
-      issue: "service_offline",
-      summary: "Nao foi possivel abrir conexao com o servico configurado.",
-      recommendation: "Confirme se o processo esta rodando na porta informada e se a URL esta correta.",
-    };
-  }
-  if (attempt?.status === 404) {
-    return {
-      issue: "route_not_found",
-      summary: "O servidor respondeu, mas a rota esperada nao existe.",
-      recommendation: "Revise a base URL. Ela deve apontar para a API correta, nao apenas para a home da aplicacao.",
-    };
-  }
-  if (attempt?.status >= 500) {
-    return {
-      issue: "proxy_runtime_error",
-      summary: "A aplicacao respondeu com erro interno ao processar o proxy do provider.",
-      recommendation: "Verifique os logs do Next/app local. Se estiver usando dev server, confirme se a rota compilou sem erro.",
-    };
-  }
-  if (attempt?.status === 401 || attempt?.status === 403 || errorType === "missing_token" || errorType === "invalid_session" || errorType === "inactive_profile") {
-    return {
-      issue: "auth_failed",
-      summary: "O endpoint respondeu, mas exige autenticacao administrativa valida.",
-      recommendation: "Preencha o token Bearer admin no painel ou use uma API direta que aceite o secret configurado.",
-    };
-  }
-  if (raw.includes("401") || raw.includes("403") || raw.includes("unauthorized") || raw.includes("forbidden")) {
-    return {
-      issue: "auth_failed",
-      summary: "A autenticacao falhou para o endpoint configurado.",
-      recommendation: "Revise token, secret ou permissoes do provider.",
-    };
-  }
-  return {
-    issue: "unknown",
-    summary: attempt?.ok ? "Conexao valida." : `Falha: ${htmlSnippet(attempt?.error || attempt?.rawSnippet || "Sem detalhes")}`,
-    recommendation: hint || "Revise a URL, o modelo e a autenticacao deste provider.",
-  };
-}
-
-function extractWarnings(attempt) {
-  const metadata = attempt?.body?.metadata || {};
-  if (metadata.degraded) {
-    return {
-      warning: "degraded_local_runtime",
-      warningSummary: "O runtime local respondeu em modo degradado.",
-      warningDetail: String(metadata.fallback_reason || "O modelo local nao conseguiu executar normalmente."),
-    };
-  }
-  return {};
 }
 
 module.exports = {

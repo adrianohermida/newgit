@@ -12,7 +12,6 @@ import {
   buildJobPreview,
 } from "./action-utils";
 import { usePublicacoesAdminFetch } from "./usePublicacoesAdminFetch";
-import { usePublicacoesNavigationState } from "./usePublicacoesNavigationState";
 import {
   HealthBadge,
   Panel,
@@ -37,16 +36,13 @@ import {
 import { usePublicacoesActivityLog } from "./usePublicacoesActivityLog";
 import { usePublicacoesDashboardState } from "./usePublicacoesDashboardState";
 import { usePublicacoesBlockingState } from "./usePublicacoesBlockingState";
-import { usePublicacoesLifecycle } from "./usePublicacoesLifecycle";
-import { usePublicacoesHealthStatus } from "./usePublicacoesHealthStatus";
-import { usePublicacoesJobDrain } from "./usePublicacoesJobDrain";
-import { usePublicacoesQueueEffects } from "./usePublicacoesQueueEffects";
 import { usePublicacoesOverviewState } from "./usePublicacoesOverviewState";
 import { PublicacoesScreenBody } from "./PublicacoesScreenBody";
 import { usePublicacoesQueuesScreenModel } from "./usePublicacoesQueuesScreenModel";
 import { usePublicacoesLoaders } from "./usePublicacoesLoaders";
 import { usePublicacoesIntegratedRows } from "./usePublicacoesIntegratedRows";
 import { usePublicacoesActionSuite } from "./usePublicacoesActionSuite";
+import { usePublicacoesEffects } from "./usePublicacoesEffects";
 
 
 function PublicacoesContent() {
@@ -283,41 +279,17 @@ function PublicacoesContent() {
     syncWorkerShouldFocusCrm,
     view,
   });
-  usePublicacoesNavigationState({ view, lastFocusHash, setView, setLastFocusHash });
-  usePublicacoesLifecycle({
+  usePublicacoesEffects({
+    ACTION_LABELS,
     actionState,
-    backendHealth,
-    copilotQueryAppliedRef,
-    executionHistory,
-    jobs,
-    lastFocusHash,
-    limit,
-    loadJobs,
-    loadOverview,
-    loadRemoteHistory,
-    operationalStatus,
-    overview,
-    pageVisible,
-    partesCandidates,
-    processCandidates,
-    processPage,
-    queueRefreshLog,
-    remoteHistory,
-    selectedPartesKeys,
-    selectedProcessKeys,
-    setCopilotContext,
-    setExecutionHistory,
-    setLastFocusHash,
-    setPageVisible,
-    setProcessNumbers,
-    setValidationMap,
-    validationMap,
-    view,
-  });
-
-  usePublicacoesQueueEffects({
     activeJobId,
+    adminFetch,
+    backendHealth,
+    buildJobPreview,
+    copilotQueryAppliedRef,
     detailState,
+    executionHistory,
+    globalError,
     heavyQueuesEnabled,
     integratedCursorTrail,
     integratedFilters,
@@ -325,42 +297,44 @@ function PublicacoesContent() {
     integratedPageSize,
     integratedQueue,
     jobs,
+    lastFocusHash,
+    limit,
     loadIntegratedQueue,
+    loadJobs,
+    loadOverview,
     loadPartesCandidates,
     loadProcessCandidates,
-    partesPage,
-    processPage,
-    setActiveJobId,
-    setDetailState,
-    setIntegratedCursorTrail,
-    setIntegratedPage,
-    setSelectedDetailLinkedPartes,
-    setSelectedDetailPendingPartes,
-    validationMap,
-    view,
-  });
-  usePublicacoesJobDrain({
-    ACTION_LABELS,
-    activeJobId,
-    adminFetch,
-    buildJobPreview,
-    loadJobs,
     loadRemoteHistory,
+    operationalStatus,
+    overview,
     pageVisible,
+    partesCandidates,
+    partesPage,
+    processCandidates,
+    processPage,
+    queueRefreshLog,
     refreshAfterAction,
     refreshOperationalContext,
+    remoteHistory,
+    selectedPartesKeys,
+    selectedProcessKeys,
     setActionState,
     setActiveJobId,
-    setDrainInFlight,
-  });
-  usePublicacoesHealthStatus({
-    globalError,
-    overview,
-    partesCandidates,
-    processCandidates,
-    remoteHistory,
     setBackendHealth,
+    setCopilotContext,
+    setDetailState,
+    setDrainInFlight,
+    setExecutionHistory,
+    setLastFocusHash,
     setOperationalStatus,
+    setPageVisible,
+    setProcessNumbers,
+    setSelectedDetailLinkedPartes,
+    setSelectedDetailPendingPartes,
+    setValidationMap,
+    setView,
+    validationMap,
+    view,
   });
 
 
