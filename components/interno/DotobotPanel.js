@@ -117,7 +117,6 @@ import {
   groupConversationsByProject,
   inferConversationTitle,
   isTaskCommand,
-  loadPersistedDotobotState,
   mergeConversationAttachments,
   nowIso,
   safeText,
