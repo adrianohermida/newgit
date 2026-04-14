@@ -81,7 +81,13 @@ function getDetailElement(provider) {
 }
 
 function formatSuccessDetail(data) {
-  return [`Endpoint ativo: ${data.activeUrl || "desconhecido"}`, data.message || "Conexao validada."].filter(Boolean).join(" | ");
+  const attempt = Array.isArray(data.attempts) ? data.attempts.find((item) => item && item.ok) : null;
+  return [
+    `Endpoint ativo: ${data.activeUrl || "desconhecido"}`,
+    data.message || "Conexao validada.",
+    attempt?.warningSummary || "",
+    attempt?.warningDetail || "",
+  ].filter(Boolean).join(" | ");
 }
 
 function formatFailureDetail(data, attempt) {

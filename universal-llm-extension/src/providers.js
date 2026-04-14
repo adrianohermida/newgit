@@ -96,11 +96,11 @@ async function diagnose(provider) {
 }
 
 function describeAttempt(attempt, hint) {
-  const details = classifyAttempt(attempt);
-  return { ...attempt, hint: hint || null, ...details };
+  const details = classifyAttempt(attempt, hint);
+  return { ...attempt, hint: hint || null, ...details, ...extractWarnings(attempt) };
 }
 
-function classifyAttempt(attempt) {
+function classifyAttempt(attempt, hint) {
   const raw = String(attempt?.rawSnippet || attempt?.error || "").toLowerCase();
   if (raw.includes("<!doctype") || raw.includes("<html")) {
     return {
@@ -135,6 +135,18 @@ function classifyAttempt(attempt) {
     summary: attempt?.ok ? "Conexao valida." : `Falha: ${htmlSnippet(attempt?.error || attempt?.rawSnippet || "Sem detalhes")}`,
     recommendation: hint || "Revise a URL, o modelo e a autenticacao deste provider.",
   };
+}
+
+function extractWarnings(attempt) {
+  const metadata = attempt?.body?.metadata || {};
+  if (metadata.degraded) {
+    return {
+      warning: "degraded_local_runtime",
+      warningSummary: "O runtime local respondeu em modo degradado.",
+      warningDetail: String(metadata.fallback_reason || "O modelo local nao conseguiu executar normalmente."),
+    };
+  }
+  return {};
 }
 
 module.exports = {

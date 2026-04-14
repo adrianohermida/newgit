@@ -7,11 +7,9 @@ import OperationalPlanPanel from "../../../components/interno/hmadv/OperationalP
 import {
   ACTION_LABELS,
   MODULE_LIMITS,
-  PUBLICACOES_QUEUE_VIEWS,
 } from "./constants";
 import {
   buildJobPreview,
-  getPublicacoesActionLabel,
 } from "./action-utils";
 import { usePublicacoesAdminFetch } from "./usePublicacoesAdminFetch";
 import { usePublicacoesNavigationState } from "./usePublicacoesNavigationState";
@@ -20,16 +18,11 @@ import {
   Panel,
   QueueSummaryCard,
 } from "./ui-primitives";
-import { PublicacoesWorkspaceHeader } from "./workspace-header";
 import {
   deriveRemoteHealth,
 } from "./recurrence";
-import { PublicacoesOperationView } from "./operation-view";
-import { PublicacoesResultView } from "./result-view";
-import { PublicacoesQueuesView } from "./queues-view";
 import { usePublicacoesDerivedState } from "./usePublicacoesDerivedState";
 import { usePublicacoesQueueSelection } from "./usePublicacoesQueueSelection";
-import { PublicacoesAdviseStatusPanel } from "./advise-status-panel";
 import { usePublicacoesValidationActions } from "./usePublicacoesValidationActions";
 import { usePublicacoesIntegratedDetail } from "./usePublicacoesIntegratedDetail";
 import { usePublicacoesParteActions } from "./usePublicacoesParteActions";
@@ -64,6 +57,8 @@ import { usePublicacoesJobDrain } from "./usePublicacoesJobDrain";
 import { usePublicacoesQueueEffects } from "./usePublicacoesQueueEffects";
 import { recoverPublicacoesAdviseBackfillFailure } from "./publicacoesBackfillRecovery";
 import { usePublicacoesRefreshActions } from "./usePublicacoesRefreshActions";
+import { usePublicacoesOverviewState } from "./usePublicacoesOverviewState";
+import { PublicacoesScreenBody } from "./PublicacoesScreenBody";
 
 
 function PublicacoesContent() {
@@ -486,36 +481,36 @@ function PublicacoesContent() {
     [partesCandidates.items, selectedPartesKeys]
   );
   const data = overview.data || {};
-  const publicationActivityTypes = data.publicationActivityTypes || {};
-  const noPublicationActivityTypeConfigured = publicationActivityTypes?.matched === false;
-  const publicationActivityTypeHint = noPublicationActivityTypeConfigured
-    ? (publicationActivityTypes.error
-      ? `Freshsales bloqueado: ${publicationActivityTypes.error}`
-      : "Nao ha sales activity type compativel para publicacao no Freshsales.")
-    : "";
-  const adviseSync = data.adviseSync || null;
-  const snapshotOverview = data.snapshotOverview || {};
-  const snapshotMesaIntegrada = snapshotOverview.mesa_integrada || null;
-  const snapshotPartes = snapshotOverview.candidatos_partes || null;
-  const snapshotProcessos = snapshotOverview.candidatos_processos || null;
-  const adviseConfig = adviseSync?.config || {};
-  const adviseCursor = adviseSync?.status_cursor || adviseSync?.ultima_execucao || {};
-  const adviseLastRunAt = adviseCursor?.ultima_execucao || null;
-  const adviseTokenOk = adviseConfig?.token_ok === true;
-  const adviseMode = adviseConfig?.modo || "indisponivel";
-  const adviseLastCycleTotal = Number(adviseCursor?.total_registros || 0);
-  const advisePersistedDelta = Number(data.advisePersistedDelta || 0);
-  const adviseBackfillPage = Number(adviseCursor?.ultima_pagina || 0);
-  const adviseBackfillTotalPages = Number(adviseCursor?.total_paginas || 0);
-  const adviseBackfillProgress = adviseBackfillTotalPages > 0
-    ? `${Math.min(adviseBackfillPage, adviseBackfillTotalPages)}/${adviseBackfillTotalPages}`
-    : "cursor sem pagina total";
-  const publicacoesSemProcesso = Number(data.publicacoesSemProcesso || 0);
-  const publicacoesPendentesComAccount = Number(data.publicacoesPendentesComAccount || 0);
-  const syncWorkerLastPublicacoes = Number(data?.syncWorker?.worker?.ultimo_lote?.publicacoes || 0);
-  const latestHistory = executionHistory[0] || null;
-  const latestRemoteRun = remoteHistory[0] || null;
-  const latestJob = jobs[0] || null;
+  const {
+    adviseBackfillProgress,
+    adviseCursor,
+    adviseLastCycleTotal,
+    adviseLastRunAt,
+    adviseMode,
+    advisePersistedDelta,
+    adviseSync,
+    adviseTokenOk,
+    isDockedPublicacoesView,
+    isResultView,
+    latestHistory,
+    latestJob,
+    latestRemoteRun,
+    noPublicationActivityTypeConfigured,
+    operationalPlan,
+    pendingJobCount,
+    publicationActivityTypeHint,
+    publicationActivityTypes,
+    snapshotMesaIntegrada,
+    snapshotPartes,
+    snapshotProcessos,
+    syncWorkerLastPublicacoes,
+  } = usePublicacoesOverviewState({
+    data,
+    executionHistory,
+    jobs,
+    remoteHistory,
+    view,
+  });
   const {
     getOperationalPlanStepState,
     runOperationalPlanStep,
@@ -553,10 +548,6 @@ function PublicacoesContent() {
     runPendingJobsNow,
     updateView,
   });
-  const operationalPlan = Array.isArray(data?.operationalPlan) ? data.operationalPlan : [];
-
-  const isResultView = view === "resultado";
-  const isDockedPublicacoesView = view === "operacao" || view === "resultado";
   const queuesViewModel = usePublicacoesQueuesViewModel({
     isLightTheme,
     queueDiagnostics,
@@ -652,116 +643,78 @@ function PublicacoesContent() {
   });
 
   return (
-    <div className={`${isDockedPublicacoesView ? "flex min-h-full flex-1 flex-col gap-6" : isResultView ? "space-y-6" : "space-y-8"}`.trim()}>
-      {copilotContext ? (
-        <section className={`rounded-[22px] border p-4 text-sm ${isLightTheme ? "border-[#bdd8cf] bg-[#f3fbf8] text-[#25403a]" : "border-[#35554B] bg-[rgba(12,22,19,0.72)] text-[#C6D1CC]"}`}>
-          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#2c7a66]" : "text-[#7FC4AF]"}`}>Contexto vindo do Copilot</p>
-          <p className={`mt-2 font-semibold ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{copilotContext.conversationTitle || "Conversa ativa"}</p>
-          {copilotContext.mission ? <p className={`mt-2 leading-6 ${isLightTheme ? "text-[#4b5563]" : "text-[#9BAEA8]"}`}>{copilotContext.mission}</p> : null}
-          {processNumbers ? <p className={`mt-2 text-xs leading-6 ${isLightTheme ? "text-[#2c7a66]" : "text-[#7F928C]"}`}>CNJs pré-carregados para operação de publicações.</p> : null}
-        </section>
-      ) : null}
-      <PublicacoesWorkspaceHeader
-        view={view}
-        onChangeView={updateView}
-        latestHistory={latestHistory}
-        latestJob={latestJob}
-        activeJobId={activeJobId}
-        selectedCount={selectedProcessKeys.length + selectedPartesKeys.length}
-        hasMultipleBlockingJobs={hasMultipleBlockingJobs}
-        pendingJobCount={pendingOrRunningJobs.length}
-        actionState={actionState}
-        operationalStatus={operationalStatus}
-        backendHealth={backendHealth}
-        healthSuggestedActions={healthSuggestedActions}
-        candidateQueueErrorCount={candidateQueueErrorCount}
-        candidateQueueMismatchCount={candidateQueueMismatchCount}
-        operationalPlan={!isResultView ? operationalPlan : []}
-        getOperationalPlanStepState={getOperationalPlanStepState}
-        runOperationalPlanStep={runOperationalPlanStep}
-        queueRefreshLog={queueRefreshLog}
-        latestRemoteRun={latestRemoteRun}
-        remoteHealth={remoteHealth}
-        metrics={[
-          { label: "Publicacoes operacionais", value: data.publicacoesOperacionais || 0, helper: "Total operacional no portal, excluindo itens marcados como leilao ignorado." },
-          { label: "Vinculadas", value: data.publicacoesVinculadas || 0, helper: "Publicacoes que ja possuem processo vinculado no HMADV." },
-          { label: "Pendentes de sync", value: data.publicacoesPendentesComAccount || 0, helper: "Publicacoes vinculadas ainda sem activity no Freshsales." },
-          { label: "Sem processo", value: data.publicacoesSemProcesso || 0, helper: "Publicacoes ainda sem processo vinculado no HMADV." },
-        ]}
-      />
-
-      <PublicacoesAdviseStatusPanel
-        adviseSync={adviseSync}
-        adviseTokenOk={adviseTokenOk}
-        adviseMode={adviseMode}
-        adviseCursor={adviseCursor}
-        adviseLastRunAt={adviseLastRunAt}
-        adviseBackfillProgress={adviseBackfillProgress}
-        advisePersistedDelta={advisePersistedDelta}
-        snapshotMesaIntegrada={snapshotMesaIntegrada}
-        snapshotPartes={snapshotPartes}
-        snapshotProcessos={snapshotProcessos}
-        publicationActivityTypes={publicationActivityTypes}
-        adviseLastCycleTotal={adviseLastCycleTotal}
-        syncWorkerLastPublicacoes={syncWorkerLastPublicacoes}
-        data={data}
-        actionState={actionState}
-        handleAction={handleAction}
-        formatSnapshotLabel={formatSnapshotLabel}
-        isLightTheme={isLightTheme}
-      />
-
-      {view === "operacao" ? (
-        <>
-          <PublicacoesOperationView
-            data={data}
-            processCandidates={processCandidates}
-            selectedProcessKeys={selectedProcessKeys}
-            processNumbers={processNumbers}
-            setProcessNumbers={setProcessNumbers}
-            limit={limit}
-            setLimit={setLimit}
-            actionState={actionState}
-            hasBlockingJob={hasBlockingJob}
-            canManuallyDrainActiveJob={canManuallyDrainActiveJob}
-            blockingJob={blockingJob}
-            drainInFlight={drainInFlight}
-            selectedProcessNumbers={selectedProcessNumbers}
-            selectedUnifiedNumbers={selectedUnifiedNumbers}
-            noPublicationActivityTypeConfigured={noPublicationActivityTypeConfigured}
-            publicationActivityTypeHint={publicationActivityTypeHint}
-            partesBacklogCount={partesBacklogCount}
-            handleAction={handleAction}
-            updateView={updateView}
-            runPendingJobsNow={runPendingJobsNow}
-            loadOverview={loadOverview}
-            loadProcessCandidates={loadProcessCandidates}
-            loadPartesCandidates={loadPartesCandidates}
-            processPage={processPage}
-            partesPage={partesPage}
-          />
-        </>
-      ) : null}
-
-      {view === "filas" ? (
-        <>
-          <PublicacoesQueuesView model={queuesViewModel} />
-        </>
-      ) : null}
-
-      {view === "resultado" ? (
-        <>
-          <PublicacoesResultView
-            actionState={actionState}
-            jobs={jobs}
-            activeJobId={activeJobId}
-            executionHistory={executionHistory}
-            remoteHistory={remoteHistory}
-            formatFallbackReason={formatFallbackReason}
-          />
-        </>
-      ) : null}
-    </div>
+    <PublicacoesScreenBody
+      actionState={actionState}
+      activeJobId={activeJobId}
+      adviseBackfillProgress={adviseBackfillProgress}
+      adviseCursor={adviseCursor}
+      adviseLastCycleTotal={adviseLastCycleTotal}
+      adviseLastRunAt={adviseLastRunAt}
+      adviseMode={adviseMode}
+      advisePersistedDelta={advisePersistedDelta}
+      adviseSync={adviseSync}
+      adviseTokenOk={adviseTokenOk}
+      backendHealth={backendHealth}
+      blockingJob={blockingJob}
+      canManuallyDrainActiveJob={canManuallyDrainActiveJob}
+      candidateQueueErrorCount={candidateQueueErrorCount}
+      candidateQueueMismatchCount={candidateQueueMismatchCount}
+      copilotContext={copilotContext}
+      data={data}
+      drainInFlight={drainInFlight}
+      executionHistory={executionHistory}
+      formatDateTimeLabel={formatDateTimeLabel}
+      formatFallbackReason={formatFallbackReason}
+      formatSnapshotLabel={formatSnapshotLabel}
+      formatValidationMeta={formatValidationMeta}
+      getOperationalPlanStepState={getOperationalPlanStepState}
+      handleAction={handleAction}
+      hasBlockingJob={hasBlockingJob}
+      hasMultipleBlockingJobs={hasMultipleBlockingJobs}
+      healthSuggestedActions={healthSuggestedActions}
+      isDockedPublicacoesView={isDockedPublicacoesView}
+      isLightTheme={isLightTheme}
+      isResultView={isResultView}
+      jobs={jobs}
+      latestHistory={latestHistory}
+      latestJob={latestJob}
+      latestRemoteRun={latestRemoteRun}
+      limit={limit}
+      loadIntegratedDetail={loadIntegratedDetail}
+      loadOverview={loadOverview}
+      loadPartesCandidates={loadPartesCandidates}
+      loadProcessCandidates={loadProcessCandidates}
+      noPublicationActivityTypeConfigured={noPublicationActivityTypeConfigured}
+      operationalPlan={operationalPlan}
+      operationalStatus={operationalStatus}
+      pagedIntegratedRows={pagedIntegratedRows}
+      partesBacklogCount={partesBacklogCount}
+      partesPage={partesPage}
+      pendingJobCount={pendingJobCount}
+      processCandidates={processCandidates}
+      processNumbers={processNumbers}
+      processPage={processPage}
+      publicationActivityTypeHint={publicationActivityTypeHint}
+      publicationActivityTypes={publicationActivityTypes}
+      queueRefreshLog={queueRefreshLog}
+      queuesViewModel={queuesViewModel}
+      remoteHealth={remoteHealth}
+      remoteHistory={remoteHistory}
+      runOperationalPlanStep={runOperationalPlanStep}
+      runPendingJobsNow={runPendingJobsNow}
+      selectedPartesKeys={selectedPartesKeys}
+      selectedProcessKeys={selectedProcessKeys}
+      selectedProcessNumbers={selectedProcessNumbers}
+      selectedUnifiedNumbers={selectedUnifiedNumbers}
+      setLimit={setLimit}
+      setProcessNumbers={setProcessNumbers}
+      snapshotMesaIntegrada={snapshotMesaIntegrada}
+      snapshotPartes={snapshotPartes}
+      snapshotProcessos={snapshotProcessos}
+      syncWorkerLastPublicacoes={syncWorkerLastPublicacoes}
+      updateView={updateView}
+      view={view}
+    />
   );
 }
 
