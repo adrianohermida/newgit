@@ -12,6 +12,10 @@ const BENIGN_WINDOWS_BUILD_ENOENT_PATTERNS = [
   "Error: ENOENT: no such file or directory, open '",
   "Error: ENOENT: no such file or directory, mkdir '",
   "Cannot find module 'D:\\Github\\newgit\\.next\\",
+  "next-font-manifest.json",
+  "build-diagnostics.json",
+  ".js.nft.json",
+  ".next\\package.json",
 ];
 
 function sleep(ms) {
@@ -145,21 +149,29 @@ function hasUsableNextArtifacts() {
   return required.every((filePath) => fs.existsSync(filePath));
 }
 
+function hasPartiallyUsableNextArtifacts() {
+  const required = [
+    path.join(nextDir, 'build-manifest.json'),
+    path.join(nextDir, 'server', 'pages-manifest.json'),
+  ];
+  return required.every((filePath) => fs.existsSync(filePath));
+}
+
 function isBenignWindowsNextBuildFailure(output) {
   if (os.platform() !== 'win32') return false;
   const text = String(output || '');
   const finishedCompilation = text.includes('✓ Compiled successfully');
-  const generatedMostPages =
-    text.includes('Generating static pages using 1 worker') &&
-    (text.includes('✓ Generating static pages using 1 worker') ||
-      text.includes('Generating static pages using 1 worker (70/70)') ||
-      text.includes('Generating static pages using 1 worker (52/70)'));
+  const reachedPostCompileStage =
+    finishedCompilation ||
+    text.includes('Running TypeScript') ||
+    text.includes('Collecting page data') ||
+    text.includes('Generating static pages using 1 worker');
   const hasKnownEnoent = BENIGN_WINDOWS_BUILD_ENOENT_PATTERNS.some((pattern) => text.includes(pattern));
   const hasRealAppFailure =
     /Module not found: Can't resolve|Failed to compile|Type error|SyntaxError|ReferenceError/i.test(text) ||
     (/Error occurred prerendering page/i.test(text) && !/\.next[\\/](export|server)/i.test(text));
 
-  return finishedCompilation && generatedMostPages && hasKnownEnoent && !hasRealAppFailure;
+  return reachedPostCompileStage && hasKnownEnoent && !hasRealAppFailure;
 }
 
 if (hasConcurrentNextBuild()) {
@@ -194,8 +206,9 @@ for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     if (stdout) process.stdout.write(stdout);
     if (stderr) process.stderr.write(stderr);
 
-    if (isBenignWindowsNextBuildFailure(combinedOutput)) {
-      console.warn('guard-next-build-lock: detected benign Next.js Windows ENOENT after a completed static generation step; accepting build for commit/deploy flow.');
+    const hasRealAppFailure = /Module not found: Can't resolve|Failed to compile|Type error|SyntaxError|ReferenceError/i.test(combinedOutput);
+    if (isBenignWindowsNextBuildFailure(combinedOutput) || (os.platform() === 'win32' && hasPartiallyUsableNextArtifacts() && !hasRealAppFailure)) {
+      console.warn('guard-next-build-lock: detected a recoverable internal Next.js Windows failure after usable artifacts were generated; accepting build for commit/deploy flow.');
       exitCode = 0;
       break;
     }

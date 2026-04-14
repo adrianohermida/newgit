@@ -3,7 +3,6 @@ export { default as FocusedCopilotAside } from "./FocusedCopilotAside";
 export { default as FocusedConversationComposer } from "./FocusedConversationComposer";
 export { default as FocusedConversationCenter } from "./FocusedConversationCenter";
 export { default as FocusedConversationHeader } from "./FocusedConversationHeader";
-export { default as FocusedConversationThread } from "./FocusedConversationThread";
 export { default as FocusedHistoryRail } from "./FocusedHistoryRail";
 export { default as GenericAgentLabsPanel } from "./GenericAgentLabsPanel";
 export { default as GenericAiTaskPanel } from "./GenericAiTaskPanel";
