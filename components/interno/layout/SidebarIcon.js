@@ -17,6 +17,7 @@ function IconPath({ name }) {
   if (name === "megaphone") return <><path d="M4 13V9l10-4v12L4 13Z" {...STROKE} /><path d="M14 9h3a3 3 0 0 1 0 6h-3" {...STROKE} /><path d="M7 14l1 5" {...STROKE} /></>;
   if (name === "chart") return <><path d="M5 19V9" {...STROKE} /><path d="M12 19V5" {...STROKE} /><path d="M19 19v-8" {...STROKE} /></>;
   if (name === "plug") return <><path d="M9 3v6M15 3v6M7 9h10v2a5 5 0 0 1-5 5 5 5 0 0 1-5-5Z" {...STROKE} /><path d="M12 16v5" {...STROKE} /></>;
+  if (name === "settings") return <><circle cx="12" cy="12" r="3" {...STROKE} /><path d="M12 2v3M12 19v3M4.9 4.9 7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" {...STROKE} /></>;
   return <><circle cx="12" cy="12" r="8" {...STROKE} /><path d="M12 8v4l2 2" {...STROKE} /></>;
 }
 

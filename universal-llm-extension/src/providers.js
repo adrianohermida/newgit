@@ -126,6 +126,13 @@ function classifyAttempt(attempt, hint) {
       recommendation: "Revise a base URL. Ela deve apontar para a API correta, nao apenas para a home da aplicacao.",
     };
   }
+  if (attempt?.status >= 500) {
+    return {
+      issue: "proxy_runtime_error",
+      summary: "A aplicacao respondeu com erro interno ao processar o proxy do provider.",
+      recommendation: "Verifique os logs do Next/app local. Se estiver usando dev server, confirme se a rota compilou sem erro.",
+    };
+  }
   if (attempt?.status === 401 || attempt?.status === 403 || errorType === "missing_token" || errorType === "invalid_session" || errorType === "inactive_profile") {
     return {
       issue: "auth_failed",

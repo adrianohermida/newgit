@@ -4,10 +4,12 @@ import SidebarIcon from "./SidebarIcon";
 
 export default function SidebarNavItem({ item, active, collapsed, isLightTheme, onNavigate }) {
   const router = useRouter();
+  const isActive = item.href === "/interno" ? router.pathname === item.href : router.pathname === item.href || router.pathname.startsWith(`${item.href}/`);
 
   function handleNavigate(event) {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
     event.preventDefault();
+    if (typeof window === "undefined") return;
 
     const currentPath = router.asPath;
     let usedFallback = false;
@@ -42,7 +44,7 @@ export default function SidebarNavItem({ item, active, collapsed, isLightTheme, 
       onClick={handleNavigate}
       title={collapsed ? item.label : undefined}
       className={`group flex items-center gap-3 rounded-[14px] border px-3 py-2.5 text-sm transition-all duration-200 ${
-        active
+        isActive || active
           ? "border-[#C5A059] bg-[rgba(197,160,89,0.12)] text-[#C5A059] shadow-[inset_0_0_0_1px_rgba(197,160,89,0.12)]"
           : isLightTheme
             ? "border-transparent bg-transparent text-[#22312F] hover:border-[#D8E1EB] hover:bg-white"
@@ -50,7 +52,7 @@ export default function SidebarNavItem({ item, active, collapsed, isLightTheme, 
       }`}
     >
       <span className={`flex h-9 w-9 items-center justify-center rounded-[12px] border ${
-        active
+        isActive || active
           ? "border-[#C5A059] bg-[rgba(197,160,89,0.12)]"
           : isLightTheme
             ? "border-[#E1E8EF] bg-[#F7FAFC] group-hover:border-[#CDD7E2]"

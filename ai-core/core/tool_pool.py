@@ -125,7 +125,7 @@ def select_best_tool(input_text: str, candidate_tools: tuple[ToolDescriptor, ...
 
 def _tokenize(text: str) -> set[str]:
     normalized = text.lower().replace('/', ' ').replace('_', ' ').replace('-', ' ')
-    return {token for token in normalized.split() if token}
+    return {token for token in normalized.split() if len(token) >= 3}
 
 
 def _score_tool(descriptor: ToolDescriptor, tokens: set[str]) -> int:
