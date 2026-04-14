@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import { useInternalTheme } from "../../../components/interno/InternalThemeProvider";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
@@ -55,10 +55,9 @@ import {
   validationLabel,
   validationTone,
 } from "./publicacoesFormatting";
-import {
-} from "./publicacoesState";
 import { usePublicacoesActivityLog } from "./usePublicacoesActivityLog";
 import { usePublicacoesLifecycle } from "./usePublicacoesLifecycle";
+import { usePublicacoesQueueEffects } from "./usePublicacoesQueueEffects";
 
 
 function PublicacoesContent() {
@@ -327,55 +326,30 @@ function PublicacoesContent() {
     view,
   });
 
-  useEffect(() => {
-    if (!PUBLICACOES_QUEUE_VIEWS.has(view)) return;
-    loadProcessCandidates(processPage);
-  }, [processPage, view]);
-
-  useEffect(() => {
-    if (!PUBLICACOES_QUEUE_VIEWS.has(view)) return;
-    if (activeJobId) return;
-    if (!heavyQueuesEnabled) return;
-    loadPartesCandidates(partesPage);
-  }, [partesPage, view, activeJobId, heavyQueuesEnabled]);
-  useEffect(() => {
-    if (view !== "filas") return;
-    if (!heavyQueuesEnabled) return;
-    loadIntegratedQueue(integratedPage);
-  }, [integratedPage, integratedFilters, view, heavyQueuesEnabled]);
-  useEffect(() => {
-    setIntegratedPage(1);
-    setIntegratedCursorTrail([""]);
-  }, [integratedFilters]);
-  useEffect(() => {
-    if (integratedPage <= 1) return;
-    if (integratedQueue.mode === "snapshot" && !integratedQueue.hasMore && !(integratedCursorTrail[integratedPage] || "")) {
-      const totalPages = Math.max(1, integratedPage);
-      if (integratedPage > totalPages) setIntegratedPage(totalPages);
-      return;
-    }
-    const totalPages = Math.max(1, Math.ceil((integratedQueue.totalRows || 0) / integratedPageSize));
-    if (integratedQueue.mode !== "snapshot" && integratedPage > totalPages) setIntegratedPage(totalPages);
-  }, [integratedQueue.totalRows, integratedQueue.mode, integratedQueue.hasMore, integratedCursorTrail, integratedPage, integratedPageSize]);
-  useEffect(() => {
-    if (!detailState?.row?.numero_cnj) return;
-    const nextValidation = validationMap[detailState.row.numero_cnj] || { status: "", note: "", updatedAt: null };
-    setDetailState((state) => state?.row?.numero_cnj === detailState.row.numero_cnj ? {
-      ...state,
-      row: { ...state.row, validation: nextValidation },
-    } : state);
-  }, [detailState?.row?.numero_cnj, validationMap]);
-  useEffect(() => {
-    setSelectedDetailPendingPartes([]);
-    setSelectedDetailLinkedPartes([]);
-  }, [detailState?.row?.numero_cnj]);
-  useEffect(() => {
-    if (!jobs.length) return;
-    const runningJob = jobs.find((item) => item.status === "running" || item.status === "pending");
-    if (runningJob?.id && !activeJobId) {
-      setActiveJobId(runningJob.id);
-    }
-  }, [jobs, activeJobId]);
+  usePublicacoesQueueEffects({
+    activeJobId,
+    detailState,
+    heavyQueuesEnabled,
+    integratedCursorTrail,
+    integratedFilters,
+    integratedPage,
+    integratedPageSize,
+    integratedQueue,
+    jobs,
+    loadIntegratedQueue,
+    loadPartesCandidates,
+    loadProcessCandidates,
+    partesPage,
+    processPage,
+    setActiveJobId,
+    setDetailState,
+    setIntegratedCursorTrail,
+    setIntegratedPage,
+    setSelectedDetailLinkedPartes,
+    setSelectedDetailPendingPartes,
+    validationMap,
+    view,
+  });
   useEffect(() => {
     if (!activeJobId) return undefined;
     let cancelled = false;

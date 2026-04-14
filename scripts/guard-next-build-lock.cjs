@@ -80,6 +80,11 @@ function seedNextDir() {
   for (const folder of folders) {
     fs.mkdirSync(folder, { recursive: true });
   }
+
+  const packageJsonPath = path.join(nextDir, 'package.json');
+  if (!fs.existsSync(packageJsonPath)) {
+    fs.writeFileSync(packageJsonPath, '{"private":true}\n');
+  }
 }
 
 function cleanNextDir() {

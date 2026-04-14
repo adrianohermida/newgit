@@ -1,5 +1,16 @@
 import { fetchSupabaseAdmin, requireAdminApiAccess } from "../../lib/admin/server";
 
+function parseBoundedLimit(value, fallback = 100, max = 200) {
+  const parsed = Number.parseInt(String(value || fallback), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
+function normalizeStatusFilter(value) {
+  const status = String(value || "").trim();
+  return ["draft", "published", "archived"].includes(status) ? status : "";
+}
+
 function slugify(value) {
   return String(value || "")
     .normalize("NFD")
@@ -91,17 +102,18 @@ export default async function handler(req, res) {
       params.set("order", "updated_at.desc,created_at.desc");
 
       if (req.query.id) {
-        params.set("id", `eq.${String(req.query.id)}`);
+        params.set("id", `eq.${encodeURIComponent(String(req.query.id).trim())}`);
         params.set("limit", "1");
         const rows = await fetchSupabaseAdmin(`blog_posts?${params.toString()}`);
         return res.status(rows.length ? 200 : 404).json({ ok: true, item: rows[0] ? mapRowToEditor(rows[0]) : null });
       }
 
-      if (req.query.status) {
-        params.set("status", `eq.${String(req.query.status)}`);
+      const statusFilter = normalizeStatusFilter(req.query.status);
+      if (statusFilter) {
+        params.set("status", `eq.${statusFilter}`);
       }
 
-      params.set("limit", String(req.query.limit || "100"));
+      params.set("limit", String(parseBoundedLimit(req.query.limit)));
       const rows = await fetchSupabaseAdmin(`blog_posts?${params.toString()}`);
       return res.status(200).json({ ok: true, items: rows.map(mapRowToEditor) });
     }
