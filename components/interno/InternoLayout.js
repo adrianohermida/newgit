@@ -1,4 +1,4 @@
-import { useRouter } from "next/router";
+﻿import { useRouter } from "next/router";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import { useInternalTheme } from "./InternalThemeProvider";
@@ -54,135 +54,6 @@ function RailPanel({ title, subtitle, children }) {
 
 function getModuleIntegrationGuide(pathname = "") {
   return getExternalModuleIntegrationGuide(pathname);
-  const guides = {
-    "/interno/contacts": {
-      title: "Contatos: webhooks e edge functions",
-      subtitle: "Freshsales, Supabase, portal e interno alinhados no mesmo fluxo.",
-      items: [
-        {
-          label: "Painel interno",
-          helper: "Operacoes do frontend passam por /api/admin-hmadv-contacts para sync, enriquecimento, reconciliacao e bulk actions.",
-          endpoint: "/api/admin-hmadv-contacts",
-          trigger: "Use para sync_contacts, enrich_cep, enrich_directdata, merge_contacts e vinculacao em lote.",
-        },
-        {
-          label: "Webhook Freshsales",
-          helper: "O webhook central do CRM deve cair em fs-webhook para responder rapido e enfileirar o processamento.",
-          endpoint: "_hmadv_review/supabase/functions/fs-webhook",
-          trigger: "Configure o workflow do Freshsales para POST com account_id e cf_processo sempre que o account/contato precisar disparar sincronizacao operacional.",
-        },
-        {
-          label: "Processo e espelho",
-          helper: "Quando a reconciliacao do contato depende do processo, a trilha de processo-sync, datajud-worker e sync-worker fecha o ciclo HMADV -> Freshsales.",
-          endpoint: "_hmadv_review/supabase/functions/processo-sync + datajud-worker + sync-worker",
-          trigger: "Acione quando o contato depende de processo, activity ou account repair antes de consolidar os dados do CRM.",
-        },
-        {
-          label: "Persistencia portal",
-          helper: "Dados exibidos ao cliente ficam persistidos no portal via perfil, sem perder o espelho operacional do interno.",
-          endpoint: "/api/client-profile",
-          trigger: "Use para manter contacts/addresses consistentes em /portal/perfil depois da higienizacao da base.",
-        },
-      ],
-    },
-    "/interno/processos": {
-      title: "Processos: acionamento operacional",
-      subtitle: "DataJud, Freshsales e HMADV sincronizados a partir do interno.",
-      items: [
-        {
-          label: "Painel interno",
-          helper: "As acoes do modulo usam /api/admin-hmadv-processos como ponte segura do frontend.",
-          endpoint: "/api/admin-hmadv-processos",
-          trigger: "Use para lotes, correcao operacional, auditoria e reparo orientado por fila.",
-        },
-        {
-          label: "Webhook / Edge",
-          helper: "fs-webhook recebe o evento rapido; processo-sync e datajud-worker consolidam o processo no Supabase.",
-          endpoint: "_hmadv_review/supabase/functions/fs-webhook + processo-sync + datajud-worker",
-          trigger: "Acione quando o Freshsales ou DataJud precisar iniciar/validar a sincronizacao do processo.",
-        },
-      ],
-    },
-    "/interno/publicacoes": {
-      title: "Publicacoes: fila e reflexo CRM",
-      subtitle: "Extracao, persistencia e envio de activity no Freshsales.",
-      items: [
-        {
-          label: "Painel interno",
-          helper: "O frontend centraliza as rotinas do modulo em /api/admin-hmadv-publicacoes.",
-          endpoint: "/api/admin-hmadv-publicacoes",
-          trigger: "Use para criar processos, extrair partes, sincronizar partes e drenar filas.",
-        },
-        {
-          label: "Edge functions",
-          helper: "publicacoes-freshsales e sync-worker cuidam do reflexo no CRM; datajud-search e tpu-sync complementam o enriquecimento.",
-          endpoint: "_hmadv_review/supabase/functions/publicacoes-freshsales + sync-worker + datajud-search + tpu-sync",
-          trigger: "Acione quando a publicacao precisar virar processo, activity ou enriquecimento posterior.",
-        },
-      ],
-    },
-    "/interno/financeiro": {
-      title: "Financeiro: reflexo CRM e rastreio",
-      subtitle: "Deals, eventos e conciliação financeira precisam manter o rastro operacional visível.",
-      items: [
-        {
-          label: "Painel interno",
-          helper: "As rotas administrativas do financeiro concentram os disparos seguros do frontend.",
-          endpoint: "/api/admin-hmadv-financeiro",
-          trigger: "Use para publicar, reparar e auditar o reflexo de faturamento e deals.",
-        },
-        {
-          label: "Freshsales",
-          helper: "O CRM recebe updates por rotinas internas e eventuais webhooks externos conforme a esteira de deals.",
-          endpoint: "functions/api/admin-hmadv-financeiro.js",
-          trigger: "Acione sempre com console ligado para capturar payload, erro e resumo da remessa.",
-        },
-      ],
-    },
-    "/interno/ai-task": {
-      title: "AI Task: orquestracao e observabilidade",
-      subtitle: "Erros precisam ficar rastreaveis entre run, console e backend.",
-      items: [
-        {
-          label: "Painel interno",
-          helper: "O modulo usa o backend administrativo do AI Task para execucao e captura de contexto.",
-          endpoint: "/api/admin-lawdesk-chat",
-          trigger: "Use para runs assistidas, automacao e investigacao de falhas da IA.",
-        },
-        {
-          label: "Edge / embeddings",
-          helper: "As rotas de embed e funcoes do Supabase complementam a trilha de IA quando houver dependencias vetoriais.",
-          endpoint: "supabase/functions/dotobot-embed",
-          trigger: "Acione quando a pipeline de contexto precisar regenerar embeddings ou depurar resposta do copiloto.",
-        },
-      ],
-    },
-    "/interno/market-ads": {
-      title: "Market Ads: growth, compliance e campanha",
-      subtitle: "Anuncios juridicos precisam unir inteligencia competitiva, operacao de midia e filtro etico no mesmo loop.",
-      items: [
-        {
-          label: "Painel interno",
-          helper: "O cockpit administrativo do modulo parte de /api/admin-market-ads para benchmarks, previsoes e validacao de copy.",
-          endpoint: "/api/admin-market-ads",
-          trigger: "Use para carregar o dashboard, gerar preview de anuncio e validar compliance OAB antes da publicacao.",
-        },
-        {
-          label: "Geracao assistida",
-          helper: "A camada de IA produz headlines, descricoes, CTA, criativos sugeridos e keywords sempre com guarda juridica.",
-          endpoint: "lib/admin/market-ads.js",
-          trigger: "Acione quando precisar montar variacoes A/B, revisar copy ou preparar o handoff para integracoes futuras.",
-        },
-        {
-          label: "Integracoes futuras",
-          helper: "Google Ads, Meta Ads, analytics e landing pages devem convergir para uma mesma trilha de auditoria e otimizacao.",
-          endpoint: "Google Ads API + Meta Marketing API + HMADV landing pages",
-          trigger: "Acione quando o modulo sair do modo cockpit e passar a sincronizar campanhas reais com publicacao segura.",
-        },
-      ],
-    },
-  };
-  return guides[pathname] || null;
 }
 
 const LOG_PANES = [
@@ -356,19 +227,19 @@ function inferSnapshotSummary(key, snapshot) {
     return `Contatos ${snapshot.overview.total || 0}, duplicados ${snapshot.overview.duplicados || 0}`;
   }
   if (key === "processos") {
-    return `Histórico local ${snapshot.executionHistory?.length || 0}, remoto ${snapshot.remoteHistory?.length || 0}`;
+    return `HistÃ³rico local ${snapshot.executionHistory?.length || 0}, remoto ${snapshot.remoteHistory?.length || 0}`;
   }
   if (key === "publicacoes") {
-    return `Jobs ${snapshot.jobs?.length || 0}, histórico remoto ${snapshot.remoteHistory?.length || 0}`;
+    return `Jobs ${snapshot.jobs?.length || 0}, histÃ³rico remoto ${snapshot.remoteHistory?.length || 0}`;
   }
   if (key === "ai-task") {
-    return `Eventos ${snapshot.eventsTotal || 0}, automação ${snapshot.automation || "idle"}`;
+    return `Eventos ${snapshot.eventsTotal || 0}, automaÃ§Ã£o ${snapshot.automation || "idle"}`;
   }
   if (key === "dotobot") {
     return `Conversas ${snapshot.conversationCount || 0}, modo ${snapshot.mode || "n/a"}`;
   }
   if (key === "aprovacoes") {
-    return `Pendências de cadastro ${snapshot.pendingCadastro || 0}`;
+    return `PendÃªncias de cadastro ${snapshot.pendingCadastro || 0}`;
   }
   return "Snapshot atualizado.";
 }
@@ -529,7 +400,7 @@ function OperationalRightRail({ data, onOpenConsole, onOpenJobsLog }) {
                   <span className={`text-[11px] font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{job.acao || "job"}</span>
                   <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${getJobStatusTone(job.status)}`}>{job.status || "pending"}</span>
                 </div>
-                <p className={`mt-2 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{processed}/{requested || processed} processado(s) • atualizado ha {formatRelativeTime(job.updated_at || job.started_at || job.created_at)}</p>
+                <p className={`mt-2 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{processed}/{requested || processed} processado(s) â€¢ atualizado ha {formatRelativeTime(job.updated_at || job.started_at || job.created_at)}</p>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-[rgba(255,255,255,0.06)]">
                   <div className="h-full bg-[#C5A059]" style={{ width: `${progress}%` }} />
                 </div>
@@ -549,7 +420,7 @@ function OperationalRightRail({ data, onOpenConsole, onOpenJobsLog }) {
                 <span className={`text-[11px] font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{queue.label}</span>
                 <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${queue.error ? "border-[#5B2D2D] text-[#FECACA]" : "border-[#22342F] text-[#D8DEDA]"}`}>{queue.totalRows} itens</span>
               </div>
-              <p className={`mt-2 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Atualizada ha {formatRelativeTime(queue.updatedAt)}{queue.limited ? " • leitura limitada" : ""}</p>
+              <p className={`mt-2 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Atualizada ha {formatRelativeTime(queue.updatedAt)}{queue.limited ? " â€¢ leitura limitada" : ""}</p>
               {queue.error ? <p className="mt-2 text-[11px] text-[#FECACA]">{queue.error}</p> : null}
             </div>
           ))}
@@ -1516,7 +1387,7 @@ export default function InternoLayout({
         ) : null}
       {/* MAIN + COPILOT */}
         <div className={`${isCopilotWorkspace || isMobileShell || hideShellSidebar ? "ml-0" : "ml-2 md:ml-3"} flex h-full min-h-0 flex-1`}>
-        {/* CONTEÚDO PRINCIPAL */}
+        {/* CONTEÃšDO PRINCIPAL */}
         <div className={`relative flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden ${
           isCopilotWorkspace
             ? copilotMainShellClass
@@ -1526,7 +1397,7 @@ export default function InternoLayout({
             <div className={`order-1 rounded-[16px] border px-3 py-2 md:order-none ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.82)]" : "border-[#1F2D29] bg-[rgba(255,255,255,0.02)]"}`}>
               <p className="text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">{isCopilotWorkspace ? "Copilot" : "Workspace"}</p>
               <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#51606B]" : "text-[#C6D1CC]"}`}>
-                {isCopilotWorkspace ? "Conversa centralizada com histórico e módulos" : router.pathname}
+                {isCopilotWorkspace ? "Conversa centralizada com histÃ³rico e mÃ³dulos" : router.pathname}
               </p>
             </div>
             <div ref={headerSearchRef} className={`order-3 w-full ${isCopilotWorkspace ? "md:flex-1 md:px-4 xl:px-8" : "md:flex-1 md:px-4 xl:px-6"}`}>
@@ -1547,7 +1418,7 @@ export default function InternoLayout({
                   type="text"
                   value={headerSearch}
                   onChange={(event) => setHeaderSearch(event.target.value)}
-                  placeholder={isCopilotWorkspace ? "Buscar conversas, processos, publicações, contatos ou contexto..." : "Buscar por processos, publicacoes, contas..."}
+                  placeholder={isCopilotWorkspace ? "Buscar conversas, processos, publicaÃ§Ãµes, contatos ou contexto..." : "Buscar por processos, publicacoes, contas..."}
                   className={`h-11 w-full rounded-[12px] border bg-transparent px-4 text-sm outline-none transition ${isLightTheme ? "border-[#D7DEE8] text-[#22312F] placeholder:text-[#8A99A7] focus:border-[#C5A059]" : "border-[#22342F] text-[#F4F1EA] placeholder:text-[#60706A] focus:border-[#C5A059]"}`}
                 />
                 {headerSearchResults.length ? (
@@ -1607,9 +1478,9 @@ export default function InternoLayout({
               type="button"
               onClick={() => setSettingsOpen(true)}
               className={`flex h-10 w-10 items-center justify-center rounded-[14px] border transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
-              title="Configurações"
+              title="ConfiguraÃ§Ãµes"
             >
-              <span className="sr-only">Configurações</span>
+              <span className="sr-only">ConfiguraÃ§Ãµes</span>
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3" />
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01A1.65 1.65 0 0 0 10.44 3.1V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
@@ -1627,7 +1498,7 @@ export default function InternoLayout({
                   <path d="M4 12h16" />
                   <path d="M4 18h16" />
                 </svg>
-                <span className="text-lg">≡</span>
+                <span className="text-lg">â‰¡</span>
               </button>
               {!isCopilotWorkspace ? (
                 <button
@@ -1641,7 +1512,7 @@ export default function InternoLayout({
                     <rect x="3" y="4" width="18" height="16" rx="2" />
                     <path d="M15 4v16" />
                   </svg>
-                  <span className="text-lg">▣</span>
+                  <span className="text-lg">â–£</span>
                 </button>
               ) : null}
               <div ref={userMenuRef} className="relative">
@@ -1649,7 +1520,7 @@ export default function InternoLayout({
                   type="button"
                   onClick={() => setUserMenuOpen((current) => !current)}
                   className={`flex h-10 min-w-[42px] items-center justify-center rounded-[14px] border px-2 text-sm font-semibold transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
-                  title="Menu do usuário"
+                  title="Menu do usuÃ¡rio"
                 >
                   {(normalizeDisplayName(profile).trim().charAt(0) || "H").toUpperCase()}
                 </button>
@@ -1657,8 +1528,8 @@ export default function InternoLayout({
                   <div className={`absolute right-0 top-[calc(100%+8px)] z-40 w-56 overflow-hidden rounded-[18px] border shadow-[0_22px_44px_rgba(0,0,0,0.18)] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(10,12,11,0.98)]"}`}>
                     {[
                       { key: "dashboard", label: "Dashboard", action: () => router.push("/interno") },
-                      { key: "settings", label: "Configurações", action: () => setSettingsOpen(true) },
-                      { key: "notifications", label: "Notificações", action: () => router.push("/interno/copilot#notificacoes") },
+                      { key: "settings", label: "ConfiguraÃ§Ãµes", action: () => setSettingsOpen(true) },
+                      { key: "notifications", label: "NotificaÃ§Ãµes", action: () => router.push("/interno/copilot#notificacoes") },
                       { key: "signout", label: "Sair", action: handleSignOut },
                     ].map((item) => (
                       <button
@@ -1688,7 +1559,7 @@ export default function InternoLayout({
                   <path d="m8 10 2 2-2 2" />
                   <path d="M13 16h3" />
                 </svg>
-                <span className="text-lg">▤</span>
+                <span className="text-lg">â–¤</span>
               </button>
             </div>
           </div>
@@ -1778,7 +1649,7 @@ export default function InternoLayout({
                 className={`rounded-[14px] border px-3 py-1.5 text-[10px] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}
                 title={consoleOpen ? "Recolher console" : "Expandir console"}
               >
-                {consoleOpen ? "↓" : "↑"}
+                {consoleOpen ? "â†“" : "â†‘"}
               </button>
             </div>
             {consoleOpen ? (
@@ -1789,7 +1660,7 @@ export default function InternoLayout({
                       <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                         <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Snapshots</p>
                         <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{coverageCards.length}</p>
-                        <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Módulos e shells publicados no console.</p>
+                        <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>MÃ³dulos e shells publicados no console.</p>
                       </div>
                       <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                         <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Rotas cobertas</p>
@@ -1799,7 +1670,7 @@ export default function InternoLayout({
                       <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                         <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Com erro</p>
                         <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{coverageSummary.errorCount}</p>
-                        <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Snapshots que reportaram falha visível.</p>
+                        <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Snapshots que reportaram falha visÃ­vel.</p>
                       </div>
                       <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                         <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Issues abertas</p>
@@ -1811,8 +1682,8 @@ export default function InternoLayout({
                     <div className={`rounded-xl border p-3 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)] text-[#9BAEA8]"}`}>
                       <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Cobertura ativa</p>
                       <p className="mt-2">
-                        O console agora agrega snapshots do app shell, layouts público e portal, shell interno e módulos operacionais.
-                        Isso substitui o placeholder anterior e cria uma base única para expansão da cobertura por página e componente.
+                        O console agora agrega snapshots do app shell, layouts pÃºblico e portal, shell interno e mÃ³dulos operacionais.
+                        Isso substitui o placeholder anterior e cria uma base Ãºnica para expansÃ£o da cobertura por pÃ¡gina e componente.
                       </p>
                     </div>
 
@@ -2085,7 +1956,7 @@ export default function InternoLayout({
                             <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{paneBulkGuardrail.summary}</p>
                         </div>
                         <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(paneBulkGuardrail.tone)}`}>
-                          itens {paneBulkGuardrail.metrics.total} · erros {paneBulkGuardrail.metrics.errors} · running {paneBulkGuardrail.metrics.running}
+                          itens {paneBulkGuardrail.metrics.total} Â· erros {paneBulkGuardrail.metrics.errors} Â· running {paneBulkGuardrail.metrics.running}
                         </span>
                       </div>
                       <div className={`mt-3 space-y-2 text-[11px] ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>
@@ -2104,7 +1975,7 @@ export default function InternoLayout({
                             <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Score baseado em erros, warnings e recorrencia recente.</p>
                           </div>
                           <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(paneRisk.tone)}`}>
-                            risco {paneRisk.label} · {paneRisk.score}
+                            risco {paneRisk.label} Â· {paneRisk.score}
                           </span>
                         </div>
                       </div>
@@ -2115,12 +1986,12 @@ export default function InternoLayout({
                             <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Envelhecimento dos erros ainda nao resolvidos nesta trilha.</p>
                           </div>
                           <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(paneSla.tone)}`}>
-                            aberto {paneSla.openRecurring} · acompanhando {paneSla.watchingRecurring} · resolvido {paneSla.resolvedRecurring}
+                            aberto {paneSla.openRecurring} Â· acompanhando {paneSla.watchingRecurring} Â· resolvido {paneSla.resolvedRecurring}
                           </span>
                         </div>
                         <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
                           <div className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
-                            <div className="text-[#7F928C]">até 4h</div>
+                            <div className="text-[#7F928C]">atÃ© 4h</div>
                             <div className={`mt-1 font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F4F1EA]"}`}>{paneSla.buckets.ate_4h}</div>
                           </div>
                           <div className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
@@ -2272,7 +2143,7 @@ export default function InternoLayout({
                           ))}
                         </div>
                       ) : (
-                        <div className="mt-2 text-[11px] opacity-60">Sem historico remoto disponível.</div>
+                        <div className="mt-2 text-[11px] opacity-60">Sem historico remoto disponÃ­vel.</div>
                       )}
                       {processosLocalHistory.length ? (
                         <div className="mt-3">
@@ -2328,7 +2199,7 @@ export default function InternoLayout({
                           ))}
                         </div>
                       ) : (
-                        <div className="mt-2 text-[11px] opacity-60">Sem historico remoto disponível.</div>
+                        <div className="mt-2 text-[11px] opacity-60">Sem historico remoto disponÃ­vel.</div>
                       )}
                       {publicacoesLocalHistory.length ? (
                         <div className="mt-3">
@@ -2376,10 +2247,10 @@ export default function InternoLayout({
                               </span>
                             </div>
                             <div className={`mt-1 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>
-                              total {contactsHistory.overview?.total || 0} · duplicados {contactsHistory.overview?.duplicados || 0} · partes sem contato {contactsHistory.overview?.partesSemContato || 0}
+                              total {contactsHistory.overview?.total || 0} Â· duplicados {contactsHistory.overview?.duplicados || 0} Â· partes sem contato {contactsHistory.overview?.partesSemContato || 0}
                             </div>
                             <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>
-                              sync {contactsHistory.settings?.syncLimit || 0} · reconcile {contactsHistory.settings?.reconcileLimit || 0} · pendentes selecionadas {contactsHistory.partesPendentes?.selected || 0} · vinculadas selecionadas {contactsHistory.partesVinculadas?.selected || 0}
+                              sync {contactsHistory.settings?.syncLimit || 0} Â· reconcile {contactsHistory.settings?.reconcileLimit || 0} Â· pendentes selecionadas {contactsHistory.partesPendentes?.selected || 0} Â· vinculadas selecionadas {contactsHistory.partesVinculadas?.selected || 0}
                             </div>
                             {contactsHistory.actionState?.preview ? <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>Ultima acao: {contactsHistory.actionState.preview}</div> : null}
                             {contactsHistory.actionState?.error ? <div className={`mt-1 ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>Erro: {contactsHistory.actionState.error}</div> : null}
@@ -2428,7 +2299,7 @@ export default function InternoLayout({
                               </span>
                             </div>
                             <div className={`mt-1 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>
-                              modo {dotobotHistory.mode || "n/a"} · provider {dotobotHistory.provider || "n/a"} · conversas {dotobotHistory.conversationCount || 0}
+                              modo {dotobotHistory.mode || "n/a"} Â· provider {dotobotHistory.provider || "n/a"} Â· conversas {dotobotHistory.conversationCount || 0}
                             </div>
                             {dotobotHistory.activeTask ? <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>Task ativa: {dotobotHistory.activeTask.query || dotobotHistory.activeTask.id}</div> : null}
                             {dotobotHistory.error ? <div className={`mt-1 ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>Erro: {dotobotHistory.error}</div> : null}
@@ -2462,7 +2333,7 @@ export default function InternoLayout({
                               </span>
                             </div>
                             <div className={`mt-1 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>
-                              modo {aiTaskHistory.mode || "n/a"} · provider {aiTaskHistory.provider || "n/a"} · eventos {aiTaskHistory.eventsTotal || 0}
+                              modo {aiTaskHistory.mode || "n/a"} Â· provider {aiTaskHistory.provider || "n/a"} Â· eventos {aiTaskHistory.eventsTotal || 0}
                             </div>
                             {aiTaskHistory.activeRun?.id ? <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>Run: {aiTaskHistory.activeRun.id}</div> : null}
                             {aiTaskHistory.error ? <div className={`mt-1 ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>Erro: {aiTaskHistory.error}</div> : null}
@@ -2859,9 +2730,9 @@ export default function InternoLayout({
             <div ref={settingsModalRef} className={`w-full max-w-lg rounded-[28px] border p-5 shadow-[0_24px_70px_rgba(0,0,0,0.24)] ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,#FFFFFF,#F7F9FC)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(12,16,15,0.98),rgba(8,11,10,0.98))]"}`}>
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C5A059]">Configurações</p>
-                  <h3 className={`mt-2 text-xl font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Preferências do sistema</h3>
-                  <p className={`mt-2 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Tema, preferências visuais e comportamento do shell interno.</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C5A059]">ConfiguraÃ§Ãµes</p>
+                  <h3 className={`mt-2 text-xl font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>PreferÃªncias do sistema</h3>
+                  <p className={`mt-2 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Tema, preferÃªncias visuais e comportamento do shell interno.</p>
                 </div>
                 <button
                   type="button"
@@ -2901,8 +2772,8 @@ export default function InternoLayout({
                   </div>
                 </div>
                 <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Persistência</p>
-                  <p className={`mt-3 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>O tema e as preferências do shell são persistidos localmente e sincronizados com o modo do sistema quando “Sistema” estiver ativo.</p>
+                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>PersistÃªncia</p>
+                  <p className={`mt-3 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>O tema e as preferÃªncias do shell sÃ£o persistidos localmente e sincronizados com o modo do sistema quando â€œSistemaâ€ estiver ativo.</p>
                 </div>
               </div>
             </div>

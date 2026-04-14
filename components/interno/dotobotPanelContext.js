@@ -63,11 +63,11 @@ export function buildConversationRuntimeMetadata({ mode, provider, selectedSkill
   };
 }
 
-const RIGHT_PANEL_META = {
-  modules: true,
-  "ai-task": true,
-  agentlabs: true,
-  context: true,
+export const RIGHT_PANEL_META = {
+  modules: { title: "Módulos", detail: "Acesse áreas-chave do produto sem sair da conversa." },
+  "ai-task": { title: "AI Task", detail: "Execução assistida para transformar pedidos em próximos passos." },
+  agentlabs: { title: "AgentLabs", detail: "Evolução dos agentes, qualidade e repertório do produto." },
+  context: { title: "Contexto", detail: "Resumo útil da conversa, missão ativa e referências rápidas." },
 };
 
 export function normalizeRightPanelTabs(tabs = [], fallbackTab = "modules") {

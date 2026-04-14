@@ -41,6 +41,7 @@ import {
   extractConversationEntities,
   getConversationTimestamp,
   normalizeRightPanelTabs,
+  RIGHT_PANEL_META,
 } from "./dotobotPanelContext";
 import { buildLocalInferenceAlert, buildRagAlert } from "./dotobotPanelAlerts";
 import {
