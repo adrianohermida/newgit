@@ -22,7 +22,7 @@ const ENV_AICORE_CANDIDATES = [
 
 const DEFAULT_SETTINGS = {
   local: {
-    runtimeUrl: ENV_AICORE_CANDIDATES[0] || "http://127.0.0.1:8010",
+    runtimeUrl: ENV_AICORE_CANDIDATES[0] || "http://127.0.0.1:8000",
     runtimeModel: "aetherlab-legal-local-v1",
   },
   cloud: {

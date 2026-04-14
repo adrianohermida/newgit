@@ -1,22 +1,13 @@
 import React from "react";
-import InternoLayout from "../../../components/interno/InternoLayout";
 import { useInternalTheme } from "../../../components/interno/InternalThemeProvider";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
-import OperationalHealthPanel from "../../../components/interno/hmadv/OperationalHealthPanel";
-import OperationalPlanPanel from "../../../components/interno/hmadv/OperationalPlanPanel";
 import {
   ACTION_LABELS,
-  MODULE_LIMITS,
 } from "./constants";
 import {
   buildJobPreview,
 } from "./action-utils";
 import { usePublicacoesAdminFetch } from "./usePublicacoesAdminFetch";
-import {
-  HealthBadge,
-  Panel,
-  QueueSummaryCard,
-} from "./ui-primitives";
 import { usePublicacoesDerivedState } from "./usePublicacoesDerivedState";
 import { usePublicacoesQueueSelection } from "./usePublicacoesQueueSelection";
 import { usePublicacoesOperationalPlan } from "./usePublicacoesOperationalPlan";
