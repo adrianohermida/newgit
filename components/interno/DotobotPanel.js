@@ -2791,6 +2791,7 @@ const [uiToasts, setUiToasts] = useState([]);
                   handleDrop={handleDrop}
                   isLightTheme={isLightTheme}
                   onCreateConversation={() => createConversationFromCurrentState("Nova conversa")}
+                  profile={profile}
                   projectInsights={projectInsights}
                   renderConversationMenu={renderConversationMenu}
                   selectConversation={selectConversation}
