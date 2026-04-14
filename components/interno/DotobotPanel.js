@@ -30,7 +30,6 @@ import DotobotCompactRuntimeDiagnostics from "./DotobotCompactRuntimeDiagnostics
 import DotobotConversationMenu from "./DotobotConversationMenu";
 import DotobotStandardHistoryRail from "./DotobotStandardHistoryRail";
 import DotobotStandardConversationCenter from "./DotobotStandardConversationCenter";
-import DotobotWorkspaceShellHeader from "./DotobotWorkspaceShellHeader.js";
 import DotobotWorkspaceHeader from "./DotobotWorkspaceHeader";
 import { useInternalTheme } from "./InternalThemeProvider";
 import {
@@ -2715,7 +2714,7 @@ const [uiToasts, setUiToasts] = useState([]);
                   </div>
                 </div>
               )}
-              <DotobotWorkspaceShellHeader
+              <DotobotWorkspaceHeader
                 MODE_OPTIONS={MODE_OPTIONS}
                 activeConversation={activeConversation}
                 activeConversationPreview={activeConversationPreview}

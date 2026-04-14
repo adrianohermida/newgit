@@ -1,18 +1,18 @@
 import { useMemo } from "react";
 
-import { candidateQueueHasReadMismatch } from "./publicacoesFormatting";
 import { deriveRemoteHealth } from "./recurrence";
+import { usePublicacoesBlockingState } from "./usePublicacoesBlockingState";
 
 export function usePublicacoesDashboardState(params) {
   const {
     actionState,
     activeJobId,
     backendHealth,
+    blockingState,
     data,
     drainInFlight,
     handleAction,
     jobs,
-    overview,
     partesCandidates,
     processCandidates,
     refreshIntegratedSnapshot,
@@ -21,18 +21,19 @@ export function usePublicacoesDashboardState(params) {
     updateView,
   } = params;
 
+  const resolvedBlockingState = usePublicacoesBlockingState({
+    activeJobId,
+    jobs,
+    partesCandidates,
+    processCandidates,
+  });
+
   return useMemo(() => {
     const advisePersistedDelta = Number(data?.advisePersistedDelta || 0);
     const publicacoesSemProcesso = Number(data?.publicacoesSemProcesso || 0);
     const publicacoesPendentesComAccount = Number(data?.publicacoesPendentesComAccount || 0);
-    const pendingOrRunningJobs = jobs.filter((item) => ["pending", "running"].includes(String(item.status || "")));
-    const blockingJob = pendingOrRunningJobs[0] || null;
-    const hasBlockingJob = pendingOrRunningJobs.length > 0;
-    const hasMultipleBlockingJobs = pendingOrRunningJobs.length > 1;
-    const currentDrainJobId = activeJobId || blockingJob?.id || null;
-    const canManuallyDrainActiveJob = Boolean(currentDrainJobId);
-    const candidateQueueErrorCount = [processCandidates, partesCandidates].filter((queue) => queue?.error).length;
-    const candidateQueueMismatchCount = [processCandidates, partesCandidates].filter((queue) => candidateQueueHasReadMismatch(queue)).length;
+    const state = blockingState || resolvedBlockingState;
+    const { blockingJob, candidateQueueErrorCount, candidateQueueMismatchCount, canManuallyDrainActiveJob, currentDrainJobId, hasBlockingJob, hasMultipleBlockingJobs } = state;
     const backendRecommendedAction = data?.recommendedNextAction || null;
     const actions = [];
 
@@ -77,5 +78,5 @@ export function usePublicacoesDashboardState(params) {
       healthSuggestedActions: actions,
       remoteHealth: deriveRemoteHealth(remoteHistory),
     };
-  }, [actionState.loading, activeJobId, backendHealth.status, data, drainInFlight, handleAction, jobs, partesCandidates, processCandidates, refreshIntegratedSnapshot, remoteHistory, runPendingJobsNow, updateView]);
+  }, [actionState.loading, backendHealth.status, blockingState, data, drainInFlight, handleAction, refreshIntegratedSnapshot, remoteHistory, resolvedBlockingState, runPendingJobsNow, updateView]);
 }

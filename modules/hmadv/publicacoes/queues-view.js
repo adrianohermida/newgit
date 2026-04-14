@@ -1,7 +1,7 @@
 import { PublicacaoDetailPanel as PublicacaoDetailPanelSection } from "./detail-panel";
 import { PublicacoesIntegratedToolbar } from "./publicacoes-integrated-toolbar";
 import { IntegratedQueueList as IntegratedQueueListSection, QueueList as QueueListSection } from "./queue-lists";
-import { RecurringPublicacaoGroup } from "./recurrence";
+import { RecurringPublicacaoGroup } from "./recurring-publicacao-group";
 import { HealthBadge, Panel, QueueSummaryCard } from "./ui-primitives";
 
 export function PublicacoesQueuesView({ model }) {

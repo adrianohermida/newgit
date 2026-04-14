@@ -2,8 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import { useInternalTheme } from "../../../components/interno/InternalThemeProvider";
-import OperationalHealthPanel from "../../../components/interno/hmadv/OperationalHealthPanel";
-import OperationalPlanPanel from "../../../components/interno/hmadv/OperationalPlanPanel";
 import { setModuleHistory } from "../../../lib/admin/activity-log";
 import {
   ACTION_LABELS,
@@ -36,7 +34,7 @@ import {
   persistOperationalSnapshot,
 } from "./storage";
 import { useProcessosAdminFetch } from "./useProcessosAdminFetch";
-import { ActionButton, Field, MetricCard, Panel, SelectField, StatusBadge, ViewToggle } from "./ui-primitives";
+import { Field, MetricCard, SelectField } from "./ui-primitives";
 import ProcessosFilasView from "./ProcessosFilasView";
 import ProcessosOperacaoView from "./ProcessosOperacaoView";
 import ProcessosRelacoesView from "./ProcessosRelacoesView";
@@ -71,7 +69,7 @@ import {
 } from "./processos-screen-utils";
 import { CoverageList, QueueActionBlock, QueueList } from "./processos-queue-components";
 import { RegisteredRelationCard, RelationSelectionBar, RelationSuggestionCard } from "./processos-relation-components";
-import { HistoryCard, JobCard, OperationResult, RemoteRunSummary } from "./processos-result-components";
+import { HistoryCard, JobCard, OperationResult } from "./processos-result-components";
 import { buildSelectionSuggestedAction, deriveSelectionActionHint } from "./processos-selection-utils";
 import ProcessosHeaderPanel from "./ProcessosHeaderPanel";
 

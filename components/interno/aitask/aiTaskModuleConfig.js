@@ -1,6 +1,10 @@
-import { listSkills } from "../../../lib/lawdesk/skill_registry.js";
-import { hasExplicitBrowserLocalRuntimeOptIn, hasPersistedBrowserLocalRuntimeConfig, shouldAutoProbeBrowserLocalRuntime } from "../../../lib/lawdesk/browser-local-runtime";
+import {
+  hasExplicitBrowserLocalRuntimeOptIn,
+  hasPersistedBrowserLocalRuntimeConfig,
+  shouldAutoProbeBrowserLocalRuntime,
+} from "../../../lib/lawdesk/browser-local-runtime";
 import { resolvePreferredLawdeskProvider } from "../../../lib/lawdesk/providers.js";
+import { listSkills } from "../../../lib/lawdesk/skill_registry.js";
 
 export const MAX_THINKING = 20;
 export const MAX_LOGS = 200;
@@ -27,7 +31,7 @@ export const FALLBACK_PROVIDER_OPTIONS = [
 
 export const FALLBACK_SKILL_OPTIONS = listSkills().map((skill) => ({
   value: skill.id,
-  label: `${skill.name} · ${skill.category}`,
+  label: `${skill.name} - ${skill.category}`,
   disabled: false,
 }));
 
