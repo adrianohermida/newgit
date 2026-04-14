@@ -2,8 +2,9 @@ const http = require("http");
 const https = require("https");
 const { htmlSnippet } = require("./utils");
 
-async function jsonPost(url, body, headers = {}) {
+async function jsonPost(url, body, headers = {}, options = {}) {
   const lib = url.startsWith("https") ? https : http;
+  const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 60000;
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify(body);
     const parsed = new URL(url);
@@ -29,14 +30,14 @@ async function jsonPost(url, body, headers = {}) {
       });
     });
     request.on("error", reject);
-    request.setTimeout(60000, () => request.destroy(new Error("Timeout ao chamar endpoint remoto.")));
+    request.setTimeout(timeoutMs, () => request.destroy(new Error("Timeout ao chamar endpoint remoto.")));
     request.write(payload);
     request.end();
   });
 }
 
-async function probeJsonEndpoint(url, body, headers = {}) {
-  const result = await jsonPost(url, body, headers);
+async function probeJsonEndpoint(url, body, headers = {}, options = {}) {
+  const result = await jsonPost(url, body, headers, options);
   if (result.body && typeof result.body === "object" && result.body.raw) {
     return {
       ok: false,

@@ -24,7 +24,7 @@ export default function FocusedConversationHeader(props) {
           <span>modo {activeMode.label}</span>
         </div>
         <p className={`mt-2 text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-          Continue a thread com contexto, decisões e histórico preservados.
+          Continue a thread com contexto, decisoes e historico preservados.
         </p>
       </div>
 

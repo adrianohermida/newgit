@@ -8,7 +8,6 @@ import {
   buildJobPreview,
 } from "./action-utils";
 import { usePublicacoesAdminFetch } from "./usePublicacoesAdminFetch";
-import { usePublicacoesQueueSelection } from "./usePublicacoesQueueSelection";
 import { usePublicacoesOperationalPlan } from "./usePublicacoesOperationalPlan";
 import { usePublicacoesCoreState } from "./usePublicacoesCoreState";
 import { usePublicacoesQueueState } from "./usePublicacoesQueueState";
@@ -25,12 +24,14 @@ import {
 } from "./publicacoesFormatting";
 import { usePublicacoesActivityLog } from "./usePublicacoesActivityLog";
 import { PublicacoesScreenBody } from "./PublicacoesScreenBody";
-import { usePublicacoesQueuesScreenModel } from "./usePublicacoesQueuesScreenModel";
 import { usePublicacoesLoaders } from "./usePublicacoesLoaders";
 import { usePublicacoesIntegratedRows } from "./usePublicacoesIntegratedRows";
 import { usePublicacoesActionSuite } from "./usePublicacoesActionSuite";
 import { usePublicacoesEffects } from "./usePublicacoesEffects";
 import { usePublicacoesViewState } from "./usePublicacoesViewState";
+import { usePublicacoesScreenComposition } from "./usePublicacoesScreenComposition";
+import { usePublicacoesQueueInteractions } from "./usePublicacoesQueueInteractions";
+import { usePublicacoesScreenRuntime } from "./usePublicacoesScreenRuntime";
 
 
 function PublicacoesContent() {
@@ -107,16 +108,16 @@ function PublicacoesContent() {
     validationMap,
   });
   const {
-    toggleSelection,
-    togglePageSelection,
-    toggleUnifiedRow,
-    goToIntegratedPreviousPage,
     goToIntegratedNextPage,
+    goToIntegratedPreviousPage,
     toggleIntegratedPage,
-  } = usePublicacoesQueueSelection({
-    integratedQueue,
+    togglePageSelection,
+    toggleSelection,
+    toggleUnifiedRow,
+  } = usePublicacoesQueueInteractions({
     integratedPage,
     integratedPageSize,
+    integratedQueue,
     pagedIntegratedRows,
     setIntegratedCursorTrail,
     setIntegratedPage,
@@ -389,29 +390,49 @@ function PublicacoesContent() {
     runPendingJobsNow,
     updateView,
   });
-  const queuesViewModel = usePublicacoesQueuesScreenModel({
+  const screenBodyProps = usePublicacoesScreenComposition({
     actionState,
+    activeJobId,
+    adviseBackfillProgress,
+    adviseCursor,
+    adviseLastCycleTotal,
+    adviseLastRunAt,
+    adviseMode,
+    advisePersistedDelta,
+    adviseSync,
+    adviseTokenOk,
     allIntegratedFilteredSelected,
     allIntegratedPageSelected,
     applySevereRecurringPreset,
     applyValidationToNumbers,
+    backendHealth,
+    blockingJob,
     bulkValidationNote,
     bulkValidationStatus,
     canManuallyDrainActiveJob,
+    candidateQueueErrorCount,
+    candidateQueueMismatchCount,
     clearQueueSelections,
+    copilotContext,
     data,
     detailEditForm,
     detailLinkType,
     detailState,
     drainInFlight,
+    executionHistory,
     filteredIntegratedRows,
     formatDateTimeLabel,
+    formatFallbackReason,
+    formatSnapshotLabel,
     formatValidationMeta,
+    getOperationalPlanStepState,
     getPublicacaoSelectionValue,
     goToIntegratedNextPage,
     goToIntegratedPreviousPage,
     handleAction,
     hasBlockingJob,
+    hasMultipleBlockingJobs,
+    healthSuggestedActions,
     heavyQueuesEnabled,
     integratedCanGoNext,
     integratedCanGoPrevious,
@@ -420,21 +441,38 @@ function PublicacoesContent() {
     integratedPageSize,
     integratedQueue,
     integratedSourceLabel,
+    isDockedPublicacoesView,
     isLightTheme,
+    isResultView,
+    jobs,
+    latestHistory,
+    latestJob,
+    latestRemoteRun,
+    limit,
     linkPendingDetailPartes,
     loadHeavyQueueReads,
     loadIntegratedDetail,
+    loadOverview,
+    loadPartesCandidates,
+    loadProcessCandidates,
     moveLinkedDetailPartes,
     noPublicationActivityTypeConfigured,
+    operationalPlan,
+    operationalStatus,
     pagedIntegratedRows,
+    partesBacklogCount,
     partesCandidates,
     partesPage,
+    pendingJobCount,
     primaryPublicacoesAction,
     priorityBatchReady,
     processCandidates,
+    processNumbers,
     processPage,
     publicationActivityTypeHint,
+    publicationActivityTypes,
     queueDiagnostics,
+    queueRefreshLog,
     reclassifyLinkedDetailPartes,
     recurringPublicacoes,
     recurringPublicacoesActions,
@@ -445,13 +483,17 @@ function PublicacoesContent() {
     recurringPublicacoesGroups,
     recurringPublicacoesSummary,
     refreshIntegratedSnapshot,
+    remoteHealth,
+    remoteHistory,
     runBulkContactsReconcile,
+    runOperationalPlanStep,
     runPendingJobsNow,
     saveDetailContact,
     selectedDetailLinkedPartes,
     selectedDetailPendingPartes,
     selectedPartesKeys,
     selectedProcessKeys,
+    selectedProcessNumbers,
     selectedUnifiedCount,
     selectedUnifiedNumbers,
     selectedVisibleSevereRecurringCount,
@@ -464,8 +506,13 @@ function PublicacoesContent() {
     setIntegratedFilters,
     setLimit,
     setPartesPage,
+    setProcessNumbers,
     setProcessPage,
     setSelectedPartesKeys,
+    snapshotMesaIntegrada,
+    snapshotPartes,
+    snapshotProcessos,
+    syncWorkerLastPublicacoes,
     toggleDetailLinkedPage,
     toggleDetailLinkedParte,
     toggleDetailPendingPage,
@@ -479,81 +526,13 @@ function PublicacoesContent() {
     updateView,
     validationLabel,
     validationTone,
+    view,
     visibleRecurringCount,
     visibleSevereRecurringCount,
   });
 
   return (
-    <PublicacoesScreenBody
-      actionState={actionState}
-      activeJobId={activeJobId}
-      adviseBackfillProgress={adviseBackfillProgress}
-      adviseCursor={adviseCursor}
-      adviseLastCycleTotal={adviseLastCycleTotal}
-      adviseLastRunAt={adviseLastRunAt}
-      adviseMode={adviseMode}
-      advisePersistedDelta={advisePersistedDelta}
-      adviseSync={adviseSync}
-      adviseTokenOk={adviseTokenOk}
-      backendHealth={backendHealth}
-      blockingJob={blockingJob}
-      canManuallyDrainActiveJob={canManuallyDrainActiveJob}
-      candidateQueueErrorCount={candidateQueueErrorCount}
-      candidateQueueMismatchCount={candidateQueueMismatchCount}
-      copilotContext={copilotContext}
-      data={data}
-      drainInFlight={drainInFlight}
-      executionHistory={executionHistory}
-      formatFallbackReason={formatFallbackReason}
-      formatSnapshotLabel={formatSnapshotLabel}
-      getOperationalPlanStepState={getOperationalPlanStepState}
-      handleAction={handleAction}
-      hasBlockingJob={hasBlockingJob}
-      hasMultipleBlockingJobs={hasMultipleBlockingJobs}
-      healthSuggestedActions={healthSuggestedActions}
-      isDockedPublicacoesView={isDockedPublicacoesView}
-      isLightTheme={isLightTheme}
-      isResultView={isResultView}
-      jobs={jobs}
-      latestHistory={latestHistory}
-      latestJob={latestJob}
-      latestRemoteRun={latestRemoteRun}
-      limit={limit}
-      loadIntegratedDetail={loadIntegratedDetail}
-      loadOverview={loadOverview}
-      loadPartesCandidates={loadPartesCandidates}
-      loadProcessCandidates={loadProcessCandidates}
-      noPublicationActivityTypeConfigured={noPublicationActivityTypeConfigured}
-      operationalPlan={operationalPlan}
-      operationalStatus={operationalStatus}
-      pagedIntegratedRows={pagedIntegratedRows}
-      partesBacklogCount={partesBacklogCount}
-      partesPage={partesPage}
-      pendingJobCount={pendingJobCount}
-      processCandidates={processCandidates}
-      processNumbers={processNumbers}
-      processPage={processPage}
-      publicationActivityTypeHint={publicationActivityTypeHint}
-      publicationActivityTypes={publicationActivityTypes}
-      queueRefreshLog={queueRefreshLog}
-      queuesViewModel={queuesViewModel}
-      remoteHealth={remoteHealth}
-      remoteHistory={remoteHistory}
-      runOperationalPlanStep={runOperationalPlanStep}
-      runPendingJobsNow={runPendingJobsNow}
-      selectedPartesKeys={selectedPartesKeys}
-      selectedProcessKeys={selectedProcessKeys}
-      selectedProcessNumbers={selectedProcessNumbers}
-      selectedUnifiedNumbers={selectedUnifiedNumbers}
-      setLimit={setLimit}
-      setProcessNumbers={setProcessNumbers}
-      snapshotMesaIntegrada={snapshotMesaIntegrada}
-      snapshotPartes={snapshotPartes}
-      snapshotProcessos={snapshotProcessos}
-      syncWorkerLastPublicacoes={syncWorkerLastPublicacoes}
-      updateView={updateView}
-      view={view}
-    />
+    <PublicacoesScreenBody {...screenBodyProps} />
   );
 }
 

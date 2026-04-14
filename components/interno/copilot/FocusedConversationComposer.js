@@ -23,13 +23,13 @@ export default function FocusedConversationComposer(props) {
   } = props;
 
   return (
-    <div className={`shrink-0 border-t px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
+    <div className={`shrink-0 border-t px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.98))]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(8,10,9,0.98),rgba(10,13,12,0.98))]"}`}>
       <form onSubmit={handleSubmit} className="space-y-3">
-        <div className={`rounded-[20px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1C2623] bg-[rgba(7,9,8,0.98)]"}`} onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}>
+        <div className={`rounded-[24px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.08),transparent_42%),white]" : "border-[#1C2623] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.08),transparent_40%),rgba(7,9,8,0.98)]"}`} onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}>
           <div className={`mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
             <div className="flex flex-wrap items-center gap-2">
-              <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>
-                conversa ativa
+              <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#E6D29A] bg-[#FFF8EA] text-[#8A6217]" : "border-[#4B3F22] text-[#F1D39A]"}`}>
+                resposta em contexto
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -49,7 +49,7 @@ export default function FocusedConversationComposer(props) {
             onPaste={handlePaste}
             rows={4}
             disabled={isComposerBlocked}
-            placeholder="Pergunte ao Dotobot, continue a thread ou delegue uma ação..."
+            placeholder="Escreva a proxima mensagem, continue a thread ou delegue uma acao..."
             className={`w-full resize-none border-0 bg-transparent px-1 py-1 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50 ${isLightTheme ? "text-[#152421] placeholder:text-[#94A3B8]" : "placeholder:text-[#60706A]"}`}
           />
 

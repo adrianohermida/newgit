@@ -102,7 +102,7 @@ async function diagnose(provider) {
 
   for (const test of tests) {
     try {
-      attempts.push(describeAttempt(await probeJsonEndpoint(test.url, test.body, test.headers || {}), test.hint));
+      attempts.push(describeAttempt(await probeJsonEndpoint(test.url, test.body, test.headers || {}, { timeoutMs: 8000 }), test.hint));
     } catch (error) {
       attempts.push(describeAttempt({ ok: false, url: test.url, error: error?.message || "Falha de conexao." }, test.hint));
     }

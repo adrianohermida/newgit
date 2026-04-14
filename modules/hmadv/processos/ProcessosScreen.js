@@ -2,21 +2,13 @@ import { useEffect, useMemo } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import { useInternalTheme } from "../../../components/interno/InternalThemeProvider";
-import { setModuleHistory } from "../../../lib/admin/activity-log";
 import {
   ACTION_LABELS,
   ASYNC_PROCESS_ACTIONS,
-  COVERAGE_VIEWS,
   DEFAULT_QUEUE_BATCHES,
   EMPTY_FORM,
-  GLOBAL_ERROR_TTL_MS,
   MODULE_LIMITS,
-  OPERATIONAL_VIEWS,
   PROCESS_VIEW_ITEMS,
-  QUEUE_ERROR_TTL_MS,
-  QUEUE_LABELS,
-  QUEUE_REFRESHERS,
-  RELATION_VIEWS,
 } from "./constants";
 import {
   buildDrainPreview,
@@ -27,11 +19,8 @@ import {
   getSafeProcessActionLimit,
 } from "./action-utils";
 import {
-  loadHistoryEntries,
-  loadOperationalSnapshot,
   parseCopilotContext,
   persistHistoryEntries,
-  persistOperationalSnapshot,
 } from "./storage";
 import { useProcessosAdminFetch } from "./useProcessosAdminFetch";
 import { Field, MetricCard, SelectField } from "./ui-primitives";
@@ -49,6 +38,7 @@ import { useProcessosQueueActionConfigs } from "./useProcessosQueueActionConfigs
 import { useProcessosOperationalHealth } from "./useProcessosOperationalHealth";
 import { useProcessosJobDrain } from "./useProcessosJobDrain";
 import { useProcessosBootstrap } from "./useProcessosBootstrap";
+import { useProcessosPersistence } from "./useProcessosPersistence";
 
 import {
   countQueueErrors,
@@ -57,7 +47,6 @@ import {
   getProcessSelectionValue,
   getRelationSelectionValue,
   getSuggestionSelectionValue,
-  hasJsonTruncationMessage,
   parseProcessNumbers,
   queueHasReadMismatch,
   renderQueueRowStatuses,

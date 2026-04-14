@@ -8,6 +8,7 @@ function describeAttempt(attempt, hint) {
 function classifyAttempt(attempt, hint) {
   const raw = String(attempt?.rawSnippet || attempt?.error || "").toLowerCase();
   const errorType = String(attempt?.body?.errorType || "").toLowerCase();
+  const detail = String(attempt?.body?.detail || "").toLowerCase();
   if (raw.includes("<!doctype") || raw.includes("<html")) {
     return {
       issue: "html_response",
@@ -15,7 +16,19 @@ function classifyAttempt(attempt, hint) {
       recommendation: "Ajuste para um endpoint de API real. Ex.: ai-core em /v1/messages ou proxy que responda JSON.",
     };
   }
-  if (raw.includes("econnrefused") || raw.includes("connect econnrefused") || raw.includes("socket hang up")) {
+  if (raw.includes("timeout") || detail.includes("timed out")) {
+    return {
+      issue: "service_timeout",
+      summary: "O servico respondeu tarde demais ou travou durante o processamento.",
+      recommendation: "Verifique se o processo esta saudavel, se a rota conclui a resposta e se nao ha bloqueio por compilacao ou dependencia externa.",
+    };
+  }
+  if (
+    raw.includes("econnrefused") ||
+    raw.includes("connect econnrefused") ||
+    raw.includes("socket hang up") ||
+    raw.includes("falha de conexao")
+  ) {
     return {
       issue: "service_offline",
       summary: "Nao foi possivel abrir conexao com o servico configurado.",

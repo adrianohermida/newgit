@@ -38,7 +38,7 @@ function FocusedSidebarUserMenu({ isLightTheme, profile }) {
     <div className={`mt-auto border-t px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(248,250,252,0.98),rgba(255,255,255,0.98))]" : "border-[#1C2623] bg-[linear-gradient(180deg,rgba(8,10,9,0.98),rgba(11,14,13,0.98))]"}`}>
       <div className="mb-3">
         <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Conta</p>
-        <p className={`mt-1 text-xs ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Acesso, preferencias e navegação do workspace.</p>
+        <p className={`mt-1 text-xs ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Acesso, preferencias e navegacao do workspace.</p>
       </div>
       <InternoUserAvatarMenu
         isLightTheme={isLightTheme}

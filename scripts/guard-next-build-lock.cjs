@@ -72,6 +72,7 @@ function seedNextDir() {
     path.join(nextDir, 'server', 'pages'),
     path.join(nextDir, 'server', 'app'),
     path.join(nextDir, 'export'),
+    path.join(nextDir, 'diagnostics'),
     path.join(nextDir, 'cache'),
     path.join(nextDir, 'cache', 'webpack'),
     path.join(nextDir, 'cache', 'webpack', 'server-production'),
@@ -102,6 +103,7 @@ function seedNextDir() {
       path.join(nextDir, 'server', 'next-font-manifest.json'),
       '{"pages":{},"app":{},"appUsingSizeAdjust":false,"pagesUsingSizeAdjust":false}\n',
     ],
+    [path.join(nextDir, 'diagnostics', 'build-diagnostics.json'), '{}\n'],
   ];
 
   for (const [filePath, content] of seededFiles) {
