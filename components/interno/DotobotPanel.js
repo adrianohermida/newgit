@@ -94,6 +94,8 @@ import {
 } from "./dotobotPanelLogging";
 import { useDotobotAdminSession } from "./dotobotPanelRuntime";
 import useDotobotPersistedBootstrap from "./useDotobotPersistedBootstrap";
+import useDotobotConversationActions from "./useDotobotConversationActions";
+import useDotobotConversationViewModel from "./useDotobotConversationViewModel";
 import useDotobotShellState from "./useDotobotShellState";
 import useDotobotShellUiEffects from "./useDotobotShellUiEffects";
 import {
@@ -106,23 +108,15 @@ import {
   PREF_STORAGE_PREFIX,
   TASK_STORAGE_PREFIX,
   buildConversationStorageKey,
-  buildConversationSelectionState,
   buildDotobotGlobalContext,
   buildStorageKey,
-  createConversationSnapshot,
-  createEmptyConversation,
-  deleteConversationFromCollection,
   extractAssistantResponseText,
-  filterVisibleConversations,
-  groupConversationsByProject,
-  inferConversationTitle,
   isTaskCommand,
   mergeConversationAttachments,
   nowIso,
   safeText,
   summarizeConversation,
   syncConversationSnapshots,
-  updateConversationCollection,
 } from "./dotobotPanelState";
 import {
   DOTOBOT_LAYOUT_STORAGE_PREFIX,
@@ -325,6 +319,51 @@ export default function DotobotCopilot({
     setWorkspaceOpen,
     taskStorageKey,
   });
+
+  const conversationActions = useDotobotConversationActions({
+    activeConversationId,
+    attachments,
+    composerRef,
+    contextEnabled,
+    conversations,
+    maxAttachments: MAX_ATTACHMENTS,
+    maxConversations: MAX_CONVERSATIONS,
+    messages,
+    mode,
+    normalizeAttachment,
+    provider,
+    providerCatalog,
+    pushUiToast,
+    routePath,
+    scrollConversationToBottom,
+    selectedSkillId,
+    setActiveConversationId,
+    setAttachments,
+    setConfirmModal,
+    setContextEnabled,
+    setConversations,
+    setError,
+    setInput,
+    setMessages,
+    setMode,
+    setProvider,
+    setRenameModal,
+    setSelectedSkillId,
+    setTaskHistory,
+    setWorkspaceOpen,
+    taskHistory,
+  });
+  const {
+    archiveConversation,
+    attachFilesToConversation,
+    createConversationFromCurrentState,
+    deleteConversation,
+    handleConcatConversation,
+    renameConversation,
+    selectConversation,
+    shareConversation,
+    updateConversationById,
+  } = conversationActions;
 
   useEffect(() => {
     if (providerCatalogRequestedRef.current) return undefined;
@@ -1424,53 +1463,6 @@ export default function DotobotCopilot({
     });
   }
 
-  function updateConversationById(conversationId, updater) {
-    if (!conversationId) return;
-    setConversations((current) => updateConversationCollection(current, conversationId, updater));
-  }
-
-  // ...existing code...
-  function createConversationFromCurrentState(title = inferConversationTitle(messages)) {
-    const nextConversation = createConversationSnapshot({
-      title,
-      messages,
-      taskHistory,
-      attachments,
-      metadata: buildConversationRuntimeMetadata({ mode, provider, selectedSkillId, contextEnabled, routePath }),
-    });
-    setConversations((current) => [nextConversation, ...current].slice(0, MAX_CONVERSATIONS));
-    setActiveConversationId(nextConversation.id);
-    return nextConversation;
-  }
-
-  function selectConversation(conversation) {
-    const selectionState = buildConversationSelectionState(conversation);
-    setActiveConversationId(selectionState.activeConversationId);
-    setMessages(selectionState.messages);
-    setTaskHistory(selectionState.taskHistory);
-    setAttachments(selectionState.attachments);
-    if (selectionState.metadata?.mode) setMode(selectionState.metadata.mode);
-      if (selectionState.metadata?.provider) {
-        setProvider(normalizeWorkspaceProvider(selectionState.metadata.provider, providerCatalog));
-      }
-    if (typeof selectionState.metadata?.selectedSkillId === "string") setSelectedSkillId(selectionState.metadata.selectedSkillId);
-    if (typeof selectionState.metadata?.contextEnabled === "boolean") {
-      setContextEnabled(selectionState.metadata.contextEnabled);
-    }
-    setError(null);
-    setWorkspaceOpen(true);
-    setTimeout(() => {
-      scrollConversationToBottom();
-    }, 80);
-  }
-
-  function handleConcatConversation(conversation) {
-    const nextBlock = buildConversationConcatBlock(conversation);
-    setInput((current) => [current, nextBlock].filter(Boolean).join("\n\n---\n\n"));
-    setWorkspaceOpen(true);
-    setTimeout(() => composerRef.current?.focus(), 60);
-  }
-
   function handleReuseTaskMission(task) {
     const mission = String(task?.mission || task?.query || task?.title || "").trim();
     if (!mission) return;
@@ -1607,87 +1599,6 @@ export default function DotobotCopilot({
         message: error?.message || "Falha ao atualizar incidente.",
         tone: "error",
       });
-    }
-  }
-
-  function renameConversation(conversation) {
-    const currentTitle = conversation?.title || inferConversationTitle(conversation?.messages || []);
-    setRenameModal({
-      open: true,
-      conversationId: conversation?.id || null,
-      value: currentTitle,
-    });
-  }
-
-  function archiveConversation(conversation) {
-    updateConversationById(conversation.id, (current) => ({ archived: !current.archived }));
-  }
-
-  async function shareConversation(conversation) {
-    const shareUrl = `${typeof window !== "undefined" ? window.location.origin : ""}${routePath || "/interno/copilot"}?conversation=${conversation.id}`;
-    const shareText = `${conversation.title || "Conversa"}\n${shareUrl}`;
-    try {
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(shareText);
-      }
-      pushUiToast({
-        tone: "success",
-        title: "Conversa copiada",
-        body: "O link e o título da conversa foram copiados para compartilhamento interno.",
-      });
-    } catch {
-      pushUiToast({
-        tone: "warn",
-        title: "Compartilhamento manual",
-        body: "Não foi possível copiar automaticamente. Use o menu do navegador para copiar a URL atual.",
-      });
-    }
-  }
-
-  function deleteConversation(conversation) {
-    setConfirmModal({
-      title: "Excluir conversa",
-      body: `Deseja excluir a conversa "${conversation.title || "sem título"}"?`,
-      confirmLabel: "Excluir",
-      onConfirm: () => {
-        const remaining = deleteConversationFromCollection(conversations, conversation.id);
-        if (remaining.length) {
-          setConversations(remaining);
-          if (conversation.id === activeConversationId) {
-            selectConversation(remaining[0]);
-          }
-          setConfirmModal(null);
-          return;
-        }
-        const replacement = createEmptyConversation(
-          "Nova conversa",
-          buildConversationRuntimeMetadata({ mode, provider, selectedSkillId, contextEnabled, routePath })
-        );
-        setConversations([replacement]);
-        setActiveConversationId(replacement.id);
-        setMessages([]);
-        setTaskHistory([]);
-        setAttachments([]);
-        if (conversation.id === activeConversationId) {
-          selectConversation(replacement);
-        }
-        setConfirmModal(null);
-      },
-    });
-  }
-
-  function attachFilesToConversation(conversationId, files) {
-    const attachmentsToAdd = Array.from(files || [])
-      .slice(0, MAX_ATTACHMENTS)
-      .map((file) => normalizeAttachment(file));
-    if (!attachmentsToAdd.length) return;
-    if (!conversationId) {
-      setAttachments((current) => [...current, ...attachmentsToAdd].slice(0, MAX_ATTACHMENTS));
-      return;
-    }
-    setConversations((current) => mergeConversationAttachments(current, conversationId, attachmentsToAdd));
-    if (conversationId === activeConversationId) {
-      setAttachments((current) => [...current, ...attachmentsToAdd].slice(0, MAX_ATTACHMENTS));
     }
   }
 
@@ -1959,72 +1870,29 @@ export default function DotobotCopilot({
     : isLightTheme
       ? "rounded-[24px] border border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(245,247,250,0.98))]"
       : "rounded-[24px] border border-[#1C2623] bg-[rgba(255,255,255,0.015)]";
-  const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
+  const {
+    activeConversation,
+    activeProjectLabel,
+    conversationEntities,
+    conversationProjectGroups,
+    filteredConversations,
+    moduleWorkspaceCards,
+    projectInsights,
+    visibleConversationsByProject,
+  } = useDotobotConversationViewModel({
+    activeConversationId,
+    activeTask,
+    conversations,
+    conversationSort,
+    deferredConversationSearch,
+    routePath,
+    selectedProjectFilter,
+    showArchived,
+  });
   const focusedConversationColumnClass = isFocusedCopilotShell ? "mx-auto flex h-full w-full max-w-[880px] flex-col" : isRailConversationShell ? "w-full" : "";
   const useCondensedRightRail = isFocusedCopilotShell;
   const visibleLegalActions = isFocusedCopilotShell || isRailConversationShell ? [] : LEGAL_ACTIONS.slice(0, isCompactViewport ? 1 : 3);
   const visibleQuickPrompts = isFocusedCopilotShell ? [] : QUICK_PROMPTS.slice(0, isCompactViewport ? 1 : isConversationCentricShell ? 1 : 2);
-  const filteredConversations = useMemo(() => {
-    let nextConversations = filterVisibleConversations(conversations, deferredConversationSearch);
-    if (!showArchived) {
-      nextConversations = nextConversations.filter((conversation) => !conversation.archived);
-    }
-    if (selectedProjectFilter !== "all") {
-      nextConversations = nextConversations.filter((conversation) => conversation.projectKey === selectedProjectFilter);
-    }
-    if (conversationSort === "recent") {
-      return nextConversations
-        .slice()
-        .sort((a, b) => getConversationTimestamp(b.updatedAt || b.createdAt) - getConversationTimestamp(a.updatedAt || a.createdAt));
-    }
-    if (conversationSort === "oldest") {
-      return nextConversations
-        .slice()
-        .sort((a, b) => getConversationTimestamp(a.updatedAt || a.createdAt) - getConversationTimestamp(b.updatedAt || b.createdAt));
-    }
-    if (conversationSort === "title") {
-      return nextConversations.slice().sort((a, b) => (a.title || "").localeCompare(b.title || ""));
-    }
-    return nextConversations;
-  }, [conversationSort, conversations, deferredConversationSearch, selectedProjectFilter, showArchived]);
-  const conversationProjectGroups = useMemo(() => groupConversationsByProject(filteredConversations), [filteredConversations]);
-  const visibleConversationsByProject = useMemo(
-    () => groupConversationsByProject(conversations.filter((conversation) => showArchived || !conversation.archived)),
-    [conversations, showArchived]
-  );
-  const conversationBucketsByProjectKey = useMemo(() => {
-    const buckets = new Map();
-    for (const conversation of conversations) {
-      const key = conversation?.projectKey || "geral";
-      if (!buckets.has(key)) {
-        buckets.set(key, []);
-      }
-      buckets.get(key).push(conversation);
-    }
-    return buckets;
-  }, [conversations]);
-  const projectInsights = useMemo(
-    () => buildProjectInsights(visibleConversationsByProject),
-    [visibleConversationsByProject]
-  );
-  const activeProjectLabel = activeConversation?.projectLabel || "Geral";
-  const conversationEntities = useMemo(() => extractConversationEntities(activeConversation, activeTask), [activeConversation, activeTask]);
-  const moduleWorkspaceCards = useMemo(() => MODULE_WORKSPACES.map((module) => {
-    const matchedConversations = conversationBucketsByProjectKey.get(module.key) || [];
-    return {
-      ...module,
-      count: matchedConversations.length,
-      active: activeConversation?.projectKey === module.key || String(routePath || "").includes(module.key.replace("_", "-")),
-      latestConversation: matchedConversations[0]?.title || null,
-      contextualHref: buildContextualModuleHref(module, {
-        activeConversation,
-        activeTask,
-        routePath,
-        projectLabel: activeProjectLabel,
-        entities: conversationEntities,
-      }),
-    };
-  }), [activeConversation, activeProjectLabel, activeTask, conversationBucketsByProjectKey, conversationEntities, routePath]);
   const cockpitCommandActions = useMemo(() => [
     {
       id: "focus-composer",
