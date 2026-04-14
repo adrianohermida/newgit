@@ -50,6 +50,8 @@ import { usePublicacoesIntegratedDetail } from "./usePublicacoesIntegratedDetail
 import { usePublicacoesParteActions } from "./usePublicacoesParteActions";
 import { usePublicacoesExecutionHistory } from "./usePublicacoesExecutionHistory";
 import { usePublicacoesActionRunner } from "./usePublicacoesActionRunner";
+import { usePublicacoesUiActions } from "./usePublicacoesUiActions";
+import { usePublicacoesQueuesViewModel } from "./usePublicacoesQueuesViewModel";
 
 function isResourceLimitError(error) {
   const text = String(error?.payload || error?.message || error || "").toLowerCase();
@@ -250,6 +252,77 @@ function PublicacoesContent() {
     selectedPartesKeys,
     setExecutionHistory,
   });
+
+  function logUiEvent(label, action, response, patch = {}) {
+    appendActivityLog({
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      module: "publicacoes",
+      component: patch.component || "publicacoes-ui",
+      label,
+      action,
+      method: "UI",
+      path: "/interno/publicacoes",
+      expectation: patch.expectation || label,
+      status: patch.status || "success",
+      request: patch.request || "",
+      response: stringifyLogPayload(response),
+      error: patch.error || "",
+    });
+  }
+  const {
+    applySevereRecurringPreset,
+    clearHistory,
+    clearQueueSelections,
+    reuseHistoryEntry,
+    selectVisibleRecurringPublicacoes,
+    selectVisibleSevereRecurringPublicacoes,
+    updateView,
+  } = usePublicacoesUiActions({
+    filteredIntegratedRows,
+    getPublicacaoSelectionValue,
+    logUiEvent,
+    processCandidates,
+    recurringPublicacoes,
+    recurringPublicacoesBatch,
+    recurringPublicacoesSummary,
+    setExecutionHistory,
+    setLastFocusHash,
+    setLimit,
+    setProcessNumbers,
+    setSelectedIntegratedNumbers,
+    setSelectedPartesKeys,
+    setSelectedProcessKeys,
+    setView,
+    partesCandidates,
+  });
+  const {
+    handleAction,
+    queueAsyncAction,
+    runPendingJobsNow,
+  } = usePublicacoesActionRunner({
+    adminFetch,
+    activeJobId,
+    blockingJob,
+    buildActionMeta,
+    canManuallyDrainActiveJob,
+    currentDrainJobId,
+    hasBlockingJob,
+    limit,
+    loadJobs,
+    loadRemoteHistory,
+    overview: overview.data,
+    partsBacklogCount,
+    processNumbers,
+    pushHistoryEntry,
+    recoverAdviseBackfillFailure,
+    refreshAfterAction,
+    refreshOperationalContext,
+    replaceHistoryEntry,
+    setActionState,
+    setActiveJobId,
+    syncWorkerShouldFocusCrm,
+    updateView,
+  });
   const {
     applyValidationToNumbers,
     runBulkContactsReconcile,
@@ -294,51 +367,6 @@ function PublicacoesContent() {
     setSelectedDetailLinkedPartes,
     loadIntegratedDetail,
   });
-  const {
-    handleAction,
-    queueAsyncAction,
-    runPendingJobsNow,
-  } = usePublicacoesActionRunner({
-    adminFetch,
-    activeJobId,
-    blockingJob,
-    buildActionMeta,
-    canManuallyDrainActiveJob,
-    currentDrainJobId,
-    hasBlockingJob,
-    limit,
-    loadJobs,
-    loadRemoteHistory,
-    overview: overview.data,
-    partsBacklogCount,
-    processNumbers,
-    pushHistoryEntry,
-    recoverAdviseBackfillFailure,
-    refreshAfterAction,
-    refreshOperationalContext,
-    replaceHistoryEntry,
-    setActionState,
-    setActiveJobId,
-    syncWorkerShouldFocusCrm,
-    updateView,
-  });
-
-  function logUiEvent(label, action, response, patch = {}) {
-    appendActivityLog({
-      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      module: "publicacoes",
-      component: patch.component || "publicacoes-ui",
-      label,
-      action,
-      method: "UI",
-      path: "/interno/publicacoes",
-      expectation: patch.expectation || label,
-      status: patch.status || "success",
-      request: patch.request || "",
-      response: stringifyLogPayload(response),
-      error: patch.error || "",
-    });
-  }
   usePublicacoesNavigationState({ view, lastFocusHash, setView, setLastFocusHash });
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
