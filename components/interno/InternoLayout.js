@@ -2,11 +2,12 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import { useInternalTheme } from "./InternalThemeProvider";
-import DotobotCopilot from "./DotobotPanel";
 import InternoConsoleChrome from "./layout/InternoConsoleChrome";
 import InternoConsolePaneBody from "./layout/InternoConsolePaneBody";
 import InternoConsoleOverviewTab from "./layout/InternoConsoleOverviewTab";
+import InternoSettingsModal from "./layout/InternoSettingsModal";
 import InternoShellContent from "./layout/InternoShellContent";
+import InternoShellRightRail from "./layout/InternoShellRightRail";
 import InternoShellHeader from "./layout/InternoShellHeader";
 import RailPanel from "./layout/RailPanel";
 import {
@@ -15,7 +16,6 @@ import {
   PRIORITY_MODULE_KEYS,
   summarizeModuleAlert,
 } from "./layout/moduleCoverage";
-import OperationalRightRail from "./layout/OperationalRightRail";
 import InternoSidebar from "./layout/InternoSidebar";
 import {
   getFingerprintStatusTone,

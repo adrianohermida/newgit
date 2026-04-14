@@ -26,6 +26,7 @@ async function autoDispatchTasks(commandQueue, tasks, tabId) {
   for (const task of tasks) {
     const step = getRunnableStep(task);
     if (!step) continue;
+    if (step.action?.type !== "command" && !tabId) continue;
     step.status = "running";
     await dispatchApprovedStep({ commandQueue, tabId, task, step });
     normalizeTask(task);
@@ -67,9 +68,17 @@ function createTasksRouter(commandQueue) {
         const task = session.tasks.find((item) => item.id === req.params.taskId);
         const step = getApprovalStep(task || {}) || (task?.steps || []).find((item) => item.status === "running");
         if (!task || !step) throw new Error("Nenhum step aguardando aprovacao foi encontrado.");
-        dispatch = await dispatchApprovedStep({ commandQueue, tabId, task, step });
-        normalizeTask(task);
-        saveTaskSession(session);
+        try {
+          dispatch = await dispatchApprovedStep({ commandQueue, tabId, task, step });
+          normalizeTask(task);
+          saveTaskSession(session);
+        } catch (error) {
+          step.status = "error";
+          step.error = error?.message || "Falha ao despachar acao.";
+          normalizeTask(task);
+          saveTaskSession(session);
+          throw error;
+        }
       }
       res.json({ ok: true, tasks: session.tasks, dispatch });
     } catch (error) {

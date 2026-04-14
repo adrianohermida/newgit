@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import { useInternalTheme } from "../../../components/interno/InternalThemeProvider";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
@@ -13,9 +13,6 @@ import {
   buildJobPreview,
   getPublicacoesActionLabel,
 } from "./action-utils";
-import {
-  parseCopilotContext,
-} from "./storage";
 import { usePublicacoesAdminFetch } from "./usePublicacoesAdminFetch";
 import { usePublicacoesNavigationState } from "./usePublicacoesNavigationState";
 import {
@@ -53,7 +50,7 @@ import {
   formatSnapshotLabel,
   formatValidationMeta,
   getPublicacaoSelectionValue,
-  isResourceLimitError,
+  isResourceLimitError as detectResourceLimitError,
   matchesPublicacaoSelection,
   validationLabel,
   validationTone,
@@ -117,7 +114,7 @@ function PublicacoesContent() {
     integratedPageSize,
     integratedQueue,
     integratedQueueRequestRef,
-    isResourceLimitError,
+    isResourceLimitError: detectResourceLimitError,
     partesCandidates,
     partesCandidatesRequestRef,
     processCandidates,

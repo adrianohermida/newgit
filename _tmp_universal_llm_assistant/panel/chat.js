@@ -53,7 +53,9 @@ async function sendChatMessage(text) {
 }
 
 async function sendTaskMessage(el, text, addSystemMessage, renderTasks) {
-  const result = await runTask(state.sessionId, text);
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "START_REPLAY", tabId: String(tab.id) }).catch(() => {});
+  const result = await runTask(state.sessionId, text, tab?.id ? String(tab.id) : "");
   state.sessionId = result.sessionId || state.sessionId;
   if (Array.isArray(result.tasks) && result.tasks.length) await renderTasks(el);
   if (result.tasks?.some((task) => task.status === "awaiting_approval")) {
