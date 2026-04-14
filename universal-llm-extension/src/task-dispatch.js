@@ -31,9 +31,19 @@ function resolveDispatchTabId(task, step, fallbackTabId, workspaceTabs = []) {
   const action = step?.action || {};
   const requestedTabId = String(action.tabId || action.targetTabId || "").trim();
   if (requestedTabId) return requestedTabId;
+  const match = findDispatchTab(step, fallbackTabId, workspaceTabs);
+  return match?.id ? String(match.id) : String(fallbackTabId || "");
+}
+
+function findDispatchTab(step, fallbackTabId, workspaceTabs = []) {
+  const action = step?.action || {};
+  const requestedTabId = String(action.tabId || action.targetTabId || "").trim();
+  const normalizedTabs = Array.isArray(workspaceTabs) ? workspaceTabs : [];
+  if (requestedTabId) {
+    return normalizedTabs.find((tab) => String(tab?.id || "") === requestedTabId) || { id: requestedTabId };
+  }
 
   const tabTarget = action.tabTarget && typeof action.tabTarget === "object" ? action.tabTarget : {};
-  const normalizedTabs = Array.isArray(workspaceTabs) ? workspaceTabs : [];
   const titleHint = String(tabTarget.title || action.tabTitle || "").trim().toLowerCase();
   const urlHint = String(tabTarget.url || action.urlContains || "").trim().toLowerCase();
   const originHint = String(tabTarget.origin || action.origin || "").trim().toLowerCase();
@@ -48,7 +58,22 @@ function resolveDispatchTabId(task, step, fallbackTabId, workspaceTabs = []) {
     return false;
   });
 
-  return matched?.id ? String(matched.id) : String(fallbackTabId || "");
+  if (matched) return matched;
+  if (!fallbackTabId) return null;
+  return normalizedTabs.find((tab) => String(tab?.id || "") === String(fallbackTabId)) || { id: String(fallbackTabId) };
+}
+
+function stampStepTabContext(step, tabId, workspaceTabs = []) {
+  if (!step || !tabId) return step;
+  const match = findDispatchTab(step, tabId, workspaceTabs) || { id: String(tabId) };
+  step.action = {
+    ...(step.action || {}),
+    tabId: String(tabId),
+    tabTitle: step.action?.tabTitle || match?.title || "",
+    tabUrl: step.action?.tabUrl || match?.url || "",
+    origin: step.action?.origin || match?.origin || "",
+  };
+  return step;
 }
 
 function markStepAwaitingApproval(task, step) {
@@ -74,6 +99,8 @@ function markApprovalDecision(task, approved) {
   if (!step) return task;
   step.status = approved ? "running" : "error";
   step.error = approved ? null : "Acao negada pelo usuario";
+  step.errorCategory = approved ? null : "user_denied";
+  step.statusReason = approved ? "approved" : "user_denied";
   task.logs = [...(Array.isArray(task.logs) ? task.logs : []), `${ts()} approval=${approved ? "approved" : "denied"} step=${step.id}`];
   task.status = approved ? "running" : "paused";
   task.updatedAt = ts();
@@ -105,8 +132,25 @@ function applyStepResult(task, stepId, result) {
   step.output = result.output || null;
   step.error = result.error || null;
   step.status = result.status === "ok" ? "done" : "error";
+  step.errorCategory = result.status === "ok" ? null : classifyStepFailure(result.error, step);
+  step.statusReason = result.status === "ok" ? "completed" : step.errorCategory;
   task.logs = [...(task.logs || []), `${ts()} step_result=${step.status} step=${stepId}${result.error ? ` error=${result.error}` : ""}`];
   return task;
+}
+
+function classifyStepFailure(error, step) {
+  const message = String(error || "").toLowerCase();
+  if (!message) return "unknown";
+  if (message.includes("negada pelo usuario") || message.includes("denied")) return "user_denied";
+  if (message.includes("timeout") || message.includes("timed out")) return "timeout";
+  if (message.includes("nao encontrado") || message.includes("not found")) {
+    return step?.action?.type === "command" ? "tool_missing" : "browser_target_missing";
+  }
+  if (message.includes("tabid obrigatorio") || message.includes("guia ativa") || message.includes("content script") || message.includes("selector")) {
+    return "browser_error";
+  }
+  if (message.includes("provider") || message.includes("llm") || message.includes("model")) return "provider_error";
+  return "unknown";
 }
 
 function buildApprovalReason(step) {
@@ -124,10 +168,13 @@ module.exports = {
   applyStepResult,
   describeStepAction,
   dispatchApprovedStep,
+  findDispatchTab,
   getRunnableStep,
   getApprovalStep,
   markApprovalDecision,
   markStepAwaitingApproval,
   resolveDispatchTabId,
+  stampStepTabContext,
   shouldRequireApproval,
+  classifyStepFailure,
 };

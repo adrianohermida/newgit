@@ -88,7 +88,8 @@
       await content.reportTaskResult(payload, "ok", { action: action.type, selector: action.selector || null });
     } catch (error) {
       console.warn("[LLMAssistant] executeTaskStep falhou:", error?.message || error);
-      await content.reportTaskResult(payload, "error", null, false, error).catch(() => {});
+      const normalizedError = normalizeStepError(error, action);
+      await content.reportTaskResult(payload, "error", null, false, normalizedError).catch(() => {});
     }
   };
 
@@ -169,4 +170,15 @@
       element.dispatchEvent(new KeyboardEvent("keyup", { key: step.key, code: step.code || "", bubbles: true }));
     }
   };
+
+  function normalizeStepError(error, action) {
+    const message = String(error?.message || error || "Falha ao executar etapa.");
+    if (message.toLowerCase().includes("elemento nao encontrado")) {
+      return new Error(`browser_target_missing: ${action?.selector || message}`);
+    }
+    if (message.toLowerCase().includes("cannot access")) {
+      return new Error(`browser_error: ${message}`);
+    }
+    return new Error(message);
+  }
 })(window.LLMAssistantContent);

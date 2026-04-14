@@ -71,6 +71,7 @@ export async function renderTasks(el) {
           <div class="view-subtitle">Execucao viva do agente com passos, aprovacoes e resultado auditavel.</div>
         </div>
       </div>
+      ${renderWorkspaceSummary(state.workspaceTabs, state.activeWorkspaceTabId)}
       <div class="list-grid">${tasks.map(renderTaskCard).join("")}</div>
     `;
     bindTaskApproval(el);
@@ -173,6 +174,20 @@ function bindAutomationActions(el, addSystemMessage, switchTab) {
     addSystemMessage(el, `Replay iniciado: ${btn.dataset.replay}`);
   }));
 
+  el.paneAutomations.querySelectorAll("[data-inspect-auto]").forEach((btn) => btn.addEventListener("click", async () => {
+    const host = el.paneAutomations.querySelector(`[data-automation-host="${btn.dataset.inspectAuto}"]`);
+    if (!host) return;
+    if (host.dataset.loaded === "true") {
+      host.innerHTML = "";
+      host.dataset.loaded = "false";
+      return;
+    }
+    const data = await fetchJson(`/automations/${btn.dataset.inspectAuto}`);
+    host.innerHTML = renderAutomationDetails(data.automation || {});
+    host.dataset.loaded = "true";
+    bindAutomationDetailActions(el, host, addSystemMessage, switchTab);
+  }));
+
   el.paneAutomations.querySelectorAll("[data-delete-auto]").forEach((btn) => btn.addEventListener("click", async () => {
     await fetchJson(`/automations/${btn.dataset.deleteAuto}`, { method: "DELETE" });
     await renderAutomations(el, addSystemMessage, switchTab);
@@ -193,17 +208,23 @@ function bindAutomationActions(el, addSystemMessage, switchTab) {
 function renderSessionCard(session) {
   const title = session.metadata?.tabTitle || session.id;
   const url = session.metadata?.tabUrl || "";
-  const counts = [
+  const tabs = Array.isArray(session.metadata?.browserTabs) ? session.metadata.browserTabs : [];
+  const activeTab = tabs.find((tab) => String(tab.id) === String(session.metadata?.activeTabId || "")) || tabs.find((tab) => tab.active) || null;
+  const origins = tabs.map((tab) => tab.origin).filter(Boolean);
+  const uniqueOrigins = origins.filter((origin, index) => origins.indexOf(origin) === index);
+  const metaPills = [
     `${session.messageCount} msg`,
     session.taskCount ? `${session.taskCount} tasks` : null,
-    Array.isArray(session.metadata?.browserTabs) && session.metadata.browserTabs.length ? `${session.metadata.browserTabs.length} abas` : null,
+    tabs.length ? `${tabs.length} abas` : null,
     session.provider || "local",
-  ].filter(Boolean).join(" | ");
+  ].filter(Boolean);
   return `
     <article class="list-card">
       <div class="list-item-title">${escHtml(title)}</div>
-      <div class="list-item-meta">${escHtml(counts)}</div>
+      <div class="meta-pill-row">${metaPills.map((item) => `<span class="meta-pill">${escHtml(item)}</span>`).join("")}</div>
       ${url ? `<div class="list-item-meta">${escHtml(url)}</div>` : ""}
+      ${activeTab ? `<div class="list-item-meta">Aba ativa salva: ${escHtml(activeTab.title || activeTab.url || activeTab.id)}</div>` : ""}
+      ${uniqueOrigins.length ? `<div class="list-item-meta">Workspace: ${escHtml(uniqueOrigins.slice(0, 3).join(" | "))}${uniqueOrigins.length > 3 ? ` | +${uniqueOrigins.length - 3}` : ""}</div>` : ""}
       <div class="list-item-meta">Atualizada em ${formatDate(session.updatedAt)}</div>
       <div class="list-item-actions" style="margin-top:8px">
         <button class="btn-list-action" data-load="${escHtml(session.id)}">Retomar</button>
@@ -228,9 +249,11 @@ function renderAutomationCard(item) {
       <div class="list-item-meta">Atualizada em ${formatDate(item.updatedAt || item.createdAt)}</div>
       <div class="list-item-actions" style="margin-top:8px">
         <button class="btn-list-action" data-replay="${escHtml(item.id)}">Replay</button>
+        <button class="btn-list-action" data-inspect-auto="${escHtml(item.id)}">Inspecionar</button>
         <button class="btn-list-action" data-rename-auto="${escHtml(item.id)}" data-current-title="${escHtml(item.title || item.id)}">Renomear</button>
         <button class="btn-list-action danger" data-delete-auto="${escHtml(item.id)}">Apagar</button>
       </div>
+      <div data-automation-host="${escHtml(item.id)}"></div>
     </article>
   `;
 }
@@ -242,11 +265,16 @@ function renderTaskCard(task) {
   const logs = Array.isArray(task.logs) ? task.logs.slice(-3) : [];
   const completedSteps = (task.steps || []).filter((step) => step.status === "done").length;
   const pct = Number(task.progressPct || 0);
-  const targetTab = currentStep?.action?.tabId ? `Aba alvo: ${currentStep.action.tabId}` : "";
+  const targetTab = describeTargetTab(currentStep);
   const parallelGroup = task.orchestration?.parallelGroup ? `Paralelo: ${task.orchestration.parallelGroup}` : "";
   const dependsOn = Array.isArray(task.orchestration?.dependsOn) && task.orchestration.dependsOn.length
     ? `Depende de: ${task.orchestration.dependsOn.join(", ")}`
     : "";
+  const orchestrationMeta = [
+    targetTab,
+    parallelGroup,
+    dependsOn,
+  ].filter(Boolean);
   return `
     <article class="list-card">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
@@ -257,9 +285,7 @@ function renderTaskCard(task) {
       <div class="list-item-meta">${pct}% concluido | ${completedSteps}/${(task.steps || []).length} passos</div>
       <div class="task-progress"><span class="task-progress-bar" style="width:${Math.max(0, Math.min(100, pct))}%"></span></div>
       ${currentStep ? `<div class="list-item-meta">Step atual: ${escHtml(currentStep.description || currentStep.action?.type || currentStep.id)}</div>` : ""}
-      ${targetTab ? `<div class="list-item-meta">${escHtml(targetTab)}</div>` : ""}
-      ${parallelGroup ? `<div class="list-item-meta">${escHtml(parallelGroup)}</div>` : ""}
-      ${dependsOn ? `<div class="list-item-meta">${escHtml(dependsOn)}</div>` : ""}
+      ${orchestrationMeta.length ? `<div class="meta-pill-row">${orchestrationMeta.map((item) => `<span class="meta-pill subtle">${escHtml(item)}</span>`).join("")}</div>` : ""}
       ${pendingStep ? renderApprovalBox(task, pendingStep) : ""}
       ${(task.steps || []).length ? renderStepDetails(task, logs) : ""}
     </article>
@@ -289,10 +315,26 @@ function renderStepDetails(task, logs) {
       : step.status === "error" ? "step-error"
       : step.status === "running" ? "step-running"
       : step.status === "awaiting_approval" ? "step-waiting"
-      : "";
-    const output = step.output ? ` | saida: ${formatStepOutput(step.output)}` : "";
-    const err = step.error ? ` | ${escHtml(step.error)}` : "";
-    return `<li><span class="${cls}">${escHtml(step.status)}</span> ${escHtml(step.description || step.action?.type || step.id)}${output}${err}</li>`;
+      : "step-pending";
+    const title = escHtml(step.description || step.action?.type || step.id);
+    const meta = [
+      step.action?.type ? `acao ${step.action.type}` : "",
+      step.action?.tabTitle || step.action?.tabId ? `aba ${step.action?.tabTitle || step.action?.tabId}` : "",
+      describeStepReason(step),
+    ].filter(Boolean);
+    const output = step.output ? `<div class="task-step-output">${escHtml(formatStepOutput(step.output))}</div>` : "";
+    const err = step.error ? `<div class="task-step-error">${escHtml(step.error)}</div>` : "";
+    return `
+      <li class="task-step-card">
+        <div class="task-step-head">
+          <span class="task-step-status ${cls}">${escHtml(step.status)}</span>
+          <span class="task-step-title">${title}</span>
+        </div>
+        ${meta.length ? `<div class="task-step-meta">${escHtml(meta.join(" | "))}</div>` : ""}
+        ${output}
+        ${err}
+      </li>
+    `;
   }).join("");
   return `
     <details class="task-detail">
@@ -329,6 +371,91 @@ function renderEmpty(title, text) {
     <div class="view-toolbar"><div class="view-title-wrap"><div class="view-title">${title}</div></div></div>
     <div class="empty-state"><div class="empty-sub">${text}</div></div>
   `;
+}
+
+function renderAutomationDetails(automation) {
+  const steps = Array.isArray(automation.summarizedSteps) ? automation.summarizedSteps : [];
+  if (!steps.length) {
+    return `<div class="list-item-meta" style="margin-top:8px">Nenhum passo detalhado disponivel.</div>`;
+  }
+  return `
+    <details class="task-detail" open>
+      <summary style="font-size:11px;color:var(--text-soft);cursor:pointer;user-select:none">Passos gravados</summary>
+      <ul class="task-step-list">
+        ${steps.map((step) => `
+          <li class="task-step-card">
+            <div class="task-step-head">
+              <span class="task-step-status step-pending">#${step.index + 1}</span>
+              <span class="task-step-title">${escHtml(step.label || step.type || "passo")}</span>
+            </div>
+            ${step.pageTitle || step.pageUrl ? `<div class="task-step-meta">${escHtml(step.pageTitle || step.pageUrl)}</div>` : ""}
+            ${step.selector ? `<div class="task-step-meta">selector ${escHtml(step.selector)}</div>` : ""}
+            <div class="list-item-actions" style="margin-top:8px">
+              <button class="btn-list-action" data-replay-from-auto="${escHtml(automation.id)}" data-replay-from-step="${step.index}">Replay daqui</button>
+            </div>
+          </li>
+        `).join("")}
+      </ul>
+    </details>
+  `;
+}
+
+function bindAutomationDetailActions(el, host, addSystemMessage, switchTab) {
+  host.querySelectorAll("[data-replay-from-auto]").forEach((btn) => btn.addEventListener("click", async () => {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    await fetchJson(`/play/${btn.dataset.replayFromAuto}/from/${btn.dataset.replayFromStep}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tabId: String(tab?.id || "default") }),
+    });
+    if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "START_REPLAY", tabId: String(tab.id) }).catch(() => {});
+    switchTab(el, "chat");
+    addSystemMessage(el, `Replay iniciado a partir do passo ${Number(btn.dataset.replayFromStep) + 1}.`);
+  }));
+}
+
+function renderWorkspaceSummary(workspaceTabs = [], activeTabId = "") {
+  const tabs = Array.isArray(workspaceTabs) ? workspaceTabs : [];
+  if (!tabs.length) return "";
+  const activeTab = tabs.find((tab) => String(tab.id) === String(activeTabId)) || tabs.find((tab) => tab.active) || tabs[0] || null;
+  const visibleTabs = tabs.slice(0, 4);
+  return `
+    <section class="workspace-card">
+      <div class="workspace-card-head">
+        <div class="list-item-title" style="margin:0">Workspace ativo</div>
+        <div class="list-item-meta">${tabs.length} abas conectadas</div>
+      </div>
+      ${activeTab ? `<div class="list-item-meta">Aba principal: ${escHtml(activeTab.title || activeTab.url || activeTab.id)}</div>` : ""}
+      <div class="workspace-chip-row">
+        ${visibleTabs.map((tab) => `<span class="workspace-chip ${String(tab.id) === String(activeTab?.id || "") ? "active" : ""}">${escHtml(tab.title || tab.origin || tab.url || tab.id)}</span>`).join("")}
+        ${tabs.length > visibleTabs.length ? `<span class="workspace-chip">+${tabs.length - visibleTabs.length}</span>` : ""}
+      </div>
+    </section>
+  `;
+}
+
+function describeTargetTab(step) {
+  const tabId = String(step?.action?.tabId || "").trim();
+  if (!tabId) return "";
+  const workspaceTabs = Array.isArray(state.workspaceTabs) ? state.workspaceTabs : [];
+  const tab = workspaceTabs.find((item) => String(item.id) === tabId);
+  if (!tab) return `Aba alvo ${tabId}`;
+  const label = tab.title || tab.origin || tab.url || tabId;
+  return `Aba alvo ${label}`;
+}
+
+function describeStepReason(step) {
+  const category = String(step?.errorCategory || step?.statusReason || "").trim();
+  if (!category) return "";
+  if (category === "user_denied") return "negado pelo usuario";
+  if (category === "browser_error") return "erro do navegador";
+  if (category === "browser_target_missing") return "alvo nao encontrado";
+  if (category === "provider_error") return "erro do provider";
+  if (category === "tool_missing") return "ferramenta ausente";
+  if (category === "timeout") return "timeout";
+  if (category === "completed") return "concluido";
+  if (category === "approved") return "aprovado";
+  return category.replaceAll("_", " ");
 }
 
 function renderAssetLine(item) {

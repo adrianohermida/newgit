@@ -3,7 +3,7 @@ const { getConfigs } = require("../storage");
 const { jsonPost } = require("../http-client");
 const { joinUrl } = require("../utils");
 const { loadTaskSession, normalizeTask, saveTaskSession, updateTask } = require("../task-store");
-const { applyStepResult, describeStepAction, dispatchApprovedStep, getApprovalStep, getRunnableStep, markApprovalDecision, markStepAwaitingApproval, resolveDispatchTabId, shouldRequireApproval } = require("../task-dispatch");
+const { applyStepResult, describeStepAction, dispatchApprovedStep, getApprovalStep, getRunnableStep, markApprovalDecision, markStepAwaitingApproval, resolveDispatchTabId, shouldRequireApproval, stampStepTabContext } = require("../task-dispatch");
 
 function shouldCreateTask(query) {
   const text = String(query || "").trim().toLowerCase();
@@ -71,8 +71,8 @@ async function dispatchTaskIfReady(commandQueue, session, task, tabId) {
   const step = getRunnableStep(task);
   if (!step) return null;
   const targetTabId = resolveDispatchTabId(task, step, tabId, session?.metadata?.browserTabs || []);
+  stampStepTabContext(step, targetTabId, session?.metadata?.browserTabs || []);
   if (shouldRequireApproval(step)) {
-    if (targetTabId) step.action = { ...(step.action || {}), tabId: targetTabId };
     markStepAwaitingApproval(task, step);
     normalizeTask(task);
     return { mode: "awaiting_approval", taskId: task.id, stepId: step.id, tabId: targetTabId || null };
@@ -118,8 +118,8 @@ async function dispatchNextTaskStep(commandQueue, session, task, tabId) {
     return null;
   }
   const targetTabId = resolveDispatchTabId(task, step, tabId, session?.metadata?.browserTabs || []);
+  stampStepTabContext(step, targetTabId, session?.metadata?.browserTabs || []);
   if (shouldRequireApproval(step)) {
-    if (targetTabId) step.action = { ...(step.action || {}), tabId: targetTabId };
     markStepAwaitingApproval(task, step);
     normalizeTask(task);
     return { mode: "awaiting_approval", action: describeStepAction(step), tabId: targetTabId || null };
@@ -204,6 +204,7 @@ function createTasksRouter(commandQueue) {
         step.status = "running";
         try {
           const targetTabId = resolveDispatchTabId(task, step, tabId || session.metadata?.activeTabId || "", session.metadata?.browserTabs || []);
+          stampStepTabContext(step, targetTabId, session?.metadata?.browserTabs || []);
           dispatch = await dispatchApprovedStep({ commandQueue, tabId: targetTabId, task, step });
           normalizeTask(task);
           await dispatchSessionReadySteps(commandQueue, session, targetTabId || tabId || session.metadata?.activeTabId || "");

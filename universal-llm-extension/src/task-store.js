@@ -42,10 +42,11 @@ function normalizeTask(task) {
   const awaiting = steps.some((step) => step.status === "awaiting_approval");
   const running = steps.some((step) => step.status === "running");
   const failed = steps.some((step) => step.status === "error");
+  const denied = steps.some((step) => step.status === "error" && step.errorCategory === "user_denied");
   task.steps = steps;
   task.progressPct = steps.length ? Math.round((done / steps.length) * 100) : Number(task.progressPct || 0);
   task.currentStepId = steps.find((step) => step.status !== "done")?.id || null;
-  task.status = awaiting ? "awaiting_approval" : failed ? "error" : running ? "running" : done === steps.length && steps.length ? "completed" : "pending";
+  task.status = awaiting ? "awaiting_approval" : failed ? (denied ? "paused" : "error") : running ? "running" : done === steps.length && steps.length ? "completed" : "pending";
   task.updatedAt = ts();
   return task;
 }
