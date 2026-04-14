@@ -1,6 +1,6 @@
 import { buildPanelMarkup } from "./panel/template.js";
 import { state } from "./panel/state.js";
-import { collectElements, addMessage, addSystemMessage, switchTab, updateProviderBadge, updateStatusDot, openOverlay, closeOverlays } from "./panel/dom.js";
+import { collectElements, addMessage, addSystemMessage, switchTab, updateProviderBadge, updateStatusDot, openOverlay, closeOverlays, updateMemoryStrip } from "./panel/dom.js";
 import { bindChat } from "./panel/chat.js";
 import { bindRecorder, bindUpload, injectPageText, injectSelection, takeScreenshot } from "./panel/browser.js";
 import { renderAutomations, renderSessions, renderTasks } from "./panel/lists.js";
@@ -77,6 +77,7 @@ async function bootstrapBridge(el) {
   if (health?.settings) hydrateSettings(health.settings);
   fillSettingsInputs(el);
   updateProviderBadge(el);
+  updateMemoryStrip(el, state.localMemoryMeta);
   if (state.activeTab === "tasks") await renderTasks(el);
 }
 

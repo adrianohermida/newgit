@@ -393,23 +393,35 @@ async function runCompatibleMessagesApi(env: Env, body: Json | null) {
     return json({ ok: false, error: { message: 'messages_required' } }, 400);
   }
 
-  const combinedPrompt = system ? `${system}\n\n${prompt}` : prompt;
-  const conversation = await runConversation(env, combinedPrompt, {
-    mode: 'messages',
-    locale: 'pt-BR',
-    assistant: {
-      mode: 'messages',
-      system_prompt: system || CONVERSATION_SYSTEM_PROMPT,
-      requested_model: requestedModel || null,
-      requested_max_tokens: Math.min(Math.max(maxTokens, 128), 4096),
-    },
-  });
-  const responseText = String((conversation as Json)?.resultText || '').trim() || 'Sem resposta do modelo.';
-  const sessionId = String((conversation as Json)?.session_id || crypto.randomUUID());
-  const retrievedContext = Array.isArray((conversation as Json)?.rag?.retrieved_context)
-    ? ((conversation as Json).rag as { retrieved_context?: Json[] }).retrieved_context || []
-    : [];
   const model = resolveChatModel(env, requestedModel);
+  const normalizedMaxTokens = Math.min(Math.max(maxTokens, 128), 4096);
+  const aiMessages = [];
+  if (system) {
+    aiMessages.push({ role: 'system', content: system });
+  }
+  const rawMessages = Array.isArray(body?.messages) ? body.messages : [];
+  for (const entry of rawMessages) {
+    if (!entry || typeof entry !== 'object') continue;
+    const role = typeof (entry as Record<string, unknown>).role === 'string'
+      ? String((entry as Record<string, unknown>).role).trim()
+      : 'user';
+    const content = normalizeMessageText((entry as Record<string, unknown>).content);
+    if (!content) continue;
+    aiMessages.push({ role, content });
+  }
+  if (aiMessages.length === 0) {
+    aiMessages.push({ role: 'user', content: prompt });
+  }
+
+  const result = await runAi(env, model, {
+    messages: aiMessages,
+    max_tokens: normalizedMaxTokens,
+  });
+  const responseText = String((result as Json)?.response || '').trim() || 'Sem resposta do modelo.';
+  const sessionId = crypto.randomUUID();
+  const inputText = aiMessages
+    .map((item) => `${String((item as { role?: unknown }).role || 'user')}: ${String((item as { content?: unknown }).content || '')}`)
+    .join('\n');
 
   return json({
     id: `msg_${sessionId}`,
@@ -418,14 +430,15 @@ async function runCompatibleMessagesApi(env: Env, body: Json | null) {
     model: requestedModel || model,
     content: [{ type: 'text', text: responseText }],
     usage: {
-      input_tokens: combinedPrompt.length,
+      input_tokens: inputText.length,
       output_tokens: responseText.length,
     },
     request_id: sessionId,
     metadata: {
       requested_model: requestedModel || model,
       resolved_model: model,
-      retrieved_context_count: retrievedContext.length,
+      transport: 'workers-ai-direct',
+      requested_message_count: aiMessages.length,
       route: '/v1/messages',
     },
   });
@@ -1055,13 +1068,13 @@ export default {
       }
       if (req.method === 'POST' && isMessagesPath(url.pathname)) {
         const body = (await parseBody(req)) as Json | null;
-        return runCompatibleMessagesApi(env, body);
+        return await runCompatibleMessagesApi(env, body);
       }
       if (req.method === 'POST' && url.pathname === '/analyze/activity') {
-        return analyzeActivity(req, env);
+        return await analyzeActivity(req, env);
       }
       if (req.method === 'POST' && url.pathname === '/analyze/process') {
-        return analyzeProcess(req, env);
+        return await analyzeProcess(req, env);
       }
       if (req.method === 'POST' && url.pathname === '/cron/reconcile') {
         const body = (await parseBody(req)) as Json | null;

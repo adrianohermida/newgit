@@ -27,6 +27,9 @@ export function collectElements() {
     paneAutomations: $("pane-automations"),
     paneSettings: $("pane-settings"),
     paneErrors: $("pane-errors"),
+    memoryStrip: $("memory-strip"),
+    memoryStripBadge: $("memory-strip-badge"),
+    memoryStripText: $("memory-strip-text"),
     btnPageText: $("btn-page-text"),
     btnSelection: $("btn-selection"),
     btnScreenshot: $("btn-screenshot"),
@@ -111,4 +114,31 @@ export function addSystemMessage(el, text) {
   wrap.innerHTML = `<div class="message-bubble">${escHtml(text)}</div>`;
   el.chatArea.appendChild(wrap);
   el.chatArea.scrollTop = el.chatArea.scrollHeight;
+}
+
+export function updateMemoryStrip(el, metadata) {
+  if (!el.memoryStrip || !el.memoryStripText || !el.memoryStripBadge) return;
+  if (!metadata || state.provider !== "local") {
+    el.memoryStrip.classList.add("hidden");
+    el.memoryStripText.textContent = "";
+    return;
+  }
+
+  const parts = [];
+  if (metadata.performance_profile) parts.push(metadata.performance_profile);
+  if (Number(metadata.memory_entries_used || 0) > 0) parts.push(`${metadata.memory_entries_used} memorias`);
+  if (Number(metadata.rag_matches_used || 0) > 0) parts.push(`${metadata.rag_matches_used} referencias`);
+  if (Array.isArray(metadata.rag_sources) && metadata.rag_sources.length) {
+    parts.push(metadata.rag_sources.join(" + "));
+  }
+
+  if (!parts.length) {
+    el.memoryStrip.classList.add("hidden");
+    el.memoryStripText.textContent = "";
+    return;
+  }
+
+  el.memoryStrip.classList.remove("hidden");
+  el.memoryStripBadge.textContent = "Memoria local";
+  el.memoryStripText.textContent = parts.join(" | ");
 }

@@ -79,6 +79,10 @@ button,input,textarea,select{font:inherit}
 .chat-hero{padding:12px 14px;border:1px solid var(--border);border-radius:16px;background:linear-gradient(180deg,var(--surface) 0%,var(--bg-elev) 100%);margin-bottom:12px}
 .chat-hero-title{font-size:13px;font-weight:800;color:var(--text)}
 .chat-hero-sub{margin-top:3px;color:var(--text-soft);line-height:1.45;font-size:12px}
+.memory-strip{margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.memory-strip.hidden{display:none}
+.memory-badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;background:rgba(6,118,71,.1);color:var(--success);font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+.memory-strip-text{font-size:11px;color:var(--text-soft);line-height:1.45}
 .chat-area{display:flex;flex-direction:column;gap:10px}
 
 /* Toolbar */

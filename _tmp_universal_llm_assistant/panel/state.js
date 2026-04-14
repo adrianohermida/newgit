@@ -18,6 +18,7 @@ export const state = {
   bridgeOk: false,
   providerStatus: { local: null, cloud: null, cloudflare: null },
   errorLog: [],
+  localMemoryMeta: null,
   settings: {
     runtimeUrl: "http://127.0.0.1:8000",
     runtimeModel: "aetherlab-legal-local-v1",

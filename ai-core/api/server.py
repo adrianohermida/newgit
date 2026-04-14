@@ -10,14 +10,26 @@ from typing import Any, Mapping
 from core.coordinator import Coordinator
 from core.command_graph import build_command_graph
 from core.commands import build_command_backlog, get_executable_commands
+from core.memory import FileBackedLongTermMemory
 from adapters.obsidian_adapter import get_local_vector_index_config, search_obsidian_context
 from adapters.supabase_rag_adapter import is_configured as supabase_rag_is_configured, search_supabase_context
+from core.coordinator.rag_fusion import merge_rag_contexts
 
 
 _MAX_QUERY_LENGTH = 8_000
 _DEFAULT_TIMEOUT_SECONDS = 45
+_LOCAL_PROVIDER_TIMEOUT_SECONDS = 180
 _DEFAULT_LOCAL_MODEL = 'aetherlab-legal-local-v1'
 _DEFAULT_CLOUD_MODEL = 'aetherlab-legal-v1'
+_DEFAULT_LOCAL_MAX_TOKENS = 512
+_DEFAULT_LOCAL_FAST_MAX_TOKENS = 224
+_DEFAULT_LOCAL_HISTORY_LIMIT = 4
+_DEFAULT_LOCAL_TEXT_LIMIT = 1_800
+_DEFAULT_LOCAL_SYSTEM_LIMIT = 600
+_DEFAULT_LOCAL_RAG_TOP_K = 2
+_DEFAULT_LOCAL_MEMORY_ITEMS = 4
+_DEFAULT_LOCAL_MEMORY_LINE_LIMIT = 120
+_DEFAULT_LOCAL_AUGMENT_LIMIT = 700
 _LOCAL_EXTENSION_DEFAULT_ALLOWLIST = (
     'search_files',
     'open_local_file',
@@ -170,6 +182,18 @@ def _is_offline_mode(env: Mapping[str, Any]) -> bool:
     )
     if value is None:
         return False
+    return str(value).strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
+
+
+def _is_local_low_resource_mode(env: Mapping[str, Any]) -> bool:
+    _, value = _resolve_env(
+        env,
+        'AICORE_LOCAL_LOW_RESOURCE_MODE',
+        'LOCAL_LLM_LOW_RESOURCE_MODE',
+        'AICORE_LOW_RESOURCE_MODE',
+    )
+    if value is None:
+        return _is_offline_mode(env)
     return str(value).strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
 
 
@@ -391,7 +415,9 @@ def build_local_provider_config(env: Mapping[str, Any]) -> CompatibleProviderCon
     _, api_key = _resolve_env(env, 'LOCAL_LLM_API_KEY', 'LLM_API_KEY', 'AICORE_LOCAL_LLM_API_KEY')
     _, auth_token = _resolve_env(env, 'LOCAL_LLM_AUTH_TOKEN', 'LLM_AUTH_TOKEN', 'AICORE_LOCAL_LLM_AUTH_TOKEN')
     _, model = _resolve_env(env, 'AICORE_LOCAL_LLM_MODEL', 'LOCAL_LLM_MODEL', 'LLM_MODEL', default=_DEFAULT_LOCAL_MODEL)
-    max_tokens = _int_env(env, 'AICORE_LOCAL_LLM_MAX_TOKENS', 'LOCAL_LLM_MAX_TOKENS', 'LLM_MAX_TOKENS', default=1400)
+    low_resource_mode = _is_local_low_resource_mode(env)
+    default_max_tokens = _DEFAULT_LOCAL_FAST_MAX_TOKENS if low_resource_mode else _DEFAULT_LOCAL_MAX_TOKENS
+    max_tokens = _int_env(env, 'AICORE_LOCAL_LLM_MAX_TOKENS', 'LOCAL_LLM_MAX_TOKENS', 'LLM_MAX_TOKENS', default=default_max_tokens)
     return CompatibleProviderConfig(
         provider_id='local',
         label='AetherLab Local',
@@ -576,6 +602,163 @@ def _normalize_message_text(payload: dict[str, Any]) -> str:
     return _ensure_query(payload.get('query') or payload.get('prompt') or payload.get('input'))
 
 
+def _compact_text(value: str, limit: int) -> str:
+    normalized = ' '.join(str(value or '').split()).strip()
+    if len(normalized) <= limit:
+        return normalized
+    return f"{normalized[: max(0, limit - 3)].rstrip()}..."
+
+
+def _extract_message_sequence(payload: dict[str, Any]) -> list[dict[str, str]]:
+    messages = payload.get('messages')
+    if not isinstance(messages, list):
+        return []
+    normalized_messages: list[dict[str, str]] = []
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        role = _get_clean(message.get('role')) or 'user'
+        content = message.get('content')
+        text = ''
+        if isinstance(content, str):
+            text = content.strip()
+        elif isinstance(content, list):
+            text = _extract_text_from_blocks(content)
+        if text:
+            normalized_messages.append({'role': role, 'content': text})
+    return normalized_messages
+
+
+def _get_session_id(payload: dict[str, Any]) -> str | None:
+    context = payload.get('context') if isinstance(payload.get('context'), dict) else {}
+    return (
+        _get_clean(payload.get('session_id'))
+        or _get_clean(payload.get('sessionId'))
+        or _get_clean(context.get('session_id'))
+        or _get_clean(context.get('sessionId'))
+    )
+
+
+def _load_session_memory_snippets(session_id: str | None) -> list[str]:
+    if not session_id:
+        return []
+    try:
+        record = FileBackedLongTermMemory().load(session_id)
+    except (OSError, ValueError, KeyError):
+        return []
+
+    snippets: list[str] = []
+    for entry in record.entries[-_DEFAULT_LOCAL_MEMORY_ITEMS:]:
+        compact = _compact_text(str(entry), _DEFAULT_LOCAL_MEMORY_LINE_LIMIT)
+        if compact:
+            snippets.append(compact)
+    return snippets
+
+
+def _format_rag_memory_lines(query: str) -> tuple[list[str], dict[str, Any]]:
+    contexts = []
+    if supabase_rag_is_configured():
+        try:
+            contexts.append(search_supabase_context(query, top_k=_DEFAULT_LOCAL_RAG_TOP_K))
+        except Exception:
+            pass
+    try:
+        contexts.append(search_obsidian_context(query, top_k=_DEFAULT_LOCAL_RAG_TOP_K))
+    except Exception:
+        pass
+
+    if not contexts:
+        return [], {'rag_matches_used': 0, 'rag_sources': []}
+
+    rag_context = merge_rag_contexts(*contexts, top_k=_DEFAULT_LOCAL_RAG_TOP_K)
+    lines: list[str] = []
+    source_names: list[str] = []
+    for match in rag_context.matches[:_DEFAULT_LOCAL_RAG_TOP_K]:
+        sources = match.metadata.get('sources', [match.metadata.get('source', 'local')])
+        if isinstance(sources, list):
+            source_names.extend(str(source) for source in sources if source)
+        source_label = '+'.join(str(source) for source in sources if source) if isinstance(sources, list) else 'local'
+        lines.append(_compact_text(f'[{source_label}] {match.title}: {match.excerpt}', _DEFAULT_LOCAL_MEMORY_LINE_LIMIT))
+
+    return lines, {
+        'rag_matches_used': len(lines),
+        'rag_sources': sorted(set(source_names)),
+        'rag_backend': rag_context.vector_backend,
+        'rag_embedding_engine': rag_context.embedding_engine,
+    }
+
+
+def _augment_local_chat_payload(
+    payload: dict[str, Any],
+    env: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    del env
+    query = _normalize_message_text(payload)
+    session_id = _get_session_id(payload)
+    if not query:
+        return payload, {'session_id': session_id, 'memory_entries_used': 0, 'rag_matches_used': 0, 'rag_sources': []}
+
+    memory_snippets = _load_session_memory_snippets(session_id)
+    rag_lines, rag_meta = _format_rag_memory_lines(query)
+    blocks: list[str] = []
+    if memory_snippets:
+        blocks.append("Memoria recente da sessao:\n" + '\n'.join(f"- {item}" for item in memory_snippets))
+    if rag_lines:
+        blocks.append("Memoria local relevante (Obsidian + Supabase local):\n" + '\n'.join(f"- {item}" for item in rag_lines))
+
+    if not blocks:
+        return payload, {'session_id': session_id, 'memory_entries_used': 0, **rag_meta}
+
+    context_block = _compact_text(
+        "Use o contexto local apenas se ele ajudar diretamente a resposta.\n\n" + '\n\n'.join(blocks),
+        _DEFAULT_LOCAL_AUGMENT_LIMIT,
+    )
+    augmented = dict(payload)
+    existing_system = _get_clean(payload.get('system')) or _get_clean(payload.get('system_prompt')) or ''
+    augmented['system'] = f"{existing_system}\n\n{context_block}".strip() if existing_system else context_block
+    return augmented, {
+        'session_id': session_id,
+        'memory_entries_used': len(memory_snippets),
+        **rag_meta,
+    }
+
+
+def _optimize_local_payload(
+    payload: dict[str, Any],
+    config: CompatibleProviderConfig,
+    env: Mapping[str, Any],
+) -> tuple[str, str, int, list[dict[str, str]], str]:
+    low_resource_mode = config.provider_id == 'local' and _is_local_low_resource_mode(env)
+    system_prompt = _get_clean(payload.get('system')) or _get_clean(payload.get('system_prompt')) or ''
+    model = _get_clean(payload.get('model')) or config.model
+    raw_max_tokens = payload.get('max_tokens') or payload.get('maxTokens') or config.max_tokens
+    try:
+        max_tokens = int(raw_max_tokens)
+    except (TypeError, ValueError):
+        max_tokens = config.max_tokens
+
+    message_sequence = _extract_message_sequence(payload)
+    if message_sequence:
+        last_messages = message_sequence[-_DEFAULT_LOCAL_HISTORY_LIMIT:] if low_resource_mode else message_sequence
+        compacted_lines = [
+            f"{item['role'].upper()}: {_compact_text(item['content'], _DEFAULT_LOCAL_TEXT_LIMIT if low_resource_mode else _MAX_QUERY_LENGTH)}"
+            for item in last_messages
+        ]
+        text = '\n'.join(compacted_lines).strip()
+    else:
+        raw_text = _normalize_message_text(payload)
+        text_limit = _DEFAULT_LOCAL_TEXT_LIMIT if low_resource_mode else _MAX_QUERY_LENGTH
+        text = _compact_text(raw_text, text_limit)
+
+    if low_resource_mode:
+        system_prompt = _compact_text(system_prompt, _DEFAULT_LOCAL_SYSTEM_LIMIT)
+        max_tokens = max(96, min(max_tokens, config.max_tokens, _DEFAULT_LOCAL_FAST_MAX_TOKENS))
+    else:
+        max_tokens = max(96, min(max_tokens, config.max_tokens))
+
+    return text, system_prompt, max_tokens, message_sequence, ('low_resource' if low_resource_mode else 'standard')
+
+
 def _is_provider_memory_error(error: Exception) -> bool:
     message = str(error or '').strip().lower()
     return 'requires more system memory' in message or 'memória' in message or 'memory' in message
@@ -594,20 +777,27 @@ def _is_provider_unavailable_error(error: Exception) -> bool:
 
 
 def _search_local_rag_matches(query: str) -> list[dict[str, Any]]:
-    rag_context = None
+    supabase_context = None
+    obsidian_context = None
     if supabase_rag_is_configured():
         try:
-            rag_context = search_supabase_context(query, top_k=3)
+            supabase_context = search_supabase_context(query, top_k=_DEFAULT_LOCAL_RAG_TOP_K)
         except Exception:
-            rag_context = None
-    if rag_context is None or not getattr(rag_context, 'matches', ()):
-        try:
-            rag_context = search_obsidian_context(query, top_k=3)
-        except Exception as exc:
+            supabase_context = None
+    try:
+        obsidian_context = search_obsidian_context(query, top_k=_DEFAULT_LOCAL_RAG_TOP_K)
+    except Exception as exc:
+        if supabase_context is None:
             return [{'title': 'rag_unavailable', 'excerpt': str(exc), 'score': 0.0, 'path': None}]
+        obsidian_context = None
+
+    rag_context = merge_rag_contexts(
+        *[context for context in (supabase_context, obsidian_context) if context is not None],
+        top_k=_DEFAULT_LOCAL_RAG_TOP_K,
+    )
 
     matches: list[dict[str, Any]] = []
-    for match in getattr(rag_context, 'matches', ())[:3]:
+    for match in getattr(rag_context, 'matches', ())[:_DEFAULT_LOCAL_RAG_TOP_K]:
         matches.append(
             {
                 'title': getattr(match, 'title', '') or 'Sem titulo',
@@ -779,6 +969,34 @@ def _probe_provider_transport(
         except RuntimeError:
             pass
 
+    openai_chat_endpoint = _join_url(config.base_url, '/v1/chat/completions')
+    if openai_chat_endpoint:
+        try:
+            payload = _json_request(
+                openai_chat_endpoint,
+                {
+                    'model': config.model,
+                    'max_tokens': 8,
+                    'stream': False,
+                    'messages': [{'role': 'user', 'content': 'ping'}],
+                },
+                headers=headers,
+                timeout=timeout,
+            )
+            return ProviderTransportProbe(
+                endpoint=openai_chat_endpoint,
+                mode='openai_chat_completions',
+                model=_get_clean(payload.get('model')) or config.model,
+            )
+        except RuntimeError as exc:
+            message = str(exc).lower()
+            if 'model' in message and 'not found' in message:
+                return ProviderTransportProbe(
+                    endpoint=openai_chat_endpoint,
+                    mode='openai_chat_completions',
+                    model=config.model,
+                )
+
     ollama_endpoint = _join_url(config.base_url, '/api/tags')
     if ollama_endpoint:
         try:
@@ -789,9 +1007,10 @@ def _probe_provider_transport(
                 first = models[0]
                 if isinstance(first, dict):
                     model = _get_clean(first.get('name')) or model
+            openai_chat_endpoint = _join_url(config.base_url, '/v1/chat/completions') or config.base_url
             return ProviderTransportProbe(
-                endpoint=_join_url(config.base_url, '/api/chat') or config.base_url,
-                mode='ollama_chat',
+                endpoint=openai_chat_endpoint,
+                mode='openai_chat_completions',
                 model=model,
             )
         except RuntimeError:
@@ -827,7 +1046,8 @@ def _provider_runtime_diagnostics(config: CompatibleProviderConfig) -> dict[str,
         diagnostics['error'] = 'Provider is not configured.'
         return diagnostics
     try:
-        transport = _probe_provider_transport(config, timeout=1.5)
+        probe_timeout = 6.0 if config.provider_id == 'local' else 1.5
+        transport = _probe_provider_transport(config, timeout=probe_timeout)
         diagnostics.update(
             {
                 'runtime_family': _runtime_family_from_transport(transport.mode),
@@ -863,7 +1083,13 @@ def execute_request(request: ExecuteRequest) -> dict[str, Any]:
 
 
 def rag_context_request(request: RagContextRequest) -> dict[str, Any]:
-    rag_context = search_obsidian_context(request.query, top_k=max(1, request.top_k))
+    contexts = [search_obsidian_context(request.query, top_k=max(1, request.top_k))]
+    if supabase_rag_is_configured():
+        try:
+            contexts.insert(0, search_supabase_context(request.query, top_k=max(1, request.top_k)))
+        except Exception:
+            pass
+    rag_context = merge_rag_contexts(*contexts, top_k=max(1, request.top_k))
     return rag_context.to_dict()
 
 
@@ -912,18 +1138,22 @@ def providers_json(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
     }
 
 
-def _invoke_compatible_provider(config: CompatibleProviderConfig, payload: dict[str, Any]) -> dict[str, Any]:
+def _invoke_compatible_provider(
+    config: CompatibleProviderConfig,
+    payload: dict[str, Any],
+    env: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     if not config.base_url:
         raise RuntimeError(f"Provider '{config.provider_id}' is not configured.")
 
-    text = _normalize_message_text(payload)
-    system_prompt = _get_clean(payload.get('system')) or _get_clean(payload.get('system_prompt')) or ''
+    runtime_env = env or os.environ
+    text, system_prompt, max_tokens, message_sequence, performance_profile = _optimize_local_payload(payload, config, runtime_env)
     model = _get_clean(payload.get('model')) or config.model
-    max_tokens = payload.get('max_tokens') or payload.get('maxTokens') or config.max_tokens
     transport = _probe_provider_transport(config, timeout=2.5)
     transport_default_model = transport.model or config.model
     requested_model = model or transport_default_model
     headers = _build_provider_headers(config)
+    request_timeout = _LOCAL_PROVIDER_TIMEOUT_SECONDS if config.provider_id == 'local' else _DEFAULT_TIMEOUT_SECONDS
     provider_default_model = config.model or ''
     should_prefer_transport_model = (
         transport_default_model
@@ -950,6 +1180,7 @@ def _invoke_compatible_provider(config: CompatibleProviderConfig, payload: dict[
                 ],
             },
             headers={'x-llm-version': '2023-06-01', **headers},
+            timeout=request_timeout,
         )
         response_content = response.get('content')
         response_model = response.get('model') or requested_model
@@ -966,6 +1197,7 @@ def _invoke_compatible_provider(config: CompatibleProviderConfig, payload: dict[
                 ],
             },
             headers=headers,
+            timeout=request_timeout,
         )
         choices = response.get('choices') if isinstance(response.get('choices'), list) else []
         message = choices[0].get('message') if choices and isinstance(choices[0], dict) else {}
@@ -987,6 +1219,7 @@ def _invoke_compatible_provider(config: CompatibleProviderConfig, payload: dict[
                 },
             },
             headers=headers,
+            timeout=request_timeout,
         )
         message = response.get('message') if isinstance(response.get('message'), dict) else {}
         response_text = _get_clean(message.get('content')) or response.get('response') or response.get('message') or ''
@@ -1013,6 +1246,9 @@ def _invoke_compatible_provider(config: CompatibleProviderConfig, payload: dict[
             'transport_default_model': transport_default_model,
             'route': transport.mode,
             'transport_endpoint': transport.endpoint,
+            'performance_profile': performance_profile,
+            'effective_max_tokens': max_tokens,
+            'history_messages_used': len(message_sequence[-_DEFAULT_LOCAL_HISTORY_LIMIT:]) if performance_profile == 'low_resource' and message_sequence else len(message_sequence),
         },
     }
 
@@ -1023,8 +1259,18 @@ def messages_json(payload: dict[str, Any], env: Mapping[str, Any] | None = None)
     if _is_offline_mode(runtime_env) and provider_id != 'local':
         raise RuntimeError(f"Offline mode is active. Provider '{provider_id}' is blocked.")
     config = build_local_provider_config(runtime_env) if provider_id == 'local' else build_cloud_provider_config(runtime_env)
+    effective_payload = payload
+    local_memory_meta: dict[str, Any] = {}
+    if provider_id == 'local':
+        effective_payload, local_memory_meta = _augment_local_chat_payload(payload, runtime_env)
     try:
-        return _invoke_compatible_provider(config, payload)
+        response = _invoke_compatible_provider(config, effective_payload, runtime_env)
+        if local_memory_meta:
+            response['metadata'] = {
+                **(response.get('metadata') if isinstance(response.get('metadata'), dict) else {}),
+                **local_memory_meta,
+            }
+        return response
     except RuntimeError as error:
         if provider_id == 'local' and _is_provider_unavailable_error(error):
             return _build_degraded_local_messages_response(payload, error)
@@ -1074,6 +1320,7 @@ def health(env: Mapping[str, Any] | None = None) -> dict[str, Any]:
                 **local.to_public_dict(),
                 'available': bool(local.configured and local_diagnostics.get('reachable')),
                 'diagnostics': local_diagnostics,
+                'performance_profile': 'low_resource' if _is_local_low_resource_mode(runtime_env) else 'standard',
             },
             'cloud': {
                 **cloud.to_public_dict(),

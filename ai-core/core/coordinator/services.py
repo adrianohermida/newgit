@@ -11,6 +11,7 @@ from adapters.supabase_rag_adapter import is_configured as supabase_is_configure
 from adapters.supabase_rag_adapter import persist_memory as supabase_persist_memory
 from adapters.supabase_rag_adapter import search_supabase_context
 from ..memory import FileBackedLongTermMemory, LongTermMemoryRecord
+from .rag_fusion import merge_rag_contexts
 
 
 class LongTermMemoryStore(Protocol):
@@ -43,11 +44,20 @@ class MemoryNoteSink(Protocol):
 @dataclass(frozen=True)
 class DefaultRagService:
     def search(self, query: str, top_k: int = 5) -> ObsidianRagContext:
-        # Prefer Supabase pgvector (real embeddings) when credentials are present;
-        # fall back to hash-based Obsidian local search for offline/dev use.
-        if supabase_is_configured():
-            return search_supabase_context(query=query, top_k=top_k)
-        return search_obsidian_context(query=query, top_k=top_k)
+        obsidian_context = search_obsidian_context(query=query, top_k=top_k)
+        if not supabase_is_configured():
+            return obsidian_context
+        try:
+            supabase_context = search_supabase_context(query=query, top_k=top_k)
+        except SupabaseRagError as exc:
+            supabase_context = ObsidianRagContext(
+                enabled=False,
+                vault_path=None,
+                memory_dir=None,
+                error=str(exc),
+                vector_backend='supabase_pgvector',
+            )
+        return merge_rag_contexts(supabase_context, obsidian_context, top_k=top_k)
 
 
 @dataclass(frozen=True)
@@ -95,7 +105,12 @@ class SupabaseMemoryNoteSink:
                 session_id=session_id,
                 route=str((context or {}).get('route') or ''),
                 role=str(((context or {}).get('profile') or {}).get('role') or ''),
-                metadata={k: v for k, v in (context or {}).items() if isinstance(v, (str, int, float, bool))},
+                metadata={
+                    **{k: v for k, v in (context or {}).items() if isinstance(v, (str, int, float, bool))},
+                    'title': title or query[:120],
+                    'rag_titles': [match.title for match in rag_matches[:5]],
+                    'rag_sources': [match.metadata.get('source') for match in rag_matches[:5]],
+                },
             )
         except (SupabaseRagError, OSError):
             pass  # Non-fatal: Obsidian is the durable local backup

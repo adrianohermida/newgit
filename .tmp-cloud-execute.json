@@ -1,0 +1,8 @@
+﻿{
+    "query":  "Responda exatamente OK_EXECUTE",
+    "context":  {
+                    "assistant":  {
+                                      "mode":  "chat"
+                                  }
+                }
+}

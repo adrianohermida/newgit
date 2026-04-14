@@ -99,6 +99,8 @@ $resolvedLocalLlmModel = First-Value @(
 $env:AICORE_API_BASE_URL = $resolvedAiCoreBaseUrl
 $env:AICORE_LOCAL_LLM_BASE_URL = $resolvedLocalLlmBaseUrl
 $env:AICORE_LOCAL_LLM_MODEL = $resolvedLocalLlmModel
+$env:AICORE_LOCAL_LOW_RESOURCE_MODE = First-Value @($env:AICORE_LOCAL_LOW_RESOURCE_MODE, "true")
+$env:AICORE_LOCAL_LLM_MAX_TOKENS = First-Value @($env:AICORE_LOCAL_LLM_MAX_TOKENS, "224")
 $env:LOCAL_LLM_BASE_URL = $resolvedLocalLlmBaseUrl
 $env:LLM_BASE_URL = $resolvedLocalLlmBaseUrl
 $env:LOCAL_LLM_MODEL = $resolvedLocalLlmModel
@@ -124,6 +126,8 @@ Write-Host "AI Core local"
 Write-Host "  AICORE_API_BASE_URL=$resolvedAiCoreBaseUrl"
 Write-Host "  LOCAL_LLM_BASE_URL=$resolvedLocalLlmBaseUrl"
 Write-Host "  LOCAL_LLM_MODEL=$resolvedLocalLlmModel"
+Write-Host "  LOCAL_LOW_RESOURCE_MODE=$($env:AICORE_LOCAL_LOW_RESOURCE_MODE)"
+Write-Host "  LOCAL_MAX_TOKENS=$($env:AICORE_LOCAL_LLM_MAX_TOKENS)"
 Write-Host "  OFFLINE_MODE=$($env:AICORE_OFFLINE_MODE)"
 Write-Host "  OBSIDIAN_VAULT=$resolvedVaultPath"
 Write-Host "  PORT=$resolvedPort"

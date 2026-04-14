@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 from unittest.mock import patch
+from adapters.obsidian_adapter import ObsidianMatch, ObsidianRagContext
 
 from api.server import (
     capabilities_json,
@@ -28,6 +29,18 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(config.base_url, 'http://127.0.0.1:11434')
         self.assertEqual(config.model, 'aetherlab-legal-local-v1')
         self.assertTrue(config.configured)
+        self.assertEqual(config.max_tokens, 512)
+
+    def test_build_local_provider_uses_low_resource_defaults_when_offline(self) -> None:
+        config = build_local_provider_config(
+            {
+                'AICORE_LOCAL_LLM_BASE_URL': 'http://127.0.0.1:11434',
+                'AICORE_LOCAL_LLM_MODEL': 'aetherlab-legal-local-v1',
+                'AICORE_OFFLINE_MODE': 'true',
+            }
+        )
+
+        self.assertEqual(config.max_tokens, 224)
 
     def test_build_local_provider_prefers_aicore_runtime_over_generic_local_alias(self) -> None:
         config = build_local_provider_config(
@@ -41,6 +54,17 @@ class ApiServerTests(unittest.TestCase):
 
         self.assertEqual(config.base_url, 'http://127.0.0.1:11434')
         self.assertEqual(config.model, 'aetherlab-legal-local-v1')
+
+    def test_build_local_provider_can_disable_low_resource_defaults(self) -> None:
+        config = build_local_provider_config(
+            {
+                'AICORE_LOCAL_LLM_BASE_URL': 'http://127.0.0.1:11434',
+                'AICORE_LOCAL_LLM_MODEL': 'aetherlab-legal-local-v1',
+                'AICORE_LOCAL_LOW_RESOURCE_MODE': 'false',
+            }
+        )
+
+        self.assertEqual(config.max_tokens, 512)
 
     def test_build_cloud_provider_reuses_existing_remote_runtime(self) -> None:
         config = build_cloud_provider_config(
@@ -121,6 +145,160 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(payload['metadata']['provider'], 'local')
         self.assertEqual(payload['metadata']['route'], 'openai_chat_completions')
         self.assertEqual(payload['content'][0]['text'], 'Resposta via runtime OpenAI local')
+        self.assertEqual(payload['metadata']['performance_profile'], 'standard')
+
+    def test_messages_json_uses_low_resource_profile_by_default_for_local(self) -> None:
+        with patch('api.server._json_request') as mocked_request, patch('api.server._json_get_request') as mocked_get:
+            mocked_request.side_effect = [
+                RuntimeError('404'),
+                {
+                    'id': 'chatcmpl_local',
+                    'model': 'aetherlab-legal-local-v1:latest',
+                    'choices': [
+                        {
+                            'message': {
+                                'role': 'assistant',
+                                'content': 'Resposta enxuta local',
+                            }
+                        }
+                    ],
+                },
+            ]
+            mocked_get.return_value = {
+                'object': 'list',
+                'data': [{'id': 'aetherlab-legal-local-v1:latest'}],
+            }
+
+            payload = messages_json(
+                {
+                    'messages': [
+                        {'role': 'user', 'content': [{'type': 'text', 'text': 'mensagem 1'}]},
+                        {'role': 'assistant', 'content': [{'type': 'text', 'text': 'mensagem 2'}]},
+                        {'role': 'user', 'content': [{'type': 'text', 'text': 'mensagem 3'}]},
+                        {'role': 'assistant', 'content': [{'type': 'text', 'text': 'mensagem 4'}]},
+                        {'role': 'user', 'content': [{'type': 'text', 'text': 'mensagem 5'}]},
+                    ],
+                    'model': 'aetherlab-legal-local-v1',
+                    'max_tokens': 1200,
+                },
+                env={
+                    'AICORE_LOCAL_LLM_BASE_URL': 'http://127.0.0.1:11434',
+                    'AICORE_LOCAL_LOW_RESOURCE_MODE': 'true',
+                },
+            )
+
+        self.assertEqual(payload['metadata']['performance_profile'], 'low_resource')
+        self.assertEqual(payload['metadata']['effective_max_tokens'], 224)
+        self.assertEqual(payload['metadata']['history_messages_used'], 4)
+
+    def test_messages_json_enriches_local_chat_with_session_memory_and_hybrid_rag(self) -> None:
+        with patch('api.server._json_request') as mocked_request, \
+             patch('api.server._json_get_request') as mocked_get, \
+             patch('api.server.FileBackedLongTermMemory.load') as mocked_load, \
+             patch('api.server.search_supabase_context') as mocked_supabase, \
+             patch('api.server.search_obsidian_context') as mocked_obsidian:
+            mocked_request.side_effect = [
+                RuntimeError('404'),
+                {
+                    'id': 'chatcmpl_local',
+                    'model': 'aetherlab-legal-local-v1:latest',
+                    'choices': [
+                        {
+                            'message': {
+                                'role': 'assistant',
+                                'content': 'Resposta com memoria',
+                            }
+                        }
+                    ],
+                },
+            ]
+            mocked_get.return_value = {
+                'object': 'list',
+                'data': [{'id': 'aetherlab-legal-local-v1:latest'}],
+            }
+            mocked_load.return_value.entries = (
+                'user_query: revisar acordo',
+                'final_output: prazo informado de 15 dias',
+            )
+            mocked_supabase.return_value = ObsidianRagContext(
+                    enabled=True,
+                    vault_path='supabase://dotobot_memory_embeddings',
+                    memory_dir=None,
+                    matches=(
+                        ObsidianMatch(
+                            id='supa-1',
+                            title='Prazo recurso',
+                            path='supabase://1',
+                            score=0.9,
+                            excerpt='prazo de 15 dias encontrado',
+                            metadata={'source': 'supabase_pgvector'},
+                        ),
+                    ),
+                    vector_backend='supabase_pgvector',
+            )
+            mocked_obsidian.return_value = ObsidianRagContext(
+                enabled=True,
+                vault_path='D:/Obsidian/hermidamaia',
+                memory_dir='D:/Obsidian/hermidamaia/Dotobot/Memory',
+                matches=(
+                    ObsidianMatch(
+                        id='obs-1',
+                        title='Cliente Maia',
+                        path='D:/Obsidian/hermidamaia/Dotobot/Memory/cliente-maia.md',
+                        score=0.7,
+                        excerpt='cliente com acordo anterior relevante',
+                        metadata={'source': 'obsidian'},
+                    ),
+                ),
+                vector_backend='obsidian_hybrid_local_index',
+            )
+
+            payload = messages_json(
+                {
+                    'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'qual o prazo do acordo?'}]}],
+                    'model': 'aetherlab-legal-local-v1',
+                    'sessionId': 'sess_test_memory',
+                },
+                env={
+                    'AICORE_LOCAL_LLM_BASE_URL': 'http://127.0.0.1:11434',
+                    'AICORE_LOCAL_LOW_RESOURCE_MODE': 'true',
+                },
+            )
+
+        self.assertEqual(payload['metadata']['session_id'], 'sess_test_memory')
+        self.assertEqual(payload['metadata']['memory_entries_used'], 2)
+        self.assertGreaterEqual(payload['metadata']['rag_matches_used'], 1)
+        self.assertIn('obsidian', payload['metadata']['rag_sources'])
+
+    def test_probe_prefers_openai_chat_when_model_catalog_is_empty(self) -> None:
+        with patch('api.server._json_request') as mocked_request, patch('api.server._json_get_request') as mocked_get:
+            mocked_request.side_effect = [
+                RuntimeError('404'),
+                {
+                    'id': 'chatcmpl_local',
+                    'model': 'aetherlab-legal-local-v1:latest',
+                    'choices': [
+                        {
+                            'message': {
+                                'role': 'assistant',
+                                'content': 'ok',
+                            }
+                        }
+                    ],
+                },
+            ]
+            mocked_get.return_value = {'object': 'list', 'data': None}
+
+            payload = messages_json(
+                {
+                    'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'Olá local'}]}],
+                    'model': 'aetherlab-legal-local-v1',
+                },
+                env={'AICORE_LOCAL_LLM_BASE_URL': 'http://127.0.0.1:11434'},
+            )
+
+        self.assertEqual(payload['metadata']['route'], 'openai_chat_completions')
+        self.assertEqual(payload['metadata']['resolved_model'], 'aetherlab-legal-local-v1:latest')
 
     def test_messages_json_falls_back_to_degraded_execute_when_local_model_runs_out_of_memory(self) -> None:
         with patch('api.server._json_request') as mocked_request, patch('api.server._json_get_request') as mocked_get:

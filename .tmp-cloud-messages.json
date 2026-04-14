@@ -1,0 +1,15 @@
+﻿{
+    "messages":  [
+                     {
+                         "content":  [
+                                         {
+                                             "text":  "Responda exatamente OK_REMOTE_CATCH",
+                                             "type":  "text"
+                                         }
+                                     ],
+                         "role":  "user"
+                     }
+                 ],
+    "model":  "aetherlab-legal-v1",
+    "max_tokens":  64
+}

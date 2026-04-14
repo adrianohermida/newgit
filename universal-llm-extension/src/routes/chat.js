@@ -11,16 +11,17 @@ function createChatRouter() {
   });
 
   router.post("/chat", async (req, res) => {
-    const { provider = "local", messages, model, context } = req.body || {};
+    const { provider = "local", messages, model, context, sessionId } = req.body || {};
     if (!Array.isArray(messages) || !messages.length) return res.status(400).json({ ok: false, error: "messages[] e obrigatorio." });
 
     const configs = getConfigs();
-    const enrichedMessages = context
-      ? [...messages.slice(0, -1), { role: "user", content: `${context}\n\n${messages[messages.length - 1].content}` }]
+    const stringContext = typeof context === "string" ? context : "";
+    const enrichedMessages = stringContext
+      ? [...messages.slice(0, -1), { role: "user", content: `${stringContext}\n\n${messages[messages.length - 1].content}` }]
       : messages;
 
     try {
-      if (provider === "local") return res.json(await callLocal(enrichedMessages, model || configs.local.model));
+      if (provider === "local") return res.json(await callLocal(enrichedMessages, model || configs.local.model, { context, sessionId }));
       if (provider === "cloud") return res.json(await callCloud(enrichedMessages, model || configs.cloud.model));
       if (provider === "cloudflare") return res.json(await callCloudflare(enrichedMessages, model || configs.cloudflare.model));
       throw new Error(`Provider desconhecido: ${provider}`);

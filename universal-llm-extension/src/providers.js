@@ -40,13 +40,25 @@ function parseCatalogProbe(probe, parser) {
 
 // ─── Chamadas LLM ─────────────────────────────────────────────────────────────
 
-async function callLocal(messages, model) {
+async function callLocal(messages, model, options = {}) {
   const configs = getConfigs();
   let lastError = null;
   for (const baseUrl of configs.local.candidates) {
     const target = joinUrl(baseUrl, "/v1/messages");
     try {
-      const response = await jsonPost(target, { model, messages, max_tokens: 1400 });
+      const response = await jsonPost(
+        target,
+        {
+          model,
+          messages,
+          max_tokens: 224,
+          sessionId: options.sessionId || null,
+          session_id: options.sessionId || null,
+          context: options.context || null,
+        },
+        {},
+        { timeoutMs: 240000 },
+      );
       const content = extractContent(response.body);
       if (response.status >= 200 && response.status < 300 && content) {
         return {

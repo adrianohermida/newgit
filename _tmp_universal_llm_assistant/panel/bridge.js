@@ -5,7 +5,7 @@ import { pushErrorLog } from "./error-log.js";
 
 export async function checkBridge(el, updateStatusDot) {
   try {
-    const data = await parseJsonResponse(await safeFetch(`${BRIDGE_URL}/health`, {}, 3000));
+    const data = await readBridgeHealth();
     state.bridgeOk = data.ok === true;
     updateStatusDot(el, state.bridgeOk ? "online" : "degraded");
     return data;
@@ -64,8 +64,8 @@ export async function callChat(provider, messages) {
   const response = await safeFetch(`${BRIDGE_URL}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ provider, model: getModelForProvider(provider), messages }),
-  }, 60000);
+    body: JSON.stringify({ provider, model: getModelForProvider(provider), messages, sessionId: state.sessionId, context: { session_id: state.sessionId, route: "/extension/chat" } }),
+  }, provider === "local" ? 240000 : 60000);
   const data = await parseJsonResponse(response);
   if (!data.ok) {
     const failedAttempt = data?.diagnosis?.attempts?.find((item) => !item.ok);
@@ -161,4 +161,17 @@ function pushProviderErrorLog(provider, data, attempt) {
       payload: data,
     },
   });
+}
+
+async function readBridgeHealth() {
+  try {
+    return await parseJsonResponse(await safeFetch(`${BRIDGE_URL}/health`, {}, 8000));
+  } catch (firstError) {
+    await delay(350);
+    return parseJsonResponse(await safeFetch(`${BRIDGE_URL}/health`, {}, 8000));
+  }
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

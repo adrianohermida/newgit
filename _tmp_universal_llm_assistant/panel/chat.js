@@ -2,6 +2,7 @@ import { state } from "./state.js";
 import { callChat, runTask } from "./bridge.js";
 import { pushErrorLog } from "./error-log.js";
 import { syncSession } from "./lists.js";
+import { updateMemoryStrip } from "./dom.js";
 
 const TASK_TOKENS = [
   "analisar", "extrair", "preencher", "abrir", "navegar",
@@ -36,8 +37,12 @@ export async function sendMessage(el, addMessage, addSystemMessage, renderTasks)
     const reply = isTaskIntent(text)
       ? await sendTaskMessage(el, text, addSystemMessage, renderTasks)
       : await sendChatMessage(text);
-    state.messages.push({ role: "assistant", content: reply });
-    addMessage(el, "assistant", reply);
+    state.messages.push({ role: "assistant", content: reply.content });
+    addMessage(el, "assistant", reply.content);
+    state.localMemoryMeta = reply.metadata || null;
+    updateMemoryStrip(el, state.localMemoryMeta);
+    const memoryHint = buildMemoryHint(reply.metadata);
+    if (memoryHint) addSystemMessage(el, memoryHint);
     if (state.settings.autoSaveSessions) {
       // sync failure nao deve interromper o chat nem mascarar erros LLM
       syncSession().catch(() => {});
@@ -62,7 +67,10 @@ export async function sendMessage(el, addMessage, addSystemMessage, renderTasks)
 
 async function sendChatMessage(text) {
   const result = await callChat(state.provider, state.messages);
-  return result.content || "(sem resposta)";
+  return {
+    content: result.content || "(sem resposta)",
+    metadata: result.metadata || null,
+  };
 }
 
 async function sendTaskMessage(el, text, addSystemMessage, renderTasks) {
@@ -90,7 +98,10 @@ function buildTaskReply(text, result) {
   const progress = Number(primary?.progressPct || 0);
   const summary = result.result?.message || result.result?.content || "";
   const suffix = summary ? `\n\n${summary}` : "";
-  return `Plano iniciado: ${title}\nStatus: ${status}\nProgresso: ${progress}%\nTasks criadas: ${tasks.length || 1}${suffix}`;
+  return {
+    content: `Plano iniciado: ${title}\nStatus: ${status}\nProgresso: ${progress}%\nTasks criadas: ${tasks.length || 1}${suffix}`,
+    metadata: null,
+  };
 }
 
 function setLoading(el, value) {
@@ -104,4 +115,16 @@ function setLoading(el, value) {
   wrap.innerHTML = '<div class="message-bubble typing"><span></span><span></span><span></span></div>';
   el.chatArea.appendChild(wrap);
   el.chatArea.scrollTop = el.chatArea.scrollHeight;
+}
+
+function buildMemoryHint(metadata) {
+  if (!metadata || state.provider !== "local") return "";
+  const parts = [];
+  if (metadata.performance_profile) parts.push(`perfil ${metadata.performance_profile}`);
+  if (Number(metadata.memory_entries_used || 0) > 0) parts.push(`${metadata.memory_entries_used} memorias da sessao`);
+  if (Number(metadata.rag_matches_used || 0) > 0) parts.push(`${metadata.rag_matches_used} referencias locais`);
+  if (Array.isArray(metadata.rag_sources) && metadata.rag_sources.length) {
+    parts.push(metadata.rag_sources.join(" + "));
+  }
+  return parts.length ? `Memoria local ativa: ${parts.join(" | ")}` : "";
 }

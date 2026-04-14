@@ -35,6 +35,11 @@ export async function safeFetch(url, opts = {}, timeoutMs = 10000) {
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, { ...opts, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error(`Timeout ao consultar ${url} em ${timeoutMs}ms.`);
+    }
+    throw error;
   } finally {
     clearTimeout(timer);
   }

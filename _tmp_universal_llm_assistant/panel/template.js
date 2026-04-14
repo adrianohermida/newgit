@@ -29,6 +29,10 @@ export function buildPanelMarkup() {
         <div class="chat-hero">
           <div class="chat-hero-title">Universal LLM Assistant</div>
           <div class="chat-hero-sub">Chat operacional com contexto de pagina, tasks auditaveis e automacoes de navegador.</div>
+          <div id="memory-strip" class="memory-strip hidden">
+            <span id="memory-strip-badge" class="memory-badge">Memoria local</span>
+            <span id="memory-strip-text" class="memory-strip-text"></span>
+          </div>
         </div>
         <div id="chat-area" class="chat-area">
           <div class="empty-state">

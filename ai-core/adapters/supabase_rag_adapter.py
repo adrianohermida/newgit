@@ -25,6 +25,7 @@ import os
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from functools import lru_cache
 from hashlib import sha256
 from typing import Any
 
@@ -113,26 +114,24 @@ class SupabaseRagError(RuntimeError):
 # Embedding generation
 # ---------------------------------------------------------------------------
 
-def generate_embedding(text: str) -> list[float]:
-    """Call the deployed dotobot-embed edge function to get a 384-dim vector."""
-    base_url = _get_supabase_url()
-    api_key = _get_service_key()
-    if not base_url or not api_key:
-        raise SupabaseRagError('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required')
-
-    function_name = _get_embed_function()
+@lru_cache(maxsize=128)
+def _generate_embedding_cached(
+    base_url: str,
+    api_key: str,
+    function_name: str,
+    embedding_model: str,
+    embed_secret: str,
+    text: str,
+) -> tuple[float, ...]:
     url = f'{base_url.rstrip("/")}/functions/v1/{function_name}'
     headers: dict[str, str] = {
         'Authorization': f'Bearer {api_key}',
         'apikey': api_key,
         'Content-Type': 'application/json',
     }
-    secret = _get_embed_secret()
-    if secret:
-        headers['x-dotobot-embed-secret'] = secret
-
-    result = _post(url, {'input': text, 'model': _get_embedding_model()}, headers)
-
+    if embed_secret:
+        headers['x-dotobot-embed-secret'] = embed_secret
+    result = _post(url, {'input': text, 'model': embedding_model}, headers)
     embedding = (
         result.get('embedding')
         or (result.get('result') or {}).get('embedding')
@@ -140,7 +139,25 @@ def generate_embedding(text: str) -> list[float]:
     )
     if not isinstance(embedding, list):
         raise SupabaseRagError(f'dotobot-embed did not return a valid vector: {result}')
-    return embedding
+    return tuple(float(value) for value in embedding)
+
+
+def generate_embedding(text: str) -> list[float]:
+    """Call the deployed dotobot-embed edge function to get a 384-dim vector."""
+    base_url = _get_supabase_url()
+    api_key = _get_service_key()
+    if not base_url or not api_key:
+        raise SupabaseRagError('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required')
+
+    embedding = _generate_embedding_cached(
+        base_url,
+        api_key,
+        _get_embed_function(),
+        _get_embedding_model(),
+        _get_embed_secret() or '',
+        text.strip(),
+    )
+    return list(embedding)
 
 
 # ---------------------------------------------------------------------------
