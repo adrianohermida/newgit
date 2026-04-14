@@ -202,7 +202,7 @@ function ModuleCommandCard({ module, isLightTheme }) {
           <p className="font-semibold">{module?.backlog || 0}</p>
         </div>
       </div>
-      <p className="opacity-65 mb-1">Pressao operacional: {module?.pressure || 0}</p>
+      <p className="opacity-65 mb-1">Prioridade atual: {module?.pressure || 0}</p>
       <p className="opacity-65 mb-1">Lote sugerido: {module?.suggestedBatch || 5}</p>
       <p className="font-semibold">{module?.recommendedAction || "Abrir modulo"}</p>
     </Link>
@@ -235,7 +235,7 @@ export default function InternoHomePage() {
         },
       });
     } catch (error) {
-      setHmadvOps({ loading: false, error: error.message || "Falha ao carregar controle HMADV.", data: null });
+      setHmadvOps({ loading: false, error: error.message || "Falha ao carregar o panorama do produto.", data: null });
     }
   }
 
@@ -309,9 +309,9 @@ export default function InternoHomePage() {
                   </div>
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <StatCard label="Processos pendentes" value={(hmadvOps.data.processosJobs?.pending || 0) + (hmadvOps.data.processosJobs?.running || 0)} helper="Itens de processos aguardando a proxima rodada." />
-                    <StatCard label="Publicações pendentes" value={(hmadvOps.data.publicacoesJobs?.pending || 0) + (hmadvOps.data.publicacoesJobs?.running || 0)} helper="Jobs de publicações aguardando drenagem." />
-                    <StatCard label="Sem account" value={hmadvOps.data.processosOverview?.processosSemAccount || 0} helper="Processos órfãos ainda sem Sales Account." />
-                    <StatCard label="Sem processo" value={hmadvOps.data.publicacoesOverview?.publicacoesSemProcesso || 0} helper="Publicações ainda sem processo vinculado." />
+                    <StatCard label="Publicações pendentes" value={(hmadvOps.data.publicacoesJobs?.pending || 0) + (hmadvOps.data.publicacoesJobs?.running || 0)} helper="Itens de publicacoes aguardando atualizacao." />
+                    <StatCard label="Sem conta" value={hmadvOps.data.processosOverview?.processosSemAccount || 0} helper="Processos que ainda precisam de vinculo comercial." />
+                    <StatCard label="Sem processo" value={hmadvOps.data.publicacoesOverview?.publicacoesSemProcesso || 0} helper="Publicacoes que ainda aguardam processo relacionado." />
                   </div>
                   {hmadvOps.data.completeness ? (
                     <div className="border border-[#2D2E2E] bg-[rgba(10,12,11,0.82)] p-4 text-sm">
@@ -326,15 +326,15 @@ export default function InternoHomePage() {
                         </div>
                       </div>
                       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                        <StatCard label="Base completa" value={hmadvOps.data.completeness.processosBaseCompleta || 0} helper="Processos com account, sinais operacionais e base minimamente refletida." />
-                        <StatCard label="Gap CRM" value={hmadvOps.data.completeness.processosComGapCrm || 0} helper="Processos ainda com campos/account fora de equilíbrio no Freshsales." />
-                        <StatCard label="Publicações pendentes" value={hmadvOps.data.completeness.publicacoesPendentes || 0} helper="Publicações ainda sem sales_activity no CRM." />
-                        <StatCard label="Movimentações pendentes" value={hmadvOps.data.completeness.movimentacoesPendentes || 0} helper="Andamentos ainda sem sales_activity no CRM." />
+                        <StatCard label="Base completa" value={hmadvOps.data.completeness.processosBaseCompleta || 0} helper="Processos com dados essenciais e contexto refletido." />
+                        <StatCard label="Ajustes no CRM" value={hmadvOps.data.completeness.processosComGapCrm || 0} helper="Processos que ainda pedem alinhamento comercial." />
+                        <StatCard label="Publicações pendentes" value={hmadvOps.data.completeness.publicacoesPendentes || 0} helper="Publicacoes que ainda precisam refletir no CRM." />
+                        <StatCard label="Movimentações pendentes" value={hmadvOps.data.completeness.movimentacoesPendentes || 0} helper="Andamentos que ainda pedem reflexo no CRM." />
                       </div>
                       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 mt-3">
-                        <StatCard label="Partes sem contato" value={hmadvOps.data.completeness.partesSemContato || 0} helper="Partes ainda sem contato_freshsales_id resolvido." />
-                        <StatCard label="Sem account" value={hmadvOps.data.completeness.processosSemAccount || 0} helper="Processos ainda fora do CRM." />
-                        <StatCard label="Audiências pendentes" value={hmadvOps.data.completeness.audienciasPendentes || 0} helper="Audiências detectadas e ainda não refletidas." />
+                        <StatCard label="Partes sem contato" value={hmadvOps.data.completeness.partesSemContato || 0} helper="Partes que ainda pedem contato vinculado." />
+                        <StatCard label="Sem conta" value={hmadvOps.data.completeness.processosSemAccount || 0} helper="Processos ainda sem vinculo comercial." />
+                        <StatCard label="Audiências pendentes" value={hmadvOps.data.completeness.audienciasPendentes || 0} helper="Audiencias detectadas e ainda nao refletidas." />
                       </div>
                     </div>
                   ) : null}
@@ -359,7 +359,7 @@ export default function InternoHomePage() {
                         <p className="text-lg font-semibold">{hmadvOps.data.autoMode?.totalPendingJobs || 0}</p>
                       </div>
                       <div className="border border-[#2D2E2E] p-3">
-                        <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Backlog base</p>
+                      <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Fila total</p>
                         <p className="text-lg font-semibold">{hmadvOps.data.autoMode?.totalBacklogItems || 0}</p>
                       </div>
                       <div className="border border-[#2D2E2E] p-3">
@@ -377,7 +377,7 @@ export default function InternoHomePage() {
                         </p>
                         </div>
                         <div className="border border-[#2D2E2E] p-3">
-                          <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Saude do ciclo</p>
+                          <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Saude da automacao</p>
                           <p className="text-sm font-semibold">{hmadvOps.data.autoMode?.healthReason}</p>
                         </div>
                       </div>
@@ -391,20 +391,20 @@ export default function InternoHomePage() {
                           </p>
                         </div>
                         <div className="border border-[#2D2E2E] p-3">
-                          <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Ultimo runner com sucesso</p>
+                          <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Ultima execucao bem-sucedida</p>
                           <p className="text-sm font-semibold">
                             {hmadvOps.data.autoMode?.latestRunnerSuccess?.created_at
                               ? new Date(hmadvOps.data.autoMode.latestRunnerSuccess.created_at).toLocaleString("pt-BR")
-                              : "Sem sucesso registrado no HMADV"}
+                              : "Sem sucesso registrado ainda"}
                           </p>
                         </div>
                       </div>
                     <p className="opacity-75 mb-2">{hmadvOps.data.autoMode?.nextStep}</p>
-                    <p className="opacity-55 break-all">POST /api/admin-hmadv-runner</p>
+                    <p className="opacity-55 break-all">Endpoint de automacao agendada disponivel</p>
                   </div>
                   <div className="flex flex-wrap gap-3">
                     <button type="button" onClick={handleDrainAll} disabled={draining} className="border border-[#C5A059] bg-[#C5A059] px-4 py-3 text-sm font-semibold text-[#050706] disabled:opacity-50">
-                      {draining ? "Drenando filas..." : "Drenar Processos + Publicações"}
+                      {draining ? "Atualizando filas..." : "Atualizar Processos + Publicações"}
                     </button>
                     <button type="button" onClick={loadHmadvOps} disabled={draining} className="border border-[#2D2E2E] px-4 py-3 text-sm hover:border-[#C5A059] disabled:opacity-50">
                       Atualizar leitura
@@ -417,10 +417,10 @@ export default function InternoHomePage() {
                       <div className="flex flex-wrap gap-2 mb-3">
                         <ModeBadge active={hmadvOps.data.moduleFocus?.target === "processos"} label="processos" />
                         <ModeBadge active={hmadvOps.data.moduleFocus?.target === "publicacoes"} label="publicacoes" />
-                        <ModeBadge active={hmadvOps.data.moduleFocus?.target === "torre"} label="torre" />
+                      <ModeBadge active={hmadvOps.data.moduleFocus?.target === "torre"} label="panorama" />
                       </div>
                       <p className="opacity-55">
-                        Pressao: processos {hmadvOps.data.moduleFocus?.processosPressure || 0} | publicacoes {hmadvOps.data.moduleFocus?.publicacoesPressure || 0}
+                        Prioridade: processos {hmadvOps.data.moduleFocus?.processosPressure || 0} | publicacoes {hmadvOps.data.moduleFocus?.publicacoesPressure || 0}
                       </p>
                       <div className="mt-4">
                         <Link
@@ -436,22 +436,22 @@ export default function InternoHomePage() {
                       <FocusLink
                         href="/interno/financeiro"
                         title="Abrir Financeiro"
-                        helper="Receita, contratos e pendências organizadas em uma leitura mais executiva."
+                        helper="Receita, contratos e pendencias organizadas em uma leitura mais executiva."
                       />
                       <FocusLink
                         href="/interno/processos"
                         title="Abrir Processos"
-                        helper="Carteira processual com acompanhamento, atualização e ação guiada."
+                        helper="Carteira processual com acompanhamento, atualizacao e acao guiada."
                       />
                       <FocusLink
                         href="/interno/publicacoes"
                         title="Abrir Publicacoes"
-                        helper="Publicações organizadas para priorizar backlog e próximas ações."
+                        helper="Publicacoes organizadas para priorizar backlog e proximas acoes."
                       />
                       <FocusLink
                         href="/interno/market-ads"
-                        title="Abrir HMADV Market Ads"
-                        helper="Campanhas jurídicas com posicionamento, copy e clareza comercial."
+                        title="Abrir Market Ads"
+                        helper="Campanhas juridicas com posicionamento, copy e clareza comercial."
                       />
                     </div>
                   </div>
@@ -475,7 +475,7 @@ export default function InternoHomePage() {
                       prefetch={false}
                       className="inline-flex border border-[#C5A059] px-4 py-2 text-sm hover:border-[#E7C98C]"
                     >
-                      {hmadvOps.data.blocker?.cta || "Abrir torre"}
+                      {hmadvOps.data.blocker?.cta || "Abrir panorama"}
                     </Link>
                   </div>
                   <div className="grid gap-4 lg:grid-cols-2">
@@ -483,13 +483,13 @@ export default function InternoHomePage() {
                       <p className="font-semibold mb-2">Processos</p>
                       <p>Pendentes: {hmadvOps.data.processosJobs?.pending || 0}</p>
                       <p>Executando: {hmadvOps.data.processosJobs?.running || 0}</p>
-                      <p>Último job ativo: {hmadvOps.data.processosJobs?.active?.acao || "nenhum"}</p>
+                      <p>Ultima acao ativa: {hmadvOps.data.processosJobs?.active?.acao || "nenhuma"}</p>
                     </div>
                     <div className="border border-[#2D2E2E] p-4 text-sm opacity-75">
                       <p className="font-semibold mb-2">Publicações</p>
                       <p>Pendentes: {hmadvOps.data.publicacoesJobs?.pending || 0}</p>
                       <p>Executando: {hmadvOps.data.publicacoesJobs?.running || 0}</p>
-                      <p>Último job ativo: {hmadvOps.data.publicacoesJobs?.active?.acao || "nenhum"}</p>
+                      <p>Ultima acao ativa: {hmadvOps.data.publicacoesJobs?.active?.acao || "nenhuma"}</p>
                     </div>
                   </div>
                   <div className="grid gap-4 lg:grid-cols-2">
@@ -531,7 +531,7 @@ export default function InternoHomePage() {
                 Proximos blocos
               </p>
               <ul className="space-y-3 text-sm opacity-70">
-                <li>AgentLab para governanca de agentes, chatbot e espelho do Freshsales.</li>
+                <li>AgentLab para governanca de agentes, chatbot e espelho comercial do CRM.</li>
                 <li>Publicacao e edicao de posts do blog.</li>
                 <li>Leitura administrativa de agendamentos com filtros.</li>
                 <li>Consolidacao de leads vindos da calculadora e do contato.</li>
@@ -574,7 +574,7 @@ export default function InternoHomePage() {
                   Abrir leads e tickets
                 </Link>
                 <Link href="/interno/market-ads" prefetch={false} className="block border border-[#2D2E2E] px-4 py-3 hover:border-[#C5A059]">
-                  Abrir HMADV Market Ads
+                  Abrir Market Ads
                 </Link>
               </div>
             </div>

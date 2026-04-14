@@ -624,7 +624,7 @@ function renderProcessSyncStatuses(row) {
   if (row.freshsales_repair?.reason === "sem_gap_crm") statuses.push({ label: "sem ajuste no crm", tone: "default" });
   else if (row.freshsales_repair?.reason === "sem_mudanca_util") statuses.push({ label: "sem mudanca relevante", tone: "default" });
   else if (row.freshsales_repair?.skipped) statuses.push({ label: "crm pendente", tone: "warning" });
-  else if (row.freshsales_repair) statuses.push({ label: "crm reparado", tone: "success" });
+  else if (row.freshsales_repair) statuses.push({ label: "crm ajustado", tone: "success" });
   if (row.monitoramento_ativo === true) statuses.push({ label: "monitorado", tone: "default" });
   if (row.monitoramento_ativo === false) statuses.push({ label: "monitoramento inativo", tone: "danger" });
   return statuses;
@@ -1245,8 +1245,8 @@ function RecurringProcessItem({ item }) {
   </div>;
 }
 function RecurringProcessGroup({ title, helper, items }) {
-  if (!items.length) return null;
   const { isLightTheme } = useInternalTheme();
+  if (!items.length) return null;
   return <div className="space-y-3">
     <div>
       <p className="text-sm font-semibold">{title}</p>
@@ -3177,8 +3177,8 @@ function InternoProcessosContent() {
         <QueueSummaryCard title="Partes sem contato" count={partesBacklog.totalRows || 0} helper="Partes ainda sem contato vinculado." />
         <QueueSummaryCard title="Cobertura auditada" count={processCoverage.totalRows || 0} helper="Processos visiveis na leitura consolidada de cobertura." />
         <QueueSummaryCard title="Monitorados" count={monitoringActive.totalRows || 0} helper="Carteira ativa em acompanhamento." />
-        <QueueSummaryCard title="Campos orfaos" count={fieldGaps.totalRows || 0} helper="Gaps entre Supabase e Freshsales." />
-        <QueueSummaryCard title="Sem Sales Account" count={orphans.totalRows || 0} helper="Processos ainda sem account vinculada." />
+        <QueueSummaryCard title="Campos orfaos" count={fieldGaps.totalRows || 0} helper="Diferencas entre a base e o CRM." />
+        <QueueSummaryCard title="Sem conta comercial" count={orphans.totalRows || 0} helper="Processos ainda sem conta vinculada." />
       </div>
       <div className="grid gap-6 xl:grid-cols-2">
       <div id="processos-cobertura"><Panel title="Cobertura por processo" eyebrow="Auditoria local">
@@ -3335,7 +3335,7 @@ function InternoProcessosContent() {
       <OperationalHistoryCompactCard
         className="h-full"
         primaryText={executionHistory[0] ? `${executionHistory[0].label || executionHistory[0].action} • ${executionHistory[0].status}` : ""}
-        secondaryLabel="Ultimo HMADV"
+          secondaryLabel="Ultima leitura remota"
         secondaryText={remoteHistory[0] ? `${getProcessActionLabel(remoteHistory[0].acao, remoteHistory[0].payload || {})} • ${remoteHistory[0].status}` : ""}
       />
     </div> : null}

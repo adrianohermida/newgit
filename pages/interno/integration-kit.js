@@ -102,21 +102,21 @@ export default function IntegrationKitPage() {
         <InternoLayout
           profile={profile}
           title="Integration Kit"
-      description="Kit de implantação para replicar a base do produto com mais velocidade e consistência."
+      description="Kit de implantacao para replicar a base do produto com mais velocidade e consistencia."
         >
           <div className="space-y-8">
             <Panel title="Objetivo">
               <p>
-                Esta area monta um bundle reutilizavel do que ja foi desenvolvido aqui, separando configuracao, mappings e checklist de setup
-                para reaplicar a integracao em qualquer novo repositorio, novo Supabase e nova conta Freshworks.
+                Esta area monta um pacote reutilizavel do que ja foi desenvolvido aqui, separando configuracao, mapeamentos e checklist de setup
+                para reaplicar a integracao em qualquer novo repositorio, nova base e nova conta comercial.
               </p>
               <p>
                 O export nao inclui segredos reais. Ele preserva valores seguros e placeholders para que o proximo projeto faca onboarding sem
-                duplicar codigo por cliente.
+                duplicar estrutura por cliente.
               </p>
               <p>
                 <Link href="/interno/setup-integracao" className="text-[#D4B06A] transition hover:text-[#F0D99B]">
-                  Abrir wizard de setup inicial
+                  Abrir setup inicial
                 </Link>
               </p>
             </Panel>
@@ -127,11 +127,11 @@ export default function IntegrationKitPage() {
                 : "border-[#6F5830] bg-[rgba(111,88,48,0.18)] text-[#F0DEC0]"
             }`}>
               <p className="text-[11px] uppercase tracking-[0.22em]">
-                {sourceMode === "admin-runtime" ? "Export enriquecido por runtime admin" : "Export local em modo static-safe"}
+                {sourceMode === "admin-runtime" ? "Pacote enriquecido pelo ambiente administrativo" : "Pacote local em modo seguro"}
               </p>
               <p className="mt-2">
                 {sourceMode === "admin-runtime"
-                  ? "O runtime atual respondeu com o bundle exportavel baseado no ambiente do projeto."
+                  ? "O ambiente atual respondeu com o pacote exportavel baseado na configuracao do projeto."
                   : "A pagina continua funcional sem backend e sem sessao admin, usando placeholders seguros e estrutura portatil no navegador."}
               </p>
               <p className="mt-2">
@@ -142,7 +142,7 @@ export default function IntegrationKitPage() {
             </div>
 
             {state.loading ? (
-              <Panel title="Carregando bundle">
+              <Panel title="Carregando pacote">
                 <p>Montando o pacote exportavel e validando as variaveis do ambiente atual.</p>
               </Panel>
             ) : null}
@@ -156,7 +156,7 @@ export default function IntegrationKitPage() {
             {!state.loading && !state.error ? (
               <>
                 <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-                  <Panel title="Checklist de replicacao">
+                  <Panel title="Checklist de implantacao">
                     {checklist.map((item) => (
                       <p key={item}>- {item}</p>
                     ))}
@@ -208,7 +208,7 @@ export default function IntegrationKitPage() {
                       onClick={() => downloadText("integration-bundle.json", JSON.stringify(state.data.bundle, null, 2))}
                       className="rounded-full border border-[#2D2E2E] px-4 py-2 text-xs uppercase tracking-[0.16em] text-[#F4E7C2] transition hover:border-[#C5A059]"
                     >
-                      Baixar bundle completo
+                      Baixar pacote completo
                     </button>
                   </div>
 

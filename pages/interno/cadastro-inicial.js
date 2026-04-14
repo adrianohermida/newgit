@@ -56,7 +56,7 @@ export default function CadastroInicialPage() {
       return;
     }
 
-    setMessage("Cadastro enviado. A conta precisa ser validada no Supabase Auth e vinculada a admin_profiles para liberar o dashboard.");
+    setMessage("Cadastro enviado. A conta sera validada e vinculada ao perfil correto antes de liberar o ambiente interno.");
     setSubmitting(false);
     setForm(initialForm);
   }
@@ -64,21 +64,21 @@ export default function CadastroInicialPage() {
   return (
     <AuthLayout
       title="Cadastro inicial"
-      description="Rota de onboarding inspirada no Stitch, criada para homologacao do Supabase sem expor ainda esse fluxo no header publico."
+      description="Fluxo inicial de acesso para preparar o ambiente interno com seguranca e clareza."
       highlights={[
-        "Referencia visual portada de cadastro_inicial_elite_dark_mode.",
-        "Sign up no Supabase com metadados basicos para onboarding.",
-        "Acesso continua bloqueado ate haver vinculo em admin_profiles.",
+        "Entrada guiada para ativacao inicial do ambiente.",
+        "Cadastro com dados basicos para preparar o onboarding.",
+        "Liberacao do acesso acontece apos validacao do perfil.",
       ]}
     >
       <form className="space-y-6" onSubmit={handleSubmit}>
         {configLoading ? (
           <div className="rounded-2xl border border-[#1f3a2f] bg-[rgba(12,39,28,0.42)] px-4 py-3 text-sm text-[#D7F3E4]">
-            Carregando configuracao segura do acesso interno...
+            Carregando configuracao segura do acesso...
           </div>
         ) : !isConfigured ? (
           <div className="rounded-2xl border border-[#7f1d1d] bg-[rgba(127,29,29,0.22)] px-4 py-3 text-sm text-[#F9D2D2]">
-            Defina <code>SUPABASE_URL</code> e <code>SUPABASE_ANON_KEY</code> para habilitar o cadastro inicial.
+            Defina <code>SUPABASE_URL</code> e <code>SUPABASE_ANON_KEY</code> para habilitar o acesso inicial.
           </div>
         ) : null}
 
@@ -149,7 +149,7 @@ export default function CadastroInicialPage() {
                 className="mt-1 rounded border-white/20 bg-transparent text-[#D4AF37] focus:ring-[#D4AF37]"
               />
               <span>
-                Confirmo que este cadastro e apenas para homologacao interna e que a liberacao do dashboard depende de aprovacao e perfil ativo.
+                Confirmo que este cadastro depende de validacao interna e que a liberacao do ambiente acontece apos aprovacao e perfil ativo.
               </span>
             </label>
           </div>
@@ -162,14 +162,14 @@ export default function CadastroInicialPage() {
           disabled={submitting || configLoading || !isConfigured}
           className="w-full rounded-xl bg-[linear-gradient(90deg,#D4AF37,#A67C00)] px-4 py-4 text-sm font-semibold uppercase tracking-[0.24em] text-[#050706] shadow-[0_16px_36px_rgba(212,175,55,0.22)] transition hover:brightness-110 disabled:opacity-60"
         >
-          {submitting ? "Criando..." : "Criar acesso inicial"}
+          {submitting ? "Criando..." : "Solicitar acesso inicial"}
         </button>
 
         <div className="flex flex-col gap-3 text-sm text-[#D8D1C6]/70 md:flex-row md:items-center md:justify-between">
           <Link href="/interno/login" className="text-[#D4AF37] transition hover:text-[#F3D98B]">
             Voltar para o login
           </Link>
-          <span>Rota off-menu para homologacao do onboarding</span>
+          <span>Fluxo reservado para ativacao inicial do ambiente</span>
         </div>
       </form>
     </AuthLayout>

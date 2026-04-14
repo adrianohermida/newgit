@@ -23,8 +23,8 @@ const CONTACT_TYPE_OPTIONS = [
 ];
 
 const CONTACT_ACTION_LABELS = {
-  sync_contacts: "Sincronizar contacts do Freshsales",
-  sync_portal_contacts: "Sincronizar contacts com portal",
+  sync_contacts: "Atualizar contatos do CRM",
+  sync_portal_contacts: "Atualizar contatos com portal",
   validate_contacts: "Validar e higienizar contatos",
   bulk_create_contacts: "Criar contatos em lote",
   delete_contacts_bulk: "Excluir contatos em lote",
@@ -242,7 +242,7 @@ export default function InternoContactsPage() {
   const router = useRouter();
   const copilotContext = parseCopilotContext(typeof router.query.copilotContext === "string" ? router.query.copilotContext : "");
   const email = typeof router.query.email === "string" ? router.query.email : "";
-return <RequireAdmin>{(profile) => <InternoLayout profile={profile} title="Gestão de Contatos" description="Base de contatos com visão 360, relacionamento e dados prontos para atendimento e vendas."><ContactsContent copilotContext={copilotContext} initialEmail={email} /></InternoLayout>}</RequireAdmin>;
+return <RequireAdmin>{(profile) => <InternoLayout profile={profile} title="Contatos" description="Base de contatos com visao completa, relacionamento e dados prontos para atendimento e vendas."><ContactsContent copilotContext={copilotContext} initialEmail={email} /></InternoLayout>}</RequireAdmin>;
 }
 
 function ContactsContent({ copilotContext, initialEmail }) {
@@ -754,7 +754,7 @@ function ContactsContent({ copilotContext, initialEmail }) {
 
   return <div className="space-y-8">
     {copilotContext ? (
-      <Panel title="Contexto vindo do Copilot" eyebrow="Handoff operacional">
+      <Panel title="Contexto da conversa" eyebrow="Handoff guiado">
         <div className={`space-y-2 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>
           <p className={`font-semibold ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{copilotContext.conversationTitle || "Conversa ativa"}</p>
           {copilotContext.mission ? <p>{copilotContext.mission}</p> : null}
@@ -763,15 +763,15 @@ function ContactsContent({ copilotContext, initialEmail }) {
       </Panel>
     ) : null}
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-      <MetricCard label="Contacts espelhados" value={overviewData.total || 0} helper="Contatos persistidos em public.freshsales_contacts." />
+      <MetricCard label="Contatos na base" value={overviewData.total || 0} helper="Contatos disponiveis para relacionamento e atendimento." />
       <MetricCard label="Com e-mail" value={overviewData.comEmail || 0} helper="Aptos para match forte por identificador." />
       <MetricCard label="Com CPF" value={overviewData.comCpf || 0} helper="Prontos para DirectData PF." />
       <MetricCard label="Duplicados" value={overviewData.duplicados || 0} helper="Grupos detectados por nome normalizado." />
-      <MetricCard label="Partes sem contato" value={overviewData.partesSemContato || 0} helper="Pendencias de vinculacao no HMADV." />
+      <MetricCard label="Partes sem contato" value={overviewData.partesSemContato || 0} helper="Pendencias de vinculacao na base juridica." />
     </div>
 
     <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-      <Panel title="Sync e lista paginada" eyebrow="Freshsales -> espelho local">
+      <Panel title="Atualizacao e lista paginada" eyebrow="CRM e portal">
         <div className="space-y-4">
           <div className="grid gap-4 md:grid-cols-[1fr_180px_120px_auto_auto]">
             <input value={query} onChange={(event) => { setPage(1); setQuery(event.target.value); }} placeholder="Buscar por nome, e-mail ou telefone" className="w-full border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
@@ -784,19 +784,19 @@ function ContactsContent({ copilotContext, initialEmail }) {
               <option value={50}>50 / pagina</option>
               <option value={100}>100 / pagina</option>
             </select>
-            <ActionButton onClick={() => runAction("sync_contacts", { limit: syncLimit, dryRun: true, fetchAll: false })} disabled={actionState.loading}>Simular sync</ActionButton>
-            <ActionButton tone="primary" onClick={() => runAction("sync_contacts", { limit: syncLimit, dryRun: false, fetchAll: true })} disabled={actionState.loading || contactsGuardrail.blocks.syncImport} title={contactsGuardrail.blocks.syncImport ? contactsGuardrail.summary : undefined}>Importar todos</ActionButton>
+            <ActionButton onClick={() => runAction("sync_contacts", { limit: syncLimit, dryRun: true, fetchAll: false })} disabled={actionState.loading}>Simular atualizacao</ActionButton>
+            <ActionButton tone="primary" onClick={() => runAction("sync_contacts", { limit: syncLimit, dryRun: false, fetchAll: true })} disabled={actionState.loading || contactsGuardrail.blocks.syncImport} title={contactsGuardrail.blocks.syncImport ? contactsGuardrail.summary : undefined}>Atualizar todos</ActionButton>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-xs uppercase tracking-[0.15em] opacity-50">Lote sync</span>
+            <span className="text-xs uppercase tracking-[0.15em] opacity-50">Lote de atualizacao</span>
             <input type="number" min="1" max="5000" value={syncLimit} onChange={(event) => setSyncLimit(Number(event.target.value || 100))} className="w-28 border border-[#2D2E2E] bg-[#050706] p-2 text-sm outline-none focus:border-[#C5A059]" />
             <StatusBadge tone={contactsGuardrail.tone === "danger" ? "danger" : contactsGuardrail.tone === "warn" ? "warn" : "success"}>
-              sync seguro {contactsGuardrail.safeLimits.sync}
+              lote seguro {contactsGuardrail.safeLimits.sync}
             </StatusBadge>
             <ActionButton onClick={() => runAction("sync_portal_contacts", { direction: "portal_to_crm", dryRun: true })} disabled={actionState.loading}>Simular portal {"->"} CRM</ActionButton>
-            <ActionButton tone="primary" onClick={() => runAction("sync_portal_contacts", { direction: "portal_to_crm", dryRun: false })} disabled={actionState.loading}>Aplicar portal {"->"} CRM</ActionButton>
+            <ActionButton tone="primary" onClick={() => runAction("sync_portal_contacts", { direction: "portal_to_crm", dryRun: false })} disabled={actionState.loading}>Atualizar portal {"->"} CRM</ActionButton>
             <ActionButton onClick={() => runAction("sync_portal_contacts", { direction: "crm_to_portal", dryRun: true, limit: syncLimit })} disabled={actionState.loading}>Simular CRM {"->"} portal</ActionButton>
-            <ActionButton tone="primary" onClick={() => runAction("sync_portal_contacts", { direction: "crm_to_portal", dryRun: false, limit: syncLimit })} disabled={actionState.loading}>Aplicar CRM {"->"} portal</ActionButton>
+            <ActionButton tone="primary" onClick={() => runAction("sync_portal_contacts", { direction: "crm_to_portal", dryRun: false, limit: syncLimit })} disabled={actionState.loading}>Atualizar CRM {"->"} portal</ActionButton>
             <ActionButton onClick={() => runAction("schedule_contact_job", { jobAction: "sync_portal_contacts", direction: "crm_to_portal", dryRun: false, limit: syncLimit, scheduledFor: buildScheduledIso() })} disabled={actionState.loading}>Agendar CRM {"->"} portal</ActionButton>
             <ActionButton onClick={() => toggleContactsPageSelection(!allContactPageSelected)} disabled={!listState.items.length}>
               {allContactPageSelected ? "Desmarcar pagina" : "Selecionar pagina"}
@@ -834,7 +834,7 @@ function ContactsContent({ copilotContext, initialEmail }) {
                         {item.cpf ? <span>CPF: {item.cpf}</span> : null}
                         {item.cnpj ? <span>CNPJ: {item.cnpj}</span> : null}
                       </div>
-                      {item.freshsales_url ? <a href={item.freshsales_url} target="_blank" rel="noreferrer" className="text-xs underline opacity-70 hover:text-[#C5A059]" onClick={(event) => event.stopPropagation()}>Abrir contato no Freshsales</a> : null}
+                      {item.freshsales_url ? <a href={item.freshsales_url} target="_blank" rel="noreferrer" className="text-xs underline opacity-70 hover:text-[#C5A059]" onClick={(event) => event.stopPropagation()}>Abrir contato no CRM</a> : null}
                     </div>
                   </button>
                 </div>

@@ -3701,7 +3701,7 @@ function PublicacoesContent() {
         />
         <OperationalHistoryCompactCard className="h-full"
           primaryText={executionHistory[0] ? `${executionHistory[0].label || executionHistory[0].action} • ${executionHistory[0].status}` : ""}
-          secondaryLabel="Ultimo HMADV"
+          secondaryLabel="Ultima leitura remota"
           secondaryText={remoteHistory[0] ? `${remoteHistory[0].acao} • ${remoteHistory[0].status}` : ""}
         />
       </div> : null}

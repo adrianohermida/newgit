@@ -14,8 +14,8 @@ export default function InternoPostsPage() {
       {(profile) => (
         <InternoLayout
           profile={profile}
-          title="Posts"
-      description="Área editorial para produzir, revisar e publicar conteúdo com mais consistência."
+          title="Conteudo"
+      description="Area editorial para produzir, revisar e publicar conteudo com mais consistencia."
         >
           <PostsContent state={state} setState={setState} />
         </InternoLayout>
@@ -33,13 +33,13 @@ function PostsContent({ state, setState }) {
         const payload = await adminFetch("/api/admin-posts?limit=100");
         if (!cancelled) {
           appendActivityLog({
-            label: "Leitura do modulo de posts",
+            label: "Leitura do modulo de conteudo",
             action: "posts_load",
             method: "UI",
             module: "posts",
             page: "/interno/posts",
             status: "success",
-            response: `Posts carregados: ${payload.items?.length || 0}.`,
+            response: `Conteudos carregados: ${payload.items?.length || 0}.`,
             tags: ["posts", "manual", "conteudo"],
           });
           setState({ loading: false, error: null, items: payload.items || [] });
@@ -47,13 +47,13 @@ function PostsContent({ state, setState }) {
       } catch (error) {
         if (!cancelled) {
           appendActivityLog({
-            label: "Falha ao carregar posts",
+            label: "Falha ao carregar conteudos",
             action: "posts_load",
             method: "UI",
             module: "posts",
             page: "/interno/posts",
             status: "error",
-            error: error.message || "Falha ao carregar posts.",
+            error: error.message || "Falha ao carregar conteudos.",
             tags: ["posts", "manual", "conteudo"],
           });
           setState({ loading: false, error: error.message, items: [] });
@@ -95,12 +95,12 @@ function PostsContent({ state, setState }) {
     <div>
       <div className="flex flex-wrap gap-3 mb-6">
         <Link href="/interno/posts/novo" className="bg-[#C5A059] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#050706]">
-          Novo post
+          Novo conteudo
         </Link>
       </div>
 
       {state.loading ? (
-        <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando posts...</div>
+        <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6">Carregando conteudos...</div>
       ) : null}
 
       {!state.loading && state.error ? (
@@ -109,7 +109,7 @@ function PostsContent({ state, setState }) {
 
       {!state.loading && !state.error && !state.items.length ? (
         <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6 text-sm opacity-70">
-          Nenhum post encontrado. Crie o primeiro rascunho pelo painel.
+          Nenhum conteudo encontrado. Crie o primeiro rascunho por aqui.
         </div>
       ) : null}
 
@@ -133,7 +133,7 @@ function PostsContent({ state, setState }) {
                 href={`/interno/posts/editar?id=${post.id}`}
                 className="inline-flex border border-[#2D2E2E] px-4 py-2 text-sm hover:border-[#C5A059] hover:text-[#C5A059]"
               >
-                Editar post
+                Editar conteudo
               </Link>
             </article>
           ))}

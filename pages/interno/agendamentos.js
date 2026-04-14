@@ -71,8 +71,8 @@ export default function InternoAgendamentosPage() {
       {(profile) => (
         <InternoLayout
           profile={profile}
-          title="Agendamentos"
-      description="Agenda comercial e jurídica com confirmações, contexto e acompanhamento dos compromissos."
+          title="Agenda"
+      description="Agenda comercial e juridica com confirmacoes, contexto e acompanhamento dos compromissos."
         >
           <AgendamentosContent
             filters={filters}
@@ -192,7 +192,7 @@ function AgendamentosContent({ filters, setFilters, state, setState, routeFocus,
       {copilotContext ? (
         <div className={`mb-6 border p-5 ${isLightTheme ? "border-[#bdd8cf] bg-[#f3fbf8] text-[#25403a]" : "border-[#35554B] bg-[rgba(12,22,19,0.72)]"}`}>
           <p className={`text-xs font-semibold uppercase tracking-[0.15em] ${isLightTheme ? "text-[#2c7a66]" : "text-[#7FC4AF]"}`}>
-            Contexto vindo do Copilot
+            Contexto da conversa
           </p>
           <p className={`mt-3 text-sm font-semibold ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{copilotContext.conversationTitle || "Conversa ativa"}</p>
           {copilotContext.mission ? (
@@ -208,7 +208,7 @@ function AgendamentosContent({ filters, setFilters, state, setState, routeFocus,
       {routeFocus?.id || routeFocus?.clientId ? (
         <div className={`mb-6 border p-5 ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#5b4a22]" : "border-[#6F5826] bg-[rgba(111,88,38,0.12)]"}`}>
           <p className={`text-xs font-semibold uppercase tracking-[0.15em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#C5A059]"}`}>
-            Contexto vindo de Jobs
+            Contexto trazido por automacoes
           </p>
           <div className={`mt-3 flex flex-wrap gap-3 text-sm ${isLightTheme ? "text-[#6b7280]" : "opacity-80"}`}>
             {routeFocus.id ? <span>Agendamento: {routeFocus.id}</span> : null}
@@ -300,7 +300,7 @@ function AgendamentosContent({ filters, setFilters, state, setState, routeFocus,
       </div>
 
       {state.loading ? (
-        <div className={`border p-6 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#4b5563]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>Carregando agendamentos...</div>
+        <div className={`border p-6 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#4b5563]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>Carregando agenda...</div>
       ) : null}
 
       {!state.loading && state.error ? (
@@ -330,9 +330,9 @@ function AgendamentosContent({ filters, setFilters, state, setState, routeFocus,
                     {item.area}
                   </span>
                   <span className={`text-[10px] uppercase tracking-[0.15em] ${isLightTheme ? "text-[#6b7280]" : "opacity-45"}`}>{item.status}</span>
-                  {focusReason === "jobs" ? <span className={`text-[10px] uppercase tracking-[0.15em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#C5A059]"}`}>Foco de jobs</span> : null}
-                  {focusReason === "copilot_email" ? <span className={`text-[10px] uppercase tracking-[0.15em] ${isLightTheme ? "text-[#2c7a66]" : "text-[#7FC4AF]"}`}>Foco do Copilot por e-mail</span> : null}
-                  {focusReason === "copilot_nome" ? <span className={`text-[10px] uppercase tracking-[0.15em] ${isLightTheme ? "text-[#2c7a66]" : "text-[#7FC4AF]"}`}>Foco do Copilot por contexto</span> : null}
+                  {focusReason === "jobs" ? <span className={`text-[10px] uppercase tracking-[0.15em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#C5A059]"}`}>Prioridade automatica</span> : null}
+                  {focusReason === "copilot_email" ? <span className={`text-[10px] uppercase tracking-[0.15em] ${isLightTheme ? "text-[#2c7a66]" : "text-[#7FC4AF]"}`}>Prioridade por e-mail</span> : null}
+                  {focusReason === "copilot_nome" ? <span className={`text-[10px] uppercase tracking-[0.15em] ${isLightTheme ? "text-[#2c7a66]" : "text-[#7FC4AF]"}`}>Prioridade por contexto</span> : null}
                 </div>
                 <h3 className="mb-2 font-serif text-2xl">{item.nome}</h3>
                 <div className={`grid gap-2 text-sm md:grid-cols-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>
@@ -347,7 +347,7 @@ function AgendamentosContent({ filters, setFilters, state, setState, routeFocus,
                     href={`/interno/agendamentos/detalhe?id=${item.id}`}
                     className={`inline-flex border px-4 py-2 text-sm transition-colors ${isLightTheme ? "border-[#d7d4cb] text-[#6b7280] hover:border-[#9a6d14] hover:text-[#9a6d14]" : "border-[#2D2E2E] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                   >
-                    Ver detalhe
+                    Abrir compromisso
                   </Link>
                 </div>
               </article>

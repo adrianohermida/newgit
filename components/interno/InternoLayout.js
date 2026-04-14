@@ -1050,7 +1050,9 @@ export default function InternoLayout({
     const persisted = readInternalShellPreferences();
     const limits = getConsoleHeightLimits();
     if (persisted) {
-      if (typeof persisted.desktopLeftCollapsed === "boolean" && window.innerWidth >= 900) {
+      if (isCopilotWorkspace && window.innerWidth >= 1180) {
+        setLeftCollapsed(false);
+      } else if (typeof persisted.desktopLeftCollapsed === "boolean" && window.innerWidth >= 900) {
         setLeftCollapsed(persisted.desktopLeftCollapsed);
       }
       if (typeof persisted.mobileLeftCollapsed === "boolean" && window.innerWidth < 900) {
@@ -1077,7 +1079,7 @@ export default function InternoLayout({
       }
     }
     shellPreferencesHydratedRef.current = true;
-  }, []);
+  }, [isCopilotWorkspace]);
 
   useEffect(() => {
     if (!shellPreferencesHydratedRef.current) return;
@@ -1742,7 +1744,7 @@ export default function InternoLayout({
       ) : null}
       <div className="flex min-h-0 flex-1">
       {/* SIDEBAR */}
-      {!hideShellSidebar ? <aside className={`z-40 shrink-0 flex h-full flex-col border px-4 py-4 shadow-[0_18px_48px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all ${copilotShellSidebarClass} ${isMobileShell ? `absolute bottom-2 left-2 top-2 w-[292px] max-w-[calc(100vw-1rem)] ${leftCollapsed ? "pointer-events-none -translate-x-[110%] opacity-0" : "translate-x-0 opacity-100"}` : leftCollapsed ? "w-[88px] min-w-[88px]" : isCopilotWorkspace ? "w-[284px] min-w-[264px] max-w-[320px]" : "w-[264px] min-w-[220px] max-w-[312px]"}`}>
+        {!hideShellSidebar ? <aside className={`z-40 shrink-0 flex h-full flex-col border px-4 py-4 shadow-[0_18px_48px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all ${copilotShellSidebarClass} ${isMobileShell ? `absolute bottom-2 left-2 top-2 w-[292px] max-w-[calc(100vw-1rem)] ${leftCollapsed ? "pointer-events-none -translate-x-[110%] opacity-0" : "translate-x-0 opacity-100"}` : leftCollapsed ? "w-[88px] min-w-[88px]" : isCopilotWorkspace ? "w-[320px] min-w-[296px] max-w-[340px]" : "w-[264px] min-w-[220px] max-w-[312px]"}`}>
         <Link href="/interno" prefetch={false} className="mb-8 block">
           {!leftCollapsed ? (
             <>

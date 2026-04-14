@@ -2972,13 +2972,13 @@ const [uiToasts, setUiToasts] = useState([]);
       ? "grid-cols-1"
       : effectiveWorkspaceLayout === "immersive"
       ? isFocusedCopilotShell
-        ? "lg:grid-cols-[320px_minmax(0,1fr)_320px] xl:grid-cols-[340px_minmax(0,1fr)_340px] 2xl:grid-cols-[360px_minmax(0,1fr)_360px]"
+        ? "lg:grid-cols-[280px_minmax(0,1fr)_280px] xl:grid-cols-[300px_minmax(0,1fr)_300px] 2xl:grid-cols-[320px_minmax(0,1fr)_320px]"
         : "lg:grid-cols-[320px_minmax(0,1.6fr)_320px] xl:grid-cols-[360px_minmax(0,2.05fr)_360px] 2xl:grid-cols-[420px_minmax(0,2.45fr)_420px]"
       : effectiveWorkspaceLayout === "balanced"
         ? "lg:grid-cols-[220px_minmax(0,1.25fr)_240px] xl:grid-cols-[240px_minmax(0,1.5fr)_260px] 2xl:grid-cols-[260px_minmax(0,1.65fr)_280px]"
         : "lg:grid-cols-[180px_minmax(0,1fr)_220px] xl:grid-cols-[190px_minmax(0,1.12fr)_240px] 2xl:grid-cols-[210px_minmax(0,1.2fr)_260px]";
   const focusedShellContentClass = suppressInnerChrome ? "px-0 pt-0 pb-0" : "p-3 md:p-5";
-  const workspaceGridGapClass = isConversationCentricShell ? "gap-0" : "gap-4";
+  const workspaceGridGapClass = isConversationCentricShell ? "gap-px" : "gap-4";
   const leftRailShellClass = isFocusedCopilotShell
     ? isLightTheme
       ? "h-full min-h-full overflow-hidden border-r border-y-0 border-l-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.985),rgba(246,249,252,0.995))] rounded-none shadow-none"
@@ -3003,8 +3003,8 @@ const [uiToasts, setUiToasts] = useState([]);
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
   const focusedConversationColumnClass = isFocusedCopilotShell ? "mx-auto flex h-full w-full max-w-[920px] flex-col" : isRailConversationShell ? "w-full" : "";
   const useCondensedRightRail = isFocusedCopilotShell;
-  const visibleLegalActions = isRailConversationShell ? [] : LEGAL_ACTIONS.slice(0, isCompactViewport ? 1 : 3);
-  const visibleQuickPrompts = QUICK_PROMPTS.slice(0, isCompactViewport ? 1 : isConversationCentricShell ? 1 : 2);
+  const visibleLegalActions = isFocusedCopilotShell || isRailConversationShell ? [] : LEGAL_ACTIONS.slice(0, isCompactViewport ? 1 : 3);
+  const visibleQuickPrompts = isFocusedCopilotShell ? [] : QUICK_PROMPTS.slice(0, isCompactViewport ? 1 : isConversationCentricShell ? 1 : 2);
   const filteredConversations = useMemo(() => {
     let nextConversations = filterVisibleConversations(conversations, deferredConversationSearch);
     if (!showArchived) {
@@ -4665,10 +4665,10 @@ const [uiToasts, setUiToasts] = useState([]);
                         <p className={`mt-1 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
                           {isFocusedCopilotShell ? "Conversas e projetos" : "Interno/copilot"}
                         </p>
-                        <p className={`mt-1 text-sm ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
+                        <p className={`mt-1 text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                           {isConversationCentricShell
-                            ? "Busque, retome e concatene conversas sem perder o foco do chat central."
-                            : "Histórico enxuto para retomar contexto sem competir com a conversa central."}
+                            ? "Histórico, busca e retomada de contexto."
+                            : "Retome contexto sem competir com a conversa central."}
                         </p>
                       </div>
                         <button
@@ -4708,7 +4708,7 @@ const [uiToasts, setUiToasts] = useState([]);
                           ref={conversationSearchInputRef}
                           value={conversationSearch}
                           onChange={(event) => setConversationSearch(event.target.value)}
-                          placeholder="Buscar por tema, projeto, mensagem ou tag"
+                          placeholder="Buscar conversa, projeto ou contexto"
                           className={`h-11 w-full rounded-[18px] border px-4 text-sm outline-none transition ${
                             isLightTheme
                               ? "border-[#D7DEE8] bg-white text-[#152421] placeholder:text-[#7B8B98] focus:border-[#9A6E2D]"
@@ -4782,7 +4782,7 @@ const [uiToasts, setUiToasts] = useState([]);
                     <div className="px-1 pb-1">
                       <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Histórico</p>
                       <p className={`mt-1 text-xs ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                        Conversas persistidas, organizadas por projeto e prontas para retomada.
+                        Threads persistidas e agrupadas por projeto.
                       </p>
                     </div>
                     {conversationProjectGroups.length ? (
@@ -4925,9 +4925,9 @@ const [uiToasts, setUiToasts] = useState([]);
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Conversa</p>
-                          <p className={`mt-2 truncate text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
-                            {activeConversation?.title || "Nova conversa"}
-                          </p>
+                      <p className={`mt-2 truncate text-base font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
+                        {activeConversation?.title || "Nova conversa"}
+                      </p>
                           <div className={`mt-2 flex flex-wrap items-center gap-2 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                             <span className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                               {activeProjectLabel}
@@ -4935,8 +4935,8 @@ const [uiToasts, setUiToasts] = useState([]);
                             <span>{messages.length} mensagem(ns)</span>
                             <span>{activeMode.label}</span>
                           </div>
-                          <p className={`mt-2 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                            Reúna contexto, mantenha a conversa organizada e avance com apoio inteligente.
+                          <p className={`mt-2 text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
+                            Conduza a conversa principal com contexto e continuidade.
                           </p>
                         </div>
                         <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
@@ -4989,8 +4989,8 @@ const [uiToasts, setUiToasts] = useState([]);
                         ))
                       ) : (
                         <div className={`rounded-[20px] border border-dashed p-5 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
-                          <p className={`text-base font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Pronto para operar.</p>
-                          <p className="mt-2 leading-6">Use uma instrução curta, um comando com contexto ou envie esta conversa para o AI Task.</p>
+                          <p className={`text-base font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Pronto para conversar.</p>
+                          <p className="mt-2 leading-6">Escreva um pedido, continue um contexto existente ou delegue uma ação para o AI Task.</p>
                         </div>
                       )}
                       {loading ? (
@@ -5088,7 +5088,7 @@ const [uiToasts, setUiToasts] = useState([]);
                           onPaste={handlePaste}
                           rows={4}
                           disabled={isComposerBlocked}
-                          placeholder={isConversationCentricShell ? "Converse com o Dotobot, continue um contexto ou delegue uma ação..." : "Pergunte, delegue uma tarefa ou cole o contexto que precisa operar..."}
+                          placeholder={isConversationCentricShell ? "Pergunte ao Dotobot, continue a thread ou delegue uma ação..." : "Pergunte, delegue uma tarefa ou cole o contexto que precisa operar..."}
                           className={`w-full resize-none border-0 bg-transparent px-1 py-1 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50 ${isLightTheme ? "text-[#152421] placeholder:text-[#94A3B8]" : "placeholder:text-[#60706A]"}`}
                         />
                         {composerBlockedReason ? (
@@ -5166,9 +5166,9 @@ const [uiToasts, setUiToasts] = useState([]);
                           {isFocusedCopilotShell ? "Módulos" : "Painel lateral"}
                         </p>
                         <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeRightPanelMeta.title}</p>
-                        <p className={`mt-1 max-w-[19rem] text-[11px] leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>
+                        <p className={`mt-1 max-w-[19rem] text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>
                           {isFocusedCopilotShell
-                            ? "Módulos e automações ao alcance, sem tirar foco da conversa."
+                            ? "Módulos, subtarefas e agentes como apoio lateral."
                             : activeRightPanelMeta.detail}
                         </p>
                       </div>
@@ -5217,8 +5217,8 @@ const [uiToasts, setUiToasts] = useState([]);
                           <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeProjectLabel}</p>
                           <p className={`mt-2 text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                             {useCondensedRightRail
-                              ? "Atalhos objetivos para abrir áreas do produto com rapidez."
-                              : "Navegue pelos módulos com clareza, mantendo a conversa como foco principal."}
+                              ? "Atalhos rápidos para abrir áreas do produto."
+                              : "Módulos integrados sem roubar atenção do chat."}
                           </p>
                         </div>
                         <div className="grid gap-3">
