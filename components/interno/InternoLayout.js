@@ -110,7 +110,6 @@ export default function InternoLayout({
   const [headerSearch, setHeaderSearch] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [headerLlm, setHeaderLlm] = useState("gpt");
   const [logFilters, setLogFilters] = useState(() => getActivityLogFilters());
   const [logSearch, setLogSearch] = useState("");
   const deferredLogSearch = useDeferredValue(logSearch);
@@ -329,18 +328,11 @@ export default function InternoLayout({
     router.replace("/interno/login");
   }
 
-  function handleFocusCopilotComposer() {
-    if (typeof window === "undefined") return;
-    window.dispatchEvent(new CustomEvent("hmadv:copilot-focus-composer"));
-  }
-
   const {
     aiTaskHistory,
     contactsHistory,
-    copilotConsoleInset,
     copilotMainShellClass,
     copilotShellSidebarClass,
-    desktopConsoleStyle,
     dotobotHistory,
     integrationGuide,
     mobileConsoleHeight,
@@ -431,14 +423,6 @@ export default function InternoLayout({
           className="absolute inset-0 z-30 bg-[rgba(5,8,9,0.5)] backdrop-blur-[2px]"
         />
       ) : null}
-      {isMobileShell && consoleOpen ? (
-        <button
-          type="button"
-          aria-label="Fechar console"
-          onClick={() => setConsoleOpen(false)}
-          className="absolute inset-0 z-20 bg-[rgba(5,8,9,0.34)] backdrop-blur-[1px]"
-        />
-      ) : null}
       <div className="flex min-h-0 flex-1">
       {/* SIDEBAR */}
         {!hideShellSidebar ? (
@@ -450,7 +434,9 @@ export default function InternoLayout({
             isCopilotWorkspace={isCopilotWorkspace}
             leftCollapsed={leftCollapsed}
             onNavigate={closeMobileSidebar}
+            onOpenSettings={() => setSettingsOpen(true)}
             onSignOut={handleSignOut}
+            router={router}
             sidebarToneClass={copilotShellSidebarClass}
           />
         ) : null}
@@ -462,33 +448,33 @@ export default function InternoLayout({
             ? copilotMainShellClass
             : `rounded-[26px] border shadow-[0_20px_56px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] ${copilotMainShellClass}`
         }`}>
-          <InternoShellHeader
-            handleFocusCopilotComposer={handleFocusCopilotComposer}
-            handleHeaderSearchSelect={handleHeaderSearchSelect}
-            handleSignOut={handleSignOut}
-            handleToggleCopilot={handleToggleCopilot}
-            handleToggleRightRail={handleToggleRightRail}
-            headerLlm={headerLlm}
-            headerSearch={headerSearch}
-            headerSearchRef={headerSearchRef}
-            headerSearchResults={headerSearchResults}
-            isCopilotWorkspace={isCopilotWorkspace}
-            isLightTheme={isLightTheme}
-            onChangeHeaderLlm={setHeaderLlm}
-            onChangeHeaderSearch={setHeaderSearch}
-            onOpenSettings={() => setSettingsOpen(true)}
-            onToggleConsole={() => setConsoleOpen((current) => !current)}
-            onToggleLeftCollapsed={() => setLeftCollapsed((current) => !current)}
-            onToggleUserMenu={() => setUserMenuOpen((current) => !current)}
-            profile={profile}
-            router={router}
-            setUserMenuOpen={setUserMenuOpen}
-            toggleTheme={toggleTheme}
-            userMenuOpen={userMenuOpen}
-            userMenuRef={userMenuRef}
-          />
+          {!isCopilotWorkspace ? (
+            <InternoShellHeader
+              consoleOpen={consoleOpen}
+              handleHeaderSearchSelect={handleHeaderSearchSelect}
+              handleSignOut={handleSignOut}
+              handleToggleRightRail={handleToggleRightRail}
+              headerSearch={headerSearch}
+              headerSearchRef={headerSearchRef}
+              headerSearchResults={headerSearchResults}
+              isCopilotWorkspace={isCopilotWorkspace}
+              isLightTheme={isLightTheme}
+              leftCollapsed={leftCollapsed}
+              onChangeHeaderSearch={setHeaderSearch}
+              onOpenSettings={() => setSettingsOpen(true)}
+              onToggleConsole={() => setConsoleOpen((current) => !current)}
+              onToggleLeftCollapsed={() => setLeftCollapsed((current) => !current)}
+              onToggleUserMenu={() => setUserMenuOpen((current) => !current)}
+              profile={profile}
+              rightRailOpen={!rightCollapsed}
+              router={router}
+              setUserMenuOpen={setUserMenuOpen}
+              toggleTheme={toggleTheme}
+              userMenuOpen={userMenuOpen}
+              userMenuRef={userMenuRef}
+            />
+          ) : null}
           <InternoShellContent
-            copilotConsoleInset={copilotConsoleInset}
             description={description}
             guide={integrationGuide}
             isCopilotWorkspace={isCopilotWorkspace}
@@ -498,7 +484,6 @@ export default function InternoLayout({
           >
             {children}
           </InternoShellContent>
-          </div>
           <InternoConsoleDock
             activityLog={activityLog}
             archivedCount={archivedCount}
@@ -508,7 +493,6 @@ export default function InternoLayout({
             consoleTab={consoleTab}
             coverageCards={coverageCards}
             coverageSummary={coverageSummary}
-            desktopConsoleStyle={desktopConsoleStyle}
             formattedArchiveHint={formattedArchiveHint}
             frontendIssues={frontendIssues}
             handleArchive={handleArchive}
@@ -533,6 +517,7 @@ export default function InternoLayout({
             updateFilters={updateFilters}
             visibleLogPaneGroups={visibleLogPaneGroups}
           />
+          </div>
         </div>
         <InternoShellRightRail
           copilotOpen={copilotOpen}

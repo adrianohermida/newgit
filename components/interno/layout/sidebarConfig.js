@@ -18,6 +18,27 @@ export const NAV_ITEMS = [
   { href: "/interno/setup-integracao", label: "Setup Inicial", group: "Infra", icon: "settings" },
 ];
 
+export const COPILOT_NAV_ITEMS = [
+  { href: "/interno/copilot", label: "Conversa", group: "Copilot", icon: "copilot" },
+  { href: "/interno/ai-task", label: "AI Task", group: "Execucao", icon: "spark" },
+  { href: "/interno/agentlab", label: "AgentLab", group: "Execucao", icon: "labs" },
+  { href: "/llm-test", label: "LLM Test", group: "Execucao", icon: "flask" },
+  { href: "/interno/processos", label: "Processos", group: "Contexto", icon: "briefcase" },
+  { href: "/interno/publicacoes", label: "Publicacoes", group: "Contexto", icon: "document" },
+  { href: "/interno/contacts", label: "Contatos", group: "Contexto", icon: "users" },
+  { href: "/interno/jobs", label: "Jobs", group: "Operacao", icon: "layers" },
+  { href: "/interno", label: "Dashboard", group: "Operacao", icon: "dashboard" },
+];
+
+export function groupSidebarItems(items = []) {
+  return items.reduce((groups, item) => {
+    const key = item.group || "Geral";
+    groups[key] = groups[key] || [];
+    groups[key].push(item);
+    return groups;
+  }, {});
+}
+
 export function normalizeDisplayName(profile) {
   return profile?.full_name || profile?.display_name || profile?.email || "Hermida Maia";
 }

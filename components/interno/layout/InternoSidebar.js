@@ -2,7 +2,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import InternoUserAvatarMenu from "./InternoUserAvatarMenu";
 import SidebarNavItem from "./SidebarNavItem";
-import { NAV_ITEMS, normalizeDisplayName } from "./sidebarConfig";
+import { COPILOT_NAV_ITEMS, NAV_ITEMS, groupSidebarItems, normalizeDisplayName } from "./sidebarConfig";
 
 function getSidebarClassName({ isMobileShell, leftCollapsed, isCopilotWorkspace, sidebarToneClass }) {
   const mobileClass = `fixed inset-y-0 left-0 w-[min(84vw,280px)] max-w-[calc(100vw-2rem)] rounded-r-[24px] rounded-l-none border-y-0 border-l-0 ${leftCollapsed ? "pointer-events-none -translate-x-full opacity-0" : "translate-x-0 opacity-100"}`;
@@ -10,18 +10,10 @@ function getSidebarClassName({ isMobileShell, leftCollapsed, isCopilotWorkspace,
   return `z-40 flex h-full min-h-0 shrink-0 flex-col overflow-hidden border px-3 py-3 shadow-[0_18px_48px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all ${sidebarToneClass} ${isMobileShell ? mobileClass : desktopClass}`;
 }
 
-function getGroupedItems() {
-  return NAV_ITEMS.reduce((groups, item) => {
-    const key = item.group || "Geral";
-    groups[key] = groups[key] || [];
-    groups[key].push(item);
-    return groups;
-  }, {});
-}
-
 export default function InternoSidebar(props) {
   const { profile, pathname, isLightTheme, isMobileShell, isCopilotWorkspace, leftCollapsed, onNavigate, onOpenSettings, onSignOut, router, sidebarToneClass } = props;
-  const groups = getGroupedItems();
+  const sidebarItems = isCopilotWorkspace ? COPILOT_NAV_ITEMS : NAV_ITEMS;
+  const groups = groupSidebarItems(sidebarItems);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef(null);
 
@@ -52,7 +44,7 @@ export default function InternoSidebar(props) {
 
   return <aside className={getSidebarClassName({ isMobileShell, leftCollapsed, isCopilotWorkspace, sidebarToneClass })}>
     <Link href="/interno" prefetch={false} className={`mb-4 block shrink-0 ${leftCollapsed ? "self-center" : ""}`}>
-      {!leftCollapsed ? <><p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#C5A059]">Interno</p><h1 className={`mt-2 text-[20px] font-semibold tracking-[-0.03em] ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Centro operacional</h1><p className={`mt-2 text-[12px] leading-5 ${isLightTheme ? "text-[#6A7A85]" : "text-[#8FA39C]"}`}>Navegacao vertical compacta para acesso rapido aos modulos.</p></> : <div className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C5A059] ${isLightTheme ? "border-[#DCE4ED] bg-white" : "border-[#233630]"}`}>HM</div>}
+      {!leftCollapsed ? <><p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#C5A059]">{isCopilotWorkspace ? "Copilot" : "Interno"}</p><h1 className={`mt-2 text-[20px] font-semibold tracking-[-0.03em] ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{isCopilotWorkspace ? "Workspace conversacional" : "Centro operacional"}</h1><p className={`mt-2 text-[12px] leading-5 ${isLightTheme ? "text-[#6A7A85]" : "text-[#8FA39C]"}`}>{isCopilotWorkspace ? "Atalhos curtos para conversa, contexto, execucao e retomada rapida." : "Navegacao vertical compacta para acesso rapido aos modulos."}</p></> : <div className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-[11px] font-semibold uppercase tracking-[0.2em] text-[#C5A059] ${isLightTheme ? "border-[#DCE4ED] bg-white" : "border-[#233630]"}`}>{isCopilotWorkspace ? "CP" : "HM"}</div>}
     </Link>
     <div className="flex min-h-0 flex-1 flex-col">
       <nav aria-label="Navegacao interna" className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-color:#C5A059_transparent] [scrollbar-width:thin]">
