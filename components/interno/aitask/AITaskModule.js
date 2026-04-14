@@ -31,230 +31,28 @@ import {
   probeBrowserLocalStackSummary,
   shouldAutoProbeBrowserLocalRuntime,
 } from "../../../lib/lawdesk/browser-local-runtime";
-import { resolvePreferredLawdeskProvider } from "../../../lib/lawdesk/providers.js";
-import { listSkills } from "../../../lib/lawdesk/skill_registry.js";
 import { buildSupabaseLocalBootstrap } from "../../../lib/lawdesk/supabase-local-bootstrap.js";
+import {
+  FALLBACK_PROVIDER_OPTIONS,
+  FALLBACK_SKILL_OPTIONS,
+  MAX_LOGS,
+  MAX_THINKING,
+  MODE_OPTIONS,
+  QUICK_MISSIONS,
+  normalizeAiTaskProviderSelection,
+  resolveAiTaskProviderSelection,
+  shouldHydrateLocalProviderForAiTask,
+} from "./aiTaskModuleConfig";
+import {
+  buildBlueprint,
+  buildRagAlert,
+  extractFirstEmail,
+  formatHistoryStatus,
+  nowIso,
+} from "./aiTaskMissionBlueprint";
 import { useAiTaskUiState } from "./useAiTaskUiState";
 import { useAiTaskViewModel } from "./useAiTaskViewModel";
 import { useAiTaskModuleHistorySync } from "./useAiTaskModuleHistorySync";
-
-function formatHistoryStatus(status) {
-  const labels = {
-    running: "Executando",
-    done: "Concluído",
-    failed: "Falhou",
-    stopped: "Parado",
-    idle: "Pronto",
-  };
-  return labels[status] || String(status || "Indefinido");
-}
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function extractFirstEmail(value = "") {
-  const match = String(value || "").match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
-  return match ? match[0] : "";
-}
-
-const MAX_THINKING = 20;
-const MAX_LOGS = 200;
-
-const QUICK_MISSIONS = [
-  "Analise este processo e identifique os próximos passos",
-  "Redija contestação com base nas alegações do cliente",
-  "Crie plano de execução para audiência agendada",
-  "Resuma documentos e identifique riscos",
-];
-
-const MODE_OPTIONS = [
-  { value: "assisted", label: "Assistido" },
-  { value: "auto", label: "Automático" },
-  { value: "manual", label: "Manual" },
-];
-
-const FALLBACK_PROVIDER_OPTIONS = [
-  { value: "gpt", label: "Nuvem principal", disabled: false },
-  { value: "local", label: "LLM local", disabled: false },
-  { value: "cloudflare", label: "Cloudflare Workers AI", disabled: false },
-  { value: "custom", label: "Endpoint custom", disabled: false },
-];
-
-const FALLBACK_SKILL_OPTIONS = listSkills().map((skill) => ({
-  value: skill.id,
-  label: `${skill.name} · ${skill.category}`,
-  disabled: false,
-}));
-
-function shouldHydrateLocalProviderForAiTask(selectedProvider = "", providers = []) {
-  if (!Array.isArray(providers) || !providers.length) return false;
-  const hasLocalBrowserConfig = hasPersistedBrowserLocalRuntimeConfig();
-  const hasExplicitOptIn = hasExplicitBrowserLocalRuntimeOptIn();
-  const canAutoProbe = shouldAutoProbeBrowserLocalRuntime();
-  const localOption = Array.isArray(providers)
-    ? providers.find((item) => String(item?.value || item?.id || "").toLowerCase() === "local")
-    : null;
-  if (!localOption) return false;
-  if (String(selectedProvider || "").toLowerCase() === "local") {
-    return localOption.disabled !== true && hasLocalBrowserConfig && hasExplicitOptIn && canAutoProbe;
-  }
-  return canAutoProbe && hasLocalBrowserConfig && hasExplicitOptIn && localOption.disabled !== true;
-}
-
-function resolveAiTaskProviderSelection({ currentProvider, defaultProvider, providers = [] }) {
-  const preferred = resolvePreferredLawdeskProvider({
-    currentProvider,
-    defaultProvider,
-    providers,
-  });
-  if (String(preferred || "").toLowerCase() !== "local") return preferred;
-  if (hasPersistedBrowserLocalRuntimeConfig() && hasExplicitBrowserLocalRuntimeOptIn()) return preferred;
-  return providers.find((item) => String(item?.value || "").toLowerCase() !== "local" && item?.disabled !== true)?.value || preferred;
-}
-
-function normalizeAiTaskProviderSelection(provider, providers = []) {
-  if (String(provider || "").toLowerCase() !== "local") return provider || "gpt";
-  if (hasPersistedBrowserLocalRuntimeConfig() && hasExplicitBrowserLocalRuntimeOptIn()) return provider;
-  return providers.find((item) => String(item?.value || "").toLowerCase() !== "local" && item?.disabled !== true)?.value || "gpt";
-}
-
-function buildRagAlert(health) {
-  if (!health || health.status === "operational") return null;
-  const signals = health.signals || {};
-  if (signals.supabaseAuthMismatch) {
-    return {
-      tone: "danger",
-      title: "Embedding RAG bloqueado por autenticacao",
-      body: "O Supabase respondeu com falha de autenticacao. Revise o DOTOBOT_SUPABASE_EMBED_SECRET no app e na function dotobot-embed.",
-    };
-  }
-  if (signals.appEmbedSecretMissing) {
-    return {
-      tone: "warning",
-      title: "Segredo do embed ausente no app",
-      body: "O dashboard esta sem DOTOBOT_SUPABASE_EMBED_SECRET, entao embedding e consulta vetorial podem falhar ou ficar superficiais.",
-    };
-  }
-  return {
-    tone: "warning",
-    title: "RAG degradado no momento",
-    body: health.error || "Embedding, consulta vetorial ou persistencia de memoria nao estao integros. Abra o diagnostico para revisar secrets e backends.",
-  };
-}
-
-function buildBlueprint(normalizedMission, profile, mode, provider) {
-  const modules = detectModules(normalizedMission);
-  const critical = requiresApproval(normalizedMission);
-  const steps = [
-    {
-      id: "intake",
-      title: "Receber missão",
-      description: "Interpretar o pedido, identificar urgência e classificar a natureza da tarefa.",
-      status: "pending",
-      dependsOn: [],
-      agent: "Dotobot",
-      priority: "high",
-    },
-    {
-      id: "context",
-      title: "Recuperar contexto",
-      description: "Buscar memória, documentos e sinais do módulo relevante antes de decidir o próximo passo.",
-      status: "pending",
-      dependsOn: ["intake"],
-      agent: "Dotobot",
-      priority: critical ? "high" : "medium",
-    },
-    {
-      id: "plan",
-      title: "Montar plano",
-      description: "Quebrar a missão em tarefas executáveis com ordem, dependência e risco visível.",
-      status: "pending",
-      dependsOn: ["context"],
-      agent: "Planner",
-      priority: "high",
-    },
-    {
-      id: "execute",
-      title: "Executar tarefa principal",
-      description: "Acionar o backend e executar a primeira ação relevante com transparência total.",
-      status: "pending",
-      dependsOn: ["plan"],
-      agent: provider === "local" ? "Modelo local" : "Dotobot",
-      priority: "high",
-    },
-    {
-      id: "critic",
-      title: "Validar resposta",
-      description: "Checar consistência, risco jurídico, lacunas e necessidade de aprovação humana.",
-      status: "pending",
-      dependsOn: ["execute"],
-      agent: "Critic",
-      priority: "medium",
-    },
-  ];
-
-  const thinking = [
-    {
-      id: "thought-intake",
-      title: "Leitura da missão",
-      timestamp: nowIso(),
-      summary: `Interpretando solicitação como tarefa ${critical ? "crítica" : "operacional"} no modo ${mode}.`,
-      details: [
-        `Pedido normalizado: ${normalizedMission || "missão vazia"}`,
-        `Módulos candidatos: ${modules.join(", ")}`,
-        `Responsável visível: ${profile?.full_name || profile?.email || "Hermida Maia Advocacia"}`,
-      ],
-      expanded: true,
-    },
-    {
-      id: "thought-context",
-      title: "Contexto e memória",
-      timestamp: nowIso(),
-      summary: "Selecionando memória relevante e sinais do módulo atual.",
-      details: [
-        "Fontes candidatas: Supabase embeddings, Obsidian fallback, contexto de rota e perfil.",
-        "Caso o contexto esteja insuficiente, a execução segue em modo conservador.",
-      ],
-      expanded: false,
-    },
-    {
-      id: "thought-tools",
-      title: "Seleção de ferramentas",
-      timestamp: nowIso(),
-      summary: `Ferramentas prováveis: ${modules.join(" + ")}.`,
-      details: [
-        "O orquestrador prioriza leitura, classificação, consolidação e validação antes de acionar ação sensível.",
-        critical ? "Aprovação manual será exigida para etapas destrutivas ou sensíveis." : "Execução pode seguir sem bloqueio se o modo permitir.",
-      ],
-      expanded: false,
-    },
-  ];
-
-  const tasks = steps.map((step, index) => ({
-    id: `${Date.now()}_${index}`,
-    title: step.title,
-    goal: step.description,
-    description: step.description,
-    step,
-    steps: [step.description],
-    status: index === 0 ? "running" : "pending",
-    priority: step.priority,
-    assignedAgent: step.agent,
-    created_at: nowIso(),
-    updated_at: nowIso(),
-    logs: [],
-    dependencies: step.dependsOn,
-  }));
-
-  return {
-    mission: normalizedMission,
-    critical,
-    modules,
-    tasks,
-    thinking,
-  };
-}
 
 export default function AITaskModule({ profile, routePath }) {
   const router = useRouter();
