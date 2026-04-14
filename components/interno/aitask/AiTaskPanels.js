@@ -3,9 +3,14 @@ import { buildLocalBootstrapPlan } from "../../../lib/lawdesk/local-bootstrap.js
 import { buildSupabaseLocalBootstrap } from "../../../lib/lawdesk/supabase-local-bootstrap.js";
 import { useInternalTheme } from "../InternalThemeProvider";
 import Bubble from "./Bubble";
+import ConfirmModal from "./ConfirmModal";
+import ContextRail from "./ContextRail";
+import ConversationComposer from "./ConversationComposer";
 import LogRow from "./LogRow";
 import MetricPill from "./MetricPill";
 import RunHistoryCard from "./RunHistoryCard";
+import RunsPane from "./RunsPane";
+import TaskInspector from "./TaskInspector";
 import TaskCard from "./TaskCard";
 import ThinkingBlock from "./ThinkingBlock";
 import { summarizeOrchestration } from "./aiTaskPanelUtils";
@@ -13,6 +18,8 @@ import { summarizeOrchestration } from "./aiTaskPanelUtils";
 export { TaskCard };
 
 export { Bubble, LogRow, MetricPill, RunHistoryCard, ThinkingBlock };
+export { ConfirmModal, ContextRail, ConversationComposer, RunsPane };
+export { TaskInspector };
 
 export function WorkspaceHeader({
   stateLabel,

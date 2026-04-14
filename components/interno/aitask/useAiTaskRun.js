@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { adminFetch } from "../../../lib/admin/api";
 import { appendActivityLog, updateActivityLog } from "../../../lib/admin/activity-log";
 import {
+  isBrowserLocalProvider,
   invokeBrowserLocalExecute,
   normalizeBrowserLocalTaskRun,
 } from "../../../lib/lawdesk/browser-local-runtime";
@@ -9,19 +10,15 @@ import { summarizeTaskRunOrchestration } from "./aiTaskAdapters";
 import {
   buildAdminInteractionMessage,
   buildAiTaskDiagnostic,
-  isAdminAuthenticationFailure,
-  isAdminRuntimeUnavailable,
   resolveAiTaskProvider,
   stringifyDiagnostic,
 } from "./aiTaskRunDiagnostics";
+import { AI_TASK_CONSOLE_META } from "./aiTaskRunConsoleMeta";
+import { continueAiTaskRun } from "./aiTaskRunContinue";
+import { stopAiTaskRun } from "./aiTaskRunStop";
+import useAiTaskRunPolling from "./useAiTaskRunPolling";
 import { mapTaskRunSteps } from "./aiTaskRunStepMapper";
-import { markTasksAsDone, markTasksAsFailed, resetRunTracking, updateHistoryItem } from "./aiTaskRunStateHelpers";
-
-const AI_TASK_CONSOLE_META = {
-  consolePane: ["ai-task", "functions", "jobs"],
-  domain: "orchestration",
-  system: "task-run",
-};
+import { markTasksAsFailed, resetRunTracking, updateHistoryItem } from "./aiTaskRunStateHelpers";
 
 export function useAiTaskRun({
   mission,
@@ -69,242 +66,29 @@ export function useAiTaskRun({
   const abortRef = useRef(null);
   const pauseRef = useRef(false);
 
-  useEffect(() => {
-    let runId = activeRun?.id;
-    if (!runId) {
-      const localRunId = `${Date.now()}_run`;
-      setActiveRun({ id: localRunId, startedAt: nowIso(), mission });
-      runId = localRunId;
-    }
-
-    const terminalStates = new Set(["done", "failed", "stopped"]);
-    if (terminalStates.has(automation)) return undefined;
-
-    let disposed = false;
-    let timerId = null;
-    let nextDelayMs = 150;
-
-    const scheduleNextPoll = (delayMs) => {
-      if (disposed) return;
-      timerId = setTimeout(poll, Math.max(250, Number(delayMs) || 2500));
-    };
-
-    const poll = async () => {
-      if (disposed || pollingInFlightRef.current) return;
-      pollingInFlightRef.current = true;
-      try {
-        const startedAt = Date.now();
-        const pollLogId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-        appendActivityLog({
-          id: pollLogId,
-          module: "ai-task",
-          component: "AITaskPolling",
-          label: "AI Task: consultar run",
-          action: "ai_task_run_poll",
-          method: "POST",
-          path: "/api/admin-lawdesk-chat",
-          expectation: "Consultar novos eventos e status da execução",
-          request: stringifyDiagnostic({
-            action: "task_run_get",
-            runId,
-            sinceEventId: lastEventCursorRef.current || null,
-            sinceSequence: lastEventSequenceRef.current || null,
-          }),
-          ...AI_TASK_CONSOLE_META,
-          status: "running",
-          startedAt,
-        });
-        const payload = await adminFetch("/api/admin-lawdesk-chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "task_run_get",
-            runId,
-            sinceEventId: lastEventCursorRef.current || undefined,
-            sinceSequence: lastEventSequenceRef.current || undefined,
-            waitForChangeMs: Math.min(Math.max(nextDelayMs * 3, 1500), 10000),
-          }),
-        });
-
-        const normalized = normalizeTaskRunPayload(payload);
-        updateActivityLog(pollLogId, {
-          status: "success",
-          durationMs: Date.now() - startedAt,
-          response: buildAiTaskDiagnostic({
-            title: "AI Task poll",
-            summary: normalized?.status || "poll_ok",
-            sections: [
-              { label: "run", value: normalized?.run || null },
-              { label: "events", value: (normalized?.events || []).slice(-8) },
-              { label: "steps", value: (normalized?.steps || []).slice(-8) },
-              { label: "rag", value: normalized?.rag || null },
-            ],
-          }),
-        });
-        const run = normalized.run;
-        const events = normalized.events;
-        if (normalized.eventsCursor) {
-          lastEventCursorRef.current = normalized.eventsCursor;
-        }
-        if (normalized.eventsCursorSequence != null) {
-          lastEventSequenceRef.current = normalized.eventsCursorSequence;
-        }
-        nextDelayMs = normalized.pollIntervalMs != null ? normalized.pollIntervalMs : 2500;
-        if (normalized.eventsTotal != null) {
-          setEventsTotal(normalized.eventsTotal);
-        }
-        for (const event of events.slice(-20)) {
-          const eventId = event?.id;
-          if (!eventId || runEventIdsRef.current.has(eventId)) continue;
-          runEventIdsRef.current.add(eventId);
-          const eventSource = event?.data?.source ? formatExecutionSourceLabel(event.data.source) : null;
-          const eventModel = event?.data?.model || null;
-          pushLog({
-            type: "backend",
-            action: event?.type || "task_run_event",
-            result: `${event?.message || "Evento sem mensagem."}${eventSource ? ` [${eventSource}${eventModel ? ` / ${eventModel}` : ""}]` : ""}`,
-          });
-        }
-
-        const runStatus = run?.status;
-        if (normalized.source) setExecutionSource(normalized.source);
-        if (normalized.model) setExecutionModel(normalized.model);
-        if (normalized.resultText) setLatestResult(normalized.resultText);
-
-        if (normalized.steps.length) {
-          const mappedTasks = mapTaskRunSteps(normalized.steps, {
-            runId: run?.id || runId,
-            nowIso,
-            fallbackDescription: "Execucao do backend",
-            normalizeTaskStepStatus,
-            inferTaskPriority,
-            classifyTaskAgent,
-          });
-          setTasks(mappedTasks);
-          setSelectedTaskId(mappedTasks[0]?.id || null);
-        }
-
-        if (normalized.rag) {
-          setContextSnapshot((current) => ({
-            ...(current || {}),
-            module: detectModules(run?.mission || mission).join(", "),
-            memory: extractTaskRunMemoryMatches(normalized.rag),
-            documents: normalized.rag?.documents || [],
-            ragEnabled: Boolean(normalized.rag?.retrieval?.enabled || normalized.rag?.documents?.length),
-            route: routePath || "/interno/ai-task",
-            orchestration: normalized.orchestration || current?.orchestration || null,
-          }));
-        }
-
-        if (normalized.orchestration) {
-          const orchestrationSummary = summarizeTaskRunOrchestration(normalized.orchestration);
-          setMissionHistory((current) =>
-            updateHistoryItem(current, (item) => item.id === runId, (item) => ({
-              ...item,
-              orchestration: normalized.orchestration,
-              module: orchestrationSummary.moduleKeys.join(", ") || item.module || null,
-            }))
-          );
-        }
-
-        if (runStatus === "completed" || runStatus === "failed" || runStatus === "canceled") {
-          setAutomation(runStatus === "completed" ? "done" : runStatus === "canceled" ? "stopped" : "failed");
-          setActiveRun(null);
-          setMissionHistory((current) =>
-            updateHistoryItem(current, (item) => item.id === runId, (item) => ({
-              ...item,
-              status: runStatus === "completed" ? "done" : "failed",
-              updated_at: nowIso(),
-              result: run?.result?.status || runStatus,
-              error: run?.error || item.error,
-            }))
-          );
-
-          if (runStatus === "completed") {
-            setTasks((current) => markTasksAsDone(current, nowIso));
-          }
-
-          if (runStatus === "failed" || runStatus === "canceled") {
-            setTasks((current) => markTasksAsFailed(current, nowIso, run?.error || "Execução interrompida.", true));
-          }
-          nextDelayMs = 0;
-        }
-      } catch (pollError) {
-        if (!disposed) {
-          appendActivityLog({
-            id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-            module: "ai-task",
-            component: "AITaskPolling",
-            label: "AI Task: falha ao consultar run",
-            action: "ai_task_run_poll_error",
-            method: "POST",
-            path: "/api/admin-lawdesk-chat",
-            ...AI_TASK_CONSOLE_META,
-            status: "error",
-            startedAt: Date.now(),
-            error: buildAiTaskDiagnostic({
-              title: "Falha no polling do AI Task",
-              summary: pollError?.message || "Falha ao consultar status da execução.",
-              sections: [
-                { label: "error", value: pollError?.payload || pollError?.stack || pollError },
-                { label: "runId", value: runId },
-                { label: "cursor", value: { eventId: lastEventCursorRef.current, sequence: lastEventSequenceRef.current } },
-              ],
-            }),
-          });
-          pushLog({
-            type: "warning",
-            action: "Polling TaskRun",
-            result: pollError?.message || "Falha ao consultar status da execução.",
-          });
-        }
-        if (!disposed && isAdminRuntimeUnavailable(pollError)) {
-          disposed = true;
-          setError(pollError?.message || "Runtime administrativo indisponivel.");
-          setAutomation("failed");
-          setActiveRun(null);
-          nextDelayMs = 0;
-        } else if (!disposed && isAdminAuthenticationFailure(pollError)) {
-          disposed = true;
-          setError(buildAdminInteractionMessage(pollError, "Sessao administrativa indisponivel."));
-          setAutomation("failed");
-          setActiveRun(null);
-          nextDelayMs = 0;
-        } else {
-          nextDelayMs = 4000;
-        }
-      } finally {
-        pollingInFlightRef.current = false;
-        if (
-          !disposed &&
-          activeRun?.id &&
-          nextDelayMs > 0
-        ) {
-          scheduleNextPoll(nextDelayMs);
-        }
-      }
-    };
-
-    scheduleNextPoll(nextDelayMs);
-
-    return () => {
-      disposed = true;
-      if (timerId) clearTimeout(timerId);
-    };
-  }, [
-    activeRun?.id,
+  useAiTaskRunPolling({
+    activeRun,
     automation,
+    buildAdminInteractionMessage,
+    classifyTaskAgent,
     detectModules,
     extractTaskRunMemoryMatches,
     formatExecutionSourceLabel,
+    inferTaskPriority,
+    lastEventCursorRef,
+    lastEventSequenceRef,
     mission,
     normalizeTaskRunPayload,
+    normalizeTaskStepStatus,
     nowIso,
+    pollingInFlightRef,
     pushLog,
     routePath,
+    runEventIdsRef,
     setActiveRun,
     setAutomation,
     setContextSnapshot,
+    setError,
     setEventsTotal,
     setExecutionModel,
     setExecutionSource,
@@ -312,7 +96,7 @@ export function useAiTaskRun({
     setMissionHistory,
     setSelectedTaskId,
     setTasks,
-  ]);
+  });
 
   async function executeMission(overrideMission = mission) {
     const normalizedMission = normalizeMission(overrideMission);
@@ -849,199 +633,42 @@ export function useAiTaskRun({
   }
 
   async function handleStop() {
-    abortRef.current?.abort();
-    const runId = activeRun?.id;
-    if (runId) {
-      try {
-        const cancelStartedAt = Date.now();
-        const cancelLogId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-        appendActivityLog({
-          id: cancelLogId,
-          module: "ai-task",
-          component: "AITaskRun",
-          label: "AI Task: cancelar run",
-          action: "ai_task_run_cancel",
-          method: "POST",
-          path: "/api/admin-lawdesk-chat",
-          expectation: "Cancelar a execução ativa",
-          ...AI_TASK_CONSOLE_META,
-          request: stringifyDiagnostic({ action: "task_run_cancel", runId }),
-          status: "running",
-          startedAt: cancelStartedAt,
-        });
-        const payload = await adminFetch("/api/admin-lawdesk-chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "task_run_cancel", runId }),
-        });
-        updateActivityLog(cancelLogId, {
-          status: "success",
-          durationMs: Date.now() - cancelStartedAt,
-          response: buildAiTaskDiagnostic({
-            title: "AI Task cancel",
-            summary: payload?.data?.run?.status || "cancel_requested",
-            sections: [{ label: "payload", value: payload }],
-          }),
-        });
-        const canceledStatus = payload?.data?.run?.status;
-        if (canceledStatus === "canceled") {
-          pushLog({ type: "backend", action: "run.canceled", result: "Cancelamento confirmado pelo backend." });
-        }
-      } catch (cancelError) {
-        appendActivityLog({
-          id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-          module: "ai-task",
-          component: "AITaskRun",
-          label: "AI Task: falha ao cancelar",
-          action: "ai_task_run_cancel_error",
-          method: "POST",
-          path: "/api/admin-lawdesk-chat",
-          ...AI_TASK_CONSOLE_META,
-          status: "error",
-          startedAt: Date.now(),
-          error: buildAiTaskDiagnostic({
-            title: "Falha ao cancelar AI Task",
-            summary: cancelError?.message || "Falha ao confirmar cancelamento.",
-            sections: [
-              { label: "runId", value: runId },
-              { label: "error", value: cancelError?.payload || cancelError?.stack || cancelError },
-            ],
-          }),
-        });
-        pushLog({
-          type: "warning",
-          action: "Cancelamento parcial",
-          result: cancelError?.message || "Falha ao confirmar cancelamento no backend.",
-        });
-      }
-    }
-    pauseRef.current = false;
-    setPaused(false);
-    setAutomation("stopped");
-    resetRunTracking({ runEventIdsRef, lastEventCursorRef, lastEventSequenceRef });
-    setEventsTotal(0);
-    setActiveRun(null);
-    setTasks((current) => markTasksAsFailed(current, nowIso, "Interrompido pelo operador."));
-    pushLog({ type: "control", action: "Execução parada", result: "Operador interrompeu a orquestração." });
+    await stopAiTaskRun({
+      abortRef,
+      activeRun,
+      lastEventCursorRef,
+      lastEventSequenceRef,
+      nowIso,
+      pauseRef,
+      pushLog,
+      runEventIdsRef,
+      setActiveRun,
+      setAutomation,
+      setEventsTotal,
+      setPaused,
+      setTasks,
+    });
   }
 
   async function handleContinueLastRun() {
-    const lastRecoverable = missionHistory.find((item) => item.status === "failed" || item.status === "stopped");
-    if (!lastRecoverable?.id) {
-      pushLog({ type: "warning", action: "Retomada", result: "Não há run falhada/parada para retomar." });
-      return;
-    }
-
-    try {
-      setError(null);
-      setAutomation("running");
-      resetRunTracking({ runEventIdsRef, lastEventCursorRef, lastEventSequenceRef });
-      setEventsTotal(0);
-      const continueStartedAt = Date.now();
-      const continueLogId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      appendActivityLog({
-        id: continueLogId,
-        module: "ai-task",
-        component: "AITaskRun",
-        label: "AI Task: retomar run",
-        action: "ai_task_run_continue",
-        method: "POST",
-        path: "/api/admin-lawdesk-chat",
-        expectation: "Retomar uma run falhada ou parada",
-        ...AI_TASK_CONSOLE_META,
-        request: stringifyDiagnostic({
-          action: "task_run_continue",
-          runId: lastRecoverable.id,
-          mission: lastRecoverable.mission,
-          mode: lastRecoverable.mode,
-          provider: lastRecoverable.provider,
-        }),
-        status: "running",
-        startedAt: continueStartedAt,
-      });
-      const payload = await adminFetch("/api/admin-lawdesk-chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "task_run_continue",
-          runId: lastRecoverable.id,
-          waitForCompletion: false,
-        }),
-      });
-
-      const normalized = normalizeTaskRunPayload(payload);
-      updateActivityLog(continueLogId, {
-        status: "success",
-        durationMs: Date.now() - continueStartedAt,
-        response: buildAiTaskDiagnostic({
-          title: "AI Task continue",
-          summary: normalized?.status || "continue_requested",
-          sections: [
-            { label: "run", value: normalized?.run || null },
-            { label: "events", value: (normalized?.events || []).slice(-8) },
-          ],
-        }),
-      });
-      const continuedRun = normalized.run;
-      if (continuedRun?.id) {
-        setActiveRun({
-          id: continuedRun.id,
-          startedAt: continuedRun.created_at || nowIso(),
-          mission: continuedRun.mission || lastRecoverable.mission || mission,
-        });
-        setMission(continuedRun.mission || lastRecoverable.mission || mission);
-        setMissionHistory((current) => [
-          {
-            id: continuedRun.id,
-            mission: continuedRun.mission || lastRecoverable.mission || mission,
-            mode: continuedRun.mode || mode,
-            provider: continuedRun.provider || provider,
-            status: "running",
-            source: null,
-            model: null,
-            created_at: continuedRun.created_at || nowIso(),
-            updated_at: continuedRun.updated_at || nowIso(),
-          },
-          ...current,
-        ].slice(0, 80));
-      }
-      if (normalized.eventsTotal != null) {
-        setEventsTotal(normalized.eventsTotal);
-      }
-
-      pushLog({
-        type: "control",
-        action: "Retomada iniciada",
-        result: continuedRun?.id
-          ? `Run retomado com novo id ${continuedRun.id}.`
-          : "Run anterior ainda estava em execucao; acompanhamento mantido.",
-      });
-    } catch (continueError) {
-      const message = buildAdminInteractionMessage(continueError, "Falha ao retomar run.");
-      appendActivityLog({
-        id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        module: "ai-task",
-        component: "AITaskRun",
-        label: "AI Task: falha ao retomar",
-        action: "ai_task_run_continue_error",
-        method: "POST",
-        path: "/api/admin-lawdesk-chat",
-        ...AI_TASK_CONSOLE_META,
-        status: "error",
-        startedAt: Date.now(),
-        error: buildAiTaskDiagnostic({
-          title: "Falha ao retomar AI Task",
-          summary: message,
-          sections: [
-            { label: "run", value: lastRecoverable },
-            { label: "error", value: continueError?.payload || continueError?.stack || continueError },
-          ],
-        }),
-      });
-      setError(message);
-      setAutomation("failed");
-      pushLog({ type: "error", action: "Retomada falhou", result: message });
-    }
+    await continueAiTaskRun({
+      lastEventCursorRef,
+      lastEventSequenceRef,
+      mission,
+      missionHistory,
+      mode,
+      normalizeTaskRunPayload,
+      nowIso,
+      provider,
+      pushLog,
+      runEventIdsRef,
+      setActiveRun,
+      setAutomation,
+      setError,
+      setEventsTotal,
+      setMission,
+      setMissionHistory,
+    });
   }
 
   return { handleStart, handlePause, handleStop, handleContinueLastRun, executeMission };

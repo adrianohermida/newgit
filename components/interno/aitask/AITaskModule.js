@@ -21,17 +21,7 @@ import {
 } from "./aiTaskAdapters";
 import { useAiTaskRun } from "./useAiTaskRun";
 import { useAiTaskWorkspace } from "./useAiTaskWorkspace";
-import {
-  applyBrowserLocalOfflinePolicy,
-  getBrowserLocalRuntimeConfig,
-  hasExplicitBrowserLocalRuntimeOptIn,
-  hasPersistedBrowserLocalRuntimeConfig,
-  hydrateBrowserLocalProviderOptions,
-  persistBrowserLocalRuntimeConfig,
-  probeBrowserLocalStackSummary,
-  shouldAutoProbeBrowserLocalRuntime,
-} from "../../../lib/lawdesk/browser-local-runtime";
-import { buildSupabaseLocalBootstrap } from "../../../lib/lawdesk/supabase-local-bootstrap.js";
+import { hasExplicitBrowserLocalRuntimeOptIn } from "../../../lib/lawdesk/browser-local-runtime";
 import {
   FALLBACK_PROVIDER_OPTIONS,
   FALLBACK_SKILL_OPTIONS,
@@ -40,8 +30,6 @@ import {
   MODE_OPTIONS,
   QUICK_MISSIONS,
   normalizeAiTaskProviderSelection,
-  resolveAiTaskProviderSelection,
-  shouldHydrateLocalProviderForAiTask,
 } from "./aiTaskModuleConfig";
 import {
   buildBlueprint,
@@ -151,181 +139,6 @@ export default function AITaskModule({ profile, routePath }) {
     setProvider,
   });
 
-  useEffect(() => {
-    let active = true;
-    adminFetch("/api/admin-lawdesk-providers?include_health=1", { method: "GET" })
-      .then(async (payload) => {
-        if (!active) return;
-        const providers = Array.isArray(payload?.data?.providers) ? payload.data.providers : [];
-        const defaultProvider = typeof payload?.data?.defaultProvider === "string" ? payload.data.defaultProvider : "gpt";
-        if (!providers.length) return;
-        const mappedProviders = providers.map((item) => ({
-            value: item.id,
-            label: `${item.label}${item.model ? ` · ${item.model}` : ""}${item.status ? ` · ${item.status}` : ""}`,
-            disabled: !item.available,
-            configured: Boolean(item.configured),
-            displayLabel: item.label,
-            model: item.model || null,
-            status: item.status || null,
-            transport: item.transport || null,
-            runtimeMode: item.details?.probe?.mode || null,
-            host: item.details?.config?.host || null,
-            endpoint: item.details?.probe?.endpoint || item.details?.config?.baseUrl || null,
-            reason: item.reason || null,
-          }));
-        setProviderCatalog(mappedProviders);
-        setProvider((current) =>
-          resolveAiTaskProviderSelection({
-            currentProvider: current,
-            defaultProvider,
-            providers: mappedProviders,
-          })
-        );
-      })
-      .catch(() => null);
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!shouldHydrateLocalProviderForAiTask(provider, providerCatalog)) {
-      return undefined;
-    }
-    let active = true;
-    hydrateBrowserLocalProviderOptions(providerCatalog)
-      .then((hydratedProviders) => {
-        if (!active || !Array.isArray(hydratedProviders) || !hydratedProviders.length) return;
-        const governedProviders = applyBrowserLocalOfflinePolicy(hydratedProviders, localStackSummary);
-        const before = JSON.stringify(providerCatalog);
-        const after = JSON.stringify(governedProviders);
-        if (before !== after) {
-          setProviderCatalog(governedProviders);
-          setProvider((current) =>
-            resolveAiTaskProviderSelection({
-              currentProvider: current,
-              defaultProvider: localStackSummary?.offlineMode ? "local" : "gpt",
-              providers: governedProviders,
-            })
-          );
-        }
-      })
-      .catch(() => null);
-    return () => {
-      active = false;
-    };
-  }, [localStackSummary, providerCatalog, setProvider]);
-
-  useEffect(() => {
-    if (!shouldHydrateLocalProviderForAiTask(provider, providerCatalog)) return undefined;
-    let active = true;
-    probeBrowserLocalStackSummary()
-      .then((summary) => {
-        if (!active) return;
-        setLocalStackSummary(summary);
-        setProviderCatalog((current) => applyBrowserLocalOfflinePolicy(current, summary));
-      })
-      .catch(() => {
-        if (!active) return;
-        setLocalStackSummary(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, [provider, providerCatalog]);
-
-  useEffect(() => {
-    const runtimeSkills = Array.isArray(localStackSummary?.capabilities?.skillList)
-      ? localStackSummary.capabilities.skillList
-      : [];
-    if (!runtimeSkills.length) return;
-    setSkillCatalog(
-      runtimeSkills.map((skill) => ({
-        value: skill.id,
-        label: `${skill.name} · ${skill.category}${skill.offline_ready ? " · offline" : ""}`,
-        disabled: skill.available === false,
-      }))
-    );
-  }, [localStackSummary]);
-
-  useEffect(() => {
-    setLocalRuntimeDraft(getBrowserLocalRuntimeConfig());
-  }, [localStackSummary]);
-
-  useEffect(() => {
-    if (!localStackSummary?.offlineMode) return;
-    if (!hasExplicitBrowserLocalRuntimeOptIn()) return;
-    setProvider((current) => (current === "local" ? current : "local"));
-  }, [localStackSummary?.offlineMode, setProvider]);
-
-  useEffect(() => {
-    const currentOption = providerCatalog.find((item) => item.value === provider);
-    if (!currentOption?.disabled) return;
-    setProvider(providerCatalog.find((item) => !item.disabled)?.value || "gpt");
-  }, [provider, providerCatalog, setProvider]);
-
-  async function refreshLocalStackStatus() {
-    setRefreshingLocalStack(true);
-    try {
-      const summary = await probeBrowserLocalStackSummary();
-      setLocalStackSummary(summary);
-      const hydratedProviders = await hydrateBrowserLocalProviderOptions(providerCatalog);
-      const governedProviders = applyBrowserLocalOfflinePolicy(hydratedProviders, summary);
-      setProviderCatalog(governedProviders);
-      setProvider((current) =>
-        resolveAiTaskProviderSelection({
-          currentProvider: current,
-          defaultProvider: summary?.offlineMode ? "local" : "gpt",
-          providers: governedProviders,
-        })
-      );
-    } catch {
-      setLocalStackSummary(null);
-    } finally {
-      setRefreshingLocalStack(false);
-    }
-  }
-
-  async function handleSaveLocalRuntimeConfig() {
-    persistBrowserLocalRuntimeConfig(localRuntimeDraft);
-    setLocalRuntimeConfigOpen(false);
-    await refreshLocalStackStatus();
-  }
-
-  async function handleCopySupabaseLocalEnvBlock() {
-    const envBlock = buildSupabaseLocalBootstrap({ localStackSummary, ragHealth }).envBlock;
-    if (!envBlock) return;
-    try {
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(envBlock);
-      }
-      pushLog({
-        type: "control",
-        action: "Env local copiado",
-        result: "Bloco de variáveis do Supabase local copiado para a área de transferência.",
-      });
-    } catch {}
-  }
-
-  useEffect(() => {
-    let active = true;
-    adminFetch("/api/admin-dotobot-rag-health?include_upsert=0", { method: "GET" })
-      .then((payload) => {
-        if (!active) return;
-        setRagHealth(payload || null);
-      })
-      .catch((fetchError) => {
-        if (!active) return;
-        setRagHealth({
-          status: "failed",
-          error: fetchError?.message || "Falha no healthcheck RAG.",
-          signals: {},
-        });
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const { executeMission, handleContinueLastRun, handlePause, handleStart, handleStop } = useAiTaskRun({
     mission,
@@ -371,8 +184,8 @@ export default function AITaskModule({ profile, routePath }) {
     setApproved(true);
     pushLog({
       type: "control",
-      action: "Aprovação concedida",
-      result: "A missão recebeu permissão para seguir.",
+      action: "Aprovacao concedida",
+      result: "A missao recebeu permissao para seguir.",
     });
     if (automation === "waiting_approval") {
       executeMission(mission);
@@ -380,9 +193,7 @@ export default function AITaskModule({ profile, routePath }) {
   }
 
   function handleOpenLlmTest() {
-    const query = {
-      provider,
-    };
+    const query = { provider };
     if (mission) {
       query.prompt = mission.slice(0, 300);
     }
@@ -398,7 +209,7 @@ export default function AITaskModule({ profile, routePath }) {
   }
 
   function handleLocalStackAction(actionId) {
-    if (actionId === "open_llm_test") {
+    if (actionId === "open_llm_test" || actionId === "testar_llm_local") {
       handleOpenLlmTest();
       return;
     }
@@ -410,19 +221,7 @@ export default function AITaskModule({ profile, routePath }) {
       setLocalRuntimeConfigOpen(true);
       return;
     }
-    if (actionId === "testar_llm_local") {
-      handleOpenLlmTest();
-      return;
-    }
-    if (actionId === "abrir_diagnostico") {
-      handleOpenDiagnostics();
-      return;
-    }
-    if (actionId === "diagnose_supabase_local") {
-      handleOpenDiagnostics();
-      return;
-    }
-    if (actionId === "open_environment") {
+    if (actionId === "abrir_diagnostico" || actionId === "diagnose_supabase_local" || actionId === "open_environment") {
       handleOpenDiagnostics();
       return;
     }
@@ -480,13 +279,13 @@ export default function AITaskModule({ profile, routePath }) {
 
   useEffect(() => {
     setHistoryPage(1);
-  }, [recentHistory.length]);
+  }, [recentHistory.length, setHistoryPage]);
 
   useEffect(() => {
     if (taskVisibleCount > tasks.length && tasks.length > 0) {
       setTaskVisibleCount(Math.max(8, tasks.length));
     }
-  }, [taskVisibleCount, tasks.length]);
+  }, [taskVisibleCount, tasks.length, setTaskVisibleCount]);
 
   useEffect(() => {
     if (contact360Query) return;
@@ -500,7 +299,7 @@ export default function AITaskModule({ profile, routePath }) {
     if (seededEmail) {
       setContact360Query(seededEmail);
     }
-  }, [contact360Query, contextSnapshot?.documents, contextSnapshot?.selectedAction?.mission, mission]);
+  }, [contact360Query, contextSnapshot?.documents, contextSnapshot?.selectedAction?.mission, mission, setContact360Query]);
 
   useEffect(() => {
     if (contextSnapshot?.selectedAction || mission) return;
@@ -533,7 +332,7 @@ export default function AITaskModule({ profile, routePath }) {
         moduleLabel: handoff.moduleLabel || "Dotobot",
       },
     }));
-  }, [contextSnapshot?.selectedAction, mission, setContextSnapshot, setMission, setMode, setProvider, setShowContext]);
+  }, [contextSnapshot?.selectedAction, localStackReady, mission, providerCatalog, setContextSnapshot, setMission, setMode, setProvider, setShowContext]);
 
   useAiTaskModuleHistorySync({
     activeRun,

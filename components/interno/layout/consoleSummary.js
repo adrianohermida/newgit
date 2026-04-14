@@ -1,7 +1,7 @@
 export const LOG_PANES = [
   { key: "activity", label: "Atividade", group: "visao", alwaysVisible: true },
   { key: "history", label: "Historico", group: "visao", alwaysVisible: true },
-  { key: "debug", label: "Debug UI", group: "visao", alwaysVisible: true },
+  { key: "debug", label: "Debug", group: "visao", alwaysVisible: true },
   { key: "frontend", label: "Frontend", group: "auditoria", alwaysVisible: true },
   { key: "schema", label: "Schema", group: "auditoria", alwaysVisible: true },
   { key: "notes", label: "Notas", group: "auditoria", alwaysVisible: true },
@@ -14,7 +14,7 @@ export const LOG_PANES = [
   { key: "dotobot", label: "Dotobot", group: "ia" },
   { key: "ai-task", label: "AI Task", group: "ia" },
   { key: "security", label: "Seguranca", group: "governanca" },
-  { key: "data-quality", label: "Qualidade de dados", group: "governanca" },
+  { key: "data-quality", label: "Dados", group: "governanca" },
 ];
 
 export const LOG_PANE_GROUPS = [

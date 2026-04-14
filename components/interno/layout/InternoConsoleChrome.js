@@ -30,7 +30,7 @@ export default function InternoConsoleChrome({
           <div className="min-w-0">
             <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#6F837B]"}`}>Painel inferior</p>
             <p className={`mt-1 text-sm font-semibold normal-case tracking-[0.01em] ${isLightTheme ? "text-[#13201D]" : "text-[#F5F1E8]"}`}>
-              {consoleTab === "console" ? "Console operacional" : `Log ${activeLogPane?.label ? `· ${activeLogPane.label}` : "global"}`}
+              {consoleTab === "console" ? "Console operacional" : `Log ${activeLogPane?.label ? `- ${activeLogPane.label}` : "global"}`}
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[#C5A059]">
@@ -40,12 +40,12 @@ export default function InternoConsoleChrome({
         </div>
         <div className="flex items-center gap-2">
           {consoleTab === "log" ? <div className="flex max-w-[70vw] flex-wrap items-start gap-2">
-          <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${formatClass}`}>{activityLogCount} entradas</span>
-          {visibleLogPaneGroups.map((group) => <div key={group.key} className="flex flex-wrap items-center gap-2">
-            <span className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#60706A]"}`}>{group.label}</span>
-            {group.panes.map((pane) => <button key={pane.key} type="button" onClick={() => onToggleTab("log", pane.key)} className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === pane.key ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)] text-[#C5A059]" : formatClass}`}>{pane.label} {formatPaneCountLabel(paneCounts[pane.key] || 0)}</button>)}
-          </div>)}
-        </div> : null}
+            <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${formatClass}`}>{activityLogCount} entradas</span>
+            {visibleLogPaneGroups.map((group) => <div key={group.key} className="flex flex-wrap items-center gap-2">
+              <span className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#60706A]"}`}>{group.label}</span>
+              {group.panes.map((pane) => <button key={pane.key} type="button" onClick={() => onToggleTab("log", pane.key)} className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === pane.key ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)] text-[#C5A059]" : formatClass}`}>{pane.label} {formatPaneCountLabel(paneCounts[pane.key] || 0)}</button>)}
+            </div>)}
+          </div> : null}
           {consoleOpen ? (
             <button type="button" onClick={onToggleConsoleExpanded} className={`rounded-[14px] border px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${formatClass}`} title={consoleExpanded ? "Voltar ao modo compacto" : "Expandir console"}>
               {consoleExpanded ? "Compacto" : "Expandir"}
