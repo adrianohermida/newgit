@@ -7,14 +7,8 @@ import OperationalPlanPanel from "../../../components/interno/hmadv/OperationalP
 import { appendActivityLog, setModuleHistory } from "../../../lib/admin/activity-log";
 import {
   ACTION_LABELS,
-  GLOBAL_ERROR_TTL_MS,
   MODULE_LIMITS,
-  PARTES_QUEUE_REFRESH_TTL_MS,
-  PARTES_QUEUE_RESOURCE_ERROR_TTL_MS,
-  PROCESS_QUEUE_REFRESH_TTL_MS,
   PUBLICACOES_QUEUE_VIEWS,
-  QUEUE_ERROR_TTL_MS,
-  QUEUE_LABELS,
 } from "./constants";
 import {
   buildJobPreview,
