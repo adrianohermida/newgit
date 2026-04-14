@@ -61,6 +61,8 @@ import { usePublicacoesLifecycle } from "./usePublicacoesLifecycle";
 import { usePublicacoesHealthStatus } from "./usePublicacoesHealthStatus";
 import { usePublicacoesJobDrain } from "./usePublicacoesJobDrain";
 import { usePublicacoesQueueEffects } from "./usePublicacoesQueueEffects";
+import { recoverPublicacoesAdviseBackfillFailure } from "./publicacoesBackfillRecovery";
+import { usePublicacoesRefreshActions } from "./usePublicacoesRefreshActions";
 
 
 function PublicacoesContent() {
@@ -224,6 +226,48 @@ function PublicacoesContent() {
     setSelectedProcessKeys,
     setView,
     partesCandidates,
+  });
+  const recoverAdviseBackfillFailure = async (error, safeLimit) => recoverPublicacoesAdviseBackfillFailure({
+    adminFetch,
+    error,
+    safeLimit,
+    setGlobalError,
+    setGlobalErrorUntil,
+    setOverview,
+    setRemoteHistory,
+  });
+  const {
+    loadHeavyQueueReads,
+    refreshAfterAction,
+    refreshIntegratedSnapshot,
+    refreshOperationalContext,
+    toggleIntegratedFiltered,
+  } = usePublicacoesRefreshActions({
+    activeJobId,
+    adminFetch,
+    filteredIntegratedRows,
+    heavyQueuesEnabled,
+    integratedFilters,
+    integratedPage,
+    integratedPageSize,
+    integratedQueue,
+    jobs,
+    loadIntegratedQueue,
+    loadJobs,
+    loadOverview,
+    loadPartesCandidates,
+    loadProcessCandidates,
+    loadRemoteHistory,
+    partesPage,
+    processPage,
+    pushQueueRefresh,
+    setActionState,
+    setActiveJobId,
+    setHeavyQueuesEnabled,
+    setIntegratedCursorTrail,
+    setIntegratedPage,
+    setSelectedIntegratedNumbers,
+    view,
   });
   const {
     handleAction,

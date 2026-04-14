@@ -1,6 +1,6 @@
 ﻿{
-    "checkedAt":  "2026-04-13T22:21:58.4864903-03:00",
-    "AICORE_API_BASE_URL":  "http://127.0.0.1:8010",
+    "checkedAt":  "2026-04-14T01:27:15.2301183-03:00",
+    "AICORE_API_BASE_URL":  "http://127.0.0.1:8000",
     "LOCAL_LLM_BASE_URL":  "http://127.0.0.1:11434",
     "LLM_BASE_URL":  "http://127.0.0.1:11434",
     "LOCAL_LLM_MODEL":  "aetherlab-legal-local-v1",

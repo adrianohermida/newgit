@@ -30,7 +30,7 @@ import DotobotCompactRuntimeDiagnostics from "./DotobotCompactRuntimeDiagnostics
 import DotobotConversationMenu from "./DotobotConversationMenu";
 import DotobotStandardHistoryRail from "./DotobotStandardHistoryRail";
 import DotobotStandardConversationCenter from "./DotobotStandardConversationCenter";
-import DotobotWorkspaceShellHeader from "./DotobotWorkspaceShellHeader";
+import DotobotWorkspaceShellHeader from "./DotobotWorkspaceShellHeader.js";
 import DotobotWorkspaceHeader from "./DotobotWorkspaceHeader";
 import { useInternalTheme } from "./InternalThemeProvider";
 import {
