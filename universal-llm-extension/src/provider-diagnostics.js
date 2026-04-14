@@ -50,7 +50,7 @@ function classifyAttempt(attempt, hint) {
       issue: "model_not_found",
       summary: "O servico respondeu, mas o modelo configurado nao existe neste runtime.",
       recommendation: attemptUrl.includes(":8000")
-        ? "O ai-core respondeu, mas o runtime local por tras dele nao tem esse modelo carregado. Revise LOCAL_LLM_MODEL e confira o catalogo do runtime em 11434 (/api/tags ou /v1/models)."
+        ? "O ai-core respondeu, mas o runtime local configurado por tras dele nao tem esse modelo carregado. Revise LOCAL_LLM_MODEL e confira o catalogo exposto pelo runtime em 11434."
         : "Revise o nome do modelo configurado para este provider.",
     };
   }
