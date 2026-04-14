@@ -1,10 +1,14 @@
-import Link from "next/link";
 import { useRouter } from "next/router";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import { useInternalTheme } from "./InternalThemeProvider";
 import DotobotCopilot from "./DotobotPanel";
 import DotobotExtensionManager from "./DotobotExtensionManager";
+import InternoModuleHeader from "./layout/InternoModuleHeader";
+import InternoSidebar from "./layout/InternoSidebar";
+import IntegrationGuideCardExternal, { getModuleIntegrationGuide as getExternalModuleIntegrationGuide } from "./layout/IntegrationGuideCard";
+import { NAV_ITEMS, normalizeDisplayName } from "./layout/sidebarConfig";
+import { useInternoShellState } from "./layout/useInternoShellState";
 import {
   appendFrontendIssue,
   appendActivityLog,
@@ -37,110 +41,6 @@ import {
 } from "../../lib/admin/console-log-utils.js";
 import { inferModuleKeyFromPathname, listModuleRegistryEntries } from "../../lib/admin/module-registry.js";
 
-const INTERNAL_RIGHT_RAIL_MODE_STORAGE_KEY = "hmadv:interno:right-rail-mode";
-const INTERNAL_SHELL_PREFERENCES_STORAGE_KEY = "hmadv:interno:shell-preferences";
-
-function readInternalShellPreferences() {
-  if (typeof window === "undefined") return null;
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(INTERNAL_SHELL_PREFERENCES_STORAGE_KEY) || "null");
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeInternalShellPreferences(nextValue) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(INTERNAL_SHELL_PREFERENCES_STORAGE_KEY, JSON.stringify(nextValue));
-  } catch {
-    // noop
-  }
-}
-
-const NAV_ITEMS = [
-  { href: "/interno", label: "Visao geral" },
-  { href: "/interno/copilot", label: "Copilot" },
-  { href: "/interno/ai-task", label: "AI Task" },
-  { href: "/interno/aprovacoes", label: "Aprovacoes" },
-  { href: "/interno/financeiro", label: "Financeiro" },
-  { href: "/interno/jobs", label: "Jobs" },
-  { href: "/interno/processos", label: "Processos" },
-  { href: "/interno/publicacoes", label: "Publicacoes" },
-  { href: "/interno/contacts", label: "Contatos" },
-  { href: "/interno/agentlab", label: "AgentLab" },
-  { href: "/interno/integration-kit", label: "Integration Kit" },
-  { href: "/interno/setup-integracao", label: "Setup Inicial" },
-  { href: "/llm-test", label: "LLM Test" },
-  { href: "/interno/posts", label: "Conteudo" },
-  { href: "/interno/agendamentos", label: "Agenda" },
-  { href: "/interno/leads", label: "Leads" },
-  { href: "/interno/market-ads", label: "Market Ads" },
-];
-
-function normalizeDisplayName(profile) {
-  return profile?.full_name || profile?.email || "Hermida Maia";
-}
-
-function SidebarItem({ item, active, collapsed, isLightTheme, onNavigate }) {
-  const router = useRouter();
-
-  function handleNavigate(event) {
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
-      return;
-    }
-
-    event.preventDefault();
-    const currentPath = router.asPath;
-    let usedFallback = false;
-    const fallbackTimer = window.setTimeout(() => {
-      if (!usedFallback && router.asPath === currentPath) {
-        usedFallback = true;
-        window.location.assign(item.href);
-      }
-    }, 1200);
-
-    router.push(item.href).then((navigated) => {
-      window.clearTimeout(fallbackTimer);
-      if (!navigated && !usedFallback) {
-        usedFallback = true;
-        window.location.assign(item.href);
-        return;
-      }
-      if (navigated) {
-        onNavigate?.();
-      }
-    }).catch(() => {
-      window.clearTimeout(fallbackTimer);
-      if (!usedFallback) {
-        usedFallback = true;
-        window.location.assign(item.href);
-      }
-    });
-  }
-
-  return (
-    <Link
-      href={item.href}
-      prefetch={false}
-      onClick={handleNavigate}
-      className={`group flex items-center gap-3 rounded-[16px] border px-3.5 py-3 text-sm transition-all duration-200 ${
-        active
-          ? "border-[#C5A059] bg-[linear-gradient(180deg,#C5A059,#B08B46)] text-[#07110E] shadow-[0_8px_22px_rgba(197,160,89,0.2)]"
-          : isLightTheme
-            ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.86)] text-[#22312F] hover:border-[#BAC8D6] hover:bg-[rgba(255,255,255,0.98)]"
-            : "border-[#1F2A27] bg-[rgba(255,255,255,0.015)] text-[#D8DED9] hover:border-[#31433D] hover:bg-[rgba(255,255,255,0.03)]"
-      }`}
-    >
-      <span className={`flex h-9 w-9 items-center justify-center rounded-[12px] border ${active ? "border-[rgba(7,17,14,0.12)] bg-[rgba(7,17,14,0.08)]" : isLightTheme ? "border-[#D4DEE8] bg-[rgba(238,242,247,0.92)] group-hover:border-[#BAC8D6]" : "border-[#233630] bg-[rgba(255,255,255,0.02)] group-hover:border-[#35554B]"}`}>
-        <span className={`h-2.5 w-2.5 rounded-full ${active ? "bg-[#07110E]" : "bg-[#C5A059]"}`} />
-      </span>
-      {!collapsed ? <span className="font-medium">{item.label}</span> : null}
-    </Link>
-  );
-}
-
 function RailPanel({ title, subtitle, children }) {
   const { isLightTheme } = useInternalTheme();
   return (
@@ -153,6 +53,7 @@ function RailPanel({ title, subtitle, children }) {
 }
 
 function getModuleIntegrationGuide(pathname = "") {
+  return getExternalModuleIntegrationGuide(pathname);
   const guides = {
     "/interno/contacts": {
       title: "Contatos: webhooks e edge functions",
@@ -282,34 +183,6 @@ function getModuleIntegrationGuide(pathname = "") {
     },
   };
   return guides[pathname] || null;
-}
-
-function IntegrationGuideCard({ guide }) {
-  if (!guide) return null;
-  const { isLightTheme } = useInternalTheme();
-  return (
-    <section className={`rounded-[24px] border p-5 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#2D2E2E] bg-[rgba(10,12,11,0.58)]"}`}>
-      <div className="flex flex-col gap-2 xl:flex-row xl:items-end xl:justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C5A059]">Integracoes operacionais</p>
-          <h3 className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F8F4EB]"}`}>{guide.title}</h3>
-          {guide.subtitle ? <p className={`mt-2 max-w-4xl text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#99ADA6]"}`}>{guide.subtitle}</p> : null}
-        </div>
-      </div>
-      <div className="mt-4 grid gap-3 xl:grid-cols-2">
-        {guide.items.map((item) => (
-          <div key={`${guide.title}-${item.label}`} className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F4E7C2]">{item.label}</p>
-            <p className={`mt-2 text-sm leading-6 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>{item.helper}</p>
-            <p className={`mt-3 text-[11px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Endpoint / funcao</p>
-            <p className="mt-1 break-all text-sm text-[#D9B46A]">{item.endpoint}</p>
-            <p className={`mt-3 text-[11px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Quando acionar</p>
-            <p className={`mt-1 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#99ADA6]"}`}>{item.trigger}</p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
 }
 
 const LOG_PANES = [
@@ -967,14 +840,31 @@ export default function InternoLayout({
   const shouldRenderDotobotRail = !hideDotobotRail || forceDotobotRail;
   const initialWorkspaceOpen = true;
   const shouldStartWithOpenRail = rightRailFullscreen || router.pathname === "/interno/agentlab/conversations" || shouldRenderDotobotRail;
-  const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightCollapsed, setRightCollapsed] = useState(!shouldStartWithOpenRail);
-  const [rightRailMode, setRightRailMode] = useState("expanded");
-  const [consoleOpen, setConsoleOpen] = useState(false);
-  const [copilotOpen, setCopilotOpen] = useState(shouldStartWithOpenRail);
-  const [isMobileShell, setIsMobileShell] = useState(false);
-  const [consoleTab, setConsoleTab] = useState("console");
-  const [logPane, setLogPane] = useState("activity");
+  const {
+    closeMobileSidebar,
+    consoleHeight,
+    consoleOpen,
+    consoleTab,
+    copilotOpen,
+    handleToggleCopilot,
+    handleToggleRightRail,
+    isMobileShell,
+    leftCollapsed,
+    logPane,
+    rightCollapsed,
+    rightRailMode,
+    setConsoleHeight,
+    setConsoleOpen,
+    setConsoleTab,
+    setLeftCollapsed,
+    setLogPane,
+    toggleRightRailMode,
+  } = useInternoShellState({
+    getConsoleHeightLimits,
+    isCopilotWorkspace,
+    shouldRenderDotobotRail,
+    shouldStartWithOpenRail,
+  });
   const [activityLog, setActivityLog] = useState([]);
   const [archivedLogs, setArchivedLogs] = useState([]);
   const [operationalNotes, setOperationalNotes] = useState([]);
@@ -982,7 +872,6 @@ export default function InternoLayout({
   const [fingerprintStates, setFingerprintStates] = useState(() => getFingerprintStates());
   const [schemaIssues, setSchemaIssues] = useState(() => getSchemaIssues());
   const [moduleHistory, setModuleHistory] = useState({});
-  const [consoleHeight, setConsoleHeight] = useState(() => getConsoleHeightLimits().preferred);
   const [noteInput, setNoteInput] = useState("");
   const [frontendForm, setFrontendForm] = useState({
     page: "",
@@ -1007,107 +896,9 @@ export default function InternoLayout({
   const deferredLogSearch = useDeferredValue(logSearch);
   const [logExpanded, setLogExpanded] = useState(null);
   const dragStateRef = useRef({ dragging: false, startY: 0, startHeight: 260 });
-  const shellPreferencesHydratedRef = useRef(false);
   const headerSearchRef = useRef(null);
   const settingsModalRef = useRef(null);
   const userMenuRef = useRef(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const persistedMode = window.localStorage.getItem(INTERNAL_RIGHT_RAIL_MODE_STORAGE_KEY);
-    if (persistedMode === "compact" || persistedMode === "expanded") {
-      setRightRailMode(persistedMode);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(INTERNAL_RIGHT_RAIL_MODE_STORAGE_KEY, rightRailMode);
-  }, [rightRailMode]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    function syncResponsiveShell() {
-      const width = window.innerWidth;
-      const mobile = width < 900;
-      setIsMobileShell(mobile);
-      if (!shellPreferencesHydratedRef.current) {
-        setLeftCollapsed(isCopilotWorkspace ? width < 900 : width < 1180);
-        if (width < 1024) {
-          setRightCollapsed(true);
-          setCopilotOpen(false);
-          setRightRailMode("compact");
-        }
-      }
-    }
-    syncResponsiveShell();
-    window.addEventListener("resize", syncResponsiveShell);
-    return () => window.removeEventListener("resize", syncResponsiveShell);
-  }, [isCopilotWorkspace]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const persisted = readInternalShellPreferences();
-    const limits = getConsoleHeightLimits();
-    if (persisted) {
-      if (isCopilotWorkspace && window.innerWidth >= 1180) {
-        setLeftCollapsed(false);
-      } else if (typeof persisted.desktopLeftCollapsed === "boolean" && window.innerWidth >= 900) {
-        setLeftCollapsed(persisted.desktopLeftCollapsed);
-      }
-      if (typeof persisted.mobileLeftCollapsed === "boolean" && window.innerWidth < 900) {
-        setLeftCollapsed(persisted.mobileLeftCollapsed);
-      }
-      if (typeof persisted.consoleOpen === "boolean") {
-        setConsoleOpen(persisted.consoleOpen);
-      }
-      if (persisted.consoleTab === "console" || persisted.consoleTab === "log") {
-        setConsoleTab(persisted.consoleTab);
-      }
-      if (typeof persisted.logPane === "string" && persisted.logPane) {
-        setLogPane(persisted.logPane);
-      }
-      if (typeof persisted.desktopRightCollapsed === "boolean" && window.innerWidth >= 1024) {
-        setRightCollapsed(persisted.desktopRightCollapsed);
-        setCopilotOpen(!persisted.desktopRightCollapsed);
-      }
-      if ((persisted.rightRailMode === "compact" || persisted.rightRailMode === "expanded") && window.innerWidth >= 1024) {
-        setRightRailMode(persisted.rightRailMode);
-      }
-      if (typeof persisted.consoleHeight === "number") {
-        setConsoleHeight(Math.min(limits.max, Math.max(limits.min, persisted.consoleHeight)));
-      }
-    }
-    shellPreferencesHydratedRef.current = true;
-  }, [isCopilotWorkspace]);
-
-  useEffect(() => {
-    if (!shellPreferencesHydratedRef.current) return;
-    writeInternalShellPreferences({
-      desktopLeftCollapsed: !isMobileShell ? leftCollapsed : undefined,
-      mobileLeftCollapsed: isMobileShell ? leftCollapsed : undefined,
-      desktopRightCollapsed: !isMobileShell ? rightCollapsed : true,
-      rightRailMode,
-      consoleOpen,
-      consoleTab,
-      logPane,
-      consoleHeight,
-    });
-  }, [consoleHeight, consoleOpen, consoleTab, isMobileShell, leftCollapsed, logPane, rightCollapsed, rightRailMode]);
-
-  function closeMobileSidebar() {
-    if (isMobileShell) {
-      setLeftCollapsed(true);
-    }
-  }
-
-  function toggleRightRailMode() {
-    setRightRailMode((current) => (current === "compact" ? "expanded" : "compact"));
-    if (rightCollapsed) {
-      setRightCollapsed(false);
-      setCopilotOpen(true);
-    }
-  }
 
   useEffect(() => {
     return subscribeActivityLog((entries, archives, notes, filters, frontendItems, schemaItems, moduleSnapshot, fingerprintSnapshot) => {
@@ -1599,7 +1390,7 @@ export default function InternoLayout({
   const dotobotHistory = moduleHistory?.dotobot || null;
   const aiTaskHistory = moduleHistory?.["ai-task"] || null;
   const contactsHistory = moduleHistory?.contacts || null;
-  const integrationGuide = useMemo(() => getModuleIntegrationGuide(router.pathname), [router.pathname]);
+  const integrationGuide = useMemo(() => getExternalModuleIntegrationGuide(router.pathname), [router.pathname]);
 
   const filteredLog = useMemo(() => {
     return activityLog.filter((entry) => entryMatchesConsoleFilters(entry, logFilters, deferredLogSearch));
@@ -1657,39 +1448,6 @@ export default function InternoLayout({
     router.replace("/interno/login");
   }
 
-  useEffect(() => {
-    if (!shellPreferencesHydratedRef.current) return;
-    if (isMobileShell) {
-      setRightCollapsed(true);
-      setCopilotOpen(false);
-      return;
-    }
-    if (shouldStartWithOpenRail) {
-      setRightCollapsed(false);
-      setCopilotOpen(true);
-    }
-  }, [isMobileShell, shouldStartWithOpenRail]);
-
-  function handleToggleRightRail() {
-    if (!shouldRenderDotobotRail) return;
-    setRightCollapsed((current) => {
-      const nextCollapsed = !current;
-      if (!nextCollapsed) {
-        setCopilotOpen(true);
-      }
-      return nextCollapsed;
-    });
-  }
-
-  function handleToggleCopilot() {
-    if (!shouldRenderDotobotRail) return;
-    setCopilotOpen((current) => {
-      const next = !current;
-      setRightCollapsed(!next);
-      return next;
-    });
-  }
-
   function handleFocusCopilotComposer() {
     if (typeof window === "undefined") return;
     window.dispatchEvent(new CustomEvent("hmadv:copilot-focus-composer"));
@@ -1723,7 +1481,6 @@ export default function InternoLayout({
     : isLightTheme
       ? "border-[#CBD5E1] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,247,250,0.96))]"
       : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.985),rgba(7,9,8,0.95))]";
-
   return (
     <div className={`relative flex h-screen w-full flex-col overflow-hidden text-[Arial,sans-serif] ${isCopilotWorkspace ? "p-0" : "p-2 md:p-3"} ${isLightTheme ? "bg-[linear-gradient(180deg,#EEF2F6_0%,#E4EAF1_100%)] text-[#13201D]" : "bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.16),transparent_24%),linear-gradient(180deg,#040605_0%,#070A09_100%)] text-[#F4F1EA]"}`}>
       {isMobileShell && !leftCollapsed && !hideShellSidebar ? (
@@ -1744,57 +1501,19 @@ export default function InternoLayout({
       ) : null}
       <div className="flex min-h-0 flex-1">
       {/* SIDEBAR */}
-        {!hideShellSidebar ? <aside className={`z-40 shrink-0 flex h-full flex-col border px-4 py-4 shadow-[0_18px_48px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all ${copilotShellSidebarClass} ${isMobileShell ? `absolute bottom-2 left-2 top-2 w-[292px] max-w-[calc(100vw-1rem)] ${leftCollapsed ? "pointer-events-none -translate-x-[110%] opacity-0" : "translate-x-0 opacity-100"}` : leftCollapsed ? "w-[88px] min-w-[88px]" : isCopilotWorkspace ? "w-[320px] min-w-[296px] max-w-[340px]" : "w-[264px] min-w-[220px] max-w-[312px]"}`}>
-        <Link href="/interno" prefetch={false} className="mb-8 block">
-          {!leftCollapsed ? (
-            <>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C5A059]">Hermida Maia</p>
-              <h1 className={`text-[32px] font-semibold tracking-[-0.03em] ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Centro operacional</h1>
-              <p className={`mt-3 max-w-[18rem] text-sm leading-6 ${isLightTheme ? "text-[#5E706C]" : "text-[#8FA39C]"}`}>
-                Centro operacional para processos, CRM, governanca de agentes e engenharia de inteligencia do escritorio.
-              </p>
-            </>
-          ) : (
-            <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border text-xs font-semibold uppercase tracking-[0.2em] text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.82)]" : "border-[#233630]"}`}>
-              HM
-            </div>
-          )}
-        </Link>
-        {!leftCollapsed ? (
-          <div className={`mb-6 rounded-[18px] border p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(246,249,251,0.84))]" : "border-[#1D2E29] bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015))]"}`}>
-            <p className={`text-[11px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#6D7F7B]" : "text-[#7F928C]"}`}>Perfil conectado</p>
-            <p className={`mt-3 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F8F4EB]"}`}>{normalizeDisplayName(profile)}</p>
-            <p className={`mt-1 text-sm ${isLightTheme ? "text-[#60716E]" : "text-[#91A49E]"}`}>{profile?.email}</p>
-            <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-[#C5A059]">{profile?.role}</p>
-          </div>
+        {!hideShellSidebar ? (
+          <InternoSidebar
+            profile={profile}
+            pathname={router.pathname}
+            isLightTheme={isLightTheme}
+            isMobileShell={isMobileShell}
+            isCopilotWorkspace={isCopilotWorkspace}
+            leftCollapsed={leftCollapsed}
+            onNavigate={closeMobileSidebar}
+            onSignOut={handleSignOut}
+            sidebarToneClass={copilotShellSidebarClass}
+          />
         ) : null}
-        <nav aria-label="Navegacao interna" className="space-y-1.5">
-          {NAV_ITEMS.map((item) => {
-            const active = router.pathname === item.href;
-            return <SidebarItem key={item.href} item={item} active={active} collapsed={leftCollapsed} isLightTheme={isLightTheme} onNavigate={closeMobileSidebar} />;
-          })}
-        </nav>
-        <div className="mt-auto space-y-3 pt-6">
-          {!leftCollapsed ? (
-            <div className={`rounded-[18px] border p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(246,249,251,0.84))]" : "border-[#1D2E29] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))]"}`}>
-              <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6D7F7B]" : "text-[#7E918B]"}`}>Workspace</p>
-              <p className={`mt-2 text-sm font-medium ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Sidebar, modulo e Dotobot</p>
-              <p className={`mt-2 text-sm leading-6 ${isLightTheme ? "text-[#60716E]" : "text-[#92A59F]"}`}>
-                {router.pathname === "/interno/copilot"
-                  ? "O Copilot agora opera como workspace centralizado: histórico à esquerda, conversa ao centro e módulos integrados na barra lateral direita."
-                  : "O painel lateral serve como atalho rapido. A experiencia completa de conversa, tarefas e execucao vive no AI Task central."}
-              </p>
-            </div>
-          ) : null}
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className={`w-full rounded-[16px] border px-4 py-3 text-sm transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.86)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.015)] text-[#D8DEDA]"}`}
-          >
-            {!leftCollapsed ? "Sair" : "X"}
-          </button>
-        </div>
-      </aside> : null}
       {/* MAIN + COPILOT */}
         <div className={`${isCopilotWorkspace || isMobileShell || hideShellSidebar ? "ml-0" : "ml-2 md:ml-3"} flex h-full min-h-0 flex-1`}>
         {/* CONTEÚDO PRINCIPAL */}
@@ -1974,22 +1693,12 @@ export default function InternoLayout({
             </div>
           </div>
           <div className={`flex min-h-0 flex-1 flex-col overflow-x-hidden ${isCopilotWorkspace ? "overflow-hidden" : "overflow-y-auto"}`} style={{ paddingBottom: `${consoleReservedSpace}px` }}>
-          {!isCopilotWorkspace ? (
-            <header className={`mb-6 shrink-0 border-b pb-5 px-4 pt-5 md:px-6 md:pt-6 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.62),rgba(255,255,255,0.14))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.008))]"}`}>
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-                <div className="min-w-0">
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.26em] text-[#C5A059]">Operacao interna</p>
-                  <h2 className={`text-3xl font-semibold tracking-[-0.035em] md:text-[38px] ${isLightTheme ? "text-[#152421]" : "text-[#F8F4EB]"}`}>{title}</h2>
-                  {description ? <p className={`mt-3 max-w-3xl text-sm leading-7 ${isLightTheme ? "text-[#60716E]" : "text-[#99ADA6]"}`}>{description}</p> : null}
-                </div>
-              </div>
-            </header>
-          ) : null}
+          {!isCopilotWorkspace ? <InternoModuleHeader description={description} isLightTheme={isLightTheme} title={title} /> : null}
           <div
             className={`flex min-h-0 flex-1 flex-col ${isCopilotWorkspace ? "overflow-hidden px-0 pt-0" : "gap-6 px-4 pb-4 md:px-6 md:pb-6"}`}
             style={isCopilotWorkspace ? { paddingBottom: `${copilotConsoleInset}px` } : undefined}
           >
-            {!isCopilotWorkspace ? <IntegrationGuideCard guide={integrationGuide} /> : null}
+            {!isCopilotWorkspace ? <IntegrationGuideCardExternal guide={integrationGuide} /> : null}
             <div className={isCopilotWorkspace ? "min-h-0 flex-1 px-0 pb-0" : ""}>
               {children}
             </div>

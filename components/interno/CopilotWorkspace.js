@@ -22,6 +22,8 @@ export default function CopilotWorkspace({ profile }) {
           showCollapsedTrigger={false}
           embeddedInInternoShell={true}
           focusedWorkspaceMode={true}
+          allowedRightPanelTabs={["context", "ai-task"]}
+          defaultRightPanelTab="context"
         />
       </div>
     </div>

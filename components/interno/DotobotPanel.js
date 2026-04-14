@@ -21,14 +21,35 @@ import {
   probeBrowserLocalStackSummary,
   shouldAutoProbeBrowserLocalRuntime,
 } from "../../lib/lawdesk/browser-local-runtime";
-import { resolvePreferredLawdeskProvider } from "../../lib/lawdesk/providers.js";
-import { listSkills } from "../../lib/lawdesk/skill_registry.js";
 import { buildOfflineHealthSnapshot } from "../../lib/lawdesk/offline-health.js";
 import { buildLocalBootstrapPlan } from "../../lib/lawdesk/local-bootstrap.js";
 import { buildSupabaseLocalBootstrap } from "../../lib/lawdesk/supabase-local-bootstrap.js";
 import { useSupabaseBrowser } from "../../lib/supabase";
+import DotobotMessageBubble from "./DotobotMessageBubble";
 import { useInternalTheme } from "./InternalThemeProvider";
+import { FocusedCopilotAside } from "./copilot";
 import { cancelTaskRun, createPendingTaskRun, pollTaskRun, startTaskRun } from "./dotobotTaskRun";
+import {
+  buildCopilotContextPayload,
+  buildContextualModuleHref,
+  buildConversationRuntimeMetadata,
+  extractConversationEntities,
+  getConversationTimestamp,
+  normalizeRightPanelTabs,
+} from "./dotobotPanelContext";
+import { buildLocalInferenceAlert, buildRagAlert } from "./dotobotPanelAlerts";
+import {
+  buildAgentLabIncidentPreview,
+  buildAgentLabQueuePreview,
+  buildAgentLabSyncPreview,
+  buildAgentLabTrainingPreview,
+  buildLinkedDotobotTaskRuns,
+  extractAgentLabSubagents,
+  formatBytes,
+  formatInlinePanelValue,
+  formatRuntimeTimeLabel,
+  parseProviderPresentation,
+} from "./dotobotPanelInsights";
 import { appendActivityLog, getModuleHistory, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
 import {
   CHAT_STORAGE_PREFIX,
@@ -59,6 +80,21 @@ import {
   syncConversationSnapshots,
   updateConversationCollection,
 } from "./dotobotPanelState";
+import {
+  DOTOBOT_LAYOUT_STORAGE_PREFIX,
+  LEGAL_ACTIONS,
+  MODE_OPTIONS,
+  MODULE_WORKSPACES,
+  PROVIDER_OPTIONS,
+  QUICK_PROMPTS,
+  SKILL_OPTIONS,
+  buildLocalStackUnavailableSummary,
+  buildProjectInsights,
+  inferCopilotModuleFromRoute,
+  normalizeWorkspaceProvider,
+  resolveWorkspaceProviderSelection,
+  shouldHydrateBrowserLocalProvider,
+} from "./dotobotPanelConfig";
 
 function safeLocalSet(key, value) {
   try {
@@ -98,158 +134,6 @@ function buildRagSummary(rag) {
   };
 }
 
-const MODE_OPTIONS = [
-  { value: "chat", label: "Chat", hint: "Conversa assistida" },
-  { value: "task", label: "Tarefa", hint: "Execução em etapas" },
-  { value: "analysis", label: "Análise", hint: "Raciocínio guiado" },
-];
-
-const PROVIDER_OPTIONS = [
-  { value: "gpt", label: "Nuvem principal", disabled: false },
-  { value: "local", label: "LLM local", disabled: false },
-  { value: "cloudflare", label: "Cloudflare Workers AI", disabled: false },
-  { value: "custom", label: "Endpoint custom", disabled: false },
-];
-
-const SKILL_OPTIONS = listSkills().map((skill) => ({
-  value: skill.id,
-  label: `${skill.name} · ${skill.category}`,
-  disabled: false,
-}));
-
-const LEGAL_ACTIONS = [
-  { label: "Gerar peticao", prompt: "/peticao Estruture a peticao com fatos, fundamentos e pedidos." },
-  { label: "Analisar processo", prompt: "/analise Faca uma leitura juridica do processo e destaque riscos." },
-  { label: "Criar plano", prompt: "/plano Monte um plano de pagamento ou de negociacao em etapas." },
-  { label: "Resumir docs", prompt: "/resumo Resuma os documentos e indique pontos sensiveis." },
-];
-
-const QUICK_PROMPTS = [
-  "Analise este caso e indique o proximo passo.",
-  "Crie um plano operacional em etapas.",
-  "Padronize a resposta deste bot em PT-BR.",
-  "Resuma riscos, fatos e inferencias deste contexto.",
-];
-
-const DOTOBOT_LAYOUT_STORAGE_PREFIX = "lawdesk_dotobot_layout";
-
-const MODULE_WORKSPACES = [
-  { key: "processos", label: "Processos", href: "/interno/processos", helper: "Carteira processual com visão clara, acompanhamento e próximos passos." },
-  { key: "publicacoes", label: "Publicações", href: "/interno/publicacoes", helper: "Atualizações jurídicas organizadas com leitura simples e ação rápida." },
-  { key: "contatos", label: "Contatos", href: "/interno/contacts", helper: "Relacionamento completo com histórico, dados e contexto comercial." },
-  { key: "leads", label: "Leads", href: "/interno/leads", helper: "Entrada comercial com priorização, origem e potencial de conversão." },
-  { key: "agenda", label: "Agenda", href: "/interno/agendamentos", helper: "Compromissos, confirmações e preparação do atendimento." },
-  { key: "conteudo", label: "Conteúdo", href: "/interno/posts", helper: "Calendário editorial para produção, revisão e publicação." },
-  { key: "market_ads", label: "Market Ads", href: "/interno/market-ads", helper: "Campanhas jurídicas com posicionamento, copy e performance." },
-  { key: "financeiro", label: "Financeiro", href: "/interno/financeiro", helper: "Receita, contratos e pendências financeiras em uma visão executiva." },
-  { key: "aprovacoes", label: "Aprovações", href: "/interno/aprovacoes", helper: "Validações pendentes com contexto e decisão em poucos cliques." },
-  { key: "jobs", label: "Jobs", href: "/interno/jobs", helper: "Automação em lote com status, fila e previsibilidade operacional." },
-];
-
-function shouldHydrateBrowserLocalProvider({ focusedWorkspace = false, selectedProvider = "", providers = [] } = {}) {
-  if (!Array.isArray(providers) || !providers.length) return false;
-  const hasLocalBrowserConfig = hasPersistedBrowserLocalRuntimeConfig();
-  const hasExplicitOptIn = hasExplicitBrowserLocalRuntimeOptIn();
-  const canAutoProbe = shouldAutoProbeBrowserLocalRuntime();
-  if (String(selectedProvider || "").toLowerCase() === "local") {
-    return hasLocalBrowserConfig && hasExplicitOptIn && canAutoProbe;
-  }
-  if (focusedWorkspace) return false;
-  const localOption = providers.find((item) => String(item?.value || item?.id || "").toLowerCase() === "local");
-  if (!localOption) return false;
-  return hasLocalBrowserConfig && hasExplicitOptIn && canAutoProbe;
-}
-
-function resolveWorkspaceProviderSelection({ currentProvider, defaultProvider, providers = [] }) {
-  const preferred = resolvePreferredLawdeskProvider({
-    currentProvider,
-    defaultProvider,
-    providers,
-  });
-  if (String(preferred || "").toLowerCase() !== "local") return preferred;
-  if (hasPersistedBrowserLocalRuntimeConfig() && hasExplicitBrowserLocalRuntimeOptIn()) return preferred;
-  return providers.find((item) => String(item?.value || "").toLowerCase() !== "local" && item?.disabled !== true)?.value || preferred;
-}
-
-function normalizeWorkspaceProvider(provider, providers = []) {
-  if (String(provider || "").toLowerCase() !== "local") return provider || "gpt";
-  if (
-    hasPersistedBrowserLocalRuntimeConfig() &&
-    hasExplicitBrowserLocalRuntimeOptIn() &&
-    shouldAutoProbeBrowserLocalRuntime()
-  ) {
-    return provider;
-  }
-  return providers.find((item) => String(item?.value || "").toLowerCase() !== "local" && item?.disabled !== true)?.value || "gpt";
-}
-
-function buildLocalStackUnavailableSummary(error) {
-  const runtimeConfig = getBrowserLocalRuntimeConfig();
-  const message = String(error?.message || "Runtime local indisponivel nesta sessao.");
-  return {
-    ok: false,
-    offlineMode: false,
-    runtimeBaseUrl: runtimeConfig.runtimeBaseUrl || null,
-    extensionBaseUrl: runtimeConfig.extensionBaseUrl || null,
-    configuredLocalModel: runtimeConfig.localModel || null,
-    extensionHealth: {
-      ok: false,
-      endpoint: runtimeConfig.extensionBaseUrl ? `${String(runtimeConfig.extensionBaseUrl).replace(/\/+$/, "")}/health` : null,
-      status: error?.status || null,
-      error: message,
-    },
-    localProvider: {
-      configured: hasPersistedBrowserLocalRuntimeConfig(),
-      available: false,
-      model: runtimeConfig.localModel || null,
-      baseUrl: runtimeConfig.runtimeBaseUrl || null,
-      auth: null,
-      runtimeFamily: null,
-      runtimeLabel: "Runtime local indisponivel",
-      transport: null,
-      transportEndpoint: null,
-      reachable: false,
-      diagnosticsError: message,
-      inferenceFailure: null,
-    },
-    cloudProvider: {
-      configured: false,
-      available: false,
-      model: null,
-      offlineBlocked: false,
-    },
-    persistence: null,
-    capabilities: {
-      skills: null,
-      skillList: [],
-      commands: null,
-      browserExtensionProfiles: null,
-      persistence: null,
-    },
-    recommendations: [
-      "Runtime local indisponivel no momento. O Copilot vai priorizar o backend publicado ate o ai-core responder novamente.",
-    ],
-    actions: [
-      { id: "open_runtime_config", label: "Editar runtime local" },
-      { id: "open_llm_test", label: "Testar LLM local" },
-    ],
-  };
-}
-
-function buildProjectInsights(groups = []) {
-  return groups.map((group) => ({
-    key: group.key,
-    label: group.label,
-    count: group.items.length,
-    updatedAt: group.updatedAt,
-    latestTitle: group.items[0]?.title || "Sem conversa",
-  }));
-}
-
-function inferCopilotModuleFromRoute(routePath) {
-  const normalizedRoute = String(routePath || "").toLowerCase();
-  return MODULE_WORKSPACES.find((item) => normalizedRoute.startsWith(item.href.toLowerCase())) || null;
-}
 
 function buildModuleFallbackPlaybook(moduleKey, intentLabel, context = {}) {
   const playbooks = {
@@ -469,193 +353,6 @@ function buildConversationConcatBlock(conversation) {
   ].filter(Boolean).join("\n\n");
 }
 
-function extractAgentLabSubagents(agentLabData, activeTask) {
-  const orchestrationAgents = Array.isArray(activeTask?.orchestration?.subagents) ? activeTask.orchestration.subagents : [];
-  const governanceAgents = Array.isArray(agentLabData?.governance?.profiles) ? agentLabData.governance.profiles : [];
-  if (orchestrationAgents.length) {
-    return orchestrationAgents.map((agent, index) => ({
-      id: agent?.id || `subagent_${index}`,
-      role: agent?.role || agent?.label || `Subagente ${index + 1}`,
-      stageCount: Array.isArray(agent?.stages) ? agent.stages.length : 0,
-      moduleCount: Array.isArray(agent?.module_keys) ? agent.module_keys.length : 0,
-      status: activeTask?.status || "running",
-    }));
-  }
-  return governanceAgents.slice(0, 6).map((agent, index) => ({
-    id: agent?.id || `agentlab_${index}`,
-    role: agent?.label || agent?.name || `AgentLab ${index + 1}`,
-    stageCount: 0,
-    moduleCount: 0,
-    status: agent?.status || "ready",
-  }));
-}
-
-function formatRuntimeTimeLabel(value) {
-  if (!value) return "agora";
-  const parsed = Date.parse(value);
-  if (!Number.isFinite(parsed)) return "sem data";
-  const diffMs = Date.now() - parsed;
-  const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
-  if (diffMinutes < 1) return "agora";
-  if (diffMinutes < 60) return `${diffMinutes} min`;
-  const diffHours = Math.round(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours} h`;
-  const diffDays = Math.round(diffHours / 24);
-  return `${diffDays} d`;
-}
-
-function buildAgentLabQueuePreview(queue = [], limit = 4) {
-  return queue.slice(0, limit).map((item, index) => ({
-    id: item?.id || `queue_${index}`,
-    title: item?.title || item?.description || `Fila ${index + 1}`,
-    priority: item?.priority || "media",
-    status: item?.status || "backlog",
-    agentRef: item?.agent_ref || "dotobot-ai",
-    updatedAt: item?.updated_at || item?.created_at || null,
-  }));
-}
-
-function buildAgentLabSyncPreview(syncRuns = [], limit = 4) {
-  return syncRuns.slice(0, limit).map((item, index) => ({
-    id: item?.id || `sync_${index}`,
-    source: item?.source_name || item?.entity || "fonte",
-    scope: item?.sync_scope || item?.filter_name || "sync",
-    status: item?.status || "completed",
-    records: Number(item?.records_synced || item?.source_total || 0) || 0,
-    createdAt: item?.created_at || item?.started_at || item?.completed_at || null,
-  }));
-}
-
-function buildAgentLabTrainingPreview(runs = [], limit = 3) {
-  return runs.slice(0, limit).map((item, index) => ({
-    id: item?.id || `training_${index}`,
-    agentRef: item?.agent_ref || "dotobot-ai",
-    status: item?.status || "completed",
-    provider: item?.provider || "local",
-    score: Number(item?.scores?.overall ?? 0),
-    createdAt: item?.created_at || null,
-  }));
-}
-
-function buildAgentLabIncidentPreview(incidents = [], limit = 4) {
-  return incidents.slice(0, limit).map((item, index) => ({
-    id: item?.id || `incident_${index}`,
-    title: item?.title || item?.description || `Incidente ${index + 1}`,
-    severity: item?.severity || "media",
-    status: item?.status || "open",
-    category: item?.category || "geral",
-    occurredAt: item?.occurred_at || item?.created_at || null,
-  }));
-}
-
-function buildLinkedDotobotTaskRuns(taskRuns = [], { routePath, activeTask, activeConversation } = {}) {
-  const normalizedMission = String(activeTask?.query || activeTask?.title || "").trim().toLowerCase();
-  const normalizedConversation = String(activeConversation?.title || "").trim().toLowerCase();
-
-  return taskRuns
-    .filter((run) => {
-      if (!run) return false;
-      if (activeTask?.id && run.id === activeTask.id) return true;
-      if (routePath && run.route === routePath) return true;
-      const mission = String(run.mission || "").trim().toLowerCase();
-      if (normalizedMission && mission && mission.includes(normalizedMission.slice(0, 24))) return true;
-      if (normalizedConversation && mission && mission.includes(normalizedConversation.slice(0, 24))) return true;
-      return false;
-    })
-    .slice(0, 4);
-}
-
-function extractConversationEntities(activeConversation, activeTask) {
-  const textPool = [
-    activeConversation?.title,
-    activeConversation?.preview,
-    ...(Array.isArray(activeConversation?.messages) ? activeConversation.messages.map((item) => item?.text) : []),
-    activeTask?.query,
-    activeTask?.title,
-    activeTask?.mission,
-    ...(Array.isArray(activeTask?.logs) ? activeTask.logs : []),
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  const processNumbers = [...new Set((textPool.match(/\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b/g) || []).slice(0, 6))];
-  const emails = [...new Set((textPool.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi) || []).slice(0, 4))];
-
-  return {
-    processNumbers,
-    primaryProcessNumber: processNumbers[0] || "",
-    emails,
-    primaryEmail: emails[0] || "",
-  };
-}
-
-function buildCopilotContextPayload({ module, activeConversation, activeTask, routePath, projectLabel }) {
-  return JSON.stringify({
-    source: "dotobot-copilot",
-    module: module?.key || "geral",
-    routePath: routePath || "/interno",
-    projectLabel: projectLabel || "Geral",
-    conversationTitle: activeConversation?.title || "Nova conversa",
-    mission: activeTask?.query || activeTask?.title || activeTask?.mission || "",
-    entities: extractConversationEntities(activeConversation, activeTask),
-  });
-}
-
-function buildContextualModuleHref(module, context) {
-  const params = new URLSearchParams();
-  params.set("copilotContext", buildCopilotContextPayload({ module, ...context }));
-
-  if (module.key === "processos") {
-    params.set("view", "operacao");
-    if (context.entities?.processNumbers?.length) {
-      params.set("processNumbers", context.entities.processNumbers.join("\n"));
-    }
-  }
-
-  if (module.key === "publicacoes") {
-    params.set("view", "operacao");
-    if (context.entities?.processNumbers?.length) {
-      params.set("processNumbers", context.entities.processNumbers.join("\n"));
-    }
-  }
-
-  if (module.key === "leads" && context.entities?.primaryEmail) {
-    params.set("email", context.entities.primaryEmail);
-  }
-
-  if (module.key === "financeiro" && context.entities?.primaryProcessNumber) {
-    params.set("processQuery", context.entities.primaryProcessNumber);
-  }
-
-  if (module.key === "agenda" && context.entities?.primaryEmail) {
-    params.set("email", context.entities.primaryEmail);
-  }
-
-  if (module.key === "contatos" && context.entities?.primaryEmail) {
-    params.set("email", context.entities.primaryEmail);
-  }
-
-  if (module.key === "jobs") {
-    params.set("source", "dotobot-copilot");
-  }
-
-  const query = params.toString();
-  return query ? `${module.href}?${query}` : module.href;
-}
-
-function buildConversationRuntimeMetadata({ mode, provider, selectedSkillId, contextEnabled, routePath }) {
-  const matchedProject = MODULE_WORKSPACES.find((item) => String(routePath || "").startsWith(item.href));
-  return {
-    mode,
-    provider,
-    selectedSkillId: selectedSkillId || "",
-    contextEnabled,
-    routePath: routePath || "/interno",
-    projectKey: matchedProject?.key || "geral",
-    projectLabel: matchedProject?.label || "Geral",
-  };
-}
-
 const SLASH_COMMANDS = [
   { value: "/peticao", label: "Gerar peticao", hint: "Estrutura completa com fundamentos e pedidos." },
   { value: "/analise", label: "Analisar processo", hint: "Leitura juridica e riscos." },
@@ -674,123 +371,6 @@ const COPILOT_QUICK_SHORTCUTS = [
   { id: "shift-enter", label: "Shift+Enter", detail: "quebrar linha" },
   { id: "notifications", label: "Notificações", detail: "alerta de task finalizada" },
 ];
-
-function formatBytes(bytes) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 KB";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function getConversationTimestamp(value) {
-  if (!value) return 0;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function parseProviderPresentation(value) {
-  if (value && typeof value === "object") {
-    const meta = [
-      value.model,
-      value.status,
-      value.transport,
-      value.runtimeMode,
-      value.host ? `host:${value.host}` : null,
-    ].filter(Boolean);
-    return {
-      name: value.displayLabel || value.label || value.value || "Provider",
-      meta: meta.slice(0, 5),
-      status: value.status || null,
-      endpoint: value.endpoint || null,
-      reason: value.reason || null,
-    };
-  }
-
-  const segments = String(value || "").split("·").map((item) => item.trim()).filter(Boolean);
-  const name = segments[0] || String(value || "Provider");
-  const meta = segments.slice(1);
-  const status = meta.find((item) => ["operational", "degraded", "failed"].includes(String(item).toLowerCase())) || null;
-  return { name, meta, status, endpoint: null, reason: null };
-}
-
-function formatInlinePanelValue(value) {
-  if (value == null || value === "") return "n/a";
-  if (["string", "number", "boolean"].includes(typeof value)) return String(value);
-  if (Array.isArray(value)) return value.map((entry) => formatInlinePanelValue(entry)).join(", ");
-  if (typeof value === "object") {
-    if (typeof value.label === "string" && value.label.trim()) return value.label;
-    if (typeof value.value === "string" || typeof value.value === "number") return String(value.value);
-    if (typeof value.type === "string" && value.type.trim()) return value.type;
-    try {
-      return JSON.stringify(value);
-    } catch {
-      return "[objeto]";
-    }
-  }
-  return String(value);
-}
-
-function buildRagAlert(health) {
-  if (!health || health.status === "operational") return null;
-  const signals = health.signals || {};
-  if (signals.supabaseAuthMismatch) {
-    return {
-      tone: "danger",
-      title: "RAG com falha de autenticacao no Supabase",
-      body: "O embed do Supabase recusou a autenticacao. Confira o DOTOBOT_SUPABASE_EMBED_SECRET no app e na function dotobot-embed.",
-    };
-  }
-  if (signals.appEmbedSecretMissing) {
-    return {
-      tone: "warning",
-      title: "Segredo do embed ausente",
-      body: "O dashboard nao encontrou DOTOBOT_SUPABASE_EMBED_SECRET. Embedding e consulta vetorial podem falhar ou operar de forma superficial.",
-    };
-  }
-  return {
-    tone: "warning",
-    title: "Memoria RAG degradada",
-    body: health.error || "Embedding, consulta vetorial ou persistencia de memoria precisam de revisao.",
-  };
-}
-
-function buildLocalInferenceAlert({ provider, error, localStackSummary }) {
-  if (!isBrowserLocalProvider(provider)) return null;
-  const normalizedError = String(error || "").toLowerCase();
-  if (normalizedError.includes("nao conseguiu reservar memoria suficiente")) {
-    return {
-      tone: "danger",
-      title: "Inferência local indisponível nesta máquina",
-      body: "O Copilot continua útil para histórico, handoff e navegação operacional, mas o modelo local não cabe na memória disponível agora.",
-      actions: ["retry_runtime_local", "open_runtime_config", "open_llm_test", "open_ai_task"],
-    };
-  }
-  if (normalizedError.includes("nao conseguiu concluir a inferencia no runtime configurado")) {
-    return {
-      tone: "warning",
-      title: "Copilot local em contingência",
-      body: "O runtime local falhou ao responder à inferência. O painel segue útil para histórico, handoff, navegação contextual e AI Task.",
-      actions: ["retry_runtime_local", "open_runtime_config", "open_llm_test", "open_ai_task"],
-    };
-  }
-  if (localStackSummary?.localProvider?.inferenceFailure?.message) {
-    return {
-      tone: "warning",
-      title: "Inferência local indisponível temporariamente",
-      body: "O último teste do runtime local falhou recentemente. O Copilot vai priorizar contingência operacional até o runtime estabilizar.",
-      actions: ["retry_runtime_local", "open_runtime_config", "open_llm_test", "open_ai_task"],
-    };
-  }
-  if (localStackSummary?.offlineMode && !localStackSummary?.localProvider?.available) {
-    return {
-      tone: "warning",
-      title: "Runtime local ainda não respondeu",
-      body: "O painel segue em modo offline, mas o ai-core local ainda não está pronto para responder mensagens nesta sessão.",
-      actions: ["open_runtime_config", "abrir_diagnostico"],
-    };
-  }
-  return null;
-}
 
 function detectAttachmentKind(file) {
   if (file.type.startsWith("image/")) return "image";
@@ -812,160 +392,6 @@ function normalizeAttachment(file) {
 
 function getLastTask(taskHistory) {
   return taskHistory.find((task) => task.status === "running") || taskHistory[0] || null;
-}
-
-function renderRichText(text, isLightTheme = false) {
-  if (typeof text !== "string") return null;
-  const blocks = text.split(/```/g);
-  return blocks.map((block, index) => {
-    const isCode = index % 2 === 1;
-    if (isCode) {
-      return (
-        <pre
-          key={`code-${index}`}
-          className={`overflow-x-auto rounded-2xl border p-4 text-[12px] leading-6 ${
-            isLightTheme
-              ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#1F2A37]"
-              : "border-[#22342F] bg-[rgba(4,7,6,0.95)] text-[#EAE3D6]"
-          }`}
-        >
-          <code>{block.trim()}</code>
-        </pre>
-      );
-    }
-
-    const paragraphs = block
-      .split(/\n{2,}/g)
-      .map((part) => part.trim())
-      .filter(Boolean);
-
-    return (
-      <div key={`text-${index}`} className="space-y-3">
-        {paragraphs.map((paragraph, paragraphIndex) => (
-          <p key={`${index}-${paragraphIndex}`} className="whitespace-pre-wrap leading-7">
-            {paragraph}
-          </p>
-        ))}
-      </div>
-    );
-  });
-}
-
-function MessageBubble({ message, isTyping, isLightTheme = false, onCopy, onReuse, onOpenAiTask, onAction }) {
-  const isAssistant = message.role === "assistant";
-  const isSystem = message.role === "system";
-  const alignClass = isAssistant ? "justify-start" : "justify-end";
-  const bubbleClass = isAssistant
-    ? isLightTheme
-      ? "border-[#D7DEE8] bg-white text-[#1F2A37] shadow-[0_10px_26px_rgba(148,163,184,0.16)]"
-      : "border-[#1C2623] bg-[rgba(17,22,20,0.96)] text-[#F4F1EA] shadow-[0_8px_24px_rgba(0,0,0,0.16)]"
-    : isSystem
-      ? isLightTheme
-        ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]"
-        : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9FB1AA]"
-      : isLightTheme
-        ? "border-[#E7D9B8] bg-[#FFF8E8] text-[#5B4A22]"
-        : "border-[#2F3029] bg-[rgba(196,160,89,0.08)] text-[#F7F1E6]";
-
-  // Suporte multimodal: imagens/Ã¡udios
-  const media = Array.isArray(message.media) ? message.media : [];
-
-  return (
-    <div className={`flex ${alignClass}`}>
-      <article className={`w-full max-w-[min(46rem,100%)] rounded-[20px] border px-4 py-3 text-sm ${bubbleClass}`}>
-        <div className="mb-2 flex items-center justify-between gap-4 text-[10px] uppercase tracking-[0.16em] opacity-60">
-          <span>{isAssistant ? "Dotobot" : isSystem ? "Sistema" : "Administrador / equipe"}</span>
-          {message.createdAt ? <span>{new Date(message.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span> : null}
-        </div>
-        {isTyping ? (
-          <span className="inline-flex items-center gap-1 loading">
-            <span className="loading-dot" />
-            <span className="loading-dot" />
-            <span className="loading-dot" />
-            <span className="ml-2">Digitando...</span>
-          </span>
-        ) : (
-          <>
-            {renderRichText(message.text, isLightTheme)}
-            {media.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-3">
-                {media.map((item, idx) => {
-                  if (typeof item === "string" && item.match(/\.(png|jpe?g|webp|gif)$/i)) {
-                    return <img key={idx} src={item} alt="imagem" className={`max-w-[180px] max-h-[180px] rounded-xl border ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`} />;
-                  }
-                  if (typeof item === "string" && item.match(/\.(mp3|wav|ogg|m4a)$/i)) {
-                    return <audio key={idx} src={item} controls className="max-w-[220px]" />;
-                  }
-                  if (typeof item === "object" && item.type === "image" && item.url) {
-                    return <img key={idx} src={item.url} alt={item.alt || "imagem"} className={`max-w-[180px] max-h-[180px] rounded-xl border ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`} />;
-                  }
-                  if (typeof item === "object" && item.type === "audio" && item.url) {
-                    return <audio key={idx} src={item.url} controls className="max-w-[220px]" />;
-                  }
-                  return null;
-                })}
-              </div>
-            )}
-            {(isAssistant || isSystem) && message.text ? (
-              <div className={`mt-4 flex flex-wrap gap-2 border-t pt-3 text-[10px] sm:text-[11px] ${isLightTheme ? "border-[#E5EAF1]" : "border-[#22342F]"}`}>
-                {Array.isArray(message.actions) && message.actions.length ? (
-                  <>
-                    {message.actions.map((action) => (
-                      <button
-                        key={action.id || `${action.kind}-${action.target}`}
-                        type="button"
-                        onClick={() => onAction?.(action, message)}
-                        className={`rounded-full border px-3 py-1.5 transition sm:px-3 ${
-                          isLightTheme
-                            ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]"
-                            : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
-                        }`}
-                      >
-                        {action.label}
-                      </button>
-                    ))}
-                  </>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => onCopy?.(message)}
-                  className={`rounded-full border px-3 py-1.5 transition sm:px-3 ${
-                    isLightTheme
-                      ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]"
-                      : "border-[#22342F] text-[#C6D1CC] hover:border-[#C5A059] hover:text-[#F1D39A]"
-                  }`}
-                >
-                  Copiar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onReuse?.(message)}
-                  className={`rounded-full border px-3 py-1.5 transition sm:px-3 ${
-                    isLightTheme
-                      ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]"
-                      : "border-[#22342F] text-[#C6D1CC] hover:border-[#C5A059] hover:text-[#F1D39A]"
-                  }`}
-                >
-                  Usar no composer
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onOpenAiTask?.(message)}
-                  className={`rounded-full border px-3 py-1.5 transition sm:px-3 ${
-                    isLightTheme
-                      ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]"
-                      : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"
-                  }`}
-                >
-                  Abrir no AI Task
-                </button>
-              </div>
-            ) : null}
-          </>
-        )}
-      </article>
-    </div>
-  );
 }
 
 function TaskStatusChip({ status }) {
@@ -1086,6 +512,8 @@ export default function DotobotCopilot({
   showCollapsedTrigger = true,
   embeddedInInternoShell = false,
   focusedWorkspaceMode = false,
+  allowedRightPanelTabs = null,
+  defaultRightPanelTab = null,
 }) {
   const internalTheme = useInternalTheme();
   const isLightTheme = internalTheme?.isLightTheme === true;
@@ -1095,6 +523,18 @@ export default function DotobotCopilot({
   const isConversationCentricShell = isFocusedCopilotShell || isRailConversationShell;
   const suppressInnerChrome = isFocusedCopilotShell;
   const isCompactViewport = useMediaQuery({ maxWidth: 640 });
+  const availableRightPanelTabs = useMemo(
+    () => normalizeRightPanelTabs(
+      allowedRightPanelTabs || (isFocusedCopilotShell ? ["modules", "ai-task"] : ["modules", "ai-task", "agentlabs", "context"]),
+      "modules"
+    ),
+    [allowedRightPanelTabs, isFocusedCopilotShell]
+  );
+  const initialRightPanelTab = useMemo(() => {
+    if (defaultRightPanelTab && availableRightPanelTabs.includes(defaultRightPanelTab)) return defaultRightPanelTab;
+    if (isFullscreenCopilot && availableRightPanelTabs.includes("modules")) return "modules";
+    return availableRightPanelTabs[0];
+  }, [availableRightPanelTabs, defaultRightPanelTab, isFullscreenCopilot]);
   // Estado de autenticaÃ§Ã£o/admin
   const { supabase, loading: supaLoading, configError } = useSupabaseBrowser();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -1225,7 +665,7 @@ const [localStackSummary, setLocalStackSummary] = useState(null);
 const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
 const [localRuntimeConfigOpen, setLocalRuntimeConfigOpen] = useState(false);
 const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocalRuntimeConfig());
-  const [rightPanelTab, setRightPanelTab] = useState(() => (isFullscreenCopilot ? "modules" : "ai-task"));
+  const [rightPanelTab, setRightPanelTab] = useState(initialRightPanelTab);
   const [selectedProjectFilter, setSelectedProjectFilter] = useState("all");
 const [agentLabSnapshot, setAgentLabSnapshot] = useState({ loading: false, error: null, data: null });
 const [agentLabActionState, setAgentLabActionState] = useState({ loading: false, scope: null, message: null, tone: "idle" });
@@ -1316,9 +756,9 @@ const [uiToasts, setUiToasts] = useState([]);
       setMode("chat");
       setProvider((current) => normalizeWorkspaceProvider(current || "gpt", PROVIDER_OPTIONS));
       setWorkspaceLayoutMode("immersive");
-      setRightPanelTab("modules");
+      setRightPanelTab(initialRightPanelTab);
     }
-  }, [chatStorageKey, taskStorageKey, prefStorageKey, layoutStorageKey, conversationStorageKey, initialWorkspaceOpen, isFullscreenCopilot]);
+  }, [chatStorageKey, taskStorageKey, prefStorageKey, layoutStorageKey, conversationStorageKey, initialWorkspaceOpen, initialRightPanelTab, isFullscreenCopilot]);
 
   useEffect(() => {
     if (providerCatalogRequestedRef.current) return undefined;
@@ -1689,11 +1129,9 @@ const [uiToasts, setUiToasts] = useState([]);
   }, [layoutStorageKey, workspaceLayoutMode]);
 
   useEffect(() => {
-    if (!isFocusedCopilotShell) return;
-    if (rightPanelTab === "context") {
-      setRightPanelTab("modules");
-    }
-  }, [isFocusedCopilotShell, rightPanelTab]);
+    if (availableRightPanelTabs.includes(rightPanelTab)) return;
+    setRightPanelTab(availableRightPanelTabs[0]);
+  }, [availableRightPanelTabs, rightPanelTab]);
 
   useEffect(() => {
     const activeConversation = conversations.find((item) => item.id === activeConversationId) || null;
@@ -1807,7 +1245,7 @@ const [uiToasts, setUiToasts] = useState([]);
           "4": { tab: "context", title: "Painel lateral: contexto" },
         };
         const selection = tabMap[normalizedKey];
-        if (selection) {
+        if (selection && availableRightPanelTabs.includes(selection.tab)) {
           setRightPanelTab(selection.tab);
           pushUiToast({
             tone: "neutral",
@@ -1834,7 +1272,7 @@ const [uiToasts, setUiToasts] = useState([]);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [router]);
+  }, [availableRightPanelTabs, router]);
 
   useEffect(() => {
     if (!attachments.length) return undefined;
@@ -3100,14 +2538,10 @@ const [uiToasts, setUiToasts] = useState([]);
       onClick: () => router.push("/interno/agentlab"),
     },
   ], [routePath, router]);
-  const activeRightPanelMeta = useMemo(() =>
-    rightPanelTab === "modules"
-      ? { title: "Módulos", detail: "Acesse áreas-chave do produto sem sair da conversa." }
-      : rightPanelTab === "ai-task"
-        ? { title: "AI Task", detail: "Execução assistida para transformar pedidos em próximos passos." }
-        : rightPanelTab === "agentlabs"
-          ? { title: "AgentLabs", detail: "Evolução dos agentes, qualidade e repertório do produto." }
-          : { title: "Contexto", detail: "Resumo útil da conversa, missão ativa e referências rápidas." }, [rightPanelTab]);
+  const activeRightPanelMeta = useMemo(
+    () => RIGHT_PANEL_META[rightPanelTab] || RIGHT_PANEL_META[availableRightPanelTabs[0]] || RIGHT_PANEL_META.modules,
+    [availableRightPanelTabs, rightPanelTab]
+  );
   const agentLabData = agentLabSnapshot.data || null;
   const agentLabSubagents = useMemo(() => extractAgentLabSubagents(agentLabSnapshot.data, activeTask), [activeTask, agentLabSnapshot.data]);
   const agentLabOverview = agentLabData?.overview || {};
@@ -4070,7 +3504,7 @@ const [uiToasts, setUiToasts] = useState([]);
               {messages.length ? (
                 <div className="space-y-3">
                   {messages.map((message, index) => (
-                    <MessageBubble
+                    <DotobotMessageBubble
                       key={message.id || `${message.role}-${message.createdAt || index}-${index}`}
                       message={message}
                       onCopy={handleCopyMessage}
@@ -4089,7 +3523,7 @@ const [uiToasts, setUiToasts] = useState([]);
                 </div>
               )}
               {loading ? (
-                <MessageBubble
+                <DotobotMessageBubble
                   message={{ role: "assistant", text: "", createdAt: null }}
                   isTyping={true}
                 />
@@ -4940,7 +4374,7 @@ const [uiToasts, setUiToasts] = useState([]);
                           </p>
                         </div>
                         <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                          Apoio lateral para módulos e automações
+                          Apoio lateral para contexto e execução
                         </span>
                       </div>
                     ) : (
@@ -4977,7 +4411,7 @@ const [uiToasts, setUiToasts] = useState([]);
                     <div className={`flex min-h-full flex-col justify-end space-y-3 ${focusedConversationColumnClass}`}>
                       {messages.length ? (
                         messages.map((message, idx) => (
-                          <MessageBubble
+                          <DotobotMessageBubble
                             key={message.id || idx}
                             message={message}
                             isLightTheme={isLightTheme}
@@ -4994,7 +4428,7 @@ const [uiToasts, setUiToasts] = useState([]);
                         </div>
                       )}
                       {loading ? (
-                        <MessageBubble
+                        <DotobotMessageBubble
                           message={{ role: "assistant", text: "", createdAt: null }}
                           isTyping={true}
                           isLightTheme={isLightTheme}
@@ -5158,28 +4592,49 @@ const [uiToasts, setUiToasts] = useState([]);
                 </section>
 
                 {!isRailConversationShell ? (
-                <aside className={`${isFocusedCopilotShell ? "block" : "hidden lg:block"} min-h-0 overflow-hidden ${rightRailShellClass}`}>
+                isFocusedCopilotShell ? (
+                <FocusedCopilotAside
+                  activeRightPanelMeta={activeRightPanelMeta}
+                  activeTaskLabel={activeTaskLabel}
+                  activeTaskProviderLabel={activeTaskProviderLabel}
+                  activeTaskStepCount={activeTaskStepCount}
+                  attachments={attachments}
+                  contextEnabled={contextEnabled}
+                  isLightTheme={isLightTheme}
+                  onOpenAiTask={() => router.push("/interno/ai-task")}
+                  ragSummary={ragSummary}
+                  rightPanelTab={rightPanelTab}
+                  routePath={routePath}
+                  runningCount={runningCount}
+                  setRightPanelTab={setRightPanelTab}
+                  taskHistory={taskHistory}
+                />
+                ) : (
+                <aside className="hidden min-h-0 overflow-hidden lg:block">
                   <div className={`border-b px-4 py-4 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
                     <div className="flex flex-col gap-3">
                       <div>
                         <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
-                          {isFocusedCopilotShell ? "Módulos" : "Painel lateral"}
+                          {isFocusedCopilotShell ? "Apoio lateral" : "Painel lateral"}
                         </p>
                         <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeRightPanelMeta.title}</p>
                         <p className={`mt-1 max-w-[19rem] text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>
                           {isFocusedCopilotShell
-                            ? "Módulos, subtarefas e agentes como apoio lateral."
+                            ? activeRightPanelMeta.detail
                             : activeRightPanelMeta.detail}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setRightPanelTab("modules")}
-                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "modules" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#9A6E2D] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"}`}
-                        >
-                          Módulos
-                        </button>
+                        {availableRightPanelTabs.includes("modules") ? (
+                          <button
+                            type="button"
+                            onClick={() => setRightPanelTab("modules")}
+                            className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "modules" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#9A6E2D] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"}`}
+                          >
+                            Módulos
+                          </button>
+                        ) : null}
+                        {availableRightPanelTabs.includes("ai-task") ? (
                           <button
                             type="button"
                             onClick={() => setRightPanelTab("ai-task")}
@@ -5187,6 +4642,8 @@ const [uiToasts, setUiToasts] = useState([]);
                           >
                             AI Task
                           </button>
+                        ) : null}
+                        {availableRightPanelTabs.includes("agentlabs") ? (
                           <button
                             type="button"
                             onClick={() => setRightPanelTab("agentlabs")}
@@ -5194,7 +4651,8 @@ const [uiToasts, setUiToasts] = useState([]);
                           >
                             AgentLabs
                           </button>
-                        {!isFocusedCopilotShell ? (
+                        ) : null}
+                        {availableRightPanelTabs.includes("context") ? (
                           <button
                             type="button"
                             onClick={() => setRightPanelTab("context")}
@@ -5887,6 +5345,7 @@ const [uiToasts, setUiToasts] = useState([]);
                     </CSSTransition>
                   </TransitionGroup>
                 </aside>
+                )
                 ) : null}
               </div>
             </div>
