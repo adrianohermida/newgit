@@ -9,6 +9,7 @@ function classifyAttempt(attempt, hint) {
   const raw = String(attempt?.rawSnippet || attempt?.error || "").toLowerCase();
   const errorType = String(attempt?.body?.errorType || "").toLowerCase();
   const detail = String(attempt?.body?.detail || "").toLowerCase();
+  const attemptUrl = String(attempt?.url || "");
   if (raw.includes("<!doctype") || raw.includes("<html")) {
     return {
       issue: "html_response",
@@ -42,6 +43,15 @@ function classifyAttempt(attempt, hint) {
       issue: "route_not_found",
       summary: "O servidor respondeu, mas a rota esperada nao existe.",
       recommendation: "Revise a base URL. Ela deve apontar para a API correta, nao apenas para a home da aplicacao.",
+    };
+  }
+  if (detail.includes("model") && detail.includes("not found")) {
+    return {
+      issue: "model_not_found",
+      summary: "O servico respondeu, mas o modelo configurado nao existe neste runtime.",
+      recommendation: attemptUrl.includes(":8000")
+        ? "Revise o nome do modelo no ai-core. O endpoint respondeu, entao o problema e a configuracao do modelo, nao a URL."
+        : "Revise o nome do modelo configurado para este provider.",
     };
   }
   if (attempt?.status >= 500) {

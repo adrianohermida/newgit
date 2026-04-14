@@ -14,6 +14,8 @@ import {
   resolveAiTaskProvider,
   stringifyDiagnostic,
 } from "./aiTaskRunDiagnostics";
+import { mapTaskRunSteps } from "./aiTaskRunStepMapper";
+import { markTasksAsDone, markTasksAsFailed, resetRunTracking, updateHistoryItem } from "./aiTaskRunStateHelpers";
 
 const AI_TASK_CONSOLE_META = {
   consolePane: ["ai-task", "functions", "jobs"],
@@ -170,29 +172,13 @@ export function useAiTaskRun({
         if (normalized.resultText) setLatestResult(normalized.resultText);
 
         if (normalized.steps.length) {
-          const mappedTasks = normalized.steps.map((step, index) => {
-            const label = step?.action || step?.title || `Etapa ${index + 1}`;
-            const dependencies = Array.isArray(step?.dependencies) ? step.dependencies : Array.isArray(step?.dependsOn) ? step.dependsOn : [];
-            return {
-              id: `${run?.id || runId}_step_${index + 1}`,
-              title: label,
-              goal: label,
-              description: label || "Execucao do backend",
-              step,
-              steps: [label || "Execucao do backend"],
-              status: normalizeTaskStepStatus(step?.status),
-              priority: inferTaskPriority(step),
-              assignedAgent: classifyTaskAgent(step),
-              stage: step?.stage || null,
-              parallelGroup: step?.parallel_group || null,
-              moduleKeys: Array.isArray(step?.module_keys) ? step.module_keys : [],
-              orchestrationTaskId: step?.id || step?.task_id || null,
-              created_at: nowIso(),
-              updated_at: nowIso(),
-              logs: step?.error ? [step.error] : [],
-              dependencies,
-              dependencyCount: dependencies.length,
-            };
+          const mappedTasks = mapTaskRunSteps(normalized.steps, {
+            runId: run?.id || runId,
+            nowIso,
+            fallbackDescription: "Execucao do backend",
+            normalizeTaskStepStatus,
+            inferTaskPriority,
+            classifyTaskAgent,
           });
           setTasks(mappedTasks);
           setSelectedTaskId(mappedTasks[0]?.id || null);
@@ -213,15 +199,11 @@ export function useAiTaskRun({
         if (normalized.orchestration) {
           const orchestrationSummary = summarizeTaskRunOrchestration(normalized.orchestration);
           setMissionHistory((current) =>
-            current.map((item) =>
-              item.id === runId
-                ? {
-                    ...item,
-                    orchestration: normalized.orchestration,
-                    module: orchestrationSummary.moduleKeys.join(", ") || item.module || null,
-                  }
-                : item
-            )
+            updateHistoryItem(current, (item) => item.id === runId, (item) => ({
+              ...item,
+              orchestration: normalized.orchestration,
+              module: orchestrationSummary.moduleKeys.join(", ") || item.module || null,
+            }))
           );
         }
 
@@ -229,37 +211,21 @@ export function useAiTaskRun({
           setAutomation(runStatus === "completed" ? "done" : runStatus === "canceled" ? "stopped" : "failed");
           setActiveRun(null);
           setMissionHistory((current) =>
-            current.map((item) =>
-              item.id === runId
-                ? {
-                    ...item,
-                    status: runStatus === "completed" ? "done" : "failed",
-                    updated_at: nowIso(),
-                    result: run?.result?.status || runStatus,
-                    error: run?.error || item.error,
-                  }
-                : item
-            )
+            updateHistoryItem(current, (item) => item.id === runId, (item) => ({
+              ...item,
+              status: runStatus === "completed" ? "done" : "failed",
+              updated_at: nowIso(),
+              result: run?.result?.status || runStatus,
+              error: run?.error || item.error,
+            }))
           );
 
           if (runStatus === "completed") {
-            setTasks((current) =>
-              current.map((task) =>
-                task.status === "pending" || task.status === "running"
-                  ? { ...task, status: "done", updated_at: nowIso() }
-                  : task
-              )
-            );
+            setTasks((current) => markTasksAsDone(current, nowIso));
           }
 
           if (runStatus === "failed" || runStatus === "canceled") {
-            setTasks((current) =>
-              current.map((task) =>
-                task.status === "pending" || task.status === "running"
-                  ? { ...task, status: "failed", updated_at: nowIso(), logs: [...(task.logs || []), run?.error || "Execução interrompida."] }
-                  : task
-              )
-            );
+            setTasks((current) => markTasksAsFailed(current, nowIso, run?.error || "Execução interrompida.", true));
           }
           nextDelayMs = 0;
         }
@@ -356,9 +322,7 @@ export function useAiTaskRun({
     const blueprint = buildBlueprint(normalizedMission, profile, mode, effectiveProvider);
     const localRunId = `${Date.now()}_run`;
     setError(null);
-    runEventIdsRef.current.clear();
-    lastEventCursorRef.current = null;
-    lastEventSequenceRef.current = null;
+    resetRunTracking({ runEventIdsRef, lastEventCursorRef, lastEventSequenceRef });
     setAutomation("running");
     setEventsTotal(0);
     setExecutionSource(null);
@@ -494,25 +458,14 @@ export function useAiTaskRun({
         });
 
         if (backendSteps.length) {
-          const mappedTasks = backendSteps.map((step, index) => ({
-            id: `${normalized.run?.id || localRunId}_step_${index + 1}`,
-            title: step?.action || step?.title || `Etapa ${index + 1}`,
-            goal: step?.action || step?.title || `Etapa ${index + 1}`,
-            description: step?.action || step?.title || "Execucao local do ai-core",
-            step,
-            steps: [step?.action || step?.title || "Execucao local do ai-core"],
-            status: normalizeTaskStepStatus(step?.status),
-            priority: inferTaskPriority(step),
-            assignedAgent: classifyTaskAgent(step),
-            stage: step?.stage || null,
-            parallelGroup: step?.parallel_group || null,
-            moduleKeys: Array.isArray(step?.module_keys) ? step.module_keys : [],
-            orchestrationTaskId: step?.id || step?.task_id || null,
-            created_at: localStartedAt,
-            updated_at: nowIso(),
-            logs: step?.error ? [step.error] : [],
-            dependencies: Array.isArray(step?.dependencies) ? step.dependencies : Array.isArray(step?.dependsOn) ? step.dependsOn : [],
-          }));
+          const mappedTasks = mapTaskRunSteps(backendSteps, {
+            runId: normalized.run?.id || localRunId,
+            nowIso,
+            fallbackDescription: "Execucao local do ai-core",
+            normalizeTaskStepStatus,
+            inferTaskPriority,
+            classifyTaskAgent,
+          }).map((task) => ({ ...task, created_at: localStartedAt }));
           setTasks(mappedTasks);
           setSelectedTaskId(mappedTasks[0]?.id || null);
         }
@@ -564,22 +517,18 @@ export function useAiTaskRun({
         ]);
 
         setMissionHistory((current) =>
-          current.map((item) =>
-            item.id === localRunId
-              ? {
-                ...item,
-                id: normalized.run?.id || item.id,
-                status: normalized.status === "completed" ? "done" : "failed",
-                updated_at: nowIso(),
-                result: normalized.run?.result?.status || normalized.status,
-                source: normalized.source || null,
-                model: normalized.model || null,
-                orchestration: normalized.orchestration || null,
-                module: orchestrationSummary.moduleKeys.join(", ") || item.module || null,
-                eventsTotal: normalized.eventsTotal != null ? normalized.eventsTotal : item.eventsTotal,
-              }
-            : item
-        )
+          updateHistoryItem(current, (item) => item.id === localRunId, (item) => ({
+            ...item,
+            id: normalized.run?.id || item.id,
+            status: normalized.status === "completed" ? "done" : "failed",
+            updated_at: nowIso(),
+            result: normalized.run?.result?.status || normalized.status,
+            source: normalized.source || null,
+            model: normalized.model || null,
+            orchestration: normalized.orchestration || null,
+            module: orchestrationSummary.moduleKeys.join(", ") || item.module || null,
+            eventsTotal: normalized.eventsTotal != null ? normalized.eventsTotal : item.eventsTotal,
+          }))
         );
 
         setAutomation(normalized.status === "completed" ? "done" : "failed");
@@ -619,15 +568,9 @@ export function useAiTaskRun({
         setError(message);
         setAutomation("failed");
         setMissionHistory((current) =>
-          current.map((item) => (item.id === localRunId ? { ...item, status: "failed", updated_at: nowIso(), error: message } : item))
+          updateHistoryItem(current, (item) => item.id === localRunId, (item) => ({ ...item, status: "failed", updated_at: nowIso(), error: message }))
         );
-        setTasks((current) =>
-          current.map((task) =>
-            task.status === "running" || task.status === "pending"
-              ? { ...task, status: "failed", updated_at: nowIso(), logs: [...(task.logs || []), message] }
-              : task
-          )
-        );
+        setTasks((current) => markTasksAsFailed(current, nowIso, message, true));
         setActiveRun(null);
         pushLog({ type: "error", action: "Execucao local interrompida", result: message });
       } finally {
@@ -756,25 +699,14 @@ export function useAiTaskRun({
 
       const backendSteps = normalized.steps;
       if (backendSteps.length) {
-        const mappedTasks = backendSteps.map((step, index) => ({
-          id: `${run?.id || localRunId}_step_${index + 1}`,
-          title: step?.action || step?.title || `Etapa ${index + 1}`,
-          goal: step?.action || step?.title || `Etapa ${index + 1}`,
-          description: step?.action || step?.title || "Execução do backend",
-          step,
-          steps: [step?.action || step?.title || "Execução do backend"],
-          status: step?.status === "ok" ? "done" : step?.status === "fail" ? "failed" : "running",
-          priority: "high",
-          assignedAgent: step?.tool || "Dotobot",
-          stage: step?.stage || null,
-          parallelGroup: step?.parallel_group || null,
-          moduleKeys: Array.isArray(step?.module_keys) ? step.module_keys : [],
-          orchestrationTaskId: step?.id || step?.task_id || null,
-          created_at: nowIso(),
-          updated_at: nowIso(),
-          logs: step?.error ? [step.error] : [],
-          dependencies: Array.isArray(step?.dependencies) ? step.dependencies : Array.isArray(step?.dependsOn) ? step.dependsOn : [],
-        }));
+        const mappedTasks = mapTaskRunSteps(backendSteps, {
+          runId: run?.id || localRunId,
+          nowIso,
+          fallbackDescription: "Execução do backend",
+          normalizeTaskStepStatus: (status) => (status === "ok" ? "done" : status === "fail" ? "failed" : "running"),
+          inferTaskPriority: () => "high",
+          classifyTaskAgent: (step) => step?.tool || "Dotobot",
+        });
         setTasks(mappedTasks);
         setSelectedTaskId(mappedTasks[0]?.id || null);
       } else {
@@ -840,22 +772,18 @@ export function useAiTaskRun({
         setActiveRun(null);
       }
       setMissionHistory((current) =>
-        current.map((item) =>
-          item.id === localRunId
-            ? {
-                ...item,
-                id: run?.id || item.id,
-                status: runStatus === "completed" ? "done" : runStatus === "failed" ? "failed" : "running",
-                updated_at: nowIso(),
-                result: run?.result?.status || runStatus,
-                source: responseSource || item.source || null,
-                model: responseModel || item.model || null,
-                orchestration: normalized.orchestration || item.orchestration || null,
-                module: orchestrationSummary.moduleKeys.join(", ") || item.module || null,
-                eventsTotal: normalized.eventsTotal != null ? normalized.eventsTotal : item.eventsTotal,
-              }
-            : item
-        )
+        updateHistoryItem(current, (item) => item.id === localRunId, (item) => ({
+          ...item,
+          id: run?.id || item.id,
+          status: runStatus === "completed" ? "done" : runStatus === "failed" ? "failed" : "running",
+          updated_at: nowIso(),
+          result: run?.result?.status || runStatus,
+          source: responseSource || item.source || null,
+          model: responseModel || item.model || null,
+          orchestration: normalized.orchestration || item.orchestration || null,
+          module: orchestrationSummary.moduleKeys.join(", ") || item.module || null,
+          eventsTotal: normalized.eventsTotal != null ? normalized.eventsTotal : item.eventsTotal,
+        }))
       );
 
       setAutomation(runStatus === "completed" ? "done" : runStatus === "failed" ? "failed" : "running");
@@ -896,15 +824,9 @@ export function useAiTaskRun({
       setError(message);
       setAutomation("failed");
       setMissionHistory((current) =>
-        current.map((item) => (item.id === localRunId ? { ...item, status: "failed", updated_at: nowIso(), error: message } : item))
+        updateHistoryItem(current, (item) => item.id === localRunId, (item) => ({ ...item, status: "failed", updated_at: nowIso(), error: message }))
       );
-      setTasks((current) =>
-        current.map((task) =>
-          task.status === "running"
-            ? { ...task, status: "failed", updated_at: nowIso(), logs: [...(task.logs || []), message] }
-            : task
-        )
-      );
+      setTasks((current) => markTasksAsFailed(current, nowIso, message));
       pushLog({ type: "error", action: "Execução interrompida", result: message });
     } finally {
       abortRef.current = null;
@@ -996,14 +918,10 @@ export function useAiTaskRun({
     pauseRef.current = false;
     setPaused(false);
     setAutomation("stopped");
-    runEventIdsRef.current.clear();
-    lastEventCursorRef.current = null;
-    lastEventSequenceRef.current = null;
+    resetRunTracking({ runEventIdsRef, lastEventCursorRef, lastEventSequenceRef });
     setEventsTotal(0);
     setActiveRun(null);
-    setTasks((current) =>
-      current.map((task) => (task.status === "running" ? { ...task, status: "failed", updated_at: nowIso(), logs: [...(task.logs || []), "Interrompido pelo operador."] } : task))
-    );
+    setTasks((current) => markTasksAsFailed(current, nowIso, "Interrompido pelo operador."));
     pushLog({ type: "control", action: "Execução parada", result: "Operador interrompeu a orquestração." });
   }
 
@@ -1017,9 +935,7 @@ export function useAiTaskRun({
     try {
       setError(null);
       setAutomation("running");
-      runEventIdsRef.current.clear();
-      lastEventCursorRef.current = null;
-      lastEventSequenceRef.current = null;
+      resetRunTracking({ runEventIdsRef, lastEventCursorRef, lastEventSequenceRef });
       setEventsTotal(0);
       const continueStartedAt = Date.now();
       const continueLogId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;

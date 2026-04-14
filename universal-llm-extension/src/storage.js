@@ -48,6 +48,12 @@ function mergeSettings(base, patch) {
   };
 }
 
+function normalizeLoopbackUrl(value, fallback) {
+  const normalized = cleanUrl(value, fallback);
+  if (!normalized) return normalized;
+  return normalized.replace(/^http:\/\/localhost:3000$/i, "http://127.0.0.1:3000");
+}
+
 function normalizeSettings(raw) {
   const merged = mergeSettings(DEFAULT_SETTINGS, raw || {});
   return {
@@ -56,7 +62,7 @@ function normalizeSettings(raw) {
       runtimeModel: String(merged.local.runtimeModel || DEFAULT_SETTINGS.local.runtimeModel).trim(),
     },
     cloud: {
-      appUrl: cleanUrl(merged.cloud.appUrl, DEFAULT_SETTINGS.cloud.appUrl),
+      appUrl: normalizeLoopbackUrl(merged.cloud.appUrl, DEFAULT_SETTINGS.cloud.appUrl),
       baseUrl: cleanUrl(merged.cloud.baseUrl, DEFAULT_SETTINGS.cloud.baseUrl),
       model: String(merged.cloud.model || DEFAULT_SETTINGS.cloud.model).trim(),
       authToken: String(merged.cloud.authToken || "").trim(),

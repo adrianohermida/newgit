@@ -53,18 +53,12 @@ import {
 import { useAiTaskUiState } from "./useAiTaskUiState";
 import { useAiTaskViewModel } from "./useAiTaskViewModel";
 import { useAiTaskModuleHistorySync } from "./useAiTaskModuleHistorySync";
+import useAiTaskRuntimeHealth from "./useAiTaskRuntimeHealth";
 
 export default function AITaskModule({ profile, routePath }) {
   const router = useRouter();
   const missionInputRef = useRef(null);
   const [stopModalOpen, setStopModalOpen] = useState(false);
-  const [providerCatalog, setProviderCatalog] = useState(FALLBACK_PROVIDER_OPTIONS);
-  const [skillCatalog, setSkillCatalog] = useState(FALLBACK_SKILL_OPTIONS);
-  const [localStackSummary, setLocalStackSummary] = useState(null);
-  const [refreshingLocalStack, setRefreshingLocalStack] = useState(false);
-  const [localRuntimeConfigOpen, setLocalRuntimeConfigOpen] = useState(false);
-  const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocalRuntimeConfig());
-  const [ragHealth, setRagHealth] = useState(null);
   const { contact360, contact360Loading, contact360Query, historyPage, setContact360, setContact360Loading, setContact360Query, setHistoryPage, setTaskVisibleCount, taskVisibleCount } = useAiTaskUiState(profile);
   const {
     activeRun,
@@ -133,6 +127,28 @@ export default function AITaskModule({ profile, routePath }) {
     maxThinking: MAX_THINKING,
     maxLogs: MAX_LOGS,
     profile,
+  });
+
+  const {
+    handleCopySupabaseLocalEnvBlock,
+    handleSaveLocalRuntimeConfig,
+    localRuntimeConfigOpen,
+    localRuntimeDraft,
+    localStackReady,
+    localStackSummary,
+    providerCatalog,
+    ragHealth,
+    refreshingLocalStack,
+    refreshLocalStackStatus,
+    setLocalRuntimeConfigOpen,
+    setLocalRuntimeDraft,
+    skillCatalog,
+  } = useAiTaskRuntimeHealth({
+    fallbackProviderOptions: FALLBACK_PROVIDER_OPTIONS,
+    fallbackSkillOptions: FALLBACK_SKILL_OPTIONS,
+    provider,
+    pushLog,
+    setProvider,
   });
 
   useEffect(() => {

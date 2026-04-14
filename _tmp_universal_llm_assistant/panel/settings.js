@@ -1,6 +1,10 @@
 import { BRIDGE_URL, state } from "./state.js";
 import { parseJsonResponse, safeFetch } from "./utils.js";
 
+function normalizeLoopback(url) {
+  return String(url || "").trim().replace(/^http:\/\/localhost:3000$/i, "http://127.0.0.1:3000");
+}
+
 export function fillSettingsInputs(el) {
   el.inputRuntimeUrl.value = state.settings.runtimeUrl;
   el.inputRuntimeModel.value = state.settings.runtimeModel;
@@ -17,7 +21,7 @@ export function hydrateSettings(settings) {
   if (!settings) return;
   state.settings.runtimeUrl = settings.local?.runtimeUrl || state.settings.runtimeUrl;
   state.settings.runtimeModel = settings.local?.runtimeModel || state.settings.runtimeModel;
-  state.settings.appUrl = settings.cloud?.appUrl || state.settings.appUrl;
+  state.settings.appUrl = normalizeLoopback(settings.cloud?.appUrl || state.settings.appUrl);
   state.settings.cloudBaseUrl = settings.cloud?.baseUrl || state.settings.cloudBaseUrl;
   state.settings.cloudModel = settings.cloud?.model || state.settings.cloudModel;
   state.settings.cloudAuthToken = settings.cloud?.authToken || state.settings.cloudAuthToken;
@@ -29,7 +33,7 @@ export function hydrateSettings(settings) {
 export async function loadSettings(el) {
   await new Promise((resolve) => {
     chrome.storage.local.get(["llm_settings", "llm_provider"], (result) => {
-      if (result.llm_settings) state.settings = { ...state.settings, ...result.llm_settings };
+      if (result.llm_settings) state.settings = { ...state.settings, ...result.llm_settings, appUrl: normalizeLoopback(result.llm_settings.appUrl || state.settings.appUrl) };
       if (result.llm_provider) state.provider = result.llm_provider;
       resolve();
     });
@@ -57,7 +61,7 @@ export async function saveSettings(el) {
     ...state.settings,
     runtimeUrl: String(el.inputRuntimeUrl.value || state.settings.runtimeUrl).trim(),
     runtimeModel: String(el.inputRuntimeModel.value || state.settings.runtimeModel).trim(),
-    appUrl: String(el.inputAppUrl.value || state.settings.appUrl).trim(),
+    appUrl: normalizeLoopback(el.inputAppUrl.value || state.settings.appUrl),
     cloudBaseUrl: String(el.inputCloudBaseUrl.value || state.settings.cloudBaseUrl).trim(),
     cloudAuthToken: String(el.inputCloudAuthToken.value || state.settings.cloudAuthToken).trim(),
     cloudModel: String(el.inputCloudModel.value || state.settings.cloudModel).trim(),

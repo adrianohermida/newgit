@@ -175,6 +175,11 @@ export default function useAiTaskRuntimeHealth(props) {
     refreshLocalStackStatus,
     setLocalRuntimeConfigOpen,
     setLocalRuntimeDraft,
+    setLocalStackSummary,
+    setProviderCatalog,
+    setRagHealth,
+    setRefreshingLocalStack,
+    setSkillCatalog,
     skillCatalog,
   };
 }
