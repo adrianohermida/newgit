@@ -2,7 +2,7 @@ const DEFAULT_PROVIDER = "local";
 const DEFAULT_SETTINGS = {
   runtimeUrl: "http://127.0.0.1:8000",
   runtimeModel: "aetherlab-legal-local-v1",
-  appUrl: "http://localhost:3000",
+  appUrl: "http://127.0.0.1:3000",
   cloudModel: "aetherlab-legal-v1",
   cfModel: "@cf/meta/llama-3.1-8b-instruct",
   autoSaveSessions: true,

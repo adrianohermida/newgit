@@ -14,7 +14,7 @@ export function buildPanelMarkup() {
       <div class="header-right">
         <span id="provider-badge"></span>
         <span id="status-dot" class="status-dot"></span>
-        <button id="btn-settings" class="icon-btn" title="Configuracoes">⚙</button>
+        <button id="btn-settings" class="icon-btn" title="Configuracoes">CFG</button>
       </div>
     </div>
     <div class="tabs">
@@ -25,19 +25,30 @@ export function buildPanelMarkup() {
       <button id="tab-settings" class="tab-btn">Config</button>
     </div>
     <section id="pane-chat" class="pane active-pane">
-      <div id="chat-area" class="chat-area"><div class="empty-state"><div class="empty-icon">🧠</div><div class="empty-title">LLM Assistant</div><div class="empty-sub">Converse com o bridge local, capture tela, envie arquivos e acompanhe sessoes.</div></div></div>
+      <div class="chat-shell">
+        <div class="chat-hero">
+          <div class="chat-hero-title">Universal LLM Assistant</div>
+          <div class="chat-hero-sub">Chat operacional com contexto de pagina, tasks e automacoes auditaveis.</div>
+        </div>
+        <div id="chat-area" class="chat-area">
+          <div class="empty-state">
+            <div class="empty-title">Pronto para operar</div>
+            <div class="empty-sub">Use leitura de pagina, selecao, captura de tela ou anexos para enviar contexto real ao agente.</div>
+          </div>
+        </div>
+      </div>
       <div class="input-area">
         <div class="actions-row">
-          <button id="btn-page-text" class="act-btn">Pagina</button>
-          <button id="btn-selection" class="act-btn">Selecao</button>
-          <button id="btn-screenshot" class="act-btn">Print</button>
-          <button id="btn-upload" class="act-btn">Arquivo</button>
+          <button id="btn-page-text" class="act-btn">Ler pagina</button>
+          <button id="btn-selection" class="act-btn">Usar selecao</button>
+          <button id="btn-screenshot" class="act-btn">Capturar tela</button>
+          <button id="btn-upload" class="act-btn">Anexar</button>
           <button id="btn-record" class="act-btn">Gravar</button>
-          <button id="btn-replay" class="act-btn">Replay</button>
+          <button id="btn-replay" class="act-btn ghost-btn">Replay</button>
           <span id="recorder-status" class="inline-status">Parado</span>
         </div>
         <div class="input-row">
-          <div class="textarea-wrap"><textarea id="msg-input" placeholder="Escreva sua mensagem..."></textarea></div>
+          <div class="textarea-wrap"><textarea id="msg-input" placeholder="Escreva a meta, pergunta ou instrucao..."></textarea></div>
           <button id="btn-send" class="btn-send">Enviar</button>
         </div>
         <input id="file-input" type="file" />

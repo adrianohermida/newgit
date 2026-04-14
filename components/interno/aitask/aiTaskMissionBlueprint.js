@@ -17,8 +17,12 @@ export function extractFirstEmail(value = "") {
 export function buildRagAlert(health) {
   if (!health || health.status === "operational") return null;
   const signals = health.signals || {};
+  const normalizedError = String(health.error || "").toLowerCase();
   if (signals.supabaseAuthMismatch) return { tone: "danger", title: "Embedding RAG bloqueado por autenticacao", body: "O Supabase respondeu com falha de autenticacao. Revise o DOTOBOT_SUPABASE_EMBED_SECRET no app e na function dotobot-embed." };
   if (signals.appEmbedSecretMissing) return { tone: "warning", title: "Segredo do embed ausente no app", body: "O dashboard esta sem DOTOBOT_SUPABASE_EMBED_SECRET, entao embedding e consulta vetorial podem falhar ou ficar superficiais." };
+  if (normalizedError.includes("expected 768 dimensions") || normalizedError.includes("not 384")) {
+    return { tone: "danger", title: "Dimensao vetorial inconsistente no Supabase", body: "A stack principal ja opera com embeddings em 768 dimensoes, mas alguma parte da persistencia ainda espera 384. Revise a RPC upsert_dotobot_memory_embedding, a coluna vector da tabela e a function dotobot-embed." };
+  }
   return { tone: "warning", title: "RAG degradado no momento", body: health.error || "Embedding, consulta vetorial ou persistencia de memoria nao estao integros. Abra o diagnostico para revisar secrets e backends." };
 }
 
