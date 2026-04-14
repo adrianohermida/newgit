@@ -9,8 +9,8 @@ import { InternalThemeProvider } from '../components/interno/InternalThemeProvid
 import useConsoleRouteInstrumentation from '../hooks/useConsoleRouteInstrumentation';
 
 const FreshchatWebMessenger = dynamic(() => import('../components/FreshchatWebMessenger'), { ssr: false });
-const NON_PORTAL_SW_CLEANUP_MARKER = 'hmadv_sw_cleanup_once_v2';
 const CHUNK_RECOVERY_MARKER = 'hmadv_chunk_recovery_once_v1';
+const LEGACY_PORTAL_SW_MARKER = 'hmadv_legacy_portal_sw_cleanup_v1';
 
 function shouldRecoverFromChunkError(reason = '') {
   const message = String(reason || '').toLowerCase();
@@ -32,6 +32,9 @@ async function clearFrontendRuntimeCaches() {
     await Promise.all(
       keys
         .filter((key) =>
+          key.startsWith('hmadv-static-') ||
+          key.startsWith('hmadv-dynamic-') ||
+          key.startsWith('hmadv-data-') ||
           key.startsWith('hmadv-portal-') ||
           key.startsWith('workbox') ||
           key.startsWith('next-') ||
@@ -48,7 +51,6 @@ async function clearFrontendRuntimeCaches() {
 
 export default function App({ Component, pageProps }) {
   const router = useRouter();
-  const isPortalRoute = String(router.pathname || '').startsWith('/portal');
   const isInternalRoute = String(router.pathname || '').startsWith('/interno');
   useConsoleRouteInstrumentation(router);
 
@@ -91,38 +93,31 @@ export default function App({ Component, pageProps }) {
         legacyTrackingScript.remove();
       }
     }
-  }, [isInternalRoute, isPortalRoute]);
+  }, [isInternalRoute]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
       return undefined;
     }
 
-    // SW deve atuar apenas no portal; fora dele, remove registros/caches legados
-    // para evitar servir HTML cacheado no lugar de chunks do Next.
-    if (!isPortalRoute) {
-      Promise.all([
-        navigator.serviceWorker
-          .getRegistrations()
-          .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister().catch(() => null))))
-          .catch(() => null),
-        clearFrontendRuntimeCaches(),
-      ]).then(() => {
-        try {
-          if (window.navigator.serviceWorker.controller && window.sessionStorage.getItem(NON_PORTAL_SW_CLEANUP_MARKER) !== '1') {
-            window.sessionStorage.setItem(NON_PORTAL_SW_CLEANUP_MARKER, '1');
-            window.location.reload();
-          }
-        } catch {
-          // noop
+    const registerWorker = async () => {
+      try {
+        if (window.sessionStorage.getItem(LEGACY_PORTAL_SW_MARKER) !== '1') {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          const legacyRegistrations = registrations.filter((registration) =>
+            registration?.active?.scriptURL?.endsWith('/portal-sw.js') ||
+            registration?.waiting?.scriptURL?.endsWith('/portal-sw.js') ||
+            registration?.installing?.scriptURL?.endsWith('/portal-sw.js')
+          );
+
+          await Promise.all(legacyRegistrations.map((registration) => registration.unregister().catch(() => null)));
+          window.sessionStorage.setItem(LEGACY_PORTAL_SW_MARKER, '1');
         }
-      });
+      } catch {
+        // noop
+      }
 
-      return undefined;
-    }
-
-    const registerWorker = () => {
-      navigator.serviceWorker.register('/portal-sw.js', { scope: '/portal/' }).catch(() => null);
+      navigator.serviceWorker.register('/service-worker.js').catch(() => null);
     };
 
     if (document.readyState === 'complete') {
@@ -132,7 +127,7 @@ export default function App({ Component, pageProps }) {
 
     window.addEventListener('load', registerWorker, { once: true });
     return () => window.removeEventListener('load', registerWorker);
-  }, [isPortalRoute]);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -185,8 +180,14 @@ export default function App({ Component, pageProps }) {
         <meta name="description" content="Escritório de advocacia especializado em superendividamento, revisão bancária, contratos, defesa contra juros abusivos, empréstimo consignado, cartão de crédito e direito bancário." />
         <meta name="keywords" content="advogado, superendividamento, revisão bancária, contratos, juros abusivo, empréstimo consignado, cartão de crédito, reserva de margem consignada, defesa do consumidor, negociação de dívidas, recuperação judicial, direito bancário, consultoria jurídica" />
         <link rel="icon" type="image/webp" href="/images/OIP.webp" />
+        <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#07110E" />
+        <meta name="application-name" content="Hermida Maia" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="Hermida Maia" />
+        <meta name="mobile-web-app-capable" content="yes" />
         {/* Google Tag Manager Head (GTM-TMBHHW6 e GTM-56WQHDR) */}
         <script dangerouslySetInnerHTML={{ __html: `
           (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':

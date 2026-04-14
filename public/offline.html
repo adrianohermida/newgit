@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Modo offline | Hermida Maia</title>
+    <meta name="theme-color" content="#07110E" />
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f1e8;
+        --panel: rgba(255, 255, 255, 0.82);
+        --ink: #0f2a22;
+        --muted: #4f655c;
+        --accent: #0d5c47;
+        --accent-soft: rgba(13, 92, 71, 0.12);
+        --border: rgba(15, 42, 34, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Georgia, "Times New Roman", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top, rgba(13, 92, 71, 0.2), transparent 32%),
+          linear-gradient(160deg, #f5f1e8 0%, #efe6d8 45%, #e7ddcf 100%);
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      main {
+        width: min(720px, 100%);
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        padding: 32px;
+        backdrop-filter: blur(16px);
+        box-shadow: 0 24px 60px rgba(15, 42, 34, 0.12);
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 18px 0 12px;
+        font-size: clamp(2rem, 6vw, 3.75rem);
+        line-height: 0.95;
+      }
+
+      p {
+        margin: 0 0 16px;
+        font-size: 1.05rem;
+        line-height: 1.7;
+        color: var(--muted);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 14px;
+        margin: 28px 0;
+      }
+
+      .card {
+        padding: 16px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.78);
+        border: 1px solid var(--border);
+      }
+
+      .card strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 0.95rem;
+        color: var(--ink);
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 24px;
+      }
+
+      a,
+      button {
+        appearance: none;
+        border: 0;
+        cursor: pointer;
+        text-decoration: none;
+        font: inherit;
+        border-radius: 999px;
+        padding: 14px 20px;
+      }
+
+      .primary {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .secondary {
+        background: transparent;
+        color: var(--ink);
+        border: 1px solid var(--border);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <span class="eyebrow">Modo offline ativo</span>
+      <h1>Seguimos operando mesmo sem internet.</h1>
+      <p>
+        Esta instalacao continua acessivel com os arquivos em cache local. Quando a conexao voltar,
+        os dados dinamicos serao sincronizados novamente.
+      </p>
+      <div class="grid">
+        <section class="card">
+          <strong>LLM local</strong>
+          Use os fluxos locais e a camada offline para continuar trabalhando sem depender da rede.
+        </section>
+        <section class="card">
+          <strong>Base local</strong>
+          Obsidian e Supabase local podem assumir como fallback quando os endpoints remotos falharem.
+        </section>
+        <section class="card">
+          <strong>Retomada segura</strong>
+          Assim que a internet retornar, recarregue a pagina para buscar a versao mais recente.
+        </section>
+      </div>
+      <div class="actions">
+        <button class="primary" type="button" onclick="window.location.reload()">Tentar novamente</button>
+        <a class="secondary" href="/">Voltar ao inicio</a>
+      </div>
+    </main>
+  </body>
+</html>

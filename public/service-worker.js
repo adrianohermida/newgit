@@ -1,0 +1,110 @@
+const STATIC_CACHE = "hmadv-static-v1";
+const DYNAMIC_CACHE = "hmadv-dynamic-v1";
+const DATA_CACHE = "hmadv-data-v1";
+const OFFLINE_URL = "/offline.html";
+const PRECACHE_URLS = [
+  "/",
+  OFFLINE_URL,
+  "/manifest.json",
+  "/manifest.webmanifest",
+  "/favicon.ico",
+  "/icons/icon-192.svg",
+  "/icons/icon-512.svg",
+];
+
+function isStaticAsset(url) {
+  return (
+    url.pathname.startsWith("/_next/static/") ||
+    url.pathname.startsWith("/images/") ||
+    url.pathname.startsWith("/icons/") ||
+    /\.(?:css|js|mjs|png|jpg|jpeg|webp|gif|svg|ico|woff2?|ttf)$/i.test(url.pathname)
+  );
+}
+
+async function cacheFirst(request, cacheName) {
+  const cached = await caches.match(request);
+  if (cached) {
+    return cached;
+  }
+
+  const response = await fetch(request);
+  if (response.ok) {
+    const cache = await caches.open(cacheName);
+    cache.put(request, response.clone()).catch(() => null);
+  }
+  return response;
+}
+
+async function networkFirst(request, cacheName, fallbackToOffline = false) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(cacheName);
+      cache.put(request, response.clone()).catch(() => null);
+    }
+    return response;
+  } catch (error) {
+    const cached = await caches.match(request);
+    if (cached) {
+      return cached;
+    }
+
+    if (fallbackToOffline) {
+      const offline = await caches.match(OFFLINE_URL);
+      if (offline) {
+        return offline;
+      }
+    }
+
+    throw error;
+  }
+}
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(STATIC_CACHE).then((cache) => cache.addAll(PRECACHE_URLS)).catch(() => null)
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys
+          .filter((key) => ![STATIC_CACHE, DYNAMIC_CACHE, DATA_CACHE].includes(key))
+          .map((key) => caches.delete(key))
+      )
+    )
+  );
+  self.clients.claim();
+});
+
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+  if (request.method !== "GET") {
+    return;
+  }
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  if (request.mode === "navigate") {
+    event.respondWith(networkFirst(request, DYNAMIC_CACHE, true));
+    return;
+  }
+
+  if (url.pathname.startsWith("/api/")) {
+    event.respondWith(networkFirst(request, DATA_CACHE, false));
+    return;
+  }
+
+  if (isStaticAsset(url) || url.pathname === "/manifest.json" || url.pathname === "/manifest.webmanifest") {
+    event.respondWith(cacheFirst(request, STATIC_CACHE));
+    return;
+  }
+
+  event.respondWith(networkFirst(request, DYNAMIC_CACHE, false));
+});

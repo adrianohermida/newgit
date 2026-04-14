@@ -1096,7 +1096,7 @@ export default function LLMTestChat() {
                     {selectedTimeline.map((item, index) => (
                       <div key={`${item.label}_${index}`} className={`rounded-[18px] border px-4 py-3 ${formatTimelineTone(item.tone)}`}>
                         <p className="text-[10px] uppercase tracking-[0.16em]">{item.label}</p>
-                        <pre className="mt-2 whitespace-pre-wrap break-words text-xs leading-6">{item.value}</pre>
+                        <pre className="mt-2 whitespace-pre-wrap break-words text-xs leading-6">{formatJson(item.value)}</pre>
                       </div>
                     ))}
                   </div>

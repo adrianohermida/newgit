@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Hermida Maia PWA icon</title>
+  <desc id="desc">Monograma HM em fundo verde escuro.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#07110E" />
+      <stop offset="100%" stop-color="#0D5C47" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)" />
+  <circle cx="256" cy="256" r="184" fill="rgba(255,255,255,0.08)" />
+  <path d="M134 140h54v232h-54zm190 0h54v232h-54zM188 234h136v48H188zm0-94h54v232h-54zm82 0h54v232h-54z" fill="#F5F1E8" />
+</svg>

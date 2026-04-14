@@ -1,5 +1,6 @@
 import React from "react";
 
+import InternoLayout from "../../../components/interno/InternoLayout";
 import { useInternalTheme } from "../../../components/interno/InternalThemeProvider";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import { ACTION_LABELS } from "./constants";
@@ -42,5 +43,17 @@ function PublicacoesContent() {
 }
 
 export default function PublicacoesScreen() {
-  return <RequireAdmin><PublicacoesContent /></RequireAdmin>;
+  return (
+    <RequireAdmin>
+      {(profile) => (
+        <InternoLayout
+          profile={profile}
+          title="Gestao de Publicacoes"
+          description="Triagem operacional para criar processos, drenar filas e fechar pendencias reais."
+        >
+          <PublicacoesContent />
+        </InternoLayout>
+      )}
+    </RequireAdmin>
+  );
 }
