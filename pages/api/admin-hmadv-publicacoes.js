@@ -66,6 +66,107 @@ function buildQueueFallback({ page, pageSize, error }) {
   };
 }
 
+function buildAuthDegradedPublicacoesResponse(action, query, auth) {
+  const page = Number(query?.page || 1);
+  const pageSize = Number(query?.pageSize || 20);
+  const source = String(query?.source || "todos");
+  const error = auth?.error || "Autenticacao administrativa degradada no deploy atual.";
+
+  if (action === "overview") {
+    return {
+      ok: true,
+      data: {
+        publicacoesTotal: 0,
+        publicacoesOperacionais: 0,
+        publicacoesVinculadas: 0,
+        publicacoesComActivity: 0,
+        publicacoesPendentesComAccount: 0,
+        publicacoesLeilaoIgnorado: 0,
+        publicacoesSemProcesso: 0,
+        partesTotal: 0,
+        adviseCursorTotal: 0,
+        advisePersistedDelta: 0,
+        snapshotOverview: {},
+        syncWorker: null,
+        adviseSync: null,
+        degraded: true,
+        limited: true,
+        error,
+      },
+    };
+  }
+
+  if (action === "historico" || action === "jobs") {
+    return {
+      ok: true,
+      data: {
+        items: [],
+        degraded: true,
+        limited: true,
+        error,
+      },
+    };
+  }
+
+  if (action === "detalhe_integrado") {
+    return {
+      ok: true,
+      data: {
+        coverage: { items: [], totalRows: 0, limited: true, error },
+        linkedPartes: { items: [], totalRows: 0, limited: true, error },
+        pendingPartes: { items: [], totalRows: 0, limited: true, error },
+        contactDetail: null,
+        validation: null,
+        validationHistory: [],
+        degraded: true,
+        error,
+      },
+    };
+  }
+
+  if (action === "mesa_integrada") {
+    return {
+      ok: true,
+      data: buildSnapshotSafeEmpty({
+        page,
+        pageSize,
+        source,
+        query: String(query?.query || ""),
+        message: error,
+      }),
+    };
+  }
+
+  if (action === "mesa_integrada_selecao") {
+    return {
+      ok: true,
+      data: {
+        totalRows: 0,
+        items: [],
+        limited: true,
+        source: "snapshot",
+        error,
+      },
+    };
+  }
+
+  if (action === "candidatos_processos" || action === "candidatos_partes" || action === "publicacoes_pendentes") {
+    return {
+      ok: true,
+      data: buildQueueFallback({ page, pageSize, error }),
+    };
+  }
+
+  return {
+    ok: true,
+    data: {
+      degraded: true,
+      limited: true,
+      error,
+    },
+  };
+}
+
 function buildSnapshotSafeEmpty({ page, pageSize, source, query, message }) {
   return {
     page,
@@ -489,6 +590,10 @@ async function drainPublicacoesJobs({ preferredId = null, maxChunks = 6 } = {}) 
 export default async function handler(req, res) {
   const auth = await requireAdminNode(req);
   if (!auth.ok) {
+    if (req.method === "GET" && auth.status >= 500) {
+      const action = String(req.query.action || "overview");
+      return res.status(200).json(buildAuthDegradedPublicacoesResponse(action, req.query, auth));
+    }
     return res.status(auth.status).json({
       ok: false,
       error: auth.error,

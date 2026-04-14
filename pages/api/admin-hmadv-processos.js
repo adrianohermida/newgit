@@ -6,6 +6,8 @@ import {
   deleteProcessRelation,
   getProcessosOverview,
   inspectAudiencias,
+  listAdminJobs,
+  listAdminOperations,
   listProcessRelations,
   runSyncWorker,
   scanOrphanProcesses,
@@ -43,9 +45,112 @@ function buildQueueFallback({ error }) {
   };
 }
 
+function buildCoverageFallback({ page = 1, pageSize = 20, error = null, unsupported = false } = {}) {
+  return {
+    page,
+    pageSize,
+    totalRows: 0,
+    items: [],
+    limited: true,
+    unsupported,
+    error: error?.message || error || (unsupported ? "Cobertura indisponivel neste deploy." : null),
+  };
+}
+
+function buildSchemaStatusFallback(error = null) {
+  return {
+    exists: false,
+    available: false,
+    degraded: true,
+    error: error?.message || error || "Schema administrativo indisponivel no runtime atual.",
+  };
+}
+
+function buildRunnerMetricsFallback(error = null) {
+  return {
+    available: false,
+    degraded: true,
+    running: false,
+    pending: 0,
+    processed: 0,
+    error: error?.message || error || "Metricas do runner indisponiveis no runtime atual.",
+  };
+}
+
+function buildAuthDegradedGetResponse(action, query, auth) {
+  const page = Number(query?.page || 1);
+  const pageSize = Number(query?.pageSize || 20);
+  const error = auth?.error || "Autenticacao administrativa degradada no deploy atual.";
+
+  if (action === "overview") {
+    return {
+      ok: true,
+      data: {
+        processosTotal: 0,
+        processosComAccount: 0,
+        processosSemAccount: 0,
+        datajudEnriquecido: 0,
+        processosSemStatus: 0,
+        processosSemPolos: 0,
+        audienciasTotal: 0,
+        processosSemMovimentacao: 0,
+        movimentacoesPendentes: 0,
+        publicacoesPendentes: 0,
+        partesSemContato: 0,
+        camposOrfaos: 0,
+        monitoramentoAtivo: 0,
+        monitoramentoInativo: 0,
+        monitoramentoFallback: 0,
+        monitoramentoFilaPendente: 0,
+        workerVisiblePendencias: {},
+        workerVisibleTotal: 0,
+        structuralGapCounts: {},
+        structuralGapTotal: 0,
+        syncWorker: null,
+        degraded: true,
+        limited: true,
+        error,
+      },
+    };
+  }
+
+  if (action === "schema_status") {
+    return { ok: true, data: buildSchemaStatusFallback(error) };
+  }
+
+  if (action === "runner_metrics") {
+    return { ok: true, data: buildRunnerMetricsFallback(error) };
+  }
+
+  if (action === "historico" || action === "jobs") {
+    return {
+      ok: true,
+      data: {
+        items: [],
+        degraded: true,
+        limited: true,
+        error,
+      },
+    };
+  }
+
+  if (action === "cobertura_processos") {
+    return { ok: true, data: buildCoverageFallback({ page, pageSize, error, unsupported: true }) };
+  }
+
+  return {
+    ok: true,
+    data: buildQueueFallback({ error }),
+  };
+}
+
 export default async function handler(req, res) {
   const auth = await requireAdminNode(req);
   if (!auth.ok) {
+    if (req.method === "GET" && auth.status >= 500) {
+      const action = String(req.query.action || "overview");
+      return res.status(200).json(buildAuthDegradedGetResponse(action, req.query, auth));
+    }
     return res.status(auth.status).json({
       ok: false,
       error: auth.error,
@@ -66,6 +171,15 @@ export default async function handler(req, res) {
           data = buildQueueFallback({ error });
         }
         return res.status(200).json({ ok: true, data });
+      }
+      if (action === "schema_status") {
+        return res.status(200).json({ ok: true, data: buildSchemaStatusFallback() });
+      }
+      if (action === "runner_metrics") {
+        return res.status(200).json({ ok: true, data: buildRunnerMetricsFallback() });
+      }
+      if (action === "cobertura_processos") {
+        return res.status(200).json({ ok: true, data: buildCoverageFallback({ page: Number(req.query.page || 1), pageSize: Number(req.query.pageSize || 20), unsupported: true }) });
       }
       if (action === "orfaos") {
         let data;
@@ -128,11 +242,38 @@ export default async function handler(req, res) {
         }
         return res.status(200).json({ ok: true, data });
       }
+      if (action === "historico") {
+        const data = await listAdminOperations({
+          modulo: "processos",
+          limit: Number(req.query.limit || 20),
+        });
+        return res.status(200).json({ ok: true, data });
+      }
+      if (action === "jobs") {
+        const data = await listAdminJobs({
+          modulo: "processos",
+          limit: Number(req.query.limit || 12),
+        });
+        return res.status(200).json({ ok: true, data });
+      }
       return res.status(400).json({ ok: false, error: "Acao GET invalida." });
     }
 
     if (req.method === "POST") {
       const action = String(req.body?.action || "");
+      if (action === "run_pending_jobs") {
+        return res.status(200).json({
+          ok: true,
+          data: {
+            job: null,
+            chunksProcessed: 0,
+            completedAll: true,
+            degraded: true,
+            limited: true,
+            error: "Fila de jobs de processos ainda nao foi conectada ao runner desta rota.",
+          },
+        });
+      }
       if (action === "backfill_audiencias") {
         const data = await backfillAudiencias({
           processNumbers: parseProcessNumbers(req.body?.processNumbers),

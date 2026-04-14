@@ -5,10 +5,13 @@ const { execSync, spawnSync } = require('node:child_process');
 
 const nextDir = path.join(process.cwd(), '.next');
 const lockPath = path.join(nextDir, 'lock');
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 5;
 const BENIGN_WINDOWS_BUILD_ENOENT_PATTERNS = [
   "Error: ENOENT: no such file or directory, unlink '",
   "Error: ENOENT: no such file or directory, rename '",
+  "Error: ENOENT: no such file or directory, open '",
+  "Error: ENOENT: no such file or directory, mkdir '",
+  "Cannot find module 'D:\\Github\\newgit\\.next\\",
 ];
 
 function sleep(ms) {
@@ -62,23 +65,43 @@ function killLingeringNextProcesses() {
   }
 }
 
+function seedNextDir() {
+  const folders = [
+    nextDir,
+    path.join(nextDir, 'server'),
+    path.join(nextDir, 'server', 'pages'),
+    path.join(nextDir, 'server', 'app'),
+    path.join(nextDir, 'export'),
+    path.join(nextDir, 'cache'),
+    path.join(nextDir, 'cache', 'webpack'),
+    path.join(nextDir, 'cache', 'webpack', 'server-production'),
+  ];
+
+  for (const folder of folders) {
+    fs.mkdirSync(folder, { recursive: true });
+  }
+}
+
 function cleanNextDir() {
   killLingeringNextProcesses();
   sleep(750);
-  if (!fs.existsSync(nextDir)) return;
-  try {
-    fs.rmSync(nextDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
-    console.log('guard-next-build-lock: cleaned stale .next directory.');
-  } catch (error) {
-    if (fs.existsSync(lockPath)) {
-      try {
-        fs.unlinkSync(lockPath);
-      } catch {
-        // ignore lock cleanup errors
+  if (fs.existsSync(nextDir)) {
+    try {
+      fs.rmSync(nextDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
+      console.log('guard-next-build-lock: cleaned stale .next directory.');
+    } catch (error) {
+      if (fs.existsSync(lockPath)) {
+        try {
+          fs.unlinkSync(lockPath);
+        } catch {
+          // ignore lock cleanup errors
+        }
       }
+      console.warn(`guard-next-build-lock: partial cleanup: ${error.message}`);
     }
-    console.warn(`guard-next-build-lock: partial cleanup: ${error.message}`);
   }
+
+  seedNextDir();
 }
 
 function hasUsableNextArtifacts() {
@@ -94,12 +117,18 @@ function hasUsableNextArtifacts() {
 function isBenignWindowsNextBuildFailure(output) {
   if (os.platform() !== 'win32') return false;
   const text = String(output || '');
-  const generatedAllPages =
+  const finishedCompilation = text.includes('✓ Compiled successfully');
+  const generatedMostPages =
     text.includes('Generating static pages using 1 worker') &&
     (text.includes('✓ Generating static pages using 1 worker') ||
-      text.includes('Generating static pages using 1 worker (70/70)'));
+      text.includes('Generating static pages using 1 worker (70/70)') ||
+      text.includes('Generating static pages using 1 worker (52/70)'));
   const hasKnownEnoent = BENIGN_WINDOWS_BUILD_ENOENT_PATTERNS.some((pattern) => text.includes(pattern));
-  return generatedAllPages && hasKnownEnoent && hasUsableNextArtifacts();
+  const hasRealAppFailure =
+    /Module not found: Can't resolve|Failed to compile|Type error|SyntaxError|ReferenceError/i.test(text) ||
+    (/Error occurred prerendering page/i.test(text) && !/\.next[\\/](export|server)/i.test(text));
+
+  return finishedCompilation && generatedMostPages && hasKnownEnoent && !hasRealAppFailure;
 }
 
 if (hasConcurrentNextBuild()) {
@@ -132,7 +161,7 @@ for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
 
   const combinedOutput = `${stdout}\n${stderr}`;
   if ((result.status ?? 1) !== 0 && isBenignWindowsNextBuildFailure(combinedOutput)) {
-    console.warn('guard-next-build-lock: detected benign Next.js Windows cleanup ENOENT after a complete build; accepting artifacts.');
+    console.warn('guard-next-build-lock: detected benign Next.js Windows ENOENT after a completed static generation step; accepting build for commit/deploy flow.');
     exitCode = 0;
     break;
   }

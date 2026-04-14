@@ -1008,7 +1008,7 @@ async function loteAudienciasCompatV2(limite = 10): Promise<{ enviados: number; 
 
 // --- Loop ---
 async function loop(): Promise<Record<string,unknown>> {
-  const g = { r:0,accounts_reparadas:0,criadas:0,movs_advise:0,andamentos_dj:0,publicacoes:0,audiencias:0,reunioes:0,leilao:0,sync_sb:0,sync_fs:0,pend0:0,pendN:0,motivo:'' };
+  const g = { r:0,accounts_reparadas:0,criadas:0,movs_advise:0,andamentos_dj:0,publicacoes:0,audiencias:0,reunioes:0,datajud:0,leilao:0,sync_sb:0,sync_fs:0,pend0:0,pendN:0,motivo:'' };
   const p0 = await pendencias(); g.pend0 = p0.total;
   let prev = -1;
   for (let r=1;r<=MAX_RODADAS;r++) {
@@ -1045,13 +1045,33 @@ async function loop(): Promise<Record<string,unknown>> {
     // F: datajud-worker
     const p5 = await pendencias();
     if (p5.fila_dj>0) {
-      fetch(`${SUPABASE_URL}/functions/v1/datajud-worker`,{
-        method:'POST',
-        headers:functionHeaders(),
-        body:'{}',signal:AbortSignal.timeout(3_000),
-      }).catch(()=>{});
+      try {
+        const djResp = await fetch(`${SUPABASE_URL}/functions/v1/datajud-worker`,{
+          method:'POST',
+          headers:functionHeaders(),
+          body:'{}',
+          signal:AbortSignal.timeout(35_000),
+        });
+        const djData = await djResp.json().catch(() => ({}));
+        if (!djResp.ok) {
+          log('warn', 'datajud_worker_failed', {
+            status: djResp.status,
+            data: djData,
+          });
+        } else {
+          const processados = Number((djData as Record<string, unknown>).processados ?? 0);
+          g.datajud += processados;
+          if (processados <= 0) {
+            const p6 = await pendencias();
+            const consumidosFilaDj = Math.max(0, p5.fila_dj - p6.fila_dj);
+            g.datajud += consumidosFilaDj;
+          }
+        }
+      } catch (e) {
+        log('warn', 'datajud_worker_exc', { erro: String(e) });
+      }
     }
-    const prog = g.accounts_reparadas+g.criadas+g.movs_advise+g.andamentos_dj+g.publicacoes+g.sync_sb+g.sync_fs;
+    const prog = g.accounts_reparadas+g.criadas+g.movs_advise+g.andamentos_dj+g.publicacoes+g.audiencias+g.datajud+g.sync_sb+g.sync_fs;
     if (r>=3&&prog===prev) { g.motivo='sem_prog'; break; }
     prev=prog;
     if (r===MAX_RODADAS) g.motivo='max';

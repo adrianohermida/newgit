@@ -152,14 +152,14 @@ function getProcessActionLabel(action, payload = {}) {
     normalizedAction = "enriquecer_datajud";
   }
   if (normalizedAction === "enriquecer_datajud") {
-    if (intent === "buscar_movimentacoes") return `Buscar movimentacoes no DataJud${suffixLabel}`;
+    if (intent === "buscar_movimentacoes") return `Buscar atualizacoes no DataJud${suffixLabel}`;
     if (intent === "sincronizar_monitorados") return `Sincronizar monitorados${suffixLabel}`;
-    if (intent === "reenriquecer_gaps") return `Reenriquecer processos com gap${suffixLabel}`;
+    if (intent === "reenriquecer_gaps") return `Completar processos com lacunas${suffixLabel}`;
     return `Reenriquecer via DataJud${suffixLabel}`;
   }
   if (normalizedAction === "sync_supabase_crm") {
-    if (intent === "crm_only") return `Sincronizar CRM sem DataJud${suffixLabel}`;
-    if (intent === "datajud_plus_crm") return `Sincronizar DataJud + CRM${suffixLabel}`;
+    if (intent === "crm_only") return `Atualizar CRM sem DataJud${suffixLabel}`;
+    if (intent === "datajud_plus_crm") return `Atualizar DataJud e CRM${suffixLabel}`;
   }
   return `${ACTION_LABELS[normalizedAction] || normalizedAction}${suffixLabel}`;
 }
@@ -196,9 +196,9 @@ function buildJobPreview(job) {
 function buildDrainPreview(result) {
   if (!result) return "";
   const processed = Number(result.chunksProcessed || 0);
-  if (result.completedAll) return `Fila drenada em ${processed} rodada(s)`;
-  if (result.job) return `Fila avancou ${processed} rodada(s): ${buildJobPreview(result.job)}`;
-  return `Fila avancou ${processed} rodada(s)`;
+  if (result.completedAll) return `Rodada concluida em ${processed} etapa(s)`;
+  if (result.job) return `Rodada avancou ${processed} etapa(s): ${buildJobPreview(result.job)}`;
+  return `Rodada avancou ${processed} etapa(s)`;
 }
 
 function buildHistoryPreview(result) {
@@ -555,7 +555,7 @@ function renderQueueRowStatuses(row, queueKey, { monitoringUnsupported = false }
   const statuses = [];
   if (queueKey === "sem_movimentacoes") {
     statuses.push({ label: "pendente de datajud", tone: "warning" });
-    if (!row?.account_id_freshsales) statuses.push({ label: "sem account", tone: "danger" });
+    if (!row?.account_id_freshsales) statuses.push({ label: "sem conta", tone: "danger" });
   }
   if (queueKey === "monitoramento_ativo") {
     if (monitoringUnsupported && row?.monitoramento_fallback) {
@@ -576,33 +576,33 @@ function renderQueueRowStatuses(row, queueKey, { monitoringUnsupported = false }
   if (queueKey === "campos_orfaos") {
     const gaps = countFrontendProcessGaps(row);
     if (gaps > 0) {
-      statuses.push({ label: `${gaps} gaps crm`, tone: "warning" });
+      statuses.push({ label: `${gaps} ajustes no CRM`, tone: "warning" });
       statuses.push({ label: "apto para reparo", tone: "success" });
     }
   }
   if (queueKey === "movimentacoes_pendentes") {
     const pending = Number(row?.total_pendente || 0);
     if (pending > 0) statuses.push({ label: `${pending} andamentos pendentes`, tone: "warning" });
-    if (row?.account_id_freshsales) statuses.push({ label: "apto para sync", tone: "success" });
-    else statuses.push({ label: "sem sales account", tone: "danger" });
+    if (row?.account_id_freshsales) statuses.push({ label: "pronto para atualizar", tone: "success" });
+    else statuses.push({ label: "sem conta comercial", tone: "danger" });
     if (row?.ultima_data) statuses.push({ label: `ultima ${new Date(row.ultima_data).toLocaleDateString("pt-BR")}`, tone: "default" });
   }
   if (queueKey === "publicacoes_pendentes") {
     const pending = Number(row?.total_pendente || 0);
     if (pending > 0) statuses.push({ label: `${pending} publicacoes pendentes`, tone: "warning" });
-    if (row?.account_id_freshsales) statuses.push({ label: "apto para activity", tone: "success" });
-    else statuses.push({ label: "sem sales account", tone: "danger" });
+    if (row?.account_id_freshsales) statuses.push({ label: "pronto para refletir", tone: "success" });
+    else statuses.push({ label: "sem conta comercial", tone: "danger" });
     if (row?.ultima_data) statuses.push({ label: `ultima ${new Date(row.ultima_data).toLocaleDateString("pt-BR")}`, tone: "default" });
   }
   if (queueKey === "partes_sem_contato") {
     const pending = Number(row?.total_pendente || 0);
     if (pending > 0) statuses.push({ label: `${pending} partes sem contato`, tone: "warning" });
-    if (row?.account_id_freshsales) statuses.push({ label: "apto para reconciliar", tone: "success" });
-    else statuses.push({ label: "sem sales account", tone: "danger" });
+    if (row?.account_id_freshsales) statuses.push({ label: "pronto para conciliar", tone: "success" });
+    else statuses.push({ label: "sem conta comercial", tone: "danger" });
   }
   if (queueKey === "orfaos") {
-    statuses.push({ label: "sem sales account", tone: "danger" });
-    statuses.push({ label: "apto para criar account", tone: "warning" });
+    statuses.push({ label: "sem conta comercial", tone: "danger" });
+    statuses.push({ label: "pronto para criar conta", tone: "warning" });
   }
   return statuses;
 }
@@ -643,16 +643,16 @@ function deriveSelectionActionHint({
 }) {
   if (selectedOrphans.length) {
     return {
-      title: "Criar accounts primeiro",
-      body: "Ha processos orfaos selecionados. Priorize a criacao de Sales Accounts para liberar as proximas trilhas de sincronismo.",
-      badges: [`${selectedOrphans.length} orfaos`, "acao: criar accounts"],
+      title: "Criar contas primeiro",
+      body: "Ha processos sem conta comercial selecionados. Priorize a criacao dessas contas para liberar as proximas etapas.",
+      badges: [`${selectedOrphans.length} sem conta`, "acao: criar contas"],
     };
   }
   if (selectedFieldGaps.length) {
     return {
-      title: "Reparar CRM agora",
-      body: "Os itens selecionados tem gap entre HMADV e Freshsales. O melhor proximo passo e corrigir campos no CRM.",
-      badges: [`${selectedFieldGaps.length} gaps`, "acao: corrigir crm"],
+      title: "Ajustar CRM agora",
+      body: "Os itens selecionados ainda precisam de ajuste entre a base interna e o CRM. O melhor proximo passo e corrigir os dados antes de atualizar novamente.",
+      badges: [`${selectedFieldGaps.length} ajustes`, "acao: corrigir crm"],
     };
   }
   if (selectedWithoutMovements.length) {
@@ -664,22 +664,22 @@ function deriveSelectionActionHint({
   }
   if (selectedMovementBacklog.length) {
     return {
-      title: "Sincronizar movimentacoes no Freshsales",
-      body: "Os processos selecionados ja tem andamentos no HMADV, mas ainda faltam activities no CRM. Vale priorizar esse reflexo antes de novos lotes amplos.",
+      title: "Atualizar andamentos no CRM",
+      body: "Os processos selecionados ja tem andamentos, mas ainda faltam reflexos no CRM. Vale priorizar essa atualizacao antes de novos lotes amplos.",
       badges: [`${selectedMovementBacklog.length} com andamentos pendentes`, "acao: sync movimentacoes"],
     };
   }
   if (selectedPublicationBacklog.length) {
     return {
-      title: "Sincronizar publicacoes no Freshsales",
-      body: "Os processos selecionados ainda tem publicacoes sem sales_activity. Vale refletir esse historico no CRM antes de novas rodadas amplas.",
+      title: "Atualizar publicacoes no CRM",
+      body: "Os processos selecionados ainda tem publicacoes sem reflexo no CRM. Vale atualizar esse historico antes de novas rodadas amplas.",
       badges: [`${selectedPublicationBacklog.length} com publicacoes pendentes`, "acao: sync publicacoes"],
     };
   }
   if (selectedPartesBacklog.length) {
     return {
       title: "Reconciliar partes com contatos",
-      body: "Os processos selecionados ainda tem partes sem contato no Freshsales. A reconciliacao reduz perda de contexto no CRM e no portal.",
+      body: "Os processos selecionados ainda tem partes sem contato no CRM. A conciliacao reduz perda de contexto no produto e no portal.",
       badges: [`${selectedPartesBacklog.length} com partes pendentes`, "acao: reconciliar contatos"],
     };
   }
@@ -877,14 +877,14 @@ function shouldShowProcessPayloadDetails(row) {
 }
 function buildProcessResultHeadline(row) {
   if (!row) return "Sem alteracoes relevantes";
-  if (row.result?.ok === false || row.datajud?.ok === false || row.freshsales_repair?.ok === false) return "Falha operacional no lote";
-  if ((row.movimentos_novos || 0) > 0 && (row.gaps_reduzidos || 0) > 0) return "DataJud trouxe movimentos e reduziu gaps";
-  if ((row.movimentos_novos || 0) > 0) return "DataJud trouxe novos movimentos";
+  if (row.result?.ok === false || row.datajud?.ok === false || row.freshsales_repair?.ok === false) return "Falha na rodada";
+  if ((row.movimentos_novos || 0) > 0 && (row.gaps_reduzidos || 0) > 0) return "DataJud trouxe atualizacoes e completou dados";
+  if ((row.movimentos_novos || 0) > 0) return "DataJud trouxe novas atualizacoes";
   if ((row.gaps_reduzidos || 0) > 0) return "Supabase ficou mais completo";
   if (row.freshsales_repair && !row.freshsales_repair?.skipped) return "CRM refletido com sucesso";
   if (row.freshsales_repair?.reason === "sem_gap_crm") return "CRM ja estava equilibrado";
   if (row.freshsales_repair?.reason === "sem_mudanca_util") return "Sem mudanca util para refletir no CRM";
-  if (row.quantidade_movimentacoes === 0 || row.quantidade_movimentacoes === null) return "Processo ainda sem movimentacoes locais";
+  if (row.quantidade_movimentacoes === 0 || row.quantidade_movimentacoes === null) return "Processo ainda sem atualizacoes locais";
   return "Sem alteracoes relevantes";
 }
 function OperationResult({ result }) {
@@ -907,9 +907,9 @@ function OperationResult({ result }) {
     return <div className="space-y-3">
       <div className="grid gap-3 md:grid-cols-5">
         <QueueSummaryCard title="Processos lidos" count={counters.processos} helper="Processos avaliados nesta rodada." accent="text-[#B7F7C6]" />
-        <QueueSummaryCard title="Movimentacoes" count={counters.movimentacoes} helper="Andamentos refletidos no Freshsales." accent="text-[#B7F7C6]" />
-        <QueueSummaryCard title="Activities" count={counters.activities} helper="Sales Activities criadas ou atualizadas." accent="text-[#B7F7C6]" />
-        <QueueSummaryCard title="Sem account" count={counters.semAccount} helper="Pendencias sem Sales Account vinculada." accent="text-[#FDE68A]" />
+        <QueueSummaryCard title="Atualizacoes" count={counters.movimentacoes} helper="Andamentos refletidos no CRM." accent="text-[#B7F7C6]" />
+        <QueueSummaryCard title="Atividades" count={counters.activities} helper="Atividades criadas ou atualizadas." accent="text-[#B7F7C6]" />
+        <QueueSummaryCard title="Sem conta" count={counters.semAccount} helper="Pendencias sem conta comercial vinculada." accent="text-[#FDE68A]" />
         <QueueSummaryCard title="Falhas" count={counters.errors} helper="Itens que pedem revisao manual." accent="text-[#FECACA]" />
       </div>
       {result?.source ? <div className={`rounded-2xl border px-4 py-3 text-xs uppercase tracking-[0.16em] ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#6b7280]" : "border-[#1D2321] bg-[rgba(4,6,6,0.45)] opacity-65"}`}>Origem da execucao: {result.source}</div> : null}
@@ -919,10 +919,10 @@ function OperationResult({ result }) {
         <div className="mt-2 flex flex-wrap gap-2">
           {row.status ? <StatusBadge tone={String(row.status).includes("sem") ? "warning" : "success"}>{String(row.status).replaceAll("_", " ")}</StatusBadge> : null}
           {typeof row.total_pendente === "number" ? <StatusBadge tone="warning">{row.total_pendente} pendentes</StatusBadge> : null}
-          {row.account_id_freshsales ? <StatusBadge tone="success">account vinculada</StatusBadge> : <StatusBadge tone="danger">sem sales account</StatusBadge>}
+          {row.account_id_freshsales ? <StatusBadge tone="success">conta vinculada</StatusBadge> : <StatusBadge tone="danger">sem conta comercial</StatusBadge>}
         </div>
         <div className={`mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-65"}`}>
-          {row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className={`underline transition ${isLightTheme ? "hover:text-[#9a6d14]" : "hover:text-[#C5A059]"}`}>Abrir account {row.account_id_freshsales}</a> : null}
+          {row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className={`underline transition ${isLightTheme ? "hover:text-[#9a6d14]" : "hover:text-[#C5A059]"}`}>Abrir conta {row.account_id_freshsales}</a> : null}
           {row.processo_id ? <span>Processo ID: {row.processo_id}</span> : null}
           {row.ultima_data ? <span>Ultima data: {new Date(row.ultima_data).toLocaleDateString("pt-BR")}</span> : null}
         </div>
@@ -935,9 +935,9 @@ function OperationResult({ result }) {
     return <div className="space-y-3">
       <div className="grid gap-3 md:grid-cols-5">
         <QueueSummaryCard title="Processos lidos" count={Number(result?.processosLidos || rows.length || 0)} helper="Processos avaliados nesta rodada." accent="text-[#B7F7C6]" />
-        <QueueSummaryCard title="Publicacoes" count={Number(result?.publicacoes || result?.publicacoesAtualizadas || 0)} helper="Publicacoes refletidas no Freshsales." accent="text-[#B7F7C6]" />
-        <QueueSummaryCard title="Activities" count={Number(result?.activitiesCriadas || 0)} helper="Sales Activities criadas ou atualizadas." accent="text-[#B7F7C6]" />
-        <QueueSummaryCard title="Sem account" count={Number(result?.semAccount || 0)} helper="Pendencias sem Sales Account vinculada." accent="text-[#FDE68A]" />
+        <QueueSummaryCard title="Publicacoes" count={Number(result?.publicacoes || result?.publicacoesAtualizadas || 0)} helper="Publicacoes refletidas no CRM." accent="text-[#B7F7C6]" />
+        <QueueSummaryCard title="Atividades" count={Number(result?.activitiesCriadas || 0)} helper="Atividades criadas ou atualizadas." accent="text-[#B7F7C6]" />
+        <QueueSummaryCard title="Sem conta" count={Number(result?.semAccount || 0)} helper="Pendencias sem conta comercial vinculada." accent="text-[#FDE68A]" />
         <QueueSummaryCard title="Falhas" count={Number(result?.errors || 0)} helper="Itens que pedem revisao manual." accent="text-[#FECACA]" />
       </div>
       {result?.source ? <div className={`rounded-2xl border px-4 py-3 text-xs uppercase tracking-[0.16em] ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#6b7280]" : "border-[#1D2321] bg-[rgba(4,6,6,0.45)] opacity-65"}`}>Origem da execucao: {result.source}</div> : null}
@@ -958,7 +958,7 @@ function OperationResult({ result }) {
       <div className="grid gap-3 md:grid-cols-4">
         <QueueSummaryCard title="Processos lidos" count={Number(result?.processosLidos || rows.length || 0)} helper="Processos avaliados nesta rodada." accent="text-[#B7F7C6]" />
         <QueueSummaryCard title="Contatos vinculados" count={Number(result?.contatosVinculados || 0)} helper="Partes vinculadas a contatos existentes ou criados." accent="text-[#B7F7C6]" />
-        <QueueSummaryCard title="Contatos criados" count={Number(result?.contatosCriados || 0)} helper="Novos contatos gerados no Freshsales." accent="text-[#B7F7C6]" />
+        <QueueSummaryCard title="Contatos criados" count={Number(result?.contatosCriados || 0)} helper="Novos contatos gerados no CRM." accent="text-[#B7F7C6]" />
         <QueueSummaryCard title="Modo" count={result?.apply ? "Aplicar" : "Simular"} helper="Execucao da reconciliacao." accent="text-[#C5A059]" />
       </div>
       {rows.length ? rows.slice(0, 20).map((row, index) => <div key={`${row.numero_cnj || row.processo_id || index}`} className={`rounded-[24px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}>
@@ -978,7 +978,7 @@ function OperationResult({ result }) {
     if (row.result?.ok === false || row.datajud?.ok === false || row.freshsales_repair?.ok === false) acc.falhas += 1;
     return acc;
   }, { persistidos: 0, reparados: 0, pendentes: 0, falhas: 0, movimentos: 0, gaps: 0, crmOnly: 0 });
-  return rows.length ? <div className="space-y-3"><div className="grid gap-3 md:grid-cols-7"><QueueSummaryCard title="Persistidos" count={counters.persistidos} helper="Consultas ou dados gravados no Supabase." accent="text-[#B7F7C6]" /><QueueSummaryCard title="Movimentos novos" count={counters.movimentos} helper="Andamentos agregados no lote." accent="text-[#B7F7C6]" /><QueueSummaryCard title="Gaps reduzidos" count={counters.gaps} helper="Campos antes vazios que foram preenchidos." accent="text-[#B7F7C6]" /><QueueSummaryCard title="CRM only" count={counters.crmOnly} helper="Itens que foram direto ao reparo CRM." accent="text-[#C5A059]" /><QueueSummaryCard title="CRM reparado" count={counters.reparados} helper="Accounts refletidas no Freshsales." accent="text-[#B7F7C6]" /><QueueSummaryCard title="Pendentes" count={counters.pendentes} helper="Processos ainda sem reparo no CRM." accent="text-[#FDE68A]" /><QueueSummaryCard title="Falhas" count={counters.falhas} helper="Itens que pedem revisao manual." accent="text-[#FECACA]" /></div><div className={`rounded-2xl border px-4 py-3 text-xs uppercase tracking-[0.16em] ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#6b7280]" : "border-[#1D2321] bg-[rgba(4,6,6,0.45)] opacity-65"}`}>Amostra operacional: {rows.length} item(ns)</div>{rows.slice(0, 20).map((row, index) => { const showPayloads = shouldShowProcessPayloadDetails(row); return <div key={`${row.numero_cnj || row.id || index}`} className={`rounded-[24px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}><p className="font-semibold">{row.numero_cnj || row.id || `Linha ${index + 1}`}</p>{row.titulo ? <p className={isLightTheme ? "text-[#4b5563]" : "opacity-70"}>{row.titulo}</p> : null}<p className={`mt-2 text-sm ${isLightTheme ? "text-[#374151]" : "opacity-80"}`}>{buildProcessResultHeadline(row)}</p>{renderProcessSyncStatuses(row).length ? <div className="mt-2 flex flex-wrap gap-2">{renderProcessSyncStatuses(row).map((item) => <StatusBadge key={item.label} tone={item.tone}>{item.label}</StatusBadge>)}</div> : null}<div className={`mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-65"}`}>{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className={`underline transition ${isLightTheme ? "hover:text-[#9a6d14]" : "hover:text-[#C5A059]"}`}>Abrir account {row.account_id_freshsales}</a> : <span>Sem Sales Account</span>}{row.processo_id ? <span>Processo ID: {row.processo_id}</span> : null}{row.before ? <span>Antes: {row.before.quantidade_movimentacoes || 0} mov.</span> : null}{row.after ? <span>Depois: {row.after.quantidade_movimentacoes || 0} mov.</span> : null}</div>{showPayloads ? <><PayloadDetails title="Detalhes CRM" payload={row.freshsales_repair} /><PayloadDetails title="Detalhes persistencia" payload={row.result} /><PayloadDetails title="Detalhes DataJud" payload={row.datajud} /></> : null}</div>; })}</div> : <PayloadDetails title="Resultado completo" payload={result} />;
+  return rows.length ? <div className="space-y-3"><div className="grid gap-3 md:grid-cols-7"><QueueSummaryCard title="Persistidos" count={counters.persistidos} helper="Consultas ou dados gravados na base." accent="text-[#B7F7C6]" /><QueueSummaryCard title="Atualizacoes novas" count={counters.movimentos} helper="Andamentos agregados na rodada." accent="text-[#B7F7C6]" /><QueueSummaryCard title="Dados completados" count={counters.gaps} helper="Campos antes vazios que foram preenchidos." accent="text-[#B7F7C6]" /><QueueSummaryCard title="CRM direto" count={counters.crmOnly} helper="Itens que foram direto para ajuste no CRM." accent="text-[#C5A059]" /><QueueSummaryCard title="CRM ajustado" count={counters.reparados} helper="Contas refletidas no CRM." accent="text-[#B7F7C6]" /><QueueSummaryCard title="Pendentes" count={counters.pendentes} helper="Processos que ainda pedem ajuste." accent="text-[#FDE68A]" /><QueueSummaryCard title="Falhas" count={counters.falhas} helper="Itens que pedem revisao manual." accent="text-[#FECACA]" /></div><div className={`rounded-2xl border px-4 py-3 text-xs uppercase tracking-[0.16em] ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#6b7280]" : "border-[#1D2321] bg-[rgba(4,6,6,0.45)] opacity-65"}`}>Amostra da rodada: {rows.length} item(ns)</div>{rows.slice(0, 20).map((row, index) => { const showPayloads = shouldShowProcessPayloadDetails(row); return <div key={`${row.numero_cnj || row.id || index}`} className={`rounded-[24px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}><p className="font-semibold">{row.numero_cnj || row.id || `Linha ${index + 1}`}</p>{row.titulo ? <p className={isLightTheme ? "text-[#4b5563]" : "opacity-70"}>{row.titulo}</p> : null}<p className={`mt-2 text-sm ${isLightTheme ? "text-[#374151]" : "opacity-80"}`}>{buildProcessResultHeadline(row)}</p>{renderProcessSyncStatuses(row).length ? <div className="mt-2 flex flex-wrap gap-2">{renderProcessSyncStatuses(row).map((item) => <StatusBadge key={item.label} tone={item.tone}>{item.label}</StatusBadge>)}</div> : null}<div className={`mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-65"}`}>{row.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${row.account_id_freshsales}`} target="_blank" rel="noreferrer" className={`underline transition ${isLightTheme ? "hover:text-[#9a6d14]" : "hover:text-[#C5A059]"}`}>Abrir conta {row.account_id_freshsales}</a> : <span>Sem conta comercial</span>}{row.processo_id ? <span>Processo ID: {row.processo_id}</span> : null}{row.before ? <span>Antes: {row.before.quantidade_movimentacoes || 0} mov.</span> : null}{row.after ? <span>Depois: {row.after.quantidade_movimentacoes || 0} mov.</span> : null}</div>{showPayloads ? <><PayloadDetails title="Detalhes do CRM" payload={row.freshsales_repair} /><PayloadDetails title="Detalhes da persistencia" payload={row.result} /><PayloadDetails title="Detalhes do DataJud" payload={row.datajud} /></> : null}</div>; })}</div> : <PayloadDetails title="Resultado completo" payload={result} />;
 }
 function HistoryCard({ entry, onReuse }) {
   const { isLightTheme } = useInternalTheme();
@@ -1161,53 +1161,53 @@ function groupRecurringProcessEntries(items = []) {
   };
 }
 function deriveRecurringProcessFocus(summary, bands) {
-  if (bands.critical > 0) return { title: "Ataque estrutural imediato", body: "Existem itens 4x+ reaparecendo. Priorize gargalos cronicos antes de rodar novos lotes amplos." };
+  if (bands.critical > 0) return { title: "Prioridade imediata", body: "Existem itens 4x+ reaparecendo. Priorize bloqueios cronicos antes de rodar novos lotes amplos." };
   if (summary.manual > 0) return { title: "Revisao manual prioritaria", body: "Ha casos que continuam pedindo intervencao humana. Vale revisar retorno e regra antes de repetir a fila." };
-  if (summary.freshsales > 0) return { title: "Corrigir CRM primeiro", body: "Os bloqueios recorrentes estao concentrados no Freshsales. Priorize criacao de account e reparo de campos." };
-  if (summary.datajud > 0) return { title: "Reenriquecer via DataJud", body: "O principal gargalo recorrente esta no enriquecimento ou nas movimentacoes do DataJud." };
-  if (summary.stagnant > 0) return { title: "Auditar lote sem progresso", body: "Ha recorrencias sem ganho util. Revise selecao, regra e cobertura antes de insistir no mesmo lote." };
-  return { title: "Ciclo sob controle", body: "As recorrencias atuais parecem operacionais e podem ser drenadas pela fila normal com lotes menores." };
+  if (summary.freshsales > 0) return { title: "Ajustar CRM primeiro", body: "Os bloqueios recorrentes estao concentrados no CRM. Priorize criacao de conta e ajuste de dados." };
+  if (summary.datajud > 0) return { title: "Atualizar via DataJud", body: "O principal bloqueio recorrente esta no enriquecimento ou nas atualizacoes vindas do DataJud." };
+  if (summary.stagnant > 0) return { title: "Revisar lote sem progresso", body: "Ha recorrencias sem ganho util. Revise selecao, regra e cobertura antes de insistir no mesmo lote." };
+  return { title: "Ciclo sob controle", body: "As recorrencias atuais parecem estaveis e podem ser tratadas pela fila normal com lotes menores." };
 }
 function deriveSuggestedProcessBatch(summary, bands) {
   if (bands.critical > 0 || summary.manual > 0) return { size: 5, reason: "Use lote minimo para validar correcao estrutural ou manual." };
   if (summary.freshsales > 0 || summary.datajud > 0) return { size: 10, reason: "Use lote curto para medir ganho antes de ampliar a rodada." };
   if (summary.stagnant > 0) return { size: 8, reason: "Reduza o lote para isolar por que a fila nao esta progredindo." };
-  return { size: 20, reason: "A fila parece sob controle para um lote operacional padrao." };
+  return { size: 20, reason: "A fila parece sob controle para um lote padrao." };
 }
 function deriveSuggestedProcessActions(summary, bands) {
-  if (bands.critical > 0 || summary.manual > 0) return ["Rodar auditoria", "Sincronizar Supabase + Freshsales", "Buscar movimentacoes no DataJud"];
-  if (summary.freshsales > 0) return ["Criar accounts no Freshsales", "Corrigir campos no Freshsales", "Sincronizar Supabase + Freshsales"];
-  if (summary.datajud > 0) return ["Buscar movimentacoes no DataJud", "Reenriquecer via DataJud", "Sincronizar Supabase + Freshsales"];
-  if (summary.stagnant > 0) return ["Rodar auditoria", "Sincronizar Supabase + Freshsales"];
-  return ["Sincronizar Supabase + Freshsales", "Rodar sync-worker"];
+  if (bands.critical > 0 || summary.manual > 0) return ["Rodar auditoria", "Atualizar base comercial", "Buscar atualizacoes no DataJud"];
+  if (summary.freshsales > 0) return ["Criar contas comerciais", "Corrigir dados comerciais", "Atualizar base comercial"];
+  if (summary.datajud > 0) return ["Buscar atualizacoes no DataJud", "Atualizar dados judiciais", "Atualizar base comercial"];
+  if (summary.stagnant > 0) return ["Rodar auditoria", "Atualizar base comercial"];
+  return ["Atualizar base comercial", "Atualizar integracoes"];
 }
 function derivePrimaryProcessAction(actions = []) {
-  return actions[0] || "Sincronizar Supabase + Freshsales";
+  return actions[0] || "Atualizar base comercial";
 }
 function deriveSuggestedProcessChecklist(summary, bands) {
   if (bands.critical > 0 || summary.manual > 0) {
     return [
-      "Audite primeiro a amostra reincidente antes de ampliar o lote.",
-      "Rode um lote curto de sincronismo Supabase + Freshsales.",
-      "Se ainda faltar progresso, reconsulte movimentacoes no DataJud.",
+      "Revise primeiro a amostra reincidente antes de ampliar o lote.",
+      "Rode um lote curto de atualizacao da base comercial.",
+      "Se ainda faltar progresso, reconsulte atualizacoes no DataJud.",
     ];
   }
   if (summary.freshsales > 0) {
     return [
-      "Crie ou recupere as accounts ausentes no Freshsales.",
-      "Rode a correcao de campos do CRM.",
-      "Feche o ciclo com sincronismo Supabase + Freshsales.",
+      "Crie ou recupere as contas comerciais ausentes.",
+      "Rode a correcao de dados no CRM.",
+      "Feche o ciclo com atualizacao da base comercial.",
     ];
   }
   if (summary.datajud > 0) {
     return [
-      "Busque movimentacoes para os processos mais vazios.",
+      "Busque atualizacoes para os processos mais vazios.",
       "Reenriqueca os campos DataJud do lote curto.",
-      "Sincronize o resultado consolidado no CRM.",
+      "Atualize o resultado consolidado no CRM.",
     ];
   }
   return [
-    "Execute o sincronismo principal em lote controlado.",
+    "Execute a atualizacao principal em lote controlado.",
     "Revise os itens que permanecerem sem progresso.",
     "Aumente o lote apenas se o ganho vier consistente.",
   ];
@@ -1215,18 +1215,18 @@ function deriveSuggestedProcessChecklist(summary, bands) {
 function suggestProcessNextAction(source, row, current) {
   if (current?.needsManualReview) return "revisar manualmente o retorno";
   if (source === "freshsales") {
-    if (!row?.account_id_freshsales) return "criar account no freshsales";
-    return "corrigir campos no freshsales";
+    if (!row?.account_id_freshsales) return "criar conta comercial";
+    return "corrigir dados no CRM";
   }
   if (source === "datajud") {
     if (row?.quantidade_movimentacoes === 0 || row?.before?.quantidade_movimentacoes === row?.after?.quantidade_movimentacoes) {
-      return "buscar movimentacoes no datajud";
+      return "buscar atualizacoes no datajud";
     }
-    return "reenriquecer via datajud";
+    return "atualizar dados via datajud";
   }
   if (row?.monitoramento_ativo === false) return "reativar monitoramento";
   if (current?.noProgress) return "rodar auditoria do lote";
-  return "sincronizar supabase + freshsales";
+  return "atualizar base comercial";
 }
 function RecurringProcessItem({ item }) {
   const { isLightTheme } = useInternalTheme();
@@ -1237,8 +1237,8 @@ function RecurringProcessItem({ item }) {
       {recurrenceBand(item.hits) ? <StatusBadge tone={recurrenceBand(item.hits).tone}>{recurrenceBand(item.hits).label}</StatusBadge> : null}
       <StatusBadge tone="warning">{ACTION_LABELS[item.lastAction] || item.lastAction}</StatusBadge>
       <StatusBadge tone={sourceTone(item.source)}>{sourceLabel(item.source)}</StatusBadge>
-      {item.noProgress ? <StatusBadge tone="warning">sem progresso estrutural</StatusBadge> : null}
-      {item.needsManualReview ? <StatusBadge tone="danger">precisa intervencao manual</StatusBadge> : null}
+      {item.noProgress ? <StatusBadge tone="warning">sem progresso relevante</StatusBadge> : null}
+      {item.needsManualReview ? <StatusBadge tone="danger">precisa revisao manual</StatusBadge> : null}
       {item.nextAction ? <StatusBadge tone="success">{item.nextAction}</StatusBadge> : null}
     </div>
     {item.titulo ? <p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>{item.titulo}</p> : null}

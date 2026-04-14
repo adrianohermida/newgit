@@ -466,18 +466,18 @@ function groupRecurringPublicacoes(items = []) {
   };
 }
 function deriveRecurringPublicacoesFocus(summary, bands) {
-  if (bands.critical > 0) return { title: "Ataque estrutural imediato", body: "Existem publicacoes 4x+ reaparecendo. Priorize o gargalo cronico antes de ampliar o lote." };
+  if (bands.critical > 0) return { title: "Prioridade imediata", body: "Existem publicacoes 4x+ reaparecendo. Priorize o bloqueio recorrente antes de ampliar o lote." };
   if (summary.manual > 0) return { title: "Revisao manual prioritaria", body: "Ha publicacoes que continuam pedindo leitura humana ou ajuste de regra." };
-  if (summary.advise > 0) return { title: "Criar processos ausentes primeiro", body: "O principal gargalo recorrente esta em publicacoes ainda sem processo vinculado no HMADV." };
-  if (summary.freshsales > 0) return { title: "Sincronizar processos vinculados", body: "A fila recorrente esta concentrada no reflexo das publicacoes para activities do Freshsales." };
-  if (summary.stagnant > 0) return { title: "Auditar lote sem progresso", body: "Ha recorrencias sem ganho util. Revise selecao, regra de extracao e limite do lote." };
-  return { title: "Ciclo sob controle", body: "As recorrencias atuais parecem operacionais e podem ser drenadas com lotes menores e correcoes pontuais." };
+  if (summary.advise > 0) return { title: "Criar processos ausentes primeiro", body: "O principal bloqueio recorrente esta em publicacoes ainda sem processo vinculado." };
+  if (summary.freshsales > 0) return { title: "Atualizar processos vinculados", body: "A recorrencia esta concentrada no reflexo das publicacoes para atividades do CRM." };
+  if (summary.stagnant > 0) return { title: "Revisar lote sem progresso", body: "Ha recorrencias sem ganho util. Revise selecao, regra de extracao e limite do lote." };
+  return { title: "Ciclo sob controle", body: "As recorrencias atuais parecem estaveis e podem ser tratadas com lotes menores e correcoes pontuais." };
 }
 function deriveSuggestedPublicacoesBatch(summary, bands) {
   if (bands.critical > 0 || summary.manual > 0) return { size: 5, reason: "Use lote minimo para validar regra e evitar retrabalho em massa." };
   if (summary.advise > 0 || summary.freshsales > 0) return { size: 10, reason: "Use lote curto para medir criacao de processo e reflexo no Freshsales." };
   if (summary.stagnant > 0) return { size: 8, reason: "Reduza o lote para isolar por que a fila nao esta ganhando progresso." };
-  return { size: 20, reason: "A fila parece sob controle para uma rodada operacional padrao." };
+  return { size: 20, reason: "A fila parece sob controle para uma rodada padrao." };
 }
 function deriveSuggestedPublicacoesActions(summary, bands) {
   if (bands.critical > 0 || summary.manual > 0) return ["Criar processos das publicacoes", "Sincronizar publicacoes vinculadas no Freshsales", "Auditar publicacoes reincidentes"];
@@ -507,8 +507,8 @@ function deriveSuggestedPublicacoesChecklist(summary, bands) {
   if (summary.freshsales > 0) {
     return [
       "Sincronize primeiro as publicacoes vinculadas selecionadas.",
-      "Rode o sync-worker em lote curto apenas para pendencias residuais de activity/CRM.",
-      "Confirme que as activities passaram a refletir no Freshsales.",
+      "Atualize as integracoes em lote curto apenas para pendencias residuais.",
+      "Confirme que as atividades passaram a refletir no CRM.",
     ];
   }
   return [
@@ -519,12 +519,12 @@ function deriveSuggestedPublicacoesChecklist(summary, bands) {
 }
 function suggestPublicacaoNextAction(source, row, current) {
   if (current?.needsManualReview) return "revisar manualmente a publicacao";
-  if (source === "freshsales") return "rodar sync-worker";
+  if (source === "freshsales") return "atualizar integracoes";
   if (source === "advise") {
     if (!row?.processo_criado && !row?.processo_depois) return "criar processo da publicacao";
     return "sincronizar publicacao vinculada";
   }
-  if (current?.noProgress) return "auditar fila de publicacoes";
+  if (current?.noProgress) return "revisar fila de publicacoes";
   return "sincronizar publicacao vinculada";
 }
 function RecurringPublicacaoItem({ item }) {
@@ -535,8 +535,8 @@ function RecurringPublicacaoItem({ item }) {
       {recurrenceBand(item.hits) ? <HealthBadge label={recurrenceBand(item.hits).label} tone={recurrenceBand(item.hits).tone} /> : null}
       <HealthBadge label={ACTION_LABELS[item.lastAction] || item.lastAction} tone="warning" />
       <HealthBadge label={recurringSourceLabel(item.source)} tone={recurringSourceTone(item.source)} />
-      {item.noProgress ? <HealthBadge label="sem progresso estrutural" tone="warning" /> : null}
-      {item.needsManualReview ? <HealthBadge label="precisa intervencao manual" tone="danger" /> : null}
+      {item.noProgress ? <HealthBadge label="sem progresso relevante" tone="warning" /> : null}
+      {item.needsManualReview ? <HealthBadge label="precisa revisao manual" tone="danger" /> : null}
       {item.nextAction ? <HealthBadge label={item.nextAction} tone="success" /> : null}
     </div>
     {item.titulo ? <p className="mt-2 opacity-70">{item.titulo}</p> : null}
@@ -728,8 +728,8 @@ function IntegratedQueueList({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold">Lista operacional integrada</p>
-          <p className="text-xs opacity-60">Mesma leitura de filas, agora em modo de lista para validar, editar e agir em lote.</p>
+          <p className="text-sm font-semibold">Lista integrada</p>
+          <p className="text-xs opacity-60">A mesma leitura das prioridades, agora em modo de lista para validar, editar e agir em lote.</p>
           <p className="mt-1 text-xs opacity-50">{totalRows || rows.length || 0} item(ns) filtrado(s). {selectedCount} marcado(s).</p>
           <p className="mt-1 text-xs opacity-50">Pagina {page} • leitura {queueMode === "snapshot" ? "por cursor" : "legada"} • origem {queueSourceLabel}</p>
           {limited ? <p className="mt-1 text-xs text-[#FDE68A]">Leitura parcial protegida. A lista e a selecao de filtrados podem representar apenas a amostra carregada.</p> : null}
@@ -1100,20 +1100,20 @@ function OperationResult({ result }) {
     <div className="space-y-4">
       {result?.fallbackReason || result?.upstreamWarning ? (
         <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#FDE68A]">
-          <p className="font-semibold">Execucao em modo degradado</p>
+          <p className="font-semibold">Execucao em modo protegido</p>
           {result?.fallbackReason ? <p className="mt-2 opacity-90">{formatFallbackReason(result.fallbackReason)}</p> : null}
           {result?.upstreamWarning ? <p className="mt-2 opacity-90">{formatUpstreamWarningText(result.upstreamWarning)}</p> : null}
         </div>
       ) : null}
       {result?.uiHint ? (
         <div className="rounded-[20px] border border-[#6E5630] bg-[rgba(76,57,26,0.18)] p-4 text-sm text-[#FDE68A]">
-          <p className="font-semibold">Leitura operacional</p>
+          <p className="font-semibold">Leitura guiada</p>
           <p className="mt-2 opacity-90">{result.uiHint}</p>
         </div>
       ) : null}
       {activityTypeStatus ? (
         <div className={`rounded-[20px] border p-4 text-sm ${activityTypeStatus.matched ? "border-[#30543A] bg-[rgba(48,84,58,0.12)] text-[#C7F1D7]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]"}`}>
-          <p className="font-semibold">Freshsales activity type</p>
+          <p className="font-semibold">Tipo de atividade no CRM</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <HealthBadge label={activityTypeStatus.ok ? "catalogo ok" : "catalogo indisponivel"} tone={activityTypeStatus.ok ? "success" : "danger"} />
             <HealthBadge label={`tipos ${Number(activityTypeStatus.total || 0)}`} tone="default" />
@@ -1126,9 +1126,9 @@ function OperationResult({ result }) {
       <div className="grid gap-3 md:grid-cols-6 text-sm">
         <QueueSummaryCard title="Processos criados" count={counters.processosCriados} helper="Publicacoes que viraram processo no HMADV." accent="text-[#B7F7C6]" />
         <QueueSummaryCard title="Partes detectadas" count={counters.detectadas} helper="Novas partes encontradas no lote." accent="text-[#FDE68A]" />
-        <QueueSummaryCard title="Partes salvas" count={result?.partesInseridas || 0} helper="Registros inseridos em judiciario.partes." accent="text-[#B7F7C6]" />
+        <QueueSummaryCard title="Partes salvas" count={result?.partesInseridas || 0} helper="Registros inseridos na base de partes." accent="text-[#B7F7C6]" />
         <QueueSummaryCard title="Polos atualizados" count={counters.polosAtualizados} helper="Processos com polo ativo/passivo recalculado." accent="text-[#B7F7C6]" />
-        <QueueSummaryCard title="CRM reparado" count={counters.crmReparado} helper="Accounts refletidas no Freshsales." accent="text-[#B7F7C6]" />
+        <QueueSummaryCard title="CRM ajustado" count={counters.crmReparado} helper="Contas refletidas no CRM." accent="text-[#B7F7C6]" />
         <QueueSummaryCard title="Pendentes" count={counters.pendentes + counters.falhas} helper="Itens que ainda pedem acao ou revisao." accent="text-[#FECACA]" />
       </div>
       <div className="grid gap-3 md:grid-cols-4 text-sm">
