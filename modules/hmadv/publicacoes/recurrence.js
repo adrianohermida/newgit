@@ -1,5 +1,3 @@
-import { RecurringPublicacaoGroup } from "./recurring-publicacao-group";
-
 export function deriveRemoteHealth(history = []) {
   const latest = history[0] || null;
   if (!latest) return [];

@@ -1,3 +1,19 @@
+import { useRef } from "react";
+import { useRouter } from "next/router";
+import { normalizeAttachmentsFromEvent, trimRecentHistory } from "./aiTaskState";
+import {
+  classifyTaskAgent,
+  detectModules,
+  extractTaskRunMemoryMatches,
+  formatExecutionSourceLabel,
+  inferTaskPriority,
+  normalizeMission,
+  normalizeTaskStepStatus,
+  normalizeTaskRunPayload,
+} from "./aiTaskAdapters";
+import { useAiTaskWorkspace } from "./useAiTaskWorkspace";
+import { FALLBACK_PROVIDER_OPTIONS, FALLBACK_SKILL_OPTIONS, MAX_LOGS, MAX_THINKING } from "./aiTaskModuleConfig";
+import { buildBlueprint, nowIso } from "./aiTaskMissionBlueprint";
 import { useAiTaskModuleHistorySync } from "./useAiTaskModuleHistorySync";
 import { useAiTaskViewModel } from "./useAiTaskViewModel";
 import { useAiTaskRun } from "./useAiTaskRun";
@@ -7,28 +23,40 @@ import useAiTaskPaginationState from "./useAiTaskPaginationState";
 import useAiTaskRuntimeHealth from "./useAiTaskRuntimeHealth";
 import useAiTaskShellProps from "./useAiTaskShellProps";
 
-export default function useAiTaskModuleController({
-  profile,
-  routePath,
-  workspace,
-  runtimeConfig,
-  missionInputRef,
-  taskLogic,
-  fallbackOptions,
-  router,
-}) {
+export default function useAiTaskModuleController({ profile, routePath, openStopModal }) {
+  const router = useRouter();
+  const missionInputRef = useRef(null);
   const uiState = useAiTaskUiState(profile);
+  const workspace = useAiTaskWorkspace({
+    missionInputRef,
+    normalizeAttachmentsFromEvent,
+    trimRecentHistory,
+    nowIso,
+    maxThinking: MAX_THINKING,
+    maxLogs: MAX_LOGS,
+    profile,
+  });
   const runtimeHealth = useAiTaskRuntimeHealth({
-    fallbackProviderOptions: fallbackOptions.providers,
-    fallbackSkillOptions: fallbackOptions.skills,
+    fallbackProviderOptions: FALLBACK_PROVIDER_OPTIONS,
+    fallbackSkillOptions: FALLBACK_SKILL_OPTIONS,
     provider: workspace.provider,
     pushLog: workspace.pushLog,
     setProvider: workspace.setProvider,
   });
   const runState = useAiTaskRun({
-    ...taskLogic,
-    ...runtimeConfig,
     ...workspace,
+    approved: workspace.approved,
+    attachments: workspace.attachments,
+    buildBlueprint,
+    classifyTaskAgent,
+    detectModules,
+    extractTaskRunMemoryMatches,
+    formatExecutionSourceLabel,
+    inferTaskPriority,
+    normalizeMission,
+    normalizeTaskRunPayload,
+    normalizeTaskStepStatus,
+    nowIso,
     profile,
     routePath,
   });
@@ -57,7 +85,7 @@ export default function useAiTaskModuleController({
   const derived = useAiTaskViewModel({
     automation: workspace.automation,
     contextSnapshot: workspace.contextSnapshot,
-    detectModules: taskLogic.detectModules,
+    detectModules,
     historyPage: uiState.historyPage,
     logs: workspace.logs,
     mission: workspace.mission,
@@ -77,15 +105,7 @@ export default function useAiTaskModuleController({
     taskCount: workspace.tasks.length,
     taskVisibleCount: uiState.taskVisibleCount,
   });
-
-  useAiTaskModuleHistorySync({
-    ...workspace,
-    contact360: uiState.contact360,
-    historyPage: uiState.historyPage,
-    recentHistory: workspace.recentHistory,
-    routePath,
-    taskVisibleCount: uiState.taskVisibleCount,
-  });
+  useAiTaskModuleHistorySync({ ...workspace, contact360: uiState.contact360, historyPage: uiState.historyPage, recentHistory: workspace.recentHistory, routePath, taskVisibleCount: uiState.taskVisibleCount });
 
   const shellProps = useAiTaskShellProps({
     ...workspace,
@@ -110,7 +130,8 @@ export default function useAiTaskModuleController({
     localRuntimeDraft: runtimeHealth.localRuntimeDraft,
     localStackSummary: runtimeHealth.localStackSummary,
     missionInputRef,
-    openStopModal: runtimeConfig.openStopModal,
+    openStopModal,
+    providerCatalog: runtimeHealth.providerCatalog,
     ragHealth: runtimeHealth.ragHealth,
     refreshingLocalStack: runtimeHealth.refreshingLocalStack,
     refreshLocalStackStatus: runtimeHealth.refreshLocalStackStatus,
@@ -119,8 +140,7 @@ export default function useAiTaskModuleController({
     setLocalRuntimeDraft: runtimeHealth.setLocalRuntimeDraft,
     skillCatalog: runtimeHealth.skillCatalog,
     toggleLocalRuntimeConfig: () => runtimeHealth.setLocalRuntimeConfigOpen((current) => !current),
-    providerCatalog: runtimeHealth.providerCatalog,
   });
 
-  return { derived, runState, shellProps, uiState };
+  return { derived, runState, shellProps, uiState, workspace };
 }

@@ -14,7 +14,7 @@ import { usePublicacoesQueueState } from "./usePublicacoesQueueState";
 import { PublicacoesScreenBody } from "./PublicacoesScreenBody";
 import { usePublicacoesScreenRuntime } from "./usePublicacoesScreenRuntime";
 
-function PublicacoesContent() {
+export function PublicacoesContent() {
   const { isLightTheme } = useInternalTheme();
   const { logUiEvent } = usePublicacoesActivityLog();
   const core = usePublicacoesCoreState();
