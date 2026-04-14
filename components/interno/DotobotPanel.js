@@ -28,6 +28,7 @@ import DotobotCompactConversationCard from "./DotobotCompactConversationCard";
 import DotobotCompactComposer from "./DotobotCompactComposer";
 import DotobotCompactRuntimeDiagnostics from "./DotobotCompactRuntimeDiagnostics";
 import DotobotConversationMenu from "./DotobotConversationMenu";
+import DotobotStandardConversationCenter from "./DotobotStandardConversationCenter";
 import DotobotWorkspaceHeader from "./DotobotWorkspaceHeader";
 import { useInternalTheme } from "./InternalThemeProvider";
 import {
@@ -3382,219 +3383,53 @@ const [uiToasts, setUiToasts] = useState([]);
                   visibleLegalActions={visibleLegalActions}
                 />
                 ) : (
-                <section className={`flex min-h-0 flex-col ${centerShellClass}`}>
-                  <div className={`border-b px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Conversa</p>
-                          <p className={`mt-2 truncate text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
-                            {activeConversation?.title || "Nova conversa"}
-                          </p>
-                          <p className={`mt-1 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                            Uma conversa central para decidir, executar e seguir com mais clareza.
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                            {activeProjectLabel}
-                          </span>
-                          {visibleLegalActions.slice(0, 3).map((action) => (
-                            <button
-                              key={action.label}
-                              type="button"
-                              onClick={() => handleQuickAction(action.prompt)}
-                              className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                            >
-                              {action.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                  </div>
-
-                  <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-5">
-                      <div className={`flex min-h-full flex-col justify-end space-y-3 ${focusedConversationColumnClass}`}>
-                        {messages.length ? (
-                          messages.map((message, idx) => (
-                            <DotobotMessageBubble
-                              key={message.id || idx}
-                              message={message}
-                              isLightTheme={isLightTheme}
-                              onCopy={handleCopyMessage}
-                              onReuse={handleReuseMessage}
-                              onOpenAiTask={handleOpenMessageInAiTask}
-                              onAction={handleMessageAction}
-                            />
-                          ))
-                        ) : (
-                          <div className={`rounded-[20px] border border-dashed p-5 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
-                            <p className={`text-base font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Pronto para conversar.</p>
-                            <p className="mt-2 leading-6">Escreva um pedido, continue um contexto existente ou delegue uma ação para o AI Task.</p>
-                          </div>
-                        )}
-                        {loading ? (
-                          <DotobotMessageBubble
-                            message={{ role: "assistant", text: "", createdAt: null }}
-                            isTyping={true}
-                            isLightTheme={isLightTheme}
-                          />
-                        ) : null}
-                        {localInferenceAlert && !messages.length ? (
-                          <div className={`rounded-[20px] border p-5 text-sm ${isLightTheme ? "border-[#E6D29A] bg-[#FFF8E8] text-[#8A6217]" : "border-[#6f5a2d] bg-[rgba(98,79,34,0.16)] text-[#f1dfb5]"}`}>
-                            <p className={`text-base font-semibold ${isLightTheme ? "text-[#6A4B12]" : "text-[#F5F1E8]"}`}>{localInferenceAlert.title}</p>
-                            <p className="mt-2 leading-6">{localInferenceAlert.body}</p>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleLocalStackAction("open_runtime_config")}
-                                className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
-                              >
-                                Editar runtime local
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleLocalStackAction("open_ai_task")}
-                                className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
-                              >
-                                Continuar via AI Task
-                              </button>
-                            </div>
-                          </div>
-                        ) : null}
-                        {error ? (
-                          <div className={`rounded-[24px] border px-4 py-3 text-sm ${isLightTheme ? "border-[#E9B4B4] bg-[#FFF1F1] text-[#B94A48]" : "border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] text-[#f2b2b2]"}`}>
-                            {error}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-
-                  <div className={`shrink-0 border-t px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
-                    <div className={focusedConversationColumnClass}>
-                    {!isConversationCentricShell ? (
-                    <div className="mb-3 flex flex-wrap gap-2">
-                      {visibleQuickPrompts.map((prompt) => (
-                        <button
-                          key={prompt}
-                          type="button"
-                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${
-                            isConversationCentricShell
-                              ? isLightTheme
-                                ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]"
-                                : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"
-                              : isLightTheme
-                                ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]"
-                                : "border-[#22342F] text-[#C6D1CC] hover:border-[#C5A059] hover:text-[#C5A059]"
-                          }`}
-                          onClick={() => setInput(prompt)}
-                        >
-                          {prompt}
-                        </button>
-                      ))}
-                    </div>
-                    ) : null}
-                    <form onSubmit={handleSubmit} className="space-y-3">
-                      <div className={`rounded-[20px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1C2623] bg-[rgba(7,9,8,0.98)]"}`} onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}>
-                        <div className={`mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>
-                              {isConversationCentricShell ? `${activeMode.label} · ${contextEnabled ? "contexto ativo" : "contexto reduzido"}` : `/${showSlashCommands ? "comandos ativos" : "comandos"}`}
-                            </span>
-                            {!isConversationCentricShell ? (
-                              <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>Enter envia</span>
-                            ) : null}
-                            {!isConversationCentricShell ? (
-                              <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>Shift+Enter quebra</span>
-                            ) : null}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <button type="button" onClick={handleOpenFiles} className={`rounded-full border px-2.5 py-1 transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
-                              Anexar
-                            </button>
-                            <button type="button" onClick={toggleVoiceInput} className={`rounded-full border px-2.5 py-1 transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
-                              {isRecording ? "Parar voz" : "Voz"}
-                            </button>
-                          </div>
-                        </div>
-                        <textarea
-                          ref={composerRef}
-                          value={input}
-                          onChange={(event) => {
-                            setInput(event.target.value);
-                            setShowSlashCommands(event.target.value.trimStart().startsWith("/"));
-                          }}
-                          onKeyDown={handleComposerKeyDown}
-                          onPaste={handlePaste}
-                          rows={4}
-                          disabled={isComposerBlocked}
-                          placeholder={isConversationCentricShell ? "Pergunte ao Dotobot, continue a thread ou delegue uma ação..." : "Pergunte, delegue uma tarefa ou cole o contexto que precisa operar..."}
-                          className={`w-full resize-none border-0 bg-transparent px-1 py-1 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50 ${isLightTheme ? "text-[#152421] placeholder:text-[#94A3B8]" : "placeholder:text-[#60706A]"}`}
-                        />
-                        {composerBlockedReason ? (
-                          <p className={`mt-2 px-1 text-[11px] leading-5 ${isLightTheme ? "text-[#8A6217]" : "text-[#f1dfb5]"}`}>{composerBlockedReason}</p>
-                        ) : null}
-
-                        {attachments.length ? (
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {attachments.map((attachment) => (
-                              <div key={attachment.id} className={`flex items-center gap-3 rounded-full border px-3 py-2 text-xs ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#C6D1CC]"}`}>
-                                {attachment.previewUrl ? (
-                                  <img src={attachment.previewUrl} alt={attachment.name} className="h-8 w-8 rounded-lg object-cover" />
-                                ) : (
-                                  <span className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border text-[10px] uppercase ${isLightTheme ? "border-[#D7DEE8] text-[#7B8B98]" : "border-[#22342F] text-[#9BAEA8]"}`}>
-                                    {attachment.kind}
-                                  </span>
-                                )}
-                                <div>
-                                  <p className="max-w-[12rem] truncate">{attachment.name}</p>
-                                  <p className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "opacity-60"}`}>{formatBytes(attachment.size)}</p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-
-                        {showSlashCommands && input.trim().startsWith("/") ? (
-                          <div className={`mt-3 grid gap-2 rounded-[18px] border p-2 md:grid-cols-2 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                            {SLASH_COMMANDS.map((command) => (
-                              <button
-                                key={command.value}
-                                type="button"
-                                onClick={() => handleSlashCommand(command)}
-                                className={`rounded-[20px] border px-4 py-3 text-left text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                              >
-                            <p className={`font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{command.label}</p>
-                            <p className={`mt-1 text-[11px] leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{command.hint}</p>
-                          </button>
-                        ))}
-                      </div>
-                        ) : null}
-                      </div>
-
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex flex-wrap gap-2">
-                          {!isConversationCentricShell ? (
-                            <button type="button" onClick={handleResetChat} className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
-                              Limpar
-                            </button>
-                          ) : null}
-                          <button type="button" onClick={() => router.push("/interno/ai-task")} className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
-                            AI Task
-                          </button>
-                          {!isConversationCentricShell ? (
-                          <button type="button" onClick={() => openLlmTest(provider, input)} className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
-                            LLM Test
-                          </button>
-                          ) : null}
-                        </div>
-                        <button type="submit" disabled={loading || !input.trim() || isComposerBlocked} className={`rounded-2xl border px-4 py-2 text-sm font-semibold transition disabled:opacity-40 ${isLightTheme ? "border-[#C79B2C] bg-[#FFF8E8] text-[#8A6217] hover:bg-[#FFF2D2]" : "border-[#C5A059] bg-[rgba(197,160,89,0.08)] text-[#F1D39A] hover:bg-[rgba(197,160,89,0.14)]"}`}>
-                          Enviar
-                        </button>
-                      </div>
-                    </form>
-                    </div>
-                  </div>
-                </section>
+                <DotobotStandardConversationCenter
+                  activeConversation={activeConversation}
+                  activeMode={activeMode}
+                  activeProjectLabel={activeProjectLabel}
+                  attachments={attachments}
+                  centerShellClass={centerShellClass}
+                  composerBlockedReason={composerBlockedReason}
+                  composerRef={composerRef}
+                  error={error}
+                  focusedConversationColumnClass={focusedConversationColumnClass}
+                  formatBytes={formatBytes}
+                  handleComposerKeyDown={handleComposerKeyDown}
+                  handleCopyMessage={handleCopyMessage}
+                  handleDrop={handleDrop}
+                  handleLocalStackAction={handleLocalStackAction}
+                  handleMessageAction={handleMessageAction}
+                  handleOpenFiles={handleOpenFiles}
+                  handleOpenMessageInAiTask={handleOpenMessageInAiTask}
+                  handlePaste={handlePaste}
+                  handleQuickAction={handleQuickAction}
+                  handleResetChat={handleResetChat}
+                  handleReuseMessage={handleReuseMessage}
+                  handleSlashCommand={handleSlashCommand}
+                  handleSubmit={handleSubmit}
+                  input={input}
+                  isComposerBlocked={isComposerBlocked}
+                  isConversationCentricShell={isConversationCentricShell}
+                  isLightTheme={isLightTheme}
+                  isRecording={isRecording}
+                  loading={loading}
+                  localInferenceAlert={localInferenceAlert}
+                  messages={messages}
+                  onChangeInput={(value) => {
+                    setInput(value);
+                    setShowSlashCommands(value.trimStart().startsWith("/"));
+                  }}
+                  onOpenAiTask={() => router.push("/interno/ai-task")}
+                  onOpenLlmTest={openLlmTest}
+                  openPrompt={input}
+                  provider={provider}
+                  scrollRef={scrollRef}
+                  showSlashCommands={showSlashCommands}
+                  slashCommands={SLASH_COMMANDS}
+                  toggleVoiceInput={toggleVoiceInput}
+                  visibleLegalActions={visibleLegalActions}
+                  visibleQuickPrompts={visibleQuickPrompts}
+                />
                 )}
 
                 {!isRailConversationShell ? (

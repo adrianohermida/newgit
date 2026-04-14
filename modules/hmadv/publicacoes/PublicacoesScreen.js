@@ -25,7 +25,6 @@ import {
   loadHistoryEntries,
   loadValidationState,
   parseCopilotContext,
-  persistHistoryEntries,
   persistValidationState,
 } from "./storage";
 import { usePublicacoesAdminFetch } from "./usePublicacoesAdminFetch";
@@ -52,6 +51,7 @@ import { usePublicacoesExecutionHistory } from "./usePublicacoesExecutionHistory
 import { usePublicacoesActionRunner } from "./usePublicacoesActionRunner";
 import { usePublicacoesUiActions } from "./usePublicacoesUiActions";
 import { usePublicacoesQueuesViewModel } from "./usePublicacoesQueuesViewModel";
+import { usePublicacoesOperationalPlan } from "./usePublicacoesOperationalPlan";
 
 function isResourceLimitError(error) {
   const text = String(error?.payload || error?.message || error || "").toLowerCase();
@@ -1319,77 +1319,9 @@ function PublicacoesContent() {
     updateView(step.targetView || "operacao", step.targetHash || "operacao");
   }
 
-  function selectVisibleRecurringPublicacoes() {
-    const recurringKeys = new Set(recurringPublicacoes.map((item) => item.key));
-    setSelectedProcessKeys(processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getPublicacaoSelectionValue(item)).filter(Boolean));
-    setSelectedPartesKeys(partesCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getPublicacaoSelectionValue(item)).filter(Boolean));
-    setSelectedIntegratedNumbers(filteredIntegratedRows.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.numero_cnj).filter(Boolean));
-    logUiEvent("Selecionar reincidentes visiveis", "selecionar_reincidentes_publicacoes", {
-      selectedProcessos: processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).length,
-      selectedPartes: partesCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).length,
-      selectedIntegrado: filteredIntegratedRows.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).length,
-    }, { component: "publicacoes-recorrencia" });
-    updateView("filas");
-  }
-  function selectVisibleSevereRecurringPublicacoes() {
-    const recurringKeys = new Set(recurringPublicacoes.filter((item) => item.hits >= 3).map((item) => item.key));
-    setSelectedProcessKeys(processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getPublicacaoSelectionValue(item)).filter(Boolean));
-    setSelectedPartesKeys(partesCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getPublicacaoSelectionValue(item)).filter(Boolean));
-    setSelectedIntegratedNumbers(filteredIntegratedRows.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => item.numero_cnj).filter(Boolean));
-    logUiEvent("Selecionar reincidentes severos", "selecionar_reincidentes_severos_publicacoes", {
-      selectedProcessos: processCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).length,
-      selectedPartes: partesCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).length,
-      selectedIntegrado: filteredIntegratedRows.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).length,
-    }, { component: "publicacoes-recorrencia" });
-    updateView("filas");
-  }
-  function applySevereRecurringPreset() {
-    setLimit(recurringPublicacoesBatch.size);
-    logUiEvent("Aplicar lote prioritario", "aplicar_preset_publicacoes", {
-      limit: recurringPublicacoesBatch.size,
-      recurringSummary: recurringPublicacoesSummary,
-    }, { component: "publicacoes-recorrencia" });
-    selectVisibleSevereRecurringPublicacoes();
-  }
-  function clearQueueSelections() {
-    setSelectedProcessKeys([]);
-    setSelectedPartesKeys([]);
-    setSelectedIntegratedNumbers([]);
-    logUiEvent("Limpar selecoes de filas", "limpar_selecoes_publicacoes", {
-      selectedProcessos: 0,
-      selectedPartes: 0,
-      selectedIntegrado: 0,
-    }, { component: "publicacoes-filas" });
-  }
-  function updateView(nextView, nextHash = nextView) {
-    setView(nextView);
-    setLastFocusHash(nextHash || nextView);
-    logUiEvent(`Alternar view para ${nextView}`, "alterar_view_publicacoes", { view: nextView }, { component: "publicacoes-navigation" });
-    if (typeof window === "undefined") return;
-    const url = new URL(window.location.href);
-    url.searchParams.set("view", nextView);
-    url.hash = nextHash || nextView;
-    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-  }
-
-  function reuseHistoryEntry(entry) {
-    if (entry?.payload?.processNumbers) setProcessNumbers(entry.payload.processNumbers);
-    if (entry?.payload?.limit) setLimit(Number(entry.payload.limit) || 10);
-    logUiEvent("Reusar parametros do historico", "reusar_historico_publicacoes", {
-      action: entry?.action || "",
-      limit: entry?.payload?.limit || null,
-    }, { component: "publicacoes-history" });
-    updateView("operacao");
-  }
-
-  function clearHistory() {
-    setExecutionHistory([]);
-    persistHistoryEntries([]);
-  }
-
   const isResultView = view === "resultado";
   const isDockedPublicacoesView = view === "operacao" || view === "resultado";
-  const queuesViewModel = {
+  const queuesViewModel = usePublicacoesQueuesViewModel({
     isLightTheme,
     queueDiagnostics,
     updateView,
@@ -1481,7 +1413,7 @@ function PublicacoesContent() {
     setSelectedPartesKeys,
     getPublicacaoSelectionValue,
     heavyQueuesEnabled,
-  };
+  });
 
   return (
     <div className={`${isDockedPublicacoesView ? "flex min-h-full flex-1 flex-col gap-6" : isResultView ? "space-y-6" : "space-y-8"}`.trim()}>
@@ -1605,3 +1537,4 @@ export default function PublicacoesScreen() {
   );
 }
 
+                                                                                                                                                                                                                        

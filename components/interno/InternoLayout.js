@@ -5,6 +5,7 @@ import { useInternalTheme } from "./InternalThemeProvider";
 import DotobotCopilot from "./DotobotPanel";
 import InternoConsoleChrome from "./layout/InternoConsoleChrome";
 import InternoConsoleLogEntryCard from "./layout/InternoConsoleLogEntryCard";
+import InternoConsoleLogInsights from "./layout/InternoConsoleLogInsights";
 import InternoConsoleNotesPanel from "./layout/InternoConsoleNotesPanel";
 import InternoConsoleOverviewTab from "./layout/InternoConsoleOverviewTab";
 import InternoShellContent from "./layout/InternoShellContent";
@@ -641,98 +642,19 @@ export default function InternoLayout({
                         </span>
                       ) : null}
                     </div> : null}
-                    {paneTagPlaybook ? <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                            <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{paneTagPlaybook.title}</p>
-                            <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Checklist sugerido para a trilha atual do console.</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            updateFilters({ ...logFilters, tag: logPane });
-                            appendOperationalNote({
-                              type: "playbook_tag",
-                              text: `Playbook ${logPane} consultado no console.`,
-                              meta: { tag: logPane, pane: logPane },
-                            });
-                          }}
-                          className="rounded-full border border-[#C5A059] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#F4E7C2]"
-                        >
-                          Fixar filtro
-                        </button>
-                      </div>
-                      <div className={`mt-3 space-y-2 text-[11px] ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>
-                        {paneTagPlaybook.checklist.map((step) => (
-                          <div key={`${logPane}_${step}`} className={`rounded-lg border px-3 py-2 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
-                            {step}
-                          </div>
-                        ))}
-                      </div>
-                    </div> : null}
-                    {paneBulkGuardrail ? <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                            <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{paneBulkGuardrail.title}</p>
-                            <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{paneBulkGuardrail.summary}</p>
-                        </div>
-                        <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(paneBulkGuardrail.tone)}`}>
-                          itens {paneBulkGuardrail.metrics.total} Â· erros {paneBulkGuardrail.metrics.errors} Â· running {paneBulkGuardrail.metrics.running}
-                        </span>
-                      </div>
-                      <div className={`mt-3 space-y-2 text-[11px] ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>
-                        {paneBulkGuardrail.actions.map((step) => (
-                          <div key={`${logPane}_${step}`} className={`rounded-lg border px-3 py-2 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
-                            {step}
-                          </div>
-                        ))}
-                      </div>
-                    </div> : null}
                     {!SPECIAL_LOG_PANES.has(logPane) && paneEntries.length ? <div className="grid gap-3 xl:grid-cols-2">
-                      <div className={`rounded-xl border p-3 xl:col-span-2 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Risco da trilha</p>
-                            <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Score baseado em erros, warnings e recorrencia recente.</p>
-                          </div>
-                          <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(paneRisk.tone)}`}>
-                            risco {paneRisk.label} Â· {paneRisk.score}
-                          </span>
-                        </div>
-                      </div>
-                      <div className={`rounded-xl border p-3 xl:col-span-2 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>SLA e idade dos erros</p>
-                            <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Envelhecimento dos erros ainda nao resolvidos nesta trilha.</p>
-                          </div>
-                          <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(paneSla.tone)}`}>
-                            aberto {paneSla.openRecurring} Â· acompanhando {paneSla.watchingRecurring} Â· resolvido {paneSla.resolvedRecurring}
-                          </span>
-                        </div>
-                        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-                          <div className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
-                            <div className="text-[#7F928C]">atÃ© 4h</div>
-                            <div className={`mt-1 font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F4F1EA]"}`}>{paneSla.buckets.ate_4h}</div>
-                          </div>
-                          <div className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
-                            <div className="text-[#7F928C]">4h - 24h</div>
-                            <div className={`mt-1 font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F4F1EA]"}`}>{paneSla.buckets.ate_24h}</div>
-                          </div>
-                          <div className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
-                            <div className="text-[#7F928C]">24h - 72h</div>
-                            <div className={`mt-1 font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F4F1EA]"}`}>{paneSla.buckets.ate_72h}</div>
-                          </div>
-                          <div className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
-                            <div className="text-[#7F928C]">acima de 72h</div>
-                            <div className={`mt-1 font-semibold ${paneSla.buckets.acima_72h ? "text-[#FECACA]" : isLightTheme ? "text-[#152421]" : "text-[#F4F1EA]"}`}>{paneSla.buckets.acima_72h}</div>
-                          </div>
-                          <div className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
-                            <div className="text-[#7F928C]">sem data</div>
-                            <div className={`mt-1 font-semibold ${paneSla.buckets.sem_data ? "text-[#FDE68A]" : isLightTheme ? "text-[#152421]" : "text-[#F4F1EA]"}`}>{paneSla.buckets.sem_data}</div>
-                          </div>
-                        </div>
-                      </div>
+                      <InternoConsoleLogInsights
+                        getSeverityTone={getSeverityTone}
+                        isLightTheme={isLightTheme}
+                        logFilters={logFilters}
+                        logPane={logPane}
+                        noteClass={isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}
+                        paneBulkGuardrail={paneBulkGuardrail}
+                        paneRisk={paneRisk}
+                        paneSla={paneSla}
+                        paneTagPlaybook={paneTagPlaybook}
+                        updateFilters={updateFilters}
+                      />
                       <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Recorrencia</p>
