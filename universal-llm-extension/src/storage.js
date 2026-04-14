@@ -7,6 +7,7 @@ const {
   SETTINGS_PATH,
   DEFAULT_SETTINGS,
   ENV_AICORE_CANDIDATES,
+  LOCAL_RUNTIME_CANDIDATES,
   cleanUrl,
 } = require("./config");
 
@@ -87,10 +88,17 @@ function saveSettings(settings) {
 
 function getConfigs() {
   const settings = loadSettings();
+  const localCandidates = [settings.local.runtimeUrl, ...ENV_AICORE_CANDIDATES]
+    .filter(Boolean)
+    .filter((value, index, list) => cleanUrl(value) && list.findIndex((item) => cleanUrl(item) === cleanUrl(value)) === index);
+  const runtimeCatalogCandidates = LOCAL_RUNTIME_CANDIDATES
+    .filter(Boolean)
+    .filter((value, index, list) => cleanUrl(value) && list.findIndex((item) => cleanUrl(item) === cleanUrl(value)) === index);
   return {
     settings,
     local: {
-      candidates: [settings.local.runtimeUrl, ...ENV_AICORE_CANDIDATES.filter((url) => cleanUrl(url) !== cleanUrl(settings.local.runtimeUrl))].filter(Boolean),
+      candidates: localCandidates,
+      runtimeCatalogCandidates,
       model: settings.local.runtimeModel,
     },
     cloud: settings.cloud,

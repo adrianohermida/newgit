@@ -15,9 +15,13 @@ const SETTINGS_PATH = path.join(DATA_DIR, "settings.json");
 
 const ENV_AICORE_CANDIDATES = [
   process.env.AICORE_API_BASE_URL,
-  process.env.LOCAL_LLM_BASE_URL,
   "http://127.0.0.1:8000",
-  "http://127.0.0.1:8010",
+].filter(Boolean);
+
+const LOCAL_RUNTIME_CANDIDATES = [
+  process.env.LOCAL_LLM_BASE_URL,
+  process.env.LLM_BASE_URL,
+  "http://127.0.0.1:11434",
 ].filter(Boolean);
 
 const DEFAULT_SETTINGS = {
@@ -59,6 +63,7 @@ module.exports = {
   UPLOADS_DIR,
   SETTINGS_PATH,
   ENV_AICORE_CANDIDATES,
+  LOCAL_RUNTIME_CANDIDATES,
   DEFAULT_SETTINGS,
   cleanUrl,
 };

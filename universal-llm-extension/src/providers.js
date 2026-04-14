@@ -1,5 +1,5 @@
 const { getConfigs } = require("./storage");
-const { jsonPost, probeJsonEndpoint } = require("./http-client");
+const { jsonPost, probeJsonEndpoint, probeJsonGetEndpoint } = require("./http-client");
 const { joinUrl, extractContent, buildProviderError } = require("./utils");
 const { describeAttempt } = require("./provider-diagnostics");
 const { buildProxyTargets, callProxyProvider } = require("./provider-proxy");
@@ -121,6 +121,10 @@ async function diagnose(provider) {
     }
   }
 
+  if (provider === "local") {
+    await enrichLocalCatalogDiagnosis(configs, attempts);
+  }
+
   const success = attempts.find((item) => item.ok);
   const configuredAttempt = attempts.find((item) => tests.find((test) => test.url === item.url)?.isConfigured);
   const reachableAlternative = attempts.find((item) => item.url !== configuredAttempt?.url && (item.ok || item.status));
@@ -151,6 +155,39 @@ async function diagnose(provider) {
     };
   }
   return { ok: false, provider, message: `Nao foi possivel conectar ao provider ${provider}.`, configuredUrl: tests[0]?.url || null, model: configs[provider]?.model, attempts };
+}
+
+async function enrichLocalCatalogDiagnosis(configs, attempts) {
+  const modelNotFoundAttempt = attempts.find((item) => item.issue === "model_not_found");
+  if (!modelNotFoundAttempt) return;
+  for (const baseUrl of configs.local.runtimeCatalogCandidates || []) {
+    const tagsUrl = joinUrl(baseUrl, "/api/tags");
+    try {
+      const probe = await probeJsonGetEndpoint(tagsUrl, {}, { timeoutMs: 5000 });
+      const models = Array.isArray(probe?.body?.models) ? probe.body.models : [];
+      if (probe.ok && models.length === 0) {
+        modelNotFoundAttempt.issue = "runtime_catalog_empty";
+        modelNotFoundAttempt.summary = "O ai-core respondeu, mas o catalogo do runtime local esta vazio.";
+        modelNotFoundAttempt.recommendation = "Suba ou carregue um modelo no runtime local em 11434 antes de usar o alias aetherlab-legal-local-v1.";
+        modelNotFoundAttempt.runtimeCatalog = {
+          url: tagsUrl,
+          count: 0,
+          models: [],
+        };
+        return;
+      }
+      if (probe.ok && models.length > 0) {
+        modelNotFoundAttempt.runtimeCatalog = {
+          url: tagsUrl,
+          count: models.length,
+          models: models.map((item) => item?.name || item?.model || item?.id || String(item)).filter(Boolean),
+        };
+        return;
+      }
+    } catch {
+      // ignore and keep current diagnosis
+    }
+  }
 }
 
 module.exports = {
