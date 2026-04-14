@@ -2,17 +2,17 @@ import { getProfileInitials, normalizeDisplayName, resolveProfileAvatar } from "
 
 function getAvatarButtonClass({ isLightTheme, variant }) {
   if (variant === "sidebar") {
-    return `flex w-full items-center gap-3 rounded-[20px] border px-3 py-3 text-left transition hover:border-[#C5A059] ${
+    return `flex w-full items-center gap-3 rounded-[20px] border px-3 py-3 text-left transition-all duration-200 hover:-translate-y-[1px] hover:border-[#C5A059] active:scale-[0.995] ${
       isLightTheme
-        ? "border-[#D6E0EA] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.10),transparent_42%),rgba(255,255,255,0.98)] text-[#22312F]"
-        : "border-[#243732] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.10),transparent_40%),rgba(255,255,255,0.03)] text-[#F4F1EA]"
+        ? "border-[#D6E0EA] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.10),transparent_42%),rgba(255,255,255,0.98)] text-[#22312F] hover:shadow-[0_16px_30px_rgba(148,163,184,0.12)]"
+        : "border-[#243732] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.10),transparent_40%),rgba(255,255,255,0.03)] text-[#F4F1EA] hover:shadow-[0_16px_30px_rgba(0,0,0,0.22)]"
     }`;
   }
 
-  return `flex h-10 items-center gap-2 rounded-[14px] border px-2.5 transition hover:border-[#C5A059] ${
+  return `flex h-10 items-center gap-2 rounded-[14px] border px-2.5 transition-all duration-200 hover:-translate-y-[1px] hover:border-[#C5A059] active:scale-[0.99] ${
     isLightTheme
-      ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]"
-      : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"
+      ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F] hover:shadow-[0_12px_24px_rgba(148,163,184,0.10)]"
+      : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA] hover:shadow-[0_12px_24px_rgba(0,0,0,0.18)]"
   }`;
 }
 
@@ -88,7 +88,7 @@ export default function InternoUserAvatarMenu({
 
       {open ? (
         <div
-          className={`absolute z-40 overflow-hidden rounded-[18px] border shadow-[0_22px_44px_rgba(0,0,0,0.18)] ${
+          className={`absolute z-40 overflow-hidden rounded-[18px] border shadow-[0_22px_44px_rgba(0,0,0,0.18)] transition-all duration-150 ${
             variant === "sidebar" ? "bottom-[calc(100%+10px)] left-0 right-0" : "right-0 top-[calc(100%+8px)] w-64"
           } ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(10,12,11,0.98)]"}`}
         >
@@ -108,7 +108,7 @@ export default function InternoUserAvatarMenu({
                 onClose();
                 item.action();
               }}
-              className={`flex w-full items-center justify-between px-4 py-3 text-left text-sm transition ${
+              className={`flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-all duration-150 ${
                 isLightTheme
                   ? "text-[#22312F] hover:bg-[#F7F9FC]"
                   : "text-[#D8DEDA] hover:bg-[rgba(255,255,255,0.03)]"

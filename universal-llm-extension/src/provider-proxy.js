@@ -14,17 +14,25 @@ function buildProxyTargets(appUrl, path, hint) {
     const port = Number(parsed.port || (parsed.protocol === "https:" ? 443 : 80));
     if (!isLoopback || !Number.isFinite(port)) return [base];
     const seen = new Set();
+    const hosts = parsed.hostname === "localhost" ? ["localhost", "127.0.0.1"] : ["127.0.0.1", "localhost"];
     return [port, 3000, 3001, 3002, 3003]
       .filter((value) => Number.isFinite(value) && value > 0)
-      .map((value) => {
-        const next = new URL(parsed.toString());
-        next.port = String(value);
-        return {
-          url: next.toString(),
-          hint: value === port ? hint : `Porta alternativa detectada para ambiente local: ${value}.`,
-          isConfigured: value === port,
-        };
-      })
+      .flatMap((value) =>
+        hosts.map((host) => {
+          const next = new URL(parsed.toString());
+          next.hostname = host;
+          next.port = String(value);
+          const configuredHost = parsed.hostname;
+          const sameTarget = value === port && host === configuredHost;
+          const hostHint = host === configuredHost ? null : `Host alternativo detectado para loopback local: ${host}.`;
+          const portHint = value === port ? null : `Porta alternativa detectada para ambiente local: ${value}.`;
+          return {
+            url: next.toString(),
+            hint: sameTarget ? hint : [hostHint, portHint].filter(Boolean).join(" "),
+            isConfigured: sameTarget,
+          };
+        })
+      )
       .filter((entry) => {
         if (seen.has(entry.url)) return false;
         seen.add(entry.url);

@@ -26,6 +26,8 @@ function classifyAttempt(attempt, hint) {
   if (
     raw.includes("econnrefused") ||
     raw.includes("connect econnrefused") ||
+    raw.includes("econnreset") ||
+    raw.includes("read econnreset") ||
     raw.includes("socket hang up") ||
     raw.includes("falha de conexao")
   ) {

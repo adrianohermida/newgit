@@ -26,7 +26,7 @@ const DEFAULT_SETTINGS = {
     runtimeModel: "aetherlab-legal-local-v1",
   },
   cloud: {
-    appUrl: cleanUrl(process.env.APP_BASE_URL || process.env.NEXTJS_APP_URL || "http://localhost:3000"),
+    appUrl: cleanUrl(process.env.APP_BASE_URL || process.env.NEXTJS_APP_URL || "http://127.0.0.1:3000"),
     baseUrl: cleanUrl(
       process.env.CUSTOM_LLM_BASE_URL ||
       process.env.PROCESS_AI_BASE ||

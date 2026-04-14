@@ -49,7 +49,7 @@ export default function DotobotMessageBubble({ isTyping = false, message, onActi
   const media = Array.isArray(message?.media) ? message.media : [];
 
   return (
-    <article className={`${bubbleWrapperClass} rounded-[22px] border px-4 py-4 text-sm ${bubbleTone}`}>
+    <article className={`${bubbleWrapperClass} rounded-[22px] border px-4 py-4 text-sm transition-all duration-200 ease-out hover:-translate-y-[1px] ${isLightTheme ? "hover:shadow-[0_18px_40px_rgba(148,163,184,0.14)]" : "hover:shadow-[0_18px_40px_rgba(0,0,0,0.24)]"} ${bubbleTone}`}>
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#C5A059]">{label}</p>
         {message?.createdAt ? (
@@ -71,14 +71,14 @@ export default function DotobotMessageBubble({ isTyping = false, message, onActi
               key={action.id || `${action.kind}-${action.target}`}
               type="button"
               onClick={() => onAction?.(action, message)}
-              className={`rounded-full border px-3 py-1.5 transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
+              className={`rounded-full border px-3 py-1.5 transition-all duration-200 active:scale-[0.98] ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62] hover:bg-[#F5FBF8]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:bg-[rgba(127,196,175,0.06)] hover:text-[#7FC4AF]"}`}
             >
               {action.label}
             </button>
           )) : null}
-          <button type="button" onClick={() => onCopy?.(message)} className={`rounded-full border px-3 py-1.5 transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B]" : "border-[#22342F] text-[#C6D1CC]"}`}>Copiar</button>
-          <button type="button" onClick={() => onReuse?.(message)} className={`rounded-full border px-3 py-1.5 transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B]" : "border-[#22342F] text-[#C6D1CC]"}`}>Usar no composer</button>
-          <button type="button" onClick={() => onOpenAiTask?.(message)} className={`rounded-full border px-3 py-1.5 transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB]"}`}>Abrir no AI Task</button>
+          <button type="button" onClick={() => onCopy?.(message)} className={`rounded-full border px-3 py-1.5 transition-all duration-200 active:scale-[0.98] ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9AA9B6] hover:bg-[#F7F9FC]" : "border-[#22342F] text-[#C6D1CC] hover:border-[#35554B] hover:bg-[rgba(255,255,255,0.03)]"}`}>Copiar</button>
+          <button type="button" onClick={() => onReuse?.(message)} className={`rounded-full border px-3 py-1.5 transition-all duration-200 active:scale-[0.98] ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9AA9B6] hover:bg-[#F7F9FC]" : "border-[#22342F] text-[#C6D1CC] hover:border-[#35554B] hover:bg-[rgba(255,255,255,0.03)]"}`}>Usar no composer</button>
+          <button type="button" onClick={() => onOpenAiTask?.(message)} className={`rounded-full border px-3 py-1.5 transition-all duration-200 active:scale-[0.98] ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62] hover:bg-[#F5FBF8]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:bg-[rgba(127,196,175,0.06)] hover:text-[#7FC4AF]"}`}>Abrir no AI Task</button>
         </div>
       ) : null}
     </article>
