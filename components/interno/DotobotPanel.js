@@ -27,7 +27,12 @@ import { buildSupabaseLocalBootstrap } from "../../lib/lawdesk/supabase-local-bo
 import { useSupabaseBrowser } from "../../lib/supabase";
 import DotobotMessageBubble from "./DotobotMessageBubble";
 import { useInternalTheme } from "./InternalThemeProvider";
-import { FocusedCopilotAside } from "./copilot";
+import {
+  FocusedCopilotAside,
+  FocusedConversationComposer,
+  FocusedConversationHeader,
+  FocusedConversationThread,
+} from "./copilot";
 import { cancelTaskRun, createPendingTaskRun, pollTaskRun, startTaskRun } from "./dotobotTaskRun";
 import {
   buildCopilotContextPayload,
@@ -4356,27 +4361,15 @@ const [uiToasts, setUiToasts] = useState([]);
                 <section className={`flex min-h-0 flex-col ${centerShellClass}`}>
                   <div className={`border-b px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
                     {isConversationCentricShell ? (
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Conversa</p>
-                      <p className={`mt-2 truncate text-base font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
-                        {activeConversation?.title || "Nova conversa"}
-                      </p>
-                          <div className={`mt-2 flex flex-wrap items-center gap-2 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                            <span className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                              {activeProjectLabel}
-                            </span>
-                            <span>{messages.length} mensagem(ns)</span>
-                            <span>{activeMode.label}</span>
-                          </div>
-                          <p className={`mt-2 text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                            Conduza a conversa principal com contexto e continuidade.
-                          </p>
-                        </div>
-                        <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                          Apoio lateral para contexto e execução
-                        </span>
-                      </div>
+                      <FocusedConversationHeader
+                        activeConversation={activeConversation}
+                        activeMode={activeMode}
+                        activeProjectLabel={activeProjectLabel}
+                        handleQuickAction={handleQuickAction}
+                        isLightTheme={isLightTheme}
+                        messages={messages}
+                        visibleLegalActions={visibleLegalActions}
+                      />
                     ) : (
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -4407,63 +4400,105 @@ const [uiToasts, setUiToasts] = useState([]);
                     )}
                   </div>
 
-                  <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-5">
-                    <div className={`flex min-h-full flex-col justify-end space-y-3 ${focusedConversationColumnClass}`}>
-                      {messages.length ? (
-                        messages.map((message, idx) => (
-                          <DotobotMessageBubble
-                            key={message.id || idx}
-                            message={message}
-                            isLightTheme={isLightTheme}
-                            onCopy={handleCopyMessage}
-                            onReuse={handleReuseMessage}
-                            onOpenAiTask={handleOpenMessageInAiTask}
-                            onAction={handleMessageAction}
-                          />
-                        ))
-                      ) : (
-                        <div className={`rounded-[20px] border border-dashed p-5 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
-                          <p className={`text-base font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Pronto para conversar.</p>
-                          <p className="mt-2 leading-6">Escreva um pedido, continue um contexto existente ou delegue uma ação para o AI Task.</p>
-                        </div>
-                      )}
-                      {loading ? (
-                        <DotobotMessageBubble
-                          message={{ role: "assistant", text: "", createdAt: null }}
-                          isTyping={true}
-                          isLightTheme={isLightTheme}
-                        />
-                      ) : null}
-                      {localInferenceAlert && !messages.length ? (
-                        <div className={`rounded-[20px] border p-5 text-sm ${isLightTheme ? "border-[#E6D29A] bg-[#FFF8E8] text-[#8A6217]" : "border-[#6f5a2d] bg-[rgba(98,79,34,0.16)] text-[#f1dfb5]"}`}>
-                          <p className={`text-base font-semibold ${isLightTheme ? "text-[#6A4B12]" : "text-[#F5F1E8]"}`}>{localInferenceAlert.title}</p>
-                          <p className="mt-2 leading-6">{localInferenceAlert.body}</p>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleLocalStackAction("open_runtime_config")}
-                              className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
-                            >
-                              Editar runtime local
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleLocalStackAction("open_ai_task")}
-                              className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
-                            >
-                              Continuar via AI Task
-                            </button>
+                  {isConversationCentricShell ? (
+                    <FocusedConversationThread
+                      error={error}
+                      focusedConversationColumnClass={focusedConversationColumnClass}
+                      handleCopyMessage={handleCopyMessage}
+                      handleLocalStackAction={handleLocalStackAction}
+                      handleMessageAction={handleMessageAction}
+                      handleOpenMessageInAiTask={handleOpenMessageInAiTask}
+                      handleReuseMessage={handleReuseMessage}
+                      isLightTheme={isLightTheme}
+                      loading={loading}
+                      localInferenceAlert={localInferenceAlert}
+                      messages={messages}
+                      scrollRef={scrollRef}
+                    />
+                  ) : (
+                    <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-5">
+                      <div className={`flex min-h-full flex-col justify-end space-y-3 ${focusedConversationColumnClass}`}>
+                        {messages.length ? (
+                          messages.map((message, idx) => (
+                            <DotobotMessageBubble
+                              key={message.id || idx}
+                              message={message}
+                              isLightTheme={isLightTheme}
+                              onCopy={handleCopyMessage}
+                              onReuse={handleReuseMessage}
+                              onOpenAiTask={handleOpenMessageInAiTask}
+                              onAction={handleMessageAction}
+                            />
+                          ))
+                        ) : (
+                          <div className={`rounded-[20px] border border-dashed p-5 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
+                            <p className={`text-base font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Pronto para conversar.</p>
+                            <p className="mt-2 leading-6">Escreva um pedido, continue um contexto existente ou delegue uma ação para o AI Task.</p>
                           </div>
-                        </div>
-                      ) : null}
-                      {error ? (
-                        <div className={`rounded-[24px] border px-4 py-3 text-sm ${isLightTheme ? "border-[#E9B4B4] bg-[#FFF1F1] text-[#B94A48]" : "border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] text-[#f2b2b2]"}`}>
-                          {error}
-                        </div>
-                      ) : null}
+                        )}
+                        {loading ? (
+                          <DotobotMessageBubble
+                            message={{ role: "assistant", text: "", createdAt: null }}
+                            isTyping={true}
+                            isLightTheme={isLightTheme}
+                          />
+                        ) : null}
+                        {localInferenceAlert && !messages.length ? (
+                          <div className={`rounded-[20px] border p-5 text-sm ${isLightTheme ? "border-[#E6D29A] bg-[#FFF8E8] text-[#8A6217]" : "border-[#6f5a2d] bg-[rgba(98,79,34,0.16)] text-[#f1dfb5]"}`}>
+                            <p className={`text-base font-semibold ${isLightTheme ? "text-[#6A4B12]" : "text-[#F5F1E8]"}`}>{localInferenceAlert.title}</p>
+                            <p className="mt-2 leading-6">{localInferenceAlert.body}</p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleLocalStackAction("open_runtime_config")}
+                                className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
+                              >
+                                Editar runtime local
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleLocalStackAction("open_ai_task")}
+                                className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
+                              >
+                                Continuar via AI Task
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+                        {error ? (
+                          <div className={`rounded-[24px] border px-4 py-3 text-sm ${isLightTheme ? "border-[#E9B4B4] bg-[#FFF1F1] text-[#B94A48]" : "border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] text-[#f2b2b2]"}`}>
+                            {error}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
+                  {isConversationCentricShell ? (
+                    <FocusedConversationComposer
+                      attachments={attachments}
+                      composerBlockedReason={composerBlockedReason}
+                      composerRef={composerRef}
+                      formatBytes={formatBytes}
+                      handleComposerKeyDown={handleComposerKeyDown}
+                      handleDrop={handleDrop}
+                      handleOpenFiles={handleOpenFiles}
+                      handlePaste={handlePaste}
+                      handleSlashCommand={handleSlashCommand}
+                      handleSubmit={handleSubmit}
+                      input={input}
+                      isComposerBlocked={isComposerBlocked}
+                      isLightTheme={isLightTheme}
+                      isRecording={isRecording}
+                      loading={loading}
+                      onOpenAiTask={() => router.push("/interno/ai-task")}
+                      setInput={setInput}
+                      setShowSlashCommands={setShowSlashCommands}
+                      showSlashCommands={showSlashCommands}
+                      slashCommands={SLASH_COMMANDS}
+                      toggleVoiceInput={toggleVoiceInput}
+                    />
+                  ) : (
                   <div className={`shrink-0 border-t px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
                     <div className={focusedConversationColumnClass}>
                     {!isConversationCentricShell ? (
@@ -4589,6 +4624,7 @@ const [uiToasts, setUiToasts] = useState([]);
                     </form>
                     </div>
                   </div>
+                  )}
                 </section>
 
                 {!isRailConversationShell ? (
