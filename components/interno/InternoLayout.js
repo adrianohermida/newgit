@@ -239,15 +239,6 @@ export default function InternoLayout({
     userMenuRef,
   });
 
-  const processosHistory = moduleHistory?.processos || null;
-  const processosLocalHistory = processosHistory?.executionHistory || [];
-  const processosRemoteHistory = processosHistory?.remoteHistory || [];
-  const publicacoesHistory = moduleHistory?.publicacoes || null;
-  const publicacoesLocalHistory = publicacoesHistory?.executionHistory || [];
-  const publicacoesRemoteHistory = publicacoesHistory?.remoteHistory || [];
-  const dotobotHistory = moduleHistory?.dotobot || null;
-  const aiTaskHistory = moduleHistory?.["ai-task"] || null;
-  const contactsHistory = moduleHistory?.contacts || null;
   const {
     handleAddFrontendIssue,
     handleAddNote,
