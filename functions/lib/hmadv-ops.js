@@ -222,7 +222,7 @@ function buildInFilter(field, values) {
   const items = values
     .map((value) => String(value || "").trim())
     .filter(Boolean)
-    .map((value) => `"${value.replace(/"/g, '\\"')}"`);
+    .map((value) => encodeURIComponent(`"${value.replace(/"/g, '\\"')}"`));
   return `${field}=in.(${items.join(",")})`;
 }
 

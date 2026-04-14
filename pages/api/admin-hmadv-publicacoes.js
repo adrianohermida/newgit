@@ -36,6 +36,12 @@ import {
 
 const runtimeEnv = process.env;
 
+function parseBoundedInt(value, { fallback, min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(Math.trunc(parsed), max));
+}
+
 function isJobInfraError(error) {
   const message = String(error?.message || "");
   return message.includes("operacao_jobs") && (
@@ -67,8 +73,8 @@ function buildQueueFallback({ page, pageSize, error }) {
 }
 
 function buildAuthDegradedPublicacoesResponse(action, query, auth) {
-  const page = Number(query?.page || 1);
-  const pageSize = Number(query?.pageSize || 20);
+  const page = parseBoundedInt(query?.page, { fallback: 1, min: 1, max: 5000 });
+  const pageSize = parseBoundedInt(query?.pageSize, { fallback: 20, min: 1, max: 50 });
   const source = String(query?.source || "todos");
   const error = auth?.error || "Autenticacao administrativa degradada no deploy atual.";
 
@@ -490,7 +496,7 @@ async function loadIntegratedDetail(numeroCnj) {
 
 async function runInlinePublicacoesAction(action, body) {
   const processNumbers = parseProcessNumbers(body?.processNumbers);
-  const requestedLimit = Number(body?.limit || 0);
+  const requestedLimit = parseBoundedInt(body?.limit, { fallback: 0, min: 0, max: 500 });
   if (action === "backfill_partes") {
     return backfillPartesFromPublicacoes({
       processNumbers,
@@ -537,7 +543,7 @@ async function runInlinePublicacoesAction(action, body) {
 }
 
 async function drainPublicacoesJobs({ preferredId = null, maxChunks = 6 } = {}) {
-  const safeChunks = Math.max(1, Math.min(Number(maxChunks || 1), 1));
+  const safeChunks = parseBoundedInt(maxChunks, { fallback: 1, min: 1, max: 6 });
   let chunks = 0;
   let activeJob = null;
   let completedAll = false;
@@ -610,8 +616,8 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, data });
       }
       if (action === "candidatos_processos") {
-        const page = Number(req.query.page || 1);
-        const pageSize = Number(req.query.pageSize || 20);
+        const page = parseBoundedInt(req.query.page, { fallback: 1, min: 1, max: 5000 });
+        const pageSize = parseBoundedInt(req.query.pageSize, { fallback: 20, min: 1, max: 50 });
         const query = String(req.query.query || "");
         const cursor = String(req.query.cursor || "");
         let data;
@@ -647,8 +653,8 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, data });
       }
       if (action === "candidatos_partes") {
-        const page = Number(req.query.page || 1);
-        const pageSize = Number(req.query.pageSize || 20);
+        const page = parseBoundedInt(req.query.page, { fallback: 1, min: 1, max: 5000 });
+        const pageSize = parseBoundedInt(req.query.pageSize, { fallback: 20, min: 1, max: 50 });
         const cursor = String(req.query.cursor || "");
         const query = String(req.query.query || "");
         const preferSnapshot = String(req.query.preferSnapshot || "1") !== "0";
@@ -695,14 +701,14 @@ export default async function handler(req, res) {
       if (action === "historico") {
         const data = await listAdminOperations({
           modulo: "publicacoes",
-          limit: Number(req.query.limit || 20),
+          limit: parseBoundedInt(req.query.limit, { fallback: 20, min: 1, max: 50 }),
         });
         return res.status(200).json({ ok: true, data });
       }
       if (action === "jobs") {
         const data = await listAdminJobs({
           modulo: "publicacoes",
-          limit: Number(req.query.limit || 20),
+          limit: parseBoundedInt(req.query.limit, { fallback: 20, min: 1, max: 50 }),
         });
         return res.status(200).json({ ok: true, data });
       }
@@ -711,8 +717,8 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, data });
       }
       if (action === "mesa_integrada") {
-        const page = Number(req.query.page || 1);
-        const pageSize = Number(req.query.pageSize || 20);
+        const page = parseBoundedInt(req.query.page, { fallback: 1, min: 1, max: 5000 });
+        const pageSize = parseBoundedInt(req.query.pageSize, { fallback: 20, min: 1, max: 50 });
         const query = String(req.query.query || "");
         const source = String(req.query.source || "todos");
         const cursor = String(req.query.cursor || "");
@@ -763,7 +769,7 @@ export default async function handler(req, res) {
       if (action === "mesa_integrada_selecao") {
         const query = String(req.query.query || "");
         const source = String(req.query.source || "todos");
-        const limit = Number(req.query.limit || 500);
+        const limit = parseBoundedInt(req.query.limit, { fallback: 500, min: 1, max: 5000 });
         let data;
         try {
           if ((source === "todos" || source === "partes") && String(req.query.preferSnapshot || "1") !== "0") {
@@ -800,8 +806,8 @@ export default async function handler(req, res) {
       }
       if (action === "publicacoes_pendentes") {
         const data = await listPublicationActivityBacklog(runtimeEnv, {
-          page: Number(req.query.page || 1),
-          pageSize: Number(req.query.pageSize || 20),
+          page: parseBoundedInt(req.query.page, { fallback: 1, min: 1, max: 5000 }),
+          pageSize: parseBoundedInt(req.query.pageSize, { fallback: 20, min: 1, max: 50 }),
         });
         return res.status(200).json({ ok: true, data });
       }
@@ -836,10 +842,10 @@ export default async function handler(req, res) {
             action: String(req.body?.jobAction || ""),
             payload: {
               processNumbers: parseProcessNumbers(req.body?.processNumbers),
-              limit: Number(req.body?.limit || 0),
-              createLimit: Number(req.body?.createLimit || 0),
-              syncLimit: Number(req.body?.syncLimit || 0),
-              snapshotLimit: Number(req.body?.snapshotLimit || 0),
+              limit: parseBoundedInt(req.body?.limit, { fallback: 0, min: 0, max: 500 }),
+              createLimit: parseBoundedInt(req.body?.createLimit, { fallback: 0, min: 0, max: 200 }),
+              syncLimit: parseBoundedInt(req.body?.syncLimit, { fallback: 0, min: 0, max: 200 }),
+              snapshotLimit: parseBoundedInt(req.body?.snapshotLimit, { fallback: 0, min: 0, max: 2000 }),
               jobControl: req.body?.jobControl || null,
             },
           });
@@ -876,32 +882,32 @@ export default async function handler(req, res) {
       if (action === "run_pending_jobs") {
         const data = await drainPublicacoesJobs({
           preferredId: req.body?.id || null,
-          maxChunks: Number(req.body?.maxChunks || 1),
+          maxChunks: parseBoundedInt(req.body?.maxChunks, { fallback: 1, min: 1, max: 6 }),
         });
         return res.status(200).json({ ok: true, data });
       }
       if (action === "criar_processos_publicacoes") {
         const data = await createProcessesFromPublicacoes(runtimeEnv, {
           processNumbers: parseProcessNumbers(req.body?.processNumbers),
-          limit: Number(req.body?.limit || 10),
+          limit: parseBoundedInt(req.body?.limit, { fallback: 10, min: 1, max: 15 }),
         });
         return res.status(200).json({ ok: true, data });
       }
       if (action === "sincronizar_publicacoes_activity") {
         const data = await syncPublicationActivities(runtimeEnv, {
           processNumbers: parseProcessNumbers(req.body?.processNumbers),
-          limit: Number(req.body?.limit || 5),
+          limit: parseBoundedInt(req.body?.limit, { fallback: 5, min: 1, max: 10 }),
         });
         return res.status(200).json({ ok: true, data });
       }
       if (action === "orquestrar_drenagem_publicacoes") {
-        const createLimit = Number(req.body?.createLimit || req.body?.limit || 10);
-        const syncLimit = Number(req.body?.syncLimit || Math.min(createLimit, 5) || 5);
+        const createLimit = parseBoundedInt(req.body?.createLimit || req.body?.limit, { fallback: 10, min: 1, max: 15 });
+        const syncLimit = parseBoundedInt(req.body?.syncLimit, { fallback: Math.min(createLimit, 5), min: 1, max: 10 });
         const data = await runPublicacoesOperationalPipeline(runtimeEnv, {
           processNumbers: parseProcessNumbers(req.body?.processNumbers),
           createLimit,
           syncLimit,
-          snapshotLimit: Number(req.body?.snapshotLimit || 500),
+          snapshotLimit: parseBoundedInt(req.body?.snapshotLimit, { fallback: 500, min: 50, max: 2000 }),
         });
         return res.status(200).json({ ok: true, data });
       }
@@ -932,8 +938,8 @@ export default async function handler(req, res) {
       }
       if (action === "run_advise_sync") {
         const data = await runAdviseSync({
-          maxPaginas: Number(req.body?.maxPaginas || req.body?.limit || 12),
-          porPagina: Number(req.body?.porPagina || 50),
+          maxPaginas: parseBoundedInt(req.body?.maxPaginas || req.body?.limit, { fallback: 12, min: 1, max: 50 }),
+          porPagina: parseBoundedInt(req.body?.porPagina, { fallback: 50, min: 1, max: 200 }),
           processNumbers: parseProcessNumbers(req.body?.processNumbers),
         });
         return res.status(200).json({ ok: true, data });
@@ -941,8 +947,8 @@ export default async function handler(req, res) {
       if (action === "run_advise_backfill") {
         try {
           const data = await runAdviseBackfill({
-            maxPaginas: Number(req.body?.limit || req.body?.maxPaginas || 5),
-            porPagina: Number(req.body?.porPagina || 100),
+            maxPaginas: parseBoundedInt(req.body?.limit || req.body?.maxPaginas, { fallback: 5, min: 1, max: 50 }),
+            porPagina: parseBoundedInt(req.body?.porPagina, { fallback: 100, min: 1, max: 200 }),
           });
           return res.status(200).json({ ok: true, data });
         } catch (error) {
@@ -967,14 +973,14 @@ export default async function handler(req, res) {
             payload: {
               processNumbers: queueType === "all" ? ["candidatos_processos", "mesa_integrada", "candidatos_partes"] : [queueType],
               limit: 1,
-              snapshotLimit: Number(req.body?.snapshotLimit || 500),
+              snapshotLimit: parseBoundedInt(req.body?.snapshotLimit, { fallback: 500, min: 50, max: 2000 }),
             },
           });
           return res.status(202).json({ ok: true, data });
         }
         const data = await rebuildPublicacoesQueueSnapshot(runtimeEnv, {
           queueType,
-          limit: Number(req.body?.snapshotLimit || 500),
+          limit: parseBoundedInt(req.body?.snapshotLimit, { fallback: 500, min: 50, max: 2000 }),
         });
         return res.status(200).json({ ok: true, data });
       }
