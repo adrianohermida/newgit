@@ -1,6 +1,6 @@
 import { requireAdminNode } from "../../lib/admin/node-auth";
 import { buildAdminChatErrorPayload, normalizeAdminChatBody, resolveAdminChatResponse } from "../../lib/lawdesk/adminChatRuntime.js";
-import { getRuntimeEnv } from "../../lib/runtime/local-env";
+import { getRuntimeEnv } from "../../lib/runtime/local-env.js";
 
 function sendJson(res, payload, status = 200) {
   res.status(status).json(payload);
