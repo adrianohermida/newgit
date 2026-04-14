@@ -179,14 +179,10 @@ function PublicacoesContent() {
     visibleSevereRecurringCount,
     syncWorkerShouldFocusCrm,
   } = usePublicacoesViewState({
-    actionState,
     activeJobId,
-    backendHealth,
     data: overview.data || {},
-    drainInFlight,
     executionHistory,
     filteredIntegratedRows,
-    handleAction: () => null,
     integratedPage,
     integratedPageSize,
     integratedQueue,
@@ -195,13 +191,10 @@ function PublicacoesContent() {
     pagedIntegratedRows,
     partesCandidates,
     processCandidates,
-    refreshIntegratedSnapshot: () => null,
     remoteHistory,
-    runPendingJobsNow: () => null,
     selectedIntegratedNumbers,
     selectedPartesKeys,
     selectedProcessKeys,
-    updateView: () => null,
     view,
   });
   const {
@@ -359,36 +352,6 @@ function PublicacoesContent() {
 
 
   const data = overview.data || {};
-  const {
-    adviseBackfillProgress,
-    adviseCursor,
-    adviseLastCycleTotal,
-    adviseLastRunAt,
-    adviseMode,
-    advisePersistedDelta,
-    adviseSync,
-    adviseTokenOk,
-    isDockedPublicacoesView,
-    isResultView,
-    latestHistory,
-    latestJob,
-    latestRemoteRun,
-    noPublicationActivityTypeConfigured,
-    operationalPlan,
-    pendingJobCount,
-    publicationActivityTypeHint,
-    publicationActivityTypes,
-    snapshotMesaIntegrada,
-    snapshotPartes,
-    snapshotProcessos,
-    syncWorkerLastPublicacoes,
-  } = usePublicacoesOverviewState({
-    data,
-    executionHistory,
-    jobs,
-    remoteHistory,
-    view,
-  });
   const {
     getOperationalPlanStepState,
     runOperationalPlanStep,

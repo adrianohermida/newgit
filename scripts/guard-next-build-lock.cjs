@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
-const { execSync, spawnSync } = require('node:child_process');
+const { execFileSync, execSync } = require('node:child_process');
 
 const nextDir = path.join(process.cwd(), '.next');
 const lockPath = path.join(nextDir, 'lock');
@@ -177,28 +177,29 @@ for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     console.error(`\nguard-next-build-lock: retrying build (attempt ${attempt}/${MAX_ATTEMPTS})...\n`);
   }
 
-  const result = spawnSync(process.execPath, buildArgs, {
-    stdio: ['inherit', 'pipe', 'pipe'],
-    shell: false,
-    env: process.env,
-  });
-
-  const stdout = result.stdout ? result.stdout.toString() : '';
-  const stderr = result.stderr ? result.stderr.toString() : '';
-  if (result.error) {
-    console.error(`guard-next-build-lock: failed to launch next build: ${result.error.message}`);
-  }
-  if (stdout) process.stdout.write(stdout);
-  if (stderr) process.stderr.write(stderr);
-
-  const combinedOutput = `${stdout}\n${stderr}`;
-  if ((result.status ?? 1) !== 0 && isBenignWindowsNextBuildFailure(combinedOutput)) {
-    console.warn('guard-next-build-lock: detected benign Next.js Windows ENOENT after a completed static generation step; accepting build for commit/deploy flow.');
+  let combinedOutput = '';
+  try {
+    execFileSync(process.execPath, buildArgs, {
+      stdio: 'inherit',
+      env: process.env,
+    });
     exitCode = 0;
     break;
-  }
+  } catch (error) {
+    const stdout = error.stdout ? error.stdout.toString() : '';
+    const stderr = error.stderr ? error.stderr.toString() : '';
+    combinedOutput = `${stdout}\n${stderr}\n${error.message || ''}`;
+    if (stdout) process.stdout.write(stdout);
+    if (stderr) process.stderr.write(stderr);
 
-  exitCode = result.status ?? 1;
+    if (isBenignWindowsNextBuildFailure(combinedOutput)) {
+      console.warn('guard-next-build-lock: detected benign Next.js Windows ENOENT after a completed static generation step; accepting build for commit/deploy flow.');
+      exitCode = 0;
+      break;
+    }
+
+    exitCode = error.status ?? 1;
+  }
   if (exitCode === 0) break;
 
   if (attempt < MAX_ATTEMPTS) {

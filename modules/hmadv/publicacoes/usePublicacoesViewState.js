@@ -1,8 +1,6 @@
 import { usePublicacoesDerivedState } from "./usePublicacoesDerivedState";
 import { usePublicacoesBlockingState } from "./usePublicacoesBlockingState";
 import { usePublicacoesOverviewState } from "./usePublicacoesOverviewState";
-import { usePublicacoesOperationalPlan } from "./usePublicacoesOperationalPlan";
-import { usePublicacoesDashboardState } from "./usePublicacoesDashboardState";
 
 export function usePublicacoesViewState(params) {
   const derived = usePublicacoesDerivedState({
@@ -36,30 +34,5 @@ export function usePublicacoesViewState(params) {
     view: params.view,
   });
 
-  const operationalPlanState = usePublicacoesOperationalPlan({
-    actionState: params.actionState,
-    handleAction: params.handleAction,
-    latestHistory: overview.latestHistory,
-    refreshIntegratedSnapshot: params.refreshIntegratedSnapshot,
-    updateView: params.updateView,
-  });
-
-  const dashboard = usePublicacoesDashboardState({
-    actionState: params.actionState,
-    activeJobId: params.activeJobId,
-    backendHealth: params.backendHealth,
-    blockingState: blocking,
-    data: params.data,
-    drainInFlight: params.drainInFlight,
-    handleAction: params.handleAction,
-    jobs: params.jobs,
-    partesCandidates: params.partesCandidates,
-    processCandidates: params.processCandidates,
-    refreshIntegratedSnapshot: params.refreshIntegratedSnapshot,
-    remoteHistory: params.remoteHistory,
-    runPendingJobsNow: params.runPendingJobsNow,
-    updateView: params.updateView,
-  });
-
-  return { ...blocking, ...dashboard, ...derived, ...operationalPlanState, ...overview };
+  return { ...blocking, ...derived, ...overview };
 }
