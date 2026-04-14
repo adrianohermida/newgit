@@ -13,6 +13,7 @@ import {
   shouldAutoProbeBrowserLocalRuntime,
 } from "../lib/lawdesk/browser-local-runtime";
 import { formatLawdeskProviderLabel } from "../lib/lawdesk/providers";
+import { useInternalTheme } from "./interno/InternalThemeProvider";
 import {
   applyLlmTestConsoleFilters,
   buildDiagnosticReport,
@@ -42,17 +43,31 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function formatStatusTone(status) {
-  if (status === "operational" || status === "ok" || status === "success") return "border-[#234034] text-[#8FCFA9] bg-[rgba(35,64,52,0.18)]";
-  if (status === "degraded" || status === "running") return "border-[#8b6f33] text-[#D9B46A] bg-[rgba(139,111,51,0.18)]";
-  if (status === "failed" || status === "error") return "border-[#5b2d2d] text-[#f2b2b2] bg-[rgba(127,29,29,0.16)]";
-  return "border-[#22342F] text-[#D8DEDA] bg-[rgba(255,255,255,0.02)]";
+function formatStatusTone(status, isLightTheme = false) {
+  if (status === "operational" || status === "ok" || status === "success") {
+    return isLightTheme
+      ? "border-[#8dc8a3] bg-[#effaf2] text-[#166534]"
+      : "border-[#234034] text-[#8FCFA9] bg-[rgba(35,64,52,0.18)]";
+  }
+  if (status === "degraded" || status === "running") {
+    return isLightTheme
+      ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]"
+      : "border-[#8b6f33] text-[#D9B46A] bg-[rgba(139,111,51,0.18)]";
+  }
+  if (status === "failed" || status === "error") {
+    return isLightTheme
+      ? "border-[#e7b3b3] bg-[#fff1f1] text-[#991b1b]"
+      : "border-[#5b2d2d] text-[#f2b2b2] bg-[rgba(127,29,29,0.16)]";
+  }
+  return isLightTheme
+    ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#4b5563]"
+    : "border-[#22342F] text-[#D8DEDA] bg-[rgba(255,255,255,0.02)]";
 }
 
-function formatTimelineTone(tone) {
-  if (tone === "error") return "border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] text-[#f2b2b2]";
-  if (tone === "warn") return "border-[#8b6f33] bg-[rgba(139,111,51,0.16)] text-[#D9B46A]";
-  return "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]";
+function formatTimelineTone(tone, isLightTheme = false) {
+  if (tone === "error") return isLightTheme ? "border-[#e7b3b3] bg-[#fff1f1] text-[#991b1b]" : "border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] text-[#f2b2b2]";
+  if (tone === "warn") return isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#8b6f33] bg-[rgba(139,111,51,0.16)] text-[#D9B46A]";
+  return isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#4b5563]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]";
 }
 
 function formatDuration(durationMs) {
@@ -258,6 +273,7 @@ function ProviderMatrixCard({ item, onRun }) {
 }
 
 function ResultCard({ result, onSelect }) {
+  const { isLightTheme } = useInternalTheme();
   return (
     <article
       role="button"
@@ -269,30 +285,30 @@ function ResultCard({ result, onSelect }) {
           onSelect(result.id);
         }
       }}
-      className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 transition hover:border-[#C5A059]"
+      className={`rounded-[24px] border p-4 transition ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] hover:border-[#c79b2c]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#C5A059]"}`}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#7F928C]">{result.providerLabel}</p>
-          <h3 className="mt-1 text-lg font-semibold text-[#F5F1E8]">{result.provider}</h3>
+          <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#6b7280]" : "text-[#7F928C]"}`}>{result.providerLabel}</p>
+          <h3 className={`mt-1 text-lg font-semibold ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{result.provider}</h3>
         </div>
-        <span className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em] ${formatStatusTone(result.status)}`}>
+        <span className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em] ${formatStatusTone(result.status, isLightTheme)}`}>
           {result.status}
         </span>
       </div>
 
       <div className="mt-3 grid gap-2 md:grid-cols-3">
-        <div className="rounded-[18px] border border-[#22342F] px-3 py-2">
-          <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Source</p>
-          <p className="mt-1 text-sm text-[#F5F1E8]">{result.source || "n/a"}</p>
+        <div className={`rounded-[18px] border px-3 py-2 ${isLightTheme ? "border-[#d7d4cb]" : "border-[#22342F]"}`}>
+          <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#6b7280]" : "text-[#7F928C]"}`}>Origem</p>
+          <p className={`mt-1 text-sm ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{result.source || "n/a"}</p>
         </div>
-        <div className="rounded-[18px] border border-[#22342F] px-3 py-2">
-          <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Modelo solicitado</p>
-          <p className="mt-1 text-sm text-[#F5F1E8]">{result.requestedModel || result.model || "n/a"}</p>
+        <div className={`rounded-[18px] border px-3 py-2 ${isLightTheme ? "border-[#d7d4cb]" : "border-[#22342F]"}`}>
+          <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#6b7280]" : "text-[#7F928C]"}`}>Modelo solicitado</p>
+          <p className={`mt-1 text-sm ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{result.requestedModel || result.model || "n/a"}</p>
         </div>
-        <div className="rounded-[18px] border border-[#22342F] px-3 py-2">
-          <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Duracao</p>
-          <p className="mt-1 text-sm text-[#F5F1E8]">{formatDuration(result.durationMs)}</p>
+        <div className={`rounded-[18px] border px-3 py-2 ${isLightTheme ? "border-[#d7d4cb]" : "border-[#22342F]"}`}>
+          <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#6b7280]" : "text-[#7F928C]"}`}>Duracao</p>
+          <p className={`mt-1 text-sm ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{formatDuration(result.durationMs)}</p>
         </div>
       </div>
 
@@ -303,9 +319,9 @@ function ResultCard({ result, onSelect }) {
         </div>
       ) : null}
 
-      <div className="mt-4 rounded-[20px] border border-[#22342F] bg-[rgba(7,9,8,0.72)] p-4">
-        <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Resposta</p>
-        <p className="mt-2 line-clamp-5 whitespace-pre-wrap text-sm leading-7 text-[#F5F1E8]">{result.text}</p>
+      <div className={`mt-4 rounded-[20px] border p-4 ${isLightTheme ? "border-[#d7d4cb] bg-white" : "border-[#22342F] bg-[rgba(7,9,8,0.72)]"}`}>
+        <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#6b7280]" : "text-[#7F928C]"}`}>Resposta</p>
+        <p className={`mt-2 line-clamp-5 whitespace-pre-wrap text-sm leading-7 ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{result.text}</p>
       </div>
 
       {result.error ? (
@@ -327,23 +343,24 @@ function ConsoleRail({
   sourceOptions,
   onOpenDiagnostics,
 }) {
+  const { isLightTheme } = useInternalTheme();
   const activeEntry = entries.find((entry) => entry.id === activeEntryId) || entries[0] || null;
   const latestCreatedAt = activeEntry?.createdAt ? new Date(activeEntry.createdAt).toLocaleTimeString("pt-BR") : "n/a";
 
   return (
-    <aside className="min-h-0 overflow-hidden rounded-[28px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(9,13,12,0.98),rgba(6,9,8,0.98))] shadow-[0_16px_48px_rgba(0,0,0,0.24)]">
-      <div className="border-b border-[#1B2925] px-4 py-4">
+    <aside className={`min-h-0 overflow-hidden rounded-[28px] border shadow-[0_16px_48px_rgba(0,0,0,0.18)] ${isLightTheme ? "border-[#d7d4cb] bg-[linear-gradient(180deg,#ffffff,#f7f4ec)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(9,13,12,0.98),rgba(6,9,8,0.98))]"}`}>
+      <div className={`px-4 py-4 ${isLightTheme ? "border-b border-[#e5e0d4]" : "border-b border-[#1B2925]"}`}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Console LLM Test</p>
-            <h2 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[#F5F1E8]">Log dedicado da IA</h2>
-            <p className="mt-2 text-sm leading-6 text-[#8FA39C]">
-              Timeline exclusiva do smoke test, request, resposta, telemetria e falhas do provider.
+            <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#6b7280]" : "text-[#7F928C]"}`}>Historico de validacao</p>
+            <h2 className={`mt-2 text-[22px] font-semibold tracking-[-0.03em] ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>Console dedicado da IA</h2>
+            <p className={`mt-2 text-sm leading-6 ${isLightTheme ? "text-[#4b5563]" : "text-[#8FA39C]"}`}>
+              Acompanhe request, resposta, telemetria e sinais de falha do modelo em um unico fluxo.
             </p>
           </div>
-          <div className="rounded-[20px] border border-[#22342F] px-3 py-2 text-right">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Ultimo evento</p>
-            <p className="mt-1 text-sm font-semibold text-[#F5F1E8]">{latestCreatedAt}</p>
+          <div className={`rounded-[20px] border px-3 py-2 text-right ${isLightTheme ? "border-[#d7d4cb]" : "border-[#22342F]"}`}>
+            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#6b7280]" : "text-[#7F928C]"}`}>Ultimo evento</p>
+            <p className={`mt-1 text-sm font-semibold ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{latestCreatedAt}</p>
           </div>
         </div>
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -489,6 +506,7 @@ function ConsoleRail({
 
 export default function LLMTestChat() {
   const router = useRouter();
+  const { isLightTheme } = useInternalTheme();
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [provider, setProvider] = useState("");
   const [providerCatalog, setProviderCatalog] = useState([]);

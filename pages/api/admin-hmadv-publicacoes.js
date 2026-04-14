@@ -84,6 +84,37 @@ function buildSnapshotSafeEmpty({ page, pageSize, source, query, message }) {
   };
 }
 
+async function buildAdviseBackfillFallback(body = {}, error = null) {
+  const history = await listAdminOperations({
+    modulo: "publicacoes",
+    acao: "run_advise_backfill",
+    limit: 5,
+  }).catch(() => ({ items: [] }));
+  const latestSuccess = (history?.items || []).find((item) => item?.status === "success") || null;
+  const latestError = (history?.items || []).find((item) => item?.status === "error") || null;
+  const overview = await getPublicacoesOverview().catch(() => null);
+  return {
+    status: "fallback_error",
+    execucao_parcial: true,
+    upstream_error: error?.message || "Falha ao executar sync-advise-backfill.",
+    latestSuccessfulRunAt: latestSuccess?.created_at || latestSuccess?.finished_at || null,
+    latestSuccessfulSummary: latestSuccess?.result_summary || {},
+    latestFailedRunAt: latestError?.created_at || latestError?.finished_at || null,
+    latestFailedSummary: latestError?.result_summary || {},
+    publicacoesTotal: Number(overview?.publicacoesTotal || 0),
+    publicacoesOperacionais: Number(overview?.publicacoesOperacionais || 0),
+    publicacoesSemProcesso: Number(overview?.publicacoesSemProcesso || 0),
+    publicacoesVinculadas: Number(overview?.publicacoesVinculadas || 0),
+    publicacoesComActivity: Number(overview?.publicacoesComActivity || 0),
+    partesTotal: Number(overview?.partesTotal || 0),
+    adviseCursorTotal: Number(overview?.adviseCursorTotal || 0),
+    advisePersistedDelta: Number(overview?.advisePersistedDelta || 0),
+    paginasPlanejadas: Number(body?.limit || body?.maxPaginas || 5),
+    porPagina: Number(body?.porPagina || 100),
+    uiHint: "O backfill do Advise falhou na edge function, mas o portal preservou o estado atual para continuarmos a drenagem sem quebrar a interface.",
+  };
+}
+
 function parseProcessNumbers(value) {
   if (!value) return [];
   if (Array.isArray(value)) return value.map((item) => String(item || "").trim()).filter(Boolean);
@@ -810,27 +841,7 @@ export default async function handler(req, res) {
           });
           return res.status(200).json({ ok: true, data });
         } catch (error) {
-          const history = await listAdminOperations({
-            modulo: "publicacoes",
-            acao: "run_advise_backfill",
-            limit: 5,
-          }).catch(() => ({ items: [] }));
-          const latestSuccess = (history?.items || []).find((item) => item?.status === "success") || null;
-          const overview = await getPublicacoesOverview().catch(() => null);
-          const fallback = {
-            status: "fallback_error",
-            execucao_parcial: true,
-            upstream_error: error?.message || "Falha ao executar sync-advise-backfill.",
-            latestSuccessfulRunAt: latestSuccess?.created_at || latestSuccess?.finished_at || null,
-            latestSuccessfulSummary: latestSuccess?.result_summary || {},
-            publicacoesTotal: Number(overview?.publicacoesTotal || 0),
-            publicacoesOperacionais: Number(overview?.publicacoesOperacionais || 0),
-            publicacoesSemProcesso: Number(overview?.publicacoesSemProcesso || 0),
-            adviseCursorTotal: Number(overview?.adviseCursorTotal || 0),
-            advisePersistedDelta: Number(overview?.advisePersistedDelta || 0),
-            paginasPlanejadas: Number(req.body?.limit || req.body?.maxPaginas || 5),
-            uiHint: "O backfill do Advise falhou na edge function, mas o portal preservou o estado atual para continuarmos a drenagem sem quebrar a interface.",
-          };
+          const fallback = await buildAdviseBackfillFallback(req.body || {}, error);
           try {
             await logAdminOperation(runtimeEnv, {
               modulo: "publicacoes",
@@ -868,6 +879,19 @@ export default async function handler(req, res) {
     res.setHeader("Allow", "GET, POST");
     return res.status(405).json({ ok: false, error: "Method not allowed." });
   } catch (error) {
+    if (req.method === "POST" && String(req.body?.action || "") === "run_advise_backfill") {
+      const fallback = await buildAdviseBackfillFallback(req.body || {}, error);
+      try {
+        await logAdminOperation(runtimeEnv, {
+          modulo: "publicacoes",
+          acao: "run_advise_backfill_emergency_fallback",
+          status: "warning",
+          payload: req.body || {},
+          result: fallback,
+        });
+      } catch {}
+      return res.status(200).json({ ok: true, data: fallback });
+    }
     return res.status(500).json({ ok: false, error: error.message || "Falha no modulo administrativo de publicacoes." });
   }
 }
