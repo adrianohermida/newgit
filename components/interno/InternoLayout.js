@@ -356,6 +356,7 @@ export default function InternoLayout({
           {!isCopilotWorkspace ? (
             <InternoShellHeader
               consoleOpen={consoleOpen}
+              description={description}
               handleHeaderSearchSelect={handleHeaderSearchSelect}
               handleSignOut={handleSignOut}
               handleToggleCopilot={handleToggleCopilot}
@@ -378,6 +379,7 @@ export default function InternoLayout({
               router={router}
               setUserMenuOpen={setUserMenuOpen}
               toggleTheme={toggleTheme}
+              title={title}
               userMenuOpen={userMenuOpen}
               userMenuRef={userMenuRef}
             />
@@ -387,6 +389,7 @@ export default function InternoLayout({
             guide={integrationGuide}
             isCopilotWorkspace={isCopilotWorkspace}
             isLightTheme={isLightTheme}
+            showModuleHeader={false}
             showExtensionManager={showExtensionManager}
             title={title}
           >

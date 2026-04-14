@@ -2,14 +2,14 @@ import { useEffect, useRef } from "react";
 import InternoUserAvatarMenu from "./InternoUserAvatarMenu";
 
 const actionButtonClass = (isLightTheme, active = false) =>
-  `flex h-10 w-10 items-center justify-center rounded-[12px] border transition ${
+  `flex h-10 w-10 items-center justify-center rounded-[14px] border transition-all duration-200 ${
     active
       ? isLightTheme
-        ? "border-[#C5A059] bg-[#FFF4DC] text-[#9A6E2D]"
-        : "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#F3D69A]"
+        ? "border-[#C5A059] bg-[#FFF4DC] text-[#9A6E2D] shadow-[0_12px_28px_rgba(197,160,89,0.14)]"
+        : "border-[#C5A059] bg-[rgba(197,160,89,0.12)] text-[#F3D69A] shadow-[0_12px_28px_rgba(0,0,0,0.22)]"
       : isLightTheme
-        ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F] hover:border-[#C5A059] hover:text-[#C5A059]"
-        : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
+        ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.9)] text-[#22312F] hover:-translate-y-[1px] hover:border-[#C5A059] hover:text-[#C5A059]"
+        : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA] hover:-translate-y-[1px] hover:border-[#C5A059] hover:text-[#C5A059]"
   }`;
 
 function HeaderIconButton({ active = false, children, isLightTheme, onClick, title }) {
@@ -21,10 +21,32 @@ function HeaderIconButton({ active = false, children, isLightTheme, onClick, tit
   );
 }
 
+function HeaderSessionMeta({ description, isLightTheme, routePath, title }) {
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex rounded-full border border-[#C5A059] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#C5A059]">
+          Workspace
+        </span>
+        <span className={`truncate text-[11px] ${isLightTheme ? "text-[#70808D]" : "text-[#7F928C]"}`}>{routePath}</span>
+      </div>
+      <p className={`mt-2 truncate text-base font-semibold tracking-[-0.02em] ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
+        {title || "Conversa principal com apoio contextual"}
+      </p>
+      {description ? (
+        <p className={`mt-1 truncate text-[12px] ${isLightTheme ? "text-[#63737F]" : "text-[#8FA39C]"}`}>
+          {description}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export default function InternoShellHeader(props) {
   const searchInputRef = useRef(null);
   const {
     consoleOpen,
+    description,
     handleHeaderSearchSelect,
     handleSignOut,
     handleToggleCopilot,
@@ -46,6 +68,7 @@ export default function InternoShellHeader(props) {
     rightRailOpen,
     router,
     setUserMenuOpen,
+    title,
     toggleTheme,
     userMenuOpen,
     userMenuRef,
@@ -71,25 +94,27 @@ export default function InternoShellHeader(props) {
   }, []);
 
   return (
-    <div
-      className={`sticky top-0 z-20 shrink-0 border-b px-4 py-3 md:px-5 ${
+    <header
+      className={`sticky top-0 z-30 shrink-0 border-b px-4 py-3 md:px-5 ${
         isLightTheme
-          ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,249,251,0.94))]"
-          : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.995),rgba(7,9,8,0.97))]"
+          ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,249,251,0.94))]"
+          : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.995),rgba(7,9,8,0.96))]"
       }`}
     >
-      <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[minmax(180px,0.7fr)_minmax(340px,720px)_auto]">
-        <div className="hidden min-w-0 lg:block">
-          <p className="text-[10px] uppercase tracking-[0.24em] text-[#C5A059]">Interno</p>
-          <p className={`truncate text-xs ${isLightTheme ? "text-[#60707D]" : "text-[#9BAEA8]"}`}>{router.pathname}</p>
-        </div>
+      <div className="grid grid-cols-1 items-center gap-3 xl:grid-cols-[minmax(240px,1fr)_minmax(420px,720px)_minmax(280px,1fr)]">
+        <HeaderSessionMeta
+          description={description}
+          isLightTheme={isLightTheme}
+          routePath={router.pathname}
+          title={title}
+        />
 
         <div ref={headerSearchRef} className="relative mx-auto w-full max-w-[760px]">
           <div
-            className={`flex h-11 items-center gap-3 rounded-[14px] border px-3 ${
+            className={`flex h-12 items-center gap-3 rounded-[16px] border px-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${
               isLightTheme
-                ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.92)]"
-                : "border-[#22342F] bg-[linear-gradient(180deg,rgba(12,15,14,0.90),rgba(8,10,9,0.92))]"
+                ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.95)]"
+                : "border-[#22342F] bg-[linear-gradient(180deg,rgba(12,15,14,0.92),rgba(8,10,9,0.96))]"
             }`}
           >
             <svg
@@ -117,9 +142,14 @@ export default function InternoShellHeader(props) {
                 isLightTheme ? "text-[#22312F] placeholder:text-[#8A99A7]" : "text-[#F4F1EA] placeholder:text-[#60706A]"
               }`}
             />
-            <span className={`hidden rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] md:inline-flex ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
-              Ctrl+K
-            </span>
+            <div className="hidden items-center gap-1 md:flex">
+              <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
+                Ctrl+K
+              </span>
+              <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
+                Ctrl+Shift+F
+              </span>
+            </div>
           </div>
           {headerSearchResults.length ? (
             <div
@@ -155,19 +185,6 @@ export default function InternoShellHeader(props) {
 
         <div className="flex items-center justify-end gap-2">
           <HeaderIconButton
-            active={Boolean(railChatOpen)}
-            isLightTheme={isLightTheme}
-            onClick={handleToggleCopilot}
-            title={railChatOpen ? "Fechar conversa lateral" : "Abrir conversa lateral"}
-          >
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M7 10h10" />
-              <path d="M7 14h6" />
-              <path d="M6 5h12a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-7l-4 3v-3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z" />
-            </svg>
-          </HeaderIconButton>
-
-          <HeaderIconButton
             active={!leftCollapsed}
             isLightTheme={isLightTheme}
             onClick={onToggleLeftCollapsed}
@@ -190,6 +207,19 @@ export default function InternoShellHeader(props) {
               <rect x="3" y="4" width="18" height="16" rx="2" />
               <path d="M3 15h18" />
               {consoleOpen ? <path d="m10 11 2-2 2 2" /> : <path d="m10 9 2 2 2-2" />}
+            </svg>
+          </HeaderIconButton>
+
+          <HeaderIconButton
+            active={Boolean(railChatOpen)}
+            isLightTheme={isLightTheme}
+            onClick={handleToggleCopilot}
+            title={railChatOpen ? "Fechar conversa lateral" : "Abrir conversa lateral"}
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M7 10h10" />
+              <path d="M7 14h6" />
+              <path d="M6 5h12a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-7l-4 3v-3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z" />
             </svg>
           </HeaderIconButton>
 
@@ -243,6 +273,6 @@ export default function InternoShellHeader(props) {
           />
         </div>
       </div>
-    </div>
+    </header>
   );
 }
