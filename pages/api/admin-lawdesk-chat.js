@@ -1,5 +1,6 @@
 import { requireAdminNode } from "../../lib/admin/node-auth";
 import { buildAdminChatErrorPayload, normalizeAdminChatBody, resolveAdminChatResponse } from "../../lib/lawdesk/adminChatRuntime.js";
+import { getRuntimeEnv } from "../../lib/runtime/local-env";
 
 function sendJson(res, payload, status = 200) {
   res.status(status).json(payload);
@@ -36,7 +37,7 @@ export default async function handler(req, res) {
 
   try {
     const body = normalizeAdminChatBody(req.body);
-    const result = await resolveAdminChatResponse(process.env, body);
+    const result = await resolveAdminChatResponse(getRuntimeEnv(), body);
     sendJson(res, result.payload, result.status);
   } catch (error) {
     sendError(res, error?.message || "Falha ao processar requisicao administrativa.", 500);
