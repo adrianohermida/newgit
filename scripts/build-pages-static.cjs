@@ -1,9 +1,22 @@
 const { spawnSync } = require("node:child_process");
+const path = require("node:path");
 
 function run(command, args, extraEnv = {}) {
-  const result = spawnSync(command, args, {
+  const isWindows = process.platform === "win32";
+  const resolvedCommand =
+    isWindows && command === "node"
+      ? process.execPath
+      : command;
+  const resolvedArgs =
+    isWindows && command === "npm"
+      ? [process.env.npm_execpath || path.join(path.dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"), ...args]
+      : args;
+  const finalCommand = isWindows && command === "npm" ? process.execPath : resolvedCommand;
+
+  const result = spawnSync(finalCommand, resolvedArgs, {
     stdio: "inherit",
-    shell: process.platform === "win32",
+    shell: false,
+    cwd: process.cwd(),
     env: {
       ...process.env,
       ...extraEnv,
@@ -16,4 +29,4 @@ function run(command, args, extraEnv = {}) {
 }
 
 run("npm", ["run", "build:core"], { STATIC_EXPORT: "1" });
-run("node", ["scripts/normalize-pages-export-assets.js"], { STATIC_EXPORT: "1" });
+run("node", [path.join("scripts", "normalize-pages-export-assets.js")], { STATIC_EXPORT: "1" });

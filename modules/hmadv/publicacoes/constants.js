@@ -1,7 +1,7 @@
 export const PUBLICACOES_VIEW_ITEMS = [
-  { key: "operacao", label: "Visao geral" },
-  { key: "filas", label: "Prioridades" },
-  { key: "resultado", label: "Resultado" },
+  { key: "operacao", label: "Triagem" },
+  { key: "filas", label: "Mesa" },
+  { key: "resultado", label: "Execucao" },
 ];
 
 export const HISTORY_STORAGE_KEY = "hmadv:interno-publicacoes:history:v1";

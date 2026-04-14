@@ -1,10 +1,7 @@
 ﻿import useDotobotExtensionBridge from "./DotobotExtensionBridge";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useMediaQuery } from "react-responsive";
-import { TransitionGroup, CSSTransition } from "react-transition-group";
 
-import { detectIntent } from "../../lib/ai/intent_router";
-import { getCurrentContext } from "../../lib/ai/context_engine";
 import { useRouter } from "next/router";
 import { adminFetch } from "../../lib/admin/api";
 import {
@@ -26,12 +23,16 @@ import { buildLocalBootstrapPlan } from "../../lib/lawdesk/local-bootstrap.js";
 import { buildSupabaseLocalBootstrap } from "../../lib/lawdesk/supabase-local-bootstrap.js";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import DotobotMessageBubble from "./DotobotMessageBubble";
+import DotobotCollapsedTrigger from "./DotobotCollapsedTrigger";
+import DotobotCompactConversationCard from "./DotobotCompactConversationCard";
+import DotobotConversationMenu from "./DotobotConversationMenu";
+import DotobotWorkspaceHeader from "./DotobotWorkspaceHeader";
 import { useInternalTheme } from "./InternalThemeProvider";
 import {
   FocusedCopilotAside,
-  FocusedConversationComposer,
-  FocusedConversationHeader,
-  FocusedConversationThread,
+  FocusedConversationCenter,
+  FocusedHistoryRail,
+  GenericCopilotRightRail,
 } from "./copilot";
 import { cancelTaskRun, createPendingTaskRun, pollTaskRun, startTaskRun } from "./dotobotTaskRun";
 import {
@@ -45,6 +46,20 @@ import {
 } from "./dotobotPanelContext";
 import { buildLocalInferenceAlert, buildRagAlert } from "./dotobotPanelAlerts";
 import {
+  buildConversationConcatBlock,
+  buildLocalFallbackActions,
+  buildLocalFallbackResponse,
+  buildModuleFallbackPlaybook,
+  buildRagSummary,
+} from "./dotobotPanelFallback";
+import {
+  COPILOT_QUICK_SHORTCUTS,
+  DotobotModal,
+  getVoiceRecognition,
+  SLASH_COMMANDS,
+  TaskStatusChip,
+} from "./dotobotPanelUi";
+import {
   buildAgentLabIncidentPreview,
   buildAgentLabQueuePreview,
   buildAgentLabSyncPreview,
@@ -56,7 +71,22 @@ import {
   formatRuntimeTimeLabel,
   parseProviderPresentation,
 } from "./dotobotPanelInsights";
+import {
+  buildDiagnosticReport,
+  DOTOBOT_CONSOLE_META,
+  DOTOBOT_TASK_CONSOLE_META,
+  getLastTask,
+  normalizeAttachment,
+  safeLocalGet,
+  safeLocalSet,
+  stringifyDiagnostic,
+} from "./dotobotPanelUtils";
 import { appendActivityLog, getModuleHistory, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
+import {
+  handleCopilotDebug as emitCopilotDebug,
+  logDotobotUi as emitDotobotUiLog,
+} from "./dotobotPanelLogging";
+import { useDotobotAdminSession } from "./dotobotPanelRuntime";
 import {
   CHAT_STORAGE_PREFIX,
   CONVERSATIONS_STORAGE_PREFIX,
@@ -102,413 +132,6 @@ import {
   shouldHydrateBrowserLocalProvider,
 } from "./dotobotPanelConfig";
 
-function safeLocalSet(key, value) {
-  try {
-    window.localStorage.setItem(key, value);
-  } catch (e) {
-    if (e?.name !== "QuotaExceededError" && e?.code !== 22) return;
-    try {
-      const parsed = JSON.parse(value);
-      const trimmed = Array.isArray(parsed) ? parsed.slice(-Math.ceil(parsed.length / 2)) : parsed;
-      window.localStorage.setItem(key, JSON.stringify(trimmed));
-    } catch {
-      // quota insuficiente — silent fail
-    }
-  }
-}
-
-function safeLocalGet(key, fallback = "") {
-  try {
-    const value = window.localStorage.getItem(key);
-    return value ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-// Utilitário para sumarizar contexto RAG
-function buildRagSummary(rag) {
-  if (!rag) return { count: 0, sources: [], documents: [] };
-  const retrieval = rag.retrieval || rag.supabase || rag.context || {};
-  const matches = retrieval.matches || retrieval.items || retrieval.results || [];
-  const documents = rag.documents || retrieval.documents || [];
-  const sources = [...new Set(matches.map((item) => item?.source || item?.source_key || item?.provider || "context"))];
-  return {
-    count: Array.isArray(matches) ? matches.length : 0,
-    sources,
-    documents,
-  };
-}
-
-
-function buildModuleFallbackPlaybook(moduleKey, intentLabel, context = {}) {
-  const playbooks = {
-    processos: {
-      summary:
-        intentLabel === "analyze_case"
-          ? "Priorize leitura de fatos, CNJ, polos e gaps operacionais antes de qualquer conclusão."
-          : "Confirme CNJ, espelho operacional e consistência de vínculo com CRM antes de seguir.",
-      steps: [
-        "Validar identificadores do processo e se o contexto veio com CNJ ou referência confiável.",
-        "Abrir a mesa de Processos para revisar backlog, polos faltantes e reflexos operacionais.",
-        "Se houver impacto em atendimento ou CRM, encaminhar o caso com resumo curto para o módulo responsável.",
-      ],
-    },
-    publicacoes: {
-      summary: "Trate a fila, o reflexo e a extração de partes antes de reexecutar qualquer rotina pesada.",
-      steps: [
-        "Conferir se a publicação depende de processo já reconciliado e com partes válidas.",
-        "Abrir Publicações para revisar fila, chunks de backfill e sinais de falha no reflexo.",
-        "Se o caso for sensível, encaminhar handoff com número do processo e risco operacional observado.",
-      ],
-    },
-    financeiro: {
-      summary:
-        intentLabel === "query_data"
-          ? "Use o contexto para localizar recebível, deal ou referência de processo antes de reconciliar."
-          : "Priorize reconciliação, vínculo com deals e bloqueios de publicação financeira.",
-      steps: [
-        "Confirmar se a missão fala de cobrança, recebível, account, deal ou referência processual.",
-        "Abrir Financeiro em contexto para buscar o processo ou contrato relacionado.",
-        "Se houver decisão humana pendente, mover o caso para Aprovações ou AI Task com resumo objetivo.",
-      ],
-    },
-    agenda: {
-      summary: "Cheque confirmação, preparação e handoff do compromisso antes de acionar qualquer automação.",
-      steps: [
-        "Validar nome, e-mail e horário do agendamento que motivou a conversa.",
-        "Abrir Agenda para revisar status, follow-up e necessidade de preparo adicional.",
-        "Se houver dependência processual ou comercial, encaminhar o compromisso com contexto concatenado.",
-      ],
-    },
-    leads: {
-      summary: "Qualifique origem, aderência e próximo passo comercial antes de movimentar o CRM.",
-      steps: [
-        "Conferir e-mail, origem e intenção comercial identificada na conversa.",
-        "Abrir Leads em contexto para revisar triagem e possíveis vínculos com Contatos.",
-        "Se o lead estiver maduro, preparar handoff para Agenda ou CRM com resumo de triagem.",
-      ],
-    },
-    contatos: {
-      summary: "Revise deduplicação, vínculo CRM e consistência cadastral antes de atualizar registros.",
-      steps: [
-        "Confirmar se a conversa trouxe e-mail, telefone ou identificador confiável do contato.",
-        "Abrir Contatos para revisar duplicidade, enriquecimento e relacionamento com contas.",
-        "Se houver conflito de dados, registrar a divergência e seguir com validação humana.",
-      ],
-    },
-    jobs: {
-      summary: "Olhe a fila e o gargalo antes de reexecutar jobs ou alterar lote em andamento.",
-      steps: [
-        "Identificar qual execução, fila ou backlog motivou a missão atual.",
-        "Abrir Jobs para revisar estado, retries, volume e impacto operacional.",
-        "Se a execução depender de módulo específico, fazer handoff com run, contexto e hipótese do gargalo.",
-      ],
-    },
-    aprovacoes: {
-      summary: "Avalie impacto, prioridade e dependências antes de decidir a fila de aprovação.",
-      steps: [
-        "Confirmar qual solicitação ou cadastro depende de decisão humana.",
-        "Abrir Aprovações para revisar fila, risco e impacto da decisão pendente.",
-        "Se houver dependência financeira ou cadastral, anexar resumo ao handoff correspondente.",
-      ],
-    },
-  };
-
-  return (
-    playbooks[moduleKey] || {
-      summary: "Defina o módulo responsável, consolide o contexto e avance com o próximo passo mais curto.",
-      steps: [
-        `Contexto atual: ${context.projectLabel || "Geral"}.`,
-        "Abrir o módulo mais próximo da missão e confirmar os identificadores operacionais.",
-        "Se a execução exigir acompanhamento, encaminhar a missão ao AI Task com resumo do objetivo.",
-      ],
-    }
-  );
-}
-
-function buildLocalFallbackResponse({
-  query,
-  routePath,
-  activeConversation,
-  activeTask,
-  globalContext,
-  selectedSkillId,
-  failureMode,
-}) {
-  const intent = detectIntent(String(query || ""));
-  const uiContext = getCurrentContext({
-    route: routePath || "/interno/copilot",
-    entityId: activeConversation?.id || activeTask?.id,
-    entityType: activeConversation?.projectKey || "conversation",
-    recentActivity: Array.isArray(activeConversation?.messages) ? activeConversation.messages.slice(-3) : [],
-    userRole: "admin",
-  });
-  const matchedModule = inferCopilotModuleFromRoute(routePath);
-  const projectLabel = activeConversation?.projectLabel || matchedModule?.label || "Geral";
-  const conversationTitle = activeConversation?.title || "Nova conversa";
-  const nextRoute = matchedModule?.href || routePath || "/interno/copilot";
-  const modulePlaybook = buildModuleFallbackPlaybook(
-    activeConversation?.projectKey || matchedModule?.key || "geral",
-    intent.intent,
-    { projectLabel }
-  );
-  const nextAction =
-    intent.intent === "generate_document"
-      ? "Reunir fatos, base legal e pedido antes de abrir a tarefa de documento."
-      : intent.intent === "create_task"
-        ? "Quebrar a missão em etapas curtas e encaminhar para execução assistida."
-        : modulePlaybook.summary;
-  const runtimeIssueLabel =
-    failureMode === "memory"
-      ? "por memória"
-      : failureMode === "inference"
-        ? "porque o runtime local falhou ao responder"
-        : "temporariamente";
-
-  const checklist = [
-    `Contexto ativo: ${projectLabel} (${uiContext.route}).`,
-    `Conversa base: ${conversationTitle}.`,
-    activeTask?.query ? `Missão atual: ${activeTask.query}.` : null,
-    globalContext?.moduleHistory ? "Há histórico operacional disponível para handoff entre módulos." : null,
-    selectedSkillId ? `Skill sugerida: ${selectedSkillId}.` : null,
-  ].filter(Boolean);
-
-  return [
-    "Modo contingência local",
-    `O LLM local ficou indisponível ${runtimeIssueLabel}, então gerei um playbook operacional para não interromper o fluxo.`,
-    "",
-    `Leitura rápida: ${nextAction}`,
-    "",
-    "Próximos passos",
-    ...checklist.map((item, index) => `${index + 1}. ${item}`),
-    ...modulePlaybook.steps.map((item, index) => `${checklist.length + index + 1}. ${item}`),
-    `${checklist.length + modulePlaybook.steps.length + 1}. Abrir o fluxo em ${nextRoute} se você quiser continuar com contexto já preparado.`,
-    `${checklist.length + modulePlaybook.steps.length + 2}. Se precisar de execução assistida, envie esta mesma missão para o AI Task.`,
-    "",
-    `Intenção detectada: ${intent.intent}.`,
-    "Se quiser, eu continuo em modo contingência e estruturo isso como checklist, handoff ou plano por etapas.",
-  ].join("\n");
-}
-
-function buildLocalFallbackActions({ routePath, activeConversation, activeTask }) {
-  const matchedModule =
-    inferCopilotModuleFromRoute(routePath) ||
-    MODULE_WORKSPACES.find((item) => item.key === activeConversation?.projectKey) ||
-    null;
-  const projectLabel = activeConversation?.projectLabel || matchedModule?.label || "Geral";
-  const entities = extractConversationEntities(activeConversation, activeTask);
-  const routeTarget = matchedModule
-    ? buildContextualModuleHref(matchedModule, {
-        activeConversation,
-        activeTask,
-        routePath,
-        projectLabel,
-        entities,
-      })
-    : routePath || "/interno/copilot";
-  const routeActionLabel =
-    matchedModule?.label ? `Abrir ${matchedModule.label} em contexto` : "Abrir módulo em contexto";
-  const missionText = String(
-    activeTask?.query ||
-    activeTask?.title ||
-    activeTask?.mission ||
-    activeConversation?.title ||
-    activeConversation?.preview ||
-    ""
-  ).toLowerCase();
-  const copilotContext = encodeURIComponent(
-    buildCopilotContextPayload({
-      module: matchedModule || { key: "agentlab" },
-      activeConversation,
-      activeTask,
-      routePath,
-      projectLabel,
-    })
-  );
-  const agentLabTarget = missionText.match(/trein|score|avali|prompt|fallback|modelo/)
-    ? `/interno/agentlab/training?copilotContext=${copilotContext}`
-    : missionText.match(/conversa|mensagem|handoff|freshchat|cliente|thread/)
-      ? `/interno/agentlab/conversations?copilotContext=${copilotContext}`
-      : missionText.match(/workflow|intent|orquestra|playbook|agent/)
-        ? `/interno/agentlab/orquestracao?copilotContext=${copilotContext}`
-        : `/interno/agentlab/environment?copilotContext=${copilotContext}`;
-  return [
-    { id: "retry-runtime-local", label: "Tentar novamente", kind: "local_action", target: "retry_runtime_local" },
-    { id: "open-context-route", label: routeActionLabel, kind: "route", target: routeTarget },
-    { id: "open-ai-task", label: "Enviar ao AI Task", kind: "route", target: "/interno/ai-task" },
-    { id: "open-agentlab", label: "Abrir trilha no AgentLab", kind: "route", target: agentLabTarget },
-    { id: "open-runtime-config", label: "Editar runtime local", kind: "local_action", target: "open_runtime_config" },
-    activeConversation?.id || activeTask?.id
-      ? { id: "reuse-mission", label: "Reusar no composer", kind: "composer_seed", target: activeTask?.query || activeConversation?.title || "" }
-      : null,
-  ].filter(Boolean);
-}
-
-function buildConversationConcatBlock(conversation) {
-  const transcript = Array.isArray(conversation?.messages)
-    ? conversation.messages
-        .slice(-12)
-        .map((message) => `${message.role === "assistant" ? "Dotobot" : message.role === "system" ? "Sistema" : "Equipe"}: ${message.text}`)
-        .join("\n")
-    : "";
-  return [
-    `Projeto: ${conversation?.projectLabel || "Geral"}`,
-    `Conversa: ${conversation?.title || "Sem titulo"}`,
-    transcript ? `Transcricao:\n${transcript}` : "",
-  ].filter(Boolean).join("\n\n");
-}
-
-const SLASH_COMMANDS = [
-  { value: "/peticao", label: "Gerar peticao", hint: "Estrutura completa com fundamentos e pedidos." },
-  { value: "/analise", label: "Analisar processo", hint: "Leitura juridica e riscos." },
-  { value: "/plano", label: "Criar plano", hint: "Fluxo operacional com etapas." },
-  { value: "/resumo", label: "Resumir documentos", hint: "Sintese tecnica e util." },
-  { value: "/tarefas", label: "Ver tarefas", hint: "Abre o modo de acompanhamento operacional." },
-];
-
-const COPILOT_QUICK_SHORTCUTS = [
-  { id: "command-k", label: "Ctrl/Cmd+K", detail: "foco no compositor" },
-  { id: "command-dot", label: "Ctrl+.", detail: "abrir ou recolher" },
-  { id: "command-1", label: "Ctrl/Cmd+1", detail: "módulos" },
-  { id: "command-2", label: "Ctrl/Cmd+2", detail: "AI Task" },
-  { id: "command-3", label: "Ctrl/Cmd+3", detail: "AgentLabs" },
-  { id: "command-4", label: "Ctrl/Cmd+4", detail: "contexto" },
-  { id: "shift-enter", label: "Shift+Enter", detail: "quebrar linha" },
-  { id: "notifications", label: "Notificações", detail: "alerta de task finalizada" },
-];
-
-function detectAttachmentKind(file) {
-  if (file.type.startsWith("image/")) return "image";
-  if (file.type.startsWith("audio/")) return "audio";
-  return "file";
-}
-
-function normalizeAttachment(file) {
-  const kind = detectAttachmentKind(file);
-  return {
-    kind,
-    file,
-    name: file.name || "Arquivo",
-    size: file.size,
-    type: file.type || "application/octet-stream",
-    previewUrl: file.type?.startsWith("image/") ? URL.createObjectURL(file) : undefined,
-  };
-}
-
-function getLastTask(taskHistory) {
-  return taskHistory.find((task) => task.status === "running") || taskHistory[0] || null;
-}
-
-function TaskStatusChip({ status }) {
-  const mapping = {
-    queued: "Na fila",
-    executing: "Executando",
-    running: "Executando",
-    paused: "Pausado",
-    canceled: "Cancelado",
-    error: "Erro",
-    failed: "Falhou",
-    ok: "Concluido",
-    completed: "Concluido",
-    done: "Concluido",
-  };
-  return <span>{mapping[status] || String(status || "Indefinido")}</span>;
-}
-
-function stringifyDiagnostic(value, limit = 12000) {
-  if (value === undefined || value === null) return "";
-  let text = "";
-  try {
-    text = JSON.stringify(value, null, 2);
-  } catch {
-    text = String(value);
-  }
-  return text.length > limit ? `${text.slice(0, limit)}...` : text;
-}
-
-function buildDiagnosticReport({ title, summary = "", sections = [] }) {
-  return [
-    title ? `# ${title}` : "",
-    summary ? String(summary).trim() : "",
-    ...sections
-      .filter((section) => section?.value !== undefined && section?.value !== null && section?.value !== "")
-      .map((section) => `${section.label}:\n${stringifyDiagnostic(section.value)}`),
-  ]
-    .filter(Boolean)
-    .join("\n\n---\n\n");
-}
-
-const DOTOBOT_CONSOLE_META = {
-  consolePane: "dotobot",
-  domain: "copilot",
-  system: "chat",
-};
-
-const DOTOBOT_TASK_CONSOLE_META = {
-  consolePane: ["dotobot", "functions", "jobs"],
-  domain: "copilot-task",
-  system: "task-run",
-};
-
-function DotobotModal({
-  open,
-  title,
-  body,
-  confirmLabel = "Confirmar",
-  cancelLabel = "Cancelar",
-  inputLabel = null,
-  inputValue = "",
-  onInputChange = null,
-  onConfirm,
-  onCancel,
-}) {
-  if (!open) return null;
-  const internalTheme = useInternalTheme();
-  const isLightTheme = internalTheme?.isLightTheme === true;
-
-  return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[rgba(3,5,4,0.74)] px-4 backdrop-blur-sm">
-      <div className={`w-full max-w-md rounded-[28px] border p-5 shadow-[0_24px_80px_rgba(0,0,0,0.4)] ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,#FFFFFF,#F6F8FB)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(12,16,15,0.98),rgba(8,11,10,0.98))]"}`}>
-        <p className={`text-[11px] font-semibold uppercase tracking-[0.24em] ${isLightTheme ? "text-[#9A6E2D]" : "text-[#C5A059]"}`}>Hermida Maia Advocacia</p>
-        <h3 className={`mt-3 text-xl font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{title}</h3>
-        {body ? <p className={`mt-3 text-sm leading-7 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{body}</p> : null}
-        {inputLabel ? (
-          <label className="mt-4 block">
-            <span className={`mb-2 block text-xs uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{inputLabel}</span>
-            <input
-              value={inputValue}
-              onChange={(event) => onInputChange?.(event.target.value)}
-              className={`h-11 w-full rounded-2xl border px-4 text-sm outline-none ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#152421] placeholder:text-[#94A3B8] focus:border-[#9A6E2D]" : "border-[#22342F] bg-[rgba(7,9,8,0.98)] text-[#F5F1E8] placeholder:text-[#60706A] focus:border-[#C5A059]"}`}
-            />
-          </label>
-        ) : null}
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className={`rounded-full border px-4 py-2 text-sm transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#35554B]"}`}
-          >
-            {cancelLabel}
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="rounded-full border border-[#4f2525] bg-[rgba(91,45,45,0.24)] px-4 py-2 text-sm text-[#f2b2b2] transition hover:border-[#f2b2b2]"
-          >
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function getVoiceRecognition() {
-  if (typeof window === "undefined") return null;
-  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
-}
-
 export default function DotobotCopilot({
   profile,
   routePath,
@@ -543,45 +166,21 @@ export default function DotobotCopilot({
   }, [availableRightPanelTabs, defaultRightPanelTab, isFullscreenCopilot]);
   // Estado de autenticaÃ§Ã£o/admin
   const { supabase, loading: supaLoading, configError } = useSupabaseBrowser();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
-
-  // Valida sessÃ£o e perfil admin
-  useEffect(() => {
-    if (!supaLoading && supabase) {
-      supabase.auth.getSession().then(async ({ data }) => {
-        const session = data?.session;
-        if (!session?.access_token) {
-          setIsAdmin(false);
-          setAuthChecked(true);
-          return;
-        }
-        // Consulta perfil admin
-        try {
-          const res = await fetch("/api/admin-auth-config", {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          });
-          const payload = await res.json();
-          setIsAdmin(!!payload?.ok);
-        } catch {
-          setIsAdmin(false);
-        }
-        setAuthChecked(true);
-      });
-    }
-  }, [supabase, supaLoading]);
+  const { isAdmin, authChecked } = useDotobotAdminSession({ supabase, supaLoading });
   // IntegraÃ§Ã£o com extensÃ£o
   const { extensionReady, lastResponse, sendCommand } = useDotobotExtensionBridge();
-
-  // Exemplo: enviar comando para extensÃ£o ao detectar intenÃ§Ã£o especÃ­fica
-  async function handleExtensionActionIfNeeded(intent, question) {
-    if (!extensionReady) return;
-    // Exemplo: se intenÃ§Ã£o for "web_search" ou "local_file_access"
-    if (["web_search", "local_file_access"].includes(intent)) {
-      await sendCommand(intent, { query: question });
-    }
-  }
   const router = useRouter();
+  const logDotobotUi = (label, action, payload = {}, patch = {}) =>
+    emitDotobotUiLog({
+      routePath,
+      label,
+      action,
+      payload,
+      stringifyDiagnostic,
+      meta: DOTOBOT_CONSOLE_META,
+      patch,
+    });
+  const handleCopilotDebug = () => emitCopilotDebug(routePath);
   const chatStorageKey = useMemo(() => buildStorageKey(CHAT_STORAGE_PREFIX, profile), [profile]);
   const taskStorageKey = useMemo(() => buildStorageKey(TASK_STORAGE_PREFIX, profile), [profile]);
   const prefStorageKey = useMemo(() => buildStorageKey(PREF_STORAGE_PREFIX, profile), [profile]);
@@ -599,44 +198,6 @@ export default function DotobotCopilot({
   const [loading, setLoading] = useState(false);
   const [uiState, setUiState] = useState("idle");
   const [error, setError] = useState(null);
-
-  function logDotobotUi(label, action, payload = {}, patch = {}) {
-    appendActivityLog({
-      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      module: "dotobot",
-      component: patch.component || "DotobotPanel",
-      label,
-      action,
-      method: patch.method || "UI",
-      path: routePath || "/interno",
-      page: routePath || "/interno",
-      consolePane: patch.consolePane || DOTOBOT_CONSOLE_META.consolePane,
-      domain: patch.domain || DOTOBOT_CONSOLE_META.domain,
-      system: patch.system || DOTOBOT_CONSOLE_META.system,
-      status: patch.status || "success",
-      expectation: patch.expectation || label,
-      request: patch.request || "",
-      response: stringifyDiagnostic(payload),
-      error: patch.error || "",
-    });
-  }
-
-  function handleCopilotDebug() {
-    appendActivityLog({
-      label: "Debug UI (Copilot)",
-      status: "success",
-      method: "UI",
-      action: "debug_copilot",
-      path: routePath || "",
-      page: routePath || "",
-      module: "dotobot",
-      component: "DotobotPanel",
-      response: `Debug manual do copilot em ${routePath || "rota interna"}`,
-      consolePane: "debug-ui",
-      domain: "runtime",
-      system: "copilot",
-    });
-  }
 
   // Estado colapsado
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
@@ -1736,24 +1297,6 @@ const [uiToasts, setUiToasts] = useState([]);
 
     // BotÃ£o flutuante de reabertura
   }
-
-    const CollapsedTrigger = () => (
-      isCollapsed && (
-        <button
-          type="button"
-          className={`fixed z-[75] border border-[#C5A059] bg-[linear-gradient(180deg,#C5A059,#B08B46)] text-[11px] font-semibold uppercase text-[#07110E] shadow-[0_10px_30px_rgba(0,0,0,0.35)] transition hover:brightness-105 ${
-            isCompactViewport
-              ? "bottom-24 right-3 rounded-[18px] px-4 py-3 tracking-[0.18em]"
-              : "bottom-24 right-4 rounded-[18px] px-4 py-3 tracking-[0.18em]"
-          }`}
-          onClick={() => setIsCollapsed(false)}
-          title="Abrir Copilot (Ctrl + .)"
-        >
-          Abrir copilot
-        </button>
-      )
-    );
-
     // Estados visuais detalhados
     const stateLabel = {
       idle: "Pronto",
@@ -2114,52 +1657,6 @@ const [uiToasts, setUiToasts] = useState([]);
       },
     });
   }
-
-  function renderConversationMenu(conversation, { compact = false } = {}) {
-    const open = conversationMenuId === conversation.id;
-    return (
-      <div ref={open ? conversationMenuRef : null} className="relative">
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            setConversationMenuId((current) => (current === conversation.id ? null : conversation.id));
-          }}
-          className={`rounded-full border px-2 py-1 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-          aria-label="Ações da conversa"
-          aria-expanded={open}
-        >
-          ⋮
-        </button>
-        {open ? (
-          <div
-            className={`absolute ${compact ? "right-0 top-[calc(100%+6px)]" : "right-0 top-[calc(100%+8px)]"} z-20 w-44 overflow-hidden rounded-[16px] border shadow-[0_18px_38px_rgba(0,0,0,0.18)] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(12,15,14,0.98)]"}`}
-          >
-            {[
-              { key: "share", label: "Compartilhar", action: () => shareConversation(conversation) },
-              { key: "archive", label: conversation.archived ? "Desarquivar" : "Arquivar", action: () => archiveConversation(conversation) },
-              { key: "rename", label: "Renomear", action: () => renameConversation(conversation) },
-              { key: "delete", label: "Excluir", action: () => deleteConversation(conversation) },
-            ].map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setConversationMenuId(null);
-                  item.action();
-                }}
-                className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-[12px] transition ${isLightTheme ? "text-[#22312F] hover:bg-[#F7F9FC]" : "text-[#D8DEDA] hover:bg-[rgba(255,255,255,0.03)]"}`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-  // ...existing code...
 
   function attachFilesToConversation(conversationId, files) {
     const attachmentsToAdd = Array.from(files || [])
@@ -2760,500 +2257,54 @@ const [uiToasts, setUiToasts] = useState([]);
           setRenameModal({ open: false, conversationId: null, value: "" });
         }}
       />
-      {showCollapsedTrigger ? <CollapsedTrigger /> : null}
+      {showCollapsedTrigger ? <DotobotCollapsedTrigger isCollapsed={isCollapsed} isCompactViewport={isCompactViewport} onOpen={() => setIsCollapsed(false)} /> : null}
       {!isCollapsed && !embeddedInInternoShell ? (
         <section className={`min-h-0 overflow-hidden rounded-[26px] border shadow-[0_18px_44px_rgba(0,0,0,0.22)] backdrop-blur-sm ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,#FCFDFE,#F3F7FB)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(10,12,11,0.98),rgba(8,10,9,0.98))]"} ${compactRail ? "" : "mr-10 md:mr-0"}`}>
-        <header className={`border-b px-4 py-4 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Copilot</p>
-              <div className="mt-2 flex items-center gap-3">
-                <h3 className={`text-lg font-semibold tracking-[-0.02em] ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Dotobot</h3>
-                <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] ${activeStatus === "processing" ? "border-[#8b6f33] text-[#D9B46A]" : "border-[#234034] text-[#80C7A1]"}`}>
-                  <span className={`h-2 w-2 rounded-full ${activeStatus === "processing" ? "bg-[#D9B46A]" : "bg-[#80C7A1]"}`} />
-                  {activeStatus === "processing" ? uiStateLabel : "Idle"}
-                </span>
-              </div>
-              <p className={`mt-2 max-w-md text-xs leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#8FA19B]"}`}>
-                {isFocusedCopilotShell
-                  ? fullscreenConversationSubtitle
-                  : isCompactViewport
-                    ? "Chat inteligente para orientar próximas ações."
-                    : "Conversa assistida com contexto, histórico e próximos passos em um só lugar."}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
-                <span className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                  Provider: {activeProviderPresentation.name}
-                </span>
-                {!isFocusedCopilotShell ? (
-                  <span className={`rounded-full border px-3 py-1.5 ${localStackTone}`}>
-                    {localStackLabel}
-                  </span>
-                ) : null}
-                {activeProviderPresentation.meta.map((item) => (
-                  <span key={item} className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
-                    {item}
-                  </span>
-                ))}
-                {!isFocusedCopilotShell && localStackSummary?.runtimeBaseUrl ? (
-                  <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
-                    runtime {localStackSummary.runtimeBaseUrl}
-                  </span>
-                ) : null}
-                {!isFocusedCopilotShell && localStackSummary?.localProvider?.transport ? (
-                  <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
-                    {localRuntimeLabel}
-                  </span>
-                ) : null}
-                {!isFocusedCopilotShell && capabilitiesSkills?.total ? (
-                  <span className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
-                    Skills {capabilitiesSkills.total}
-                  </span>
-                ) : null}
-                {!isFocusedCopilotShell && capabilitiesCommands?.executable ? (
-                  <span className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
-                    Comandos {capabilitiesCommands.executable}/{capabilitiesCommands.total}
-                  </span>
-                ) : null}
-                {!isFocusedCopilotShell && activeBrowserProfile?.label ? (
-                  <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
-                    Extensao {activeBrowserProfile.label}
-                  </span>
-                ) : null}
-                {!isFocusedCopilotShell && activeProviderPresentation.endpoint ? (
-                  <span className="rounded-full border border-[#35554B] px-3 py-1.5 text-[#B7D5CB]">
-                    {activeProviderPresentation.endpoint}
-                  </span>
-                ) : null}
-              </div>
-              {localStackSummary && !isFocusedCopilotShell ? (
-                <p className={`mt-2 max-w-2xl text-[11px] leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>
-                  {localStackReady
-                    ? `Modo local disponível${localStackSummary.offlineMode ? " em operação offline" : ""} com ${localStackSummary.localProvider?.model || "modelo local"}.`
-                    : "O modo local ainda não respondeu; siga com a nuvem principal ou ative sua infraestrutura local quando precisar."}
-                </p>
-              ) : null}
-              {showConversationCockpitCards ? <div className="mt-4 grid gap-3">
-                <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#E6D29A] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_60%),#FFFDF7]" : "border-[#3C3320] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.14),transparent_60%),rgba(255,255,255,0.02)]"}`}>
-                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#9A6E2D]" : "text-[#D9B46A]"}`}>Resumo</p>
-                  <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeConversation?.title || "Nova conversa"}</p>
-                  <p className={`mt-2 line-clamp-3 text-[12px] leading-6 ${isLightTheme ? "text-[#51606B]" : "text-[#C6D1CC]"}`}>{activeConversationPreview}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#E6D29A] bg-[#FFF6DF] text-[#8A6217]" : "border-[#4B3F22] text-[#F1D39A]"}`}>
-                      histórico {filteredConversations.length}
-                    </span>
-                    <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                      mensagens {messages.length}
-                    </span>
-                    <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                      tarefas {taskHistory.length}
-                    </span>
-                  </div>
-                </div>
-
-                <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Missão em foco</p>
-                      <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeTaskLabel}</p>
-                    </div>
-                    <span className={`rounded-full border px-2.5 py-1 text-[10px] ${
-                      runningCount ? "border-[#C5A059] text-[#F1D39A]" : "border-[#22342F] text-[#9BAEA8]"
-                    }`}>
-                      {runningCount ? `${runningCount} ativa(s)` : "sem execução"}
-                    </span>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                      provider {activeTaskProviderLabel}
-                    </span>
-                    <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                      etapas {activeTaskStepCount}
-                    </span>
-                    {activeConversationTimestamp ? (
-                      <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
-                        {new Date(activeConversationTimestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              </div> : null}
-              {showRuntimeOpsFullscreen && offlineHealthSnapshot.items.length ? (
-                <div className="mt-3 flex max-w-3xl flex-wrap gap-2">
-                  {offlineHealthSnapshot.items.map((item) => (
-                    <span
-                      key={item.id}
-                      title={formatInlinePanelValue(item.detail || item.value)}
-                      className={`rounded-full border px-3 py-1.5 text-[11px] ${
-                        item.tone === "success"
-                          ? "border-[#234034] text-[#8FCFA9]"
-                          : item.tone === "danger"
-                            ? "border-[#5b2d2d] text-[#f2b2b2]"
-                            : "border-[#3B3523] text-[#D9C38A]"
-                      }`}
-                    >
-                      {item.label}: {formatInlinePanelValue(item.value)}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              {showRuntimeOpsFullscreen && localBootstrapPlan.steps.length ? (
-                <div className={`mt-4 rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Bootstrap local</p>
-                      <p className={`mt-1 text-sm ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
-                        {localBootstrapPlan.requiredCompleted}/{localBootstrapPlan.requiredTotal} etapas essenciais concluídas
-                      </p>
-                    </div>
-                    <span className={`rounded-full border px-3 py-1.5 text-[11px] ${
-                      localBootstrapPlan.readyForOfflineCore
-                        ? "border-[#234034] text-[#8FCFA9]"
-                        : "border-[#3B3523] text-[#D9C38A]"
-                    }`}>
-                      {localBootstrapPlan.readyForOfflineCore ? "Offline core pronto" : "Setup em andamento"}
-                    </span>
-                  </div>
-                  <div className="mt-3 grid gap-2 xl:grid-cols-2">
-                    {localBootstrapPlan.steps.map((step) => (
-                      <div key={step.id} className={`rounded-[18px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(7,9,8,0.65)]"}`}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className={`text-[11px] font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{step.title}</p>
-                            <p className={`mt-1 text-[11px] leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{step.detail}</p>
-                          </div>
-                          <span className={`rounded-full border px-2.5 py-1 text-[10px] ${
-                            step.done
-                              ? "border-[#234034] text-[#8FCFA9]"
-                              : step.optional
-                                ? "border-[#3B3523] text-[#D9C38A]"
-                                : "border-[#5b2d2d] text-[#f2b2b2]"
-                          }`}>
-                            {step.done ? "OK" : step.optional ? "Opcional" : "Pendente"}
-                          </span>
-                        </div>
-                        <div className="mt-3">
-                          <button
-                            type="button"
-                            onClick={() => handleLocalStackAction(step.action)}
-                            className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
-                          >
-                            {step.action === "testar_llm_local" ? "Testar runtime" : "Abrir diagnóstico"}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              {showRuntimeOpsFullscreen ? <div className={`mt-4 rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(7,9,8,0.7)]"}`}>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Persistência local</p>
-                    <p className={`mt-1 text-sm ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{supabaseBootstrap.label}</p>
-                  </div>
-                  <span className={`rounded-full border px-3 py-1.5 text-[11px] ${
-                    supabaseBootstrap.tone === "success"
-                      ? "border-[#234034] text-[#8FCFA9]"
-                      : supabaseBootstrap.tone === "danger"
-                        ? "border-[#5b2d2d] text-[#f2b2b2]"
-                        : "border-[#3B3523] text-[#D9C38A]"
-                  }`}>
-                    {supabaseBootstrap.baseUrlKind === "local"
-                      ? "Local"
-                      : supabaseBootstrap.baseUrlKind === "remote"
-                        ? "Remoto"
-                        : "Não verificado"}
-                  </span>
-                </div>
-                <p className={`mt-2 text-[11px] leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                  {supabaseBootstrap.detail}
-                  {supabaseBootstrap.baseUrlPreview ? ` Endpoint atual: ${supabaseBootstrap.baseUrlPreview}.` : ""}
-                </p>
-                <div className="mt-3 grid gap-3 xl:grid-cols-2">
-                  <div className={`rounded-[18px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                    <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Envs sugeridas</p>
-                    <div className="mt-2 space-y-2">
-                      {supabaseBootstrap.envs.map((line) => (
-                        <p key={line} className={`rounded-2xl border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] bg-[rgba(7,9,8,0.75)] text-[#C6D1CC]"}`}>
-                          {line}
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                  <div className={`rounded-[18px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                    <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Bootstrap Supabase local</p>
-                    <div className="mt-2 space-y-2">
-                      {supabaseBootstrap.commands.map((line) => (
-                        <p key={line} className={`rounded-2xl border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] bg-[rgba(7,9,8,0.75)] text-[#C6D1CC]"}`}>
-                          {line}
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <div className={`mt-3 rounded-[18px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                  <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Schema offline</p>
-                  <div className="mt-2 grid gap-2 xl:grid-cols-2">
-                    {supabaseBootstrap.schema.map((item) => (
-                      <div key={item.id} className={`rounded-2xl border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(7,9,8,0.75)]"}`}>
-                        <p className={`text-[11px] font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{item.label}</p>
-                        <p className={`mt-1 text-[11px] leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{item.detail}</p>
-                        <p className={`mt-2 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{item.migration}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {supabaseBootstrap.actions.map((actionId) => (
-                    <button
-                      key={actionId}
-                      type="button"
-                      onClick={() => handleLocalStackAction(actionId)}
-                      className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
-                    >
-                      {actionId === "retry_runtime_local"
-                        ? "Tentar novamente"
-                        : actionId === "open_runtime_config"
-                        ? "Editar runtime local"
-                        : actionId === "copiar_envs_supabase_local"
-                          ? "Copiar envs local"
-                        : actionId === "testar_llm_local"
-                          ? "Testar runtime"
-                          : "Abrir diagnóstico"}
-                    </button>
-                  ))}
-                </div>
-              </div> : null}
-              {showRuntimeOpsFullscreen && localRuntimeConfigOpen ? (
-                <div className={`mt-4 rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(7,9,8,0.7)]"}`}>
-                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Configuração persistente do runtime local</p>
-                  <div className="mt-3 grid gap-3 xl:grid-cols-3">
-                    <label className={`text-[11px] ${isLightTheme ? "text-[#51606B]" : "text-[#D8DEDA]"}`}>
-                      <span className={`mb-2 block ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Runtime base URL</span>
-                      <input
-                        value={localRuntimeDraft.runtimeBaseUrl || ""}
-                        onChange={(event) => setLocalRuntimeDraft((current) => ({ ...current, runtimeBaseUrl: event.target.value }))}
-                        className={`h-11 w-full rounded-2xl border px-4 text-sm outline-none ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#152421] focus:border-[#9A6E2D]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#F5F1E8] focus:border-[#C5A059]"}`}
-                      />
-                    </label>
-                    <label className={`text-[11px] ${isLightTheme ? "text-[#51606B]" : "text-[#D8DEDA]"}`}>
-                      <span className={`mb-2 block ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Modelo local</span>
-                      <input
-                        value={localRuntimeDraft.localModel || ""}
-                        onChange={(event) => setLocalRuntimeDraft((current) => ({ ...current, localModel: event.target.value }))}
-                        className={`h-11 w-full rounded-2xl border px-4 text-sm outline-none ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#152421] focus:border-[#9A6E2D]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#F5F1E8] focus:border-[#C5A059]"}`}
-                      />
-                    </label>
-                    <label className={`text-[11px] ${isLightTheme ? "text-[#51606B]" : "text-[#D8DEDA]"}`}>
-                      <span className={`mb-2 block ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Extensão local URL</span>
-                      <input
-                        value={localRuntimeDraft.extensionBaseUrl || ""}
-                        onChange={(event) => setLocalRuntimeDraft((current) => ({ ...current, extensionBaseUrl: event.target.value }))}
-                        className={`h-11 w-full rounded-2xl border px-4 text-sm outline-none ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#152421] focus:border-[#9A6E2D]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#F5F1E8] focus:border-[#C5A059]"}`}
-                      />
-                    </label>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={handleSaveLocalRuntimeConfig}
-                      className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
-                    >
-                      Salvar e recarregar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLocalRuntimeDraft(getBrowserLocalRuntimeConfig())}
-                      className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                    >
-                      Restaurar valores atuais
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-              {showRuntimeOpsFullscreen && (capabilitiesSkills?.total || capabilitiesCommands?.total) ? (
-                <p className={`mt-2 max-w-3xl text-[11px] leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>
-                  {[
-                    capabilitiesSkills?.total ? `${capabilitiesSkills.total} skills catalogadas` : null,
-                    capabilitiesSkills?.offline_ready ? `${capabilitiesSkills.offline_ready} prontas para offline` : null,
-                    capabilitiesCommands?.total ? `${capabilitiesCommands.total} comandos no catalogo local` : null,
-                    activeBrowserProfile?.web_search_enabled === false ? "extensao em perfil offline sem web search" : null,
-                  ].filter(Boolean).join(" · ")}
-                </p>
-              ) : null}
-              {showRuntimeOpsHeader && localStackSummary?.recommendations?.length ? (
-                <div className="mt-2 flex max-w-3xl flex-wrap gap-2 text-[11px]">
-                  {localStackSummary.recommendations.slice(0, 3).map((item) => (
-                    <span key={item} className={`rounded-full border px-3 py-1.5 ${isLightTheme ? "border-[#E6D29A] bg-[#FFF8EA] text-[#8A6217]" : "border-[#3B3523] bg-[rgba(197,160,89,0.08)] text-[#D9C38A]"}`}>
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              {showRuntimeOpsHeader && localStackSummary?.actions?.length ? (
-                <div className="mt-2 flex max-w-3xl flex-wrap gap-2">
-                  {localStackSummary.actions.slice(0, 3).map((action) => (
-                    <button
-                      key={action.id}
-                      type="button"
-                      onClick={() => handleLocalStackAction(action.id)}
-                      className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
-                    >
-                      {action.label}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              {showRuntimeOpsHeader && activeProviderPresentation.reason ? (
-                <p className={`mt-2 max-w-2xl text-[11px] leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>{activeProviderPresentation.reason}</p>
-              ) : null}
-              {showRuntimeOpsHeader && localInferenceAlert ? (
-                <div className={`mt-4 max-w-3xl rounded-[20px] border px-4 py-3 text-sm ${
-                  localInferenceAlert.tone === "danger"
-                    ? "border-[#5b2d2d] bg-[rgba(91,45,45,0.22)] text-[#f2d0d0]"
-                    : "border-[#6f5a2d] bg-[rgba(98,79,34,0.2)] text-[#f1dfb5]"
-                }`}>
-                  <p className="text-[10px] uppercase tracking-[0.18em] opacity-80">Contingência local</p>
-                  <p className={`mt-2 font-medium ${isLightTheme ? "text-[#6A4B12]" : "text-[#F5F1E8]"}`}>{localInferenceAlert.title}</p>
-                  <p className="mt-1 leading-6">{localInferenceAlert.body}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {localInferenceAlert.actions.map((actionId) => (
-                      <button
-                        key={actionId}
-                        type="button"
-                        onClick={() => handleLocalStackAction(actionId)}
-                        className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
-                      >
-                        {actionId === "retry_runtime_local"
-                          ? "Tentar novamente"
-                          : actionId === "open_runtime_config"
-                          ? "Editar runtime local"
-                          : actionId === "open_llm_test"
-                            ? "Testar runtime"
-                            : actionId === "open_ai_task"
-                              ? "Abrir AI Task"
-                              : "Abrir diagnóstico"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-            <div className="flex w-full flex-wrap items-start gap-2 lg:w-auto lg:justify-end">
-              {showRuntimeOpsHeader ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleCopilotDebug}
-                    className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                  >
-                    Debug
-                  </button>
-                  <button
-                    type="button"
-                    onClick={refreshLocalStackStatus}
-                    disabled={refreshingLocalStack}
-                    className={`rounded-2xl border px-3 py-2 text-xs transition disabled:cursor-wait disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                  >
-                    {refreshingLocalStack ? "Atualizando stack..." : "Atualizar stack local"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLocalRuntimeConfigOpen((current) => !current)}
-                    className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                  >
-                    {localRuntimeConfigOpen ? "Fechar runtime local" : "Editar runtime local"}
-                  </button>
-                </>
-              ) : null}
-              {compactRail ? (
-                <div className="flex w-full flex-col gap-2 sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={() => setWorkspaceOpen(true)}
-                    className="rounded-2xl border border-[#C5A059] px-3 py-2 text-xs font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]"
-                  >
-                    Tela cheia
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => createConversationFromCurrentState("Nova conversa")}
-                    className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                  >
-                    Nova conversa
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setWorkspaceOpen(true)}
-                    className="rounded-2xl border border-[#C5A059] px-3 py-2 text-xs font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#07110E]"
-                  >
-                    Tela cheia
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-2xl border border-[#22342F] px-3 py-2 text-xs text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-                    onClick={() => setIsCollapsed((value) => !value)}
-                  >
-                    {isCollapsed ? "Expandir" : "Compactar"}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </header>
+        <DotobotWorkspaceHeader
+          activeBrowserProfile={activeBrowserProfile}
+          activeConversation={activeConversation}
+          activeConversationPreview={activeConversationPreview}
+          activeConversationTimestamp={activeConversationTimestamp}
+          activeProviderPresentation={activeProviderPresentation}
+          activeStatus={activeStatus}
+          activeTaskLabel={activeTaskLabel}
+          activeTaskProviderLabel={activeTaskProviderLabel}
+          activeTaskStepCount={activeTaskStepCount}
+          capabilitiesCommands={capabilitiesCommands}
+          capabilitiesSkills={capabilitiesSkills}
+          createConversation={() => createConversationFromCurrentState("Nova conversa")}
+          fullscreenConversationSubtitle={fullscreenConversationSubtitle}
+          handleApprove={handleApprove}
+          handleContinueLastRun={handleContinueLastRun}
+          handleCopilotDebug={handleCopilotDebug}
+          handleOpenLlmTest={handleOpenLlmTest}
+          handlePauseFlow={handlePauseFlow}
+          isCompactViewport={isCompactViewport}
+          isFocusedCopilotShell={isFocusedCopilotShell}
+          isLightTheme={isLightTheme}
+          localInferenceAlert={localInferenceAlert}
+          localRuntimeConfigOpen={localRuntimeConfigOpen}
+          localRuntimeLabel={localRuntimeLabel}
+          localStackLabel={localStackLabel}
+          localStackSummary={localStackSummary}
+          localStackTone={localStackTone}
+          localTaskCount={taskHistory.length}
+          messageCount={messages.length}
+          onRefreshLocalStack={refreshLocalStackStatus}
+          onToggleCollapse={() => setIsCollapsed((current) => !current)}
+          onToggleLocalRuntimeConfig={() => setLocalRuntimeConfigOpen((current) => !current)}
+          paused={paused}
+          ragAlert={ragAlert}
+          refreshingLocalStack={refreshingLocalStack}
+          showConversationCockpitCards={showConversationCockpitCards}
+          showRuntimeOpsHeader={showRuntimeOpsHeader}
+          uiStateLabel={uiStateLabel}
+          visibleConversationCount={filteredConversations.length}
+        />
 
         {compactRail ? (
           <div className="flex h-full min-h-0 flex-col px-4 py-4">
-            <div className={`rounded-[24px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,#FFFFFF,#F7F9FC)]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Conversa ativa</p>
-                  <p className={`mt-2 truncate text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
-                    {activeConversation?.title || "Nova conversa"}
-                  </p>
-                  <p className={`mt-2 line-clamp-2 text-[12px] leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                    {activeConversationPreview || "Sem conversa ativa ainda. Abra uma nova trilha para começar."}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => createConversationFromCurrentState("Nova conversa")}
-                  className={`rounded-full border px-3 py-1.5 text-[10px] font-medium transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                >
-                  Nova
-                </button>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2 text-[10px]">
-                <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                  {activeProviderPresentation.name}
-                </span>
-                {selectedSkillId ? (
-                  <span className="rounded-full border border-[#35554B] px-2.5 py-1 text-[#B7D5CB]">
-                    skill {selectedSkillId}
-                  </span>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => setContextEnabled((value) => !value)}
-                  className={`rounded-full border px-2.5 py-1 font-medium transition ${
-                    contextEnabled
-                      ? "border-[#3E5B50] bg-[rgba(64,122,97,0.16)] text-[#A9E3C3]"
-                      : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"
-                  }`}
-                >
-                  Contexto {contextEnabled ? "ON" : "OFF"}
-                </button>
-                {activeConversationTimestamp ? (
-                  <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#7F928C]"}`}>
-                    {new Date(activeConversationTimestamp).toLocaleDateString("pt-BR")}
-                  </span>
-                ) : null}
-              </div>
-            </div>
+            <DotobotCompactConversationCard activeConversation={activeConversation} activeConversationPreview={activeConversationPreview} activeConversationTimestamp={activeConversationTimestamp} activeProviderPresentation={activeProviderPresentation} contextEnabled={contextEnabled} createConversation={() => createConversationFromCurrentState("Nova conversa")} isLightTheme={isLightTheme} selectedSkillId={selectedSkillId} setContextEnabled={setContextEnabled} />
             <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4">
               <div className={`rounded-[24px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                 <div className="flex items-center justify-between gap-3">
@@ -3295,7 +2346,7 @@ const [uiToasts, setUiToasts] = useState([]);
                               <span className={`shrink-0 pt-1 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#60706A]"}`}>
                                 {conversation.messages?.length || 0}
                               </span>
-                              {renderConversationMenu(conversation, { compact: true })}
+                                      <DotobotConversationMenu compact={true} conversation={conversation} conversationMenuId={conversationMenuId} conversationMenuRef={conversationMenuRef} isLightTheme={isLightTheme} onArchive={archiveConversation} onDelete={deleteConversation} onRename={renameConversation} onShare={shareConversation} setConversationMenuId={setConversationMenuId} />
                             </div>
                           </div>
                         </article>
@@ -4095,6 +3146,30 @@ const [uiToasts, setUiToasts] = useState([]);
             <div className={`flex-1 overflow-hidden ${focusedShellContentClass}`}>
               <div className={`grid h-full min-h-0 transition-all duration-300 ease-out ${workspaceGridGapClass} ${workspaceShellGridClass}`}>
                 {!isRailConversationShell ? (
+                isFocusedCopilotShell ? (
+                <FocusedHistoryRail
+                  activeConversationId={activeConversationId}
+                  activeProjectLabel={activeProjectLabel}
+                  conversationProjectGroups={conversationProjectGroups}
+                  conversationSearch={conversationSearch}
+                  conversationSearchInputRef={conversationSearchInputRef}
+                  conversationSort={conversationSort}
+                  filteredConversations={filteredConversations}
+                  handleConcatConversation={handleConcatConversation}
+                  handleDrop={handleDrop}
+                  isLightTheme={isLightTheme}
+                  onCreateConversation={() => createConversationFromCurrentState("Nova conversa")}
+                  projectInsights={projectInsights}
+                  renderConversationMenu={renderConversationMenu}
+                  selectConversation={selectConversation}
+                  selectedProjectFilter={selectedProjectFilter}
+                  setConversationSearch={setConversationSearch}
+                  setConversationSort={setConversationSort}
+                  setSelectedProjectFilter={setSelectedProjectFilter}
+                  setShowArchived={setShowArchived}
+                  showArchived={showArchived}
+                />
+                ) : (
                 <aside className={`${isFocusedCopilotShell ? "flex" : "hidden lg:flex"} min-h-0 flex-col overflow-hidden ${leftRailShellClass}`}>
                   <div className={`border-b px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
                     <div className="flex items-center justify-between gap-3">
@@ -4288,7 +3363,7 @@ const [uiToasts, setUiToasts] = useState([]);
                                       </div>
                                     </button>
                                     <div className="shrink-0">
-                                      {renderConversationMenu(conversation)}
+                                      <DotobotConversationMenu compact={false} conversation={conversation} conversationMenuId={conversationMenuId} conversationMenuRef={conversationMenuRef} isLightTheme={isLightTheme} onArchive={archiveConversation} onDelete={deleteConversation} onRename={renameConversation} onShare={shareConversation} setConversationMenuId={setConversationMenuId} />
                                     </div>
                                   </div>
 
@@ -4357,22 +3432,53 @@ const [uiToasts, setUiToasts] = useState([]);
                     </p>
                   </footer> : null}
                 </aside>
+                )
                 ) : null}
 
+                {isConversationCentricShell ? (
+                <FocusedConversationCenter
+                  activeConversation={activeConversation}
+                  activeMode={activeMode}
+                  activeProjectLabel={activeProjectLabel}
+                  attachments={attachments}
+                  centerShellClass={centerShellClass}
+                  composerBlockedReason={composerBlockedReason}
+                  composerRef={composerRef}
+                  error={error}
+                  focusedConversationColumnClass={focusedConversationColumnClass}
+                  formatBytes={formatBytes}
+                  handleComposerKeyDown={handleComposerKeyDown}
+                  handleCopyMessage={handleCopyMessage}
+                  handleDrop={handleDrop}
+                  handleLocalStackAction={handleLocalStackAction}
+                  handleMessageAction={handleMessageAction}
+                  handleOpenFiles={handleOpenFiles}
+                  handleOpenMessageInAiTask={handleOpenMessageInAiTask}
+                  handlePaste={handlePaste}
+                  handleQuickAction={handleQuickAction}
+                  handleReuseMessage={handleReuseMessage}
+                  handleSlashCommand={handleSlashCommand}
+                  handleSubmit={handleSubmit}
+                  input={input}
+                  isComposerBlocked={isComposerBlocked}
+                  isLightTheme={isLightTheme}
+                  isRecording={isRecording}
+                  loading={loading}
+                  localInferenceAlert={localInferenceAlert}
+                  messages={messages}
+                  onOpenAiTask={() => router.push("/interno/ai-task")}
+                  scrollRef={scrollRef}
+                  setInput={setInput}
+                  setShowSlashCommands={setShowSlashCommands}
+                  showSlashCommands={showSlashCommands}
+                  slashCommands={SLASH_COMMANDS}
+                  toggleVoiceInput={toggleVoiceInput}
+                  visibleLegalActions={visibleLegalActions}
+                />
+                ) : (
                 <section className={`flex min-h-0 flex-col ${centerShellClass}`}>
                   <div className={`border-b px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
-                    {isConversationCentricShell ? (
-                      <FocusedConversationHeader
-                        activeConversation={activeConversation}
-                        activeMode={activeMode}
-                        activeProjectLabel={activeProjectLabel}
-                        handleQuickAction={handleQuickAction}
-                        isLightTheme={isLightTheme}
-                        messages={messages}
-                        visibleLegalActions={visibleLegalActions}
-                      />
-                    ) : (
-                      <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Conversa</p>
                           <p className={`mt-2 truncate text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
@@ -4398,26 +3504,9 @@ const [uiToasts, setUiToasts] = useState([]);
                           ))}
                         </div>
                       </div>
-                    )}
                   </div>
 
-                  {isConversationCentricShell ? (
-                    <FocusedConversationThread
-                      error={error}
-                      focusedConversationColumnClass={focusedConversationColumnClass}
-                      handleCopyMessage={handleCopyMessage}
-                      handleLocalStackAction={handleLocalStackAction}
-                      handleMessageAction={handleMessageAction}
-                      handleOpenMessageInAiTask={handleOpenMessageInAiTask}
-                      handleReuseMessage={handleReuseMessage}
-                      isLightTheme={isLightTheme}
-                      loading={loading}
-                      localInferenceAlert={localInferenceAlert}
-                      messages={messages}
-                      scrollRef={scrollRef}
-                    />
-                  ) : (
-                    <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-5">
+                  <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-5">
                       <div className={`flex min-h-full flex-col justify-end space-y-3 ${focusedConversationColumnClass}`}>
                         {messages.length ? (
                           messages.map((message, idx) => (
@@ -4473,33 +3562,7 @@ const [uiToasts, setUiToasts] = useState([]);
                         ) : null}
                       </div>
                     </div>
-                  )}
 
-                  {isConversationCentricShell ? (
-                    <FocusedConversationComposer
-                      attachments={attachments}
-                      composerBlockedReason={composerBlockedReason}
-                      composerRef={composerRef}
-                      formatBytes={formatBytes}
-                      handleComposerKeyDown={handleComposerKeyDown}
-                      handleDrop={handleDrop}
-                      handleOpenFiles={handleOpenFiles}
-                      handlePaste={handlePaste}
-                      handleSlashCommand={handleSlashCommand}
-                      handleSubmit={handleSubmit}
-                      input={input}
-                      isComposerBlocked={isComposerBlocked}
-                      isLightTheme={isLightTheme}
-                      isRecording={isRecording}
-                      loading={loading}
-                      onOpenAiTask={() => router.push("/interno/ai-task")}
-                      setInput={setInput}
-                      setShowSlashCommands={setShowSlashCommands}
-                      showSlashCommands={showSlashCommands}
-                      slashCommands={SLASH_COMMANDS}
-                      toggleVoiceInput={toggleVoiceInput}
-                    />
-                  ) : (
                   <div className={`shrink-0 border-t px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
                     <div className={focusedConversationColumnClass}>
                     {!isConversationCentricShell ? (
@@ -4625,8 +3688,8 @@ const [uiToasts, setUiToasts] = useState([]);
                     </form>
                     </div>
                   </div>
-                  )}
                 </section>
+                )}
 
                 {!isRailConversationShell ? (
                 isFocusedCopilotShell ? (
@@ -4647,741 +3710,61 @@ const [uiToasts, setUiToasts] = useState([]);
                   taskHistory={taskHistory}
                 />
                 ) : (
-                <aside className="hidden min-h-0 overflow-hidden lg:block">
-                  <div className={`border-b px-4 py-4 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
-                    <div className="flex flex-col gap-3">
-                      <div>
-                        <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
-                          {isFocusedCopilotShell ? "Apoio lateral" : "Painel lateral"}
-                        </p>
-                        <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeRightPanelMeta.title}</p>
-                        <p className={`mt-1 max-w-[19rem] text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>
-                          {isFocusedCopilotShell
-                            ? activeRightPanelMeta.detail
-                            : activeRightPanelMeta.detail}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {availableRightPanelTabs.includes("modules") ? (
-                          <button
-                            type="button"
-                            onClick={() => setRightPanelTab("modules")}
-                            className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "modules" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#9A6E2D] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"}`}
-                          >
-                            Módulos
-                          </button>
-                        ) : null}
-                        {availableRightPanelTabs.includes("ai-task") ? (
-                          <button
-                            type="button"
-                            onClick={() => setRightPanelTab("ai-task")}
-                            className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "ai-task" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#9A6E2D] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"}`}
-                          >
-                            AI Task
-                          </button>
-                        ) : null}
-                        {availableRightPanelTabs.includes("agentlabs") ? (
-                          <button
-                            type="button"
-                            onClick={() => setRightPanelTab("agentlabs")}
-                            className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "agentlabs" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#9A6E2D] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"}`}
-                          >
-                            AgentLabs
-                          </button>
-                        ) : null}
-                        {availableRightPanelTabs.includes("context") ? (
-                          <button
-                            type="button"
-                            onClick={() => setRightPanelTab("context")}
-                            className={`rounded-full border px-3 py-1.5 text-[11px] transition ${rightPanelTab === "context" ? "border-[#C5A059] bg-[rgba(197,160,89,0.10)] text-[#9A6E2D] shadow-[0_8px_24px_rgba(197,160,89,0.10)]" : isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"}`}
-                          >
-                            Contexto
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-
-                  <TransitionGroup component={null}>
-                    <CSSTransition key={rightPanelTab} timeout={180} classNames="dotobot-panel-tab">
-                      <div className={`overflow-y-auto ${useCondensedRightRail ? "h-full p-3 md:p-4" : "h-[calc(100vh-14rem)] p-4"}`}>
-                    {rightPanelTab === "modules" ? (
-                      <div className="space-y-3">
-                        <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-[#F8FAFC]" : "border-[#35554B] bg-[rgba(12,22,19,0.72)]"}`}>
-                          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Área ativa</p>
-                          <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeProjectLabel}</p>
-                          <p className={`mt-2 text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                            {useCondensedRightRail
-                              ? "Atalhos rápidos para abrir áreas do produto."
-                              : "Módulos integrados sem roubar atenção do chat."}
-                          </p>
-                        </div>
-                        <div className="grid gap-3">
-                          {moduleWorkspaceCards.slice(0, useCondensedRightRail ? 4 : moduleWorkspaceCards.length).map((module) => (
-                            <article
-                              key={module.key}
-                              className={`rounded-[18px] border p-4 ${
-                                module.active
-                                  ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]"
-                                  : isLightTheme
-                                    ? "border-[#D7DEE8] bg-white"
-                                    : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"
-                              }`}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className={`text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{module.label}</p>
-                                  <p className={`mt-1 line-clamp-2 text-[11px] leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{module.helper}</p>
-                                </div>
-                                <span className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                                  {module.count}
-                                </span>
-                              </div>
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => router.push(module.contextualHref || module.href)}
-                                  className={`rounded-full border px-2.5 py-1 text-[10px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
-                                >
-                                  Abrir módulo
-                                </button>
-                                {!useCondensedRightRail ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedProjectFilter(module.key)}
-                                    className={`rounded-full border px-2.5 py-1 text-[10px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                                  >
-                                    Filtrar histórico
-                                  </button>
-                                ) : null}
-                              </div>
-                              {module.contextualHref !== module.href && !useCondensedRightRail ? (
-                                <p className={`mt-3 text-[11px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
-                                  Contexto detectado: {module.key === "processos" || module.key === "publicacoes"
-                                    ? `${conversationEntities.processNumbers.length} CNJ(s)`
-                                    : module.key === "leads"
-                                      ? conversationEntities.primaryEmail
-                                      : activeConversation?.title || "conversa ativa"}
-                                </p>
-                              ) : null}
-                              {module.latestConversation && !useCondensedRightRail ? (
-                                <p className={`mt-3 text-[11px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Última conversa: {module.latestConversation}</p>
-                              ) : null}
-                            </article>
-                          ))}
-                        </div>
-                      </div>
-                    ) : rightPanelTab === "ai-task" ? (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className={`text-sm ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                            {isFocusedCopilotShell ? "Subtarefas e missão ativa, sem tirar o foco da conversa." : "Tarefas em andamento e próximos passos sugeridos."}
-                          </p>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => router.push("/interno/ai-task")}
-                              className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
-                            >
-                              Abrir AI Task
-                            </button>
-                            {!isFocusedCopilotShell ? (
-                              <button type="button" onClick={handleResetTasks} className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
-                                Limpar
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                        {!isFocusedCopilotShell ? (
-                        <div className="grid gap-2 sm:grid-cols-3">
-                          <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Ativas</p>
-                            <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{runningCount}</p>
-                          </div>
-                          <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Etapas</p>
-                            <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeTaskStepCount}</p>
-                          </div>
-                          <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Provider</p>
-                            <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeTaskProviderLabel}</p>
-                          </div>
-                        </div>
-                        ) : (
-                          <div className="flex flex-wrap gap-2">
-                            <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                              ativas {runningCount}
-                            </span>
-                            <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                              etapas {activeTaskStepCount}
-                            </span>
-                            <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                              {activeTaskProviderLabel}
-                            </span>
-                          </div>
-                        )}
-                        <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-[#F8FAFC]" : "border-[#35554B] bg-[rgba(12,22,19,0.72)]"}`}>
-                          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Missão em foco</p>
-                          <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeTaskLabel}</p>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {!notificationsEnabled ? (
-                              <button
-                                type="button"
-                                onClick={handleEnableNotifications}
-                                className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                              >
-                                Ativar notificações
-                              </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              onClick={() => router.push("/interno/ai-task")}
-                              className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
-                            >
-                              Abrir workspace
-                            </button>
-                          </div>
-                        </div>
-                        {taskHistory.length ? (
-                          taskHistory.slice(0, isFocusedCopilotShell ? 2 : taskHistory.length).map((task) => (
-                            <article key={task.id} className={`rounded-[18px] border p-4 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]"><TaskStatusChip status={task.status} /></p>
-                                  <p className={`mt-2 line-clamp-3 font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{task.query}</p>
-                                </div>
-                                <span className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#9BAEA8]"}`}>
-                                  {task.startedAt ? new Date(task.startedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "--"}
-                                </span>
-                              </div>
-                              <div className={`mt-3 flex flex-wrap gap-2 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                                <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>{parseProviderPresentation(task.provider || "gpt").name}</span>
-                                <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>{task.steps?.length || 0} etapas</span>
-                                {task.rag?.retrieval?.enabled ? <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>RAG {task.rag.retrieval.matches?.length || 0}</span> : null}
-                              </div>
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                <button type="button" onClick={() => handlePause(task)} className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
-                                  {task.status === "paused" ? "Retomar" : "Pausar"}
-                                </button>
-                                <button type="button" onClick={() => handleRetry(task)} className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}>
-                                  Replay
-                                </button>
-                              </div>
-                            </article>
-                          ))
-                        ) : (
-                          <div className={`rounded-[20px] border border-dashed p-4 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
-                            Nenhuma tarefa ainda.
-                          </div>
-                        )}
-                        {isFocusedCopilotShell && taskHistory.length > 2 ? (
-                          <button
-                            type="button"
-                            onClick={() => router.push("/interno/ai-task")}
-                            className={`w-full rounded-[16px] border px-3 py-2 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                          >
-                            Ver histórico completo no AI Task
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : rightPanelTab === "agentlabs" ? (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className={`text-sm ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                            {isFocusedCopilotShell ? "Saúde, handoff e acesso rápido ao AgentLabs." : "Subagentes e governança do ai-core."}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => router.push("/interno/agentlab")}
-                            className={`rounded-2xl border px-3 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
-                          >
-                            Abrir AgentLabs
-                          </button>
-                        </div>
-                        {!isFocusedCopilotShell ? (
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Subagentes</p>
-                            <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{agentLabSubagents.length}</p>
-                          </div>
-                          <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Threads</p>
-                            <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{agentLabConversationSummary.total || 0}</p>
-                          </div>
-                          <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Fila</p>
-                            <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{agentLabOverview.queueItems || 0}</p>
-                          </div>
-                          <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Incidentes</p>
-                            <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{agentLabIncidentsSummary.open || agentLabOverview.openIncidents || 0}</p>
-                          </div>
-                          <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Syncs</p>
-                            <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{agentLabOverview.syncRuns || 0}</p>
-                          </div>
-                          <div className={`rounded-[16px] border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                            <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Treino médio</p>
-                            <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{agentLabTrainingSummary.averageScore || agentLabOverview.trainingAverageScore || 0}%</p>
-                          </div>
-                        </div>
-                        ) : (
-                          <div className="flex flex-wrap gap-2">
-                            <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                              subagentes {agentLabSubagents.length}
-                            </span>
-                            <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                              threads {agentLabConversationSummary.total || 0}
-                            </span>
-                            <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                              incidentes {agentLabIncidentsSummary.open || agentLabOverview.openIncidents || 0}
-                            </span>
-                          </div>
-                        )}
-                        {agentLabSnapshot.loading ? (
-                          <div className={`rounded-[20px] border border-dashed p-4 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
-                            Carregando AgentLab...
-                          </div>
-                        ) : agentLabSnapshot.error ? (
-                          <div className="rounded-[20px] border border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] px-4 py-3 text-sm text-[#f2b2b2]">
-                            {agentLabSnapshot.error}
-                          </div>
-                        ) : (
-                          <>
-                            <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-[#F8FAFC]" : "border-[#35554B] bg-[rgba(12,22,19,0.72)]"}`}>
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Saúde operacional</p>
-                                  <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{agentLabEnvironment.message || "Painel AgentLab conectado ao copilot local."}</p>
-                                </div>
-                                <span className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                                  {agentLabEnvironment.mode || "n/a"}
-                                </span>
-                              </div>
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                {agentLabHealthSignals.map((signal) => (
-                                  <span key={signal.label} className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                                    {signal.label} {formatInlinePanelValue(signal.value)}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                            {!isFocusedCopilotShell ? (
-                            <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Controles rápidos</p>
-                                  <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Operações do AgentLab sem sair do Copilot.</p>
-                                  <p className={`mt-2 text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                                    Sync e treino focal com atualização rápida do painel.
-                                  </p>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => loadAgentLabSnapshot()}
-                                  className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
-                                >
-                                  Atualizar
-                                </button>
-                              </div>
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  disabled={agentLabActionState.loading}
-                                  onClick={() => runAgentLabSync("sync_workspace_conversations", "Sync do workspace")}
-                                   className={`rounded-full border px-3 py-1.5 text-[11px] transition disabled:cursor-not-allowed disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                                >
-                                  Sync workspace
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={agentLabActionState.loading}
-                                  onClick={() => runAgentLabSync("sync_freshsales_activities", "Sync do Freshsales")}
-                                   className={`rounded-full border px-3 py-1.5 text-[11px] transition disabled:cursor-not-allowed disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                                >
-                                  Sync Freshsales
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={agentLabActionState.loading}
-                                  onClick={() => runAgentLabSync("sync_freshchat_conversations", "Sync do Freshchat")}
-                                   className={`rounded-full border px-3 py-1.5 text-[11px] transition disabled:cursor-not-allowed disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                                >
-                                  Sync Freshchat
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={agentLabActionState.loading || !featuredTrainingScenario?.id}
-                                  onClick={() => runAgentLabTrainingScenario(featuredTrainingScenario?.id)}
-                                   className={`rounded-full border px-3 py-1.5 text-[11px] transition disabled:cursor-not-allowed disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
-                                >
-                                  Rodar treino focal
-                                </button>
-                              </div>
-                              {agentLabActionState.message ? (
-                                <div
-                                  className={`mt-3 rounded-[16px] border px-3 py-3 text-xs ${
-                                    agentLabActionState.tone === "error"
-                                      ? "border-[#5b2d2d] bg-[rgba(127,29,29,0.16)] text-[#f2b2b2]"
-                                      : agentLabActionState.tone === "warning"
-                                        ? "border-[#6a5a27] bg-[rgba(197,160,89,0.12)] text-[#F1D39A]"
-                                        : "border-[#35554B] bg-[rgba(12,22,19,0.72)] text-[#B7D5CB]"
-                                  }`}
-                                >
-                                  {agentLabActionState.message}
-                                </div>
-                              ) : null}
-                            </div>
-                            ) : null}
-                            <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Handoff atual</p>
-                                  <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeConversation?.title || "Nova conversa"}</p>
-                                  <p className={`mt-2 line-clamp-3 text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                                    {activeConversationPreview}
-                                  </p>
-                                </div>
-                                <span className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                                  {activeProjectLabel}
-                                </span>
-                              </div>
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                <span className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                                  missão {activeTask ? "ativa" : "livre"}
-                                </span>
-                                <span className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                                  route {routePath || "/interno"}
-                                </span>
-                                <span className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                                  runs {linkedAgentLabTaskRuns.length}
-                                </span>
-                              </div>
-                              {linkedAgentLabTaskRuns.length ? (
-                                <div className="mt-3 space-y-2">
-                                  {linkedAgentLabTaskRuns.slice(0, isFocusedCopilotShell ? 2 : linkedAgentLabTaskRuns.length).map((run) => (
-                                    <article key={run.id} className={`rounded-[16px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F8FAFC]" : "border-[#22342F] bg-[rgba(7,9,8,0.76)]"}`}>
-                                      <div className="flex items-start justify-between gap-3">
-                                        <div>
-                                          <p className={`line-clamp-2 text-[11px] font-medium ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{run.mission || "Execução sem missão"}</p>
-                                          <p className={`mt-1 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{formatRuntimeTimeLabel(run.updated_at || run.created_at)}</p>
-                                        </div>
-                                        <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                                          <TaskStatusChip status={run.status} />
-                                        </span>
-                                      </div>
-                                      <div className="mt-3 flex flex-wrap gap-2">
-                                        <button
-                                          type="button"
-                                          onClick={() => handleReuseTaskMission(run)}
-                                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                                        >
-                                          Reusar missão
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => setRightPanelTab("ai-task")}
-                                          className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
-                                        >
-                                          Ver no AI Task
-                                        </button>
-                                      </div>
-                                    </article>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className={`mt-3 text-xs ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Nenhuma execução do Dotobot vinculada diretamente a esta rota ou conversa ainda.</p>
-                              )}
-                            </div>
-                            {!useCondensedRightRail ? (
-                            <>
-                            <div className="grid gap-3 xl:grid-cols-2">
-                              <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Fila de melhoria</p>
-                                  <span className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#60706A]"}`}>{agentLabOverview.queueItems || 0}</span>
-                                </div>
-                                <div className="mt-3 space-y-2">
-                                  {agentLabQueuePreview.length ? agentLabQueuePreview.map((item) => (
-                                    <article key={item.id} className={`rounded-[16px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F8FAFC]" : "border-[#22342F] bg-[rgba(7,9,8,0.76)]"}`}>
-                                      <p className={`line-clamp-2 text-[11px] font-medium ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{item.title}</p>
-                                      <div className="mt-2 flex flex-wrap gap-2">
-                                        <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>{item.priority}</span>
-                                        <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88]" : "border-[#22342F] text-[#D8DEDA]"}`}>{item.status}</span>
-                                        <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#7B8B98]" : "border-[#22342F] text-[#7F928C]"}`}>{item.agentRef}</span>
-                                      </div>
-                                      <div className="mt-3 flex flex-wrap gap-2">
-                                        <button
-                                          type="button"
-                                          disabled={agentLabActionState.loading}
-                                          onClick={() => updateAgentLabQueueItemStatus(item, "in_progress")}
-                                          className={`rounded-full border px-2.5 py-1 text-[10px] transition disabled:cursor-not-allowed disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                                        >
-                                          Assumir
-                                        </button>
-                                        <button
-                                          type="button"
-                                          disabled={agentLabActionState.loading}
-                                          onClick={() => updateAgentLabQueueItemStatus(item, "done")}
-                                          className={`rounded-full border px-2.5 py-1 text-[10px] transition disabled:cursor-not-allowed disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
-                                        >
-                                          Concluir
-                                        </button>
-                                      </div>
-                                    </article>
-                                  )) : (
-                                    <div className={`rounded-[16px] border border-dashed px-3 py-3 text-xs ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
-                                      Nenhum item pendente na fila do AgentLab.
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>Últimos syncs</p>
-                                  <span className={`text-[10px] ${isLightTheme ? "text-[#7C8B96]" : "text-[#60706A]"}`}>{agentLabOverview.syncRuns || 0}</span>
-                                </div>
-                                <div className="mt-3 space-y-2">
-                                  {agentLabSyncPreview.length ? agentLabSyncPreview.map((run) => (
-                                    <article key={run.id} className={`rounded-[16px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(7,9,8,0.76)]"}`}>
-                                      <div className="flex items-center justify-between gap-2">
-                                        <p className={`text-[11px] font-medium ${isLightTheme ? "text-[#1F2A37]" : "text-[#F5F1E8]"}`}>{run.source}</p>
-                                        <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>{run.status}</span>
-                                      </div>
-                                      <p className={`mt-1 text-[10px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>{run.scope} · {run.records} registros · {formatRuntimeTimeLabel(run.createdAt)}</p>
-                                    </article>
-                                  )) : (
-                                    <div className={`rounded-[16px] border border-dashed px-3 py-3 text-xs ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
-                                      Ainda não há syncs recentes registrados.
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="grid gap-3 xl:grid-cols-2">
-                              <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>Treinamento</p>
-                                  <span className={`text-[10px] ${isLightTheme ? "text-[#7C8B96]" : "text-[#60706A]"}`}>{agentLabOverview.trainingRuns || 0}</span>
-                                </div>
-                                <div className="mt-3 space-y-2">
-                                  {agentLabTrainingPreview.length ? agentLabTrainingPreview.map((run) => (
-                                    <article key={run.id} className={`rounded-[16px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(7,9,8,0.76)]"}`}>
-                                      <div className="flex items-center justify-between gap-2">
-                                        <p className={`text-[11px] font-medium ${isLightTheme ? "text-[#1F2A37]" : "text-[#F5F1E8]"}`}>{run.agentRef}</p>
-                                        <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>{run.status}</span>
-                                      </div>
-                                      <p className={`mt-1 text-[10px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>score {Math.round((run.score || 0) * 100)}% · {run.provider} · {formatRuntimeTimeLabel(run.createdAt)}</p>
-                                    </article>
-                                  )) : (
-                                    <div className={`rounded-[16px] border border-dashed px-3 py-3 text-xs ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
-                                      Nenhum treino recente disponível.
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>Incidentes</p>
-                                  <span className={`text-[10px] ${isLightTheme ? "text-[#7C8B96]" : "text-[#60706A]"}`}>{agentLabIncidentsSummary.total || 0}</span>
-                                </div>
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  <span className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>abertos {agentLabIncidentsSummary.open || 0}</span>
-                                  {(agentLabIncidentsSummary.bySeverity || []).slice(0, 3).map((item) => (
-                                    <span key={item.label} className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                                      {item.label} {formatInlinePanelValue(item.value)}
-                                    </span>
-                                  ))}
-                                </div>
-                                <p className={`mt-3 text-xs leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                                  {agentLabConversationSummary.handoffs || 0} handoff(s) detectados e {agentLabConversationSummary.withErrors || 0} thread(s) com erro sinalizado.
-                                </p>
-                                <div className="mt-3 space-y-2">
-                                  {agentLabIncidentPreview.length ? agentLabIncidentPreview.map((item) => (
-                                    <article key={item.id} className={`rounded-[16px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(7,9,8,0.76)]"}`}>
-                                      <div className="flex items-start justify-between gap-3">
-                                        <div>
-                                          <p className={`text-[11px] font-medium line-clamp-2 ${isLightTheme ? "text-[#1F2A37]" : "text-[#F5F1E8]"}`}>{item.title}</p>
-                                          <p className={`mt-1 text-[10px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>{item.category} · {item.severity} · {formatRuntimeTimeLabel(item.occurredAt)}</p>
-                                        </div>
-                                        <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>{item.status}</span>
-                                      </div>
-                                      <div className="mt-3 flex flex-wrap gap-2">
-                                        <button
-                                          type="button"
-                                          disabled={agentLabActionState.loading}
-                                          onClick={() => updateAgentLabIncidentItemStatus(item, "investigating")}
-                                          className={`rounded-full border px-2.5 py-1 text-[10px] transition disabled:cursor-not-allowed disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] text-[#8A5A16] hover:border-[#C5A059] hover:text-[#8A5A16]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                                        >
-                                          Investigar
-                                        </button>
-                                        <button
-                                          type="button"
-                                          disabled={agentLabActionState.loading}
-                                          onClick={() => updateAgentLabIncidentItemStatus(item, "resolved")}
-                                          className={`rounded-full border px-2.5 py-1 text-[10px] transition disabled:cursor-not-allowed disabled:opacity-60 ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62] hover:text-[#2F7A62]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
-                                        >
-                                          Resolver
-                                        </button>
-                                      </div>
-                                    </article>
-                                  )) : null}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              {agentLabSubagents.length ? agentLabSubagents.map((agent) => (
-                                <article key={agent.id} className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                                  <div className="flex items-center justify-between gap-3">
-                                    <div>
-                                      <p className={`text-sm font-semibold ${isLightTheme ? "text-[#1F2A37]" : "text-[#F5F1E8]"}`}>{agent.role}</p>
-                                      <p className={`mt-1 text-xs ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                                        {agent.stageCount} estágio(s) · {agent.moduleCount} módulo(s)
-                                      </p>
-                                    </div>
-                                    <span className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                                      {agent.status}
-                                    </span>
-                                  </div>
-                                </article>
-                              )) : (
-                                <div className={`rounded-[20px] border border-dashed p-4 text-sm ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
-                                  Nenhum subagente ativo neste momento.
-                                </div>
-                              )}
-                            </div>
-                            <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                              <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>Ações rápidas</p>
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => router.push("/interno/agentlab/orquestracao")}
-                                  className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B] hover:border-[#C5A059] hover:text-[#8A5A16]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                                >
-                                  Orquestração
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => router.push("/interno/agentlab/conversations")}
-                                  className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B] hover:border-[#C5A059] hover:text-[#8A5A16]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                                >
-                                  Conversas
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => router.push("/interno/agentlab/training")}
-                                  className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B] hover:border-[#C5A059] hover:text-[#8A5A16]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                                >
-                                  Training
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => router.push("/interno/agentlab/workflows")}
-                                  className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B] hover:border-[#C5A059] hover:text-[#8A5A16]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                                >
-                                  Workflows
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => router.push("/interno/agentlab/environment")}
-                                  className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B] hover:border-[#C5A059] hover:text-[#8A5A16]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                                >
-                                  Ambiente
-                                </button>
-                              </div>
-                            </div>
-                            </>
-                            ) : (
-                            <div className="space-y-3">
-                              <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>Subagentes ativos</p>
-                                  <span className={`text-[10px] ${isLightTheme ? "text-[#7C8B96]" : "text-[#60706A]"}`}>{agentLabSubagents.length}</span>
-                                </div>
-                                <div className="mt-3 space-y-2">
-                                  {agentLabSubagents.length ? agentLabSubagents.slice(0, 2).map((agent) => (
-                                    <article key={agent.id} className={`rounded-[16px] border px-3 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F8FAFC]" : "border-[#22342F] bg-[rgba(7,9,8,0.76)]"}`}>
-                                      <div className="flex items-center justify-between gap-3">
-                                        <div>
-                                          <p className={`text-[11px] font-medium ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{agent.role}</p>
-                                          <p className={`mt-1 text-[10px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>{agent.stageCount} estágio(s) · {agent.moduleCount} módulo(s)</p>
-                                        </div>
-                                        <span className={`rounded-full border px-2 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>{agent.status}</span>
-                                      </div>
-                                    </article>
-                                  )) : (
-                                    <div className={`rounded-[16px] border border-dashed px-3 py-3 text-xs ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
-                                      Nenhum subagente ativo neste momento.
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                                <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>Ações rápidas</p>
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => router.push("/interno/agentlab/conversations")}
-                                    className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B] hover:border-[#C5A059] hover:text-[#8A5A16]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                                  >
-                                    Conversas
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => router.push("/interno/agentlab/orquestracao")}
-                                    className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B] hover:border-[#C5A059] hover:text-[#8A5A16]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                                  >
-                                    Orquestração
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => router.push("/interno/agentlab/environment")}
-                                    className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B] hover:border-[#C5A059] hover:text-[#8A5A16]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                                  >
-                                    Ambiente
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    ) : (
-                      <div className={`space-y-4 text-sm ${isLightTheme ? "text-[#51606B]" : "text-[#C6D1CC]"}`}>
-                        <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                          <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>Módulo</p>
-                          <p className={`mt-2 font-medium ${isLightTheme ? "text-[#1F2A37]" : "text-[#F5F1E8]"}`}>{routePath || "/interno"}</p>
-                        </div>
-                        <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                          <div className="flex items-center justify-between gap-2">
-                            <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>Memória</p>
-                            <span className={`text-[10px] ${isLightTheme ? "text-[#8A5A16]" : "text-[#C5A059]"}`}>{contextEnabled ? "ON" : "OFF"}</span>
-                          </div>
-                          <p className={`mt-2 font-medium ${isLightTheme ? "text-[#1F2A37]" : "text-[#F5F1E8]"}`}>{ragSummary.count ? `${ragSummary.count} itens relevantes` : "Sem memória carregada"}</p>
-                          {ragSummary.sources.length ? <p className={`mt-2 text-xs ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Fontes: {ragSummary.sources.join(", ")}</p> : null}
-                        </div>
-                        <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-                          <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>Documentos</p>
-                          {attachments.length ? (
-                            <div className="mt-3 space-y-2">
-                              {attachments.map((attachment) => (
-                                <div key={attachment.id} className={`flex items-center justify-between gap-3 rounded-2xl border px-3 py-2 text-xs ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>
-                                  <span className="truncate">{attachment.name}</span>
-                                  <span className={isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}>{attachment.kind}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className={`mt-2 text-xs ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Nenhum anexo nesta conversa.</p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                      </div>
-                    </CSSTransition>
-                  </TransitionGroup>
-                </aside>
+                <GenericCopilotRightRail
+                  activeConversation={activeConversation}
+                  activeConversationPreview={activeConversationPreview}
+                  activeProjectLabel={activeProjectLabel}
+                  activeRightPanelMeta={activeRightPanelMeta}
+                  activeTask={activeTask}
+                  activeTaskLabel={activeTaskLabel}
+                  activeTaskProviderLabel={activeTaskProviderLabel}
+                  activeTaskStepCount={activeTaskStepCount}
+                  agentLabActionState={agentLabActionState}
+                  agentLabConversationSummary={agentLabConversationSummary}
+                  agentLabEnvironment={agentLabEnvironment}
+                  agentLabHealthSignals={agentLabHealthSignals}
+                  agentLabIncidentPreview={agentLabIncidentPreview}
+                  agentLabIncidentsSummary={agentLabIncidentsSummary}
+                  agentLabOverview={agentLabOverview}
+                  agentLabQueuePreview={agentLabQueuePreview}
+                  agentLabSnapshot={agentLabSnapshot}
+                  agentLabSubagents={agentLabSubagents}
+                  agentLabSyncPreview={agentLabSyncPreview}
+                  agentLabTrainingPreview={agentLabTrainingPreview}
+                  attachments={attachments}
+                  availableRightPanelTabs={availableRightPanelTabs}
+                  contextEnabled={contextEnabled}
+                  conversationEntities={conversationEntities}
+                  featuredTrainingScenario={featuredTrainingScenario}
+                  formatInlinePanelValue={formatInlinePanelValue}
+                  formatRuntimeTimeLabel={formatRuntimeTimeLabel}
+                  handleEnableNotifications={handleEnableNotifications}
+                  handlePause={handlePause}
+                  handleResetTasks={handleResetTasks}
+                  handleRetry={handleRetry}
+                  handleReuseTaskMission={handleReuseTaskMission}
+                  isLightTheme={isLightTheme}
+                  linkedAgentLabTaskRuns={linkedAgentLabTaskRuns}
+                  loadAgentLabSnapshot={loadAgentLabSnapshot}
+                  moduleWorkspaceCards={moduleWorkspaceCards}
+                  notificationsEnabled={notificationsEnabled}
+                  onOpenAiTask={() => router.push('/interno/ai-task')}
+                  parseProviderPresentation={parseProviderPresentation}
+                  ragSummary={ragSummary}
+                  rightPanelTab={rightPanelTab}
+                  routePath={routePath}
+                  router={router}
+                  runningCount={runningCount}
+                  runAgentLabSync={runAgentLabSync}
+                  runAgentLabTrainingScenario={runAgentLabTrainingScenario}
+                  setRightPanelTab={setRightPanelTab}
+                  setSelectedProjectFilter={setSelectedProjectFilter}
+                  taskHistory={taskHistory}
+                  TaskStatusChip={TaskStatusChip}
+                  updateAgentLabIncidentItemStatus={updateAgentLabIncidentItemStatus}
+                  updateAgentLabQueueItemStatus={updateAgentLabQueueItemStatus}
+                  useCondensedRightRail={useCondensedRightRail}
+                />
                 )
                 ) : null}
               </div>

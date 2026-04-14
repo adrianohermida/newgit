@@ -1,0 +1,53 @@
+import { normalizeDisplayName } from "./sidebarConfig";
+
+const actionButtonClass = (isLightTheme) => `flex h-10 w-10 items-center justify-center rounded-[14px] border transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`;
+const actionTextButtonClass = (isLightTheme) => `flex h-10 min-w-[42px] items-center justify-center rounded-[14px] border px-2 text-sm font-semibold transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`;
+
+function UserMenu({ isLightTheme, onClose, onOpenSettings, onSignOut, onToggle, open, profile, router, userMenuRef }) {
+  const menuItems = [
+    { key: "dashboard", label: "Dashboard", action: () => router.push("/interno") },
+    { key: "settings", label: "Configuracoes", action: onOpenSettings },
+    { key: "notifications", label: "Notificacoes", action: () => router.push("/interno/copilot#notificacoes") },
+    { key: "signout", label: "Sair", action: onSignOut },
+  ];
+  return <div ref={userMenuRef} className="relative">
+    <button type="button" onClick={onToggle} className={actionTextButtonClass(isLightTheme)} title="Menu do usuario">{(normalizeDisplayName(profile).trim().charAt(0) || "H").toUpperCase()}</button>
+    {open ? <div className={`absolute right-0 top-[calc(100%+8px)] z-40 w-56 overflow-hidden rounded-[18px] border shadow-[0_22px_44px_rgba(0,0,0,0.18)] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(10,12,11,0.98)]"}`}>
+      {menuItems.map((item) => <button key={item.key} type="button" onClick={() => { onClose(); item.action(); }} className={`flex w-full items-center justify-between px-4 py-3 text-left text-sm transition ${isLightTheme ? "text-[#22312F] hover:bg-[#F7F9FC]" : "text-[#D8DEDA] hover:bg-[rgba(255,255,255,0.03)]"}`}>{item.label}</button>)}
+    </div> : null}
+  </div>;
+}
+
+export default function InternoShellHeader(props) {
+  const { handleFocusCopilotComposer, handleHeaderSearchSelect, handleSignOut, handleToggleCopilot, handleToggleRightRail, headerLlm, headerSearch, headerSearchRef, headerSearchResults, isCopilotWorkspace, isLightTheme, onChangeHeaderLlm, onChangeHeaderSearch, onOpenSettings, onToggleConsole, onToggleLeftCollapsed, onToggleUserMenu, profile, router, setUserMenuOpen, toggleTheme, userMenuOpen, userMenuRef } = props;
+  return <div className={`sticky top-0 z-20 shrink-0 flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3 md:items-center md:gap-4 md:px-5 md:py-3.5 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(247,249,251,0.92))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.99),rgba(7,9,8,0.96))]"}`}>
+    <div className={`order-1 rounded-[16px] border px-3 py-2 md:order-none ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.82)]" : "border-[#1F2D29] bg-[rgba(255,255,255,0.02)]"}`}>
+      <p className="text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">{isCopilotWorkspace ? "Copilot" : "Workspace"}</p>
+      <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#51606B]" : "text-[#C6D1CC]"}`}>{isCopilotWorkspace ? "Conversa centralizada com historico e modulos" : router.pathname}</p>
+    </div>
+    <div ref={headerSearchRef} className={`order-3 w-full ${isCopilotWorkspace ? "md:flex-1 md:px-4 xl:px-8" : "md:flex-1 md:px-4 xl:px-6"}`}>
+      <div className={`mx-auto flex flex-col gap-2 rounded-[16px] border px-3 py-3 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] md:flex-row md:items-center md:gap-3 md:px-4 md:py-2.5 ${isCopilotWorkspace ? "max-w-[980px]" : "max-w-xl"} ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.84)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(12,15,14,0.86),rgba(8,10,9,0.9))]"}`}>
+        <label className={`flex h-11 shrink-0 items-center gap-2 rounded-[12px] border px-3 py-2 text-[11px] uppercase tracking-[0.16em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
+          <span>LLM</span>
+          <select value={headerLlm} onChange={(event) => onChangeHeaderLlm(event.target.value)} className="bg-transparent text-[11px] font-semibold uppercase tracking-[0.12em] outline-none"><option value="gpt">GPT</option><option value="claude">Claude</option><option value="outros">Outros</option></select>
+        </label>
+        <input type="text" value={headerSearch} onChange={(event) => onChangeHeaderSearch(event.target.value)} placeholder={isCopilotWorkspace ? "Buscar conversas, processos, publicacoes, contatos ou contexto..." : "Buscar por processos, publicacoes, contas..."} className={`h-11 w-full rounded-[12px] border bg-transparent px-4 text-sm outline-none transition ${isLightTheme ? "border-[#D7DEE8] text-[#22312F] placeholder:text-[#8A99A7] focus:border-[#C5A059]" : "border-[#22342F] text-[#F4F1EA] placeholder:text-[#60706A] focus:border-[#C5A059]"}`} />
+        {headerSearchResults.length ? <div className={`absolute left-0 right-0 top-[calc(100%+8px)] z-40 mx-auto max-w-3xl overflow-hidden rounded-[18px] border shadow-[0_22px_44px_rgba(0,0,0,0.18)] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(10,12,11,0.98)]"}`}>
+          {headerSearchResults.map((result) => <button key={result.key} type="button" onClick={() => handleHeaderSearchSelect(result)} className={`flex w-full items-start justify-between gap-3 px-4 py-3 text-left text-sm transition ${isLightTheme ? "hover:bg-[#F7F9FC]" : "hover:bg-[rgba(255,255,255,0.03)]"}`}>
+            <div className="min-w-0"><p className={`truncate font-medium ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{result.label}</p><p className={`mt-1 truncate text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{result.helper}</p></div>
+            <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>{result.type}</span>
+          </button>)}
+        </div> : null}
+        <button type="button" onClick={isCopilotWorkspace ? handleFocusCopilotComposer : handleToggleCopilot} className={`h-11 shrink-0 rounded-[12px] border px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] transition md:min-w-[88px] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#9A6E2D] hover:border-[#C5A059]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#C5A059] hover:border-[#C5A059] hover:text-[#F5E6C5]"}`}>{isCopilotWorkspace ? "Chat" : "Conversar"}</button>
+      </div>
+    </div>
+    <div className={`order-2 [&_span.text-lg]:hidden flex shrink-0 items-center gap-2 rounded-[16px] border px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] md:order-none ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.84)]" : "border-[#1F2D29] bg-[rgba(255,255,255,0.02)]"}`}>
+      <button type="button" onClick={toggleTheme} className={actionButtonClass(isLightTheme)} title={isLightTheme ? "Ativar modo escuro" : "Ativar modo claro"}><span className="sr-only">{isLightTheme ? "Modo escuro" : "Modo claro"}</span>{isLightTheme ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" /></svg> : <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2.5" /><path d="M12 19.5V22" /><path d="M4.93 4.93l1.77 1.77" /><path d="M17.3 17.3l1.77 1.77" /><path d="M2 12h2.5" /><path d="M19.5 12H22" /><path d="M4.93 19.07l1.77-1.77" /><path d="M17.3 6.7l1.77-1.77" /></svg>}</button>
+      <button type="button" onClick={onOpenSettings} className={actionButtonClass(isLightTheme)} title="Configuracoes"><span className="sr-only">Configuracoes</span><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01A1.65 1.65 0 0 0 10.44 3.1V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg></button>
+      <button type="button" onClick={onToggleLeftCollapsed} className={`${actionButtonClass(isLightTheme)} text-[0px]`} title="Alternar sidebar"><span className="sr-only">Sidebar</span><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></svg><span className="text-lg">=</span></button>
+      {!isCopilotWorkspace ? <button type="button" onClick={handleToggleRightRail} className={`${actionButtonClass(isLightTheme)} text-[0px]`} title="Alternar painel direito"><span className="sr-only">Painel</span><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M15 4v16" /></svg><span className="text-lg">[]</span></button> : null}
+      <UserMenu isLightTheme={isLightTheme} onClose={() => setUserMenuOpen(false)} onOpenSettings={onOpenSettings} onSignOut={handleSignOut} onToggle={onToggleUserMenu} open={userMenuOpen} profile={profile} router={router} userMenuRef={userMenuRef} />
+      <button type="button" onClick={onToggleConsole} className={`${actionButtonClass(isLightTheme)} text-[0px]`} title="Alternar console"><span className="sr-only">Console</span><svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="m8 10 2 2-2 2" /><path d="M13 16h3" /></svg><span className="text-lg">_</span></button>
+    </div>
+  </div>;
+}

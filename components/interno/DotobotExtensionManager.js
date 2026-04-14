@@ -16,7 +16,7 @@ function getStatusPresentation({ extensionReady, checking, consentGranted, error
       code: "checking",
       label: "Verificando",
       tone: "border-[#6f5a2d] bg-[rgba(98,79,34,0.16)] text-[#f1dfb5]",
-      summary: "Buscando resposta da extensão no navegador atual.",
+      summary: "Buscando resposta da extensao no navegador atual.",
     };
   }
 
@@ -25,7 +25,7 @@ function getStatusPresentation({ extensionReady, checking, consentGranted, error
       code: "active",
       label: "Ativa",
       tone: "border-[#234034] bg-[rgba(35,64,52,0.18)] text-[#bde7c9]",
-      summary: "A extensão está conectada e liberada para comandos assistidos.",
+      summary: "A extensao esta conectada e liberada para comandos assistidos.",
     };
   }
 
@@ -34,28 +34,30 @@ function getStatusPresentation({ extensionReady, checking, consentGranted, error
       code: "connected",
       label: "Conectada",
       tone: "border-[#35554B] bg-[rgba(53,85,75,0.16)] text-[#c7dfd5]",
-      summary: "A extensão respondeu ao bridge, mas ainda falta confirmar o consentimento operacional.",
+      summary: "A extensao respondeu ao bridge, mas ainda falta confirmar o consentimento operacional.",
     };
   }
 
   return {
     code: "missing",
-    label: "Não detectada",
+    label: "Nao detectada",
     tone: "border-[#6f5a2d] bg-[rgba(98,79,34,0.16)] text-[#f1dfb5]",
     summary: "Nenhuma resposta da Universal LLM Assistant neste navegador.",
   };
 }
 
 export default function DotobotExtensionManager() {
-  const { extensionReady, lastResponse, probeExtension } = useDotobotExtensionBridge();
+  const { extensionReady, lastResponse, debugEvents, probeExtension } = useDotobotExtensionBridge();
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
   const [consentGranted, setConsentGranted] = useState(false);
+  const [browserOrigin, setBrowserOrigin] = useState("");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const stored = window.localStorage.getItem("dotobot_extension_consent");
     setConsentGranted(stored === "granted");
+    setBrowserOrigin(window.location.origin || "");
   }, []);
 
   async function handleCheckConnection() {
@@ -64,10 +66,10 @@ export default function DotobotExtensionManager() {
     try {
       const response = await probeExtension();
       if (!response) {
-        setError("A extensão não respondeu ao handshake. Verifique se está instalada, ativa e com a página recarregada.");
+        setError("A extensao nao respondeu ao handshake via content script. Verifique se ela esta ativa, com permissao no site atual, e recarregue a aba apos instalar ou atualizar.");
       }
     } catch (probeError) {
-      setError(probeError?.message || "Falha ao verificar a extensão.");
+      setError(probeError?.message || "Falha ao verificar a extensao.");
     } finally {
       setChecking(false);
     }
@@ -100,9 +102,9 @@ export default function DotobotExtensionManager() {
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#C5A059]">Universal LLM Assistant</p>
-          <h2 className="mt-2 text-xl font-semibold text-[#F4F1EA]">Extensão do navegador</h2>
+          <h2 className="mt-2 text-xl font-semibold text-[#F4F1EA]">Extensao do navegador</h2>
           <p className="mt-2 max-w-3xl text-sm leading-7 text-[#C7D0CA]">
-            Integra navegação web, leitura local assistida e ações operacionais avançadas ao Dotobot, com validação humana e branding do escritório.
+            Integra navegacao web, leitura local assistida e acoes operacionais avancadas ao Dotobot, com validacao humana e branding do escritorio.
           </p>
         </div>
         <div className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${status.tone}`}>
@@ -114,49 +116,73 @@ export default function DotobotExtensionManager() {
         <p className="text-sm leading-7 text-[#E8E0D2]">{status.summary}</p>
         {lastResponse ? (
           <div className="mt-3 grid gap-2 text-xs text-[#9BAEA8] md:grid-cols-3">
-            <p>Última resposta: {lastResponse.type || "n/a"}</p>
+            <p>Ultima resposta: {lastResponse.type || "n/a"}</p>
             <p>Request ID: {lastResponse.requestId || "n/a"}</p>
             <p>Source: {lastResponse.source || "n/a"}</p>
           </div>
         ) : null}
+        <div className="mt-4 grid gap-3 text-xs text-[#9BAEA8] md:grid-cols-2">
+          <div className="rounded-[14px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+            <p className="font-semibold text-[#E8E0D2]">Origem atual da aba</p>
+            <p className="mt-1 break-all">{browserOrigin || "indisponivel"}</p>
+            <p className="mt-2 opacity-80">A extensao precisa estar ativa e com permissao exatamente nesta origem.</p>
+          </div>
+          <div className="rounded-[14px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3">
+            <p className="font-semibold text-[#E8E0D2]">Handshake esperado</p>
+            <p className="mt-1">Frontend envia `DOTOBOT_EXTENSION_PING` e `DOTOBOT_COMMAND`.</p>
+            <p className="mt-1">Extensao deve responder com `EXTENSION_READY` ou `EXTENSION_RESPONSE`.</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-[18px] border border-[#22342F] bg-[rgba(7,9,8,0.72)] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-[#E8E0D2]">Debug do bridge</p>
+          <span className="rounded-full border border-[#22342F] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[#9BAEA8]">
+            {debugEvents.length} evento(s)
+          </span>
+        </div>
+        {!debugEvents.length ? (
+          <p className="mt-3 text-xs leading-6 text-[#9BAEA8]">Nenhum evento registrado ainda nesta sessao. Use "Verificar conexao" ou recarregue a aba.</p>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {debugEvents.map((event) => (
+              <div key={event.id} className="rounded-[14px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-3 text-xs text-[#9BAEA8]">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`rounded-full border px-2 py-1 uppercase tracking-[0.14em] ${event.direction === "in" ? "border-[#234034] text-[#bde7c9]" : "border-[#35554B] text-[#c7dfd5]"}`}>
+                    {event.direction === "in" ? "entrada" : "saida"}
+                  </span>
+                  <span className="font-semibold text-[#E8E0D2]">{event.type || "unknown"}</span>
+                  {event.command ? <span>cmd: {event.command}</span> : null}
+                  {event.requestId ? <span>req: {event.requestId}</span> : null}
+                </div>
+                <p className="mt-2 break-all">{event.source || "sem source"} • {event.timestamp}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={handleInstall}
-          className="rounded-2xl border border-[#C5A059] px-4 py-2 text-sm font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#1A1A1A]"
-        >
+        <button type="button" onClick={handleInstall} className="rounded-2xl border border-[#C5A059] px-4 py-2 text-sm font-semibold text-[#C5A059] transition hover:bg-[#C5A059] hover:text-[#1A1A1A]">
           Instalar / atualizar
         </button>
-        <button
-          type="button"
-          onClick={handleCheckConnection}
-          className="rounded-2xl border border-[#22342F] px-4 py-2 text-sm text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-        >
-          {checking ? "Verificando..." : "Verificar conexão"}
+        <button type="button" onClick={handleCheckConnection} className="rounded-2xl border border-[#22342F] px-4 py-2 text-sm text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
+          {checking ? "Verificando..." : "Verificar conexao"}
         </button>
-        <button
-          type="button"
-          onClick={handleConsent}
-          disabled={!extensionReady}
-          className="rounded-2xl border border-[#234034] px-4 py-2 text-sm text-[#8FCFA9] transition disabled:opacity-40 hover:border-[#8FCFA9]"
-        >
+        <button type="button" onClick={handleConsent} disabled={!extensionReady} className="rounded-2xl border border-[#234034] px-4 py-2 text-sm text-[#8FCFA9] transition disabled:opacity-40 hover:border-[#8FCFA9]">
           Autorizar uso interno
         </button>
-        <button
-          type="button"
-          onClick={handleRevokeConsent}
-          className="rounded-2xl border border-[#22342F] px-4 py-2 text-sm text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
-        >
+        <button type="button" onClick={handleRevokeConsent} className="rounded-2xl border border-[#22342F] px-4 py-2 text-sm text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]">
           Revogar
         </button>
       </div>
 
       <ul className="mt-4 space-y-2 text-xs leading-6 text-[#C5A059]">
-        <li>O Dotobot só deve acionar a extensão em fluxos que exigem web search ou acesso local explícito.</li>
+        <li>O Dotobot so deve acionar a extensao em fluxos que exigem web search ou acesso local explicito.</li>
         <li>O consentimento fica persistido no navegador atual e pode ser revogado a qualquer momento.</li>
-        <li>Sem resposta do bridge, o módulo continua funcionando apenas com providers web, Cloudflare Workers AI e LLM local HTTP.</li>
+        <li>Sem resposta do bridge, o modulo continua funcionando apenas com providers web, Cloudflare Workers AI e LLM local HTTP.</li>
+        <li>Se o servidor local estiver no ar e mesmo assim nao houver resposta, quase sempre o content script nao foi injetado nesta aba.</li>
       </ul>
     </section>
   );

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
-import { OperationalHistoryCompactCard, OperationalResultCard } from "../../../components/interno/OperationalResultPanels";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import { useInternalTheme } from "../../../components/interno/InternalThemeProvider";
 import OperationalHealthPanel from "../../../components/interno/hmadv/OperationalHealthPanel";
@@ -30,17 +29,19 @@ import {
   getSafeProcessActionLimit,
 } from "./action-utils";
 import {
-  currentHashValue,
   loadHistoryEntries,
   loadOperationalSnapshot,
-  loadUiState,
   parseCopilotContext,
   persistHistoryEntries,
   persistOperationalSnapshot,
-  persistUiState,
 } from "./storage";
 import { useProcessosAdminFetch } from "./useProcessosAdminFetch";
 import { ActionButton, Field, MetricCard, Panel, QueueSummaryCard, SelectField, StatusBadge, ViewToggle } from "./ui-primitives";
+import ProcessosFilasView from "./ProcessosFilasView";
+import ProcessosOperacaoView from "./ProcessosOperacaoView";
+import ProcessosRelacoesView from "./ProcessosRelacoesView";
+import ProcessosResultadoView from "./ProcessosResultadoView";
+import { useProcessosNavigationState } from "./useProcessosNavigationState";
 import {
   derivePrimaryProcessAction,
   deriveRecurringProcessEntries,
@@ -854,27 +855,103 @@ function InternoProcessosContent() {
   const [relationSelectionLoading, setRelationSelectionLoading] = useState(false);
   const [suggestionSelectionLoading, setSuggestionSelectionLoading] = useState(false);
   const adminFetch = useProcessosAdminFetch();
-
-  useEffect(() => {
-    const syncViewFromLocation = () => {
-      if (typeof window === "undefined") return;
-      const url = new URL(window.location.href);
-      const queryView = url.searchParams.get("view");
-      const hashView = window.location.hash ? window.location.hash.replace("#", "") : "";
-      const nextView = PROCESS_VIEW_ITEMS.some((item) => item.key === queryView)
-        ? queryView
-        : PROCESS_VIEW_ITEMS.some((item) => item.key === hashView)
-          ? hashView
-          : "operacao";
-      setView(nextView);
-      setLastFocusHash(hashView || nextView);
-    };
-    syncViewFromLocation();
-    if (typeof window !== "undefined") window.addEventListener("hashchange", syncViewFromLocation);
-    return () => {
-      if (typeof window !== "undefined") window.removeEventListener("hashchange", syncViewFromLocation);
-    };
+  const persistedUiState = useMemo(() => ({
+    view,
+    lastFocusHash,
+    processNumbers,
+    limit,
+    queueBatchSizes,
+    wmPage,
+    movPage,
+    pubPage,
+    partesPage,
+    audPage,
+    maPage,
+    miPage,
+    fgPage,
+    orphanPage,
+    covPage,
+    search,
+    relationMinScore,
+    selectedWithoutMovements,
+    selectedMovementBacklog,
+    selectedPublicationBacklog,
+    selectedPartesBacklog,
+    selectedAudienciaCandidates,
+    selectedMonitoringActive,
+    selectedMonitoringInactive,
+    selectedFieldGaps,
+    selectedOrphans,
+    selectedRelations,
+    selectedSuggestionKeys,
+  }), [
+    view,
+    lastFocusHash,
+    processNumbers,
+    limit,
+    queueBatchSizes,
+    wmPage,
+    movPage,
+    pubPage,
+    partesPage,
+    audPage,
+    maPage,
+    miPage,
+    fgPage,
+    orphanPage,
+    covPage,
+    search,
+    relationMinScore,
+    selectedWithoutMovements,
+    selectedMovementBacklog,
+    selectedPublicationBacklog,
+    selectedPartesBacklog,
+    selectedAudienciaCandidates,
+    selectedMonitoringActive,
+    selectedMonitoringInactive,
+    selectedFieldGaps,
+    selectedOrphans,
+    selectedRelations,
+    selectedSuggestionKeys,
+  ]);
+  const applySavedUiState = useMemo(() => (saved) => {
+    if (saved.processNumbers) setProcessNumbers(String(saved.processNumbers));
+    if (saved.limit) setLimit(Number(saved.limit) || 2);
+    if (saved.queueBatchSizes && typeof saved.queueBatchSizes === "object") setQueueBatchSizes((current) => ({ ...current, ...saved.queueBatchSizes }));
+    if (saved.wmPage) setWmPage(Math.max(1, Number(saved.wmPage) || 1));
+    if (saved.movPage) setMovPage(Math.max(1, Number(saved.movPage) || 1));
+    if (saved.pubPage) setPubPage(Math.max(1, Number(saved.pubPage) || 1));
+    if (saved.partesPage) setPartesPage(Math.max(1, Number(saved.partesPage) || 1));
+    if (saved.audPage) setAudPage(Math.max(1, Number(saved.audPage) || 1));
+    if (saved.maPage) setMaPage(Math.max(1, Number(saved.maPage) || 1));
+    if (saved.miPage) setMiPage(Math.max(1, Number(saved.miPage) || 1));
+    if (saved.fgPage) setFgPage(Math.max(1, Number(saved.fgPage) || 1));
+    if (saved.orphanPage) setOrphanPage(Math.max(1, Number(saved.orphanPage) || 1));
+    if (saved.covPage) setCovPage(Math.max(1, Number(saved.covPage) || 1));
+    if (saved.search) setSearch(String(saved.search));
+    if (saved.relationMinScore) setRelationMinScore(String(saved.relationMinScore));
+    if (Array.isArray(saved.selectedWithoutMovements)) setSelectedWithoutMovements(saved.selectedWithoutMovements);
+    if (Array.isArray(saved.selectedMovementBacklog)) setSelectedMovementBacklog(saved.selectedMovementBacklog);
+    if (Array.isArray(saved.selectedPublicationBacklog)) setSelectedPublicationBacklog(saved.selectedPublicationBacklog);
+    if (Array.isArray(saved.selectedPartesBacklog)) setSelectedPartesBacklog(saved.selectedPartesBacklog);
+    if (Array.isArray(saved.selectedAudienciaCandidates)) setSelectedAudienciaCandidates(saved.selectedAudienciaCandidates);
+    if (Array.isArray(saved.selectedMonitoringActive)) setSelectedMonitoringActive(saved.selectedMonitoringActive);
+    if (Array.isArray(saved.selectedMonitoringInactive)) setSelectedMonitoringInactive(saved.selectedMonitoringInactive);
+    if (Array.isArray(saved.selectedFieldGaps)) setSelectedFieldGaps(saved.selectedFieldGaps);
+    if (Array.isArray(saved.selectedOrphans)) setSelectedOrphans(saved.selectedOrphans);
+    if (Array.isArray(saved.selectedRelations)) setSelectedRelations(saved.selectedRelations);
+    if (Array.isArray(saved.selectedSuggestionKeys)) setSelectedSuggestionKeys(saved.selectedSuggestionKeys);
   }, []);
+  useProcessosNavigationState({
+    view,
+    lastFocusHash,
+    setView,
+    setLastFocusHash,
+    applySavedState: applySavedUiState,
+    persistedState: persistedUiState,
+    setUiHydrated,
+  });
+
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
     const handleVisibilityChange = () => {
@@ -1014,50 +1091,6 @@ function InternoProcessosContent() {
     withoutMovements,
   ]);
   useEffect(() => {
-    const saved = loadUiState();
-    if (saved) {
-      const currentUrl = typeof window !== "undefined" ? new URL(window.location.href) : null;
-      const hasExplicitTarget = Boolean(currentUrl?.searchParams.get("view") || currentHashValue());
-      if (saved.view && PROCESS_VIEW_ITEMS.some((item) => item.key === saved.view)) setView(saved.view);
-      if (!hasExplicitTarget && saved.lastFocusHash) {
-        setLastFocusHash(String(saved.lastFocusHash));
-        if (typeof window !== "undefined") {
-          const url = new URL(window.location.href);
-          url.searchParams.set("view", saved.view && PROCESS_VIEW_ITEMS.some((item) => item.key === saved.view) ? saved.view : "operacao");
-          url.hash = String(saved.lastFocusHash);
-          window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-        }
-      }
-      if (saved.processNumbers) setProcessNumbers(String(saved.processNumbers));
-      if (saved.limit) setLimit(Number(saved.limit) || 2);
-      if (saved.queueBatchSizes && typeof saved.queueBatchSizes === "object") setQueueBatchSizes((current) => ({ ...current, ...saved.queueBatchSizes }));
-      if (saved.wmPage) setWmPage(Math.max(1, Number(saved.wmPage) || 1));
-      if (saved.movPage) setMovPage(Math.max(1, Number(saved.movPage) || 1));
-      if (saved.pubPage) setPubPage(Math.max(1, Number(saved.pubPage) || 1));
-      if (saved.partesPage) setPartesPage(Math.max(1, Number(saved.partesPage) || 1));
-      if (saved.audPage) setAudPage(Math.max(1, Number(saved.audPage) || 1));
-      if (saved.maPage) setMaPage(Math.max(1, Number(saved.maPage) || 1));
-      if (saved.miPage) setMiPage(Math.max(1, Number(saved.miPage) || 1));
-      if (saved.fgPage) setFgPage(Math.max(1, Number(saved.fgPage) || 1));
-      if (saved.orphanPage) setOrphanPage(Math.max(1, Number(saved.orphanPage) || 1));
-      if (saved.covPage) setCovPage(Math.max(1, Number(saved.covPage) || 1));
-      if (saved.search) setSearch(String(saved.search));
-      if (saved.relationMinScore) setRelationMinScore(String(saved.relationMinScore));
-      if (Array.isArray(saved.selectedWithoutMovements)) setSelectedWithoutMovements(saved.selectedWithoutMovements);
-      if (Array.isArray(saved.selectedMovementBacklog)) setSelectedMovementBacklog(saved.selectedMovementBacklog);
-      if (Array.isArray(saved.selectedPublicationBacklog)) setSelectedPublicationBacklog(saved.selectedPublicationBacklog);
-      if (Array.isArray(saved.selectedPartesBacklog)) setSelectedPartesBacklog(saved.selectedPartesBacklog);
-      if (Array.isArray(saved.selectedAudienciaCandidates)) setSelectedAudienciaCandidates(saved.selectedAudienciaCandidates);
-      if (Array.isArray(saved.selectedMonitoringActive)) setSelectedMonitoringActive(saved.selectedMonitoringActive);
-      if (Array.isArray(saved.selectedMonitoringInactive)) setSelectedMonitoringInactive(saved.selectedMonitoringInactive);
-      if (Array.isArray(saved.selectedFieldGaps)) setSelectedFieldGaps(saved.selectedFieldGaps);
-      if (Array.isArray(saved.selectedOrphans)) setSelectedOrphans(saved.selectedOrphans);
-      if (Array.isArray(saved.selectedRelations)) setSelectedRelations(saved.selectedRelations);
-      if (Array.isArray(saved.selectedSuggestionKeys)) setSelectedSuggestionKeys(saved.selectedSuggestionKeys);
-    }
-    setUiHydrated(true);
-  }, []);
-  useEffect(() => {
     const snapshot = loadOperationalSnapshot();
     if (!snapshot) return;
     if (snapshot.overview) setOverview(snapshot.overview);
@@ -1084,48 +1117,6 @@ function InternoProcessosContent() {
     }
     if (snapshot.cachedAt) setSnapshotAt(snapshot.cachedAt);
   }, []);
-  useEffect(() => {
-    persistUiState({
-      view,
-      lastFocusHash,
-      processNumbers,
-      limit,
-      queueBatchSizes,
-      wmPage,
-      movPage,
-      pubPage,
-      partesPage,
-      audPage,
-      maPage,
-      miPage,
-      fgPage,
-      orphanPage,
-      covPage,
-      search,
-      relationMinScore,
-      selectedWithoutMovements,
-      selectedMovementBacklog,
-      selectedPublicationBacklog,
-      selectedPartesBacklog,
-      selectedAudienciaCandidates,
-      selectedMonitoringActive,
-      selectedMonitoringInactive,
-      selectedFieldGaps,
-      selectedOrphans,
-      selectedRelations,
-      selectedSuggestionKeys,
-    });
-  }, [view, lastFocusHash, processNumbers, limit, queueBatchSizes, wmPage, movPage, pubPage, partesPage, audPage, maPage, miPage, fgPage, orphanPage, covPage, search, relationMinScore, selectedWithoutMovements, selectedMovementBacklog, selectedPublicationBacklog, selectedPartesBacklog, selectedAudienciaCandidates, selectedMonitoringActive, selectedMonitoringInactive, selectedFieldGaps, selectedOrphans, selectedRelations, selectedSuggestionKeys]);
-  useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    const targetHash = String(window.location.hash || "").replace(/^#/, "") || lastFocusHash || view;
-    if (!targetHash) return undefined;
-    const timer = window.setTimeout(() => {
-      const target = document.getElementById(targetHash);
-      if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
-    }, 60);
-    return () => window.clearTimeout(timer);
-  }, [view, lastFocusHash]);
   useEffect(() => {
     const snapshotPayload = {
       overview,
@@ -2121,7 +2112,12 @@ function InternoProcessosContent() {
   }
 
   const data = overview.data || {};
-  const quickStats = useMemo(() => [{ label: "Processos totais", value: data.processosTotal || 0, helper: "Carteira persistida no HMADV." }, { label: "Com account", value: data.processosComAccount || 0, helper: "Sales Accounts ja vinculadas." }, { label: "Sem account", value: data.processosSemAccount || 0, helper: "Processos orfaos." }, { label: "Backlog do worker", value: data.workerVisibleTotal || 0, helper: data.syncWorkerScopeNote || "Pendencias que o sync-worker realmente consegue drenar no escopo atual." }, { label: "Gap estrutural", value: data.structuralGapTotal || 0, helper: "Pendencias fora do escopo direto do sync-worker: campos, polos, contatos e cobertura." }, { label: "Sem movimentacoes", value: data.processosSemMovimentacao || 0, helper: "Fila de reconsulta DataJud; nao some so com o sync-worker." }, { label: "Movimentacoes pendentes", value: movementBacklog.totalRows || data.movimentacoesPendentes || 0, helper: "Andamentos ainda sem activity no Freshsales." }, { label: "Publicacoes pendentes", value: publicationBacklog.totalRows || data.publicacoesPendentes || 0, helper: "Publicacoes ainda sem activity no Freshsales." }, { label: "Partes sem contato", value: partesBacklog.totalRows || data.partesSemContato || 0, helper: "Processos com partes ainda sem contato vinculado." }, { label: "Campos orfaos", value: fieldGaps.totalRows || data.camposOrfaos || 0, helper: "Processos com lacunas estruturais ou gap de CRM." }, { label: "Cobertura auditada", value: processCoverage.totalRows || 0, helper: "Processos com leitura consolidada de cobertura nesta consulta." }, { label: "Audiencias detectaveis", value: audienciaCandidates.totalRows || 0, helper: "Processos com audiencia pendente nas publicacoes." }, { label: "Audiencias no banco", value: data.audienciasTotal || 0, helper: "Persistidas em judiciario.audiencias." }], [data, movementBacklog.totalRows, publicationBacklog.totalRows, partesBacklog.totalRows, fieldGaps.totalRows, processCoverage.totalRows, audienciaCandidates.totalRows]);
+  const focusStats = useMemo(() => [
+    { label: "Acao imediata", value: data?.recommendedNextAction?.label || "Operacao", helper: "Atalho mais util para destravar a esteira agora." },
+    { label: "Backlog do worker", value: data.workerVisibleTotal || 0, helper: data.syncWorkerScopeNote || "Pendencias realmente drenaveis pelo worker." },
+    { label: "Gap estrutural", value: data.structuralGapTotal || 0, helper: "Problemas de CRM, campos e cobertura fora do worker." },
+    { label: "Fila critica", value: Math.max(Number(movementBacklog.totalRows || 0), Number(publicationBacklog.totalRows || 0), Number(partesBacklog.totalRows || 0), Number(fieldGaps.totalRows || 0), Number(orphans.totalRows || 0)), helper: "Maior fila operacional visivel neste momento." },
+  ], [data, movementBacklog.totalRows, publicationBacklog.totalRows, partesBacklog.totalRows, fieldGaps.totalRows, orphans.totalRows]);
   const relationTypeSummary = useMemo(() => relations.items.reduce((acc, item) => { acc[item.tipo_relacao] = (acc[item.tipo_relacao] || 0) + 1; return acc; }, {}), [relations.items]);
   const latestHistory = executionHistory[0] || null;
   const latestRemoteRun = remoteHistory[0] || null;
@@ -2427,12 +2423,12 @@ function InternoProcessosContent() {
       <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
         <div className="max-w-3xl">
           <p className={`text-[11px] font-semibold uppercase tracking-[0.2em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#C5A059]"}`}>Centro operacional</p>
-          <h3 className="mt-3 font-serif text-4xl leading-tight">Sincronismo de processos, monitoramento e reparo CRM em uma unica trilha.</h3>
-          <p className={`mt-3 max-w-2xl text-sm leading-7 ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>A tela agora separa operacao, filas, relacoes e resultado em visoes distintas. Isso reduz ruido visual e preserva memoria do que foi executado nesta sessao de trabalho.</p>
+          <h3 className="mt-3 font-serif text-4xl leading-tight">Processos com menos ruido, mais decisao e execucao.</h3>
+          <p className={`mt-3 max-w-2xl text-sm leading-7 ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>A operacao precisa mostrar o gargalo real, sugerir o melhor lote e reduzir cliques repetidos. O foco agora e decisao clara por etapa, nao um painel monolitico.</p>
         </div>
         <div className={`flex flex-col gap-3 rounded-[26px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[rgba(255,255,255,0.86)] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.45)]"}`}>
-          <div className="flex items-center justify-between gap-4"><span className={isLightTheme ? "text-[#6b7280]" : "opacity-60"}>Selecionados no momento</span><strong className="font-serif text-2xl">{selectedSummary}</strong></div>
-          <div className="flex items-center justify-between gap-4"><span className={isLightTheme ? "text-[#6b7280]" : "opacity-60"}>Ultima acao</span><span className={`text-right text-xs uppercase tracking-[0.16em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#C5A059]"}`}>{actionState.loading ? "executando" : actionState.error ? "erro" : actionState.result ? "concluida" : "aguardando"}</span></div>
+          <div className="flex items-center justify-between gap-4"><span className={isLightTheme ? "text-[#6b7280]" : "opacity-60"}>Selecionados</span><strong className="font-serif text-2xl">{selectedSummary}</strong></div>
+          <div className="flex items-center justify-between gap-4"><span className={isLightTheme ? "text-[#6b7280]" : "opacity-60"}>Estado da sessao</span><span className={`text-right text-xs uppercase tracking-[0.16em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#C5A059]"}`}>{actionState.loading ? "executando" : actionState.error ? "erro" : actionState.result ? "concluida" : "aguardando"}</span></div>
           {latestHistory ? <p className={`text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>{latestHistory.label}: {latestHistory.preview}</p> : null}
         </div>
       </div>
@@ -2458,9 +2454,9 @@ function InternoProcessosContent() {
             </div>
           </div>
           {!isResultView && operationalPlan.length ? <div className={`rounded-[22px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[rgba(255,255,255,0.82)] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)]"}`}>
-            <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Plano operacional</p>
+            <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Plano operacional enxuto</p>
             <div className="mt-3 grid gap-3 md:grid-cols-3">
-              {operationalPlan.map((step, index) => <button key={`${step.title}-${index}`} type="button" onClick={() => runOperationalPlanStep(step)} className={`rounded-[18px] border p-3 text-left hover:border-[#C5A059] ${isLightTheme ? "border-[#d7d4cb] bg-white" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}>
+              {operationalPlan.slice(0, 3).map((step, index) => <button key={`${step.title}-${index}`} type="button" onClick={() => runOperationalPlanStep(step)} className={`rounded-[18px] border p-3 text-left hover:border-[#C5A059] ${isLightTheme ? "border-[#d7d4cb] bg-white" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#C5A059]"}`}>Passo {index + 1}</p>
                   <StatusBadge tone={getOperationalPlanStepState(step, index).tone}>{getOperationalPlanStepState(step, index).label}</StatusBadge>
@@ -2470,25 +2466,11 @@ function InternoProcessosContent() {
               </button>)}
             </div>
           </div> : null}
-          <div className={`rounded-[20px] border p-4 text-xs ${operationalStatus.mode === "error" ? (isLightTheme ? "border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E]" : "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200") : operationalStatus.mode === "limited" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#9a6d14]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="uppercase tracking-[0.18em] text-[10px]">Status operacional</span>
-              <span className="text-[10px] uppercase tracking-[0.16em] opacity-70">{operationalStatus.updatedAt ? new Date(operationalStatus.updatedAt).toLocaleTimeString("pt-BR") : ""}</span>
-            </div>
-            <p className="mt-2">{operationalStatus.message || "Operacao normal"}</p>
-          </div>
-          <div className={`rounded-[20px] border p-4 text-xs ${backendHealth.status === "error" ? (isLightTheme ? "border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E]" : "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200") : backendHealth.status === "warning" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#9a6d14]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="uppercase tracking-[0.18em] text-[10px]">Saude do backend</span>
-              <span className="text-[10px] uppercase tracking-[0.16em] opacity-70">{backendHealth.updatedAt ? new Date(backendHealth.updatedAt).toLocaleTimeString("pt-BR") : ""}</span>
-            </div>
-            <p className="mt-2">{backendHealth.message || "Sem historico recente."}</p>
-          </div>
           {!isResultView ? <div className={`rounded-[26px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[rgba(255,255,255,0.88)] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.55)]"}`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Ciclo completo</p>
-              <p className={`mt-1 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>Disparo unico para DataJud + Advise + Freshsales com drenagem automatica.</p>
+              <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Leitura consolidada</p>
+              <p className={`mt-1 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>Schema, runner e integracao total em um unico resumo acionavel.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <ActionButton tone="primary" onClick={() => handleAction("executar_integracao_total_hmadv")} disabled={actionState.loading}>
@@ -2512,306 +2494,194 @@ function InternoProcessosContent() {
           </div>
           {runnerAction?.datajud_action_manualActionRequired ? <p className={`mt-2 text-xs ${isLightTheme ? "text-red-700" : "text-[#FECACA]"}`}>A prioridade atual ainda depende de acao manual no Freshsales.</p> : null}
         </div> : null}
-        {!isResultView && queueRefreshLog.length ? (
-          <div className={`rounded-[22px] border p-4 text-xs ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)]"}`}>
-            <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Ultimas filas atualizadas</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {queueRefreshLog.map((item) => (
-                <span key={item.key} className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#6b7280]" : "border-[#2D2E2E] opacity-70"}`}>
-                  {item.label} • {new Date(item.ts).toLocaleTimeString("pt-BR")}
-                </span>
-              ))}
-            </div>
-          </div>
-        ) : null}
         {!isResultView && latestRemoteRun ? <RemoteRunSummary entry={latestRemoteRun} /> : null}
-        {!isResultView && remoteHealth.length ? <div className="flex flex-wrap gap-2">{remoteHealth.map((item) => <StatusBadge key={item.label} tone={item.tone}>{item.label}</StatusBadge>)}</div> : null}
       </div>
     </section>
 
-    {!isResultView ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{quickStats.map((card) => <MetricCard key={card.label} label={card.label} value={card.value} helper={card.helper} />)}</div> : null}
+    {!isResultView ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{focusStats.map((card) => <MetricCard key={card.label} label={card.label} value={card.value} helper={card.helper} />)}</div> : null}
 
-    {view === "operacao" ? <div id="operacao" className="grid flex-1 auto-rows-fr gap-6 lg:grid-cols-2">
-      <Panel title="Fila operacional" eyebrow="Sincronismo Freshsales + Supabase" className="h-full">
-        <div className="space-y-4">
-          {latestJob ? <JobCard job={latestJob} active={latestJob.id === activeJobId} /> : null}
-          <label className="block"><span className={`mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>CNJs para foco manual</span><textarea value={processNumbers} onChange={(e) => setProcessNumbers(e.target.value)} rows={4} placeholder="Opcional: cole CNJs manualmente, um por linha." className={`w-full rounded-[22px] border p-3 text-sm outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-[#050706] focus:border-[#C5A059]"}`} /></label>
-          <label className="block max-w-[220px]"><span className={`mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Lote</span><input type="number" min="1" max="30" value={limit} onChange={(e) => setLimit(Number(e.target.value || 2))} className={`w-full rounded-2xl border p-3 text-sm outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-[#050706] focus:border-[#C5A059]"}`} /><span className={`mt-2 block text-xs leading-5 ${isLightTheme ? "text-[#6b7280]" : "opacity-55"}`}>Lotes maiores ficam disponiveis na operacao, com reducao automatica so quando a acao tiver um teto tecnico mais baixo.</span></label>
-          <div className="grid gap-3 md:grid-cols-2">
-            {selectionSuggestedAction ? <ActionButton tone={selectionSuggestedAction.tone || "primary"} onClick={() => handleAction(selectionSuggestedAction.key, selectionSuggestedAction.payload || {})} disabled={actionState.loading || selectionSuggestedAction.disabled} className="md:col-span-2">{selectionSuggestedAction.label}</ActionButton> : null}
-            <ActionButton onClick={() => handleAction("run_sync_worker")} disabled={actionState.loading} tone={isSuggestedAction("run_sync_worker") ? "primary" : "subtle"}>Rodar sync-worker</ActionButton>
-            <ActionButton tone={isSuggestedAction("push_orfaos") ? "primary" : "subtle"} onClick={() => handleAction("push_orfaos", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(orphans.items, selectedOrphans).join("\n")), limit })} disabled={actionState.loading}>Criar accounts no Freshsales</ActionButton>
-            <ActionButton tone={isSuggestedAction("sync_supabase_crm") ? "primary" : "subtle"} onClick={() => handleAction("sync_supabase_crm", { processNumbers: resolveActionProcessNumbers(combinedSelectedNumbers.join("\n")), limit })} disabled={actionState.loading}>Sincronizar Supabase + Freshsales</ActionButton>
-            <ActionButton tone={isSuggestedAction("sincronizar_movimentacoes_activity") ? "primary" : "subtle"} onClick={() => handleAction("sincronizar_movimentacoes_activity", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(movementBacklog.items, selectedMovementBacklog).join("\n")), limit })} disabled={actionState.loading}>Sincronizar movimentacoes</ActionButton>
-            <ActionButton tone={isSuggestedAction("sincronizar_publicacoes_activity") ? "primary" : "subtle"} onClick={() => handleAction("sincronizar_publicacoes_activity", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(publicationBacklog.items, selectedPublicationBacklog).join("\n")), limit })} disabled={actionState.loading}>Sincronizar publicacoes</ActionButton>
-            <ActionButton tone={isSuggestedAction("reconciliar_partes_contatos") ? "primary" : "subtle"} onClick={() => handleAction("reconciliar_partes_contatos", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(partesBacklog.items, selectedPartesBacklog).join("\n")), limit })} disabled={actionState.loading}>Reconciliar partes</ActionButton>
-            <ActionButton onClick={() => handleAction("auditoria_sync")} disabled={actionState.loading} className="md:col-span-2" tone={isSuggestedAction("auditoria_sync") ? "primary" : "subtle"}>Rodar auditoria</ActionButton>
-            <ActionButton onClick={runPendingJobsNow} disabled={actionState.loading || drainInFlight || !jobs.some((item) => ["pending", "running"].includes(String(item.status || "")))} className="md:col-span-2">{drainInFlight ? "Drenando fila..." : "Drenar fila HMADV"}</ActionButton>
-          </div>
-            <div className={`rounded-[22px] border p-4 text-xs leading-6 ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#4b5563]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.45)] opacity-70"}`}>
-              <p><strong className={isLightTheme ? "text-[#1f2937]" : "text-[#F4F1EA]"}>Selecao atual:</strong> {combinedSelectedNumbers.length ? combinedSelectedNumbers.slice(0, 8).join(", ") : "nenhum processo selecionado nas filas"}</p>
-              <p className="mt-2">As acoes principais agora podem virar job persistido no HMADV. O painel acompanha progresso, continua em lote curto e avisa ao concluir sem depender de cliques repetidos.</p>
-              {snapshotAt ? <p className={`mt-2 ${isLightTheme ? "text-[#6b7280]" : "opacity-55"}`}>Memoria local restauravel atualizada em {new Date(snapshotAt).toLocaleString("pt-BR")}.</p> : null}
-            </div>
-          <div className={`rounded-[22px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.45)]"}`}>
-            <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Proximo passo sugerido</p>
-            <p className="mt-2 font-semibold">{selectionActionHint.title}</p>
-            <p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>{selectionActionHint.body}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {selectionActionHint.badges.map((badge) => <StatusBadge key={badge} tone="warning">{badge}</StatusBadge>)}
-            </div>
-          </div>
-        </div>
-      </Panel>
-      <Panel title="Reenriquecimento DataJud" eyebrow="Consulta e persistencia" className="h-full">
-        <div className="space-y-4">
-          <p className={`text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>Aqui ficam os passos granulares. Eles usam primeiro a selecao da fila atual e, se ela estiver vazia, aproveitam os CNJs digitados manualmente.</p>
-          <div className="grid gap-3 md:grid-cols-2">
-            <ActionButton tone="primary" onClick={() => handleAction("enriquecer_datajud", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(withoutMovements.items, selectedWithoutMovements).join("\n")), limit, intent: "buscar_movimentacoes", action: "enriquecer_datajud" })} disabled={actionState.loading}>Buscar movimentacoes no DataJud</ActionButton>
-            <ActionButton onClick={() => handleAction("repair_freshsales_accounts", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n")), limit })} disabled={actionState.loading}>Corrigir campos no Freshsales</ActionButton>
-            <ActionButton onClick={() => handleAction("sincronizar_movimentacoes_activity", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(movementBacklog.items, selectedMovementBacklog).join("\n")), limit })} disabled={actionState.loading}>Sincronizar movimentacoes no Freshsales</ActionButton>
-            <ActionButton onClick={() => handleAction("sincronizar_publicacoes_activity", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(publicationBacklog.items, selectedPublicationBacklog).join("\n")), limit })} disabled={actionState.loading}>Sincronizar publicacoes no Freshsales</ActionButton>
-            <ActionButton onClick={() => handleAction("reconciliar_partes_contatos", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(partesBacklog.items, selectedPartesBacklog).join("\n")), limit })} disabled={actionState.loading}>Reconciliar partes com contatos</ActionButton>
-            <ActionButton onClick={() => handleAction("backfill_audiencias", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(audienciaCandidates.items, selectedAudienciaCandidates).join("\n")), limit, apply: true })} disabled={actionState.loading}>Retroagir audiencias</ActionButton>
-            <ActionButton onClick={() => handleAction("enriquecer_datajud", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringActive.items, selectedMonitoringActive).join("\n")), limit, intent: "sincronizar_monitorados", action: "enriquecer_datajud" })} disabled={actionState.loading}>Sincronizar monitorados</ActionButton>
-            <ActionButton onClick={() => handleAction("enriquecer_datajud", { processNumbers: resolveActionProcessNumbers(getSelectedNumbers(fieldGaps.items, selectedFieldGaps).join("\n")), limit, intent: "reenriquecer_gaps", action: "enriquecer_datajud" })} disabled={actionState.loading} className="md:col-span-2">Reenriquecer processos com gap</ActionButton>
-          </div>
-          <div className="grid gap-3 pt-2 md:grid-cols-3">
-            <div className={`rounded-[22px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.45)]"}`}><p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Fluxo 1</p><p className="mt-2 font-semibold">Persistir consulta</p><p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>Salvar DataJud no Supabase sem depender de reparo imediato no CRM.</p></div>
-            <div className={`rounded-[22px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.45)]"}`}><p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Fluxo 2</p><p className="mt-2 font-semibold">Corrigir CRM</p><p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>Refletir os campos no Freshsales depois que o processo ja estiver consistente no banco.</p></div>
-            <div className={`rounded-[22px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.45)]"}`}><p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Fluxo 3</p><p className="mt-2 font-semibold">Usar pipeline unica</p><p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>O comando combinado executa as duas etapas e devolve o que foi persistido e o que foi reparado.</p></div>
-          </div>
-        </div>
-      </Panel>
-    </div> : null}
+    {view === "operacao" ? <ProcessosOperacaoView
+      latestJob={latestJob}
+      activeJobId={activeJobId}
+      JobCard={JobCard}
+      processNumbers={processNumbers}
+      setProcessNumbers={setProcessNumbers}
+      limit={limit}
+      setLimit={setLimit}
+      selectionSuggestedAction={selectionSuggestedAction}
+      handleAction={handleAction}
+      actionState={actionState}
+      isSuggestedAction={isSuggestedAction}
+      resolveActionProcessNumbers={resolveActionProcessNumbers}
+      getSelectedNumbers={getSelectedNumbers}
+      orphans={orphans}
+      selectedOrphans={selectedOrphans}
+      combinedSelectedNumbers={combinedSelectedNumbers}
+      movementBacklog={movementBacklog}
+      selectedMovementBacklog={selectedMovementBacklog}
+      publicationBacklog={publicationBacklog}
+      selectedPublicationBacklog={selectedPublicationBacklog}
+      partesBacklog={partesBacklog}
+      selectedPartesBacklog={selectedPartesBacklog}
+      runPendingJobsNow={runPendingJobsNow}
+      drainInFlight={drainInFlight}
+      jobs={jobs}
+      snapshotAt={snapshotAt}
+      isLightTheme={isLightTheme}
+      selectionActionHint={selectionActionHint}
+      fieldGaps={fieldGaps}
+      selectedFieldGaps={selectedFieldGaps}
+      withoutMovements={withoutMovements}
+      selectedWithoutMovements={selectedWithoutMovements}
+      audienciaCandidates={audienciaCandidates}
+      selectedAudienciaCandidates={selectedAudienciaCandidates}
+      monitoringActive={monitoringActive}
+      selectedMonitoringActive={selectedMonitoringActive}
+    /> : null}
 
-    {view === "filas" ? <div id="filas" className="space-y-6">
-      {recurringProcesses.length ? <Panel title="Pendencias reincidentes" eyebrow="Prioridade operacional">
-        <div className="space-y-4">
-          <div className={`rounded-[24px] border p-4 ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#5b4a22]" : "border-[#6E5630] bg-[rgba(76,57,26,0.16)]"}`}>
-            <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#8a6217]" : "text-[#F8E7B5]"}`}>Foco recomendado</p>
-            <p className="mt-2 font-semibold">{recurringProcessFocus.title}</p>
-            <p className={`mt-2 text-sm ${isLightTheme ? "text-[#6b7280]" : "opacity-75"}`}>{recurringProcessFocus.body}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <StatusBadge tone="success">lote sugerido {recurringProcessBatch.size}</StatusBadge>
-              <StatusBadge tone="default">{recurringProcessBatch.reason}</StatusBadge>
-              <StatusBadge tone="default">{visibleRecurringCount} reincidentes visiveis</StatusBadge>
-              <StatusBadge tone="warning">{visibleSevereRecurringCount} graves visiveis</StatusBadge>
-              <StatusBadge tone={visibleSevereRecurringCount > 0 && selectedVisibleSevereRecurringCount >= visibleSevereRecurringCount ? "success" : "default"}>
-                selecao cobre {selectedVisibleSevereRecurringCount}/{visibleSevereRecurringCount || 0} graves
-              </StatusBadge>
-              <StatusBadge tone={priorityBatchReady ? "success" : "warning"}>
-                {priorityBatchReady ? "lote prioritario pronto" : "lote prioritario pendente"}
-              </StatusBadge>
-              <ActionButton className="px-3 py-2 text-xs" onClick={() => setLimit(recurringProcessBatch.size)}>Usar lote sugerido</ActionButton>
-              <ActionButton tone="primary" className="px-3 py-2 text-xs" onClick={applySevereRecurringPreset}>Montar lote prioritario</ActionButton>
-              <ActionButton className="px-3 py-2 text-xs" onClick={selectVisibleRecurringProcesses}>Selecionar reincidentes visiveis</ActionButton>
-              <ActionButton className="px-3 py-2 text-xs" onClick={selectVisibleSevereRecurringProcesses}>Selecionar 3x+ visiveis</ActionButton>
-              <ActionButton className="px-3 py-2 text-xs" onClick={clearAllQueueSelections}>Limpar selecao</ActionButton>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {recurringProcessActions.map((action) => <StatusBadge key={action} tone="warning">{action}</StatusBadge>)}
-            </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <StatusBadge tone="success">proximo disparo: {primaryProcessAction}</StatusBadge>
-                <ActionButton className="px-3 py-2 text-xs" onClick={() => updateView("operacao")}>Ir para operacao</ActionButton>
-                <ActionButton className="px-3 py-2 text-xs" onClick={runPendingJobsNow} disabled={actionState.loading || drainInFlight}>{drainInFlight ? "Drenando..." : "Rodar drenagem agora"}</ActionButton>
-              </div>
-            <div className="mt-4 space-y-2">
-              {recurringProcessChecklist.map((step, index) => <div key={step} className={`flex items-start gap-3 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-80"}`}>
-                <span className={`mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold ${isLightTheme ? "border-[#e4d2a8] text-[#8a6217]" : "border-[#6E5630] text-[#F8E7B5]"}`}>{index + 1}</span>
-                <p>{step}</p>
-              </div>)}
-            </div>
-          </div>
-          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <QueueSummaryCard title="Supabase" count={recurringProcessSummary.supabase} helper="Itens que pedem correcao ou consolidacao interna." />
-            <QueueSummaryCard title="Freshsales" count={recurringProcessSummary.freshsales} helper="Reparos ou criacao de account no CRM." />
-            <QueueSummaryCard title="DataJud" count={recurringProcessSummary.datajud} helper="Reconsulta ou falta de progresso no enriquecimento." />
-            <QueueSummaryCard title="Manual" count={recurringProcessSummary.manual} helper="Casos que merecem revisao humana." accent="text-[#FECACA]" />
-            <QueueSummaryCard title="Sem progresso" count={recurringProcessSummary.stagnant} helper="Reincidencias sem ganho util no lote." accent="text-[#FDE68A]" />
-            <QueueSummaryCard title="Recorrentes" count={recurringProcessSummary.total} helper="Itens que voltaram em multiplos ciclos recentes." />
-          </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            <QueueSummaryCard title="Faixa 2x" count={recurringProcessBands.recurring} helper="Pendencias que reapareceram em dois ciclos." />
-            <QueueSummaryCard title="Faixa 3x" count={recurringProcessBands.reincident} helper="Itens reincidentes que merecem atencao prioritaria." accent="text-[#FDE68A]" />
-            <QueueSummaryCard title="Faixa 4x+" count={recurringProcessBands.critical} helper="Gargalos cronicos que pedem acao estrutural." accent="text-[#FECACA]" />
-          </div>
-          <div className="space-y-6">
-            <RecurringProcessGroup title="Criticos (4x+)" helper="Gargalos cronicos que repetem em quatro ou mais ciclos." items={recurringProcessGroups.critical} />
-            <RecurringProcessGroup title="Reincidentes (3x)" helper="Itens que persistem por tres ciclos e merecem prioridade alta." items={recurringProcessGroups.reincident} />
-            <RecurringProcessGroup title="Recorrentes (2x)" helper="Itens que reapareceram duas vezes e ainda cabem em correcao operacional." items={recurringProcessGroups.recurring} />
-          </div>
-        </div>
-      </Panel> : null}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <QueueSummaryCard title="Sem movimentacoes" count={withoutMovements.totalRows || 0} helper="Processos prontos para reconsulta no DataJud." />
-        <QueueSummaryCard title="Movimentacoes pendentes" count={movementBacklog.totalRows || 0} helper="Andamentos ainda sem activity no Freshsales." />
-        <QueueSummaryCard title="Publicacoes pendentes" count={publicationBacklog.totalRows || 0} helper="Publicacoes ainda sem activity no Freshsales." />
-        <QueueSummaryCard title="Partes sem contato" count={partesBacklog.totalRows || 0} helper="Partes ainda sem contato vinculado." />
-        <QueueSummaryCard title="Cobertura auditada" count={processCoverage.totalRows || 0} helper="Processos visiveis na leitura consolidada de cobertura." />
-        <QueueSummaryCard title="Monitorados" count={monitoringActive.totalRows || 0} helper="Carteira ativa em acompanhamento." />
-        <QueueSummaryCard title="Campos orfaos" count={fieldGaps.totalRows || 0} helper="Diferencas entre a base e o CRM." />
-        <QueueSummaryCard title="Sem conta comercial" count={orphans.totalRows || 0} helper="Processos ainda sem conta vinculada." />
-      </div>
-      <div className="grid gap-6 xl:grid-cols-2">
-      <div id="processos-cobertura"><Panel title="Cobertura por processo" eyebrow="Auditoria local">
-        {processCoverage.unsupported ? (
-          <div className={`rounded-[22px] border border-dashed p-4 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#F8E7B5]"}`}>
-            O schema de cobertura ainda nao foi aplicado no HMADV. Assim que a migracao estiver ativa, esta leitura vai mostrar o percentual real de cobertura por processo.
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {processCoverage.limited ? <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#F8E7B5]"}`}>A leitura de cobertura entrou em modo reduzido para evitar sobrecarga. Os totais continuam uteis, mas a pagina atual pode vir parcial.</div> : null}
-            {processCoverage.error ? <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E]" : "border-[#4B2222] bg-[rgba(75,34,34,0.18)] text-[#FECACA]"}`}>{processCoverage.error}</div> : null}
-            {!processCoverage.loading && Number(processCoverage.totalRows || 0) > 0 && !(processCoverage.items || []).length ? <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#F8E7B5]"}`}>{coverageMismatchMessage(processCoverage)}</div> : null}
-            <CoverageList rows={processCoverage.items} page={covPage} setPage={setCovPage} loading={processCoverage.loading} totalRows={processCoverage.totalRows} pageSize={processCoverage.pageSize} onSelectProcess={useCoverageProcess} />
-          </div>
-        )}
-      </Panel></div>
-      <Panel title="Processos sem movimentacoes" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Sem movimentacoes" helper="Itens sem andamento local para reconsulta no DataJud." rows={withoutMovements.items} selected={selectedWithoutMovements} onToggle={(key) => toggleSelection(setSelectedWithoutMovements, selectedWithoutMovements, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedWithoutMovements, selectedWithoutMovements, withoutMovements.items, nextState)} page={wmPage} setPage={setWmPage} loading={withoutMovements.loading} totalRows={withoutMovements.totalRows} pageSize={withoutMovements.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "sem_movimentacoes")} lastUpdated={withoutMovements.updatedAt} limited={withoutMovements.limited} errorMessage={withoutMovements.error} /><QueueActionBlock selectionCount={queueActionConfigs.sem_movimentacoes.selectionCount} batchSize={queueActionConfigs.sem_movimentacoes.batchSize} onBatchChange={(value) => updateQueueBatchSize("sem_movimentacoes", value)} helper={queueActionConfigs.sem_movimentacoes.helper} disabled={actionState.loading} actions={queueActionConfigs.sem_movimentacoes.actions} /></div></Panel>
-      <div id="processos-movimentacoes-pendentes"><Panel title="Movimentacoes pendentes" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Andamentos sem activity" helper="Processos com movimentacoes no HMADV ainda sem reflexo em sales_activities do Freshsales." rows={movementBacklog.items} selected={selectedMovementBacklog} onToggle={(key) => toggleSelection(setSelectedMovementBacklog, selectedMovementBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMovementBacklog, selectedMovementBacklog, movementBacklog.items, nextState)} page={movPage} setPage={setMovPage} loading={movementBacklog.loading} totalRows={movementBacklog.totalRows} pageSize={movementBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "movimentacoes_pendentes")} lastUpdated={movementBacklog.updatedAt} limited={movementBacklog.limited} errorMessage={movementBacklog.error} /><QueueActionBlock selectionCount={queueActionConfigs.movimentacoes_pendentes.selectionCount} batchSize={queueActionConfigs.movimentacoes_pendentes.batchSize} onBatchChange={(value) => updateQueueBatchSize("movimentacoes_pendentes", value)} helper={queueActionConfigs.movimentacoes_pendentes.helper} disabled={actionState.loading} actions={queueActionConfigs.movimentacoes_pendentes.actions} /></div></Panel></div>
-      <div id="processos-publicacoes-pendentes"><Panel title="Publicacoes pendentes" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Publicacoes sem activity" helper="Processos com publicacoes no HMADV ainda sem reflexo em sales_activities do Freshsales." rows={publicationBacklog.items} selected={selectedPublicationBacklog} onToggle={(key) => toggleSelection(setSelectedPublicationBacklog, selectedPublicationBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedPublicationBacklog, selectedPublicationBacklog, publicationBacklog.items, nextState)} page={pubPage} setPage={setPubPage} loading={publicationBacklog.loading} totalRows={publicationBacklog.totalRows} pageSize={publicationBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "publicacoes_pendentes")} lastUpdated={publicationBacklog.updatedAt} limited={publicationBacklog.limited} errorMessage={publicationBacklog.error} /><QueueActionBlock selectionCount={queueActionConfigs.publicacoes_pendentes.selectionCount} batchSize={queueActionConfigs.publicacoes_pendentes.batchSize} onBatchChange={(value) => updateQueueBatchSize("publicacoes_pendentes", value)} helper={queueActionConfigs.publicacoes_pendentes.helper} disabled={actionState.loading} actions={queueActionConfigs.publicacoes_pendentes.actions} /></div></Panel></div>
-      <div id="processos-partes-sem-contato"><Panel title="Partes sem contato" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Partes a reconciliar" helper="Processos com partes ainda sem contato_freshsales_id, prontos para reconciliacao com o modulo de contatos." rows={partesBacklog.items} selected={selectedPartesBacklog} onToggle={(key) => toggleSelection(setSelectedPartesBacklog, selectedPartesBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedPartesBacklog, selectedPartesBacklog, partesBacklog.items, nextState)} page={partesPage} setPage={setPartesPage} loading={partesBacklog.loading} totalRows={partesBacklog.totalRows} pageSize={partesBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "partes_sem_contato")} lastUpdated={partesBacklog.updatedAt} limited={partesBacklog.limited} errorMessage={partesBacklog.error} /><QueueActionBlock selectionCount={queueActionConfigs.partes_sem_contato.selectionCount} batchSize={queueActionConfigs.partes_sem_contato.batchSize} onBatchChange={(value) => updateQueueBatchSize("partes_sem_contato", value)} helper={queueActionConfigs.partes_sem_contato.helper} disabled={actionState.loading} actions={queueActionConfigs.partes_sem_contato.actions} /></div></Panel></div>
-      <Panel title="Audiencias detectaveis" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Retroativo de audiencias" helper="Processos com sinais concretos de audiencia nas publicacoes e ainda sem persistencia equivalente." rows={audienciaCandidates.items} selected={selectedAudienciaCandidates} onToggle={(key) => toggleSelection(setSelectedAudienciaCandidates, selectedAudienciaCandidates, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedAudienciaCandidates, selectedAudienciaCandidates, audienciaCandidates.items, nextState)} page={audPage} setPage={setAudPage} loading={audienciaCandidates.loading} totalRows={audienciaCandidates.totalRows} pageSize={audienciaCandidates.pageSize} renderStatuses={(row) => [{ label: `${row.audiencias_pendentes || 0} audiencias pendentes`, tone: "warning" }, row.proxima_data_audiencia ? { label: `proxima ${new Date(row.proxima_data_audiencia).toLocaleDateString("pt-BR")}`, tone: "default" } : null].filter(Boolean)} lastUpdated={audienciaCandidates.updatedAt} limited={audienciaCandidates.limited} errorMessage={audienciaCandidates.error} /><QueueActionBlock selectionCount={queueActionConfigs.audiencias_pendentes.selectionCount} batchSize={queueActionConfigs.audiencias_pendentes.batchSize} onBatchChange={(value) => updateQueueBatchSize("audiencias_pendentes", value)} helper={queueActionConfigs.audiencias_pendentes.helper} disabled={actionState.loading} actions={queueActionConfigs.audiencias_pendentes.actions} /></div></Panel>
-      <Panel title="Monitoramento ativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#F8E7B5]"}`}>A coluna <strong>monitoramento_ativo</strong> ainda nao existe no HMADV. Esta fila fica em modo diagnostico, com leitura por fallback e sem gravacao.</div> : null}<QueueList title="Monitorados" helper="Se a base ainda nao marca monitoramento_ativo, o painel usa fallback pelos processos com account." rows={monitoringActive.items} selected={selectedMonitoringActive} onToggle={(key) => toggleSelection(setSelectedMonitoringActive, selectedMonitoringActive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringActive, selectedMonitoringActive, monitoringActive.items, nextState)} page={maPage} setPage={setMaPage} loading={monitoringActive.loading} totalRows={monitoringActive.totalRows} pageSize={monitoringActive.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "monitoramento_ativo", { monitoringUnsupported })} lastUpdated={monitoringActive.updatedAt} limited={monitoringActive.limited} errorMessage={monitoringActive.error} selectionDisabled={monitoringUnsupported} selectionDisabledMessage={monitoringUnsupported ? "Selecao bloqueada: esta fila serve apenas para diagnosticar a adequacao de schema." : ""} />{monitoringUnsupported ? <div className={`rounded-[18px] border border-dashed px-4 py-3 text-xs leading-6 ${isLightTheme ? "border-[#e4d2a8] text-[#8a6217]" : "border-[#6E5630] text-[#F8E7B5]"}`}>Escrita de monitoramento temporariamente indisponivel: aplique a migracao do schema para liberar ativacao e desativacao pela fila.</div> : null}<QueueActionBlock selectionCount={queueActionConfigs.monitoramento_ativo.selectionCount} batchSize={queueActionConfigs.monitoramento_ativo.batchSize} onBatchChange={(value) => updateQueueBatchSize("monitoramento_ativo", value)} helper={queueActionConfigs.monitoramento_ativo.helper} disabled={actionState.loading || monitoringUnsupported} actions={queueActionConfigs.monitoramento_ativo.actions} /></div></Panel>
-      <Panel title="Monitoramento inativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#F8E7B5]"}`}>Sem a coluna <strong>monitoramento_ativo</strong>, esta fila nao consegue gravar alteracoes. O painel mostra apenas o que precisa de adequacao de schema.</div> : null}<QueueList title="Nao monitorados" helper="Use esta fila para reativar o sync dos processos que ficaram fora da rotina." rows={monitoringInactive.items} selected={selectedMonitoringInactive} onToggle={(key) => toggleSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, monitoringInactive.items, nextState)} page={miPage} setPage={setMiPage} loading={monitoringInactive.loading} totalRows={monitoringInactive.totalRows} pageSize={monitoringInactive.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "monitoramento_inativo", { monitoringUnsupported })} lastUpdated={monitoringInactive.updatedAt} limited={monitoringInactive.limited} errorMessage={monitoringInactive.error} selectionDisabled={monitoringUnsupported} selectionDisabledMessage={monitoringUnsupported ? "Selecao bloqueada: esta fila mostra somente o backlog dependente da migracao de schema." : ""} />{monitoringUnsupported ? <div className={`rounded-[18px] border border-dashed px-4 py-3 text-xs leading-6 ${isLightTheme ? "border-[#e4d2a8] text-[#8a6217]" : "border-[#6E5630] text-[#F8E7B5]"}`}>A reativacao fica bloqueada ate a criacao da coluna <strong>monitoramento_ativo</strong> no HMADV.</div> : null}<QueueActionBlock selectionCount={queueActionConfigs.monitoramento_inativo.selectionCount} batchSize={queueActionConfigs.monitoramento_inativo.batchSize} onBatchChange={(value) => updateQueueBatchSize("monitoramento_inativo", value)} helper={queueActionConfigs.monitoramento_inativo.helper} disabled={actionState.loading || monitoringUnsupported} actions={queueActionConfigs.monitoramento_inativo.actions} /></div></Panel>
-      <Panel title="GAP DataJud -> CRM" eyebrow="Campos orfaos"><div className="space-y-4"><QueueList title="Campos pendentes no Freshsales" helper="Processos vinculados cujo espelho ainda tem campos importantes em branco." rows={fieldGaps.items} selected={selectedFieldGaps} onToggle={(key) => toggleSelection(setSelectedFieldGaps, selectedFieldGaps, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedFieldGaps, selectedFieldGaps, fieldGaps.items, nextState)} page={fgPage} setPage={setFgPage} loading={fieldGaps.loading} totalRows={fieldGaps.totalRows} pageSize={fieldGaps.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "campos_orfaos")} lastUpdated={fieldGaps.updatedAt} limited={fieldGaps.limited} errorMessage={fieldGaps.error} /><QueueActionBlock selectionCount={queueActionConfigs.campos_orfaos.selectionCount} batchSize={queueActionConfigs.campos_orfaos.batchSize} onBatchChange={(value) => updateQueueBatchSize("campos_orfaos", value)} helper={queueActionConfigs.campos_orfaos.helper} disabled={actionState.loading} actions={queueActionConfigs.campos_orfaos.actions} /></div></Panel>
-      <div id="processos-sem-sales-account"><Panel title="Sem Sales Account" eyebrow="Processos orfaos"><div className="space-y-4"><QueueList title="Orfaos" helper="Itens do HMADV que ainda nao viraram Sales Account." rows={orphans.items} selected={selectedOrphans} onToggle={(key) => toggleSelection(setSelectedOrphans, selectedOrphans, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedOrphans, selectedOrphans, orphans.items, nextState)} page={orphanPage} setPage={setOrphanPage} loading={orphans.loading} totalRows={orphans.totalRows} pageSize={orphans.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "orfaos")} lastUpdated={orphans.updatedAt} limited={orphans.limited} errorMessage={orphans.error} /><QueueActionBlock selectionCount={queueActionConfigs.orfaos.selectionCount} batchSize={queueActionConfigs.orfaos.batchSize} onBatchChange={(value) => updateQueueBatchSize("orfaos", value)} helper={queueActionConfigs.orfaos.helper} disabled={actionState.loading} actions={queueActionConfigs.orfaos.actions} /></div></Panel></div>
-      </div>
-    </div> : null}
 
-    {view === "relacoes" ? <div className="space-y-6" id="relacoes">
-      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <Panel title="Vincular processos relacionados" eyebrow="Arvore processual">
-          <div className="space-y-4">
-            {editingRelationId ? <div className={`rounded-2xl border px-4 py-3 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.22)]"}`}>Editando relacao existente. Salve novamente para atualizar o vinculo.</div> : null}
-            <Field label="Processo principal / pai" value={form.numero_cnj_pai} onChange={(value) => setForm((current) => ({ ...current, numero_cnj_pai: value }))} placeholder="CNJ do processo principal" />
-            <Field label="Processo relacionado / filho" value={form.numero_cnj_filho} onChange={(value) => setForm((current) => ({ ...current, numero_cnj_filho: value }))} placeholder="CNJ do apenso, incidente, recurso ou dependencia" />
-            <div className="grid gap-4 md:grid-cols-2">
-              <SelectField label="Tipo de relacao" value={form.tipo_relacao} onChange={(value) => setForm((current) => ({ ...current, tipo_relacao: value }))} options={[{ value: "dependencia", label: "Dependencia" }, { value: "apenso", label: "Apenso" }, { value: "incidente", label: "Incidente" }, { value: "recurso", label: "Recurso" }]} />
-              <SelectField label="Status" value={form.status} onChange={(value) => setForm((current) => ({ ...current, status: value }))} options={[{ value: "ativo", label: "Ativo" }, { value: "inativo", label: "Inativo" }]} />
-            </div>
-            <label className="block">
-              <span className={`mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Observacoes</span>
-              <textarea value={form.observacoes} onChange={(e) => setForm((current) => ({ ...current, observacoes: e.target.value }))} rows={4} className={`w-full rounded-[22px] border p-3 text-sm outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-[#050706] focus:border-[#C5A059]"}`} placeholder="Ex.: recurso distribuido por dependencia do principal." />
-            </label>
-            <div className="flex flex-wrap gap-3">
-              <ActionButton tone="primary" onClick={handleSaveRelation} disabled={actionState.loading}>{editingRelationId ? "Atualizar relacao" : "Salvar relacao"}</ActionButton>
-              <ActionButton onClick={() => { setForm(EMPTY_FORM); setEditingRelationId(null); }} disabled={actionState.loading}>{editingRelationId ? "Cancelar edicao" : "Limpar formulario"}</ActionButton>
-            </div>
-          </div>
-        </Panel>
-        <Panel title="Busca e enriquecimento" eyebrow="Publicacoes + semelhanca">
-          <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-[1fr_180px]">
-              <Field label="Buscar por CNJ, titulo ou parte" value={search} onChange={setSearch} placeholder="Use um CNJ, nome de parte ou trecho do titulo" />
-              <label className="block">
-                <span className={`mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Confianca minima</span>
-                <select value={relationMinScore} onChange={(e) => setRelationMinScore(e.target.value)} className={`w-full rounded-2xl border p-3 text-sm outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-[#050706] focus:border-[#C5A059]"}`}>
-                  <option value="0.35">35%</option>
-                  <option value="0.45">45%</option>
-                  <option value="0.60">60%</option>
-                  <option value="0.75">75%</option>
-                </select>
-              </label>
-            </div>
-            <div className={`rounded-[22px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#4b5563]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] opacity-75"}`}>
-              <p className="font-semibold">Como as sugestoes sao montadas</p>
-              <p className="mt-2 leading-6">A tela cruza CNJs citados nas publicacoes recentes com semelhanca entre titulo e polos do processo. O resultado vira uma fila priorizada para validacao humana e aprovacao em massa.</p>
-            </div>
-            <div className="space-y-3">
-              <Field label="Busca rapida de processos" value={lookupTerm} onChange={setLookupTerm} placeholder="Digite o CNJ ou parte do titulo" />
-              {lookup.loading ? <p className="text-sm opacity-60">Buscando processos...</p> : null}
-              {!lookup.loading && !lookup.items.length && lookupTerm.trim() ? <p className="text-sm opacity-60">Nenhum processo encontrado para esse termo.</p> : null}
-              <div className="space-y-3">
-                {lookup.items.map((item) => <div key={item.id || item.numero_cnj} className={`rounded-[24px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}><p className="font-semibold">{item.numero_cnj || "Sem CNJ"}</p><p className={`mt-1 ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>{item.titulo || "Sem titulo"}</p><div className={`mt-2 flex flex-wrap gap-3 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}><span>Status: {item.status_atual_processo || "sem_status"}</span>{item.account_id_freshsales ? <a href={`https://hmadv-org.myfreshworks.com/crm/sales/accounts/${item.account_id_freshsales}`} target="_blank" rel="noreferrer" className={`underline transition ${isLightTheme ? "hover:text-[#9a6d14]" : "hover:text-[#C5A059]"}`}>Account {item.account_id_freshsales}</a> : null}</div><div className="mt-3 flex flex-wrap gap-2"><ActionButton onClick={() => setForm((current) => ({ ...current, numero_cnj_pai: item.numero_cnj || current.numero_cnj_pai }))} className="px-3 py-2 text-xs">Usar como pai</ActionButton><ActionButton onClick={() => setForm((current) => ({ ...current, numero_cnj_filho: item.numero_cnj || current.numero_cnj_filho }))} className="px-3 py-2 text-xs">Usar como filho</ActionButton></div></div>)}
-              </div>
-            </div>
-          </div>
-        </Panel>
-      </div>
+    {view === "filas" ? <ProcessosFilasView
+      isLightTheme={isLightTheme}
+      recurringProcesses={recurringProcesses}
+      recurringProcessFocus={recurringProcessFocus}
+      recurringProcessBatch={recurringProcessBatch}
+      visibleRecurringCount={visibleRecurringCount}
+      visibleSevereRecurringCount={visibleSevereRecurringCount}
+      selectedVisibleSevereRecurringCount={selectedVisibleSevereRecurringCount}
+      priorityBatchReady={priorityBatchReady}
+      setLimit={setLimit}
+      applySevereRecurringPreset={applySevereRecurringPreset}
+      selectVisibleRecurringProcesses={selectVisibleRecurringProcesses}
+      selectVisibleSevereRecurringProcesses={selectVisibleSevereRecurringProcesses}
+      clearAllQueueSelections={clearAllQueueSelections}
+      recurringProcessActions={recurringProcessActions}
+      primaryProcessAction={primaryProcessAction}
+      updateView={updateView}
+      runPendingJobsNow={runPendingJobsNow}
+      actionState={actionState}
+      drainInFlight={drainInFlight}
+      recurringProcessChecklist={recurringProcessChecklist}
+      recurringProcessSummary={recurringProcessSummary}
+      recurringProcessBands={recurringProcessBands}
+      recurringProcessGroups={recurringProcessGroups}
+      RecurringProcessGroup={RecurringProcessGroup}
+      withoutMovements={withoutMovements}
+      movementBacklog={movementBacklog}
+      publicationBacklog={publicationBacklog}
+      partesBacklog={partesBacklog}
+      processCoverage={processCoverage}
+      monitoringActive={monitoringActive}
+      fieldGaps={fieldGaps}
+      orphans={orphans}
+      coverageMismatchMessage={coverageMismatchMessage}
+      CoverageList={CoverageList}
+      covPage={covPage}
+      setCovPage={setCovPage}
+      useCoverageProcess={useCoverageProcess}
+      QueueList={QueueList}
+      selectedWithoutMovements={selectedWithoutMovements}
+      toggleSelection={toggleSelection}
+      setSelectedWithoutMovements={setSelectedWithoutMovements}
+      togglePageSelection={togglePageSelection}
+      wmPage={wmPage}
+      setWmPage={setWmPage}
+      queueActionConfigs={queueActionConfigs}
+      QueueActionBlock={QueueActionBlock}
+      updateQueueBatchSize={updateQueueBatchSize}
+      selectedMovementBacklog={selectedMovementBacklog}
+      setSelectedMovementBacklog={setSelectedMovementBacklog}
+      movPage={movPage}
+      setMovPage={setMovPage}
+      selectedPublicationBacklog={selectedPublicationBacklog}
+      setSelectedPublicationBacklog={setSelectedPublicationBacklog}
+      pubPage={pubPage}
+      setPubPage={setPubPage}
+      selectedPartesBacklog={selectedPartesBacklog}
+      setSelectedPartesBacklog={setSelectedPartesBacklog}
+      partesPage={partesPage}
+      setPartesPage={setPartesPage}
+      audienciaCandidates={audienciaCandidates}
+      selectedAudienciaCandidates={selectedAudienciaCandidates}
+      setSelectedAudienciaCandidates={setSelectedAudienciaCandidates}
+      audPage={audPage}
+      setAudPage={setAudPage}
+      monitoringUnsupported={monitoringUnsupported}
+      selectedMonitoringActive={selectedMonitoringActive}
+      setSelectedMonitoringActive={setSelectedMonitoringActive}
+      maPage={maPage}
+      setMaPage={setMaPage}
+      renderQueueRowStatuses={renderQueueRowStatuses}
+      selectedMonitoringInactive={selectedMonitoringInactive}
+      setSelectedMonitoringInactive={setSelectedMonitoringInactive}
+      monitoringInactive={monitoringInactive}
+      miPage={miPage}
+      setMiPage={setMiPage}
+      selectedFieldGaps={selectedFieldGaps}
+      setSelectedFieldGaps={setSelectedFieldGaps}
+      fgPage={fgPage}
+      setFgPage={setFgPage}
+      selectedOrphans={selectedOrphans}
+      setSelectedOrphans={setSelectedOrphans}
+      orphanPage={orphanPage}
+      setOrphanPage={setOrphanPage}
+    /> : null}
 
-      <Panel title="Sugestoes de associacao" eyebrow="Validacao em massa">
-        <div className="space-y-4">
-          <RelationSelectionBar
-            title="Fila enriquecida por publicacoes"
-            helper="Use a selecao multipla para validar varias associacoes de uma vez. O botao de todos do filtro considera as paginas seguintes."
-            page={relationSuggestions.page}
-            totalRows={relationSuggestions.totalRows}
-            pageSize={relationSuggestions.pageSize}
-            selectedCount={selectedSuggestionKeys.length}
-            allMatchingSelected={allMatchingSuggestionsSelected}
-            loading={relationSuggestions.loading || suggestionSelectionLoading}
-            onTogglePage={() => toggleCustomPageSelection(setSelectedSuggestionKeys, selectedSuggestionKeys, relationSuggestions.items, getSuggestionSelectionValue)}
-            onToggleAllMatching={toggleAllMatchingSuggestions}
-            onPrevPage={() => loadRelationSuggestions(Math.max(1, relationSuggestions.page - 1), search, relationMinScore)}
-            onNextPage={() => loadRelationSuggestions(relationSuggestions.page + 1, search, relationMinScore)}
-            disablePrev={relationSuggestions.page <= 1}
-            disableNext={relationSuggestions.page >= Math.max(1, Math.ceil(Number(relationSuggestions.totalRows || 0) / Math.max(1, relationSuggestions.pageSize || 20)))}
-          />
-          <div className="flex flex-wrap gap-3">
-            <ActionButton tone="primary" onClick={handleBulkSaveSuggestions} disabled={actionState.loading || !selectedSuggestionKeys.length}>Validar selecionadas</ActionButton>
-            <ActionButton onClick={() => setSelectedSuggestionKeys([])} disabled={actionState.loading || !selectedSuggestionKeys.length}>Limpar selecao</ActionButton>
-          </div>
-          {relationSuggestions.loading ? <p className="text-sm opacity-60">Carregando sugestoes...</p> : null}
-          {relationSuggestions.error ? <p className={`text-sm ${isLightTheme ? "text-red-700" : "text-red-300"}`}>{relationSuggestions.error}</p> : null}
-          {!relationSuggestions.loading && !relationSuggestions.items.length ? <p className={`rounded-2xl border border-dashed px-4 py-6 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#6b7280]" : "border-[#2D2E2E] opacity-60"}`}>Nenhuma sugestao encontrada para os filtros atuais.</p> : null}
-          <div className="space-y-4">
-            {relationSuggestions.items.map((item) => <RelationSuggestionCard key={item.suggestion_key} item={item} checked={selectedSuggestionKeys.includes(getSuggestionSelectionValue(item))} onToggle={() => toggleCustomSelection(setSelectedSuggestionKeys, selectedSuggestionKeys, getSuggestionSelectionValue(item))} onUseSuggestion={useSuggestionInForm} />)}
-          </div>
-        </div>
-      </Panel>
+    
+    
 
-      <Panel title="Relacoes processuais cadastradas" eyebrow="Lista paginada">
-        <div className="space-y-4">
-          {relations.items.length ? <div className={`flex flex-wrap gap-2 text-xs uppercase tracking-[0.15em] ${isLightTheme ? "text-[#6b7280]" : "opacity-70"}`}>{Object.entries(relationTypeSummary).map(([key, value]) => <span key={key} className={`border px-2 py-1 ${isLightTheme ? "border-[#d7d4cb] bg-white" : "border-[#2D2E2E]"}`}>{key}: {value}</span>)}</div> : null}
-          <RelationSelectionBar
-            title="Cadastro de relacoes"
-            helper="Voce pode ativar, inativar ou remover varias relacoes de uma vez, com paginação e selecao global por filtro."
-            page={relations.page}
-            totalRows={relations.totalRows}
-            pageSize={relations.pageSize}
-            selectedCount={selectedRelations.length}
-            allMatchingSelected={allMatchingRelationsSelected}
-            loading={relations.loading || relationSelectionLoading}
-            onTogglePage={() => toggleCustomPageSelection(setSelectedRelations, selectedRelations, relations.items, getRelationSelectionValue)}
-            onToggleAllMatching={toggleAllMatchingRelations}
-            onPrevPage={() => loadRelations(Math.max(1, relations.page - 1), search)}
-            onNextPage={() => loadRelations(relations.page + 1, search)}
-            disablePrev={relations.page <= 1}
-            disableNext={relations.page >= Math.max(1, Math.ceil(Number(relations.totalRows || 0) / Math.max(1, relations.pageSize || 20)))}
-          />
-          <div className="flex flex-wrap gap-3">
-            <ActionButton tone="primary" onClick={() => handleBulkRelationStatus("ativo")} disabled={actionState.loading || !selectedRelations.length}>Ativar selecionadas</ActionButton>
-            <ActionButton onClick={() => handleBulkRelationStatus("inativo")} disabled={actionState.loading || !selectedRelations.length}>Inativar selecionadas</ActionButton>
-            <ActionButton tone="danger" onClick={handleBulkRelationRemoval} disabled={actionState.loading || !selectedRelations.length}>Remover selecionadas</ActionButton>
-          </div>
-          {relations.loading ? <p className="text-sm opacity-60">Carregando relacoes...</p> : null}
-          {relations.error ? <p className={`text-sm ${isLightTheme ? "text-red-700" : "text-red-300"}`}>{relations.error}</p> : null}
-          {!relations.loading && !relations.items.length ? <p className={`rounded-2xl border border-dashed px-4 py-6 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#6b7280]" : "border-[#2D2E2E] opacity-60"}`}>Nenhuma relacao cadastrada ainda.</p> : null}
-          <div className="space-y-4">
-            {relations.items.map((item) => <RegisteredRelationCard key={item.id} item={item} checked={selectedRelations.includes(getRelationSelectionValue(item))} onToggle={() => toggleCustomSelection(setSelectedRelations, selectedRelations, getRelationSelectionValue(item))} onEdit={startEditing} onDelete={handleDeleteRelation} disabled={actionState.loading} />)}
-          </div>
-        </div>
-      </Panel>
-    </div> : null}
-
-    {view === "resultado" ? <div id="resultado" className="grid flex-1 auto-rows-fr items-stretch gap-6 2xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-      <OperationalResultCard
-        className="h-full"
-        loading={actionState.loading}
-        error={actionState.error}
-        result={actionState.result ? <>{actionState.result?.drain ? <div className={`mb-4 rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#8dc8a3] bg-[#effaf2] text-[#166534]" : "border-[#30543A] bg-[rgba(48,84,58,0.12)]"}`}><p className="font-semibold">Drenagem de fila</p><p className={`mt-2 ${isLightTheme ? "text-[#166534]" : "opacity-75"}`}>{buildDrainPreview(actionState.result.drain)}</p></div> : null}{jobs.length ? <div className="mb-4 space-y-3"><p className={`text-xs uppercase tracking-[0.16em] ${isLightTheme ? "text-[#6b7280]" : "opacity-55"}`}>Jobs persistidos</p>{jobs.slice(0, 4).map((job) => <JobCard key={job.id} job={job} active={job.id === activeJobId} />)}</div> : null}<OperationResult result={actionState.result} /></> : null}
-        emptyText="Nenhuma acao executada ainda nesta sessao."
-        footer="Resultado compacto, sem esticar o modulo antes do console."
-      />
-      <OperationalHistoryCompactCard
-        className="h-full"
-        primaryText={executionHistory[0] ? `${executionHistory[0].label || executionHistory[0].action} • ${executionHistory[0].status}` : ""}
-          secondaryLabel="Ultima leitura remota"
-        secondaryText={remoteHistory[0] ? `${getProcessActionLabel(remoteHistory[0].acao, remoteHistory[0].payload || {})} • ${remoteHistory[0].status}` : ""}
-      />
-    </div> : null}
+    {view === "relacoes" ? <ProcessosRelacoesView
+      editingRelationId={editingRelationId}
+      form={form}
+      setForm={setForm}
+      actionState={actionState}
+      handleSaveRelation={handleSaveRelation}
+      EMPTY_FORM={EMPTY_FORM}
+      setEditingRelationId={setEditingRelationId}
+      search={search}
+      setSearch={setSearch}
+      relationMinScore={relationMinScore}
+      setRelationMinScore={setRelationMinScore}
+      lookup={lookup}
+      lookupTerm={lookupTerm}
+      setLookupTerm={setLookupTerm}
+      relations={relations}
+      relationSelectionLoading={relationSelectionLoading}
+      allMatchingRelationsSelected={allMatchingRelationsSelected}
+      selectedRelations={selectedRelations}
+      relationTypeSummary={relationTypeSummary}
+      toggleCustomPageSelection={toggleCustomPageSelection}
+      setSelectedRelations={setSelectedRelations}
+      loadRelations={loadRelations}
+      handleBulkRelationStatus={handleBulkRelationStatus}
+      handleBulkRelationRemoval={handleBulkRelationRemoval}
+      getRelationSelectionValue={getRelationSelectionValue}
+      toggleCustomSelection={toggleCustomSelection}
+      startEditing={startEditing}
+      handleDeleteRelation={handleDeleteRelation}
+      relationSuggestions={relationSuggestions}
+      suggestionSelectionLoading={suggestionSelectionLoading}
+      allMatchingSuggestionsSelected={allMatchingSuggestionsSelected}
+      selectedSuggestionKeys={selectedSuggestionKeys}
+      toggleAllMatchingSuggestions={toggleAllMatchingSuggestions}
+      setSelectedSuggestionKeys={setSelectedSuggestionKeys}
+      getSuggestionSelectionValue={getSuggestionSelectionValue}
+      loadRelationSuggestions={loadRelationSuggestions}
+      handleBulkSaveSuggestions={handleBulkSaveSuggestions}
+      useSuggestionInForm={useSuggestionInForm}
+      toggleAllMatchingRelations={toggleAllMatchingRelations}
+      RelationSelectionBar={RelationSelectionBar}
+      RelationSuggestionCard={RelationSuggestionCard}
+      RegisteredRelationCard={RegisteredRelationCard}
+    /> : null}
+    {view === "resultado" ? <ProcessosResultadoView
+      actionState={actionState}
+      jobs={jobs}
+      activeJobId={activeJobId}
+      JobCard={JobCard}
+      OperationResult={OperationResult}
+      executionHistory={executionHistory}
+      remoteHistory={remoteHistory}
+      buildDrainPreview={buildDrainPreview}
+    /> : null}
   </div>;
 }

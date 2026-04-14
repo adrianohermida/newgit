@@ -1,5 +1,12 @@
 export { default as CopilotShell } from "./CopilotShell";
 export { default as FocusedCopilotAside } from "./FocusedCopilotAside";
 export { default as FocusedConversationComposer } from "./FocusedConversationComposer";
+export { default as FocusedConversationCenter } from "./FocusedConversationCenter";
 export { default as FocusedConversationHeader } from "./FocusedConversationHeader";
 export { default as FocusedConversationThread } from "./FocusedConversationThread";
+export { default as FocusedHistoryRail } from "./FocusedHistoryRail";
+export { default as GenericAgentLabsPanel } from "./GenericAgentLabsPanel";
+export { default as GenericAiTaskPanel } from "./GenericAiTaskPanel";
+export { default as GenericCopilotRightRail } from "./GenericCopilotRightRail";
+export { default as GenericModulesPanel } from "./GenericModulesPanel";
+export { default as RightRailHeader } from "./RightRailHeader";

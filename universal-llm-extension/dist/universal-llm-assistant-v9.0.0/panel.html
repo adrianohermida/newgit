@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>LLM Assistant</title>
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    :root {
+      --accent:    #2563eb;
+      --acc-hover: #1d4ed8;
+      --bg:        #ffffff;
+      --bg2:       #f8f9fa;
+      --bg3:       #f1f3f5;
+      --text:      #111827;
+      --text2:     #6b7280;
+      --border:    #e5e7eb;
+      --ok:        #16a34a;
+      --err:       #dc2626;
+      --warn:      #d97706;
+      --local:     #16a34a;
+      --cloud:     #7c3aed;
+      --cf:        #f97316;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+      display: flex; flex-direction: column; height: 100vh; overflow: hidden; font-size: 13px;
+    }
+
+    /* ── HEADER ─────────────────────────────────────── */
+    .header {
+      padding: 9px 13px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+      flex-shrink: 0;
+    }
+    .header-left  { display:flex; align-items:center; gap:8px; }
+    .header-right { display:flex; align-items:center; gap:7px; }
+    .logo { font-weight:800; font-size:13px; letter-spacing:-.3px; }
+    .status-dot {
+      width:7px; height:7px; border-radius:50%; background:var(--text2); flex-shrink:0; transition:background .3s;
+    }
+    .status-dot.online  { background:var(--ok);  box-shadow:0 0 0 2px rgba(22,163,74,.2); }
+    .status-dot.degraded{ background:var(--warn); }
+    .status-dot.offline { background:var(--err);  }
+
+    /* Provider selector */
+    .provider-row { display:flex; align-items:center; gap:6px; }
+    .provider-row select {
+      padding:3px 7px; border:1px solid var(--border); border-radius:99px;
+      font-size:11px; font-weight:600; background:var(--bg3); color:var(--text2);
+      cursor:pointer; max-width:130px;
+    }
+    #provider-badge { font-size:11px; font-weight:700; }
+
+    .icon-btn {
+      background:none; border:none; cursor:pointer; padding:4px 5px;
+      color:var(--text2); font-size:15px; border-radius:5px; transition:background .15s;
+    }
+    .icon-btn:hover { background:var(--bg3); color:var(--text); }
+
+    /* ── TABS ────────────────────────────────────────── */
+    .tabs {
+      display:flex; border-bottom:1px solid var(--border);
+      background:var(--bg2); flex-shrink:0;
+    }
+    .tab-btn {
+      flex:1; padding:7px 4px; border:none; background:none;
+      font-size:11px; font-weight:600; color:var(--text2);
+      cursor:pointer; border-bottom:2px solid transparent; transition:all .15s;
+    }
+    .tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); background:var(--bg); }
+    .tab-btn:hover:not(.active) { background:var(--bg3); color:var(--text); }
+
+    /* ── PANES ───────────────────────────────────────── */
+    .pane { flex:1; overflow:hidden; display:none; flex-direction:column; }
+    .pane.active-pane { display:flex; }
+
+    /* ── CHAT ────────────────────────────────────────── */
+    #pane-chat { display:flex; }
+    .chat-area {
+      flex:1; overflow-y:auto; padding:12px 13px;
+      display:flex; flex-direction:column; gap:9px;
+    }
+    .empty-state {
+      flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+      gap:7px; color:var(--text2); padding:24px 16px;
+    }
+    .empty-icon  { font-size:32px; opacity:.45; }
+    .empty-title { font-size:13px; font-weight:700; color:var(--text); }
+    .empty-sub   { font-size:11px; text-align:center; max-width:170px; line-height:1.55; }
+
+    .message { display:flex; }
+    .message.user      { justify-content:flex-end; }
+    .message.assistant,
+    .message.error,
+    .message.system    { justify-content:flex-start; }
+    .message.system    { justify-content:center; }
+
+    .message-bubble {
+      padding:8px 11px; border-radius:9px; line-height:1.5;
+      font-size:13px; max-width:88%; word-break:break-word;
+      animation:msgIn .18s ease-out;
+    }
+    @keyframes msgIn { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }
+    .message.user      .message-bubble { background:var(--accent); color:#fff; border-radius:9px 2px 9px 9px; }
+    .message.assistant .message-bubble { background:var(--bg2); color:var(--text); border-radius:2px 9px 9px 9px; }
+    .message.error     .message-bubble { background:#fef2f2; color:var(--err); border-radius:2px 9px 9px 9px; font-size:12px; }
+    .message.system    .message-bubble { background:transparent; color:var(--text2); font-size:11px; text-align:center; max-width:100%; padding:2px 0; }
+    .message-bubble code { background:rgba(0,0,0,.07); padding:1px 4px; border-radius:3px; font-family:monospace; font-size:12px; }
+
+    .typing { display:inline-flex; gap:4px; align-items:center; padding:9px 12px; }
+    .typing span { width:5px;height:5px;border-radius:50%;background:var(--text2); animation:bounce 1.2s infinite ease-in-out; }
+    .typing span:nth-child(2){animation-delay:.2s} .typing span:nth-child(3){animation-delay:.4s}
+    @keyframes bounce{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-5px);opacity:1}}
+
+    /* ── INPUT AREA ──────────────────────────────────── */
+    .input-area {
+      padding:9px 12px 11px; border-top:1px solid var(--border);
+      background:var(--bg); flex-shrink:0; display:flex; flex-direction:column; gap:6px;
+    }
+    .input-row { display:flex; gap:7px; align-items:flex-end; }
+    .textarea-wrap {
+      flex:1; border:1px solid var(--border); border-radius:8px;
+      background:var(--bg2); padding:6px 10px; transition:border-color .15s;
+    }
+    .textarea-wrap:focus-within { border-color:var(--accent); background:var(--bg); box-shadow:0 0 0 2px rgba(37,99,235,.1); }
+    textarea { flex:1; border:none; background:transparent; font-family:inherit; font-size:13px; resize:none; max-height:100px; outline:none; color:var(--text); line-height:1.4; width:100%; }
+    textarea::placeholder { color:var(--text2); }
+
+    .btn-send {
+      background:var(--accent); color:#fff; border:none; border-radius:8px;
+      padding:8px 15px; font-size:13px; font-weight:700; cursor:pointer; flex-shrink:0;
+      align-self:flex-end; transition:background .15s;
+    }
+    .btn-send:hover:not(:disabled){ background:var(--acc-hover); }
+    .btn-send:disabled { opacity:.5; cursor:not-allowed; }
+
+    .actions-row { display:flex; gap:5px; flex-wrap:wrap; }
+    .act-btn {
+      background:var(--bg3); border:1px solid var(--border); border-radius:5px;
+      padding:4px 9px; font-size:11px; color:var(--text2); cursor:pointer; transition:all .15s;
+      display:flex; align-items:center; gap:4px;
+    }
+    .act-btn:hover { background:var(--border); color:var(--text); }
+    .act-btn.recording { background:#fef2f2; border-color:#fca5a5; color:var(--err); }
+
+    /* ── LISTS (Sessions / Automations) ─────────────── */
+    .list-pane { padding:10px 12px; overflow-y:auto; }
+    .list-item { border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px; }
+    .list-item-title { font-weight:700; font-size:12px; margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .list-item-meta  { font-size:11px; color:var(--text2); margin-bottom:7px; }
+    .list-item-actions { display:flex; gap:6px; }
+    .btn-list-action {
+      padding:3px 10px; border:1px solid var(--border); border-radius:5px;
+      font-size:11px; font-weight:600; cursor:pointer; background:var(--bg2); color:var(--text);
+    }
+    .btn-list-action:hover    { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .btn-list-action.danger:hover { background:var(--err); color:#fff; border-color:var(--err); }
+
+    /* ── SETTINGS ────────────────────────────────────── */
+    .settings-pane { padding:12px 14px; overflow-y:auto; gap:12px; }
+    .setting-section { margin-bottom:14px; }
+    .setting-section h4 {
+      font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase;
+      letter-spacing:.5px; margin-bottom:8px; display:flex; align-items:center; gap:6px;
+    }
+    .setting-section h4 span { font-size:10px; padding:2px 7px; border-radius:99px; font-weight:700; }
+    .pi-local      { background:#dcfce7; color:var(--local); }
+    .pi-cloud      { background:#ede9fe; color:var(--cloud); }
+    .pi-cloudflare { background:#fff7ed; color:var(--cf); }
+
+    .setting-row { display:flex; flex-direction:column; gap:4px; margin-bottom:7px; }
+    .setting-row label { font-size:11px; font-weight:600; color:var(--text2); }
+    .setting-row input {
+      padding:6px 9px; border:1px solid var(--border); border-radius:6px;
+      font-size:12px; font-family:inherit; background:var(--bg); color:var(--text);
+      transition:border-color .15s;
+    }
+    .setting-row input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px rgba(37,99,235,.1); }
+
+    .test-row { display:flex; align-items:center; gap:8px; margin-top:2px; }
+    .btn-test  {
+      padding:4px 11px; border:1px solid var(--border); border-radius:5px;
+      font-size:11px; font-weight:600; cursor:pointer; background:var(--bg3);
+    }
+    .btn-test:hover { border-color:var(--accent); color:var(--accent); }
+    .test-result { font-size:11px; }
+
+    .btn-save {
+      width:100%; padding:8px; background:var(--accent); color:#fff; border:none;
+      border-radius:7px; font-size:13px; font-weight:700; cursor:pointer; margin-top:8px;
+    }
+    .btn-save:hover { background:var(--acc-hover); }
+
+    /* ── SCROLLBAR ────────────────────────────────────── */
+    ::-webkit-scrollbar { width:5px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+    ::-webkit-scrollbar-thumb:hover { background:var(--text2); }
+
+    input[type="file"] { display:none; }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <span class="logo">LLM</span>
+      <div class="provider-row">
+        <select id="provider-select" title="Selecionar provider LLM">
+          <option value="local">AetherLab Local</option>
+          <option value="cloud">LLM Customizado</option>
+          <option value="cloudflare">Cloudflare Workers AI</option>
+        </select>
+      </div>
+    </div>
+    <div class="header-right">
+      <span id="provider-badge" style="font-size:11px;font-weight:700;color:var(--local)"></span>
+      <div id="status-dot" class="status-dot" title="Status do bridge"></div>
+      <button id="btn-settings" class="icon-btn" title="Configurações">⚙️</button>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button id="tab-chat"        class="tab-btn active">💬 Chat</button>
+    <button id="tab-sessions"    class="tab-btn">📋 Sessões</button>
+    <button id="tab-automations" class="tab-btn">⏺ Automações</button>
+    <button id="tab-settings"    class="tab-btn">⚙️ Config</button>
+  </div>
+
+  <!-- PANE: CHAT -->
+  <div id="pane-chat" class="pane" style="display:flex;flex-direction:column;">
+    <div id="chat-area" class="chat-area">
+      <div class="empty-state">
+        <div class="empty-icon">🤖</div>
+        <div class="empty-title">Pronto para ajudar</div>
+        <div class="empty-sub">Selecione o provider e inicie a conversa. Use os botões abaixo para mais ações.</div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-row">
+        <div class="textarea-wrap">
+          <textarea id="msg-input" rows="1" placeholder="Digite sua pergunta..."></textarea>
+        </div>
+        <button id="btn-send" class="btn-send">Enviar</button>
+      </div>
+      <div class="actions-row">
+        <button id="btn-page-text"   class="act-btn" title="Injetar texto da página">📄 Página</button>
+        <button id="btn-selection"   class="act-btn" title="Injetar texto selecionado">✂️ Seleção</button>
+        <button id="btn-screenshot"  class="act-btn" title="Capturar e analisar tela">📸 Print</button>
+        <button id="btn-upload"      class="act-btn" title="Enviar arquivo para análise">📎 Arquivo</button>
+        <button id="btn-record"      class="act-btn" title="Gravar / parar gravação de navegação">⏺ Gravar</button>
+        <button id="btn-replay"      class="act-btn" title="Ver e reproduzir automações">▶ Replay</button>
+        <span   id="recorder-status" style="font-size:10px;color:var(--text2);align-self:center"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE: SESSÕES -->
+  <div id="pane-sessions" class="pane" style="flex-direction:column;">
+    <div class="list-pane" style="flex:1;overflow-y:auto;">
+      <div id="sessions-list"><p style="color:var(--text2);font-size:12px;padding:4px">Clique na aba para carregar.</p></div>
+    </div>
+  </div>
+
+  <!-- PANE: AUTOMAÇÕES -->
+  <div id="pane-automations" class="pane" style="flex-direction:column;">
+    <div class="list-pane" style="flex:1;overflow-y:auto;">
+      <div id="automations-list"><p style="color:var(--text2);font-size:12px;padding:4px">Clique na aba para carregar.</p></div>
+    </div>
+  </div>
+
+  <!-- PANE: SETTINGS -->
+  <div id="pane-settings" class="pane settings-pane">
+
+    <!-- LOCAL -->
+    <div class="setting-section">
+      <h4><span class="pi-local">Local</span> AetherLab Local (ai-core)</h4>
+      <div class="setting-row">
+        <label>URL do ai-core</label>
+        <input id="input-runtime-url" type="text" placeholder="http://127.0.0.1:8010" />
+      </div>
+      <div class="setting-row">
+        <label>Modelo local</label>
+        <input id="input-runtime-model" type="text" placeholder="aetherlab-legal-local-v1" />
+      </div>
+      <div class="test-row">
+        <button id="btn-test-local" class="btn-test">Testar conexão</button>
+        <span id="test-local-result" class="test-result"></span>
+      </div>
+    </div>
+
+    <!-- CLOUD -->
+    <div class="setting-section">
+      <h4><span class="pi-cloud">Cloud</span> LLM Customizado</h4>
+      <div class="setting-row">
+        <label>URL da aplicação (proxy)</label>
+        <input id="input-app-url" type="text" placeholder="http://localhost:3000" />
+      </div>
+      <div class="setting-row">
+        <label>Modelo cloud</label>
+        <input id="input-cloud-model" type="text" placeholder="aetherlab-legal-v1" />
+      </div>
+      <div class="test-row">
+        <button id="btn-test-cloud" class="btn-test">Testar conexão</button>
+        <span id="test-cloud-result" class="test-result"></span>
+      </div>
+    </div>
+
+    <!-- CLOUDFLARE -->
+    <div class="setting-section">
+      <h4><span class="pi-cloudflare">CF</span> Cloudflare Workers AI</h4>
+      <div class="setting-row">
+        <label>Modelo Workers AI</label>
+        <input id="input-cf-model" type="text" placeholder="@cf/meta/llama-3.1-8b-instruct" />
+      </div>
+      <div class="test-row">
+        <button id="btn-test-cf" class="btn-test">Testar conexão</button>
+        <span id="test-cf-result" class="test-result"></span>
+      </div>
+    </div>
+
+    <button id="btn-save-settings" class="btn-save">Salvar configurações</button>
+  </div>
+
+  <input type="file" id="file-input" accept="*/*" />
+
+  <script src="panel.js"></script>
+  <script>
+    // Garante que a aba chat começa ativa via CSS
+    document.getElementById("pane-chat").style.display = "flex";
+  </script>
+</body>
+</html>

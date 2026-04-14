@@ -3,11 +3,31 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import { useInternalTheme } from "./InternalThemeProvider";
 import DotobotCopilot from "./DotobotPanel";
-import DotobotExtensionManager from "./DotobotExtensionManager";
-import InternoModuleHeader from "./layout/InternoModuleHeader";
+import InternoConsoleChrome from "./layout/InternoConsoleChrome";
+import InternoConsoleLogEntryCard from "./layout/InternoConsoleLogEntryCard";
+import InternoConsoleNotesPanel from "./layout/InternoConsoleNotesPanel";
+import InternoConsoleOverviewTab from "./layout/InternoConsoleOverviewTab";
+import InternoShellContent from "./layout/InternoShellContent";
+import InternoShellHeader from "./layout/InternoShellHeader";
+import RailPanel from "./layout/RailPanel";
+import {
+  buildCoverageCards,
+  deriveModuleSafeWindow,
+  PRIORITY_MODULE_KEYS,
+  summarizeModuleAlert,
+} from "./layout/moduleCoverage";
+import OperationalRightRail from "./layout/OperationalRightRail";
 import InternoSidebar from "./layout/InternoSidebar";
-import IntegrationGuideCardExternal, { getModuleIntegrationGuide as getExternalModuleIntegrationGuide } from "./layout/IntegrationGuideCard";
+import {
+  getFingerprintStatusTone,
+  getSeverityTone,
+} from "./layout/consoleSummary";
+import { getConsoleHeightLimits } from "./layout/consolePlaybooks";
+import { getModuleIntegrationGuide as getExternalModuleIntegrationGuide } from "./layout/IntegrationGuideCard";
 import { NAV_ITEMS, normalizeDisplayName } from "./layout/sidebarConfig";
+import { useInternoConsoleActions } from "./layout/useInternoConsoleActions";
+import { useInternoConsoleAnalytics } from "./layout/useInternoConsoleAnalytics";
+import { useInternoShellUi } from "./layout/useInternoShellUi";
 import { useInternoShellState } from "./layout/useInternoShellState";
 import {
   appendFrontendIssue,
@@ -20,7 +40,6 @@ import {
   formatActivityLogMarkdown,
   formatFrontendIssuesMarkdown,
   formatSchemaIssuesMarkdown,
-  getActivityLogResponseText,
   getActivityLogFilters,
   getFrontendIssues,
   getFingerprintStates,
@@ -33,665 +52,8 @@ import {
 import {
   SPECIAL_LOG_PANES,
   TAG_LOG_PANES,
-  normalizeConsoleFilters,
-  entryMatchesConsoleFilters,
-  buildTagScopedLogs,
-  countHistorySnapshots,
-  countUnclassifiedEntries,
 } from "../../lib/admin/console-log-utils.js";
-import { inferModuleKeyFromPathname, listModuleRegistryEntries } from "../../lib/admin/module-registry.js";
-
-function RailPanel({ title, subtitle, children }) {
-  const { isLightTheme } = useInternalTheme();
-  return (
-    <section className={`rounded-[20px] border p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))]"}`}>
-      <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>{title}</p>
-      {subtitle ? <p className={`mt-2 text-sm font-medium ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{subtitle}</p> : null}
-      <div className={`mt-3 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#92A59F]"}`}>{children}</div>
-    </section>
-  );
-}
-
-function getModuleIntegrationGuide(pathname = "") {
-  return getExternalModuleIntegrationGuide(pathname);
-}
-
-const LOG_PANES = [
-  { key: "activity", label: "Atividade", group: "visao", alwaysVisible: true },
-  { key: "history", label: "Historico", group: "visao", alwaysVisible: true },
-  { key: "debug", label: "Debug UI", group: "visao", alwaysVisible: true },
-  { key: "frontend", label: "Frontend", group: "auditoria", alwaysVisible: true },
-  { key: "schema", label: "Schema", group: "auditoria", alwaysVisible: true },
-  { key: "notes", label: "Notas", group: "auditoria", alwaysVisible: true },
-  { key: "crm", label: "CRM", group: "integracoes" },
-  { key: "supabase", label: "Supabase", group: "integracoes" },
-  { key: "webhook", label: "Webhook", group: "integracoes" },
-  { key: "functions", label: "Functions", group: "integracoes" },
-  { key: "routes", label: "Rotas", group: "integracoes" },
-  { key: "jobs", label: "Jobs", group: "integracoes" },
-  { key: "dotobot", label: "Dotobot", group: "ia" },
-  { key: "ai-task", label: "AI Task", group: "ia" },
-  { key: "security", label: "Seguranca", group: "governanca" },
-  { key: "data-quality", label: "Qualidade de dados", group: "governanca" },
-];
-const LOG_PANE_GROUPS = [
-  { key: "visao", label: "Visao" },
-  { key: "auditoria", label: "Auditoria" },
-  { key: "integracoes", label: "Integracoes" },
-  { key: "ia", label: "IA" },
-  { key: "governanca", label: "Governanca" },
-];
-
-function getSeverityTone(severity) {
-  if (severity === "error") return "border-[#5B2D2D] text-[#FECACA]";
-  if (severity === "warn") return "border-[#6E5630] text-[#FDE68A]";
-  return "border-[#30543A] text-[#B7F7C6]";
-}
-
-function getFingerprintStatusTone(status) {
-  if (status === "resolvido") return "border-[#30543A] text-[#B7F7C6]";
-  if (status === "acompanhando") return "border-[#6E5630] text-[#FDE68A]";
-  return "border-[#5B2D2D] text-[#FECACA]";
-}
-
-function summarizeFingerprints(entries = [], fingerprintStates = {}) {
-  const map = new Map();
-  for (const entry of entries) {
-    const key = entry?.fingerprint;
-    if (!key) continue;
-    const triage = fingerprintStates?.[key] || null;
-    const current = map.get(key) || {
-      fingerprint: key,
-      count: 0,
-      severity: entry?.severity || "info",
-      label: entry?.label || entry?.action || "Evento",
-      recommendedAction: entry?.recommendedAction || "",
-      status: triage?.status || "aberto",
-      note: triage?.note || "",
-      updatedAt: triage?.updatedAt || null,
-      lastEntryId: triage?.lastEntryId || entry?.id || null,
-    };
-    current.count += 1;
-    if (entry?.severity === "error") current.severity = "error";
-    else if (entry?.severity === "warn" && current.severity !== "error") current.severity = "warn";
-    map.set(key, current);
-  }
-  return Array.from(map.values()).filter((item) => item.count > 1).sort((a, b) => b.count - a.count).slice(0, 4);
-}
-
-function summarizeRecommendations(entries = []) {
-  const map = new Map();
-  for (const entry of entries) {
-    const key = String(entry?.recommendedAction || "").trim();
-    if (!key) continue;
-    const current = map.get(key) || { action: key, count: 0, severity: entry?.severity || "info" };
-    current.count += 1;
-    if (entry?.severity === "error") current.severity = "error";
-    else if (entry?.severity === "warn" && current.severity !== "error") current.severity = "warn";
-    map.set(key, current);
-  }
-  return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 3);
-}
-
-function calculateRiskScore(entries = [], recurring = []) {
-  const errors = entries.filter((entry) => entry?.severity === "error").length;
-  const warnings = entries.filter((entry) => entry?.severity === "warn").length;
-  const unresolvedRecurring = recurring.filter((item) => item.status !== "resolvido").length;
-  const score = Math.min(100, (errors * 18) + (warnings * 7) + (unresolvedRecurring * 12));
-  const tone = score >= 70 ? "error" : score >= 35 ? "warn" : "info";
-  const label = score >= 70 ? "alto" : score >= 35 ? "medio" : "baixo";
-  return { score, tone, label };
-}
-
-function formatPaneCountLabel(count) {
-  return count > 0 ? `(${count})` : "";
-}
-
-function shouldShowLogPane(pane, paneCounts = {}, activePane = "") {
-  if (!pane) return false;
-  if (pane.alwaysVisible) return true;
-  if (pane.key === activePane) return true;
-  return Number(paneCounts?.[pane.key] || 0) > 0;
-}
-
-function summarizeTimeline(entries = []) {
-  const map = new Map();
-  for (const entry of entries) {
-    const hints = Array.isArray(entry?.traceHints) ? entry.traceHints : [];
-    for (const hint of hints) {
-      const key = `${hint.type}:${hint.value}`;
-      const current = map.get(key) || {
-        key,
-        label: hint.label || key,
-        count: 0,
-        severity: entry?.severity || "info",
-        lastAt: entry?.createdAt || entry?.startedAt || null,
-      };
-      current.count += 1;
-      if (entry?.severity === "error") current.severity = "error";
-      else if (entry?.severity === "warn" && current.severity !== "error") current.severity = "warn";
-      const candidateDate = entry?.createdAt || entry?.startedAt || null;
-      if (candidateDate && (!current.lastAt || new Date(candidateDate).getTime() > new Date(current.lastAt).getTime())) {
-        current.lastAt = candidateDate;
-      }
-      map.set(key, current);
-    }
-  }
-  return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 5);
-}
-
-function getAgeBucket(createdAt) {
-  const time = createdAt ? new Date(createdAt).getTime() : 0;
-  if (!time || Number.isNaN(time)) return "sem_data";
-  const diffHours = (Date.now() - time) / (1000 * 60 * 60);
-  if (diffHours <= 4) return "ate_4h";
-  if (diffHours <= 24) return "ate_24h";
-  if (diffHours <= 72) return "ate_72h";
-  return "acima_72h";
-}
-
-function summarizeSla(entries = [], recurring = [], fingerprintStates = {}) {
-  const errors = entries.filter((entry) => entry?.severity === "error");
-  const openRecurring = recurring.filter((item) => item.status === "aberto").length;
-  const watchingRecurring = recurring.filter((item) => item.status === "acompanhando").length;
-  const resolvedRecurring = recurring.filter((item) => item.status === "resolvido").length;
-  const buckets = { ate_4h: 0, ate_24h: 0, ate_72h: 0, acima_72h: 0, sem_data: 0 };
-
-  for (const entry of errors) {
-    const state = entry?.fingerprint ? fingerprintStates?.[entry.fingerprint] : null;
-    if (state?.status === "resolvido") continue;
-    buckets[getAgeBucket(entry?.createdAt || entry?.startedAt)] += 1;
-  }
-
-  const overdue = buckets.acima_72h + buckets.sem_data;
-  const tone = overdue > 0 || openRecurring >= 3 ? "error" : openRecurring > 0 || watchingRecurring > 0 ? "warn" : "info";
-  return { tone, openRecurring, watchingRecurring, resolvedRecurring, buckets, overdue };
-}
-
-function inferSnapshotTone(snapshot) {
-  if (!snapshot) return "muted";
-  if (snapshot.error) return "danger";
-  if (snapshot.loading) return "warn";
-  if (snapshot.uiState === "error" || snapshot.status === "error") return "danger";
-  return "success";
-}
-
-function inferSnapshotSummary(key, snapshot) {
-  if (!snapshot) return "Sem dados coletados.";
-  if (snapshot.error) return snapshot.error;
-  if (snapshot.routePath && snapshot.shell) {
-    return `${snapshot.shell} em ${snapshot.routePath}`;
-  }
-  if (snapshot.routePath) return `Rota ${snapshot.routePath}`;
-  if (key === "contacts" && snapshot.overview) {
-    return `Contatos ${snapshot.overview.total || 0}, duplicados ${snapshot.overview.duplicados || 0}`;
-  }
-  if (key === "processos") {
-    return `HistÃ³rico local ${snapshot.executionHistory?.length || 0}, remoto ${snapshot.remoteHistory?.length || 0}`;
-  }
-  if (key === "publicacoes") {
-    return `Jobs ${snapshot.jobs?.length || 0}, histÃ³rico remoto ${snapshot.remoteHistory?.length || 0}`;
-  }
-  if (key === "ai-task") {
-    return `Eventos ${snapshot.eventsTotal || 0}, automaÃ§Ã£o ${snapshot.automation || "idle"}`;
-  }
-  if (key === "dotobot") {
-    return `Conversas ${snapshot.conversationCount || 0}, modo ${snapshot.mode || "n/a"}`;
-  }
-  if (key === "aprovacoes") {
-    return `PendÃªncias de cadastro ${snapshot.pendingCadastro || 0}`;
-  }
-  return "Snapshot atualizado.";
-}
-
-function formatRelativeTime(value) {
-  if (!value) return "sem horario";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "sem horario";
-  const diffMs = Date.now() - parsed.getTime();
-  const diffMin = Math.max(0, Math.round(diffMs / (1000 * 60)));
-  if (diffMin < 1) return "agora";
-  if (diffMin < 60) return `${diffMin} min`;
-  const diffHours = Math.round(diffMin / 60);
-  if (diffHours < 24) return `${diffHours} h`;
-  const diffDays = Math.round(diffHours / 24);
-  return `${diffDays} d`;
-}
-
-function getJobStatusTone(status) {
-  const normalized = String(status || "").trim();
-  if (normalized === "completed") return "border-[#30543A] text-[#B7F7C6]";
-  if (normalized === "running") return "border-[#6E5630] text-[#FDE68A]";
-  if (normalized === "paused" || normalized === "retry_wait" || normalized === "scheduled") return "border-[#2D4D60] text-[#B8D9F0]";
-  if (normalized === "error" || normalized === "cancelled") return "border-[#5B2D2D] text-[#FECACA]";
-  return "border-[#22342F] text-[#D8DEDA]";
-}
-
-function formatQueueLabel(key) {
-  const labels = {
-    semMovimentacoes: "Sem movimentacoes",
-    movimentacoesPendentes: "Movimentacoes pendentes",
-    publicacoesPendentes: "Publicacoes pendentes",
-    partesSemContato: "Partes sem contato",
-    audienciasPendentes: "Audiencias pendentes",
-    camposOrfaos: "Campos orfaos",
-    orfaos: "Sem Sales Account",
-    candidatosProcessos: "Processos criaveis",
-    candidatosPartes: "Partes extraiveis",
-  };
-  return labels[key] || key;
-}
-
-function buildOperationalRailData(moduleKey, snapshot, entries = []) {
-  if (!moduleKey || !snapshot) return null;
-  const jobs = Array.isArray(snapshot?.jobs) ? snapshot.jobs : [];
-  const activeJobs = jobs.filter((item) => ["pending", "running", "paused", "retry_wait", "scheduled"].includes(String(item?.status || ""))).slice(0, 5);
-  const failedJobs = jobs.filter((item) => String(item?.status || "") === "error").slice(0, 3);
-  const queues = Object.entries(snapshot?.queues || {})
-    .map(([key, value]) => ({
-      key,
-      label: formatQueueLabel(key),
-      totalRows: Number(value?.totalRows || 0),
-      error: value?.error || null,
-      updatedAt: value?.updatedAt || null,
-      limited: Boolean(value?.limited),
-    }))
-    .filter((item) => item.totalRows > 0 || item.error)
-    .sort((left, right) => {
-      if (Boolean(left.error) !== Boolean(right.error)) return left.error ? -1 : 1;
-      return right.totalRows - left.totalRows;
-    })
-    .slice(0, 5);
-  const batchHints = Object.entries(snapshot?.queueBatchSizes || {})
-    .map(([key, value]) => ({ key, label: formatQueueLabel(key), value: Number(value || 0) }))
-    .filter((item) => item.value > 0)
-    .sort((left, right) => right.value - left.value)
-    .slice(0, 5);
-  const recentErrors = (entries || [])
-    .filter((entry) => entry?.module === moduleKey && entry?.severity === "error")
-    .slice(0, 4)
-    .map((entry) => ({
-      id: entry.id,
-      label: entry.label || entry.action || "Erro operacional",
-      message: entry.error || getActivityLogResponseText(entry) || entry.recommendedAction || "Falha sem detalhe.",
-      createdAt: entry.createdAt || null,
-      fingerprint: entry.fingerprint || "",
-    }));
-  const actionState = snapshot?.actionState || {};
-  const selectedCount = Object.entries(snapshot?.ui || {})
-    .filter(([key]) => key.startsWith("selected"))
-    .reduce((total, [, value]) => total + Number(value || 0), 0);
-  const moduleLabelMap = {
-    processos: "Processos",
-    publicacoes: "Publicacoes",
-    jobs: "Jobs",
-    financeiro: "Financeiro",
-  };
-  const shouldRender =
-    activeJobs.length ||
-    failedJobs.length ||
-    queues.length ||
-    batchHints.length ||
-    recentErrors.length ||
-    actionState?.loading ||
-    actionState?.error;
-  if (!shouldRender) return null;
-  return {
-    moduleKey,
-    moduleLabel: moduleLabelMap[moduleKey] || moduleKey,
-    activeJobs,
-    failedJobs,
-    queues,
-    batchHints,
-    recentErrors,
-    selectedCount,
-    actionState,
-    backendHealth: snapshot?.backendHealth || null,
-    operationalStatus: snapshot?.operationalStatus || null,
-    limit: Number(snapshot?.ui?.limit || 0) || null,
-    activeJobId: snapshot?.activeJobId || null,
-    drainInFlight: Boolean(snapshot?.drainInFlight),
-  };
-}
-
-function OperationalRightRail({ data, onOpenConsole, onOpenJobsLog }) {
-  if (!data) return null;
-  const { isLightTheme } = useInternalTheme();
-  return (
-    <div className="space-y-4">
-      <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>Execucao em tempo real</p>
-            <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{data.moduleLabel}</p>
-            <p className={`mt-2 text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#92A59F]"}`}>
-              Lotes protegidos, fila persistida, erros correlacionados com o console e prioridade para nao estourar rate limit.
-            </p>
-          </div>
-          <div className="flex flex-col gap-2">
-            <button type="button" onClick={onOpenConsole} className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
-              Console
-            </button>
-            <button type="button" onClick={onOpenJobsLog} className="rounded-full border border-[#6E5630] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#FDE68A] hover:border-[#C5A059]">
-              Jobs
-            </button>
-          </div>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em]">
-          {data.backendHealth?.status ? <span className={`rounded-full border px-2 py-1 ${getJobStatusTone(data.backendHealth.status)}`}>backend {data.backendHealth.status}</span> : null}
-          {data.operationalStatus?.mode ? <span className={`rounded-full border px-2 py-1 ${getJobStatusTone(data.operationalStatus.mode)}`}>operacao {data.operationalStatus.mode}</span> : null}
-          {data.limit ? <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>lote base {data.limit}</span> : null}
-          {data.selectedCount ? <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>{data.selectedCount} selecionados</span> : null}
-          {data.drainInFlight ? <span className="rounded-full border border-[#6E5630] px-2 py-1 text-[#FDE68A]">drenando fila</span> : null}
-          {data.actionState?.loading ? <span className="rounded-full border border-[#6E5630] px-2 py-1 text-[#FDE68A]">acao em execucao</span> : null}
-        </div>
-      </div>
-
-      {data.activeJobs.length ? <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>Jobs ativos</p>
-        <div className="mt-3 space-y-2">
-          {data.activeJobs.map((job) => {
-            const requested = Number(job?.requested_count || 0);
-            const processed = Number(job?.processed_count || 0);
-            const progress = requested ? Math.max(0, Math.min(100, Math.round((processed / requested) * 100))) : 0;
-            return (
-              <div key={job.id} className={`rounded-xl border p-3 ${job.id === data.activeJobId ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)]" : isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(8,10,9,0.45)]"}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className={`text-[11px] font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{job.acao || "job"}</span>
-                  <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${getJobStatusTone(job.status)}`}>{job.status || "pending"}</span>
-                </div>
-                <p className={`mt-2 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{processed}/{requested || processed} processado(s) â€¢ atualizado ha {formatRelativeTime(job.updated_at || job.started_at || job.created_at)}</p>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-[rgba(255,255,255,0.06)]">
-                  <div className="h-full bg-[#C5A059]" style={{ width: `${progress}%` }} />
-                </div>
-                {job.last_error ? <p className="mt-2 text-[11px] text-[#FECACA]">{job.last_error}</p> : null}
-              </div>
-            );
-          })}
-        </div>
-      </div> : null}
-
-      {data.queues.length ? <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>Filas monitoradas</p>
-        <div className="mt-3 space-y-2">
-          {data.queues.map((queue) => (
-            <div key={queue.key} className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(8,10,9,0.45)]"}`}>
-              <div className="flex items-center justify-between gap-2">
-                <span className={`text-[11px] font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{queue.label}</span>
-                <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${queue.error ? "border-[#5B2D2D] text-[#FECACA]" : "border-[#22342F] text-[#D8DEDA]"}`}>{queue.totalRows} itens</span>
-              </div>
-              <p className={`mt-2 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Atualizada ha {formatRelativeTime(queue.updatedAt)}{queue.limited ? " â€¢ leitura limitada" : ""}</p>
-              {queue.error ? <p className="mt-2 text-[11px] text-[#FECACA]">{queue.error}</p> : null}
-            </div>
-          ))}
-        </div>
-      </div> : null}
-
-      {data.batchHints.length ? <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>Janela segura de lote</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {data.batchHints.map((item) => <span key={item.key} className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>{item.label}: {item.value}</span>)}
-        </div>
-      </div> : null}
-
-      {data.recentErrors.length || data.actionState?.error ? <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#F0CACA] bg-[#FFF4F4]" : "border-[#5B2D2D] bg-[rgba(91,45,45,0.14)]"}`}>
-        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#B25E5E]" : "text-[#E8B4B4]"}`}>Erros correlacionados</p>
-        <div className="mt-3 space-y-2 text-[11px]">
-          {data.actionState?.error ? <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#F0CACA] bg-white text-[#8C4545]" : "border-[#5B2D2D] bg-[rgba(34,12,14,0.45)] text-[#FECACA]"}`}>{data.actionState.error}</div> : null}
-          {data.recentErrors.map((item) => (
-            <div key={item.id} className={`rounded-xl border p-3 ${isLightTheme ? "border-[#F0CACA] bg-white" : "border-[#5B2D2D] bg-[rgba(34,12,14,0.45)]"}`}>
-              <div className="flex items-center justify-between gap-2">
-                <span className={`font-semibold ${isLightTheme ? "text-[#8C4545]" : "text-[#F8D6D6]"}`}>{item.label}</span>
-                <span className={isLightTheme ? "text-[#A46A14]" : "text-[#D9B46A]"}>{formatRelativeTime(item.createdAt)}</span>
-              </div>
-              <p className={`mt-2 ${isLightTheme ? "text-[#A65F5F]" : "text-[#F1C3C3]"}`}>{item.message}</p>
-            </div>
-          ))}
-        </div>
-      </div> : null}
-    </div>
-  );
-}
-
-function buildCoverageCards(moduleHistory = {}) {
-  const registry = new Map(listModuleRegistryEntries().map((entry) => [entry.key, entry]));
-  const keys = new Set([...registry.keys(), ...Object.keys(moduleHistory || {})]);
-  return Array.from(keys)
-    .map((key) => {
-      const registered = registry.get(key) || null;
-      const snapshot = moduleHistory?.[key] || null;
-      return {
-        key,
-        label: registered?.label || key,
-        routePath: snapshot?.routePath || snapshot?.asPath || registered?.routePath || null,
-        updatedAt: snapshot?.updatedAt || snapshot?.lastNavigationAt || null,
-        tone: snapshot ? inferSnapshotTone(snapshot) : "muted",
-        summary: snapshot ? inferSnapshotSummary(key, snapshot) : "Cobertura ainda nao publicada neste modulo.",
-        capabilities: snapshot?.capabilities || registered?.capabilities || [],
-        quickActions: snapshot?.quickActions || registered?.quickActions || [],
-        consoleTags: snapshot?.consoleTags || registered?.consoleTags || ["ai-task", key].filter(Boolean),
-        snapshot,
-      };
-    })
-    .sort((a, b) => {
-      if (Boolean(a.snapshot) !== Boolean(b.snapshot)) return a.snapshot ? -1 : 1;
-      const left = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-      const right = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-      return right - left;
-    });
-}
-
-const PRIORITY_MODULE_KEYS = new Set(["contacts", "publicacoes", "processos", "dotobot", "ai-task"]);
-
-function summarizeModuleAlert(moduleKey, entries = [], fingerprintStates = {}) {
-  const moduleEntries = entries.filter((entry) => entry?.module === moduleKey);
-  const recurring = summarizeFingerprints(moduleEntries, fingerprintStates);
-  const sla = summarizeSla(moduleEntries, recurring, fingerprintStates);
-  const errors = moduleEntries.filter((entry) => entry?.severity === "error").length;
-  const warnings = moduleEntries.filter((entry) => entry?.severity === "warn").length;
-  const recurringOpen = recurring.filter((item) => item.status === "aberto").length;
-  const tone = sla.tone === "error" || errors >= 3 ? "danger" : sla.tone === "warn" || warnings > 0 ? "warn" : "success";
-  return {
-    moduleKey,
-    entries: moduleEntries.length,
-    errors,
-    warnings,
-    recurringOpen,
-    recurringWatching: recurring.filter((item) => item.status === "acompanhando").length,
-    overdue: sla.overdue,
-    stale: sla.buckets.acima_72h,
-    buckets: sla.buckets,
-    tone,
-  };
-}
-
-function deriveModuleSafeWindow(moduleKey, snapshot, alert) {
-  const tone = alert?.tone || "success";
-  const isCritical = tone === "danger";
-  const isWarn = tone === "warn";
-
-  if (moduleKey === "contacts") {
-    const syncLimit = Number(snapshot?.settings?.syncLimit || 0) || 100;
-    const reconcileLimit = Number(snapshot?.settings?.reconcileLimit || 0) || 20;
-    return {
-      blocked: isCritical,
-      summary: isCritical
-        ? "Segure novas bulk actions amplas em contatos ate estabilizar CRM e persistencia."
-        : isWarn
-          ? "Reduza a operacao para um lote menor e acompanhe CRM/portal antes de ampliar."
-          : "Bulk actions podem seguir em lote curto com observacao normal.",
-      chips: [
-        `sync sugerido ${Math.max(10, Math.min(syncLimit, isCritical ? 25 : isWarn ? 50 : 100))}`,
-        `reconcile sugerido ${Math.max(5, Math.min(reconcileLimit, isCritical ? 10 : isWarn ? 15 : 20))}`,
-      ],
-    };
-  }
-
-  if (moduleKey === "publicacoes") {
-    const limit = Number(snapshot?.limit || 0) || 10;
-    const pendingJobs = Array.isArray(snapshot?.jobs) ? snapshot.jobs.filter((item) => ["pending", "running"].includes(String(item?.status || ""))).length : 0;
-    return {
-      blocked: isCritical || pendingJobs > 1,
-      summary: isCritical || pendingJobs > 1
-        ? "Nao amplie o lote de publicacoes enquanto houver recorrencia critica ou jobs concorrentes."
-        : isWarn
-          ? "Use lote curto e drene a fila antes de disparar nova rodada."
-          : "Fila sob controle para uma rodada operacional padrao.",
-      chips: [
-        `lote sugerido ${Math.max(5, Math.min(limit, isCritical ? 5 : isWarn ? 8 : 10))}`,
-        `jobs ativos ${pendingJobs}`,
-      ],
-    };
-  }
-
-  if (moduleKey === "processos") {
-    const limit = Number(snapshot?.limit || 0) || 2;
-    const queueHints = Object.values(snapshot?.queueBatchSizes || {}).map((value) => Number(value || 0)).filter(Boolean);
-    const baseline = queueHints.length ? Math.min(...queueHints) : limit;
-    return {
-      blocked: isCritical,
-      summary: isCritical
-        ? "Trave lote amplo em processos e priorize a amostra reincidente."
-        : isWarn
-          ? "Operar processos em lote minimo ate validar o ganho do ciclo."
-          : "Lote de processos pode seguir no ritmo padrao do painel.",
-      chips: [
-        `lote sugerido ${Math.max(2, Math.min(baseline, isCritical ? 5 : isWarn ? 8 : 15))}`,
-        `filas ${queueHints.length || 0}`,
-      ],
-    };
-  }
-
-  return null;
-}
-
-function getModulePlaybook(moduleKey) {
-  const playbooks = {
-    contacts: {
-      pane: "crm",
-      tag: "crm",
-      checklist: [
-        "Validar mapeamento Freshsales e IDs de contato/account antes de novo lote.",
-        "Checar persistencia no portal e reconciliacao no Supabase.",
-      ],
-    },
-    publicacoes: {
-      pane: "jobs",
-      tag: "jobs",
-      checklist: [
-        "Inspecionar fila, drain e reflexo no Freshsales antes de reenviar.",
-        "Conferir edge functions de extracao e sync posteriores.",
-      ],
-    },
-    processos: {
-      pane: "functions",
-      tag: "functions",
-      checklist: [
-        "Revisar processo-sync, datajud-worker e payload do lote.",
-        "Confirmar IDs de processo e consistencia do espelho operacional.",
-      ],
-    },
-    dotobot: {
-      pane: "dotobot",
-      tag: "dotobot",
-      checklist: [
-        "Checar contexto, tools acionadas e estado do copiloto.",
-        "Confirmar se a falha veio do prompt, do backend ou de permissao.",
-      ],
-    },
-    "ai-task": {
-      pane: "ai-task",
-      tag: "ai-task",
-      checklist: [
-        "Revisar run ativa, provider, embeddings e orchestration path.",
-        "Conferir erros recorrentes antes de reexecutar automacoes.",
-      ],
-    },
-  };
-  return playbooks[moduleKey] || null;
-}
-
-function getTagPlaybook(tagKey) {
-  const playbooks = {
-    webhook: {
-      title: "Playbook webhook",
-      checklist: [
-        "Validar origem, assinatura e deduplicacao antes de reenviar o evento.",
-        "Conferir payload recebido e resposta rapida do endpoint de entrada.",
-      ],
-    },
-    supabase: {
-      title: "Playbook supabase",
-      checklist: [
-        "Revisar RLS, schema, policy e funcoes chamadas pelo fluxo.",
-        "Confirmar erro PostgREST/PGRST e impacto no cache de schema.",
-      ],
-    },
-    functions: {
-      title: "Playbook functions",
-      checklist: [
-        "Inspecionar payload, secrets, timeout e logs da edge/API function.",
-        "Checar dependencia externa antes de reenfileirar ou repetir o lote.",
-      ],
-    },
-    crm: {
-      title: "Playbook CRM",
-      checklist: [
-        "Validar IDs Freshsales, rate limit e mapeamento de campos.",
-        "Confirmar se o espelho no interno e portal bate com o CRM antes do retry.",
-      ],
-    },
-    jobs: {
-      title: "Playbook jobs",
-      checklist: [
-        "Verificar fila, itens presos, drain parcial e volume do lote.",
-        "Checar se o job falhou por timeout, lock ou dado inconsistente.",
-      ],
-    },
-  };
-  return playbooks[tagKey] || null;
-}
-
-function getBulkGuardrail(logPane, paneRisk, paneSla, paneEntries = []) {
-  const eligible = new Set(["crm", "jobs", "functions"]);
-  const moduleLike = new Set(["contacts", "publicacoes", "processos"]);
-  if (!eligible.has(logPane) && !moduleLike.has(logPane)) return null;
-
-  const total = paneEntries.length;
-  const running = paneEntries.filter((entry) => entry?.status === "running").length;
-  const errors = paneEntries.filter((entry) => entry?.severity === "error").length;
-  const shouldThrottle = paneRisk.score >= 35 || paneSla.openRecurring > 0 || paneSla.buckets.acima_72h > 0;
-  const shouldBlockRetry = paneRisk.score >= 70 || errors >= 4 || paneSla.buckets.acima_72h >= 2;
-
-  return {
-    title: shouldBlockRetry ? "Bloqueio preventivo de retry" : "Retry seguro para lotes",
-    tone: shouldBlockRetry ? "error" : shouldThrottle ? "warn" : "info",
-    summary: shouldBlockRetry
-      ? "Existe reincidencia suficiente para evitar novo lote cheio ate revisar causa raiz."
-      : shouldThrottle
-        ? "O lote deve ser reduzido e reprocessado por fatias menores com observacao reforcada."
-        : "Trilha sob controle, mas ainda vale repetir em lotes pequenos quando houver dependencias externas.",
-    actions: shouldBlockRetry
-      ? [
-          "Nao repetir lote completo agora; priorizar fingerprints abertos e itens acima de 72h.",
-          "Executar validacao de payload, IDs e dependencia externa antes de novo retry.",
-        ]
-      : shouldThrottle
-        ? [
-            "Reduzir o lote para uma janela menor e acompanhar no console a cada tentativa.",
-            "Separar itens com erro recorrente antes de reenfileirar o restante.",
-          ]
-        : [
-            "Preferir retry incremental e registrar o resultado no console logo apos a execucao.",
-            "Manter filtros por modulo/tag para isolar regressao rapidamente.",
-          ],
-    metrics: { total, running, errors },
-  };
-}
-
-function getConsoleHeightLimits() {
-  return { min: 180, max: 560, preferred: 260 };
-}
+import { inferModuleKeyFromPathname } from "../../lib/admin/module-registry.js";
 
 export default function InternoLayout({
   title,
@@ -758,7 +120,6 @@ export default function InternoLayout({
     detail: "",
   });
   const [headerSearch, setHeaderSearch] = useState("");
-  const [debouncedHeaderSearch, setDebouncedHeaderSearch] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [headerLlm, setHeaderLlm] = useState("gpt");
@@ -786,25 +147,6 @@ export default function InternoLayout({
     });
   }, []);
 
-  useEffect(() => {
-    function handleMove(event) {
-      if (!dragStateRef.current.dragging) return;
-      const delta = dragStateRef.current.startY - event.clientY;
-      const limits = getConsoleHeightLimits();
-      const nextHeight = Math.min(limits.max, Math.max(limits.min, dragStateRef.current.startHeight + delta));
-      setConsoleHeight(nextHeight);
-    }
-    function handleUp() {
-      dragStateRef.current.dragging = false;
-    }
-    window.addEventListener("mousemove", handleMove);
-    window.addEventListener("mouseup", handleUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMove);
-      window.removeEventListener("mouseup", handleUp);
-    };
-  }, []);
-
   const archivedCount = archivedLogs.length;
   const lastArchiveAt = archivedLogs[0]?.createdAt || null;
   const formattedArchiveHint = useMemo(() => {
@@ -818,39 +160,6 @@ export default function InternoLayout({
     routeCount: new Set(coverageCards.map((item) => item.routePath).filter(Boolean)).size,
     errorCount: coverageCards.filter((item) => item.tone === "danger").length,
   }), [coverageCards]);
-  const headerSearchResults = useMemo(() => {
-    if (!debouncedHeaderSearch) return [];
-    const needle = debouncedHeaderSearch.toLowerCase();
-    const routeMatches = NAV_ITEMS.filter((item) => item.label.toLowerCase().includes(needle) || item.href.toLowerCase().includes(needle))
-      .map((item) => ({
-        key: `route_${item.href}`,
-        label: item.label,
-        helper: item.href,
-        href: item.href,
-        type: "modulo",
-      }));
-    const snapshotMatches = coverageCards
-      .filter((item) => [item.label, item.key, item.routePath, item.summary].filter(Boolean).some((value) => String(value).toLowerCase().includes(needle)))
-      .map((item) => ({
-        key: `snapshot_${item.key}`,
-        label: item.label || item.key,
-        helper: item.summary || item.routePath || "Snapshot operacional",
-        href: item.routePath || `/interno/${item.key}`,
-        type: "snapshot",
-      }));
-    const noteMatches = operationalNotes
-      .filter((item) => String(item?.note || item?.title || "").toLowerCase().includes(needle))
-      .slice(0, 4)
-      .map((item, index) => ({
-        key: `note_${item.createdAt || index}`,
-        label: item.title || "Nota operacional",
-        helper: item.note || "Registro interno",
-        href: null,
-        type: "nota",
-      }));
-
-    return [...routeMatches, ...snapshotMatches, ...noteMatches].slice(0, 8);
-  }, [coverageCards, debouncedHeaderSearch, operationalNotes]);
   const moduleAlerts = useMemo(() => {
     const map = new Map();
     for (const card of coverageCards) {
@@ -863,58 +172,6 @@ export default function InternoLayout({
     }
     return map;
   }, [activityLog, coverageCards, fingerprintStates]);
-
-  useEffect(() => {
-    function syncConsoleHeightToViewport() {
-      const limits = getConsoleHeightLimits();
-      setConsoleHeight((current) => {
-        const safeCurrent = Number(current || 0) || limits.preferred;
-        return Math.min(limits.max, Math.max(limits.min, safeCurrent));
-      });
-    }
-
-    syncConsoleHeightToViewport();
-    window.addEventListener("resize", syncConsoleHeightToViewport);
-    return () => {
-      window.removeEventListener("resize", syncConsoleHeightToViewport);
-    };
-  }, []);
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setDebouncedHeaderSearch(headerSearch.trim());
-    }, 220);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [headerSearch]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    const handlePointerDown = (event) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
-        setUserMenuOpen(false);
-      }
-      if (settingsModalRef.current && !settingsModalRef.current.contains(event.target)) {
-        setSettingsOpen(false);
-      }
-      if (headerSearchRef.current && !headerSearchRef.current.contains(event.target)) {
-        setDebouncedHeaderSearch("");
-      }
-    };
-    const handleEscape = (event) => {
-      if (event.key !== "Escape") return;
-      setUserMenuOpen(false);
-      setSettingsOpen(false);
-      setDebouncedHeaderSearch("");
-    };
-
-    window.addEventListener("pointerdown", handlePointerDown);
-    window.addEventListener("keydown", handleEscape);
-    return () => {
-      window.removeEventListener("pointerdown", handlePointerDown);
-      window.removeEventListener("keydown", handleEscape);
-    };
-  }, []);
 
   useEffect(() => {
     persistModuleHistory("interno-shell", {
@@ -976,281 +233,23 @@ export default function InternoLayout({
     title,
   ]);
 
-  function handleStartResize(event) {
-    if (!consoleOpen) return;
-    dragStateRef.current.dragging = true;
-    dragStateRef.current.startY = event.clientY;
-    dragStateRef.current.startHeight = consoleHeight;
-  }
-
-  function handleHeaderSearchSelect(result) {
-    if (result?.href) {
-      router.push(result.href);
-    }
-    setHeaderSearch("");
-    setDebouncedHeaderSearch("");
-  }
-
-  async function handleCopyLog() {
-    const text = formatActivityLogText(activityLog);
-    if (text && navigator?.clipboard) {
-      await navigator.clipboard.writeText(text);
-    }
-  }
-
-  async function handleExportLog() {
-    const text = formatActivityLogMarkdown(activityLog, operationalNotes);
-    if (!text) return;
-    const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `hmadv-log-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.md`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  async function handleCopyFrontendIssues() {
-    const text = formatFrontendIssuesMarkdown(frontendIssues);
-    if (text && navigator?.clipboard) {
-      await navigator.clipboard.writeText(text);
-    }
-  }
-
-  async function handleCopySchemaIssues() {
-    const text = formatSchemaIssuesMarkdown(schemaIssues);
-    if (text && navigator?.clipboard) {
-      await navigator.clipboard.writeText(text);
-    }
-  }
-
-  async function handleCopyProcessHistory() {
-    const payload = {
-      local: processosLocalHistory,
-      remote: processosRemoteHistory,
-    };
-    const text = JSON.stringify(payload, null, 2);
-    if (text && navigator?.clipboard) {
-      await navigator.clipboard.writeText(text);
-    }
-  }
-
-  async function handleCopyPublicacoesHistory() {
-    const payload = publicacoesHistory || {
-      local: publicacoesLocalHistory,
-      remote: publicacoesRemoteHistory,
-    };
-    const text = JSON.stringify(payload, null, 2);
-    if (text && navigator?.clipboard) {
-      await navigator.clipboard.writeText(text);
-    }
-  }
-
-  async function handleCopyDotobotHistory() {
-    const payload = moduleHistory?.dotobot || {};
-    const text = JSON.stringify(payload, null, 2);
-    if (text && navigator?.clipboard) {
-      await navigator.clipboard.writeText(text);
-    }
-  }
-
-  async function handleCopyAiTaskHistory() {
-    const payload = moduleHistory?.["ai-task"] || {};
-    const text = JSON.stringify(payload, null, 2);
-    if (text && navigator?.clipboard) {
-      await navigator.clipboard.writeText(text);
-    }
-  }
-
-  async function handleCopyContactsHistory() {
-    const payload = moduleHistory?.contacts || {};
-    const text = JSON.stringify(payload, null, 2);
-    if (text && navigator?.clipboard) {
-      await navigator.clipboard.writeText(text);
-    }
-  }
-
-  function handleArchive(reason) {
-    archiveActivityLog(reason);
-  }
-
-  function handleAddNote() {
-    const text = noteInput.trim();
-    if (!text) return;
-    appendOperationalNote({ text, type: "observacao" });
-    setNoteInput("");
-  }
-
-  function handleFingerprintStateChange(entryOrFingerprint, status, note = "") {
-    const fingerprint = typeof entryOrFingerprint === "string" ? entryOrFingerprint : entryOrFingerprint?.fingerprint;
-    if (!fingerprint) return;
-    const entry = typeof entryOrFingerprint === "string"
-      ? activityLog.find((item) => item.fingerprint === fingerprint)
-      : entryOrFingerprint;
-    setFingerprintState(fingerprint, {
-      status,
-      note,
-      lastEntryId: entry?.id || null,
-      lastLabel: entry?.label || entry?.action || "Evento",
-      source: "console",
-    });
-  }
-
-  function handleFingerprintNote(entryOrFingerprint) {
-    const fingerprint = typeof entryOrFingerprint === "string" ? entryOrFingerprint : entryOrFingerprint?.fingerprint;
-    if (!fingerprint) return;
-    const current = fingerprintStates?.[fingerprint] || {};
-    const entry = typeof entryOrFingerprint === "string"
-      ? activityLog.find((item) => item.fingerprint === fingerprint)
-      : entryOrFingerprint;
-    const note = window.prompt("Registrar observacao para este fingerprint:", current.note || "");
-    if (note === null) return;
-    handleFingerprintStateChange(entry || fingerprint, current.status || "acompanhando", note);
-    if (String(note || "").trim()) {
-      appendOperationalNote({
-        type: "fingerprint",
-        text: `${entry?.label || entry?.action || fingerprint}: ${String(note).trim()}`,
-        meta: { fingerprint, status: current.status || "acompanhando" },
-      });
-    }
-  }
-
-  function handleBulkFingerprintStateChange(status) {
-    if (!paneFingerprintSummary.length) return;
-    const targets = paneFingerprintSummary.filter((item) => item.status !== status);
-    if (!targets.length) return;
-    for (const item of targets) {
-      handleFingerprintStateChange(item.fingerprint, status, item.note || "");
-    }
-    appendOperationalNote({
-      type: "bulk_triage",
-      text: `Trilha ${logPane}: ${targets.length} fingerprint(s) marcados como ${status}.`,
-      meta: { logPane, status, total: targets.length },
-    });
-  }
-
-  function handleBulkFingerprintReset() {
-    if (!paneFingerprintSummary.length) return;
-    const targets = paneFingerprintSummary.filter((item) => item.status !== "aberto");
-    if (!targets.length) return;
-    for (const item of targets) {
-      handleFingerprintStateChange(item.fingerprint, "aberto", item.note || "");
-    }
-    appendOperationalNote({
-      type: "bulk_triage",
-      text: `Trilha ${logPane}: ${targets.length} fingerprint(s) reabertos.`,
-      meta: { logPane, status: "aberto", total: targets.length },
-    });
-  }
-
-  function handleAddFrontendIssue() {
-    if (!frontendForm.detail.trim()) return;
-    appendFrontendIssue({
-      page: frontendForm.page,
-      component: frontendForm.component,
-      detail: frontendForm.detail,
-      status: frontendForm.status || "aberto",
-    });
-    appendActivityLog({
-      label: "Registro Frontend UX",
-      action: "frontend_issue",
-      method: "UI",
-      status: "success",
-      module: inferFrontendModule(frontendForm.page),
-      page: frontendForm.page || router.pathname,
-      component: frontendForm.component || "Frontend UX",
-      response: frontendForm.detail,
-      consolePane: "frontend",
-      domain: "ux",
-      channel: "manual",
-      tags: ["frontend", "ux", "manual"],
-    });
-    setFrontendForm({ page: "", component: "", detail: "", status: "aberto" });
-  }
-
-  function handleAddSchemaIssue() {
-    const hasPayload = schemaForm.type || schemaForm.table || schemaForm.column || schemaForm.code || schemaForm.detail;
-    if (!hasPayload) return;
-    const issuePayload = {
-      type: schemaForm.type || "schema_issue",
-      table: schemaForm.table || null,
-      column: schemaForm.column || null,
-      code: schemaForm.code || null,
-      detail: schemaForm.detail || null,
-    };
-    appendSchemaIssue({
-      ...issuePayload,
-    });
-    appendActivityLog({
-      label: "Registro de schema",
-      action: "schema_issue",
-      method: "UI",
-      status: "success",
-      page: router.pathname,
-      component: "Schema",
-      response: JSON.stringify(issuePayload, null, 2),
-      schemaIssue: issuePayload,
-      consolePane: "schema",
-      domain: "database",
-      channel: "manual",
-      tags: ["schema", "manual"],
-    });
-    setSchemaForm({ type: "", table: "", column: "", code: "", detail: "" });
-  }
-
-  function updateFilters(next) {
-    const normalized = normalizeConsoleFilters(next);
-    setLogFilters(normalized);
-    setActivityLogFilters(normalized);
-  }
-
-  function handleOpenModuleAlert(moduleKey) {
-    const playbook = getModulePlaybook(moduleKey);
-    setConsoleOpen(true);
-    setConsoleTab("log");
-    if (playbook?.pane) {
-      setLogPane(playbook.pane);
-    }
-    updateFilters({
-      module: moduleKey,
-      tag: playbook?.tag || "",
-    });
-    setLogSearch("");
-    appendOperationalNote({
-      type: "alerta_modulo",
-      text: `Console direcionado para o modulo ${moduleKey}.`,
-      meta: { moduleKey, pane: playbook?.pane || "activity", tag: playbook?.tag || "" },
-    });
-  }
-
-  function handlePageDebug() {
-    appendActivityLog({
-      label: "Debug UI (pagina)",
-      status: "success",
-      method: "UI",
-      action: "debug_ui",
-      path: router.pathname,
-      page: router.pathname,
-      component: title || "Pagina interna",
-      response: `Debug manual iniciado em ${router.pathname}`,
-      consolePane: "debug-ui",
-      domain: "runtime",
-      channel: "manual",
-      tags: ["debug-ui", "manual"],
-    });
-  }
-
-  function inferFrontendModule(pageValue) {
-    const value = String(pageValue || "").toLowerCase();
-    if (value.includes("contacts")) return "contacts";
-    if (value.includes("processos")) return "processos";
-    if (value.includes("publicacoes")) return "publicacoes";
-    if (value.includes("financeiro")) return "financeiro";
-    if (value.includes("ai-task")) return "ai-task";
-    return "";
-  }
+  const { handleHeaderSearchSelect, handleStartResize, headerSearchResults } = useInternoShellUi({
+    consoleHeight,
+    consoleOpen,
+    coverageCards,
+    dragStateRef,
+    getConsoleHeightLimits,
+    headerSearch,
+    headerSearchRef,
+    operationalNotes,
+    router,
+    setConsoleHeight,
+    setHeaderSearch,
+    setSettingsOpen,
+    setUserMenuOpen,
+    settingsModalRef,
+    userMenuRef,
+  });
 
   const processosHistory = moduleHistory?.processos || null;
   const processosLocalHistory = processosHistory?.executionHistory || [];
@@ -1261,53 +260,87 @@ export default function InternoLayout({
   const dotobotHistory = moduleHistory?.dotobot || null;
   const aiTaskHistory = moduleHistory?.["ai-task"] || null;
   const contactsHistory = moduleHistory?.contacts || null;
+  const {
+    handleAddFrontendIssue,
+    handleAddNote,
+    handleAddSchemaIssue,
+    handleArchive,
+    handleBulkFingerprintReset,
+    handleBulkFingerprintStateChange,
+    handleCopyAiTaskHistory,
+    handleCopyContactsHistory,
+    handleCopyDotobotHistory,
+    handleCopyFrontendIssues,
+    handleCopyLog,
+    handleCopyProcessHistory,
+    handleCopyPublicacoesHistory,
+    handleCopySchemaIssues,
+    handleExportLog,
+    handleFingerprintNote,
+    handleFingerprintStateChange,
+    handleOpenModuleAlert,
+    handlePageDebug,
+    updateFilters,
+  } = useInternoConsoleActions({
+    activityLog,
+    fingerprintStates,
+    frontendForm,
+    frontendIssues,
+    logPane,
+    moduleHistory,
+    noteInput,
+    operationalNotes,
+    paneFingerprintSummary,
+    processosLocalHistory,
+    processosRemoteHistory,
+    publicacoesHistory,
+    publicacoesLocalHistory,
+    publicacoesRemoteHistory,
+    router,
+    schemaForm,
+    schemaIssues,
+    setConsoleOpen,
+    setConsoleTab,
+    setFrontendForm,
+    setLogFilters,
+    setLogPane,
+    setLogSearch,
+    setNoteInput,
+    setSchemaForm,
+    title,
+  });
   const integrationGuide = useMemo(() => getExternalModuleIntegrationGuide(router.pathname), [router.pathname]);
 
-  const filteredLog = useMemo(() => {
-    return activityLog.filter((entry) => entryMatchesConsoleFilters(entry, logFilters, deferredLogSearch));
-  }, [activityLog, deferredLogSearch, logFilters]);
-  const debugLog = useMemo(() => filteredLog.filter((entry) => entry.action === "debug_ui" || (entry.tags || []).includes("debug-ui")), [filteredLog]);
-  const activityOnlyLog = useMemo(() => filteredLog.filter((entry) => !["debug_ui", "frontend_issue", "schema_issue"].includes(String(entry.action || "")) && !(entry.tags || []).includes("debug-ui")), [filteredLog]);
-  const tagScopedLogs = useMemo(() => buildTagScopedLogs(filteredLog), [filteredLog]);
-  const historyPaneCount = useMemo(() => countHistorySnapshots(moduleHistory), [moduleHistory]);
-  const unclassifiedTagEntriesCount = useMemo(() => countUnclassifiedEntries(activityOnlyLog), [activityOnlyLog]);
-  const paneEntries = useMemo(() => {
-    if (logPane === "activity") return activityOnlyLog;
-    if (logPane === "debug") return debugLog;
-    return tagScopedLogs[logPane] || [];
-  }, [activityOnlyLog, debugLog, logPane, tagScopedLogs]);
-  const paneCounts = useMemo(() => ({
-    activity: activityOnlyLog.length,
-    debug: debugLog.length,
-    history: historyPaneCount,
-    frontend: frontendIssues.length,
-    schema: schemaIssues.length,
-    notes: operationalNotes.length,
-    security: tagScopedLogs.security.length,
-    functions: tagScopedLogs.functions.length,
-    routes: tagScopedLogs.routes.length,
-    jobs: tagScopedLogs.jobs.length,
-    webhook: tagScopedLogs.webhook.length,
-    crm: tagScopedLogs.crm.length,
-    supabase: tagScopedLogs.supabase.length,
-    dotobot: tagScopedLogs.dotobot.length,
-    "ai-task": tagScopedLogs["ai-task"].length,
-    "data-quality": tagScopedLogs["data-quality"].length,
-  }), [activityOnlyLog.length, debugLog.length, frontendIssues.length, historyPaneCount, operationalNotes.length, schemaIssues.length, tagScopedLogs]);
-  const visibleLogPaneGroups = useMemo(() => LOG_PANE_GROUPS.map((group) => ({
-    ...group,
-    panes: LOG_PANES.filter((pane) => pane.group === group.key && shouldShowLogPane(pane, paneCounts, logPane)),
-  })).filter((group) => group.panes.length > 0), [logPane, paneCounts]);
-  const paneFingerprintSummary = useMemo(() => summarizeFingerprints(paneEntries, fingerprintStates), [fingerprintStates, paneEntries]);
-  const paneRecommendationSummary = useMemo(() => summarizeRecommendations(paneEntries), [paneEntries]);
-  const paneRisk = useMemo(() => calculateRiskScore(paneEntries, paneFingerprintSummary), [paneEntries, paneFingerprintSummary]);
-  const paneTimeline = useMemo(() => summarizeTimeline(paneEntries), [paneEntries]);
-  const paneSla = useMemo(() => summarizeSla(paneEntries, paneFingerprintSummary, fingerprintStates), [fingerprintStates, paneEntries, paneFingerprintSummary]);
-  const paneTagPlaybook = useMemo(() => getTagPlaybook(logPane), [logPane]);
-  const paneBulkGuardrail = useMemo(() => getBulkGuardrail(logPane, paneRisk, paneSla, paneEntries), [logPane, paneEntries, paneRisk, paneSla]);
-  const currentOperationalRail = useMemo(() => {
-    return buildOperationalRailData(currentModuleKey, moduleHistory?.[currentModuleKey] || null, activityLog);
-  }, [activityLog, currentModuleKey, moduleHistory]);
+  const {
+    activityOnlyLog,
+    currentOperationalRail,
+    debugLog,
+    filteredLog,
+    historyPaneCount,
+    paneBulkGuardrail,
+    paneCounts,
+    paneEntries,
+    paneFingerprintSummary,
+    paneRecommendationSummary,
+    paneRisk,
+    paneSla,
+    paneTagPlaybook,
+    paneTimeline,
+    tagScopedLogs,
+    unclassifiedTagEntriesCount,
+    visibleLogPaneGroups,
+  } = useInternoConsoleAnalytics({
+    activityLog,
+    currentModuleKey,
+    deferredLogSearch,
+    fingerprintStates,
+    frontendIssues,
+    logFilters,
+    logPane,
+    moduleHistory,
+    operationalNotes,
+    schemaIssues,
+  });
   useEffect(() => {
     setLogExpanded(null);
   }, [logPane]);
@@ -1330,12 +363,21 @@ export default function InternoLayout({
       ? rightRail({ moduleKey: currentModuleKey, moduleHistory, activityLog })
       : rightRail
   ), [activityLog, currentModuleKey, moduleHistory, rightRail]);
-  const consoleReservedSpace = 0;
-  const copilotConsoleInset = 0;
+  const desktopConsoleBarHeight = consoleOpen ? consoleHeight : 60;
+  const consoleDockInset = isCopilotWorkspace ? 0 : isMobileShell ? 8 : 12;
+  const copilotConsoleInset = isMobileShell ? 0 : desktopConsoleBarHeight + consoleDockInset + (isCopilotWorkspace ? 0 : 10);
   const consoleDockLeft = hideShellSidebar ? 0 : isMobileShell ? 0 : leftCollapsed ? 88 : 272;
   const desktopRightRailWidth = rightRailMode === "compact" ? 356 : 404;
   const consoleDockRight = !isMobileShell && shouldRenderDotobotRail && !rightCollapsed ? desktopRightRailWidth : 0;
   const mobileConsoleHeight = Math.min(Math.max(consoleHeight, 320), 560);
+  const desktopConsoleStyle = !isMobileShell
+    ? {
+        left: `${consoleDockLeft + consoleDockInset}px`,
+        right: `${consoleDockRight + consoleDockInset}px`,
+        bottom: `${consoleDockInset}px`,
+        height: consoleOpen ? `${consoleHeight}px` : "60px",
+      }
+    : undefined;
   const showSupplementalRightRail = rightRailFullscreen && Boolean(currentOperationalRail || resolvedRightRail);
   const rightRailConversationFirst = !showSupplementalRightRail;
   const copilotShellSidebarClass = isCopilotWorkspace
@@ -1393,421 +435,85 @@ export default function InternoLayout({
             ? copilotMainShellClass
             : `rounded-[26px] border shadow-[0_20px_56px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] ${copilotMainShellClass}`
         }`}>
-          <div className={`sticky top-0 z-20 shrink-0 flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3 md:items-center md:gap-4 md:px-5 md:py-3.5 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(247,249,251,0.92))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.99),rgba(7,9,8,0.96))]"}`}>
-            <div className={`order-1 rounded-[16px] border px-3 py-2 md:order-none ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.82)]" : "border-[#1F2D29] bg-[rgba(255,255,255,0.02)]"}`}>
-              <p className="text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">{isCopilotWorkspace ? "Copilot" : "Workspace"}</p>
-              <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#51606B]" : "text-[#C6D1CC]"}`}>
-                {isCopilotWorkspace ? "Conversa centralizada com histÃ³rico e mÃ³dulos" : router.pathname}
-              </p>
-            </div>
-            <div ref={headerSearchRef} className={`order-3 w-full ${isCopilotWorkspace ? "md:flex-1 md:px-4 xl:px-8" : "md:flex-1 md:px-4 xl:px-6"}`}>
-              <div className={`mx-auto flex flex-col gap-2 rounded-[16px] border px-3 py-3 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] md:flex-row md:items-center md:gap-3 md:px-4 md:py-2.5 ${isCopilotWorkspace ? "max-w-[980px]" : "max-w-xl"} ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.84)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(12,15,14,0.86),rgba(8,10,9,0.9))]"}`}>
-                <label className={`flex h-11 shrink-0 items-center gap-2 rounded-[12px] border px-3 py-2 text-[11px] uppercase tracking-[0.16em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
-                  <span>LLM</span>
-                  <select
-                    value={headerLlm}
-                    onChange={(event) => setHeaderLlm(event.target.value)}
-                    className="bg-transparent text-[11px] font-semibold uppercase tracking-[0.12em] outline-none"
-                  >
-                    <option value="gpt">GPT</option>
-                    <option value="claude">Claude</option>
-                    <option value="outros">Outros</option>
-                  </select>
-                </label>
-                <input
-                  type="text"
-                  value={headerSearch}
-                  onChange={(event) => setHeaderSearch(event.target.value)}
-                  placeholder={isCopilotWorkspace ? "Buscar conversas, processos, publicaÃ§Ãµes, contatos ou contexto..." : "Buscar por processos, publicacoes, contas..."}
-                  className={`h-11 w-full rounded-[12px] border bg-transparent px-4 text-sm outline-none transition ${isLightTheme ? "border-[#D7DEE8] text-[#22312F] placeholder:text-[#8A99A7] focus:border-[#C5A059]" : "border-[#22342F] text-[#F4F1EA] placeholder:text-[#60706A] focus:border-[#C5A059]"}`}
-                />
-                {headerSearchResults.length ? (
-                  <div className={`absolute left-0 right-0 top-[calc(100%+8px)] z-40 mx-auto max-w-3xl overflow-hidden rounded-[18px] border shadow-[0_22px_44px_rgba(0,0,0,0.18)] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(10,12,11,0.98)]"}`}>
-                    {headerSearchResults.map((result) => (
-                      <button
-                        key={result.key}
-                        type="button"
-                        onClick={() => handleHeaderSearchSelect(result)}
-                        className={`flex w-full items-start justify-between gap-3 px-4 py-3 text-left text-sm transition ${isLightTheme ? "hover:bg-[#F7F9FC]" : "hover:bg-[rgba(255,255,255,0.03)]"}`}
-                      >
-                        <div className="min-w-0">
-                          <p className={`truncate font-medium ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{result.label}</p>
-                          <p className={`mt-1 truncate text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{result.helper}</p>
-                        </div>
-                        <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>{result.type}</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={isCopilotWorkspace ? handleFocusCopilotComposer : handleToggleCopilot}
-                  className={`h-11 shrink-0 rounded-[12px] border px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] transition md:min-w-[88px] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#9A6E2D] hover:border-[#C5A059]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#C5A059] hover:border-[#C5A059] hover:text-[#F5E6C5]"}`}
-                >
-                  {isCopilotWorkspace ? "Chat" : "Conversar"}
-                </button>
-              </div>
-            </div>
-          <div className={`order-2 [&_span.text-lg]:hidden flex shrink-0 items-center gap-2 rounded-[16px] border px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] md:order-none ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.84)]" : "border-[#1F2D29] bg-[rgba(255,255,255,0.02)]"}`}>
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className={`flex h-10 w-10 items-center justify-center rounded-[14px] border transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
-              title={isLightTheme ? "Ativar modo escuro" : "Ativar modo claro"}
-            >
-              <span className="sr-only">{isLightTheme ? "Modo escuro" : "Modo claro"}</span>
-              {isLightTheme ? (
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="4" />
-                  <path d="M12 2v2.5" />
-                  <path d="M12 19.5V22" />
-                  <path d="M4.93 4.93l1.77 1.77" />
-                  <path d="M17.3 17.3l1.77 1.77" />
-                  <path d="M2 12h2.5" />
-                  <path d="M19.5 12H22" />
-                  <path d="M4.93 19.07l1.77-1.77" />
-                  <path d="M17.3 6.7l1.77-1.77" />
-                </svg>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              className={`flex h-10 w-10 items-center justify-center rounded-[14px] border transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
-              title="ConfiguraÃ§Ãµes"
-            >
-              <span className="sr-only">ConfiguraÃ§Ãµes</span>
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01A1.65 1.65 0 0 0 10.44 3.1V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={() => setLeftCollapsed((current) => !current)}
-                className={`flex h-10 w-10 items-center justify-center rounded-[14px] border text-[0px] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
-                title="Alternar sidebar"
-              >
-                <span className="sr-only">Sidebar</span>
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                  <path d="M4 6h16" />
-                  <path d="M4 12h16" />
-                  <path d="M4 18h16" />
-                </svg>
-                <span className="text-lg">â‰¡</span>
-              </button>
-              {!isCopilotWorkspace ? (
-                <button
-                  type="button"
-                  onClick={handleToggleRightRail}
-                  className={`flex h-10 w-10 items-center justify-center rounded-[14px] border text-[0px] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
-                  title="Alternar painel direito"
-                >
-                  <span className="sr-only">Painel</span>
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="4" width="18" height="16" rx="2" />
-                    <path d="M15 4v16" />
-                  </svg>
-                  <span className="text-lg">â–£</span>
-                </button>
-              ) : null}
-              <div ref={userMenuRef} className="relative">
-                <button
-                  type="button"
-                  onClick={() => setUserMenuOpen((current) => !current)}
-                  className={`flex h-10 min-w-[42px] items-center justify-center rounded-[14px] border px-2 text-sm font-semibold transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
-                  title="Menu do usuÃ¡rio"
-                >
-                  {(normalizeDisplayName(profile).trim().charAt(0) || "H").toUpperCase()}
-                </button>
-                {userMenuOpen ? (
-                  <div className={`absolute right-0 top-[calc(100%+8px)] z-40 w-56 overflow-hidden rounded-[18px] border shadow-[0_22px_44px_rgba(0,0,0,0.18)] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(10,12,11,0.98)]"}`}>
-                    {[
-                      { key: "dashboard", label: "Dashboard", action: () => router.push("/interno") },
-                      { key: "settings", label: "ConfiguraÃ§Ãµes", action: () => setSettingsOpen(true) },
-                      { key: "notifications", label: "NotificaÃ§Ãµes", action: () => router.push("/interno/copilot#notificacoes") },
-                      { key: "signout", label: "Sair", action: handleSignOut },
-                    ].map((item) => (
-                      <button
-                        key={item.key}
-                        type="button"
-                        onClick={() => {
-                          setUserMenuOpen(false);
-                          item.action();
-                        }}
-                        className={`flex w-full items-center justify-between px-4 py-3 text-left text-sm transition ${isLightTheme ? "text-[#22312F] hover:bg-[#F7F9FC]" : "text-[#D8DEDA] hover:bg-[rgba(255,255,255,0.03)]"}`}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                onClick={() => setConsoleOpen((current) => !current)}
-                className={`flex h-10 w-10 items-center justify-center rounded-[14px] border text-[0px] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
-                title="Alternar console"
-              >
-                <span className="sr-only">Console</span>
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="4" width="18" height="16" rx="2" />
-                  <path d="m8 10 2 2-2 2" />
-                  <path d="M13 16h3" />
-                </svg>
-                <span className="text-lg">â–¤</span>
-              </button>
-            </div>
-          </div>
-          <div className={`flex min-h-0 flex-1 flex-col overflow-x-hidden ${isCopilotWorkspace ? "overflow-hidden" : "overflow-y-auto"}`} style={{ paddingBottom: `${consoleReservedSpace}px` }}>
-          {!isCopilotWorkspace ? <InternoModuleHeader description={description} isLightTheme={isLightTheme} title={title} /> : null}
-          <div
-            className={`flex min-h-0 flex-1 flex-col ${isCopilotWorkspace ? "overflow-hidden px-0 pt-0" : "gap-6 px-4 pb-4 md:px-6 md:pb-6"}`}
-            style={isCopilotWorkspace ? { paddingBottom: `${copilotConsoleInset}px` } : undefined}
+          <InternoShellHeader
+            handleFocusCopilotComposer={handleFocusCopilotComposer}
+            handleHeaderSearchSelect={handleHeaderSearchSelect}
+            handleSignOut={handleSignOut}
+            handleToggleCopilot={handleToggleCopilot}
+            handleToggleRightRail={handleToggleRightRail}
+            headerLlm={headerLlm}
+            headerSearch={headerSearch}
+            headerSearchRef={headerSearchRef}
+            headerSearchResults={headerSearchResults}
+            isCopilotWorkspace={isCopilotWorkspace}
+            isLightTheme={isLightTheme}
+            onChangeHeaderLlm={setHeaderLlm}
+            onChangeHeaderSearch={setHeaderSearch}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onToggleConsole={() => setConsoleOpen((current) => !current)}
+            onToggleLeftCollapsed={() => setLeftCollapsed((current) => !current)}
+            onToggleUserMenu={() => setUserMenuOpen((current) => !current)}
+            profile={profile}
+            router={router}
+            setUserMenuOpen={setUserMenuOpen}
+            toggleTheme={toggleTheme}
+            userMenuOpen={userMenuOpen}
+            userMenuRef={userMenuRef}
+          />
+          <InternoShellContent
+            copilotConsoleInset={copilotConsoleInset}
+            description={description}
+            guide={integrationGuide}
+            isCopilotWorkspace={isCopilotWorkspace}
+            isLightTheme={isLightTheme}
+            showExtensionManager={showExtensionManager}
+            title={title}
           >
-            {!isCopilotWorkspace ? <IntegrationGuideCardExternal guide={integrationGuide} /> : null}
-            <div className={isCopilotWorkspace ? "min-h-0 flex-1 px-0 pb-0" : ""}>
-              {children}
-            </div>
-            {showExtensionManager && !isCopilotWorkspace ? <DotobotExtensionManager /> : null}
-          </div>
-          </div>
+            {children}
+          </InternoShellContent>
           </div>
           <div
             className={`z-30 min-h-[52px] shrink-0 overflow-hidden border transition-all ${
               isCopilotWorkspace
                 ? `${isLightTheme ? "border-x-0 border-b-0 border-t-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.985),rgba(241,245,249,0.985))]" : "border-x-0 border-b-0 border-t-[#1E2E29] bg-[linear-gradient(180deg,rgba(10,12,11,0.99),rgba(6,8,7,0.99))]"} rounded-none shadow-none`
                 : `${isLightTheme ? "border-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,245,249,0.98))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(10,12,11,0.985),rgba(6,8,7,0.98))]"} rounded-[24px] shadow-[0_-12px_38px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.02)]`
-            } ${consoleOpen ? "flex flex-col" : "block h-[52px]"} ${isMobileShell ? "fixed inset-x-2 bottom-2" : isCopilotWorkspace ? "mt-0" : "mt-2"}`}
-            style={isMobileShell ? { height: consoleOpen ? `${mobileConsoleHeight}px` : undefined } : { height: consoleOpen ? `${consoleHeight}px` : undefined }}
+            } ${consoleOpen ? "flex flex-col" : "block h-[60px]"} ${isMobileShell ? "fixed inset-x-2 bottom-2" : "fixed"}`}
+            style={isMobileShell ? { height: consoleOpen ? `${mobileConsoleHeight}px` : undefined } : desktopConsoleStyle}
           >
+            <InternoConsoleChrome
+              activityLogCount={activityLog.length}
+              consoleOpen={consoleOpen}
+              consoleTab={consoleTab}
+              formatClass={isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#C5A059] hover:text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059] hover:text-[#C5A059]"}
+              handleStartResize={handleStartResize}
+              isLightTheme={isLightTheme}
+              isMobileShell={isMobileShell}
+              logPane={logPane}
+              onToggleConsole={() => setConsoleOpen((current) => !current)}
+              onToggleTab={(tab, pane) => {
+                setConsoleTab(tab);
+                if (pane) setLogPane(pane);
+              }}
+              paneCounts={paneCounts}
+              visibleLogPaneGroups={visibleLogPaneGroups}
+            />
             {consoleOpen ? (
-              <div
-                onMouseDown={isMobileShell ? undefined : handleStartResize}
-                className={`shrink-0 flex h-3 items-center justify-center border-b text-[#60706A] ${isMobileShell ? "cursor-default" : "cursor-row-resize"} ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(210,219,229,0.55)]" : "border-[#1E2E29] bg-[rgba(255,255,255,0.02)]"}`}
-                title={isMobileShell ? "Console mobile" : "Arraste para redimensionar"}
-              >
-                <span className={`h-1 w-10 rounded-full ${isLightTheme ? "bg-[#A5B4C3]" : "bg-[#22342F]"}`} />
-              </div>
-            ) : null}
-            <div className={`shrink-0 flex items-center justify-between border-b px-5 py-3 text-xs uppercase tracking-[0.18em] text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8]" : "border-[#1A2421]"}`}>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setConsoleTab("console")}
-                  className={`rounded-[14px] border px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] transition ${
-                    consoleTab === "console"
-                      ? "border-[#C5A059] text-[#C5A059]"
-                      : isLightTheme
-                        ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#C5A059]"
-                        : "border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059]"
-                  }`}
-                >
-                  Console
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConsoleTab("log")}
-                  className={`rounded-[14px] border px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] transition ${
-                    consoleTab === "log"
-                      ? "border-[#C5A059] text-[#C5A059]"
-                      : isLightTheme
-                        ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#C5A059]"
-                        : "border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059]"
-                  }`}
-                >
-                  Log
-                </button>
-                {consoleTab === "log" ? (
-                  <div className="flex max-w-[70vw] flex-wrap items-start gap-3">
-                    <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
-                      {activityLog.length} entradas
-                    </span>
-                    {visibleLogPaneGroups.map((group) => (
-                      <div key={group.key} className="flex flex-wrap items-center gap-2">
-                        <span className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#60706A]"}`}>{group.label}</span>
-                        {group.panes.map((pane) => <button
-                          key={pane.key}
-                          type="button"
-                          onClick={() => setLogPane(pane.key)}
-                           className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === pane.key ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)] text-[#C5A059]" : isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#C5A059] hover:text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                        >
-                          {pane.label} {formatPaneCountLabel(paneCounts[pane.key] || 0)}
-                        </button>)}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                onClick={() => setConsoleOpen((current) => !current)}
-                className={`rounded-[14px] border px-3 py-1.5 text-[10px] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}
-                title={consoleOpen ? "Recolher console" : "Expandir console"}
-              >
-                {consoleOpen ? "â†“" : "â†‘"}
-              </button>
-            </div>
-            {consoleOpen ? (
-              <div className={`min-h-0 flex-1 overflow-y-auto px-5 pb-4 text-xs ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
+              <div className={`min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3 text-xs md:px-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                 {consoleTab === "console" ? (
-                  <div className="space-y-3">
-                    <div className="grid gap-3 md:grid-cols-4">
-                      <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
-                        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Snapshots</p>
-                        <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{coverageCards.length}</p>
-                        <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>MÃ³dulos e shells publicados no console.</p>
-                      </div>
-                      <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
-                        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Rotas cobertas</p>
-                        <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{coverageSummary.routeCount}</p>
-                        <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Rotas com telemetria ou snapshot ativo.</p>
-                      </div>
-                      <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
-                        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Com erro</p>
-                        <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{coverageSummary.errorCount}</p>
-                        <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Snapshots que reportaram falha visÃ­vel.</p>
-                      </div>
-                      <div className={`rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
-                        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Issues abertas</p>
-                        <p className={`mt-2 text-lg font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{frontendIssues.length + schemaIssues.length}</p>
-                        <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>UX e schema consolidados no workspace.</p>
-                      </div>
-                    </div>
-
-                    <div className={`rounded-xl border p-3 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)] text-[#9BAEA8]"}`}>
-                      <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Cobertura ativa</p>
-                      <p className="mt-2">
-                        O console agora agrega snapshots do app shell, layouts pÃºblico e portal, shell interno e mÃ³dulos operacionais.
-                        Isso substitui o placeholder anterior e cria uma base Ãºnica para expansÃ£o da cobertura por pÃ¡gina e componente.
-                      </p>
-                    </div>
-
-                    <div className="grid gap-3 xl:grid-cols-2">
-                      {coverageCards.length ? coverageCards.map((item) => (
-                        <div key={item.key} className={`rounded-xl border p-3 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(8,10,9,0.55)]"}`}>
-                          {moduleAlerts.has(item.key) ? <div className={`mb-3 rounded-lg border px-3 py-2 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(10,12,11,0.45)]"}`}>
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <span className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Alerta do modulo</span>
-                              <span className={
-                                moduleAlerts.get(item.key)?.tone === "danger"
-                                  ? isLightTheme ? "text-[#B25E5E]" : "text-red-200"
-                                  : moduleAlerts.get(item.key)?.tone === "warn"
-                                    ? "text-[#D9B46A]"
-                                    : "text-[#11D473]"
-                              }>
-                                {moduleAlerts.get(item.key)?.tone === "danger" ? "critico" : moduleAlerts.get(item.key)?.tone === "warn" ? "monitorar" : "estavel"}
-                              </span>
-                            </div>
-                            <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
-                              <span className={`rounded-full border px-2 py-0.5 ${isLightTheme ? "border-[#F0CACA] bg-white text-[#B25E5E]" : "border-[#5B2D2D] text-[#FECACA]"}`}>erros {moduleAlerts.get(item.key)?.errors || 0}</span>
-                              <span className={`rounded-full border px-2 py-0.5 ${isLightTheme ? "border-[#F3DEB0] bg-white text-[#A46A14]" : "border-[#6E5630] text-[#FDE68A]"}`}>warn {moduleAlerts.get(item.key)?.warnings || 0}</span>
-                              <span className={`rounded-full border px-2 py-0.5 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#E6E0D3]"}`}>abertos {moduleAlerts.get(item.key)?.recurringOpen || 0}</span>
-                              <span className={`rounded-full border px-2 py-0.5 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#E6E0D3]"}`}>acima 72h {moduleAlerts.get(item.key)?.stale || 0}</span>
-                            </div>
-                            {moduleAlerts.get(item.key)?.safeWindow ? <div className={`mt-3 rounded-lg border px-3 py-2 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(8,10,9,0.45)]"}`}>
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <span className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
-                                  {moduleAlerts.get(item.key).safeWindow.blocked ? "trava preventiva" : "janela segura"}
-                                </span>
-                                <div className="flex flex-wrap gap-2 text-[10px]">
-                                  {moduleAlerts.get(item.key).safeWindow.chips.map((chip) => (
-                                    <span key={`${item.key}_${chip}`} className={`rounded-full border px-2 py-0.5 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#E6E0D3]"}`}>{chip}</span>
-                                  ))}
-                                </div>
-                              </div>
-                              <p className={`mt-2 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>{moduleAlerts.get(item.key).safeWindow.summary}</p>
-                            </div> : null}
-                            {getModulePlaybook(item.key)?.checklist?.length ? <div className={`mt-3 space-y-1 text-[11px] ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>
-                              {getModulePlaybook(item.key).checklist.map((step) => (
-                                <div key={`${item.key}_${step}`} className={`rounded-lg border px-2 py-1.5 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(8,10,9,0.45)]"}`}>
-                                  {step}
-                                </div>
-                              ))}
-                            </div> : null}
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenModuleAlert(item.key)}
-                                className="rounded-full border border-[#C5A059] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#F4E7C2]"
-                              >
-                                Abrir trilha guiada
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setConsoleOpen(true);
-                                  setConsoleTab("log");
-                                  setLogPane("activity");
-                                  updateFilters({ module: item.key });
-                                  setLogSearch("");
-                                }}
-                                className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
-                              >
-                                Ver atividade
-                              </button>
-                            </div>
-                          </div> : null}
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div>
-                              <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{item.key}</p>
-                              <p className={`mt-1 font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{item.routePath || "sem rota declarada"}</p>
-                            </div>
-                            <span
-                              className={
-                                item.tone === "danger"
-                                  ? isLightTheme ? "text-[#B25E5E]" : "text-red-200"
-                                  : item.tone === "warn"
-                                    ? "text-[#D9B46A]"
-                                    : "text-[#11D473]"
-                              }
-                            >
-                              {item.tone === "danger" ? "erro" : item.tone === "warn" ? "atencao" : "ok"}
-                            </span>
-                          </div>
-                          <p className={`mt-2 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>{item.summary}</p>
-                          <div className={`mt-2 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7E918B]"}`}>
-                            Atualizado em {item.updatedAt ? new Date(item.updatedAt).toLocaleString("pt-BR") : "sem horario"}
-                          </div>
-                          {item.capabilities?.length ? (
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {item.capabilities.slice(0, 4).map((capability) => (
-                                <span key={`${item.key}_${capability}`} className={`rounded-full border px-2 py-0.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
-                                  {capability}
-                                </span>
-                              ))}
-                            </div>
-                          ) : null}
-                          {item.consoleTags?.length ? (
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {item.consoleTags.slice(0, 4).map((tag) => (
-                                <span key={`${item.key}_${tag}`} className="rounded-full border border-[#3C3320] px-2 py-0.5 text-[10px] text-[#E7C987]">
-                                  #{tag}
-                                </span>
-                              ))}
-                            </div>
-                          ) : null}
-                          {item.quickActions?.length ? (
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {item.quickActions.slice(0, 2).map((action) => (
-                                <span key={`${item.key}_${action.id}`} className={`rounded-full border px-2 py-0.5 text-[10px] ${isLightTheme ? "border-[#CFE2DA] bg-[#F4FBF8] text-[#4D7A69]" : "border-[#35554B] text-[#B7D5CB]"}`}>
-                                  {action.label}
-                                </span>
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
-                      )) : (
-                        <div className={`rounded-xl border p-3 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#1E2E29] bg-[rgba(8,10,9,0.55)] text-[#9BAEA8]"}`}>
-                          Nenhum snapshot publicado ainda.
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <InternoConsoleOverviewTab
+                    coverageCards={coverageCards}
+                    coverageSummary={coverageSummary}
+                    frontendIssues={frontendIssues}
+                    handleOpenModuleAlert={handleOpenModuleAlert}
+                    isLightTheme={isLightTheme}
+                    moduleAlerts={moduleAlerts}
+                    schemaIssues={schemaIssues}
+                    setConsoleOpen={setConsoleOpen}
+                    setConsoleTab={setConsoleTab}
+                    setLogPane={setLogPane}
+                    setLogSearch={setLogSearch}
+                    updateFilters={updateFilters}
+                  />
                 ) : (
                   <div className="space-y-3">
                     <div className={`rounded-xl border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#7B8B98]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.45)] text-[#7F928C]"}`}>
@@ -1912,6 +618,21 @@ export default function InternoLayout({
                         Limpar filtros
                       </button>
                     </div> : null}
+                    <div className={`sticky top-0 z-10 -mx-4 border-b px-4 py-3 backdrop-blur md:-mx-5 md:px-5 ${isLightTheme ? "border-[#D7DEE8] bg-[rgba(247,249,252,0.94)]" : "border-[#1E2E29] bg-[rgba(8,10,9,0.92)]"}`}>
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#6F837B]"}`}>Fluxo ativo</p>
+                          <p className={`mt-1 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{LOG_PANES.find((pane) => pane.key === logPane)?.label || logPane}</p>
+                        </div>
+                        <div className={`flex flex-wrap items-center gap-2 font-mono text-[11px] ${isLightTheme ? "text-[#51606B]" : "text-[#C7D0CA]"}`}>
+                          <span>{paneEntries.length} visiveis</span>
+                          <span className="opacity-45">/</span>
+                          <span>{activityLog.length} totais</span>
+                          {logFilters?.module ? <span className={`rounded-full border px-2 py-1 font-sans text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>modulo {logFilters.module}</span> : null}
+                          {logFilters?.tag ? <span className={`rounded-full border px-2 py-1 font-sans text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>tag {logFilters.tag}</span> : null}
+                        </div>
+                      </div>
+                    </div>
                     {TAG_LOG_PANES.has(logPane) ? <div className={`rounded-xl border p-3 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)] text-[#9BAEA8]"}`}>
                       Trilha automatica por tag: <span className="text-[#F4E7C2]">{LOG_PANES.find((pane) => pane.key === logPane)?.label || logPane}</span>. Os eventos entram aqui pela taxonomia do console.
                       {!paneEntries.length && unclassifiedTagEntriesCount ? (
@@ -2484,103 +1205,18 @@ export default function InternoLayout({
                     {paneEntries.length ? (
                       <div className="space-y-2">
                         {paneEntries.slice(0, 30).map((entry) => (
-                          <div key={entry.id} className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(8,10,9,0.6)]"}`}>
-                            {entry.fingerprint ? <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                              <div className="flex flex-wrap gap-2">
-                                <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${getFingerprintStatusTone(fingerprintStates?.[entry.fingerprint]?.status || "aberto")}`}>
-                                  {fingerprintStates?.[entry.fingerprint]?.status || "aberto"}
-                                </span>
-                                {fingerprintStates?.[entry.fingerprint]?.updatedAt ? <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
-                                  {new Date(fingerprintStates[entry.fingerprint].updatedAt).toLocaleString("pt-BR")}
-                                </span> : null}
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleFingerprintStateChange(entry, "acompanhando", fingerprintStates?.[entry.fingerprint]?.note || "")}
-                                  className="rounded-full border border-[#6E5630] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#FDE68A]"
-                                >
-                                  Acompanhar
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleFingerprintStateChange(entry, "resolvido", fingerprintStates?.[entry.fingerprint]?.note || "")}
-                                  className="rounded-full border border-[#30543A] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-[#B7F7C6]"
-                                >
-                                  Resolver
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleFingerprintNote(entry)}
-                                  className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
-                                >
-                                  Nota
-                                </button>
-                              </div>
-                            </div> : null}
-                            <div className="flex items-center justify-between">
-                              <span className={`font-semibold ${isLightTheme ? "text-[#152421]" : ""}`}>{entry.label || entry.action}</span>
-                              <span
-                                className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${getSeverityTone(entry.severity || (entry.status === "error" ? "error" : entry.status === "running" ? "warn" : "info"))}`}
-                              >
-                                {entry.severity || entry.status}
-                              </span>
-                            </div>
-                            <div className="opacity-60">
-                              {(entry.method || "").toUpperCase()} {entry.action || entry.path || entry.page}
-                            </div>
-                            <div className={`mt-1 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#6F7E78]"}`}>
-                              {entry.module ? <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>{entry.module}</span> : null}
-                              {entry.page ? <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>{entry.page}</span> : null}
-                              {entry.component ? <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>{entry.component}</span> : null}
-                              {entry.durationMs !== undefined ? <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>{entry.durationMs}ms</span> : null}
-                              {entry.fingerprint ? <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>{entry.fingerprint}</span> : null}
-                              {(entry.tags || []).length ? <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>tags: {(entry.tags || []).join(", ")}</span> : null}
-                            </div>
-                            {entry.recommendedAction ? <div className={`mt-2 rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#FFF8EA] text-[#5B6670]" : "border-[#22342F] bg-[rgba(10,12,11,0.45)] text-[#C7D0CA]"}`}>
-                              <span className="text-[#D9B46A]">Proxima acao:</span> {entry.recommendedAction}
-                            </div> : null}
-                            {entry.fingerprint && fingerprintStates?.[entry.fingerprint]?.note ? <div className={`mt-2 rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#5B6670]" : "border-[#22342F] bg-[rgba(10,12,11,0.45)] text-[#C7D0CA]"}`}>
-                              <span className="text-[#D9B46A]">Observacao:</span> {fingerprintStates[entry.fingerprint].note}
-                            </div> : null}
-                            <div className="mt-2">
-                              <button
-                                type="button"
-                                onClick={() => setLogExpanded((current) => (current === entry.id ? null : entry.id))}
-                                className="text-[10px] uppercase tracking-[0.14em] text-[#C5A059]"
-                              >
-                                {logExpanded === entry.id ? "Ocultar detalhes" : "Ver detalhes"}
-                              </button>
-                            </div>
-                            {logExpanded === entry.id ? (
-                              <div className={`mt-2 space-y-2 text-[11px] ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>
-                                {entry.request ? (
-                                  <div>
-                                    <p className={`text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Request</p>
-                                    <pre className={`mt-1 max-h-[160px] overflow-auto rounded-lg border p-2 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#1E2E29] bg-[rgba(9,12,11,0.6)] text-[#DADFD8]"}`}>{entry.request}</pre>
-                                  </div>
-                                ) : null}
-                                {getActivityLogResponseText(entry) ? (
-                                  <div>
-                                    <p className={`text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Response</p>
-                                    <pre className={`mt-1 max-h-[160px] overflow-auto rounded-lg border p-2 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#1E2E29] bg-[rgba(9,12,11,0.6)] text-[#DADFD8]"}`}>{getActivityLogResponseText(entry)}</pre>
-                                  </div>
-                                ) : null}
-                                {entry.error ? (
-                                  <div>
-                                    <p className={`text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "text-[#C05C5C]" : "text-[#D18585]"}`}>Erro</p>
-                                    <pre className={`mt-1 max-h-[160px] overflow-auto rounded-lg border p-2 text-[10px] ${isLightTheme ? "border-[#F0CACA] bg-[#FFF4F4] text-[#8C4545]" : "border-[#3A1F22] bg-[rgba(34,12,14,0.6)] text-[#F2C7C7]"}`}>{entry.error}</pre>
-                                  </div>
-                                ) : null}
-                                {entry.schemaIssue ? (
-                                  <div>
-                                    <p className={`text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "text-[#A46A14]" : "text-[#D9B46A]"}`}>Schema/SQL</p>
-                                    <pre className={`mt-1 max-h-[160px] overflow-auto rounded-lg border p-2 text-[10px] ${isLightTheme ? "border-[#F3DEB0] bg-[#FFF8E8] text-[#7A5A12]" : "border-[#2B2616] bg-[rgba(20,16,8,0.7)] text-[#EAD9B2]"}`}>{JSON.stringify(entry.schemaIssue, null, 2)}</pre>
-                                  </div>
-                                ) : null}
-                              </div>
-                            ) : null}
-                          </div>
+                          <InternoConsoleLogEntryCard
+                            key={entry.id}
+                            entry={entry}
+                            fingerprintStates={fingerprintStates}
+                            getFingerprintStatusTone={getFingerprintStatusTone}
+                            getSeverityTone={getSeverityTone}
+                            handleFingerprintNote={handleFingerprintNote}
+                            handleFingerprintStateChange={handleFingerprintStateChange}
+                            isLightTheme={isLightTheme}
+                            logExpanded={logExpanded}
+                            setLogExpanded={setLogExpanded}
+                          />
                         ))}
                       </div>
                     ) : !SPECIAL_LOG_PANES.has(logPane) ? (
@@ -2588,46 +1224,7 @@ export default function InternoLayout({
                         {logPane === "debug" ? "Nenhum debug UI registrado." : `Nenhuma entrada classificada em ${LOG_PANES.find((pane) => pane.key === logPane)?.label || logPane}.`}
                       </div>
                     ) : null}
-                    {logPane === "notes" ? <div className={`mt-4 rounded-xl border p-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(8,10,9,0.5)]"}`}>
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Memoria operacional</p>
-                          <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Registre gargalos, debitos tecnicos e progresso.</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            value={noteInput}
-                            onChange={(event) => setNoteInput(event.target.value)}
-                            placeholder="Adicionar nota rapida..."
-                            className={`h-8 w-[220px] rounded-full border bg-transparent px-3 text-[11px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#54605B]"}`}
-                          />
-                          <button
-                            type="button"
-                            onClick={handleAddNote}
-                            className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
-                          >
-                            Salvar
-                          </button>
-                        </div>
-                      </div>
-                      {operationalNotes.length ? (
-                        <div className="mt-3 space-y-2">
-                          {operationalNotes.slice(0, 10).map((note) => (
-                            <div key={note.id} className={`rounded-lg border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}`}>
-                              <div className="flex items-center justify-between">
-                                <span className="text-[#D9B46A]">{note.type || "nota"}</span>
-                                <span className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#6E7E78]"}`}>
-                                  {new Date(note.createdAt || Date.now()).toLocaleString("pt-BR")}
-                                </span>
-                              </div>
-                              <div className={`mt-1 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>{note.text}</div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                          <div className={`mt-2 text-[11px] opacity-60 ${isLightTheme ? "text-[#7B8B98]" : ""}`}>Nenhuma nota registrada.</div>
-                      )}
-                    </div> : null}
+                    {logPane === "notes" ? <InternoConsoleNotesPanel handleAddNote={handleAddNote} isLightTheme={isLightTheme} noteInput={noteInput} operationalNotes={operationalNotes} setNoteInput={setNoteInput} /> : null}
                   </div>
                 )}
               </div>

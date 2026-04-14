@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
+import SidebarIcon from "./SidebarIcon";
 
 export default function SidebarNavItem({ item, active, collapsed, isLightTheme, onNavigate }) {
   const router = useRouter();
@@ -39,18 +40,25 @@ export default function SidebarNavItem({ item, active, collapsed, isLightTheme, 
       href={item.href}
       prefetch={false}
       onClick={handleNavigate}
-      className={`group flex items-center gap-3 rounded-[16px] border px-3.5 py-3 text-sm transition-all duration-200 ${
+      title={collapsed ? item.label : undefined}
+      className={`group flex items-center gap-3 rounded-[14px] border px-3 py-2.5 text-sm transition-all duration-200 ${
         active
-          ? "border-[#C5A059] bg-[linear-gradient(180deg,#C5A059,#B08B46)] text-[#07110E] shadow-[0_8px_22px_rgba(197,160,89,0.2)]"
+          ? "border-[#C5A059] bg-[rgba(197,160,89,0.12)] text-[#C5A059] shadow-[inset_0_0_0_1px_rgba(197,160,89,0.12)]"
           : isLightTheme
-            ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.86)] text-[#22312F] hover:border-[#BAC8D6] hover:bg-[rgba(255,255,255,0.98)]"
-            : "border-[#1F2A27] bg-[rgba(255,255,255,0.015)] text-[#D8DED9] hover:border-[#31433D] hover:bg-[rgba(255,255,255,0.03)]"
+            ? "border-transparent bg-transparent text-[#22312F] hover:border-[#D8E1EB] hover:bg-white"
+            : "border-transparent bg-transparent text-[#D8DED9] hover:border-[#2A3D37] hover:bg-[rgba(255,255,255,0.03)]"
       }`}
     >
-      <span className={`flex h-9 w-9 items-center justify-center rounded-[12px] border ${active ? "border-[rgba(7,17,14,0.12)] bg-[rgba(7,17,14,0.08)]" : isLightTheme ? "border-[#D4DEE8] bg-[rgba(238,242,247,0.92)] group-hover:border-[#BAC8D6]" : "border-[#233630] bg-[rgba(255,255,255,0.02)] group-hover:border-[#35554B]"}`}>
-        <span className={`h-2.5 w-2.5 rounded-full ${active ? "bg-[#07110E]" : "bg-[#C5A059]"}`} />
+      <span className={`flex h-9 w-9 items-center justify-center rounded-[12px] border ${
+        active
+          ? "border-[#C5A059] bg-[rgba(197,160,89,0.12)]"
+          : isLightTheme
+            ? "border-[#E1E8EF] bg-[#F7FAFC] group-hover:border-[#CDD7E2]"
+            : "border-[#243732] bg-[rgba(255,255,255,0.02)] group-hover:border-[#35554B]"
+      }`}>
+        <SidebarIcon name={item.icon} />
       </span>
-      {!collapsed ? <span className="font-medium">{item.label}</span> : null}
+      {!collapsed ? <span className="min-w-0 truncate font-medium">{item.label}</span> : null}
     </Link>
   );
 }

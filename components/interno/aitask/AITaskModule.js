@@ -1,30 +1,11 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { adminFetch } from "../../../lib/admin/api";
 import { useRouter } from "next/router";
-import { getModuleHistory, setModuleHistory } from "../../../lib/admin/activity-log";
+import { getModuleHistory } from "../../../lib/admin/activity-log";
+import AITaskProductShell from "./AITaskProductShell";
+import ConfirmModal from "./ConfirmModal";
 import {
-  Bubble,
-  ConfirmModal,
-  ConversationComposer,
-  ContextRail,
-  LogRow,
-  MetricPill,
-  RunsPane,
-  TaskInspector,
-  ThinkingBlock,
-  WorkspaceHeader,
-} from "./AiTaskPanels";
-import {
-  buildAgentLanes,
-  buildTaskColumns,
-  filterLogsBySearch,
-  filterLogsByType,
-  findSelectedTask,
-  moveTaskToStatus,
   normalizeAttachmentsFromEvent,
-  paginateItems,
-  reorderTaskInBoard,
-  resolveAutomationLabel,
   trimRecentHistory,
 } from "./aiTaskState";
 import {
@@ -40,7 +21,6 @@ import {
 } from "./aiTaskAdapters";
 import { useAiTaskRun } from "./useAiTaskRun";
 import { useAiTaskWorkspace } from "./useAiTaskWorkspace";
-import { extractModuleKeysFromContext, resolveModuleEntries } from "../../../lib/admin/module-registry.js";
 import {
   applyBrowserLocalOfflinePolicy,
   getBrowserLocalRuntimeConfig,
@@ -54,6 +34,9 @@ import {
 import { resolvePreferredLawdeskProvider } from "../../../lib/lawdesk/providers.js";
 import { listSkills } from "../../../lib/lawdesk/skill_registry.js";
 import { buildSupabaseLocalBootstrap } from "../../../lib/lawdesk/supabase-local-bootstrap.js";
+import { useAiTaskUiState } from "./useAiTaskUiState";
+import { useAiTaskViewModel } from "./useAiTaskViewModel";
+import { useAiTaskModuleHistorySync } from "./useAiTaskModuleHistorySync";
 
 function formatHistoryStatus(status) {
   const labels = {
@@ -73,21 +56,6 @@ function nowIso() {
 function extractFirstEmail(value = "") {
   const match = String(value || "").match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
   return match ? match[0] : "";
-}
-
-function buildAiTaskUiStorageKey(profile) {
-  const profileId = profile?.id || profile?.email || "anonymous";
-  return `hmadv_ai_task_ui_v2:${profileId}`;
-}
-
-function safeParseUiState(raw) {
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
-  }
 }
 
 const MAX_THINKING = 20;
@@ -291,7 +259,6 @@ function buildBlueprint(normalizedMission, profile, mode, provider) {
 export default function AITaskModule({ profile, routePath }) {
   const router = useRouter();
   const missionInputRef = useRef(null);
-  const chatViewportRef = useRef(null);
   const [stopModalOpen, setStopModalOpen] = useState(false);
   const [providerCatalog, setProviderCatalog] = useState(FALLBACK_PROVIDER_OPTIONS);
   const [skillCatalog, setSkillCatalog] = useState(FALLBACK_SKILL_OPTIONS);
@@ -300,15 +267,7 @@ export default function AITaskModule({ profile, routePath }) {
   const [localRuntimeConfigOpen, setLocalRuntimeConfigOpen] = useState(false);
   const [localRuntimeDraft, setLocalRuntimeDraft] = useState(() => getBrowserLocalRuntimeConfig());
   const [ragHealth, setRagHealth] = useState(null);
-  const [historyPage, setHistoryPage] = useState(1);
-  const [taskViewMode, setTaskViewMode] = useState("kanban");
-  const [taskVisibleCount, setTaskVisibleCount] = useState(8);
-  const [draggedTaskId, setDraggedTaskId] = useState(null);
-  const [taskBoardLayout, setTaskBoardLayout] = useState({});
-  const [contact360Query, setContact360Query] = useState("");
-  const [contact360Loading, setContact360Loading] = useState(false);
-  const [contact360, setContact360] = useState(null);
-  const uiStorageKey = useMemo(() => buildAiTaskUiStorageKey(profile), [profile]);
+  const { contact360, contact360Loading, contact360Query, historyPage, setContact360, setContact360Loading, setContact360Query, setHistoryPage, setTaskVisibleCount, taskVisibleCount } = useAiTaskUiState(profile);
   const {
     activeRun,
     approved,
@@ -556,30 +515,6 @@ export default function AITaskModule({ profile, routePath }) {
     };
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const persisted = safeParseUiState(window.localStorage.getItem(uiStorageKey));
-    if (!persisted) return;
-    setHistoryPage(Number.isFinite(Number(persisted.historyPage)) ? Number(persisted.historyPage) : 1);
-    setTaskViewMode(typeof persisted.taskViewMode === "string" ? persisted.taskViewMode : "kanban");
-    setTaskVisibleCount(Number.isFinite(Number(persisted.taskVisibleCount)) ? Math.max(8, Number(persisted.taskVisibleCount)) : 8);
-    setTaskBoardLayout(persisted.taskBoardLayout && typeof persisted.taskBoardLayout === "object" ? persisted.taskBoardLayout : {});
-    setContact360Query(typeof persisted.contact360Query === "string" ? persisted.contact360Query : "");
-    setContact360(persisted.contact360 && typeof persisted.contact360 === "object" ? persisted.contact360 : null);
-  }, [uiStorageKey]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(uiStorageKey, JSON.stringify({
-      historyPage,
-      taskViewMode,
-      taskVisibleCount,
-      taskBoardLayout,
-      contact360Query,
-      contact360,
-    }));
-  }, [contact360, contact360Query, historyPage, taskBoardLayout, taskViewMode, taskVisibleCount, uiStorageKey]);
-
   const { executeMission, handleContinueLastRun, handlePause, handleStart, handleStop } = useAiTaskRun({
     mission,
     mode,
@@ -715,80 +650,25 @@ export default function AITaskModule({ profile, routePath }) {
     }
   }
 
-  function handleTaskMove(taskId, nextStatus) {
-    setTasks((current) => moveTaskToStatus(current, taskId, nextStatus, nowIso));
-    setDraggedTaskId(null);
-    setTaskBoardLayout((current) => ({
-      ...current,
-      [taskId]: {
-        status: nextStatus,
-        updatedAt: nowIso(),
-      },
-    }));
-    pushLog({
-      type: "control",
-      action: "task_status_moved",
-      result: `Tarefa movida para ${nextStatus}.`,
-    });
-  }
-
-  function handleTaskBoardDrop(taskId, nextStatus, targetTaskId = null) {
-    setTasks((current) => reorderTaskInBoard(current, taskId, nextStatus, targetTaskId, nowIso));
-    setDraggedTaskId(null);
-    setTaskBoardLayout((current) => ({
-      ...current,
-      [taskId]: {
-        status: nextStatus,
-        targetTaskId: targetTaskId || null,
-        updatedAt: nowIso(),
-      },
-    }));
-    pushLog({
-      type: "control",
-      action: "task_board_reordered",
-      result: targetTaskId
-        ? `Tarefa reposicionada em ${nextStatus} antes de ${targetTaskId}.`
-        : `Tarefa enviada para a coluna ${nextStatus}.`,
-    });
-  }
-
-  const taskColumns = useMemo(() => buildTaskColumns(tasks), [tasks]);
-  const agentLanes = useMemo(() => buildAgentLanes(tasks), [tasks]);
-  const visibleLogs = useMemo(() => filterLogsByType(logs, selectedLogFilter), [logs, selectedLogFilter]);
-  const deferredSearch = useDeferredValue(search);
-  const compactLogs = useMemo(() => filterLogsBySearch(visibleLogs, deferredSearch), [visibleLogs, deferredSearch]);
-  const selectedTask = useMemo(() => findSelectedTask(tasks, selectedTaskId), [tasks, selectedTaskId]);
-  const ragAlert = useMemo(() => buildRagAlert(ragHealth), [ragHealth]);
-  const activeMode = MODE_OPTIONS.find((item) => item.value === mode) || MODE_OPTIONS[1];
-  const stateLabel = resolveAutomationLabel(automation);
-  const historyPageSize = 6;
-  const pagedHistoryMeta = useMemo(() => paginateItems(recentHistory, historyPage, historyPageSize), [historyPage, recentHistory]);
-  const historyTotalPages = pagedHistoryMeta.totalPages;
-  const pagedHistory = pagedHistoryMeta.items;
-  const visibleTasks = useMemo(() => tasks.slice(0, taskVisibleCount), [taskVisibleCount, tasks]);
-  const hasMoreTasks = visibleTasks.length < tasks.length;
-  const contextModuleEntries = useMemo(() => {
-    const moduleKeys = contextSnapshot?.module
-      ? extractModuleKeysFromContext(contextSnapshot.module)
-      : detectModules(mission || "");
-    return resolveModuleEntries(moduleKeys);
-  }, [contextSnapshot?.module, mission]);
-  const moduleDrivenQuickMissions = useMemo(() => {
-    const suggestions = contextModuleEntries.flatMap((entry) => [
-      ...(entry?.quickMissions || []),
-      ...((entry?.quickActions || []).map((action) => action.mission)),
-    ]);
-    return Array.from(new Set([...QUICK_MISSIONS, ...suggestions].filter(Boolean))).slice(0, 10);
-  }, [contextModuleEntries]);
+  const derived = useAiTaskViewModel({
+    automation,
+    contextSnapshot,
+    detectModules,
+    historyPage,
+    logs,
+    mission,
+    mode,
+    recentHistory,
+    search,
+    selectedLogFilter,
+    selectedTaskId,
+    taskVisibleCount,
+    tasks,
+  });
 
   useEffect(() => {
     setHistoryPage(1);
   }, [recentHistory.length]);
-
-  useEffect(() => {
-    if (taskViewMode !== "list") return;
-    if (taskVisibleCount < 8) setTaskVisibleCount(8);
-  }, [taskViewMode, taskVisibleCount]);
 
   useEffect(() => {
     if (taskVisibleCount > tasks.length && tasks.length > 0) {
@@ -843,42 +723,7 @@ export default function AITaskModule({ profile, routePath }) {
     }));
   }, [contextSnapshot?.selectedAction, mission, setContextSnapshot, setMission, setMode, setProvider, setShowContext]);
 
-  useEffect(() => {
-    setModuleHistory("ai-task", {
-      routePath: routePath || "/interno/ai-task",
-      mission,
-      automation,
-      provider,
-      mode,
-      approved,
-      paused,
-      error: error || null,
-      activeRun,
-      latestResult: typeof latestResult === "string" ? latestResult.slice(0, 2000) : latestResult,
-      executionSource,
-      executionModel,
-      eventsTotal,
-      contextSnapshot,
-      lastQuickAction,
-      recentHistory: recentHistory.slice(0, 10),
-      tasks: tasks.slice(0, 20),
-      thinking: thinking.slice(0, 12),
-      logs: logs.slice(-40),
-      attachments,
-      contact360,
-      ui: {
-        selectedLogFilter,
-        search,
-        showContext,
-        showTasks,
-        selectedTaskId,
-        taskViewMode,
-        historyPage,
-        taskVisibleCount,
-        taskBoardLayout,
-      },
-    });
-  }, [
+  useAiTaskModuleHistorySync({
     activeRun,
     approved,
     attachments,
@@ -889,6 +734,8 @@ export default function AITaskModule({ profile, routePath }) {
     eventsTotal,
     executionModel,
     executionSource,
+    historyPage,
+    lastQuickAction,
     latestResult,
     logs,
     mission,
@@ -897,179 +744,118 @@ export default function AITaskModule({ profile, routePath }) {
     provider,
     recentHistory,
     routePath,
-    search,
-    selectedLogFilter,
     selectedTaskId,
     showContext,
     showTasks,
-    taskBoardLayout,
-    historyPage,
-    tasks,
-    taskViewMode,
     taskVisibleCount,
+    tasks,
     thinking,
-  ]);
+  });
 
   return (
-    <div className="space-y-5">
-        <WorkspaceHeader
-          stateLabel={stateLabel}
-          provider={provider}
-          contextSnapshot={contextSnapshot}
-          selectedSkillId={selectedSkillId}
-          skillOptions={skillCatalog}
-          providerOptions={providerCatalog}
-          localStackSummary={localStackSummary}
-          ragHealth={ragHealth}
-          ragAlert={ragAlert}
-          onProviderChange={setProvider}
-          onSkillChange={setSelectedSkillId}
-          activeModeLabel={activeMode.label}
-        executionSource={executionSource}
-        executionModel={executionModel}
-        eventsTotal={eventsTotal}
-        paused={paused}
-        handlePause={handlePause}
-        handleStop={() => setStopModalOpen(true)}
-          handleContinueLastRun={handleContinueLastRun}
-          handleApprove={handleApprove}
-          handleOpenLlmTest={handleOpenLlmTest}
-          handleOpenDiagnostics={handleOpenDiagnostics}
-          handleOpenDotobot={handleOpenDotobot}
-          handleRefreshLocalStack={refreshLocalStackStatus}
-          handleLocalStackAction={handleLocalStackAction}
-          localRuntimeConfigOpen={localRuntimeConfigOpen}
-          onToggleLocalRuntimeConfig={() => setLocalRuntimeConfigOpen((current) => !current)}
-          localRuntimeDraft={localRuntimeDraft}
-          onLocalRuntimeDraftChange={setLocalRuntimeDraft}
-          onSaveLocalRuntimeConfig={handleSaveLocalRuntimeConfig}
-          refreshingLocalStack={refreshingLocalStack}
-          formatExecutionSourceLabel={formatExecutionSourceLabel}
-        />
-
-      <div className="grid gap-5 xl:grid-cols-[240px_minmax(0,1fr)] 2xl:grid-cols-[260px_minmax(0,1fr)_320px]">
-        <RunsPane
-          className="order-2 xl:order-1"
-          recentHistory={recentHistory}
-          visibleHistory={pagedHistory}
-          activeRunId={activeRun?.id || null}
-          formatHistoryStatus={formatHistoryStatus}
-          formatExecutionSourceLabel={formatExecutionSourceLabel}
-          nowIso={nowIso}
-          onSelectRun={handleSelectRun}
-          historyPage={historyPage}
-          historyTotalPages={historyTotalPages}
-          onPrevPage={() => setHistoryPage((current) => Math.max(1, current - 1))}
-          onNextPage={() => setHistoryPage((current) => Math.min(historyTotalPages, current + 1))}
-        />
-
-        <section className="order-1 flex min-h-[560px] min-w-0 flex-col overflow-hidden rounded-[28px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] shadow-[0_16px_48px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.02)] md:min-h-[620px] xl:order-2">
-          <div className="border-b border-[#1B2925] bg-[rgba(255,255,255,0.015)] px-5 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Conversa ativa</p>
-                <p className="mt-1 text-sm text-[#9BAEA8]">Missão, resposta, raciocínio e telemetria em uma trilha única.</p>
-              </div>
-              <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row lg:flex-wrap lg:items-center">
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Filtrar eventos"
-                  className="h-10 w-full rounded-[14px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 text-sm text-[#F5F1E8] outline-none placeholder:text-[#60706A] focus:border-[#C5A059] lg:w-40"
-                />
-                <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0">
-                  {["all", "api", "backend", "planner", "reporter", "control", "error", "warning"].map((filterType) => (
-                    <button
-                      key={filterType}
-                      type="button"
-                      onClick={() => setSelectedLogFilter(filterType)}
-                      className={`shrink-0 rounded-[14px] border px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] transition ${
-                        selectedLogFilter === filterType
-                          ? "border-[#C5A059] text-[#C5A059]"
-                          : "border-[#22342F] text-[#7F928C] hover:border-[#35554B] hover:text-[#9BAEA8]"
-                      }`}
-                    >
-                      {filterType === "all" ? "Todos" : filterType}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
-              <MetricPill label="Executando" value={taskColumns.running.length} tone="accent" />
-              <MetricPill label="Pendentes" value={taskColumns.pending.length} />
-              <MetricPill label="Concluídas" value={taskColumns.done.length} tone="success" />
-              <MetricPill label="Falhas" value={taskColumns.failed.length} tone="danger" />
-            </div>
-          </div>
-
-          <div ref={chatViewportRef} className="min-h-[280px] flex-1 space-y-3 overflow-y-auto px-4 py-4 md:min-h-[340px] md:px-5 md:py-5">
-            {mission ? <Bubble role="user" title="Missão" body={mission} time={activeRun?.startedAt || nowIso()} /> : null}
-            {thinking.length ? thinking.map((block) => <ThinkingBlock key={block.id} block={block} />) : null}
-            {latestResult ? <Bubble role="assistant" title="Hermida Maia IA" body={typeof latestResult === "string" ? latestResult : "Resultado estruturado entregue."} time={nowIso()} /> : null}
-            {activeRun ? <Bubble role="system" title="Execução" body="Run em andamento com auditoria incremental." details={[`Run: ${activeRun.id}`, `Rota: ${routePath || "/interno/ai-task"}`]} time={nowIso()} /> : null}
-            <div className="space-y-2">
-              {compactLogs.slice(-80).map((log) => <LogRow key={log.id} log={log} />)}
-            </div>
-          </div>
-
-          <ConversationComposer
-            mission={mission}
-            missionInputRef={missionInputRef}
-            handleMissionChange={handleMissionChange}
-            handleStart={handleStart}
-            handleAttachmentChange={handleAttachmentChange}
-            handleAttachmentDrop={handleAttachmentDrop}
-            attachments={attachments}
-            error={error}
-            quickMissions={moduleDrivenQuickMissions}
-            handleQuickMission={handleQuickMission}
-          />
-        </section>
-
-        <div className="order-3 space-y-4 2xl:order-3">
-          <TaskInspector
-            tasks={tasks}
-            visibleTasks={visibleTasks}
-            selectedTaskId={selectedTaskId}
-            onSelectTask={setSelectedTaskId}
-            selectedTask={selectedTask}
-            showTasks={showTasks}
-            setShowTasks={setShowTasks}
-            taskViewMode={taskViewMode}
-            agentLanes={agentLanes}
-            onTaskViewModeChange={setTaskViewMode}
-            onTaskMove={handleTaskMove}
-            onTaskBoardDrop={handleTaskBoardDrop}
-            onDragTaskStart={setDraggedTaskId}
-            draggedTaskId={draggedTaskId}
-            hasMoreTasks={hasMoreTasks}
-            onLoadMoreTasks={() => setTaskVisibleCount((current) => Math.min(tasks.length, current + 8))}
-          />
-
-          <ContextRail
-            showContext={showContext}
-            setShowContext={setShowContext}
-            contextSnapshot={contextSnapshot}
-            contextModuleEntries={contextModuleEntries}
-            mission={mission}
-            routePath={routePath}
-            approved={approved}
-            quickMissions={moduleDrivenQuickMissions}
-            handleModuleAction={handleModuleAction}
-            handleQuickMission={handleQuickMission}
-            selectedTask={selectedTask}
-            handleSendToDotobot={handleSendToDotobot}
-            handleReplay={handleReplay}
-            detectModules={detectModules}
-            contact360Query={contact360Query}
-            onContact360QueryChange={setContact360Query}
-            onLoadContact360={handleLoadContact360}
-            contact360Loading={contact360Loading}
-            contact360={contact360}
-          />
-        </div>
-      </div>
+    <div>
+      <AITaskProductShell
+        headerProps={{
+          stateLabel: derived.stateLabel,
+          provider,
+          contextSnapshot,
+          selectedSkillId,
+          skillOptions: skillCatalog,
+          providerOptions: providerCatalog,
+          localStackSummary,
+          ragHealth,
+          ragAlert: buildRagAlert(ragHealth),
+          onProviderChange: setProvider,
+          onSkillChange: setSelectedSkillId,
+          activeModeLabel: derived.activeModeLabel,
+          executionSource,
+          executionModel,
+          eventsTotal,
+          paused,
+          handlePause,
+          handleStop: () => setStopModalOpen(true),
+          handleContinueLastRun,
+          handleApprove,
+          handleOpenLlmTest,
+          handleOpenDiagnostics,
+          handleOpenDotobot,
+          handleRefreshLocalStack: refreshLocalStackStatus,
+          handleLocalStackAction,
+          localRuntimeConfigOpen,
+          onToggleLocalRuntimeConfig: () => setLocalRuntimeConfigOpen((current) => !current),
+          localRuntimeDraft,
+          onLocalRuntimeDraftChange: setLocalRuntimeDraft,
+          onSaveLocalRuntimeConfig: handleSaveLocalRuntimeConfig,
+          refreshingLocalStack,
+          formatExecutionSourceLabel,
+        }}
+        selectedTaskId={selectedTaskId}
+        selectedTask={derived.selectedTask}
+        setSelectedTaskId={setSelectedTaskId}
+        hasMoreTasks={derived.hasMoreTasks}
+        onLoadMoreTasks={() => setTaskVisibleCount((current) => Math.min(tasks.length, current + 8))}
+        taskColumns={derived.taskColumns}
+        tasks={tasks}
+        visibleTasks={derived.visibleTasks}
+        executionProps={{
+          activeRun,
+          attachments,
+          compactLogs: derived.compactLogs,
+          error,
+          handleAttachmentChange,
+          handleAttachmentDrop,
+          handleContinueLastRun,
+          handleMissionChange,
+          handleQuickMission,
+          handleReplay,
+          handleSendToDotobot,
+          handleStart,
+          latestResult,
+          mission,
+          missionInputRef,
+          moduleDrivenQuickMissions: derived.moduleDrivenQuickMissions,
+          nowIso,
+          paused,
+          routePath,
+          selectedTask: derived.selectedTask,
+          thinking,
+        }}
+        runsPaneProps={{
+          className: "",
+          recentHistory,
+          visibleHistory: derived.historyMeta.items,
+          activeRunId: activeRun?.id || null,
+          formatHistoryStatus,
+          formatExecutionSourceLabel,
+          nowIso,
+          onSelectRun: handleSelectRun,
+          historyPage,
+          historyTotalPages: derived.historyMeta.totalPages,
+          onPrevPage: () => setHistoryPage((current) => Math.max(1, current - 1)),
+          onNextPage: () => setHistoryPage((current) => Math.min(derived.historyMeta.totalPages, current + 1)),
+        }}
+        contextRailProps={{
+          showContext,
+          setShowContext,
+          contextSnapshot,
+          contextModuleEntries: derived.contextModuleEntries,
+          mission,
+          routePath,
+          approved,
+          quickMissions: derived.moduleDrivenQuickMissions,
+          handleModuleAction,
+          handleQuickMission,
+          selectedTask: derived.selectedTask,
+          handleSendToDotobot,
+          handleReplay,
+          detectModules,
+          contact360Query,
+          onContact360QueryChange: setContact360Query,
+          onLoadContact360: handleLoadContact360,
+          contact360Loading,
+          contact360,
+        }}
+      />
 
       <ConfirmModal
         open={stopModalOpen}
