@@ -108,6 +108,23 @@ $messagesBody = @{
 }
 $messagesV1 = Invoke-JsonRequest -Uri "$base/v1/messages" -Method "POST" -Headers $headers -Body $messagesBody
 
+$messagesPreview = $null
+$messagesModel = $null
+if ($messagesV1.ok -and $messagesV1.data) {
+  $messagesModel = if ($messagesV1.data.model) { [string]$messagesV1.data.model } else { $null }
+  $contentItems = @()
+  if ($messagesV1.data.content) {
+    $contentItems = @($messagesV1.data.content)
+  }
+  if ($contentItems.Count -gt 0 -and $contentItems[0] -and $contentItems[0].text) {
+    $messagesPreview = [string]$contentItems[0].text
+  } elseif ($messagesV1.data.resultText) {
+    $messagesPreview = [string]$messagesV1.data.resultText
+  } elseif ($messagesV1.data.response) {
+    $messagesPreview = [string]$messagesV1.data.response
+  }
+}
+
 $healthData = $health.data
 $routes = @()
 if ($healthData -and $healthData.routes) {
@@ -147,8 +164,8 @@ $report = [ordered]@{
     ok = $messagesV1.ok
     status = $messagesV1.status
     error = if ($messagesV1.data.error) { $messagesV1.data.error } else { $messagesV1.error }
-    resultTextPreview = if ($messagesV1.data.content[0].text) { [string]$messagesV1.data.content[0].text.Substring(0, [Math]::Min(160, $messagesV1.data.content[0].text.Length)) } else { $null }
-    model = if ($messagesV1.data.model) { $messagesV1.data.model } else { $null }
+    resultTextPreview = if ($messagesPreview) { [string]$messagesPreview.Substring(0, [Math]::Min(160, $messagesPreview.Length)) } else { $null }
+    model = $messagesModel
     raw = if ($messagesV1.ok) { $messagesV1.data } else { $messagesV1.raw }
   }
   diagnosis = @()

@@ -12,6 +12,12 @@ const {
   cleanUrl,
 } = require("./config");
 
+function preferEnv(primary, fallback = "") {
+  const value = String(primary || "").trim();
+  if (value) return value;
+  return String(fallback || "").trim();
+}
+
 function ensureDataDirs() {
   for (const dir of [SESSIONS_DIR, AUTOMATIONS_DIR, SCREENSHOTS_DIR, UPLOADS_DIR]) {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -67,12 +73,12 @@ function normalizeSettings(raw) {
       appUrl: normalizeLoopbackUrl(merged.cloud.appUrl, DEFAULT_SETTINGS.cloud.appUrl),
       baseUrl: cleanUrl(merged.cloud.baseUrl, DEFAULT_SETTINGS.cloud.baseUrl),
       model: String(merged.cloud.model || DEFAULT_SETTINGS.cloud.model).trim(),
-      authToken: String(merged.cloud.authToken || DEFAULT_SETTINGS.cloud.authToken || "").trim(),
+      authToken: preferEnv(DEFAULT_SETTINGS.cloud.authToken, merged.cloud.authToken),
     },
     cloudflare: {
       model: String(merged.cloudflare.model || DEFAULT_SETTINGS.cloudflare.model).trim(),
-      accountId: String(merged.cloudflare.accountId || DEFAULT_SETTINGS.cloudflare.accountId || "").trim(),
-      apiToken: String(merged.cloudflare.apiToken || DEFAULT_SETTINGS.cloudflare.apiToken || "").trim(),
+      accountId: preferEnv(DEFAULT_SETTINGS.cloudflare.accountId, merged.cloudflare.accountId),
+      apiToken: preferEnv(DEFAULT_SETTINGS.cloudflare.apiToken, merged.cloudflare.apiToken),
     },
   };
 }

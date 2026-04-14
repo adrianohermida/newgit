@@ -70,8 +70,18 @@ export default async function handler(req, res) {
       },
     });
   } catch (error) {
-    res.status(500).json({
+    res.status(200).json({
       ok: false,
+      data: {
+        providers: listLawdeskProviders(process.env),
+        health: {
+          ok: false,
+          status: "failed",
+          providers: listLawdeskProviders(process.env),
+        },
+        defaultProvider: getDefaultLawdeskProvider(process.env),
+        offlineMode: isLawdeskOfflineMode(process.env),
+      },
       error: error?.message || "Falha ao carregar admin-lawdesk-providers.",
     });
   }

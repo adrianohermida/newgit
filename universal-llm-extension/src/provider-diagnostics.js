@@ -61,6 +61,13 @@ function classifyAttempt(attempt, hint) {
       recommendation: "Revise Account ID, disponibilidade do Workers AI nesta conta e a rota direta usada para Cloudflare.",
     };
   }
+  if (attempt?.status === 401 && apiErrors[0]?.code === 10000) {
+    return {
+      issue: "auth_failed",
+      summary: "A API direta da Cloudflare rejeitou o token informado.",
+      recommendation: "Revise o API Token usado pelo bridge/extensao. Se houver .dev.vars local, confirme se as credenciais persistidas no settings da extensao nao estao desatualizadas.",
+    };
+  }
   if (detail.includes("model") && detail.includes("not found")) {
     return {
       issue: "model_not_found",

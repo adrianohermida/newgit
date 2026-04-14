@@ -10,6 +10,13 @@ function sendError(res, message, status = 500, extra = {}) {
   sendJson(res, buildAdminChatErrorPayload(message, extra), status);
 }
 
+function sendRuntimeError(res, message, extra = {}) {
+  sendJson(res, buildAdminChatErrorPayload(message, {
+    status: "failed",
+    ...extra,
+  }), 200);
+}
+
 function sendAdminAuthError(res, auth) {
   sendError(res, auth?.error || "Nao autorizado.", auth?.status || 401, {
     errorType: auth?.errorType || "authentication",
@@ -40,6 +47,6 @@ export default async function handler(req, res) {
     const result = await resolveAdminChatResponse(getRuntimeEnv(), body);
     sendJson(res, result.payload, result.status);
   } catch (error) {
-    sendError(res, error?.message || "Falha ao processar requisicao administrativa.", 500);
+    sendRuntimeError(res, error?.message || "Falha ao processar requisicao administrativa.");
   }
 }

@@ -1047,134 +1047,10 @@ export default function DotobotCopilot({
     setRightPanelTab("ai-task");
     setTimeout(() => composerRef.current?.focus(), 60);
   }
-
-  async function runAgentLabSync(action, scopeLabel) {
-    setAgentLabActionState({ loading: true, scope: action, message: null, tone: "idle" });
-    try {
-      const payload = await adminFetch("/api/admin-agentlab-sync", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ action }),
-      });
-      const message =
-        payload?.result?.message ||
-        (payload?.result?.unavailable
-          ? payload.result.message
-          : `${scopeLabel} executado com sucesso.`);
-      setAgentLabActionState({
-        loading: false,
-        scope: action,
-        message,
-        tone: payload?.result?.unavailable ? "warning" : "success",
-      });
-      await loadAgentLabSnapshot({ silent: true });
-    } catch (error) {
-      setAgentLabActionState({
-        loading: false,
-        scope: action,
-        message: error?.message || `Falha ao executar ${scopeLabel}.`,
-        tone: "error",
-      });
-    }
-  }
-
-  async function runAgentLabTrainingScenario(scenarioId) {
-    if (!scenarioId) return;
-    setAgentLabActionState({ loading: true, scope: scenarioId, message: null, tone: "idle" });
-    try {
-      const payload = await adminFetch("/api/admin-agentlab-training", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ scenario_id: scenarioId }),
-      });
-      const score = payload?.result?.run?.scores?.overall;
-      setAgentLabActionState({
-        loading: false,
-        scope: scenarioId,
-        message: `Treino executado. Score geral ${score != null ? `${Math.round(Number(score) * 100)}%` : "indisponível"}.`,
-        tone: "success",
-      });
-      await loadAgentLabSnapshot({ silent: true });
-    } catch (error) {
-      setAgentLabActionState({
-        loading: false,
-        scope: scenarioId,
-        message: error?.message || "Falha ao executar treinamento.",
-        tone: "error",
-      });
-    }
-  }
-
-  async function updateAgentLabQueueItemStatus(item, status) {
-    if (!item?.id) return;
-    setAgentLabActionState({ loading: true, scope: item.id, message: null, tone: "idle" });
-    try {
-      await adminFetch("/api/admin-agentlab-governance", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "update_queue_item",
-          id: item.id,
-          status,
-          priority: item.priority || "media",
-        }),
-      });
-      setAgentLabActionState({
-        loading: false,
-        scope: item.id,
-        message: `Fila atualizada para ${status}.`,
-        tone: "success",
-      });
-      await loadAgentLabSnapshot({ silent: true });
-    } catch (error) {
-      setAgentLabActionState({
-        loading: false,
-        scope: item.id,
-        message: error?.message || "Falha ao atualizar fila.",
-        tone: "error",
-      });
-    }
-  }
-
-  async function updateAgentLabIncidentItemStatus(item, status) {
-    if (!item?.id) return;
-    setAgentLabActionState({ loading: true, scope: item.id, message: null, tone: "idle" });
-    try {
-      await adminFetch("/api/admin-agentlab-governance", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "update_incident_item",
-          id: item.id,
-          status,
-          severity: item.severity || "media",
-          description: item.title || null,
-        }),
-      });
-      setAgentLabActionState({
-        loading: false,
-        scope: item.id,
-        message: `Incidente atualizado para ${status}.`,
-        tone: "success",
-      });
-      await loadAgentLabSnapshot({ silent: true });
-    } catch (error) {
-      setAgentLabActionState({
-        loading: false,
-        scope: item.id,
-        message: error?.message || "Falha ao atualizar incidente.",
-        tone: "error",
-      });
-    }
-  }
+  const { runAgentLabSync, runAgentLabTrainingScenario, updateAgentLabIncidentItemStatus, updateAgentLabQueueItemStatus } = useDotobotAgentLabActions({
+    loadAgentLabSnapshot,
+    setAgentLabActionState,
+  });
 
   function handleQuickAction(prompt) {
     setMode("task");
@@ -1532,48 +1408,30 @@ export default function DotobotCopilot({
       onClick: () => router.push("/interno/agentlab"),
     },
   ], [routePath, router]);
-  const activeRightPanelMeta = useMemo(
-    () => RIGHT_PANEL_META[rightPanelTab] || RIGHT_PANEL_META[availableRightPanelTabs[0]] || RIGHT_PANEL_META.modules,
-    [availableRightPanelTabs, rightPanelTab]
-  );
-  const agentLabData = agentLabSnapshot.data || null;
-  const agentLabSubagents = useMemo(() => extractAgentLabSubagents(agentLabSnapshot.data, activeTask), [activeTask, agentLabSnapshot.data]);
-  const agentLabOverview = agentLabData?.overview || {};
-  const agentLabEnvironment = agentLabData?.environment || {};
-  const agentLabConversationSummary = agentLabData?.conversations?.summary || {};
-  const agentLabIncidentsSummary = agentLabData?.intelligence?.summary || {};
-  const agentLabTrainingSummary = agentLabData?.training?.summary || {};
-  const agentLabQueuePreview = useMemo(() => buildAgentLabQueuePreview(agentLabData?.governance?.queue || []), [agentLabData?.governance?.queue]);
-  const agentLabSyncPreview = useMemo(() => buildAgentLabSyncPreview(agentLabData?.intelligence?.syncRuns || []), [agentLabData?.intelligence?.syncRuns]);
-  const agentLabTrainingPreview = useMemo(() => buildAgentLabTrainingPreview(agentLabData?.training?.runs || []), [agentLabData?.training?.runs]);
-  const agentLabIncidentPreview = useMemo(() => buildAgentLabIncidentPreview(agentLabData?.intelligence?.incidents || []), [agentLabData?.intelligence?.incidents]);
-  const featuredTrainingScenario = useMemo(() =>
-    (agentLabData?.training?.scenarios || []).find((item) => item?.agent_ref === "dotobot-ai") ||
-    (agentLabData?.training?.scenarios || [])[0] ||
-    null, [agentLabData?.training?.scenarios]);
-  const linkedAgentLabTaskRuns = useMemo(() => buildLinkedDotobotTaskRuns(agentLabData?.dotobot?.taskRuns || [], {
-    routePath,
-    activeTask,
+  const {
+    activeRightPanelMeta,
+    agentLabConversationSummary,
+    agentLabData,
+    agentLabEnvironment,
+    agentLabHealthSignals,
+    agentLabIncidentPreview,
+    agentLabIncidentsSummary,
+    agentLabOverview,
+    agentLabQueuePreview,
+    agentLabSubagents,
+    agentLabSyncPreview,
+    agentLabTrainingPreview,
+    agentLabTrainingSummary,
+    featuredTrainingScenario,
+    linkedAgentLabTaskRuns,
+  } = useDotobotRightRailViewModel({
     activeConversation,
-  }), [activeConversation, activeTask, agentLabData?.dotobot?.taskRuns, routePath]);
-  const agentLabHealthSignals = useMemo(() => [
-    {
-      label: "Ambiente",
-      value: agentLabEnvironment.mode === "connected" ? "conectado" : agentLabEnvironment.mode === "degraded" ? "contingência" : "parcial",
-    },
-    {
-      label: "RAG",
-      value: agentLabEnvironment.dotobotRagHealth?.ok ? "ok" : "atenção",
-    },
-    {
-      label: "Providers",
-      value: `${agentLabEnvironment.lawdeskProvidersHealth?.summary?.operational || 0} online`,
-    },
-    {
-      label: "Threads",
-      value: String(agentLabConversationSummary.total || 0),
-    },
-  ], [agentLabConversationSummary.total, agentLabEnvironment.dotobotRagHealth?.ok, agentLabEnvironment.lawdeskProvidersHealth?.summary?.operational, agentLabEnvironment.mode]);
+    activeTask,
+    agentLabSnapshot,
+    availableRightPanelTabs,
+    rightPanelTab,
+    routePath,
+  });
   const compactRecentConversations = useMemo(() => filteredConversations.slice(0, 4), [filteredConversations]);
   const workspaceNavigatorItems = useMemo(() => [
     {

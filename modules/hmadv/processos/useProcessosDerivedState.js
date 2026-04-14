@@ -68,6 +68,9 @@ export function useProcessosDerivedState(args) {
     getSelectedNumbers: args.getSelectedNumbers,
     limit: args.limit,
   });
+  const isSuggestedAction = (action, intent = "") =>
+    selectionSuggestedAction?.key === action &&
+    String(selectionSuggestedAction?.intent || "") === String(intent || "");
 
   const trackedQueues = [args.withoutMovements, args.movementBacklog, args.publicationBacklog, args.partesBacklog, args.audienciaCandidates, args.monitoringActive, args.monitoringInactive, args.fieldGaps, args.orphans];
   const trackedQueueErrorCount = countQueueErrors(trackedQueues);
@@ -87,7 +90,10 @@ export function useProcessosDerivedState(args) {
   if (hasPendingJobs) healthSuggestedActions.push({ key: "drain", label: args.drainInFlight ? "Drenando..." : "Drenar fila", onClick: args.runPendingJobsNow, disabled: args.actionState.loading || args.drainInFlight });
   if (!healthSuggestedActions.length || (trackedQueueErrorCount === 0 && trackedQueueMismatchCount === 0 && args.backendHealth.status === "ok" && !hasPendingJobs)) healthSuggestedActions.push({ key: "operacao", label: "Ir para operacao", onClick: () => args.updateView("operacao", "operacao") });
 
-  const queueActionConfigs = useProcessosQueueActionConfigs(args);
+  const queueActionConfigs = useProcessosQueueActionConfigs({
+    ...args,
+    isSuggestedAction,
+  });
 
   return {
     combinedSelectedNumbers,

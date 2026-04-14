@@ -35,11 +35,12 @@ export default async function handler(req, res) {
       topK: Number.isFinite(topK) && topK > 0 ? topK : 3,
       query,
     });
-    const statusCode = result.status === "failed" ? 500 : 200;
-    return res.status(statusCode).json(result);
+    return res.status(200).json(result);
   } catch (error) {
-    return res.status(500).json({
+    return res.status(200).json({
       ok: false,
+      available: false,
+      status: "failed",
       error: error?.message || "Falha ao executar admin-dotobot-rag-health.",
     });
   }

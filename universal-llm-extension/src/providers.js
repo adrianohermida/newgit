@@ -244,15 +244,19 @@ async function enrichLocalCatalogDiagnosis(configs, attempts) {
     const healthInsight = await readAiCoreLocalInsight(configs.local.candidates);
     if (healthInsight?.providerDiagnostics) {
       modelNotFoundAttempt.aiCoreDiagnostics = healthInsight.providerDiagnostics;
+      const runtimeEndpoint = String(healthInsight.providerDiagnostics.transport_endpoint || "").trim();
+      if (runtimeEndpoint) {
+        modelNotFoundAttempt.runtimeEndpoint = runtimeEndpoint;
+      }
       if (healthInsight.issue === "runtime_model_unavailable") {
         modelNotFoundAttempt.issue = "runtime_model_unavailable";
         modelNotFoundAttempt.summary = "O ai-core esta online, mas o runtime local por tras dele nao tem um modelo carregado que responda ao alias configurado.";
-        modelNotFoundAttempt.recommendation = "Revise o runtime em 11434 e carregue o modelo/alias esperado pelo ai-core, ou ajuste LOCAL_LLM_MODEL para um modelo realmente disponivel.";
+        modelNotFoundAttempt.recommendation = `Revise o runtime local apontado pelo ai-core (${runtimeEndpoint || "endpoint nao informado"}) e carregue o modelo/alias esperado, ou ajuste LOCAL_LLM_MODEL para um modelo realmente disponivel.`;
       }
       if (healthInsight.issue === "runtime_catalog_invalid") {
         modelNotFoundAttempt.issue = "runtime_catalog_invalid";
         modelNotFoundAttempt.summary = "O ai-core encontrou o runtime local, mas o catalogo publicado por ele esta invalido ou vazio.";
-        modelNotFoundAttempt.recommendation = "Corrija o runtime em 11434 para responder um catalogo valido em /v1/models ou /api/tags antes de usar o chat local.";
+        modelNotFoundAttempt.recommendation = `Corrija o runtime local apontado pelo ai-core (${runtimeEndpoint || "endpoint nao informado"}) para responder um catalogo valido em /v1/models ou /api/tags antes de usar o chat local.`;
       }
     }
   }
