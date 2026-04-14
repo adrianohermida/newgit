@@ -136,6 +136,7 @@ export default function useDotobotShellState({
     setNotificationsEnabled,
     setPendingRetrigger,
     setProjectFilter: setSelectedProjectFilter,
+    setSelectedProjectFilter,
     setProvider,
     setProviderCatalog,
     setRagHealth,
