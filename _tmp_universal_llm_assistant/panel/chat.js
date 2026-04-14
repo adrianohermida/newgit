@@ -48,12 +48,13 @@ export async function sendMessage(el, addMessage, addSystemMessage, renderTasks)
 }
 
 async function sendChatMessage(text) {
-  const result = await callChat(state.provider, [...state.messages.slice(0, -1), { role: "user", content: text }]);
+  const result = await callChat(state.provider, state.messages);
   return result.content || "(sem resposta)";
 }
 
 async function sendTaskMessage(el, text, addSystemMessage, renderTasks) {
   const result = await runTask(state.sessionId, text);
+  state.sessionId = result.sessionId || state.sessionId;
   if (Array.isArray(result.tasks) && result.tasks.length) await renderTasks(el);
   if (result.tasks?.some((task) => task.status === "awaiting_approval")) {
     addSystemMessage(el, "Uma ou mais Tasks ficaram aguardando sua aprovacao.");

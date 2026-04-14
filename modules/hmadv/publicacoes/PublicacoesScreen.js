@@ -52,6 +52,7 @@ import { usePublicacoesActionRunner } from "./usePublicacoesActionRunner";
 import { usePublicacoesUiActions } from "./usePublicacoesUiActions";
 import { usePublicacoesQueuesViewModel } from "./usePublicacoesQueuesViewModel";
 import { usePublicacoesOperationalPlan } from "./usePublicacoesOperationalPlan";
+import { usePublicacoesDataLoader } from "./usePublicacoesDataLoader";
 
 function isResourceLimitError(error) {
   const text = String(error?.payload || error?.message || error || "").toLowerCase();
@@ -182,6 +183,40 @@ function PublicacoesContent() {
   const partesCandidatesRequestRef = useRef({ promise: null, page: null });
   const integratedQueueRequestRef = useRef({ promise: null, key: "" });
   const integratedPageSize = 12;
+  const {
+    loadIntegratedQueue,
+    loadJobs,
+    loadOverview,
+    loadPartesCandidates,
+    loadProcessCandidates,
+    loadRemoteHistory,
+    pushQueueRefresh,
+  } = usePublicacoesDataLoader({
+    adminFetch,
+    globalErrorUntil,
+    heavyQueuesEnabled,
+    integratedCursorTrail,
+    integratedFilters,
+    integratedPageSize,
+    integratedQueue,
+    integratedQueueRequestRef,
+    isResourceLimitError,
+    partesCandidates,
+    partesCandidatesRequestRef,
+    processCandidates,
+    processCandidatesRequestRef,
+    setGlobalError,
+    setGlobalErrorUntil,
+    setIntegratedCursorTrail,
+    setIntegratedQueue,
+    setJobs,
+    setOverview,
+    setPartesCandidates,
+    setProcessCandidates,
+    setQueueRefreshLog,
+    setRemoteHistory,
+    setValidationMap,
+  });
   const integratedRows = useMemo(
     () => (integratedQueue.items || []).map((row) => ({
       ...row,

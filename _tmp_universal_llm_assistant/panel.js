@@ -5,7 +5,7 @@ import { bindChat } from "./panel/chat.js";
 import { bindRecorder, bindUpload, injectPageText, injectSelection, takeScreenshot } from "./panel/browser.js";
 import { renderAutomations, renderSessions, renderTasks } from "./panel/lists.js";
 import { checkBridge, testProvider } from "./panel/bridge.js";
-import { fillSettingsInputs, hydrateSettings, loadSettings, saveSettings, syncFromBridge } from "./panel/settings.js";
+import { fillSettingsInputs, hydrateSettings, loadSettings, saveSettings } from "./panel/settings.js";
 
 async function initPanel() {
   document.getElementById("app").innerHTML = buildPanelMarkup();
