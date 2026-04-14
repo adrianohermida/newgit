@@ -57,6 +57,8 @@ import {
 } from "./publicacoesFormatting";
 import { usePublicacoesActivityLog } from "./usePublicacoesActivityLog";
 import { usePublicacoesLifecycle } from "./usePublicacoesLifecycle";
+import { usePublicacoesHealthStatus } from "./usePublicacoesHealthStatus";
+import { usePublicacoesJobDrain } from "./usePublicacoesJobDrain";
 import { usePublicacoesQueueEffects } from "./usePublicacoesQueueEffects";
 
 
@@ -350,155 +352,29 @@ function PublicacoesContent() {
     validationMap,
     view,
   });
-  useEffect(() => {
-    if (!activeJobId) return undefined;
-    let cancelled = false;
-    async function runLoop() {
-      while (!cancelled) {
-        try {
-          const idleDelayMs = pageVisible ? 1800 : 6000;
-          if (!pageVisible) {
-            setDrainInFlight(false);
-            await new Promise((resolve) => setTimeout(resolve, idleDelayMs));
-            continue;
-          }
-          setDrainInFlight(true);
-          const payload = await adminFetch("/api/admin-hmadv-publicacoes", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "run_pending_jobs", id: activeJobId, maxChunks: 1 }),
-          }, { timeoutMs: 120000, maxRetries: 0 });
-          const result = payload.data || {};
-          const job = result.job || null;
-          if (cancelled) return;
-          await Promise.all([loadJobs(), loadRemoteHistory()]);
-          setActionState({ loading: false, error: null, result: result.job ? { job: result.job, drain: result } : { drain: result } });
-          if (result.completedAll || !job?.id || job?.status === "completed" || job?.status === "error" || job?.status === "cancelled") {
-            setActiveJobId(null);
-            if (job?.acao) {
-              await refreshAfterAction(job.acao);
-            } else {
-              await refreshOperationalContext();
-            }
-            if (typeof window !== "undefined" && "Notification" in window) {
-              if (Notification.permission === "default") {
-                Notification.requestPermission().catch(() => {});
-              } else if (Notification.permission === "granted") {
-                new Notification("Atualizacao de publicacoes concluida", {
-                  body: result.completedAll
-                    ? "Todas as pendencias de publicacoes desta fila foram drenadas."
-                    : `${ACTION_LABELS[job?.acao] || job?.acao}: ${buildJobPreview(job)}`,
-                });
-              }
-            }
-            setDrainInFlight(false);
-            return;
-          }
-          setDrainInFlight(false);
-          await new Promise((resolve) => setTimeout(resolve, idleDelayMs));
-        } catch (error) {
-          if (!cancelled) {
-            setActionState({ loading: false, error: error.message || "Falha ao processar job.", result: null });
-            setActiveJobId(null);
-            await Promise.all([loadJobs(), loadRemoteHistory()]);
-          }
-          setDrainInFlight(false);
-          return;
-        }
-      }
-    }
-    runLoop();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeJobId, processPage, partesPage, pageVisible]);
-
-  useEffect(() => {
-    if (globalError) {
-      setOperationalStatus({ mode: "error", message: globalError, updatedAt: new Date().toISOString() });
-      return;
-    }
-    const overviewData = overview?.data || {};
-    const advisePersistedDelta = Number(overviewData.advisePersistedDelta || 0);
-    const publicacoesSemProcesso = Number(overviewData.publicacoesSemProcesso || 0);
-    const publicacoesPendentesComAccount = Number(overviewData.publicacoesPendentesComAccount || 0);
-    const queues = [processCandidates, partesCandidates];
-    const queueErrorCount = queues.filter((queue) => queue?.error).length;
-    const mismatchCount = queues.filter((queue) => candidateQueueHasReadMismatch(queue)).length;
-    const limitedCount = queues.filter((queue) => queue?.limited).length;
-    if (queueErrorCount > 0) {
-      setOperationalStatus({
-        mode: "error",
-        message: `${queueErrorCount} fila(s) com erro de leitura no painel.`,
-        updatedAt: new Date().toISOString(),
-      });
-      return;
-    }
-    if (mismatchCount > 0) {
-      setOperationalStatus({
-        mode: "limited",
-        message: `${mismatchCount} fila(s) com contagem maior que a pagina retornada.`,
-        updatedAt: new Date().toISOString(),
-      });
-      return;
-    }
-    if (limitedCount > 0) {
-      setOperationalStatus({
-        mode: "limited",
-        message: `${limitedCount} fila(s) em modo reduzido para evitar sobrecarga.`,
-        updatedAt: new Date().toISOString(),
-      });
-      return;
-    }
-    if (advisePersistedDelta > 0) {
-      setOperationalStatus({
-        mode: "limited",
-        message: `Ainda existe delta estrutural de ${advisePersistedDelta} publicacao(oes) entre o cursor do Advise e o banco.`,
-        updatedAt: new Date().toISOString(),
-      });
-      return;
-    }
-    if (publicacoesSemProcesso > 0) {
-      setOperationalStatus({
-        mode: "limited",
-        message: `${publicacoesSemProcesso} publicacao(oes) seguem sem processo vinculado e exigem drenagem de criacao.`,
-        updatedAt: new Date().toISOString(),
-      });
-      return;
-    }
-    if (publicacoesPendentesComAccount > 0) {
-      setOperationalStatus({
-        mode: "limited",
-        message: `${publicacoesPendentesComAccount} publicacao(oes) vinculadas ainda aguardam atualizacao no CRM.`,
-        updatedAt: new Date().toISOString(),
-      });
-      return;
-    }
-    setOperationalStatus({ mode: "ok", message: "Fluxo operando normalmente", updatedAt: new Date().toISOString() });
-  }, [globalError, overview.data, processCandidates, partesCandidates]);
-
-  useEffect(() => {
-    const latest = remoteHistory[0];
-    if (!latest) {
-      setBackendHealth({ status: "unknown", message: "Sem historico recente.", updatedAt: null });
-      return;
-    }
-    if (latest.status === "error") {
-      setBackendHealth({ status: "error", message: "A ultima rodada apresentou falha.", updatedAt: latest.created_at });
-      return;
-    }
-    const latestRows = Array.isArray(latest?.result_sample) ? latest.result_sample : [];
-    const fallbackRows = latestRows.filter((row) => row?.status === "fallback_local").length;
-    if (fallbackRows > 0) {
-      setBackendHealth({ status: "warning", message: `Ultimo ciclo operou em fallback local para ${fallbackRows} item(ns).`, updatedAt: latest.created_at });
-      return;
-    }
-    if (Number(latest.affected_count || 0) === 0) {
-      setBackendHealth({ status: "warning", message: "Ultimo ciclo nao teve progresso.", updatedAt: latest.created_at });
-      return;
-    }
-    setBackendHealth({ status: "ok", message: "Ultima rodada concluida com estabilidade.", updatedAt: latest.created_at });
-  }, [remoteHistory]);
+  usePublicacoesJobDrain({
+    ACTION_LABELS,
+    activeJobId,
+    adminFetch,
+    buildJobPreview,
+    loadJobs,
+    loadRemoteHistory,
+    pageVisible,
+    refreshAfterAction,
+    refreshOperationalContext,
+    setActionState,
+    setActiveJobId,
+    setDrainInFlight,
+  });
+  usePublicacoesHealthStatus({
+    globalError,
+    overview,
+    partesCandidates,
+    processCandidates,
+    remoteHistory,
+    setBackendHealth,
+    setOperationalStatus,
+  });
 
   async function recoverAdviseBackfillFailure(error, safeLimit) {
     try {
