@@ -55,6 +55,18 @@ export function getSuggestionSelectionValue(row) {
   return String(row?.suggestion_key || "").trim();
 }
 
+export function parseCopilotContext(rawValue) {
+  const serialized = String(rawValue || "").trim();
+  if (!serialized) return null;
+  try {
+    const decoded = decodeURIComponent(serialized);
+    const parsed = JSON.parse(decoded);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function countFrontendProcessGaps(row) {
   const fields = ["classe", "assunto_principal", "area", "data_ajuizamento", "sistema", "polo_ativo", "polo_passivo", "status_atual_processo"];
   return fields.reduce((acc, field) => {

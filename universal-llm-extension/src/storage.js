@@ -1,4 +1,5 @@
 const fs = require("fs");
+const path = require("path");
 const {
   SESSIONS_DIR,
   AUTOMATIONS_DIR,
@@ -33,7 +34,7 @@ function listJsonDir(dir) {
   try {
     return fs.readdirSync(dir)
       .filter((file) => file.endsWith(".json"))
-      .map((file) => safeRead(`${dir}\\${file}`))
+      .map((file) => safeRead(path.join(dir, file)))
       .filter(Boolean)
       .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
   } catch {

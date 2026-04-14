@@ -35,7 +35,9 @@ function updateTask(session, taskId, updater) {
 }
 
 function normalizeTask(task) {
+  if (!task.id) task.id = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const steps = Array.isArray(task.steps) ? task.steps : [];
+  steps.forEach((step) => { if (!step.id) step.id = `step_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`; });
   const done = steps.filter((step) => step.status === "done").length;
   const awaiting = steps.some((step) => step.status === "awaiting_approval");
   const running = steps.some((step) => step.status === "running");

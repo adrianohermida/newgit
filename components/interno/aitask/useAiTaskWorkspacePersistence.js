@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 
 const AI_TASK_STORAGE_PREFIX = "hmadv_ai_task_workspace_v1";
 
@@ -50,7 +50,7 @@ function hydrateWorkspaceState(persisted, setters) {
 }
 
 export default function useAiTaskWorkspacePersistence({ profile, state, setters }) {
-  const storageKey = useMemo(() => buildWorkspaceStorageKey(profile), [profile]);
+  const storageKey = buildWorkspaceStorageKey(profile);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

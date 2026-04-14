@@ -7,19 +7,38 @@ const { applyStepResult, dispatchApprovedStep, getApprovalStep, getRunnableStep,
 
 function shouldCreateTask(query) {
   const text = String(query || "").trim().toLowerCase();
-  return text.startsWith("/tarefa") || text.startsWith("/tarefas") || ["analisar", "extrair", "preencher", "abrir", "navegar", "buscar", "executar", "planejar", "automatizar"].some((token) => text.includes(token));
+  return text.startsWith("/tarefa") || text.startsWith("/tarefas") ||
+    ["analisar", "extrair", "preencher", "abrir", "navegar", "buscar", "executar", "planejar", "automatizar"].some((token) => text.includes(token));
 }
 
 async function executeTask(query, sessionId) {
   let lastError = null;
   for (const baseUrl of getConfigs().local.candidates) {
     try {
-      return await jsonPost(joinUrl(baseUrl, "/execute"), { query, context: { session_id: sessionId, route: "extension/task-runner" } });
+      return await jsonPost(joinUrl(baseUrl, "/execute"), {
+        query,
+        context: { session_id: sessionId, route: "extension/task-runner" },
+      });
     } catch (error) {
       lastError = error;
     }
   }
   throw lastError || new Error("Nao foi possivel executar task no ai-core.");
+}
+
+function extractAiTasks(body) {
+  // Suporta múltiplas estruturas de resposta do ai-core
+  const candidates = [
+    body?.orchestration?.ai_tasks,
+    body?.orchestration?.tasks,
+    body?.tasks,
+    body?.plan?.steps,
+    body?.steps,
+  ];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate) && candidate.length) return candidate;
+  }
+  return [];
 }
 
 async function autoDispatchTasks(commandQueue, tasks, tabId) {
@@ -42,11 +61,23 @@ function createTasksRouter(commandQueue) {
       if (!String(query || "").trim()) return res.status(400).json({ ok: false, error: "query obrigatoria" });
       const session = loadTaskSession(String(sessionId || `sess_${Date.now()}`));
       const execution = await executeTask(query, session.id);
-      const aiTasks = (execution.body?.orchestration?.ai_tasks || []).map((task) => normalizeTask(task));
+      const rawTasks = extractAiTasks(execution.body);
+      const aiTasks = rawTasks.map((task) => {
+        const normalized = normalizeTask({ ...task });
+        normalized.sessionId = session.id; // propaga sessionId para uso no content script
+        return normalized;
+      });
       await autoDispatchTasks(commandQueue, aiTasks, tabId ? String(tabId) : "");
       session.tasks = [...(Array.isArray(session.tasks) ? session.tasks : []), ...aiTasks];
       saveTaskSession(session);
-      res.json({ ok: true, sessionId: session.id, shouldCreateTask: shouldCreateTask(query), result: execution.body?.result || null, tasks: aiTasks, orchestration: execution.body?.orchestration || {} });
+      res.json({
+        ok: true,
+        sessionId: session.id,
+        shouldCreateTask: shouldCreateTask(query),
+        result: execution.body?.result || null,
+        tasks: aiTasks,
+        orchestration: execution.body?.orchestration || {},
+      });
     } catch (error) {
       res.status(500).json({ ok: false, error: error?.message || "Falha ao criar AI-Task." });
     }
@@ -65,9 +96,10 @@ function createTasksRouter(commandQueue) {
       let dispatch = null;
       updateTask(session, req.params.taskId, (task) => markApprovalDecision(task, approved));
       if (approved) {
-        const task = session.tasks.find((item) => item.id === req.params.taskId);
+        const task = (session.tasks || []).find((item) => item.id === req.params.taskId);
         const step = getApprovalStep(task || {}) || (task?.steps || []).find((item) => item.status === "running");
         if (!task || !step) throw new Error("Nenhum step aguardando aprovacao foi encontrado.");
+        step.status = "running";
         try {
           dispatch = await dispatchApprovedStep({ commandQueue, tabId, task, step });
           normalizeTask(task);
@@ -79,6 +111,8 @@ function createTasksRouter(commandQueue) {
           saveTaskSession(session);
           throw error;
         }
+      } else {
+        saveTaskSession(session);
       }
       res.json({ ok: true, tasks: session.tasks, dispatch });
     } catch (error) {
@@ -90,7 +124,9 @@ function createTasksRouter(commandQueue) {
     try {
       const { sessionId, taskId, stepId, status, output, error } = req.body || {};
       const session = loadTaskSession(String(sessionId || ""));
-      updateTask(session, String(taskId || ""), (task) => applyStepResult(task, String(stepId || ""), { status, output, error }));
+      updateTask(session, String(taskId || ""), (task) =>
+        applyStepResult(task, String(stepId || ""), { status, output, error })
+      );
       res.json({ ok: true, tasks: session.tasks });
     } catch (error) {
       res.status(500).json({ ok: false, error: error?.message || "Falha ao atualizar resultado da task." });

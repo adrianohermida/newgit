@@ -1,5 +1,6 @@
 import { state } from "./state.js";
 import { callChat, runTask } from "./bridge.js";
+import { pushErrorLog } from "./error-log.js";
 import { syncSession } from "./lists.js";
 
 const TASK_TOKENS = [
@@ -37,8 +38,20 @@ export async function sendMessage(el, addMessage, addSystemMessage, renderTasks)
       : await sendChatMessage(text);
     state.messages.push({ role: "assistant", content: reply });
     addMessage(el, "assistant", reply);
-    if (state.settings.autoSaveSessions) await syncSession();
+    if (state.settings.autoSaveSessions) {
+      // sync failure nao deve interromper o chat nem mascarar erros LLM
+      syncSession().catch(() => {});
+    }
   } catch (error) {
+    pushErrorLog({
+      scope: `chat.${state.provider}`,
+      title: "Falha ao conversar com o assistente",
+      expected: "Receber resposta do provider ou plano de task executavel.",
+      actual: error?.message || "Erro desconhecido no chat.",
+      trace: "panel/chat.js -> sendMessage()",
+      recommendation: "Abra o teste do provider em Config e compare URL, modelo e autenticacao.",
+      details: { provider: state.provider, sessionId: state.sessionId },
+    });
     addMessage(el, "error", `Erro (${state.provider}): ${error.message}`);
     addSystemMessage(el, "Use Testar conexao em Config para ver a causa exata.");
   } finally {

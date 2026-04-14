@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 function buildAiTaskUiStorageKey(profile) {
   const profileId = profile?.id || profile?.email || "anonymous";
@@ -16,7 +16,7 @@ function safeParseUiState(raw) {
 }
 
 export function useAiTaskUiState(profile) {
-  const uiStorageKey = useMemo(() => buildAiTaskUiStorageKey(profile), [profile]);
+  const uiStorageKey = buildAiTaskUiStorageKey(profile);
   const [historyPage, setHistoryPage] = useState(1);
   const [taskVisibleCount, setTaskVisibleCount] = useState(8);
   const [contact360Query, setContact360Query] = useState("");
