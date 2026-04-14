@@ -92,6 +92,7 @@ import { useDotobotAdminSession } from "./dotobotPanelRuntime";
 import useDotobotPersistedBootstrap from "./useDotobotPersistedBootstrap";
 import useDotobotConversationActions from "./useDotobotConversationActions";
 import useDotobotConversationViewModel from "./useDotobotConversationViewModel";
+import useDotobotComposerActions from "./useDotobotComposerActions";
 import useDotobotShellState from "./useDotobotShellState";
 import useDotobotShellUiEffects from "./useDotobotShellUiEffects";
 import {
@@ -935,419 +936,6 @@ export default function DotobotCopilot({
     setTaskHistory((current) => current.map((task) => (task.id === taskId ? updater(task) : task)));
   }
 
-  async function submitQuery(question, submitOptions = {}) {
-    const trimmedQuestion = String(question || "").trim();
-    if (!trimmedQuestion || loading) return;
-
-    const nextAttachments = submitOptions.attachments || attachments;
-    const nextMode = submitOptions.mode || mode;
-    const nextProvider = normalizeWorkspaceProvider(submitOptions.provider || provider, providerCatalog);
-    const nextContextEnabled = typeof submitOptions.contextEnabled === "boolean" ? submitOptions.contextEnabled : contextEnabled;
-
-    setError(null);
-    setLoading(true);
-    setUiState("responding");
-
-    // Adiciona mensagem do usuÃ¡rio
-    setMessages((msgs) => [
-      ...msgs,
-      { role: "user", text: trimmedQuestion, createdAt: nowIso() },
-    ]);
-    // PATCH 8: scroll automÃ¡tico ao enviar
-    setTimeout(() => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
-    }, 100);
-
-    // Monta contexto global inteligente
-    const globalContext = buildDotobotGlobalContext({
-      routePath,
-      profile,
-      mode: nextMode,
-      provider: nextProvider,
-      selectedSkillId,
-      contextEnabled: nextContextEnabled,
-      activeConversationId,
-      messages,
-      attachments: nextAttachments,
-    });
-
-    // Detecta se Ã© comando de skill/task
-    if (isTaskCommand(trimmedQuestion)) {
-      // Dispara TaskRun
-      setUiState("executing");
-      const dotobotHandoff = {
-        id: `${Date.now()}_dotobot_handoff`,
-        label: "Tarefa criada no Dotobot",
-        mission: trimmedQuestion,
-        moduleKey: "dotobot",
-        moduleLabel: "Dotobot",
-        routePath: routePath || "/interno",
-        mode: nextMode,
-        provider: nextProvider,
-        tags: ["ai-task", "dotobot", "task"],
-        createdAt: nowIso(),
-        conversationId: activeConversationId || null,
-      };
-      setModuleHistory("ai-task", {
-        routePath: "/interno/ai-task",
-        handoffFromDotobot: dotobotHandoff,
-        consoleTags: dotobotHandoff.tags,
-      });
-      appendActivityLog({
-        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        module: "ai-task",
-        component: "DotobotTaskRun",
-        label: "Dotobot: handoff para AI Task",
-        action: "dotobot_to_ai_task_handoff",
-        method: "UI",
-        path: "/interno/ai-task",
-        consolePane: ["dotobot", "ai-task"],
-        domain: "handoff",
-        system: "copilot",
-        status: "success",
-        tags: dotobotHandoff.tags,
-        response: buildDiagnosticReport({
-          title: "Handoff Dotobot -> AI Task",
-          summary: trimmedQuestion,
-          sections: [
-            { label: "handoff", value: dotobotHandoff },
-          ],
-        }),
-      });
-      const pendingTask = createPendingTaskRun(trimmedQuestion, {
-        mode: nextMode,
-        provider: nextProvider,
-        contextEnabled: nextContextEnabled,
-      });
-      setTaskHistory((tasks) => [
-        pendingTask,
-        ...tasks,
-      ]);
-      try {
-        const data = await startTaskRun({
-          query: trimmedQuestion,
-          mode: nextMode,
-          provider: nextProvider,
-          contextEnabled: nextContextEnabled,
-          selectedSkillId,
-          context: globalContext,
-        });
-        const runId = data?.run?.id || null;
-        if (runId) {
-          setTaskHistory((tasks) =>
-            tasks.map((task) =>
-              task.id === pendingTask.id
-                ? {
-                    ...task,
-                    id: runId,
-                    status: data.status || "running",
-                    logs: data.events?.map((event) => event?.message).filter(Boolean) || task.logs,
-                  }
-                : task
-            )
-          );
-          logDotobotUi("Dotobot task run iniciado", "dotobot_task_started", {
-            runId,
-            query: trimmedQuestion,
-            mode: nextMode,
-            provider: nextProvider,
-          }, { component: "DotobotTaskRun" });
-          await pollTaskRun(runId, {
-            onUpdate: (result) => {
-              setTaskHistory((tasks) =>
-                tasks.map((task) =>
-                  task.id === runId
-                    ? {
-                        ...task,
-                        status: result.status,
-                        logs: result.events?.map((event) => event?.message).filter(Boolean) || [],
-                        result: result.run?.result || result.resultText || null,
-                        finishedAt: result.run?.updated_at || result.run?.finished_at || null,
-                      }
-                    : task
-                )
-              );
-            },
-          });
-        } else {
-          const taskError = data?.error || "Falha ao iniciar TaskRun.";
-          setTaskHistory((tasks) =>
-            tasks.map((task) =>
-              task.id === pendingTask.id
-                ? {
-                    ...task,
-                    status: "failed",
-                    logs: [...(task.logs || []), taskError],
-                  }
-                : task
-            )
-          );
-          setError(taskError);
-          logDotobotUi("Dotobot task run rejeitado", "dotobot_task_rejected", data || {}, {
-            component: "DotobotTaskRun",
-            status: "error",
-            error: buildDiagnosticReport({
-              title: "Falha ao iniciar TaskRun",
-              summary: taskError,
-              sections: [
-                { label: "request", value: { query: trimmedQuestion, mode: nextMode, provider: nextProvider } },
-                { label: "response", value: data || null },
-              ],
-            }),
-          });
-        }
-      } catch (err) {
-        const message = err.message || "Erro ao executar TaskRun.";
-        setTaskHistory((tasks) =>
-          tasks.map((task) =>
-            task.id === pendingTask.id
-              ? {
-                  ...task,
-                  status: "failed",
-                  logs: [...(task.logs || []), message],
-                }
-              : task
-          )
-        );
-        setError(message);
-        logDotobotUi("Dotobot task run falhou", "dotobot_task_error", null, {
-          component: "DotobotTaskRun",
-          status: "error",
-          error: buildDiagnosticReport({
-            title: "Erro ao executar TaskRun",
-            summary: message,
-            sections: [
-              { label: "request", value: { query: trimmedQuestion, mode: nextMode, provider: nextProvider, contextEnabled: nextContextEnabled } },
-              { label: "error", value: err?.payload || err?.stack || err },
-            ],
-          }),
-        });
-      }
-      setLoading(false);
-      setUiState("idle");
-      return;
-    }
-
-    // Chat normal (streaming)
-    try {
-      const localProvider = isBrowserLocalProvider(nextProvider);
-      const requestPath = localProvider ? "browser://local-ai-core/v1/messages" : "/api/admin-lawdesk-chat";
-      const chatLogId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const chatStartedAt = Date.now();
-      appendActivityLog({
-        id: chatLogId,
-        module: "dotobot",
-        component: "DotobotChat",
-        label: "Dotobot: enviar mensagem",
-        action: "dotobot_chat_submit",
-        method: "POST",
-        path: requestPath,
-        ...DOTOBOT_TASK_CONSOLE_META,
-        expectation: "Enviar pergunta ao backend conversacional",
-        request: buildDiagnosticReport({
-          title: "Dotobot chat",
-          summary: trimmedQuestion,
-          sections: [
-            { label: "query", value: trimmedQuestion },
-            { label: "mode", value: nextMode },
-            { label: "provider", value: nextProvider },
-            { label: "contextEnabled", value: nextContextEnabled },
-            { label: "selectedSkillId", value: selectedSkillId || null },
-            { label: "attachments", value: nextAttachments },
-            { label: "context", value: globalContext },
-          ],
-        }),
-        status: "running",
-        startedAt: chatStartedAt,
-      });
-      setMessages((msgs) => [
-        ...msgs,
-        { role: "assistant", text: "", createdAt: nowIso(), status: "thinking" },
-      ]);
-      setUiState("thinking");
-
-      const data = localProvider
-        ? await invokeBrowserLocalMessages({
-            query: trimmedQuestion,
-            mode: nextMode,
-            routePath,
-            contextEnabled: nextContextEnabled,
-            context: globalContext,
-          })
-        : await adminFetch("/api/admin-lawdesk-chat", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              query: trimmedQuestion,
-              mode: nextMode,
-              provider: nextProvider,
-              contextEnabled: nextContextEnabled,
-              selectedSkillId,
-              context: globalContext,
-            }),
-          });
-
-      const assistantText = extractAssistantResponseText(data);
-      setMessages((msgs) => {
-        const last = msgs[msgs.length - 1];
-        return [
-          ...msgs.slice(0, -1),
-          { ...last, text: assistantText, status: "ok" },
-        ];
-      });
-
-      updateActivityLog(chatLogId, {
-        status: "success",
-        durationMs: Date.now() - chatStartedAt,
-        response: buildDiagnosticReport({
-          title: "Dotobot chat response",
-          summary: "Resposta concluida",
-          sections: [
-            { label: "endpoint", value: requestPath },
-            { label: "payload", value: data },
-          ],
-        }),
-        error: "",
-      });
-      setLoading(false);
-      setUiState("idle");
-    } catch (err) {
-      const isLocalFallbackAvailable =
-        isBrowserLocalProvider(nextProvider) &&
-        (err?.code === "LOCAL_RUNTIME_INSUFFICIENT_MEMORY" || err?.code === "LOCAL_RUNTIME_INFERENCE_FAILED");
-      if (isLocalFallbackAvailable) {
-        let fallbackText = "";
-        let fallbackSummary = "";
-        let executeFallbackPayload = null;
-        if (err?.code === "LOCAL_RUNTIME_INFERENCE_FAILED") {
-          try {
-            executeFallbackPayload = await invokeBrowserLocalExecute({
-              query: trimmedQuestion,
-              context: {
-                ...globalContext,
-                browserLocalRuntime: {
-                  surface: "copilot",
-                  mode: String(nextMode || "chat"),
-                  routePath: routePath || "/interno/copilot",
-                  contextEnabled: Boolean(nextContextEnabled),
-                  fallback: "execute_after_inference_failure",
-                },
-              },
-            });
-            const executeText =
-              executeFallbackPayload?.result?.message ||
-              executeFallbackPayload?.resultText ||
-              (typeof executeFallbackPayload?.result === "string" ? executeFallbackPayload.result : "") ||
-              "";
-            if (executeText && !/No tool selected; step processed as reasoning-only action\./i.test(executeText)) {
-              fallbackText = executeText;
-              fallbackSummary = "Resposta operacional gerada por /execute após falha de inferência no runtime local.";
-            }
-          } catch {
-            // Se /execute também falhar, seguimos para o playbook local estático.
-          }
-        }
-        if (!fallbackText) {
-          fallbackText = buildLocalFallbackResponse({
-            query: trimmedQuestion,
-            routePath,
-            activeConversation,
-            activeTask,
-            globalContext,
-            selectedSkillId,
-            failureMode: err?.code === "LOCAL_RUNTIME_INSUFFICIENT_MEMORY" ? "memory" : "inference",
-          });
-          fallbackSummary =
-            err?.code === "LOCAL_RUNTIME_INSUFFICIENT_MEMORY"
-              ? "Resposta operacional gerada sem LLM por contingência de memória."
-              : "Resposta operacional gerada sem LLM por falha de inferência no runtime local.";
-        }
-        setMessages((msgs) => {
-          const last = msgs[msgs.length - 1];
-          return [
-            ...msgs.slice(0, -1),
-            {
-              ...last,
-              text: fallbackText,
-              status: "ok",
-              fallback: true,
-              actions: buildLocalFallbackActions({
-                routePath,
-                activeConversation,
-                activeTask,
-              }),
-            },
-          ];
-        });
-        updateActivityLog(chatLogId, {
-          status: "success",
-          durationMs: Date.now() - chatStartedAt,
-          response: buildDiagnosticReport({
-            title: "Dotobot chat fallback local",
-            summary: fallbackSummary,
-            sections: [
-              { label: "endpoint", value: requestPath },
-              { label: "error", value: err?.message || err },
-              { label: "execute_payload", value: executeFallbackPayload },
-              { label: "fallback", value: fallbackText },
-            ],
-          }),
-          error: "",
-        });
-        setError(
-          err?.code === "LOCAL_RUNTIME_INSUFFICIENT_MEMORY"
-            ? "LLM local sem memória suficiente. O Copilot respondeu com um playbook operacional de contingência."
-            : "O runtime local falhou na inferência. O Copilot respondeu com um playbook operacional de contingência."
-        );
-        setLoading(false);
-        setUiState("idle");
-        return;
-      }
-      const authErrorType = String(err?.payload?.errorType || "");
-      const message =
-        err?.status === 401 || err?.status === 403 || ["authentication", "missing_session", "invalid_session", "inactive_profile", "missing_token"].includes(authErrorType)
-          ? "Sua sessão administrativa expirou ou perdeu permissão. Faça login novamente no interno para reativar o chat do Dotobot."
-          : err?.payload?.errorType === "admin_runtime_unavailable" || err?.status === 404 || err?.status === 405
-            ? "O runtime administrativo do chat não está publicado neste deploy. O frontend está pronto, mas a rota /api/admin-lawdesk-chat precisa estar ativa no ambiente."
-            : err?.code === "LOCAL_RUNTIME_INSUFFICIENT_MEMORY"
-              ? "Inferência local indisponível: a máquina não tem memória suficiente para o modelo atual. O painel segue operando em modo degradado."
-              : err?.code === "LOCAL_RUNTIME_INFERENCE_FAILED"
-                ? "Inferência local indisponível: o runtime local falhou ao responder. O painel segue operando em modo degradado."
-                : err.message || "Erro ao conectar ao backend.";
-      setError(message);
-      setMessages((msgs) => {
-        const last = msgs[msgs.length - 1];
-        if (last?.role === "assistant" && !last?.text && last?.status === "thinking") {
-          return msgs.slice(0, -1);
-        }
-        return msgs;
-      });
-      logDotobotUi("Dotobot chat falhou", "dotobot_chat_error", null, {
-        component: "DotobotChat",
-        status: "error",
-        error: buildDiagnosticReport({
-          title: "Erro ao conectar ao backend do Dotobot",
-          summary: message,
-          sections: [
-            { label: "query", value: trimmedQuestion },
-            { label: "mode", value: nextMode },
-            { label: "provider", value: nextProvider },
-            { label: "error", value: err?.stack || err },
-          ],
-        }),
-      });
-      setLoading(false);
-      setUiState("idle");
-    }
-
-
-
-    // BotÃ£o flutuante de reabertura
-  }
     // Estados visuais detalhados
     const stateLabel = {
       idle: "Pronto",
@@ -1388,33 +976,6 @@ export default function DotobotCopilot({
     }
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(taskStorageKey);
-    }
-  }
-
-  function handleComposerKeyDown(event) {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-      event.preventDefault();
-      setWorkspaceOpen(true);
-      composerRef.current?.focus();
-      return;
-    }
-
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      event.currentTarget.form?.requestSubmit();
-      return;
-    }
-
-    setShowSlashCommands(event.currentTarget.value.trimStart().startsWith("/"));
-  }
-
-  function handleFileDrop(fileList) {
-    const files = Array.from(fileList || []).slice(0, MAX_ATTACHMENTS - attachments.length);
-    if (!files.length) return;
-    const normalized = files.map((file) => normalizeAttachment(file));
-    setAttachments((current) => [...current, ...normalized].slice(0, MAX_ATTACHMENTS));
-    if (activeConversationId) {
-      setConversations((current) => mergeConversationAttachments(current, activeConversationId, normalized));
     }
   }
 
@@ -1883,6 +1444,37 @@ export default function DotobotCopilot({
     selectedProjectFilter,
     showArchived,
   });
+  const composerActions = useDotobotComposerActions({
+    activeConversation,
+    activeConversationId,
+    activeTask,
+    attachments,
+    composerRef,
+    contextEnabled,
+    loading,
+    logDotobotUi,
+    maxAttachments: MAX_ATTACHMENTS,
+    mergeConversationAttachments,
+    messages,
+    mode,
+    normalizeAttachment,
+    profile,
+    provider,
+    providerCatalog,
+    routePath,
+    scrollConversationToBottom,
+    selectedSkillId,
+    setAttachments,
+    setConversations,
+    setError,
+    setLoading,
+    setMessages,
+    setShowSlashCommands,
+    setTaskHistory,
+    setUiState,
+    setWorkspaceOpen,
+  });
+  const { handleComposerKeyDown, handleFileDrop, submitQuery } = composerActions;
   const focusedConversationColumnClass = isFocusedCopilotShell ? "mx-auto flex h-full w-full max-w-[880px] flex-col" : isRailConversationShell ? "w-full" : "";
   const useCondensedRightRail = isFocusedCopilotShell;
   const visibleLegalActions = isFocusedCopilotShell || isRailConversationShell ? [] : LEGAL_ACTIONS.slice(0, isCompactViewport ? 1 : 3);
