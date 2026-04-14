@@ -47,53 +47,98 @@ function extractAiTasks(body) {
   return [];
 }
 
+function hasInFlightStep(task) {
+  return (Array.isArray(task?.steps) ? task.steps : []).some((step) => ["running", "awaiting_approval"].includes(step?.status));
+}
+
+function getTaskDependencies(task) {
+  const raw = task?.orchestration?.dependsOn || task?.dependsOn || [];
+  return Array.isArray(raw) ? raw.map((item) => String(item || "").trim()).filter(Boolean) : [];
+}
+
+function isTaskReadyForDispatch(session, task) {
+  const deps = getTaskDependencies(task);
+  if (!deps.length) return true;
+  const tasks = Array.isArray(session?.tasks) ? session.tasks : [];
+  return deps.every((dependencyId) => {
+    const dependency = tasks.find((item) => String(item?.id || "") === dependencyId);
+    return dependency ? dependency.status === "completed" : false;
+  });
+}
+
+async function dispatchTaskIfReady(commandQueue, session, task, tabId) {
+  if (!task || hasInFlightStep(task) || !isTaskReadyForDispatch(session, task)) return null;
+  const step = getRunnableStep(task);
+  if (!step) return null;
+  const targetTabId = resolveDispatchTabId(task, step, tabId, session?.metadata?.browserTabs || []);
+  if (shouldRequireApproval(step)) {
+    if (targetTabId) step.action = { ...(step.action || {}), tabId: targetTabId };
+    markStepAwaitingApproval(task, step);
+    normalizeTask(task);
+    return { mode: "awaiting_approval", taskId: task.id, stepId: step.id, tabId: targetTabId || null };
+  }
+  if (step.action?.type !== "command" && !targetTabId) {
+    task.logs = [...(task.logs || []), `dispatch_skipped_missing_tab step=${step.id}`];
+    normalizeTask(task);
+    return null;
+  }
+  step.status = "running";
+  const dispatch = await dispatchApprovedStep({ commandQueue, tabId: targetTabId, task, step });
+  normalizeTask(task);
+  return dispatch;
+}
+
+async function dispatchSessionReadySteps(commandQueue, session, preferredTabId = "") {
+  const dispatches = [];
+  for (const task of Array.isArray(session?.tasks) ? session.tasks : []) {
+    const dispatch = await dispatchTaskIfReady(commandQueue, session, task, preferredTabId || session?.metadata?.activeTabId || "");
+    if (dispatch) dispatches.push({ taskId: task.id, ...dispatch });
+  }
+  return dispatches;
+}
+
 async function autoDispatchTasks(commandQueue, session, tasks, tabId) {
   for (const task of tasks) {
-    const step = getRunnableStep(task);
-    if (!step) continue;
-    if (shouldRequireApproval(step)) {
-      const targetTabId = resolveDispatchTabId(task, step, tabId, session?.metadata?.browserTabs || []);
-      if (targetTabId) step.action = { ...(step.action || {}), tabId: targetTabId };
-      markStepAwaitingApproval(task, step);
-      normalizeTask(task);
-      continue;
-    }
-    const targetTabId = resolveDispatchTabId(task, step, tabId, session?.metadata?.browserTabs || []);
-    if (step.action?.type !== "command" && !targetTabId) continue;
-    step.status = "running";
-    await dispatchApprovedStep({ commandQueue, tabId: targetTabId, task, step });
-    normalizeTask(task);
+    if (!Array.isArray(session.tasks)) session.tasks = [];
+    const existing = session.tasks.find((item) => item.id === task.id);
+    if (!existing) session.tasks.push(task);
   }
+  await dispatchSessionReadySteps(commandQueue, session, tabId);
 }
 
 async function dispatchNextTaskStep(commandQueue, session, task, tabId) {
   if (!task) return null;
-  const nextStep = getRunnableStep(task);
-  if (!nextStep) {
+  if (!isTaskReadyForDispatch(session, task)) {
     normalizeTask(task);
     return null;
   }
-  if (shouldRequireApproval(nextStep)) {
-    const targetTabId = resolveDispatchTabId(task, nextStep, tabId, session?.metadata?.browserTabs || []);
-    if (targetTabId) nextStep.action = { ...(nextStep.action || {}), tabId: targetTabId };
-    markStepAwaitingApproval(task, nextStep);
-    normalizeTask(task);
-    return { mode: "awaiting_approval", action: describeStepAction(nextStep) };
-  }
-  if (nextStep.status === "awaiting_approval") {
+  const step = getRunnableStep(task);
+  if (!step) {
     normalizeTask(task);
     return null;
   }
-  const targetTabId = resolveDispatchTabId(task, nextStep, tabId, session?.metadata?.browserTabs || []);
-  if (nextStep.action?.type !== "command" && !targetTabId) {
-    task.logs = [...(task.logs || []), `dispatch_skipped_missing_tab step=${nextStep.id}`];
+  const targetTabId = resolveDispatchTabId(task, step, tabId, session?.metadata?.browserTabs || []);
+  if (shouldRequireApproval(step)) {
+    if (targetTabId) step.action = { ...(step.action || {}), tabId: targetTabId };
+    markStepAwaitingApproval(task, step);
+    normalizeTask(task);
+    return { mode: "awaiting_approval", action: describeStepAction(step), tabId: targetTabId || null };
+  }
+  if (step.action?.type !== "command" && !targetTabId) {
+    task.logs = [...(task.logs || []), `dispatch_skipped_missing_tab step=${step.id}`];
     normalizeTask(task);
     return null;
   }
-  nextStep.status = "running";
-  const dispatch = await dispatchApprovedStep({ commandQueue, tabId: targetTabId, task, step: nextStep });
+  step.status = "running";
+  const dispatch = await dispatchApprovedStep({ commandQueue, tabId: targetTabId, task, step });
   normalizeTask(task);
   return dispatch;
+}
+
+async function dispatchCurrentAndSession(commandQueue, session, task, tabId) {
+  const currentDispatch = await dispatchNextTaskStep(commandQueue, session, task, tabId);
+  const additionalDispatches = await dispatchSessionReadySteps(commandQueue, session, tabId);
+  return { currentDispatch, additionalDispatches };
 }
 
 function createTasksRouter(commandQueue) {
@@ -126,7 +171,6 @@ function createTasksRouter(commandQueue) {
         return normalized;
       });
       await autoDispatchTasks(commandQueue, session, aiTasks, tabId ? String(tabId) : "");
-      session.tasks = [...(Array.isArray(session.tasks) ? session.tasks : []), ...aiTasks];
       saveTaskSession(session);
       res.json({
         ok: true,
@@ -162,6 +206,7 @@ function createTasksRouter(commandQueue) {
           const targetTabId = resolveDispatchTabId(task, step, tabId || session.metadata?.activeTabId || "", session.metadata?.browserTabs || []);
           dispatch = await dispatchApprovedStep({ commandQueue, tabId: targetTabId, task, step });
           normalizeTask(task);
+          await dispatchSessionReadySteps(commandQueue, session, targetTabId || tabId || session.metadata?.activeTabId || "");
           saveTaskSession(session);
         } catch (error) {
           step.status = "error";
@@ -187,7 +232,7 @@ function createTasksRouter(commandQueue) {
         applyStepResult(task, String(stepId || ""), { status, output, error })
       );
       const task = (session.tasks || []).find((item) => item.id === String(taskId || ""));
-      Promise.resolve(dispatchNextTaskStep(commandQueue, session, task, tabId ? String(tabId) : ""))
+      Promise.resolve(dispatchCurrentAndSession(commandQueue, session, task, tabId ? String(tabId) : ""))
         .then(() => saveTaskSession(session))
         .catch(() => saveTaskSession(session));
       res.json({ ok: true, tasks: session.tasks });

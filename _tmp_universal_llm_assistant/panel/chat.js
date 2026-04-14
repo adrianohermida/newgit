@@ -204,7 +204,13 @@ function buildMemoryHint(metadata) {
 
 function appendActiveAssetGroupContext(text) {
   const group = state.activeAssetGroup;
-  if (!group) return text;
+  const workspace = Array.isArray(state.workspaceTabs) ? state.workspaceTabs : [];
+  const workspaceHeader = workspace.length
+    ? `[Workspace de abas]\n${workspace.slice(0, 8).map((tab, index) => `${index + 1}. ${tab.title || tab.url} | ${tab.origin || tab.url}${String(tab.id) === String(state.activeWorkspaceTabId) ? " | ativa" : ""}`).join("\n")}`
+    : "";
+  if (!group) {
+    return workspaceHeader ? `${workspaceHeader}\n\n[Pedido do usuario]\n${text}` : text;
+  }
   const items = Array.isArray(group.assets) ? group.assets : [];
   const summary = items
     .slice(0, 8)
@@ -222,5 +228,5 @@ function appendActiveAssetGroupContext(text) {
     `Arquivos: ${items.length}`,
     summary ? `Itens:\n${summary}` : "",
   ].filter(Boolean).join("\n");
-  return `${packageHeader}\n\n[Pedido do usuario]\n${text}`;
+  return `${packageHeader}${workspaceHeader ? `\n\n${workspaceHeader}` : ""}\n\n[Pedido do usuario]\n${text}`;
 }

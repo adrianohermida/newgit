@@ -40,6 +40,10 @@ export function collectElements() {
     runtimeStripBadge: $("runtime-strip-badge"),
     runtimeStripText: $("runtime-strip-text"),
     runtimeStripQueue: $("runtime-strip-queue"),
+    workspaceStrip: $("workspace-strip"),
+    workspaceStripText: $("workspace-strip-text"),
+    workspaceStripMeta: $("workspace-strip-meta"),
+    btnRefreshWorkspace: $("btn-refresh-workspace"),
     btnPageText: $("btn-page-text"),
     btnAgentTab: $("btn-agent-tab"),
     btnSelection: $("btn-selection"),
@@ -263,4 +267,21 @@ export function updateChatRuntime(el, runtime = null) {
   el.runtimeStripBadge.className = `runtime-badge ${meta.cls}`;
   el.runtimeStripText.textContent = runtime.text || "";
   el.runtimeStripQueue.textContent = runtime.queueCount > 1 ? `${runtime.queueCount} mensagens` : runtime.queueCount === 1 ? "1 mensagem" : "";
+}
+
+export function updateWorkspaceStrip(el, workspaceTabs = [], activeTabId = "") {
+  if (!el.workspaceStrip || !el.workspaceStripText || !el.workspaceStripMeta) return;
+  const tabs = Array.isArray(workspaceTabs) ? workspaceTabs : [];
+  if (!tabs.length) {
+    el.workspaceStrip.classList.add("hidden");
+    el.workspaceStripText.textContent = "";
+    el.workspaceStripMeta.textContent = "";
+    return;
+  }
+  const activeTab = tabs.find((tab) => String(tab.id) === String(activeTabId)) || tabs.find((tab) => tab.active) || tabs[0];
+  const origins = tabs.map((tab) => tab.origin).filter(Boolean);
+  const uniqueOrigins = origins.filter((origin, index) => origins.indexOf(origin) === index);
+  el.workspaceStripText.textContent = activeTab?.title || activeTab?.url || `Workspace com ${tabs.length} abas`;
+  el.workspaceStripMeta.textContent = [`${tabs.length} abas`, uniqueOrigins.length ? `${uniqueOrigins.length} origens` : "", activeTab?.id ? `ativa ${activeTab.id}` : ""].filter(Boolean).join(" | ");
+  el.workspaceStrip.classList.remove("hidden");
 }

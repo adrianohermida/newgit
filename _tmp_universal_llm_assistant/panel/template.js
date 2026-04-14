@@ -63,6 +63,16 @@ export function buildPanelMarkup() {
             </div>
             <span id="runtime-strip-queue" class="runtime-strip-queue"></span>
           </div>
+          <div id="workspace-strip" class="asset-group-strip hidden">
+            <div class="asset-group-strip-main">
+              <span class="asset-group-badge">Workspace</span>
+              <span id="workspace-strip-text" class="asset-group-text"></span>
+            </div>
+            <div class="asset-group-strip-actions">
+              <span id="workspace-strip-meta" class="asset-group-meta"></span>
+              <button id="btn-refresh-workspace" class="btn-list-action" type="button">Atualizar</button>
+            </div>
+          </div>
         </div>
         <div id="chat-area" class="chat-area">
           <div class="empty-state">

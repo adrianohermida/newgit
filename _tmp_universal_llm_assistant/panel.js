@@ -1,8 +1,8 @@
 import { buildPanelMarkup } from "./panel/template.js";
 import { state } from "./panel/state.js";
-import { collectElements, addMediaPreview, addMessage, addSystemMessage, switchTab, updateActiveAssetGroup, updateProviderBadge, updateStatusDot, openOverlay, closeOverlays, updateMemoryStrip } from "./panel/dom.js";
+import { collectElements, addMediaPreview, addMessage, addSystemMessage, switchTab, updateActiveAssetGroup, updateProviderBadge, updateStatusDot, openOverlay, closeOverlays, updateMemoryStrip, updateWorkspaceStrip } from "./panel/dom.js";
 import { bindChat, enqueueOutgoingMessage } from "./panel/chat.js";
-import { bindRecorder, bindUpload, injectPageText, injectSelection, openAgentTab, takeScreenshot } from "./panel/browser.js";
+import { bindRecorder, bindUpload, injectPageText, injectSelection, openAgentTab, refreshWorkspaceContext, takeScreenshot } from "./panel/browser.js";
 import { renderAutomations, renderSessions, renderTasks, syncSession } from "./panel/lists.js";
 import { checkBridge, testProvider } from "./panel/bridge.js";
 import { fillSettingsInputs, hydrateSettings, loadSettings, saveSettings } from "./panel/settings.js";
@@ -26,6 +26,10 @@ async function initPanel() {
     updateActiveAssetGroup(el, null);
     addSystemMessage(el, "Pacote visual removido do contexto ativo.");
     syncSession().catch(() => {});
+  });
+  el.btnRefreshWorkspace?.addEventListener("click", async () => {
+    await refreshWorkspaceContext(el);
+    addSystemMessage(el, "Workspace de abas atualizado.");
   });
 
   el.providerSelect.addEventListener("change", async () => {
@@ -102,6 +106,8 @@ async function bootstrapBridge(el) {
   updateProviderBadge(el);
   updateMemoryStrip(el, state.localMemoryMeta);
   updateActiveAssetGroup(el, state.activeAssetGroup);
+  updateWorkspaceStrip(el, state.workspaceTabs, state.activeWorkspaceTabId);
+  await refreshWorkspaceContext(el).catch(() => {});
   if (state.activeTab === "tasks") await renderTasks(el);
 }
 

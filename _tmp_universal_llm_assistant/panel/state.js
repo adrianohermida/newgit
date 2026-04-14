@@ -22,6 +22,8 @@ export const state = {
   runtimeTimers: [],
   sessionAssetSelection: {},
   activeAssetGroup: null,
+  workspaceTabs: [],
+  activeWorkspaceTabId: "",
   bridgeOk: false,
   bridgeFailures: 0,
   providerStatus: { local: null, cloud: null, cloudflare: null },

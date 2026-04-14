@@ -1,6 +1,7 @@
 import { BRIDGE_URL, state } from "./state.js";
 import { escHtml, formatDate } from "./utils.js";
 import { fetchJson } from "./bridge.js";
+import { updateWorkspaceStrip } from "./dom.js";
 
 export async function syncSession() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -18,6 +19,8 @@ export async function syncSession() {
         tabUrl: tab?.url,
         tabTitle: tab?.title,
         savedAt: new Date().toISOString(),
+        browserTabs: Array.isArray(state.workspaceTabs) ? state.workspaceTabs : [],
+        activeTabId: state.activeWorkspaceTabId || (tab?.id ? String(tab.id) : ""),
         activeAssetGroup: state.activeAssetGroup ? {
           id: state.activeAssetGroup.id,
           title: state.activeAssetGroup.title || "",
@@ -42,7 +45,7 @@ export async function renderSessions(el, addSystemMessage, switchTab, addMessage
       <div class="view-toolbar">
         <div class="view-title-wrap">
           <div class="view-title">Sessoes</div>
-          <div class="view-subtitle">Historico salvo do chat e das tasks por sessao.</div>
+          <div class="view-subtitle">Historico salvo do chat, tasks e workspace multi-abas por sessao.</div>
         </div>
       </div>
       ${sessions.map(renderSessionCard).join("")}
@@ -106,10 +109,13 @@ function bindSessionActions(el, addSystemMessage, switchTab, addMessage, updateP
     state.messages = Array.isArray(sessionData.session.messages) ? sessionData.session.messages : [];
     state.provider = sessionData.session.provider || state.provider;
     state.activeAssetGroup = sessionData.session.metadata?.activeAssetGroup || null;
+    state.workspaceTabs = Array.isArray(sessionData.session.metadata?.browserTabs) ? sessionData.session.metadata.browserTabs : [];
+    state.activeWorkspaceTabId = String(sessionData.session.metadata?.activeTabId || "");
     el.chatArea.innerHTML = "";
     state.messages.forEach((msg) => addMessage(el, msg.role, msg.content));
     updateProviderBadge(el);
     updateActiveAssetGroup?.(el, state.activeAssetGroup);
+    updateWorkspaceStrip(el, state.workspaceTabs, state.activeWorkspaceTabId);
     switchTab(el, "chat");
     addSystemMessage(el, `Sessao "${sessionData.session.metadata?.tabTitle || sessionData.session.id}" retomada.`);
   }));
@@ -190,6 +196,7 @@ function renderSessionCard(session) {
   const counts = [
     `${session.messageCount} msg`,
     session.taskCount ? `${session.taskCount} tasks` : null,
+    Array.isArray(session.metadata?.browserTabs) && session.metadata.browserTabs.length ? `${session.metadata.browserTabs.length} abas` : null,
     session.provider || "local",
   ].filter(Boolean).join(" | ");
   return `
@@ -236,6 +243,10 @@ function renderTaskCard(task) {
   const completedSteps = (task.steps || []).filter((step) => step.status === "done").length;
   const pct = Number(task.progressPct || 0);
   const targetTab = currentStep?.action?.tabId ? `Aba alvo: ${currentStep.action.tabId}` : "";
+  const parallelGroup = task.orchestration?.parallelGroup ? `Paralelo: ${task.orchestration.parallelGroup}` : "";
+  const dependsOn = Array.isArray(task.orchestration?.dependsOn) && task.orchestration.dependsOn.length
+    ? `Depende de: ${task.orchestration.dependsOn.join(", ")}`
+    : "";
   return `
     <article class="list-card">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
@@ -247,6 +258,8 @@ function renderTaskCard(task) {
       <div class="task-progress"><span class="task-progress-bar" style="width:${Math.max(0, Math.min(100, pct))}%"></span></div>
       ${currentStep ? `<div class="list-item-meta">Step atual: ${escHtml(currentStep.description || currentStep.action?.type || currentStep.id)}</div>` : ""}
       ${targetTab ? `<div class="list-item-meta">${escHtml(targetTab)}</div>` : ""}
+      ${parallelGroup ? `<div class="list-item-meta">${escHtml(parallelGroup)}</div>` : ""}
+      ${dependsOn ? `<div class="list-item-meta">${escHtml(dependsOn)}</div>` : ""}
       ${pendingStep ? renderApprovalBox(task, pendingStep) : ""}
       ${(task.steps || []).length ? renderStepDetails(task, logs) : ""}
     </article>

@@ -1,7 +1,7 @@
 import { state } from "./state.js";
 import { fetchJson } from "./bridge.js";
 import { pushErrorLog } from "./error-log.js";
-import { addMediaPreview, addProgressMessage, finishProgressMessage, updateActiveAssetGroup, updateProgressMessage } from "./dom.js";
+import { addMediaPreview, addProgressMessage, finishProgressMessage, updateActiveAssetGroup, updateProgressMessage, updateWorkspaceStrip } from "./dom.js";
 import { syncSession } from "./lists.js";
 
 export async function collectWorkspaceTabs() {
@@ -23,6 +23,19 @@ export async function collectWorkspaceTabs() {
     });
 }
 
+export async function refreshWorkspaceContext(el) {
+  const tabs = await collectWorkspaceTabs();
+  state.workspaceTabs = tabs;
+  const activeTab = tabs.find((tab) => tab.active) || tabs[0] || null;
+  state.activeWorkspaceTabId = activeTab?.id || "";
+  if (el) {
+    updateActiveAssetGroup(el, state.activeAssetGroup);
+    updateWorkspaceStrip(el, state.workspaceTabs, state.activeWorkspaceTabId);
+  }
+  syncSession().catch(() => {});
+  return tabs;
+}
+
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) throw new Error("Nenhuma aba ativa disponivel.");
@@ -31,6 +44,7 @@ async function getActiveTab() {
 
 async function ensureTabPermission(actionLabel) {
   const tab = await getActiveTab();
+  state.activeWorkspaceTabId = String(tab.id || "");
   guardSupportedTab(tab, actionLabel);
   const origin = safeOrigin(tab.url);
   const trusted = Array.isArray(state.settings.trustedTabOrigins) ? state.settings.trustedTabOrigins : [];
