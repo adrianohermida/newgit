@@ -1,21 +1,288 @@
-import { Panel, QueueSummaryCard, StatusBadge, ActionButton } from "./ui-primitives";
+import { QueueSummaryCard } from "./ui-primitives";
+import ProcessosCoveragePanel from "./ProcessosCoveragePanel";
+import ProcessosQueueSection from "./ProcessosQueueSection";
+import ProcessosRecurringPanel from "./ProcessosRecurringPanel";
 
 export default function ProcessosFilasView(props) {
-  const { isLightTheme, recurringProcesses, recurringProcessFocus, recurringProcessBatch, visibleRecurringCount, visibleSevereRecurringCount, selectedVisibleSevereRecurringCount, priorityBatchReady, setLimit, applySevereRecurringPreset, selectVisibleRecurringProcesses, selectVisibleSevereRecurringProcesses, clearAllQueueSelections, recurringProcessActions, primaryProcessAction, updateView, runPendingJobsNow, actionState, drainInFlight, recurringProcessChecklist, recurringProcessSummary, recurringProcessBands, recurringProcessGroups, RecurringProcessGroup, withoutMovements, movementBacklog, publicationBacklog, partesBacklog, processCoverage, monitoringActive, fieldGaps, orphans, coverageMismatchMessage, CoverageList, covPage, setCovPage, useCoverageProcess, QueueList, selectedWithoutMovements, toggleSelection, setSelectedWithoutMovements, togglePageSelection, wmPage, setWmPage, queueActionConfigs, QueueActionBlock, updateQueueBatchSize, selectedMovementBacklog, setSelectedMovementBacklog, movPage, setMovPage, selectedPublicationBacklog, setSelectedPublicationBacklog, pubPage, setPubPage, selectedPartesBacklog, setSelectedPartesBacklog, partesPage, setPartesPage, audienciaCandidates, selectedAudienciaCandidates, setSelectedAudienciaCandidates, audPage, setAudPage, monitoringUnsupported, selectedMonitoringActive, setSelectedMonitoringActive, maPage, setMaPage, renderQueueRowStatuses, selectedMonitoringInactive, setSelectedMonitoringInactive, monitoringInactive, miPage, setMiPage, selectedFieldGaps, setSelectedFieldGaps, fgPage, setFgPage, selectedOrphans, setSelectedOrphans, orphanPage, setOrphanPage } = props;
-  return <div id="filas" className="space-y-6">
-    {recurringProcesses.length ? <Panel title="Pendencias reincidentes" eyebrow="Prioridade operacional"><div className="space-y-4"><div className={`rounded-[24px] border p-4 ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#5b4a22]" : "border-[#6E5630] bg-[rgba(76,57,26,0.16)]"}`}><p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#8a6217]" : "text-[#F8E7B5]"}`}>Foco recomendado</p><p className="mt-2 font-semibold">{recurringProcessFocus.title}</p><p className={`mt-2 text-sm ${isLightTheme ? "text-[#6b7280]" : "opacity-75"}`}>{recurringProcessFocus.body}</p><div className="mt-3 flex flex-wrap gap-2"><StatusBadge tone="success">lote sugerido {recurringProcessBatch.size}</StatusBadge><StatusBadge tone="default">{recurringProcessBatch.reason}</StatusBadge><StatusBadge tone="default">{visibleRecurringCount} reincidentes visiveis</StatusBadge><StatusBadge tone="warning">{visibleSevereRecurringCount} graves visiveis</StatusBadge><StatusBadge tone={visibleSevereRecurringCount > 0 && selectedVisibleSevereRecurringCount >= visibleSevereRecurringCount ? "success" : "default"}>selecao cobre {selectedVisibleSevereRecurringCount}/{visibleSevereRecurringCount || 0} graves</StatusBadge><StatusBadge tone={priorityBatchReady ? "success" : "warning"}>{priorityBatchReady ? "lote prioritario pronto" : "lote prioritario pendente"}</StatusBadge><ActionButton className="px-3 py-2 text-xs" onClick={() => setLimit(recurringProcessBatch.size)}>Usar lote sugerido</ActionButton><ActionButton tone="primary" className="px-3 py-2 text-xs" onClick={applySevereRecurringPreset}>Montar lote prioritario</ActionButton><ActionButton className="px-3 py-2 text-xs" onClick={selectVisibleRecurringProcesses}>Selecionar reincidentes visiveis</ActionButton><ActionButton className="px-3 py-2 text-xs" onClick={selectVisibleSevereRecurringProcesses}>Selecionar 3x+ visiveis</ActionButton><ActionButton className="px-3 py-2 text-xs" onClick={clearAllQueueSelections}>Limpar selecao</ActionButton></div><div className="mt-3 flex flex-wrap gap-2">{recurringProcessActions.map((action) => <StatusBadge key={action} tone="warning">{action}</StatusBadge>)}</div><div className="mt-3 flex flex-wrap items-center gap-2"><StatusBadge tone="success">proximo disparo: {primaryProcessAction}</StatusBadge><ActionButton className="px-3 py-2 text-xs" onClick={() => updateView("operacao")}>Ir para operacao</ActionButton><ActionButton className="px-3 py-2 text-xs" onClick={runPendingJobsNow} disabled={actionState.loading || drainInFlight}>{drainInFlight ? "Drenando..." : "Rodar drenagem agora"}</ActionButton></div><div className="mt-4 space-y-2">{recurringProcessChecklist.map((step, index) => <div key={step} className={`flex items-start gap-3 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-80"}`}><span className={`mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold ${isLightTheme ? "border-[#e4d2a8] text-[#8a6217]" : "border-[#6E5630] text-[#F8E7B5]"}`}>{index + 1}</span><p>{step}</p></div>)}</div></div><div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6"><QueueSummaryCard title="Supabase" count={recurringProcessSummary.supabase} helper="Itens que pedem correcao ou consolidacao interna." /><QueueSummaryCard title="Freshsales" count={recurringProcessSummary.freshsales} helper="Reparos ou criacao de account no CRM." /><QueueSummaryCard title="DataJud" count={recurringProcessSummary.datajud} helper="Reconsulta ou falta de progresso no enriquecimento." /><QueueSummaryCard title="Manual" count={recurringProcessSummary.manual} helper="Casos que merecem revisao humana." accent="text-[#FECACA]" /><QueueSummaryCard title="Sem progresso" count={recurringProcessSummary.stagnant} helper="Reincidencias sem ganho util no lote." accent="text-[#FDE68A]" /><QueueSummaryCard title="Recorrentes" count={recurringProcessSummary.total} helper="Itens que voltaram em multiplos ciclos recentes." /></div><div className="grid gap-3 md:grid-cols-3"><QueueSummaryCard title="Faixa 2x" count={recurringProcessBands.recurring} helper="Pendencias que reapareceram em dois ciclos." /><QueueSummaryCard title="Faixa 3x" count={recurringProcessBands.reincident} helper="Itens reincidentes que merecem atencao prioritaria." accent="text-[#FDE68A]" /><QueueSummaryCard title="Faixa 4x+" count={recurringProcessBands.critical} helper="Gargalos cronicos que pedem acao estrutural." accent="text-[#FECACA]" /></div><div className="space-y-6"><RecurringProcessGroup title="Criticos (4x+)" helper="Gargalos cronicos que repetem em quatro ou mais ciclos." items={recurringProcessGroups.critical} /><RecurringProcessGroup title="Reincidentes (3x)" helper="Itens que persistem por tres ciclos e merecem prioridade alta." items={recurringProcessGroups.reincident} /><RecurringProcessGroup title="Recorrentes (2x)" helper="Itens que reapareceram duas vezes e ainda cabem em correcao operacional." items={recurringProcessGroups.recurring} /></div></div></Panel> : null}
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><QueueSummaryCard title="Sem movimentacoes" count={withoutMovements.totalRows || 0} helper="Processos prontos para reconsulta no DataJud." /><QueueSummaryCard title="Movimentacoes pendentes" count={movementBacklog.totalRows || 0} helper="Andamentos ainda sem activity no Freshsales." /><QueueSummaryCard title="Publicacoes pendentes" count={publicationBacklog.totalRows || 0} helper="Publicacoes ainda sem activity no Freshsales." /><QueueSummaryCard title="Partes sem contato" count={partesBacklog.totalRows || 0} helper="Partes ainda sem contato vinculado." /><QueueSummaryCard title="Cobertura auditada" count={processCoverage.totalRows || 0} helper="Processos visiveis na leitura consolidada de cobertura." /><QueueSummaryCard title="Monitorados" count={monitoringActive.totalRows || 0} helper="Carteira ativa em acompanhamento." /><QueueSummaryCard title="Campos orfaos" count={fieldGaps.totalRows || 0} helper="Diferencas entre a base e o CRM." /><QueueSummaryCard title="Sem conta comercial" count={orphans.totalRows || 0} helper="Processos ainda sem conta vinculada." /></div>
-    <div className="grid gap-6 xl:grid-cols-2">
-      <div id="processos-cobertura"><Panel title="Cobertura por processo" eyebrow="Auditoria local">{processCoverage.unsupported ? <div className={`rounded-[22px] border border-dashed p-4 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#F8E7B5]"}`}>O schema de cobertura ainda nao foi aplicado no HMADV. Assim que a migracao estiver ativa, esta leitura vai mostrar o percentual real de cobertura por processo.</div> : <div className="space-y-4">{processCoverage.limited ? <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#F8E7B5]"}`}>A leitura de cobertura entrou em modo reduzido para evitar sobrecarga. Os totais continuam uteis, mas a pagina atual pode vir parcial.</div> : null}{processCoverage.error ? <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E]" : "border-[#4B2222] bg-[rgba(75,34,34,0.18)] text-[#FECACA]"}`}>{processCoverage.error}</div> : null}{!processCoverage.loading && Number(processCoverage.totalRows || 0) > 0 && !(processCoverage.items || []).length ? <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#F8E7B5]"}`}>{coverageMismatchMessage(processCoverage)}</div> : null}<CoverageList rows={processCoverage.items} page={covPage} setPage={setCovPage} loading={processCoverage.loading} totalRows={processCoverage.totalRows} pageSize={processCoverage.pageSize} onSelectProcess={useCoverageProcess} /></div>}</Panel></div>
-      <Panel title="Processos sem movimentacoes" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Sem movimentacoes" helper="Itens sem andamento local para reconsulta no DataJud." rows={withoutMovements.items} selected={selectedWithoutMovements} onToggle={(key) => toggleSelection(setSelectedWithoutMovements, selectedWithoutMovements, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedWithoutMovements, selectedWithoutMovements, withoutMovements.items, nextState)} page={wmPage} setPage={setWmPage} loading={withoutMovements.loading} totalRows={withoutMovements.totalRows} pageSize={withoutMovements.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "sem_movimentacoes")} lastUpdated={withoutMovements.updatedAt} limited={withoutMovements.limited} errorMessage={withoutMovements.error} /><QueueActionBlock selectionCount={queueActionConfigs.sem_movimentacoes.selectionCount} batchSize={queueActionConfigs.sem_movimentacoes.batchSize} onBatchChange={(value) => updateQueueBatchSize("sem_movimentacoes", value)} helper={queueActionConfigs.sem_movimentacoes.helper} disabled={actionState.loading} actions={queueActionConfigs.sem_movimentacoes.actions} /></div></Panel>
-      <div id="processos-movimentacoes-pendentes"><Panel title="Movimentacoes pendentes" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Andamentos sem activity" helper="Processos com movimentacoes no HMADV ainda sem reflexo em sales_activities do Freshsales." rows={movementBacklog.items} selected={selectedMovementBacklog} onToggle={(key) => toggleSelection(setSelectedMovementBacklog, selectedMovementBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMovementBacklog, selectedMovementBacklog, movementBacklog.items, nextState)} page={movPage} setPage={setMovPage} loading={movementBacklog.loading} totalRows={movementBacklog.totalRows} pageSize={movementBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "movimentacoes_pendentes")} lastUpdated={movementBacklog.updatedAt} limited={movementBacklog.limited} errorMessage={movementBacklog.error} /><QueueActionBlock selectionCount={queueActionConfigs.movimentacoes_pendentes.selectionCount} batchSize={queueActionConfigs.movimentacoes_pendentes.batchSize} onBatchChange={(value) => updateQueueBatchSize("movimentacoes_pendentes", value)} helper={queueActionConfigs.movimentacoes_pendentes.helper} disabled={actionState.loading} actions={queueActionConfigs.movimentacoes_pendentes.actions} /></div></Panel></div>
-      <div id="processos-publicacoes-pendentes"><Panel title="Publicacoes pendentes" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Publicacoes sem activity" helper="Processos com publicacoes no HMADV ainda sem reflexo em sales_activities do Freshsales." rows={publicationBacklog.items} selected={selectedPublicationBacklog} onToggle={(key) => toggleSelection(setSelectedPublicationBacklog, selectedPublicationBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedPublicationBacklog, selectedPublicationBacklog, publicationBacklog.items, nextState)} page={pubPage} setPage={setPubPage} loading={publicationBacklog.loading} totalRows={publicationBacklog.totalRows} pageSize={publicationBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "publicacoes_pendentes")} lastUpdated={publicationBacklog.updatedAt} limited={publicationBacklog.limited} errorMessage={publicationBacklog.error} /><QueueActionBlock selectionCount={queueActionConfigs.publicacoes_pendentes.selectionCount} batchSize={queueActionConfigs.publicacoes_pendentes.batchSize} onBatchChange={(value) => updateQueueBatchSize("publicacoes_pendentes", value)} helper={queueActionConfigs.publicacoes_pendentes.helper} disabled={actionState.loading} actions={queueActionConfigs.publicacoes_pendentes.actions} /></div></Panel></div>
-      <div id="processos-partes-sem-contato"><Panel title="Partes sem contato" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Partes a reconciliar" helper="Processos com partes ainda sem contato_freshsales_id, prontos para reconciliacao com o modulo de contatos." rows={partesBacklog.items} selected={selectedPartesBacklog} onToggle={(key) => toggleSelection(setSelectedPartesBacklog, selectedPartesBacklog, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedPartesBacklog, selectedPartesBacklog, partesBacklog.items, nextState)} page={partesPage} setPage={setPartesPage} loading={partesBacklog.loading} totalRows={partesBacklog.totalRows} pageSize={partesBacklog.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "partes_sem_contato")} lastUpdated={partesBacklog.updatedAt} limited={partesBacklog.limited} errorMessage={partesBacklog.error} /><QueueActionBlock selectionCount={queueActionConfigs.partes_sem_contato.selectionCount} batchSize={queueActionConfigs.partes_sem_contato.batchSize} onBatchChange={(value) => updateQueueBatchSize("partes_sem_contato", value)} helper={queueActionConfigs.partes_sem_contato.helper} disabled={actionState.loading} actions={queueActionConfigs.partes_sem_contato.actions} /></div></Panel></div>
-      <Panel title="Audiencias detectaveis" eyebrow="Fila paginada"><div className="space-y-4"><QueueList title="Retroativo de audiencias" helper="Processos com sinais concretos de audiencia nas publicacoes e ainda sem persistencia equivalente." rows={audienciaCandidates.items} selected={selectedAudienciaCandidates} onToggle={(key) => toggleSelection(setSelectedAudienciaCandidates, selectedAudienciaCandidates, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedAudienciaCandidates, selectedAudienciaCandidates, audienciaCandidates.items, nextState)} page={audPage} setPage={setAudPage} loading={audienciaCandidates.loading} totalRows={audienciaCandidates.totalRows} pageSize={audienciaCandidates.pageSize} renderStatuses={(row) => [{ label: `${row.audiencias_pendentes || 0} audiencias pendentes`, tone: "warning" }, row.proxima_data_audiencia ? { label: `proxima ${new Date(row.proxima_data_audiencia).toLocaleDateString("pt-BR")}`, tone: "default" } : null].filter(Boolean)} lastUpdated={audienciaCandidates.updatedAt} limited={audienciaCandidates.limited} errorMessage={audienciaCandidates.error} /><QueueActionBlock selectionCount={queueActionConfigs.audiencias_pendentes.selectionCount} batchSize={queueActionConfigs.audiencias_pendentes.batchSize} onBatchChange={(value) => updateQueueBatchSize("audiencias_pendentes", value)} helper={queueActionConfigs.audiencias_pendentes.helper} disabled={actionState.loading} actions={queueActionConfigs.audiencias_pendentes.actions} /></div></Panel>
-      <Panel title="Monitoramento ativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#F8E7B5]"}`}>A coluna <strong>monitoramento_ativo</strong> ainda nao existe no HMADV. Esta fila fica em modo diagnostico, com leitura por fallback e sem gravacao.</div> : null}<QueueList title="Monitorados" helper="Se a base ainda nao marca monitoramento_ativo, o painel usa fallback pelos processos com account." rows={monitoringActive.items} selected={selectedMonitoringActive} onToggle={(key) => toggleSelection(setSelectedMonitoringActive, selectedMonitoringActive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringActive, selectedMonitoringActive, monitoringActive.items, nextState)} page={maPage} setPage={setMaPage} loading={monitoringActive.loading} totalRows={monitoringActive.totalRows} pageSize={monitoringActive.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "monitoramento_ativo", { monitoringUnsupported })} lastUpdated={monitoringActive.updatedAt} limited={monitoringActive.limited} errorMessage={monitoringActive.error} selectionDisabled={monitoringUnsupported} selectionDisabledMessage={monitoringUnsupported ? "Selecao bloqueada: esta fila serve apenas para diagnosticar a adequacao de schema." : ""} />{monitoringUnsupported ? <div className={`rounded-[18px] border border-dashed px-4 py-3 text-xs leading-6 ${isLightTheme ? "border-[#e4d2a8] text-[#8a6217]" : "border-[#6E5630] text-[#F8E7B5]"}`}>Escrita de monitoramento temporariamente indisponivel: aplique a migracao do schema para liberar ativacao e desativacao pela fila.</div> : null}<QueueActionBlock selectionCount={queueActionConfigs.monitoramento_ativo.selectionCount} batchSize={queueActionConfigs.monitoramento_ativo.batchSize} onBatchChange={(value) => updateQueueBatchSize("monitoramento_ativo", value)} helper={queueActionConfigs.monitoramento_ativo.helper} disabled={actionState.loading || monitoringUnsupported} actions={queueActionConfigs.monitoramento_ativo.actions} /></div></Panel>
-      <Panel title="Monitoramento inativo" eyebrow="Fila paginada"><div className="space-y-4">{monitoringUnsupported ? <div className={`rounded-[20px] border p-4 text-sm ${isLightTheme ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]" : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#F8E7B5]"}`}>Sem a coluna <strong>monitoramento_ativo</strong>, esta fila nao consegue gravar alteracoes. O painel mostra apenas o que precisa de adequacao de schema.</div> : null}<QueueList title="Nao monitorados" helper="Use esta fila para reativar o sync dos processos que ficaram fora da rotina." rows={monitoringInactive.items} selected={selectedMonitoringInactive} onToggle={(key) => toggleSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedMonitoringInactive, selectedMonitoringInactive, monitoringInactive.items, nextState)} page={miPage} setPage={setMiPage} loading={monitoringInactive.loading} totalRows={monitoringInactive.totalRows} pageSize={monitoringInactive.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "monitoramento_inativo", { monitoringUnsupported })} lastUpdated={monitoringInactive.updatedAt} limited={monitoringInactive.limited} errorMessage={monitoringInactive.error} selectionDisabled={monitoringUnsupported} selectionDisabledMessage={monitoringUnsupported ? "Selecao bloqueada: esta fila mostra somente o backlog dependente da migracao de schema." : ""} />{monitoringUnsupported ? <div className={`rounded-[18px] border border-dashed px-4 py-3 text-xs leading-6 ${isLightTheme ? "border-[#e4d2a8] text-[#8a6217]" : "border-[#6E5630] text-[#F8E7B5]"}`}>A reativacao fica bloqueada ate a criacao da coluna <strong>monitoramento_ativo</strong> no HMADV.</div> : null}<QueueActionBlock selectionCount={queueActionConfigs.monitoramento_inativo.selectionCount} batchSize={queueActionConfigs.monitoramento_inativo.batchSize} onBatchChange={(value) => updateQueueBatchSize("monitoramento_inativo", value)} helper={queueActionConfigs.monitoramento_inativo.helper} disabled={actionState.loading || monitoringUnsupported} actions={queueActionConfigs.monitoramento_inativo.actions} /></div></Panel>
-      <Panel title="GAP DataJud -> CRM" eyebrow="Campos orfaos"><div className="space-y-4"><QueueList title="Campos pendentes no Freshsales" helper="Processos vinculados cujo espelho ainda tem campos importantes em branco." rows={fieldGaps.items} selected={selectedFieldGaps} onToggle={(key) => toggleSelection(setSelectedFieldGaps, selectedFieldGaps, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedFieldGaps, selectedFieldGaps, fieldGaps.items, nextState)} page={fgPage} setPage={setFgPage} loading={fieldGaps.loading} totalRows={fieldGaps.totalRows} pageSize={fieldGaps.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "campos_orfaos")} lastUpdated={fieldGaps.updatedAt} limited={fieldGaps.limited} errorMessage={fieldGaps.error} /><QueueActionBlock selectionCount={queueActionConfigs.campos_orfaos.selectionCount} batchSize={queueActionConfigs.campos_orfaos.batchSize} onBatchChange={(value) => updateQueueBatchSize("campos_orfaos", value)} helper={queueActionConfigs.campos_orfaos.helper} disabled={actionState.loading} actions={queueActionConfigs.campos_orfaos.actions} /></div></Panel>
-      <div id="processos-sem-sales-account"><Panel title="Sem Sales Account" eyebrow="Processos orfaos"><div className="space-y-4"><QueueList title="Orfaos" helper="Itens do HMADV que ainda nao viraram Sales Account." rows={orphans.items} selected={selectedOrphans} onToggle={(key) => toggleSelection(setSelectedOrphans, selectedOrphans, key)} onTogglePage={(nextState) => togglePageSelection(setSelectedOrphans, selectedOrphans, orphans.items, nextState)} page={orphanPage} setPage={setOrphanPage} loading={orphans.loading} totalRows={orphans.totalRows} pageSize={orphans.pageSize} renderStatuses={(row) => renderQueueRowStatuses(row, "orfaos")} lastUpdated={orphans.updatedAt} limited={orphans.limited} errorMessage={orphans.error} /><QueueActionBlock selectionCount={queueActionConfigs.orfaos.selectionCount} batchSize={queueActionConfigs.orfaos.batchSize} onBatchChange={(value) => updateQueueBatchSize("orfaos", value)} helper={queueActionConfigs.orfaos.helper} disabled={actionState.loading} actions={queueActionConfigs.orfaos.actions} /></div></Panel></div>
+  const monitoringUnsupported = props.monitoringUnsupported;
+  const monitoringTone = props.isLightTheme
+    ? "border-[#e4d2a8] bg-[#fff8e8] text-[#8a6217]"
+    : "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#F8E7B5]";
+  const monitoringDashTone = props.isLightTheme
+    ? "border-[#e4d2a8] text-[#8a6217]"
+    : "border-[#6E5630] text-[#F8E7B5]";
+
+  return (
+    <div id="filas" className="space-y-6">
+      <ProcessosRecurringPanel {...props} />
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <QueueSummaryCard title="Sem movimentacoes" count={props.withoutMovements.totalRows || 0} helper="Processos prontos para reconsulta no DataJud." />
+        <QueueSummaryCard title="Movimentacoes pendentes" count={props.movementBacklog.totalRows || 0} helper="Andamentos ainda sem activity no Freshsales." />
+        <QueueSummaryCard title="Publicacoes pendentes" count={props.publicationBacklog.totalRows || 0} helper="Publicacoes ainda sem activity no Freshsales." />
+        <QueueSummaryCard title="Partes sem contato" count={props.partesBacklog.totalRows || 0} helper="Partes ainda sem contato vinculado." />
+        <QueueSummaryCard title="Cobertura auditada" count={props.processCoverage.totalRows || 0} helper="Processos visiveis na leitura consolidada de cobertura." />
+        <QueueSummaryCard title="Monitorados" count={props.monitoringActive.totalRows || 0} helper="Carteira ativa em acompanhamento." />
+        <QueueSummaryCard title="Campos orfaos" count={props.fieldGaps.totalRows || 0} helper="Diferencas entre a base e o CRM." />
+        <QueueSummaryCard title="Sem conta comercial" count={props.orphans.totalRows || 0} helper="Processos ainda sem conta vinculada." />
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <div id="processos-cobertura">
+          <ProcessosCoveragePanel {...props} />
+        </div>
+
+        <ProcessosQueueSection
+          queueKey="sem_movimentacoes"
+          title="Processos sem movimentacoes"
+          eyebrow="Fila paginada"
+          queueTitle="Sem movimentacoes"
+          queueHelper="Itens sem andamento local para reconsulta no DataJud."
+          rows={props.withoutMovements.items}
+          selected={props.selectedWithoutMovements}
+          onToggle={(key) => props.toggleSelection(props.setSelectedWithoutMovements, props.selectedWithoutMovements, key)}
+          onTogglePage={(nextState) => props.togglePageSelection(props.setSelectedWithoutMovements, props.selectedWithoutMovements, props.withoutMovements.items, nextState)}
+          page={props.wmPage}
+          setPage={props.setWmPage}
+          loading={props.withoutMovements.loading}
+          totalRows={props.withoutMovements.totalRows}
+          pageSize={props.withoutMovements.pageSize}
+          renderStatuses={(row) => props.renderQueueRowStatuses(row, "sem_movimentacoes")}
+          lastUpdated={props.withoutMovements.updatedAt}
+          limited={props.withoutMovements.limited}
+          errorMessage={props.withoutMovements.error}
+          QueueList={props.QueueList}
+          QueueActionBlock={props.QueueActionBlock}
+          queueConfig={props.queueActionConfigs.sem_movimentacoes}
+          updateQueueBatchSize={props.updateQueueBatchSize}
+          actionState={props.actionState}
+        />
+
+        <div id="processos-movimentacoes-pendentes">
+          <ProcessosQueueSection
+            queueKey="movimentacoes_pendentes"
+            title="Movimentacoes pendentes"
+            eyebrow="Fila paginada"
+            queueTitle="Andamentos sem activity"
+            queueHelper="Processos com movimentacoes no HMADV ainda sem reflexo em sales_activities do Freshsales."
+            rows={props.movementBacklog.items}
+            selected={props.selectedMovementBacklog}
+            onToggle={(key) => props.toggleSelection(props.setSelectedMovementBacklog, props.selectedMovementBacklog, key)}
+            onTogglePage={(nextState) => props.togglePageSelection(props.setSelectedMovementBacklog, props.selectedMovementBacklog, props.movementBacklog.items, nextState)}
+            page={props.movPage}
+            setPage={props.setMovPage}
+            loading={props.movementBacklog.loading}
+            totalRows={props.movementBacklog.totalRows}
+            pageSize={props.movementBacklog.pageSize}
+            renderStatuses={(row) => props.renderQueueRowStatuses(row, "movimentacoes_pendentes")}
+            lastUpdated={props.movementBacklog.updatedAt}
+            limited={props.movementBacklog.limited}
+            errorMessage={props.movementBacklog.error}
+            QueueList={props.QueueList}
+            QueueActionBlock={props.QueueActionBlock}
+            queueConfig={props.queueActionConfigs.movimentacoes_pendentes}
+            updateQueueBatchSize={props.updateQueueBatchSize}
+            actionState={props.actionState}
+          />
+        </div>
+
+        <div id="processos-publicacoes-pendentes">
+          <ProcessosQueueSection
+            queueKey="publicacoes_pendentes"
+            title="Publicacoes pendentes"
+            eyebrow="Fila paginada"
+            queueTitle="Publicacoes sem activity"
+            queueHelper="Processos com publicacoes no HMADV ainda sem reflexo em sales_activities do Freshsales."
+            rows={props.publicationBacklog.items}
+            selected={props.selectedPublicationBacklog}
+            onToggle={(key) => props.toggleSelection(props.setSelectedPublicationBacklog, props.selectedPublicationBacklog, key)}
+            onTogglePage={(nextState) => props.togglePageSelection(props.setSelectedPublicationBacklog, props.selectedPublicationBacklog, props.publicationBacklog.items, nextState)}
+            page={props.pubPage}
+            setPage={props.setPubPage}
+            loading={props.publicationBacklog.loading}
+            totalRows={props.publicationBacklog.totalRows}
+            pageSize={props.publicationBacklog.pageSize}
+            renderStatuses={(row) => props.renderQueueRowStatuses(row, "publicacoes_pendentes")}
+            lastUpdated={props.publicationBacklog.updatedAt}
+            limited={props.publicationBacklog.limited}
+            errorMessage={props.publicationBacklog.error}
+            QueueList={props.QueueList}
+            QueueActionBlock={props.QueueActionBlock}
+            queueConfig={props.queueActionConfigs.publicacoes_pendentes}
+            updateQueueBatchSize={props.updateQueueBatchSize}
+            actionState={props.actionState}
+          />
+        </div>
+
+        <div id="processos-partes-sem-contato">
+          <ProcessosQueueSection
+            queueKey="partes_sem_contato"
+            title="Partes sem contato"
+            eyebrow="Fila paginada"
+            queueTitle="Partes a reconciliar"
+            queueHelper="Processos com partes ainda sem contato_freshsales_id, prontos para reconciliacao com o modulo de contatos."
+            rows={props.partesBacklog.items}
+            selected={props.selectedPartesBacklog}
+            onToggle={(key) => props.toggleSelection(props.setSelectedPartesBacklog, props.selectedPartesBacklog, key)}
+            onTogglePage={(nextState) => props.togglePageSelection(props.setSelectedPartesBacklog, props.selectedPartesBacklog, props.partesBacklog.items, nextState)}
+            page={props.partesPage}
+            setPage={props.setPartesPage}
+            loading={props.partesBacklog.loading}
+            totalRows={props.partesBacklog.totalRows}
+            pageSize={props.partesBacklog.pageSize}
+            renderStatuses={(row) => props.renderQueueRowStatuses(row, "partes_sem_contato")}
+            lastUpdated={props.partesBacklog.updatedAt}
+            limited={props.partesBacklog.limited}
+            errorMessage={props.partesBacklog.error}
+            QueueList={props.QueueList}
+            QueueActionBlock={props.QueueActionBlock}
+            queueConfig={props.queueActionConfigs.partes_sem_contato}
+            updateQueueBatchSize={props.updateQueueBatchSize}
+            actionState={props.actionState}
+          />
+        </div>
+
+        <ProcessosQueueSection
+          queueKey="audiencias_pendentes"
+          title="Audiencias detectaveis"
+          eyebrow="Fila paginada"
+          queueTitle="Retroativo de audiencias"
+          queueHelper="Processos com sinais concretos de audiencia nas publicacoes e ainda sem persistencia equivalente."
+          rows={props.audienciaCandidates.items}
+          selected={props.selectedAudienciaCandidates}
+          onToggle={(key) => props.toggleSelection(props.setSelectedAudienciaCandidates, props.selectedAudienciaCandidates, key)}
+          onTogglePage={(nextState) => props.togglePageSelection(props.setSelectedAudienciaCandidates, props.selectedAudienciaCandidates, props.audienciaCandidates.items, nextState)}
+          page={props.audPage}
+          setPage={props.setAudPage}
+          loading={props.audienciaCandidates.loading}
+          totalRows={props.audienciaCandidates.totalRows}
+          pageSize={props.audienciaCandidates.pageSize}
+          renderStatuses={(row) => [
+            { label: `${row.audiencias_pendentes || 0} audiencias pendentes`, tone: "warning" },
+            row.proxima_data_audiencia ? { label: `proxima ${new Date(row.proxima_data_audiencia).toLocaleDateString("pt-BR")}`, tone: "default" } : null,
+          ].filter(Boolean)}
+          lastUpdated={props.audienciaCandidates.updatedAt}
+          limited={props.audienciaCandidates.limited}
+          errorMessage={props.audienciaCandidates.error}
+          QueueList={props.QueueList}
+          QueueActionBlock={props.QueueActionBlock}
+          queueConfig={props.queueActionConfigs.audiencias_pendentes}
+          updateQueueBatchSize={props.updateQueueBatchSize}
+          actionState={props.actionState}
+        />
+
+        <ProcessosQueueSection
+          queueKey="monitoramento_ativo"
+          title="Monitoramento ativo"
+          eyebrow="Fila paginada"
+          queueTitle="Monitorados"
+          queueHelper="Se a base ainda nao marca monitoramento_ativo, o painel usa fallback pelos processos com account."
+          rows={props.monitoringActive.items}
+          selected={props.selectedMonitoringActive}
+          onToggle={(key) => props.toggleSelection(props.setSelectedMonitoringActive, props.selectedMonitoringActive, key)}
+          onTogglePage={(nextState) => props.togglePageSelection(props.setSelectedMonitoringActive, props.selectedMonitoringActive, props.monitoringActive.items, nextState)}
+          page={props.maPage}
+          setPage={props.setMaPage}
+          loading={props.monitoringActive.loading}
+          totalRows={props.monitoringActive.totalRows}
+          pageSize={props.monitoringActive.pageSize}
+          renderStatuses={(row) => props.renderQueueRowStatuses(row, "monitoramento_ativo", { monitoringUnsupported })}
+          lastUpdated={props.monitoringActive.updatedAt}
+          limited={props.monitoringActive.limited}
+          errorMessage={props.monitoringActive.error}
+          selectionDisabled={monitoringUnsupported}
+          selectionDisabledMessage={monitoringUnsupported ? "Selecao bloqueada: esta fila serve apenas para diagnosticar a adequacao de schema." : ""}
+          notice={monitoringUnsupported ? <div className={`rounded-[20px] border p-4 text-sm ${monitoringTone}`}>A coluna <strong>monitoramento_ativo</strong> ainda nao existe no HMADV. Esta fila fica em modo diagnostico, com leitura por fallback e sem gravacao.</div> : null}
+          QueueList={props.QueueList}
+          QueueActionBlock={props.QueueActionBlock}
+          queueConfig={props.queueActionConfigs.monitoramento_ativo}
+          updateQueueBatchSize={props.updateQueueBatchSize}
+          actionState={props.actionState}
+        />
+
+        <ProcessosQueueSection
+          queueKey="monitoramento_inativo"
+          title="Monitoramento inativo"
+          eyebrow="Fila paginada"
+          queueTitle="Nao monitorados"
+          queueHelper="Use esta fila para reativar o sync dos processos que ficaram fora da rotina."
+          rows={props.monitoringInactive.items}
+          selected={props.selectedMonitoringInactive}
+          onToggle={(key) => props.toggleSelection(props.setSelectedMonitoringInactive, props.selectedMonitoringInactive, key)}
+          onTogglePage={(nextState) => props.togglePageSelection(props.setSelectedMonitoringInactive, props.selectedMonitoringInactive, props.monitoringInactive.items, nextState)}
+          page={props.miPage}
+          setPage={props.setMiPage}
+          loading={props.monitoringInactive.loading}
+          totalRows={props.monitoringInactive.totalRows}
+          pageSize={props.monitoringInactive.pageSize}
+          renderStatuses={(row) => props.renderQueueRowStatuses(row, "monitoramento_inativo", { monitoringUnsupported })}
+          lastUpdated={props.monitoringInactive.updatedAt}
+          limited={props.monitoringInactive.limited}
+          errorMessage={props.monitoringInactive.error}
+          selectionDisabled={monitoringUnsupported}
+          selectionDisabledMessage={monitoringUnsupported ? "Selecao bloqueada: esta fila mostra somente o backlog dependente da migracao de schema." : ""}
+          notice={monitoringUnsupported ? <div className={`rounded-[20px] border p-4 text-sm ${monitoringTone}`}>Sem a coluna <strong>monitoramento_ativo</strong>, esta fila nao consegue gravar alteracoes. O painel mostra apenas o que precisa de adequacao de schema.</div> : <div className={`rounded-[18px] border border-dashed px-4 py-3 text-xs leading-6 ${monitoringDashTone}`}>Ativar monitoramento marca o processo para sync recorrente e inclui a tag <strong>Datajud</strong> no Freshsales. Desativar remove a tag.</div>}
+          QueueList={props.QueueList}
+          QueueActionBlock={props.QueueActionBlock}
+          queueConfig={props.queueActionConfigs.monitoramento_inativo}
+          updateQueueBatchSize={props.updateQueueBatchSize}
+          actionState={props.actionState}
+        />
+
+        <ProcessosQueueSection
+          queueKey="campos_orfaos"
+          title="GAP DataJud -> CRM"
+          eyebrow="Campos orfaos"
+          queueTitle="Campos pendentes no Freshsales"
+          queueHelper="Processos vinculados cujo espelho ainda tem campos importantes em branco."
+          rows={props.fieldGaps.items}
+          selected={props.selectedFieldGaps}
+          onToggle={(key) => props.toggleSelection(props.setSelectedFieldGaps, props.selectedFieldGaps, key)}
+          onTogglePage={(nextState) => props.togglePageSelection(props.setSelectedFieldGaps, props.selectedFieldGaps, props.fieldGaps.items, nextState)}
+          page={props.fgPage}
+          setPage={props.setFgPage}
+          loading={props.fieldGaps.loading}
+          totalRows={props.fieldGaps.totalRows}
+          pageSize={props.fieldGaps.pageSize}
+          renderStatuses={(row) => props.renderQueueRowStatuses(row, "campos_orfaos")}
+          lastUpdated={props.fieldGaps.updatedAt}
+          limited={props.fieldGaps.limited}
+          errorMessage={props.fieldGaps.error}
+          QueueList={props.QueueList}
+          QueueActionBlock={props.QueueActionBlock}
+          queueConfig={props.queueActionConfigs.campos_orfaos}
+          updateQueueBatchSize={props.updateQueueBatchSize}
+          actionState={props.actionState}
+        />
+
+        <div id="processos-sem-sales-account">
+          <ProcessosQueueSection
+            queueKey="orfaos"
+            title="Sem Sales Account"
+            eyebrow="Processos orfaos"
+            queueTitle="Orfaos"
+            queueHelper="Itens do HMADV que ainda nao viraram Sales Account."
+            rows={props.orphans.items}
+            selected={props.selectedOrphans}
+            onToggle={(key) => props.toggleSelection(props.setSelectedOrphans, props.selectedOrphans, key)}
+            onTogglePage={(nextState) => props.togglePageSelection(props.setSelectedOrphans, props.selectedOrphans, props.orphans.items, nextState)}
+            page={props.orphanPage}
+            setPage={props.setOrphanPage}
+            loading={props.orphans.loading}
+            totalRows={props.orphans.totalRows}
+            pageSize={props.orphans.pageSize}
+            renderStatuses={(row) => props.renderQueueRowStatuses(row, "orfaos")}
+            lastUpdated={props.orphans.updatedAt}
+            limited={props.orphans.limited}
+            errorMessage={props.orphans.error}
+            QueueList={props.QueueList}
+            QueueActionBlock={props.QueueActionBlock}
+            queueConfig={props.queueActionConfigs.orfaos}
+            updateQueueBatchSize={props.updateQueueBatchSize}
+            actionState={props.actionState}
+          />
+        </div>
+      </div>
     </div>
-  </div>;
+  );
 }

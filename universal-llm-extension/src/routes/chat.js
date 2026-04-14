@@ -25,7 +25,21 @@ function createChatRouter() {
       if (provider === "cloudflare") return res.json(await callCloudflare(enrichedMessages, model || configs.cloudflare.model));
       throw new Error(`Provider desconhecido: ${provider}`);
     } catch (error) {
-      res.status(500).json({ ok: false, error: error?.message || "Falha ao chamar o LLM.", provider });
+      let diagnosis = null;
+      try {
+        diagnosis = await diagnose(provider);
+      } catch {
+        diagnosis = null;
+      }
+      res.status(500).json({
+        ok: false,
+        error: error?.message || "Falha ao chamar o LLM.",
+        provider,
+        target: error?.target || null,
+        status: error?.responseStatus || null,
+        details: error?.responseBody || null,
+        diagnosis,
+      });
     }
   });
 

@@ -4,6 +4,11 @@ const { joinUrl, extractContent, buildProviderError } = require("./utils");
 const { describeAttempt } = require("./provider-diagnostics");
 const { buildProxyTargets, callProxyProvider } = require("./provider-proxy");
 
+function isConnectionError(error) {
+  const raw = String(error?.message || "").toLowerCase();
+  return raw.includes("econnrefused") || raw.includes("socket hang up") || raw.includes("timeout");
+}
+
 async function callLocal(messages, model) {
   const configs = getConfigs();
   let lastError = null;
@@ -12,10 +17,18 @@ async function callLocal(messages, model) {
     try {
       const response = await jsonPost(target, { model, messages, max_tokens: 1400 });
       const content = extractContent(response.body);
-      if (response.status >= 200 && response.status < 300 && content) return { ok: true, provider: "local", model, content, target };
+      if (response.status >= 200 && response.status < 300 && content) {
+        return { ok: true, provider: "local", model, content, target };
+      }
       lastError = buildProviderError("ai-core", target, response);
+      lastError.provider = "local";
+      lastError.target = target;
+      lastError.responseStatus = response.status;
+      lastError.responseBody = response.body;
+      throw lastError;
     } catch (error) {
       lastError = error;
+      if (!isConnectionError(error)) break;
     }
   }
   throw lastError || new Error("Runtime local indisponivel.");

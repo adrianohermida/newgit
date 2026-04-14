@@ -9,12 +9,22 @@ function createAssetsRouter() {
   const router = express.Router();
 
   router.get("/download", (_req, res) => {
-    const zipPath = path.join(DIR, "dist", "universal-llm-assistant-v9.0.0.zip");
-    if (!fs.existsSync(zipPath)) { try { require(path.join(DIR, "build-all.js")); } catch {} }
-    if (!fs.existsSync(zipPath)) return res.status(404).json({ ok: false, error: "Extensao nao empacotada. Execute: npm run build:extension" });
+    const distDir = path.join(DIR, "dist");
+    let zipPath = null;
+    if (fs.existsSync(distDir)) {
+      const found = fs.readdirSync(distDir).find((f) => f.startsWith("universal-llm-assistant-v") && f.endsWith(".zip"));
+      if (found) zipPath = path.join(distDir, found);
+    }
+    if (!zipPath) { try { require(path.join(DIR, "build-all.js")); } catch {} }
+    if (!zipPath) {
+      const retry = fs.existsSync(distDir) ? fs.readdirSync(distDir).find((f) => f.startsWith("universal-llm-assistant-v") && f.endsWith(".zip")) : null;
+      if (retry) zipPath = path.join(distDir, retry);
+    }
+    if (!zipPath || !fs.existsSync(zipPath)) return res.status(404).json({ ok: false, error: "Extensao nao empacotada. Execute: npm run build:extension" });
+    const zipName = path.basename(zipPath);
     const stat = fs.statSync(zipPath);
     res.setHeader("Content-Type", "application/zip");
-    res.setHeader("Content-Disposition", 'attachment; filename="universal-llm-assistant-v9.0.0.zip"');
+    res.setHeader("Content-Disposition", `attachment; filename="${zipName}"`);
     res.setHeader("Content-Length", stat.size);
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Access-Control-Allow-Origin", "*");

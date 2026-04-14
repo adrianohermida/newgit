@@ -98,6 +98,13 @@ export function buildDrainPreview(result) {
 export function buildHistoryPreview(result) {
   if (!result) return "";
   if (result.erro) return String(result.erro);
+  if (typeof result.processosAtualizados === "number") {
+    const parts = [`Monitoramento: ${result.processosAtualizados}`];
+    if (typeof result.crmTagged === "number" && result.crmTagged > 0) parts.push(`tag Datajud adicionada: ${result.crmTagged}`);
+    if (typeof result.crmUntagged === "number" && result.crmUntagged > 0) parts.push(`tag Datajud removida: ${result.crmUntagged}`);
+    if (typeof result.crmErrors === "number" && result.crmErrors > 0) parts.push(`falhas CRM: ${result.crmErrors}`);
+    return parts.join(" | ");
+  }
   if (typeof result.sincronizados === "number") return `Sincronizados: ${result.sincronizados}`;
   if (typeof result.reparados === "number") return `Reparados: ${result.reparados}`;
   if (typeof result.publicacoes === "number") return `Publicacoes processadas: ${result.publicacoes}`;

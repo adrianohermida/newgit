@@ -33,7 +33,8 @@ export async function executeAiTaskRunRemote(props) {
       pushLog({ type: "backend", action: event?.type || "task_run_event", result: `${event?.message || "Evento sem mensagem."}${source ? ` [${source}${model ? ` / ${model}` : ""}]` : ""}` });
     });
     props.lastEventCursorRef.current = normalized.eventsCursor || normalized.events.at(-1)?.id || null;
-    props.lastEventSequenceRef.current = normalized.eventsCursorSequence ?? Number(normalized.events.at(-1)?.seq) || null;
+    const fallbackSequence = Number(normalized.events.at(-1)?.seq || 0) || null;
+    props.lastEventSequenceRef.current = normalized.eventsCursorSequence ?? fallbackSequence;
     if (normalized.eventsTotal != null) setEventsTotal(normalized.eventsTotal); else if (normalized.events.length) setEventsTotal(normalized.events.length);
     if (normalized.steps.length) {
       const mappedTasks = mapTaskRunSteps(normalized.steps, { runId: run?.id || props.localRunId, nowIso, fallbackDescription: "Execucao do backend", normalizeTaskStepStatus: (status) => (status === "ok" ? "done" : status === "fail" ? "failed" : "running"), inferTaskPriority: () => "high", classifyTaskAgent: (step) => step?.tool || "Dotobot" });

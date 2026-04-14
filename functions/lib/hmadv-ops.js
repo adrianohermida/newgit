@@ -8,6 +8,7 @@ import {
   createFreshsalesPublicationActivity,
   freshsalesRequest,
 } from "./freshsales-crm.js";
+import { syncFreshsalesAccountTag } from "./freshsales-account-tags.js";
 
 function jsonOk(payload, status = 200) {
   return new Response(JSON.stringify({ ok: true, ...payload }), {
@@ -4370,6 +4371,22 @@ export async function updateMonitoringStatus(env, { processNumbers = [], active 
       }
       throw error;
     }
+    let freshsalesTag = { skipped: true, reason: "sem_account" };
+    if (proc.account_id_freshsales) {
+      try {
+        freshsalesTag = await syncFreshsalesAccountTag(env, {
+          accountId: proc.account_id_freshsales,
+          tag: "Datajud",
+          active,
+        });
+      } catch (error) {
+        freshsalesTag = {
+          ok: false,
+          changed: false,
+          error: error?.message || "Falha ao sincronizar tag Datajud no Freshsales.",
+        };
+      }
+    }
     updated += 1;
     sample.push({
       processo_id: proc.id,
@@ -4377,12 +4394,21 @@ export async function updateMonitoringStatus(env, { processNumbers = [], active 
       titulo: proc.titulo,
       account_id_freshsales: proc.account_id_freshsales || null,
       monitoramento_ativo: Boolean(active),
+      freshsales_tag: freshsalesTag,
     });
   }
+  const crmTagged = sample.filter((item) => item.freshsales_tag?.action === "tag_added").length;
+  const crmUntagged = sample.filter((item) => item.freshsales_tag?.action === "tag_removed").length;
+  const crmUnchanged = sample.filter((item) => item.freshsales_tag?.changed === false).length;
+  const crmErrors = sample.filter((item) => item.freshsales_tag?.ok === false).length;
   return {
     checkedAt: new Date().toISOString(),
     monitoramento_ativo: Boolean(active),
     processosAtualizados: updated,
+    crmTagged,
+    crmUntagged,
+    crmUnchanged,
+    crmErrors,
     sample,
   };
 }

@@ -26,6 +26,7 @@ function sendReady(reason = "content_script_loaded") {
 
 async function executeBridgeCommand(command, payload = {}) {
   const content = window.LLMAssistantContent;
+  if (!content) return { ok: false, error: "content_not_ready", reason: "content/shared.js ainda nao foi carregado." };
   if (command === "health_check" || command === "ping") {
     return {
       ok: true,
@@ -74,6 +75,7 @@ async function executeBridgeCommand(command, payload = {}) {
 
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   const content = window.LLMAssistantContent;
+  if (!content) return void sendResponse({ ok: false, error: "content_not_ready" });
   if (request.type === "GET_PAGE_TEXT") return void sendResponse({ ok: true, text: (document.body?.innerText || "").substring(0, 8000) });
   if (request.type === "GET_PAGE_META") return void sendResponse({ ok: true, title: document.title || "", url: location.href || "", description: document.querySelector('meta[name="description"]')?.content || "", headings: Array.from(document.querySelectorAll("h1,h2,h3")).slice(0, 10).map((el) => el.innerText.trim()).filter(Boolean) });
   if (request.type === "GET_PAGE_SCAN") return void sendResponse({ ok: true, scan: content.collectPageScan() });

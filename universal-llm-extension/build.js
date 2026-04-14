@@ -24,6 +24,7 @@ const INCLUDE_FILES = [
   "panel/browser.js",
   "panel/chat.js",
   "panel/dom.js",
+  "panel/error-log.js",
   "panel/lists.js",
   "panel/panel.css",
   "panel/settings.js",
@@ -188,7 +189,9 @@ function main() {
   if (!fs.existsSync(DIST_DIR)) fs.mkdirSync(DIST_DIR, { recursive: true });
   const outName = `universal-llm-assistant-v${version}.zip`;
   const outPath = path.join(DIST_DIR, outName);
+  const unpackedDir = path.join(DIST_DIR, `universal-llm-assistant-v${version}`);
   fs.writeFileSync(outPath, zipBuf);
+  syncUnpacked(entries, unpackedDir);
 
   const kb = (zipBuf.length / 1024).toFixed(1);
   console.log(`\n✓ Extensão empacotada: ${outPath}  (${kb} KB)`);
@@ -201,6 +204,16 @@ function main() {
   console.log("  1. Abra edge://extensions");
   console.log("  2. Ative 'Modo do desenvolvedor'");
   console.log("  3. Clique em 'Carregar sem compactação' → selecione a pasta extraída");
+}
+
+function syncUnpacked(entries, outDir) {
+  fs.rmSync(outDir, { recursive: true, force: true });
+  fs.mkdirSync(outDir, { recursive: true });
+  for (const entry of entries) {
+    const target = path.join(outDir, entry.name);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, entry.data);
+  }
 }
 
 main();

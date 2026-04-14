@@ -1,5 +1,9 @@
 import { $, escHtml, renderMarkdown } from "./utils.js";
 import { PROVIDER_META, state } from "./state.js";
+import { renderErrorLog } from "./error-log.js";
+
+const TABS = ["chat", "sessions", "tasks", "automations"];
+const OVERLAYS = ["settings", "errors"];
 
 export function collectElements() {
   return {
@@ -11,16 +15,18 @@ export function collectElements() {
     providerBadge: $("provider-badge"),
     statusDot: $("status-dot"),
     btnSettings: $("btn-settings"),
+    btnErrors: $("btn-errors"),
+    btnCloseSettings: $("btn-close-settings"),
     tabChat: $("tab-chat"),
     tabSessions: $("tab-sessions"),
     tabTasks: $("tab-tasks"),
     tabAutomations: $("tab-automations"),
-    tabSettings: $("tab-settings"),
     paneChat: $("pane-chat"),
     paneSessions: $("pane-sessions"),
     paneTasks: $("pane-tasks"),
     paneAutomations: $("pane-automations"),
     paneSettings: $("pane-settings"),
+    paneErrors: $("pane-errors"),
     btnPageText: $("btn-page-text"),
     btnSelection: $("btn-selection"),
     btnScreenshot: $("btn-screenshot"),
@@ -64,10 +70,26 @@ export function updateStatusDot(el, status) {
 
 export function switchTab(el, tab) {
   state.activeTab = tab;
-  for (const name of ["chat", "sessions", "tasks", "automations", "settings"]) {
+  TABS.forEach((name) => {
     el[`tab${name.charAt(0).toUpperCase() + name.slice(1)}`].classList.toggle("active", name === tab);
     el[`pane${name.charAt(0).toUpperCase() + name.slice(1)}`].style.display = name === tab ? "flex" : "none";
-  }
+  });
+}
+
+export function openOverlay(el, name) {
+  OVERLAYS.forEach((item) => {
+    const pane = el[`pane${item.charAt(0).toUpperCase() + item.slice(1)}`];
+    if (!pane) return;
+    pane.style.display = item === name ? "flex" : "none";
+  });
+  if (name === "errors") renderErrorLog();
+}
+
+export function closeOverlays(el) {
+  OVERLAYS.forEach((item) => {
+    const pane = el[`pane${item.charAt(0).toUpperCase() + item.slice(1)}`];
+    if (pane) pane.style.display = "none";
+  });
 }
 
 export function addMessage(el, role, content) {

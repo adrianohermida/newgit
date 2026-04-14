@@ -68,12 +68,20 @@ export async function callChat(provider, messages) {
   }, 60000);
   const data = await parseJsonResponse(response);
   if (!data.ok) {
+    const failedAttempt = data?.diagnosis?.attempts?.find((item) => !item.ok);
+    const actual = failedAttempt?.summary
+      || data?.error
+      || "Resposta invalida do bridge.";
+    const recommendation = data?.diagnosis?.attempts?.find((item) => !item.ok)?.recommendation
+      || data?.diagnosis?.message
+      || "Revise a configuracao do provider e o retorno bruto do bridge.";
     pushErrorLog({
       scope: `chat.${provider}`,
       title: `Falha no chat com provider ${provider}`,
       expected: "Receber resposta estruturada do bridge /chat",
-      actual: data.error || "Resposta invalida do bridge.",
+      actual,
       trace: "panel/bridge.js -> callChat()",
+      recommendation,
       details: data,
     });
     throw new Error(data.error || "Resposta invalida do bridge.");

@@ -75,7 +75,7 @@ export async function injectSelection(el, addSystemMessage) {
 export async function takeScreenshot(el, addSystemMessage) {
   try {
     const tab = await getActiveTab();
-    const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: "png" });
+    const dataUrl = await chrome.tabs.captureVisibleTab({ format: "png" });
     await fetchJson("/screenshot", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

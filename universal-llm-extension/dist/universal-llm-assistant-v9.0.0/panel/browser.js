@@ -1,5 +1,6 @@
 import { state } from "./state.js";
 import { fetchJson } from "./bridge.js";
+import { pushErrorLog } from "./error-log.js";
 
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -39,6 +40,14 @@ export async function injectPageText(el) {
     ].filter(Boolean).join("\n");
     el.msgInput.focus();
   } catch (error) {
+    pushErrorLog({
+      scope: "browser.read_page",
+      title: "Falha ao ler a pagina ativa",
+      expected: "Extrair titulo, URL e texto da aba atual.",
+      actual: error?.message || "Erro ao acessar DOM da aba.",
+      trace: "panel/browser.js -> injectPageText()",
+      recommendation: "Confirme se a extensao tem permissao nesta origem e recarregue a aba apos atualizar.",
+    });
     throw new Error(`Falha ao ler a pagina ativa: ${error.message}`);
   }
 }
@@ -51,6 +60,14 @@ export async function injectSelection(el, addSystemMessage) {
     el.msgInput.value = `"${selected.slice(0, 1400)}"\n\nExplique, resuma ou use este trecho como contexto operacional.`;
     el.msgInput.focus();
   } catch (error) {
+    pushErrorLog({
+      scope: "browser.selection",
+      title: "Falha ao capturar selecao",
+      expected: "Ler o texto selecionado na aba atual.",
+      actual: error?.message || "Erro ao acessar a selecao atual.",
+      trace: "panel/browser.js -> injectSelection()",
+      recommendation: "Selecione um trecho da pagina e confirme se o content script esta ativo nesta origem.",
+    });
     addSystemMessage(el, `Falha ao capturar a selecao: ${error.message}`);
   }
 }
@@ -58,7 +75,7 @@ export async function injectSelection(el, addSystemMessage) {
 export async function takeScreenshot(el, addSystemMessage) {
   try {
     const tab = await getActiveTab();
-    const dataUrl = await chrome.tabs.captureVisibleTab(null, { format: "png" });
+    const dataUrl = await chrome.tabs.captureVisibleTab({ format: "png" });
     await fetchJson("/screenshot", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -68,6 +85,14 @@ export async function takeScreenshot(el, addSystemMessage) {
     el.msgInput.focus();
     addSystemMessage(el, "Screenshot salvo no bridge.");
   } catch (error) {
+    pushErrorLog({
+      scope: "browser.screenshot",
+      title: "Falha ao capturar screenshot",
+      expected: "Capturar a area visivel e salvar no bridge /screenshot.",
+      actual: error?.message || "Falha ao capturar screenshot.",
+      trace: "panel/browser.js -> takeScreenshot()",
+      recommendation: "Verifique permissao da extensao, disponibilidade do bridge e se a aba atual permite captura.",
+    });
     addSystemMessage(el, `Falha ao capturar screenshot: ${error.message}`);
   }
 }
@@ -92,6 +117,15 @@ export function bindUpload(el, addSystemMessage) {
         el.msgInput.focus();
         addSystemMessage(el, `Arquivo "${file.name}" enviado.`);
       } catch (error) {
+        pushErrorLog({
+          scope: "browser.upload",
+          title: "Falha ao enviar arquivo",
+          expected: "Enviar arquivo ao bridge e receber contexto processado.",
+          actual: error?.message || "Falha no upload do arquivo.",
+          trace: "panel/browser.js -> bindUpload()",
+          recommendation: "Confirme se o bridge local esta online e se o arquivo pode ser lido pelo navegador.",
+          details: { fileName: file.name, mimeType: file.type, sessionId: state.sessionId },
+        });
         addSystemMessage(el, `Falha ao enviar arquivo: ${error.message}`);
       }
     };
@@ -121,6 +155,15 @@ export function bindRecorder(el, addSystemMessage) {
       addSystemMessage(el, `Gravacao salva: ${state.currentAutomation}`);
       state.currentAutomation = null;
     } catch (error) {
+      pushErrorLog({
+        scope: "browser.recording",
+        title: "Falha ao controlar gravacao",
+        expected: "Enviar START_RECORDING/STOP_RECORDING ao content script da aba ativa.",
+        actual: error?.message || "Falha ao controlar gravacao.",
+        trace: "panel/browser.js -> bindRecorder()",
+        recommendation: "Recarregue a aba, confirme a permissao da extensao nesta origem e teste o handshake do content script.",
+        details: { automationId: state.currentAutomation, isRecording: state.isRecording },
+      });
       state.isRecording = false;
       el.btnRecord.textContent = "Gravar";
       el.btnRecord.classList.remove("recording");

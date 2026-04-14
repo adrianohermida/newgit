@@ -240,6 +240,63 @@ registerTest("handleProcessosPost executes sync_supabase_crm directly with loggi
   assert.equal(logs[0].acao, "sync_supabase_crm");
 });
 
+registerTest("handleProcessosPost updates monitoramento with Freshsales tag sync payload", async () => {
+  const logs = [];
+  let receivedPayload = null;
+  const namespace = await loadNamespace("D:/Github/newgit/lib/admin/processos-api-post.js", {
+    "../../functions/lib/hmadv-ops.js": {
+      backfillAudiencias: async () => ({}),
+      createProcessAdminJob: async () => ({}),
+      enrichProcessesViaDatajud: async () => ({}),
+      getProcessAdminJob: async () => null,
+      listAdminJobs: async () => ({ items: [] }),
+      logAdminOperation: async (env, payload) => {
+        logs.push(payload);
+      },
+      processProcessAdminJob: async () => ({}),
+      pushOrphanAccounts: async () => ({}),
+      repairFreshsalesAccounts: async () => ({}),
+      runProcessAudit: async () => ({}),
+      runSyncWorker: async () => ({}),
+      syncMovementActivities: async () => ({}),
+      syncProcessesSupabaseCrm: async () => ({}),
+      syncPublicationActivities: async () => ({}),
+      updateMonitoringStatus: async (env, payload) => {
+        receivedPayload = payload;
+        return { processosAtualizados: 2, crmTagged: 2 };
+      },
+    },
+    "../../functions/lib/hmadv-contacts.js": {
+      reconcilePartesContacts: async () => ({}),
+    },
+    "../../functions/lib/hmadv-runner.js": {
+      drainHmadvQueues: async () => ({}),
+    },
+    "./hmadv-ops.js": {
+      bulkSaveSuggestedRelations: async () => ({}),
+      bulkUpdateProcessRelations: async () => ({}),
+      deleteProcessRelation: async () => ({}),
+      saveProcessRelation: async () => ({}),
+    },
+    "./processos-api-shared.js": {
+      parseProcessNumbers: (value) => String(value || "").split(/\r?\n|,|;/).map((item) => item.trim()).filter(Boolean),
+    },
+  });
+
+  const response = await namespace.handleProcessosPost({
+    action: "monitoramento_status",
+    processNumbers: "111\n222",
+    limit: 2,
+    active: true,
+  });
+
+  assert.equal(response.ok, true);
+  assert.equal(response.data.processosAtualizados, 2);
+  assert.equal(receivedPayload.active, true);
+  assert.deepEqual(receivedPayload.processNumbers, ["111", "222"]);
+  assert.equal(logs[0].acao, "monitoramento_status");
+});
+
 async function run() {
   let failures = 0;
   for (const entry of tests) {
