@@ -14,8 +14,8 @@ export function buildPanelMarkup() {
       <div class="header-right">
         <span id="provider-badge"></span>
         <span id="status-dot" class="status-dot"></span>
-        <button id="btn-errors" class="icon-btn" title="Ver erros">Log</button>
-        <button id="btn-settings" class="icon-btn" title="Configuracoes">Cfg</button>
+        <button id="btn-errors" class="icon-btn" title="Ver erros">!</button>
+        <button id="btn-settings" class="icon-btn" title="Configuracoes">⚙</button>
       </div>
     </div>
     <div class="tabs">

@@ -25,12 +25,12 @@ function sleep(ms) {
 function listLingeringNextProcessIds() {
   try {
     if (os.platform() === 'win32') {
-      const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -Command "$current = ${process.pid}; Get-CimInstance Win32_Process -Filter \"name = 'node.exe'\" | Where-Object { $_.ProcessId -ne $current -and $_.CommandLine -and ( $_.CommandLine -like '*guard-next-build-lock.cjs*' -or $_.CommandLine -match 'next\\\\dist\\\\bin\\\\next\"?\\s+build(\\s|$)' -or $_.CommandLine -like '*\\\\.next\\\\build\\\\postcss.js*' ) } | Select-Object -ExpandProperty ProcessId"`;
+      const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -Command "$current = ${process.pid}; Get-CimInstance Win32_Process -Filter \"name = 'node.exe'\" | Where-Object { $_.ProcessId -ne $current -and $_.CommandLine -and ( $_.CommandLine -like '*guard-next-build-lock.cjs*' -or $_.CommandLine -match 'next\\\\dist\\\\bin\\\\next\"?\\s+build(\\s|$)' -or $_.CommandLine -match 'npx(?:-cli)?\\.js\"?\\s+next\\s+build(\\s|$)' -or $_.CommandLine -like '*\\\\.next\\\\build\\\\postcss.js*' ) } | Select-Object -ExpandProperty ProcessId"`;
       const out = execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
       return out ? out.split(/\s+/).map((value) => Number(value)).filter(Boolean) : [];
     }
 
-    const out = execSync("ps -ax -o pid=,command= | grep -E 'guard-next-build-lock\\.cjs|next(.+)?dist/bin/next build|/\\.next/build/postcss\\.js' | grep -v grep", {
+    const out = execSync("ps -ax -o pid=,command= | grep -E 'guard-next-build-lock\\.cjs|next(.+)?dist/bin/next build|npx(.+)? next build|/\\.next/build/postcss\\.js' | grep -v grep", {
       stdio: ['ignore', 'pipe', 'ignore'],
       shell: '/bin/sh',
     }).toString().trim();

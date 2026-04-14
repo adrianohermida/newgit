@@ -6,11 +6,13 @@ import { bindRecorder, bindUpload, injectPageText, injectSelection, takeScreensh
 import { renderAutomations, renderSessions, renderTasks } from "./panel/lists.js";
 import { checkBridge, testProvider } from "./panel/bridge.js";
 import { fillSettingsInputs, hydrateSettings, loadSettings, saveSettings } from "./panel/settings.js";
-import { renderErrorLog } from "./panel/error-log.js";
+import { installGlobalErrorHandlers, loadErrorLog, renderErrorLog } from "./panel/error-log.js";
 
 async function initPanel() {
+  installGlobalErrorHandlers();
   document.getElementById("app").innerHTML = buildPanelMarkup();
   const el = collectElements();
+  await loadErrorLog();
   await loadSettings(el);
   bindChat(el, addMessage, addSystemMessage, renderTasks);
   bindUpload(el, addSystemMessage);
