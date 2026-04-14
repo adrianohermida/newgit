@@ -129,12 +129,12 @@ $resolvedObsidianVaultPath = Resolve-ObsidianVaultPath @(
 $resolvedAnonKey = if ($localSupabaseStatusEnv -and $localSupabaseStatusEnv.ContainsKey("ANON_KEY")) {
   [string]$localSupabaseStatusEnv["ANON_KEY"]
 } else {
-  "<anon-local>"
+  ""
 }
 $resolvedServiceRoleKey = if ($localSupabaseStatusEnv -and $localSupabaseStatusEnv.ContainsKey("SERVICE_ROLE_KEY")) {
   [string]$localSupabaseStatusEnv["SERVICE_ROLE_KEY"]
 } else {
-  "<service-role-local>"
+  ""
 }
 
 $envLines = @()

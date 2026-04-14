@@ -25,6 +25,38 @@ function First-Value([string[]]$Candidates) {
   return ""
 }
 
+function Import-LocalEnvFile([string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path)) { return }
+  Get-Content -LiteralPath $Path | ForEach-Object {
+    $line = $_.Trim()
+    if (-not $line -or $line.StartsWith('#')) { return }
+    $parts = $line.Split('=', 2)
+    if ($parts.Count -ne 2) { return }
+    $name = $parts[0].Trim()
+    $value = $parts[1].Trim().Trim('"').Trim("'")
+    if (-not $name) { return }
+    $existingValue = [Environment]::GetEnvironmentVariable($name, "Process")
+    if ([string]::IsNullOrWhiteSpace([string]$existingValue)) {
+      Set-Item -Path "Env:$name" -Value $value
+    }
+  }
+}
+
+function Resolve-ExistingPath([string[]]$Candidates) {
+  foreach ($candidate in $Candidates) {
+    if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+    $trimmed = $candidate.Trim()
+    if (Test-Path -LiteralPath $trimmed) {
+      return $trimmed
+    }
+  }
+  return ""
+}
+
+Import-LocalEnvFile (Join-Path $root ".local.supabase.env")
+Import-LocalEnvFile (Join-Path $root ".env.offline-local")
+Import-LocalEnvFile (Join-Path $root ".dev.vars")
+
 function Test-PortAvailable([int]$CandidatePort) {
   try {
     $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $CandidatePort)
@@ -74,12 +106,24 @@ $env:LAWDESK_OFFLINE_MODE = First-Value @($env:LAWDESK_OFFLINE_MODE, $resolvedOf
 $env:NEXT_PUBLIC_LAWDESK_OFFLINE_MODE = First-Value @($env:NEXT_PUBLIC_LAWDESK_OFFLINE_MODE, $resolvedOffline)
 $env:AICORE_OFFLINE_MODE = First-Value @($env:AICORE_OFFLINE_MODE, $resolvedOffline)
 $env:AI_CORE_DEFAULT_PROVIDER = First-Value @($env:AI_CORE_DEFAULT_PROVIDER, "local")
+$resolvedVaultPath = Resolve-ExistingPath @(
+  $env:DOTOBOT_OBSIDIAN_VAULT_PATH,
+  $env:LAWDESK_OBSIDIAN_VAULT_PATH,
+  $env:OBSIDIAN_VAULT_PATH,
+  "D:\Obsidian\hermidamaia",
+  "D:\Obsidian"
+)
+if (-not [string]::IsNullOrWhiteSpace($resolvedVaultPath)) {
+  $env:DOTOBOT_OBSIDIAN_VAULT_PATH = $resolvedVaultPath
+  $env:UNIVERSAL_LLM_DEFAULT_BASE_PATH = First-Value @($env:UNIVERSAL_LLM_DEFAULT_BASE_PATH, $resolvedVaultPath)
+}
 
 Write-Host "AI Core local"
 Write-Host "  AICORE_API_BASE_URL=$resolvedAiCoreBaseUrl"
 Write-Host "  LOCAL_LLM_BASE_URL=$resolvedLocalLlmBaseUrl"
 Write-Host "  LOCAL_LLM_MODEL=$resolvedLocalLlmModel"
 Write-Host "  OFFLINE_MODE=$($env:AICORE_OFFLINE_MODE)"
+Write-Host "  OBSIDIAN_VAULT=$resolvedVaultPath"
 Write-Host "  PORT=$resolvedPort"
 if ($resolvedPort -ne $Port) {
   Write-Host "  FALLBACK_PORT=$resolvedPort (porta preferida $Port ocupada)"
@@ -96,6 +140,12 @@ if ($resolvedPort -ne $Port) {
   NEXT_PUBLIC_LAWDESK_OFFLINE_MODE = $env:NEXT_PUBLIC_LAWDESK_OFFLINE_MODE
   AICORE_OFFLINE_MODE = $env:AICORE_OFFLINE_MODE
   AI_CORE_DEFAULT_PROVIDER = $env:AI_CORE_DEFAULT_PROVIDER
+  DOTOBOT_OBSIDIAN_VAULT_PATH = $env:DOTOBOT_OBSIDIAN_VAULT_PATH
+  UNIVERSAL_LLM_DEFAULT_BASE_PATH = $env:UNIVERSAL_LLM_DEFAULT_BASE_PATH
+  SUPABASE_URL = $env:SUPABASE_URL
+  NEXT_PUBLIC_SUPABASE_URL = $env:NEXT_PUBLIC_SUPABASE_URL
+  SUPABASE_SERVICE_ROLE_KEY = $(if ($env:SUPABASE_SERVICE_ROLE_KEY) { "[set]" } else { "" })
+  NEXT_PUBLIC_SUPABASE_ANON_KEY = $(if ($env:NEXT_PUBLIC_SUPABASE_ANON_KEY) { "[set]" } else { "" })
 } | ConvertTo-Json -Depth 4) | Set-Content -Path $envSnapshotPath -Encoding UTF8
 
 Push-Location $aiCore

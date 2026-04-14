@@ -8,6 +8,7 @@ function describeAttempt(attempt, hint) {
 function classifyAttempt(attempt, hint) {
   const raw = String(attempt?.rawSnippet || attempt?.error || "").toLowerCase();
   const errorType = String(attempt?.body?.errorType || "").toLowerCase();
+  const bodyError = String(attempt?.body?.error || "").toLowerCase();
   const detail = String(attempt?.body?.detail || "").toLowerCase();
   const apiErrors = Array.isArray(attempt?.body?.errors) ? attempt.body.errors : [];
   const apiMessage = String(apiErrors[0]?.message || "").toLowerCase();
@@ -68,12 +69,19 @@ function classifyAttempt(attempt, hint) {
       recommendation: "Revise o API Token usado pelo bridge/extensao. Se houver .dev.vars local, confirme se as credenciais persistidas no settings da extensao nao estao desatualizadas.",
     };
   }
+  if (apiErrors[0]?.code === 4006 || bodyError.includes("cloudflare_ai_quota_exceeded") || apiMessage.includes("daily free allocation")) {
+    return {
+      issue: "quota_exceeded",
+      summary: "A cota disponivel do Cloudflare Workers AI foi esgotada neste ambiente.",
+      recommendation: "Aguarde a renovacao da franquia diaria ou mova a conta para plano pago antes de continuar usando o provider Cloudflare/custom baseado em Workers AI.",
+    };
+  }
   if (detail.includes("model") && detail.includes("not found")) {
     return {
       issue: "model_not_found",
       summary: "O servico respondeu, mas o modelo configurado nao existe neste runtime.",
       recommendation: attemptUrl.includes(":8000")
-        ? "O ai-core respondeu, mas o runtime local configurado por tras dele nao tem esse modelo carregado. Revise LOCAL_LLM_MODEL e confira o catalogo exposto pelo runtime em 11434."
+        ? "O ai-core respondeu, mas o runtime local configurado por tras dele nao tem esse modelo carregado. Revise LOCAL_LLM_MODEL e confira o catalogo exposto pelo runtime local informado no health do ai-core."
         : "Revise o nome do modelo configurado para este provider.",
     };
   }

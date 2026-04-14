@@ -17,13 +17,14 @@ function RichText({ text, isLightTheme }) {
     }
 
     const lines = block.split("\n").filter(Boolean);
-    const bulletLines = lines.filter((line) => /^[-*•]\s+/.test(line.trim()));
+    const bulletPattern = /^(?:[-*]|\u2022)\s+/;
+    const bulletLines = lines.filter((line) => bulletPattern.test(line.trim()));
     if (bulletLines.length >= 2 && bulletLines.length === lines.length) {
       return (
         <ul key={`list-${index}`} className="space-y-2 pl-5">
           {bulletLines.map((line, lineIndex) => (
             <li key={`line-${index}-${lineIndex}`} className="leading-7">
-              {line.trim().replace(/^[-*•]\s+/, "")}
+              {line.trim().replace(bulletPattern, "")}
             </li>
           ))}
         </ul>
@@ -67,18 +68,12 @@ export default function DotobotMessageBubble({ isTyping = false, message, onActi
     <article className={`${bubbleWrapperClass} rounded-[22px] border px-4 py-4 text-sm transition-all duration-200 ease-out hover:-translate-y-[1px] ${isLightTheme ? "hover:shadow-[0_18px_40px_rgba(148,163,184,0.14)]" : "hover:shadow-[0_18px_40px_rgba(0,0,0,0.24)]"} ${bubbleTone}`}>
       <div className="flex items-center justify-between gap-3">
         <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isUser ? (isLightTheme ? "text-[#6B7C88]" : "text-[#A9B8B3]") : (isLightTheme ? "text-[#2F6FDF]" : "text-[#8DB8FF]")}`}>{label}</p>
-        {message?.createdAt ? (
-          <span className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
-            {new Date(message.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-          </span>
-        ) : null}
+        {message?.createdAt ? <span className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{new Date(message.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span> : null}
       </div>
-
       <div className="mt-3 space-y-3">
         {isTyping ? <p className={isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}>Digitando...</p> : <RichText text={message?.text || ""} isLightTheme={isLightTheme} />}
         {media.length ? <div className="flex flex-wrap gap-3">{renderMedia(media)}</div> : null}
       </div>
-
       {!isTyping && (isAssistant || isSystem) ? (
         <div className={`mt-4 flex flex-wrap gap-2 border-t pt-3 text-[11px] ${isLightTheme ? "border-[#E5EAF1]" : "border-[#22342F]"}`}>
           {Array.isArray(message?.actions) ? message.actions.map((action) => (

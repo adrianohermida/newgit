@@ -35,9 +35,16 @@ from .obsidian_adapter import ObsidianMatch, ObsidianRagContext
 # Configuration helpers
 # ---------------------------------------------------------------------------
 
+_PLACEHOLDER_MARKERS = ('<', 'changeme', 'placeholder', 'anon-local', 'service-role-local')
+
 def _env(key: str) -> str | None:
     val = os.getenv(key, '').strip()
-    return val or None
+    if not val:
+        return None
+    lowered = val.lower()
+    if any(marker in lowered for marker in _PLACEHOLDER_MARKERS):
+        return None
+    return val
 
 
 def _get_supabase_url() -> str | None:

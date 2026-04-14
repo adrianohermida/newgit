@@ -1,5 +1,5 @@
 ﻿{
-    "checkedAt":  "2026-04-14T01:35:57.0301635-03:00",
+    "checkedAt":  "2026-04-14T06:00:24.0052068-03:00",
     "AICORE_API_BASE_URL":  "http://127.0.0.1:8000",
     "LOCAL_LLM_BASE_URL":  "http://127.0.0.1:11434",
     "LLM_BASE_URL":  "http://127.0.0.1:11434",
@@ -8,5 +8,11 @@
     "LAWDESK_OFFLINE_MODE":  "true",
     "NEXT_PUBLIC_LAWDESK_OFFLINE_MODE":  "true",
     "AICORE_OFFLINE_MODE":  "true",
-    "AI_CORE_DEFAULT_PROVIDER":  "local"
+    "AI_CORE_DEFAULT_PROVIDER":  "local",
+    "DOTOBOT_OBSIDIAN_VAULT_PATH":  "D:\\Obsidian\\hermidamaia",
+    "UNIVERSAL_LLM_DEFAULT_BASE_PATH":  "D:\\Obsidian\\hermidamaia",
+    "SUPABASE_URL":  "http://127.0.0.1:54321",
+    "NEXT_PUBLIC_SUPABASE_URL":  "http://127.0.0.1:54321",
+    "SUPABASE_SERVICE_ROLE_KEY":  "[set]",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY":  ""
 }

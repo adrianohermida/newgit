@@ -149,6 +149,27 @@ class ApiServerTests(unittest.TestCase):
         self.assertIn('modo seguro ativo', payload['content'][0]['text'].lower())
         self.assertNotIn('NotebookEditTool', payload['content'][0]['text'])
 
+    def test_messages_json_falls_back_to_local_context_when_model_is_not_found(self) -> None:
+        with patch('api.server._json_request') as mocked_request, patch('api.server._json_get_request') as mocked_get:
+            mocked_request.side_effect = RuntimeError("model 'aetherlab-legal-local-v1' not found")
+            mocked_get.return_value = {
+                'object': 'list',
+                'data': None,
+            }
+
+            payload = messages_json(
+                {
+                    'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'prazo recurso'}]}],
+                    'model': 'aetherlab-legal-local-v1',
+                },
+                env={'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:11434'},
+            )
+
+        self.assertEqual(payload['metadata']['provider'], 'local')
+        self.assertEqual(payload['metadata']['route'], 'degraded_execute_fallback')
+        self.assertTrue(payload['metadata']['degraded'])
+        self.assertIn('provider local', payload['content'][0]['text'].lower())
+
     def test_messages_json_routes_to_cloud_provider_when_requested(self) -> None:
         with patch('api.server._json_request') as mocked_request:
             mocked_request.return_value = {
@@ -295,6 +316,22 @@ class ApiServerTests(unittest.TestCase):
         self.assertEqual(capabilities['persistence']['mode'], 'remote_blocked_offline')
         self.assertTrue(capabilities['persistence']['remote_blocked'])
         self.assertEqual(health_payload['capabilities']['persistence']['base_url_kind'], 'remote')
+
+    def test_persistence_ignores_placeholder_supabase_keys(self) -> None:
+        env = {
+            'AICORE_OFFLINE_MODE': 'true',
+            'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:8000',
+            'SUPABASE_URL': 'http://127.0.0.1:54321',
+            'SUPABASE_SERVICE_ROLE_KEY': '<service-role-local>',
+            'NEXT_PUBLIC_SUPABASE_ANON_KEY': '<anon-local>',
+        }
+
+        capabilities = capabilities_json(env)
+        health_payload = health(env)
+
+        self.assertEqual(capabilities['persistence']['mode'], 'local_structured_partial')
+        self.assertFalse(capabilities['persistence']['structured_configured'])
+        self.assertFalse(health_payload['persistence']['local_ready'])
 
     def test_offline_mode_blocks_cloud_provider(self) -> None:
         env = {

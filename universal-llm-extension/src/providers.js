@@ -15,6 +15,29 @@ function buildCloudflareRunUrl(accountId, model) {
   return `https://api.cloudflare.com/client/v4/accounts/${normalizedAccountId}/ai/run/${normalizedModel}`;
 }
 
+function getRuntimeCatalogUrls(runtimeEndpoint) {
+  const endpoint = String(runtimeEndpoint || "").trim();
+  if (!endpoint) return [];
+  const base = endpoint.replace(/\/v1\/chat\/completions$/i, "");
+  return endpoint.includes("/v1/chat/completions")
+    ? [{ url: joinUrl(base, "/v1/models"), parser: "openai" }]
+    : [{ url: joinUrl(base, "/api/tags"), parser: "ollama" }];
+}
+
+function parseCatalogProbe(probe, parser) {
+  if (!probe?.ok) return null;
+  if (parser === "openai") {
+    const models = Array.isArray(probe?.body?.data) ? probe.body.data : null;
+    return Array.isArray(models)
+      ? models.map((item) => item?.id || item?.model || item?.name || null).filter(Boolean)
+      : [];
+  }
+  const models = Array.isArray(probe?.body?.models) ? probe.body.models : null;
+  return Array.isArray(models)
+    ? models.map((item) => item?.name || item?.model || item?.id || null).filter(Boolean)
+    : [];
+}
+
 // ─── Chamadas LLM ─────────────────────────────────────────────────────────────
 
 async function callLocal(messages, model) {
@@ -26,7 +49,15 @@ async function callLocal(messages, model) {
       const response = await jsonPost(target, { model, messages, max_tokens: 1400 });
       const content = extractContent(response.body);
       if (response.status >= 200 && response.status < 300 && content) {
-        return { ok: true, provider: "local", model, content, target };
+        return {
+          ok: true,
+          provider: "local",
+          model,
+          content,
+          target,
+          metadata: response.body?.metadata || null,
+          degraded: Boolean(response.body?.metadata?.degraded),
+        };
       }
       lastError = buildProviderError("ai-core", target, response);
       lastError.provider = "local";
@@ -182,8 +213,9 @@ async function diagnose(provider) {
   const attempts = [];
   for (const test of tests) {
     try {
+      const timeoutMs = provider === "local" ? 20000 : 8000;
       attempts.push(describeAttempt(
-        await probeJsonEndpoint(test.url, test.body, test.headers || {}, { timeoutMs: 8000 }),
+        await probeJsonEndpoint(test.url, test.body, test.headers || {}, { timeoutMs }),
         test.hint,
       ));
     } catch (error) {
@@ -239,6 +271,7 @@ async function diagnose(provider) {
 async function enrichLocalCatalogDiagnosis(configs, attempts) {
   const modelNotFoundAttempt = attempts.find((item) => item.issue === "model_not_found");
   if (!modelNotFoundAttempt) return;
+  let runtimeCatalogUrls = [];
   const aiCoreAttempt = attempts.find((item) => item.url === joinUrl(configs.local.candidates[0], "/v1/messages"));
   if (aiCoreAttempt) {
     const healthInsight = await readAiCoreLocalInsight(configs.local.candidates);
@@ -247,6 +280,7 @@ async function enrichLocalCatalogDiagnosis(configs, attempts) {
       const runtimeEndpoint = String(healthInsight.providerDiagnostics.transport_endpoint || "").trim();
       if (runtimeEndpoint) {
         modelNotFoundAttempt.runtimeEndpoint = runtimeEndpoint;
+        runtimeCatalogUrls = getRuntimeCatalogUrls(runtimeEndpoint);
       }
       if (healthInsight.issue === "runtime_model_unavailable") {
         modelNotFoundAttempt.issue = "runtime_model_unavailable";
@@ -260,23 +294,28 @@ async function enrichLocalCatalogDiagnosis(configs, attempts) {
       }
     }
   }
-  for (const baseUrl of configs.local.runtimeCatalogCandidates || []) {
-    const tagsUrl = joinUrl(baseUrl, "/api/tags");
+  const fallbackCatalogUrls = (configs.local.runtimeCatalogCandidates || []).flatMap((baseUrl) => ([
+    { url: joinUrl(baseUrl, "/v1/models"), parser: "openai" },
+    { url: joinUrl(baseUrl, "/api/tags"), parser: "ollama" },
+  ]));
+  const catalogTargets = [...runtimeCatalogUrls, ...fallbackCatalogUrls]
+    .filter((item, index, list) => item?.url && list.findIndex((entry) => entry.url === item.url) === index);
+  for (const target of catalogTargets) {
     try {
-      const probe = await probeJsonGetEndpoint(tagsUrl, {}, { timeoutMs: 5000 });
-      const models = Array.isArray(probe?.body?.models) ? probe.body.models : [];
-      if (probe.ok && models.length === 0) {
+      const probe = await probeJsonGetEndpoint(target.url, {}, { timeoutMs: 5000 });
+      const models = parseCatalogProbe(probe, target.parser);
+      if (probe.ok && models && models.length === 0) {
         modelNotFoundAttempt.issue = "runtime_catalog_empty";
         modelNotFoundAttempt.summary = "O ai-core respondeu, mas o catalogo do runtime local esta vazio.";
-        modelNotFoundAttempt.recommendation = "Suba ou carregue um modelo no runtime local (porta 11434) antes de usar o alias aetherlab-legal-local-v1.";
-        modelNotFoundAttempt.runtimeCatalog = { url: tagsUrl, count: 0, models: [] };
+        modelNotFoundAttempt.recommendation = `Suba ou carregue um modelo no runtime local (${target.url}) antes de usar o alias ${configs.local.model}.`;
+        modelNotFoundAttempt.runtimeCatalog = { url: target.url, count: 0, models: [] };
         return;
       }
-      if (probe.ok && models.length > 0) {
+      if (probe.ok && models && models.length > 0) {
         modelNotFoundAttempt.runtimeCatalog = {
-          url: tagsUrl,
+          url: target.url,
           count: models.length,
-          models: models.map((item) => item?.name || item?.model || item?.id || String(item)).filter(Boolean),
+          models,
         };
         return;
       }

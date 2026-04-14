@@ -80,6 +80,40 @@ function json(data: unknown, status = 200) {
   });
 }
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'string') return error;
+  return String(error ?? 'unknown_error');
+}
+
+function buildAiFailure(error: unknown) {
+  const detail = getErrorMessage(error);
+  const normalized = detail.toLowerCase();
+  if (normalized.includes('daily free allocation') || normalized.includes('4006') || normalized.includes('quota')) {
+    return {
+      status: 429,
+      code: 'cloudflare_ai_quota_exceeded',
+      detail,
+    };
+  }
+  return {
+    status: 502,
+    code: 'cloudflare_ai_failed',
+    detail,
+  };
+}
+
+async function runAi(env: Env, model: string, payload: Json) {
+  try {
+    return await env.AI.run(model, payload);
+  } catch (error) {
+    const failure = buildAiFailure(error);
+    const wrapped = new Error(failure.detail);
+    Object.assign(wrapped, failure);
+    throw wrapped;
+  }
+}
+
 function bearer(req: Request) {
   const raw = req.headers.get('authorization') ?? '';
   return raw.startsWith('Bearer ') ? raw.slice(7) : '';
@@ -194,7 +228,7 @@ async function withVectorizeRetry<T>(operation: () => Promise<T>, maxRetries = 2
 
 async function runJson(env: Env, prompt: string) {
   const model = resolveChatModel(env);
-  const result = await env.AI.run(model, {
+  const result = await runAi(env, model, {
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: prompt },
@@ -243,7 +277,7 @@ async function runConversation(env: Env, query: string, context: Json) {
 
   const prompt = buildConversationPrompt(query, context, retrievedContext);
   const model = resolveChatModel(env);
-  const result = await env.AI.run(model, {
+  const result = await runAi(env, model, {
     messages: [
       { role: 'system', content: CONVERSATION_SYSTEM_PROMPT },
       { role: 'user', content: prompt },
@@ -378,7 +412,7 @@ async function runCompatibleMessagesApi(env: Env, body: Json | null) {
     metadata_json: JSON.stringify({ retrieved_context_count: retrievedContext.length }),
   }).catch(() => null);
 
-  const result = await env.AI.run(model, {
+  const result = await runAi(env, model, {
     messages: [
       {
         role: 'system',
@@ -431,7 +465,7 @@ function getEmbeddingModel(env: Env) {
 }
 
 async function runEmbedding(env: Env, text: string) {
-  const result = await env.AI.run(getEmbeddingModel(env), {
+  const result = await runAi(env, getEmbeddingModel(env), {
     text: [text],
   });
   const vector =
@@ -1016,61 +1050,75 @@ async function reconcileRows(env: Env, processos: Json[]) {
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
-    const denied = assertSecret(req, env);
-    if (denied) return denied;
+    try {
+      const denied = assertSecret(req, env);
+      if (denied) return denied;
 
-    const url = new URL(req.url);
-    if (req.method === 'GET' && url.pathname === '/health') {
-      const sharedSecretConfigured = Boolean(getSharedSecret(env));
-      return json({
-        ok: true,
-        service: 'hmadv-process-ai',
-        now: new Date().toISOString(),
-        routes: ['/health', '/execute', '/v1/execute', '/v1/messages', '/analyze/activity', '/analyze/process', '/cron/reconcile', '/reconcile/process'],
-        auth_configured: sharedSecretConfigured,
-        vectorize: Boolean(env.VECTORIZE),
-        analytics_engine: Boolean(env.ANALYTICS_ENGINE),
-        kv: Boolean(env.CLOUDFLARE_KV_NAMESPACE),
-        d1: Boolean(env.hmadv_process_ai),
-        r2: Boolean(env.hmadv_process_ai_logs),
-        embedding_model: getEmbeddingModel(env),
-        r2_account_id: Boolean(env.CLOUDFLARE_R2_ACCOUNT_ID),
-        s3_api_configured: Boolean(env.CLOUDFLARE_S3_API),
+      const url = new URL(req.url);
+      if (req.method === 'GET' && url.pathname === '/health') {
+        const sharedSecretConfigured = Boolean(getSharedSecret(env));
+        return json({
+          ok: true,
+          service: 'hmadv-process-ai',
+          now: new Date().toISOString(),
+          routes: ['/health', '/execute', '/v1/execute', '/v1/messages', '/analyze/activity', '/analyze/process', '/cron/reconcile', '/reconcile/process'],
+          auth_configured: sharedSecretConfigured,
+          vectorize: Boolean(env.VECTORIZE),
+          analytics_engine: Boolean(env.ANALYTICS_ENGINE),
+          kv: Boolean(env.CLOUDFLARE_KV_NAMESPACE),
+          d1: Boolean(env.hmadv_process_ai),
+          r2: Boolean(env.hmadv_process_ai_logs),
+          embedding_model: getEmbeddingModel(env),
+          r2_account_id: Boolean(env.CLOUDFLARE_R2_ACCOUNT_ID),
+          s3_api_configured: Boolean(env.CLOUDFLARE_S3_API),
+        });
+      }
+      if (req.method === 'POST' && isExecutePath(url.pathname)) {
+        const body = (await parseBody(req)) as Json | null;
+        const query = String(body?.query ?? '').trim();
+        if (!query) {
+          return json({ ok: false, error: 'query_required' }, 400);
+        }
+        const context = (body?.context && typeof body.context === 'object' ? body.context : {}) as Json;
+        return json(await runConversation(env, query, context));
+      }
+      if (req.method === 'POST' && isMessagesPath(url.pathname)) {
+        const body = (await parseBody(req)) as Json | null;
+        return runCompatibleMessagesApi(env, body);
+      }
+      if (req.method === 'POST' && url.pathname === '/analyze/activity') {
+        return analyzeActivity(req, env);
+      }
+      if (req.method === 'POST' && url.pathname === '/analyze/process') {
+        return analyzeProcess(req, env);
+      }
+      if (req.method === 'POST' && url.pathname === '/cron/reconcile') {
+        const body = (await parseBody(req)) as Json | null;
+        const limit = Number(body?.limit ?? 20);
+        return json(await reconcile(env, Math.max(1, Math.min(limit, 50))));
+      }
+      if (req.method === 'POST' && url.pathname === '/reconcile/process') {
+        const body = (await parseBody(req)) as Json | null;
+        const processoId = String(body?.processo_id ?? '').trim();
+        if (!processoId) {
+          return json({ ok: false, error: 'processo_id_required' }, 400);
+        }
+        return json(await reconcileSingle(env, processoId));
+      }
+      return json({ ok: false, error: 'not_found' }, 404);
+    } catch (error) {
+      const status = Number((error as { status?: number })?.status || 500);
+      const code = String((error as { code?: string })?.code || 'worker_exception');
+      const detail = getErrorMessage(error);
+      console.error('[hmadv-process-ai] request failed', {
+        method: req.method,
+        url: req.url,
+        status,
+        code,
+        detail,
       });
+      return json({ ok: false, error: code, detail }, status);
     }
-    if (req.method === 'POST' && isExecutePath(url.pathname)) {
-      const body = (await parseBody(req)) as Json | null;
-      const query = String(body?.query ?? '').trim();
-      if (!query) {
-        return json({ ok: false, error: 'query_required' }, 400);
-      }
-      const context = (body?.context && typeof body.context === 'object' ? body.context : {}) as Json;
-      return json(await runConversation(env, query, context));
-    }
-    if (req.method === 'POST' && isMessagesPath(url.pathname)) {
-      const body = (await parseBody(req)) as Json | null;
-      return runCompatibleMessagesApi(env, body);
-    }
-    if (req.method === 'POST' && url.pathname === '/analyze/activity') {
-      return analyzeActivity(req, env);
-    }
-    if (req.method === 'POST' && url.pathname === '/analyze/process') {
-      return analyzeProcess(req, env);
-    }
-    if (req.method === 'POST' && url.pathname === '/cron/reconcile') {
-      const body = (await parseBody(req)) as Json | null;
-      const limit = Number(body?.limit ?? 20);
-      return json(await reconcile(env, Math.max(1, Math.min(limit, 50))));
-    }
-    if (req.method === 'POST' && url.pathname === '/reconcile/process') {
-      const body = (await parseBody(req)) as Json | null;
-      const processoId = String(body?.processo_id ?? '').trim();
-      if (!processoId) {
-        return json({ ok: false, error: 'processo_id_required' }, 400);
-      }
-      return json(await reconcileSingle(env, processoId));
-    }
-    return json({ ok: false, error: 'not_found' }, 404);
   },
 
   async scheduled(_controller: ScheduledController, env: Env) {

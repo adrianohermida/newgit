@@ -7,7 +7,7 @@ export default function useAiTaskRagHealth({ localStackSummary, pushLog }) {
 
   useEffect(() => {
     let active = true;
-    adminFetch("/api/admin-dotobot-rag-health?include_upsert=0", { method: "GET" })
+    adminFetch("/api/admin-dotobot-rag-health?include_upsert=0", { method: "GET" }, { allowFailurePayload: true })
       .then((payload) => {
         if (active) setRagHealth(payload || null);
       })

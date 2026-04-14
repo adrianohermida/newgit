@@ -24,7 +24,7 @@ export default function useAiTaskProviderCatalog(props) {
 
   useEffect(() => {
     let active = true;
-    adminFetch("/api/admin-lawdesk-providers?include_health=1", { method: "GET" })
+    adminFetch("/api/admin-lawdesk-providers?include_health=1", { method: "GET" }, { allowFailurePayload: true })
       .then((payload) => {
         if (!active) return;
         const providers = Array.isArray(payload?.data?.providers) ? payload.data.providers : [];

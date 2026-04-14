@@ -77,7 +77,7 @@ async function probeJsonEndpoint(url, body, headers = {}, options = {}) {
     };
   }
   return {
-    ok: result.status >= 200 && result.status < 300,
+    ok: result.status >= 200 && result.status < 300 && result.body?.ok !== false,
     status: result.status,
     url,
     contentType: String(result.headers?.["content-type"] || ""),
@@ -98,7 +98,7 @@ async function probeJsonGetEndpoint(url, headers = {}, options = {}) {
     };
   }
   return {
-    ok: result.status >= 200 && result.status < 300,
+    ok: result.status >= 200 && result.status < 300 && result.body?.ok !== false,
     status: result.status,
     url,
     contentType: String(result.headers?.["content-type"] || ""),

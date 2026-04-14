@@ -11,6 +11,7 @@ from core.coordinator import Coordinator
 from core.command_graph import build_command_graph
 from core.commands import build_command_backlog, get_executable_commands
 from adapters.obsidian_adapter import get_local_vector_index_config, search_obsidian_context
+from adapters.supabase_rag_adapter import is_configured as supabase_rag_is_configured, search_supabase_context
 
 
 _MAX_QUERY_LENGTH = 8_000
@@ -183,6 +184,13 @@ def _get_clean(value: Any) -> str | None:
     return text
 
 
+def _is_placeholder_config(value: Any) -> bool:
+    text = str(value or '').strip().lower()
+    if not text:
+        return True
+    return any(marker in text for marker in ('<', 'changeme', 'placeholder', 'anon-local', 'service-role-local'))
+
+
 def _resolve_env(env: Mapping[str, Any], *keys: str, default: str | None = None) -> tuple[str | None, str | None]:
     for key in keys:
         value = _get_clean(env.get(key))
@@ -223,6 +231,12 @@ def _persistence_config(env: Mapping[str, Any]) -> dict[str, Any]:
     supabase_url_key, supabase_url = _resolve_env(env, 'SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL')
     service_key_key, service_key = _resolve_env(env, 'SUPABASE_SERVICE_ROLE_KEY')
     anon_key_key, anon_key = _resolve_env(env, 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'SUPABASE_ANON_KEY')
+    if _is_placeholder_config(supabase_url):
+        supabase_url = None
+    if _is_placeholder_config(service_key):
+        service_key = None
+    if _is_placeholder_config(anon_key):
+        anon_key = None
     base_url_kind = _url_kind(supabase_url)
     structured_configured = bool(supabase_url and service_key)
     browser_configured = bool(supabase_url and anon_key)
@@ -567,34 +581,87 @@ def _is_provider_memory_error(error: Exception) -> bool:
     return 'requires more system memory' in message or 'memória' in message or 'memory' in message
 
 
+def _is_provider_unavailable_error(error: Exception) -> bool:
+    message = str(error or '').strip().lower()
+    return (
+        _is_provider_memory_error(error)
+        or ('model' in message and 'not found' in message)
+        or 'did not respond as /v1/messages' in message
+        or 'connection refused' in message
+        or 'timed out' in message
+        or 'timeout' in message
+    )
+
+
+def _search_local_rag_matches(query: str) -> list[dict[str, Any]]:
+    rag_context = None
+    if supabase_rag_is_configured():
+        try:
+            rag_context = search_supabase_context(query, top_k=3)
+        except Exception:
+            rag_context = None
+    if rag_context is None or not getattr(rag_context, 'matches', ()):
+        try:
+            rag_context = search_obsidian_context(query, top_k=3)
+        except Exception as exc:
+            return [{'title': 'rag_unavailable', 'excerpt': str(exc), 'score': 0.0, 'path': None}]
+
+    matches: list[dict[str, Any]] = []
+    for match in getattr(rag_context, 'matches', ())[:3]:
+        matches.append(
+            {
+                'title': getattr(match, 'title', '') or 'Sem titulo',
+                'excerpt': (getattr(match, 'excerpt', '') or '')[:220],
+                'score': round(float(getattr(match, 'score', 0.0) or 0.0), 3),
+                'path': getattr(match, 'path', None),
+            }
+        )
+    return matches
+
+
 def _build_degraded_local_messages_response(
     payload: dict[str, Any],
     error: Exception,
 ) -> dict[str, Any]:
     text = _normalize_message_text(payload)
     context = payload.get('context') if isinstance(payload.get('context'), dict) else {}
+    rag_matches = _search_local_rag_matches(text)
     fallback_message = (
         "O runtime local ficou sem memória para executar o modelo configurado. "
         "O Dotobot respondeu em modo degradado com orientação operacional até o provider local ser estabilizado."
     )
+    if not _is_provider_memory_error(error):
+        fallback_message = (
+            "O provider local nao ficou operacional neste runtime. "
+            "O Dotobot respondeu em modo degradado usando o contexto local disponivel atÃ© o modelo principal ser estabilizado."
+        )
 
+    should_run_execute_fallback = _is_provider_memory_error(error)
     execute_payload = None
     response_text = fallback_message
-    try:
-        execute_payload = execute_request(ExecuteRequest(query=text, context=context))
-        result = execute_payload.get('result') if isinstance(execute_payload, dict) else {}
-        if isinstance(result, dict):
-            execute_text = (
-                _get_clean(result.get('message'))
-                or _get_clean(result.get('final_output'))
-                or _get_clean(result.get('output'))
-                or ''
-            )
-            response_text = _merge_degraded_response_text(fallback_message, execute_text, execute_payload)
-        elif isinstance(result, str) and result.strip():
-            response_text = _merge_degraded_response_text(fallback_message, result.strip(), execute_payload)
-    except Exception:
-        execute_payload = None
+    if should_run_execute_fallback:
+        try:
+            execute_payload = execute_request(ExecuteRequest(query=text, context=context))
+            result = execute_payload.get('result') if isinstance(execute_payload, dict) else {}
+            if isinstance(result, dict):
+                execute_text = (
+                    _get_clean(result.get('message'))
+                    or _get_clean(result.get('final_output'))
+                    or _get_clean(result.get('output'))
+                    or ''
+                )
+                response_text = _merge_degraded_response_text(fallback_message, execute_text, execute_payload)
+            elif isinstance(result, str) and result.strip():
+                response_text = _merge_degraded_response_text(fallback_message, result.strip(), execute_payload)
+        except Exception:
+            execute_payload = None
+
+    if rag_matches:
+        rag_lines = '\n'.join(
+            f"- {item['title']} [{item['score']}] {item['excerpt']}"
+            for item in rag_matches
+        )
+        response_text = f"{response_text}\n\nContexto local recuperado:\n{rag_lines}".strip()
 
     return {
         'id': 'msg_local_degraded',
@@ -615,6 +682,7 @@ def _build_degraded_local_messages_response(
             'degraded': True,
             'fallback_reason': str(error),
             'execute_payload': execute_payload,
+            'rag_matches': rag_matches,
         },
     }
 
@@ -958,7 +1026,7 @@ def messages_json(payload: dict[str, Any], env: Mapping[str, Any] | None = None)
     try:
         return _invoke_compatible_provider(config, payload)
     except RuntimeError as error:
-        if provider_id == 'local' and _is_provider_memory_error(error):
+        if provider_id == 'local' and _is_provider_unavailable_error(error):
             return _build_degraded_local_messages_response(payload, error)
         raise
 

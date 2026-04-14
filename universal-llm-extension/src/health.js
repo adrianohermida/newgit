@@ -3,6 +3,30 @@ const { PORT, SCREENSHOTS_DIR, UPLOADS_DIR } = require("./config");
 const { getConfigs, loadSettings, listJsonDir } = require("./storage");
 const { SESSIONS_DIR, AUTOMATIONS_DIR } = require("./config");
 
+function redactSecret(value) {
+  return value ? "[configured]" : "";
+}
+
+function sanitizeSettings(settings) {
+  return {
+    local: {
+      runtimeUrl: settings?.local?.runtimeUrl || "",
+      runtimeModel: settings?.local?.runtimeModel || "",
+    },
+    cloud: {
+      appUrl: settings?.cloud?.appUrl || "",
+      baseUrl: settings?.cloud?.baseUrl || "",
+      model: settings?.cloud?.model || "",
+      authToken: redactSecret(settings?.cloud?.authToken),
+    },
+    cloudflare: {
+      model: settings?.cloudflare?.model || "",
+      accountId: redactSecret(settings?.cloudflare?.accountId),
+      apiToken: redactSecret(settings?.cloudflare?.apiToken),
+    },
+  };
+}
+
 function buildHealthPayload() {
   const configs = getConfigs();
   return {
@@ -15,7 +39,7 @@ function buildHealthPayload() {
       cloud: { configured: Boolean(configs.cloud.baseUrl || configs.cloud.appUrl), baseUrl: configs.cloud.baseUrl || null, appUrl: configs.cloud.appUrl || null, model: configs.cloud.model },
       cloudflare: { model: configs.cloudflare.model, directApi: Boolean(configs.cloudflare.accountId && configs.cloudflare.apiToken), proxyApp: Boolean(configs.cloudflare.appUrl), appUrl: configs.cloudflare.appUrl || null },
     },
-    settings: loadSettings(),
+    settings: sanitizeSettings(loadSettings()),
     data: {
       sessions: listJsonDir(SESSIONS_DIR).length,
       automations: listJsonDir(AUTOMATIONS_DIR).length,

@@ -27,6 +27,7 @@ import DotobotCollapsedTrigger from "./DotobotCollapsedTrigger";
 import DotobotCompactConversationCard from "./DotobotCompactConversationCard";
 import DotobotCompactComposer from "./DotobotCompactComposer";
 import DotobotCompactRuntimeDiagnostics from "./DotobotCompactRuntimeDiagnostics";
+import DotobotAccessGate from "./DotobotAccessGate";
 import DotobotConversationMenu from "./DotobotConversationMenu";
 import DotobotStandardHistoryRail from "./DotobotStandardHistoryRail";
 import DotobotStandardConversationCenter from "./DotobotStandardConversationCenter";
@@ -163,10 +164,10 @@ export default function DotobotCopilot({
     if (isFullscreenCopilot && availableRightPanelTabs.includes("modules")) return "modules";
     return availableRightPanelTabs[0];
   }, [availableRightPanelTabs, defaultRightPanelTab, isFullscreenCopilot]);
-  // Estado de autenticaÃ§Ã£o/admin
+  // Estado de autenticacao/admin
   const { supabase, loading: supaLoading, configError } = useSupabaseBrowser();
   const { isAdmin, authChecked } = useDotobotAdminSession({ supabase, supaLoading });
-  // IntegraÃ§Ã£o com extensÃ£o
+  // Integracao com extensao
   const { extensionReady, lastResponse, sendCommand } = useDotobotExtensionBridge();
   const router = useRouter();
   const logDotobotUi = (label, action, payload = {}, patch = {}) =>
@@ -369,7 +370,11 @@ export default function DotobotCopilot({
     let timeoutId = null;
     let idleId = null;
     const loadProviderCatalog = () => {
-      adminFetch(`/api/admin-lawdesk-providers?include_health=${isFocusedCopilotShell ? 0 : 1}`, { method: "GET" })
+      adminFetch(
+        `/api/admin-lawdesk-providers?include_health=${isFocusedCopilotShell ? 0 : 1}`,
+        { method: "GET" },
+        { allowFailurePayload: true }
+      )
         .then(async (payload) => {
           if (!active) return;
           const providers = Array.isArray(payload?.data?.providers) ? payload.data.providers : [];
@@ -436,7 +441,7 @@ export default function DotobotCopilot({
     }
     ragHealthRequestedRef.current = true;
     let active = true;
-    adminFetch("/api/admin-dotobot-rag-health?include_upsert=0", { method: "GET" })
+    adminFetch("/api/admin-dotobot-rag-health?include_upsert=0", { method: "GET" }, { allowFailurePayload: true })
       .then((payload) => {
         if (!active) return;
         setRagHealth(payload || null);
@@ -856,7 +861,7 @@ export default function DotobotCopilot({
     });
   }, [notificationsEnabled, taskHistory]);
 
-  // Copilot sempre disponÃ­vel, apenas colapsa visualmente
+  // Copilot sempre disponivel, apenas colapsa visualmente
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     const onKeyDown = (event) => {
@@ -1549,28 +1554,12 @@ export default function DotobotCopilot({
     }
   }, [provider, providerCatalog, localStackSummary]);
 
-  // Exemplo de fluxo de login Supabase
   async function handleLogin() {
     router.push("/interno/login");
   }
 
-  // Alerta visual de login/admin ausente
-  if (!authChecked || supaLoading) {
-    return <div className="p-8 text-center text-lg text-[#C5A059]">Verificando autenticaÃ§Ã£o...</div>;
-  }
-  if (!isAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
-        <div className="mb-6 text-2xl text-[#C5A059]">âš ï¸ Acesso restrito</div>
-        <div className="mb-4 text-[#EAE3D6]">FaÃ§a login como administrador para usar o Dotobot.</div>
-        <button
-          className="rounded-xl bg-[#D9B46A] px-6 py-3 text-lg font-bold text-[#1A1A1A] transition hover:bg-[#C5A059]"
-          onClick={handleLogin}
-        >
-          Login admin
-        </button>
-      </div>
-    );
+  if (!authChecked || supaLoading || !isAdmin) {
+    return <DotobotAccessGate authChecked={authChecked} loading={supaLoading} isAdmin={isAdmin} onLogin={handleLogin} />;
   }
 
   return (
