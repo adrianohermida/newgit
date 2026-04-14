@@ -183,6 +183,59 @@ function normalizeWorkspaceProvider(provider, providers = []) {
   return providers.find((item) => String(item?.value || "").toLowerCase() !== "local" && item?.disabled !== true)?.value || "gpt";
 }
 
+function buildLocalStackUnavailableSummary(error) {
+  const runtimeConfig = getBrowserLocalRuntimeConfig();
+  const message = String(error?.message || "Runtime local indisponivel nesta sessao.");
+  return {
+    ok: false,
+    offlineMode: false,
+    runtimeBaseUrl: runtimeConfig.runtimeBaseUrl || null,
+    extensionBaseUrl: runtimeConfig.extensionBaseUrl || null,
+    configuredLocalModel: runtimeConfig.localModel || null,
+    extensionHealth: {
+      ok: false,
+      endpoint: runtimeConfig.extensionBaseUrl ? `${String(runtimeConfig.extensionBaseUrl).replace(/\/+$/, "")}/health` : null,
+      status: error?.status || null,
+      error: message,
+    },
+    localProvider: {
+      configured: hasPersistedBrowserLocalRuntimeConfig(),
+      available: false,
+      model: runtimeConfig.localModel || null,
+      baseUrl: runtimeConfig.runtimeBaseUrl || null,
+      auth: null,
+      runtimeFamily: null,
+      runtimeLabel: "Runtime local indisponivel",
+      transport: null,
+      transportEndpoint: null,
+      reachable: false,
+      diagnosticsError: message,
+      inferenceFailure: null,
+    },
+    cloudProvider: {
+      configured: false,
+      available: false,
+      model: null,
+      offlineBlocked: false,
+    },
+    persistence: null,
+    capabilities: {
+      skills: null,
+      skillList: [],
+      commands: null,
+      browserExtensionProfiles: null,
+      persistence: null,
+    },
+    recommendations: [
+      "Runtime local indisponivel no momento. O Copilot vai priorizar o backend publicado ate o ai-core responder novamente.",
+    ],
+    actions: [
+      { id: "open_runtime_config", label: "Editar runtime local" },
+      { id: "open_llm_test", label: "Testar LLM local" },
+    ],
+  };
+}
+
 function buildProjectInsights(groups = []) {
   return groups.map((group) => ({
     key: group.key,
@@ -979,7 +1032,8 @@ function DotobotModal({
   onCancel,
 }) {
   if (!open) return null;
-  const { isLightTheme } = useInternalTheme();
+  const internalTheme = useInternalTheme();
+  const isLightTheme = internalTheme?.isLightTheme === true;
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[rgba(3,5,4,0.74)] px-4 backdrop-blur-sm">
@@ -1033,7 +1087,8 @@ export default function DotobotCopilot({
   embeddedInInternoShell = false,
   focusedWorkspaceMode = false,
 }) {
-  const { isLightTheme } = useInternalTheme();
+  const internalTheme = useInternalTheme();
+  const isLightTheme = internalTheme?.isLightTheme === true;
   const isFullscreenCopilot = routePath === "/interno/copilot";
   const isFocusedCopilotShell = focusedWorkspaceMode || (embeddedInInternoShell && isFullscreenCopilot);
   const isRailConversationShell = embeddedInInternoShell && !isFullscreenCopilot;
@@ -1182,11 +1237,15 @@ const [uiToasts, setUiToasts] = useState([]);
   const [lastConsumedAiTaskHandoffId, setLastConsumedAiTaskHandoffId] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
   const [renameModal, setRenameModal] = useState({ open: false, conversationId: null, value: "" });
+  const [conversationMenuId, setConversationMenuId] = useState(null);
   const scrollRef = useRef(null);
   const composerRef = useRef(null);
   const fileInputRef = useRef(null);
   const recognitionRef = useRef(null);
   const taskStatusRef = useRef(new Map());
+  const conversationMenuRef = useRef(null);
+  const conversationSearchInputRef = useRef(null);
+  const projectFilterRef = useRef(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -1201,6 +1260,27 @@ const [uiToasts, setUiToasts] = useState([]);
       window.removeEventListener("hmadv:copilot-focus-composer", handleFocusComposer);
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !conversationMenuId) return undefined;
+    const handlePointerDown = (event) => {
+      if (conversationMenuRef.current && !conversationMenuRef.current.contains(event.target)) {
+        setConversationMenuId(null);
+      }
+    };
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setConversationMenuId(null);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [conversationMenuId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1386,9 +1466,9 @@ const [uiToasts, setUiToasts] = useState([]);
         setLocalStackSummary(summary);
         setProviderCatalog((current) => applyBrowserLocalOfflinePolicy(current, summary));
       })
-      .catch(() => {
+      .catch((probeError) => {
         if (!active) return;
-        setLocalStackSummary(null);
+        setLocalStackSummary(buildLocalStackUnavailableSummary(probeError));
       });
     return () => {
       active = false;
@@ -1428,8 +1508,10 @@ const [uiToasts, setUiToasts] = useState([]);
           providers: governedCatalog,
         })
       );
-    } catch {
-      setLocalStackSummary(null);
+    } catch (probeError) {
+      const summary = buildLocalStackUnavailableSummary(probeError);
+      setLocalStackSummary(summary);
+      setProviderCatalog((current) => applyBrowserLocalOfflinePolicy(current, summary));
     } finally {
       setRefreshingLocalStack(false);
     }
@@ -2496,6 +2578,27 @@ const [uiToasts, setUiToasts] = useState([]);
     updateConversationById(conversation.id, (current) => ({ archived: !current.archived }));
   }
 
+  async function shareConversation(conversation) {
+    const shareUrl = `${typeof window !== "undefined" ? window.location.origin : ""}${routePath || "/interno/copilot"}?conversation=${conversation.id}`;
+    const shareText = `${conversation.title || "Conversa"}\n${shareUrl}`;
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareText);
+      }
+      pushUiToast({
+        tone: "success",
+        title: "Conversa copiada",
+        body: "O link e o título da conversa foram copiados para compartilhamento interno.",
+      });
+    } catch {
+      pushUiToast({
+        tone: "warn",
+        title: "Compartilhamento manual",
+        body: "Não foi possível copiar automaticamente. Use o menu do navegador para copiar a URL atual.",
+      });
+    }
+  }
+
   function deleteConversation(conversation) {
     setConfirmModal({
       title: "Excluir conversa",
@@ -2526,6 +2629,51 @@ const [uiToasts, setUiToasts] = useState([]);
         setConfirmModal(null);
       },
     });
+  }
+
+  function renderConversationMenu(conversation, { compact = false } = {}) {
+    const open = conversationMenuId === conversation.id;
+    return (
+      <div ref={open ? conversationMenuRef : null} className="relative">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setConversationMenuId((current) => (current === conversation.id ? null : conversation.id));
+          }}
+          className={`rounded-full border px-2 py-1 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
+          aria-label="Ações da conversa"
+          aria-expanded={open}
+        >
+          ⋮
+        </button>
+        {open ? (
+          <div
+            className={`absolute ${compact ? "right-0 top-[calc(100%+6px)]" : "right-0 top-[calc(100%+8px)]"} z-20 w-44 overflow-hidden rounded-[16px] border shadow-[0_18px_38px_rgba(0,0,0,0.18)] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(12,15,14,0.98)]"}`}
+          >
+            {[
+              { key: "share", label: "Compartilhar", action: () => shareConversation(conversation) },
+              { key: "archive", label: conversation.archived ? "Desarquivar" : "Arquivar", action: () => archiveConversation(conversation) },
+              { key: "rename", label: "Renomear", action: () => renameConversation(conversation) },
+              { key: "delete", label: "Excluir", action: () => deleteConversation(conversation) },
+            ].map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setConversationMenuId(null);
+                  item.action();
+                }}
+                className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-[12px] transition ${isLightTheme ? "text-[#22312F] hover:bg-[#F7F9FC]" : "text-[#D8DEDA] hover:bg-[rgba(255,255,255,0.03)]"}`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
   }
   // ...existing code...
 
@@ -2784,7 +2932,7 @@ const [uiToasts, setUiToasts] = useState([]);
       ? "grid-cols-1"
       : effectiveWorkspaceLayout === "immersive"
       ? isFocusedCopilotShell
-        ? "lg:grid-cols-[396px_minmax(0,1fr)_276px] xl:grid-cols-[412px_minmax(0,1fr)_292px] 2xl:grid-cols-[428px_minmax(0,1fr)_308px]"
+        ? "lg:grid-cols-[360px_minmax(0,1fr)_288px] xl:grid-cols-[380px_minmax(0,1fr)_304px] 2xl:grid-cols-[400px_minmax(0,1fr)_320px]"
         : "lg:grid-cols-[320px_minmax(0,1.6fr)_320px] xl:grid-cols-[360px_minmax(0,2.05fr)_360px] 2xl:grid-cols-[420px_minmax(0,2.45fr)_420px]"
       : effectiveWorkspaceLayout === "balanced"
         ? "lg:grid-cols-[220px_minmax(0,1.25fr)_240px] xl:grid-cols-[240px_minmax(0,1.5fr)_260px] 2xl:grid-cols-[260px_minmax(0,1.65fr)_280px]"
@@ -2793,8 +2941,8 @@ const [uiToasts, setUiToasts] = useState([]);
   const workspaceGridGapClass = isConversationCentricShell ? "gap-0" : "gap-4";
   const leftRailShellClass = isFocusedCopilotShell
     ? isLightTheme
-      ? "h-full border-r border-y-0 border-l-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.99))] rounded-none shadow-none"
-      : "h-full border-r border-y-0 border-l-0 border-[#1C2623] bg-[rgba(9,11,10,0.98)] rounded-none shadow-none"
+      ? "h-full min-h-full border-r border-y-0 border-l-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.985),rgba(246,249,252,0.995))] rounded-none shadow-none"
+      : "h-full min-h-full border-r border-y-0 border-l-0 border-[#1C2623] bg-[rgba(9,11,10,0.985)] rounded-none shadow-none"
     : isLightTheme
       ? "rounded-[22px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,248,251,0.98))]"
       : "rounded-[22px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] border-[#1C2623] bg-[rgba(255,255,255,0.018)]";
@@ -2807,13 +2955,13 @@ const [uiToasts, setUiToasts] = useState([]);
       : "rounded-[24px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] border-[#1C2623] bg-[rgba(255,255,255,0.015)]";
   const rightRailShellClass = isFocusedCopilotShell
     ? isLightTheme
-      ? "h-full border-l border-y-0 border-r-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,249,252,0.99))] rounded-none shadow-none"
-      : "h-full border-l border-y-0 border-r-0 border-[#1C2623] bg-[rgba(9,11,10,0.98)] rounded-none shadow-none"
+      ? "h-full min-h-full border-l border-y-0 border-r-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.985),rgba(246,249,252,0.995))] rounded-none shadow-none"
+      : "h-full min-h-full border-l border-y-0 border-r-0 border-[#1C2623] bg-[rgba(9,11,10,0.985)] rounded-none shadow-none"
     : isLightTheme
       ? "rounded-[24px] border border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(245,247,250,0.98))]"
       : "rounded-[24px] border border-[#1C2623] bg-[rgba(255,255,255,0.015)]";
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
-  const focusedConversationColumnClass = isFocusedCopilotShell ? "mx-auto flex h-full w-full max-w-[980px] flex-col" : isRailConversationShell ? "w-full" : "";
+  const focusedConversationColumnClass = isFocusedCopilotShell ? "mx-auto flex h-full w-full max-w-[920px] flex-col" : isRailConversationShell ? "w-full" : "";
   const useCondensedRightRail = isFocusedCopilotShell;
   const visibleLegalActions = isRailConversationShell ? [] : LEGAL_ACTIONS.slice(0, isCompactViewport ? 1 : 3);
   const visibleQuickPrompts = QUICK_PROMPTS.slice(0, isCompactViewport ? 1 : isConversationCentricShell ? 1 : 2);
@@ -2936,6 +3084,67 @@ const [uiToasts, setUiToasts] = useState([]);
     },
   ];
   const compactRecentConversations = filteredConversations.slice(0, 4);
+  const workspaceNavigatorItems = [
+    {
+      id: "new",
+      label: "Nova conversa",
+      helper: "Abrir thread limpa",
+      onClick: () => createConversationFromCurrentState("Nova conversa"),
+    },
+    {
+      id: "search",
+      label: "Buscar conversa",
+      helper: "Focar busca",
+      onClick: () => {
+        setWorkspaceOpen(true);
+        requestAnimationFrame(() => {
+          conversationSearchInputRef.current?.focus();
+        });
+      },
+    },
+    {
+      id: "repository",
+      label: "Repositório",
+      helper: "Integration Kit",
+      onClick: () => router.push("/interno/integration-kit"),
+    },
+    {
+      id: "agents",
+      label: "Agentes IA",
+      helper: "Abrir AgentLab",
+      onClick: () => {
+        setWorkspaceOpen(true);
+        setRightPanelTab("agentlabs");
+        pushUiToast({
+          tone: "neutral",
+          title: "AgentLab em foco",
+          body: "Os subagentes e a governança do ai-core foram priorizados na navegação lateral.",
+        });
+      },
+    },
+    {
+      id: "projects",
+      label: "Projetos",
+      helper: activeProjectLabel,
+      onClick: () => {
+        setWorkspaceOpen(true);
+        requestAnimationFrame(() => {
+          projectFilterRef.current?.focus();
+        });
+      },
+    },
+    {
+      id: "recent",
+      label: "Recentes",
+      helper: `${compactRecentConversations.length} threads`,
+      onClick: () => {
+        setConversationSort("recent");
+        setShowArchived(false);
+        setSelectedProjectFilter("all");
+        setConversationSearch("");
+      },
+    },
+  ];
   const compactTranscript = messages.slice(-4);
   const activeConversationPreview =
     activeConversation?.preview ||
@@ -2950,9 +3159,9 @@ const [uiToasts, setUiToasts] = useState([]);
       ? "Envio pausado até o runtime local responder."
       : "";
   const isComposerBlocked = Boolean(composerBlockedReason);
-  const showConversationCockpitCards = !isFocusedCopilotShell;
+  const showConversationCockpitCards = !isConversationCentricShell && !compactRail;
   const showRuntimeOpsHeader = !isFocusedCopilotShell && !compactRail;
-  const showRuntimeOpsFullscreen = !isFocusedCopilotShell;
+  const showRuntimeOpsFullscreen = false;
   const fullscreenConversationSubtitle = "Histórico à esquerda, conversa ao centro e contexto operacional à direita.";
 
   useEffect(() => {
@@ -2976,6 +3185,19 @@ const [uiToasts, setUiToasts] = useState([]);
       setProvider(fallbackProvider);
     }
   }, [provider, providerCatalog]);
+
+  useEffect(() => {
+    if (provider !== "local") return;
+    if (!localStackSummary) return;
+    if (localStackSummary?.offlineMode) return;
+    if (localStackSummary?.localProvider?.available) return;
+    const fallbackProvider = providerCatalog.find(
+      (item) => String(item?.value || "").toLowerCase() !== "local" && item?.disabled !== true
+    )?.value;
+    if (fallbackProvider && fallbackProvider !== provider) {
+      setProvider(fallbackProvider);
+    }
+  }, [provider, providerCatalog, localStackSummary]);
 
   // Exemplo de fluxo de login Supabase
   async function handleLogin() {
@@ -3482,21 +3704,21 @@ const [uiToasts, setUiToasts] = useState([]);
 
         {compactRail ? (
           <div className="flex h-full min-h-0 flex-col px-4 py-4">
-            <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+            <div className={`rounded-[24px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,#FFFFFF,#F7F9FC)]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Conversa ativa</p>
-                  <p className="mt-2 truncate text-sm font-semibold text-[#F5F1E8]">
+                  <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Conversa ativa</p>
+                  <p className={`mt-2 truncate text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
                     {activeConversation?.title || "Nova conversa"}
                   </p>
-                  <p className="mt-2 line-clamp-2 text-[12px] leading-6 text-[#9BAEA8]">
-                    {activeConversationPreview}
+                  <p className={`mt-2 line-clamp-2 text-[12px] leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
+                    {activeConversationPreview || "Sem conversa ativa ainda. Abra uma nova trilha para começar."}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => createConversationFromCurrentState("Nova conversa")}
-                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[10px] font-medium text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059]"
+                  className={`rounded-full border px-3 py-1.5 text-[10px] font-medium transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                 >
                   Nova
                 </button>
@@ -3526,11 +3748,6 @@ const [uiToasts, setUiToasts] = useState([]);
                     {new Date(activeConversationTimestamp).toLocaleDateString("pt-BR")}
                   </span>
                 ) : null}
-                {localStackSummary?.localProvider?.transport ? (
-                  <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#7F928C]"}`}>
-                    {localRuntimeLabel}
-                  </span>
-                ) : null}
               </div>
             </div>
             <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4">
@@ -3538,7 +3755,7 @@ const [uiToasts, setUiToasts] = useState([]);
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Conversas recentes</p>
-                    <p className={`mt-1 text-[12px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Acesso rápido às últimas trilhas abertas.</p>
+                    <p className={`mt-1 text-[12px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Leitura rápida no estilo sidebar de conversa.</p>
                   </div>
                   <button
                     type="button"
@@ -3553,10 +3770,8 @@ const [uiToasts, setUiToasts] = useState([]);
                     compactRecentConversations.map((conversation) => {
                       const isActive = conversation.id === activeConversationId;
                       return (
-                        <button
+                        <article
                           key={conversation.id}
-                          type="button"
-                          onClick={() => selectConversation(conversation)}
                           className={`w-full rounded-[18px] border px-3 py-3 text-left transition ${
                             isActive
                               ? isLightTheme
@@ -3568,15 +3783,18 @@ const [uiToasts, setUiToasts] = useState([]);
                           }`}
                         >
                           <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
+                            <button type="button" onClick={() => selectConversation(conversation)} className="min-w-0 flex-1 text-left">
                               <p className={`truncate text-[12px] font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{conversation.title}</p>
                               <p className={`mt-1 line-clamp-2 text-[11px] leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{conversation.preview}</p>
+                            </button>
+                            <div className="flex items-start gap-2">
+                              <span className={`shrink-0 pt-1 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#60706A]"}`}>
+                                {conversation.messages?.length || 0}
+                              </span>
+                              {renderConversationMenu(conversation, { compact: true })}
                             </div>
-                            <span className={`shrink-0 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#60706A]"}`}>
-                              {conversation.messages?.length || 0}
-                            </span>
                           </div>
-                        </button>
+                        </article>
                       );
                     })
                   ) : (
@@ -3590,8 +3808,8 @@ const [uiToasts, setUiToasts] = useState([]);
               <div className={`min-h-0 flex-1 rounded-[24px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Conversa ativa</p>
-                    <p className={`mt-1 text-[12px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>A visualização já nasce no trecho mais recente da conversa.</p>
+                    <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Chat rápido</p>
+                    <p className={`mt-1 text-[12px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Painel lateral enxuto para conversar sem cockpit operacional.</p>
                   </div>
                   <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                     {messages.length} mensagens
@@ -3741,7 +3959,7 @@ const [uiToasts, setUiToasts] = useState([]);
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={handleDrop}
                   rows={3}
-                  placeholder="Converse com o Dotobot, delegue uma tarefa ou faça um handoff..."
+                  placeholder="Converse com o Dotobot..."
                   className={`w-full resize-none rounded-[18px] border px-4 py-3 text-sm outline-none transition ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#152421] placeholder:text-[#94A3B8] focus:border-[#9A6E2D]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] focus:border-[#C5A059]"}`}
                 />
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -3751,7 +3969,7 @@ const [uiToasts, setUiToasts] = useState([]);
                       onClick={() => setWorkspaceOpen(true)}
                       className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                     >
-                      Abrir conversa completa
+                      Abrir fullscreen
                     </button>
                   </div>
                   <button
@@ -4389,10 +4607,11 @@ const [uiToasts, setUiToasts] = useState([]);
                   <div className={`border-b px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Historico</p>
+                        <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Workspace</p>
+                        <p className={`mt-1 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Interno/copilot</p>
                         <p className={`mt-1 text-sm ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                           {isConversationCentricShell
-                            ? "Conversas persistidas, busca contextual e agrupamento por projeto com leitura limpa."
+                            ? "Histórico persistido, busca contextual e projetos com leitura contínua."
                             : "Histórico enxuto para retomar contexto sem competir com a conversa central."}
                         </p>
                       </div>
@@ -4408,8 +4627,27 @@ const [uiToasts, setUiToasts] = useState([]);
                           Nova
                         </button>
                     </div>
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      {workspaceNavigatorItems.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={item.onClick}
+                          className={`rounded-[18px] border px-3 py-3 text-left transition ${
+                            isLightTheme
+                              ? "border-[#D7DEE8] bg-white hover:border-[#C5A059] hover:shadow-[0_10px_24px_rgba(197,160,89,0.12)]"
+                              : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#C5A059] hover:bg-[rgba(197,160,89,0.08)]"
+                          }`}
+                        >
+                          <p className={`text-[11px] font-semibold uppercase tracking-[0.12em] ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{item.label}</p>
+                          <p className={`mt-1 text-[11px] leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{item.helper}</p>
+                        </button>
+                      ))}
+                    </div>
                     <div className="mt-4 flex flex-col gap-2">
+                        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Buscar conversa</p>
                         <input
+                          ref={conversationSearchInputRef}
                           value={conversationSearch}
                           onChange={(event) => setConversationSearch(event.target.value)}
                           placeholder="Buscar por tema, projeto, mensagem ou tag"
@@ -4431,6 +4669,7 @@ const [uiToasts, setUiToasts] = useState([]);
                         </span>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">
+                        <p className={`w-full text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Projetos e recentes</p>
                         <select
                           value={conversationSort}
                           onChange={e => setConversationSort(e.target.value)}
@@ -4445,6 +4684,7 @@ const [uiToasts, setUiToasts] = useState([]);
                           <option value="title">Título (A-Z)</option>
                         </select>
                         <select
+                          ref={projectFilterRef}
                           value={selectedProjectFilter}
                           onChange={(event) => setSelectedProjectFilter(event.target.value)}
                           className={`rounded-xl border px-2 py-1 text-xs outline-none transition ${
@@ -4474,13 +4714,19 @@ const [uiToasts, setUiToasts] = useState([]);
                   </div>
 
                   <div
-                    className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3"
+                    className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3 md:px-4"
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={(event) => {
                       event.preventDefault();
                       handleDrop(event);
                     }}
                   >
+                    <div className="px-1 pb-1">
+                      <p className={`text-[10px] uppercase tracking-[0.22em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Histórico</p>
+                      <p className={`mt-1 text-xs ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
+                        Conversas persistidas, organizadas por projeto e prontas para retomada.
+                      </p>
+                    </div>
                     {conversationProjectGroups.length ? (
                       conversationProjectGroups.map((group) => (
                         <section
@@ -4526,22 +4772,27 @@ const [uiToasts, setUiToasts] = useState([]);
                                         }`
                                   }
                                 >
-                                  <button type="button" onClick={() => selectConversation(conversation)} className="w-full text-left">
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <p className={`truncate text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{conversation.title}</p>
-                                        <p className={`mt-1 line-clamp-2 text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{conversation.preview}</p>
+                                  <div className="flex items-start justify-between gap-3">
+                                    <button type="button" onClick={() => selectConversation(conversation)} className="min-w-0 flex-1 text-left">
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                          <p className={`truncate text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{conversation.title}</p>
+                                          <p className={`mt-1 line-clamp-2 text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{conversation.preview}</p>
+                                        </div>
+                                        <div className="shrink-0 text-right">
+                                          <span className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
+                                            {conversation.messages?.length || 0}
+                                          </span>
+                                          <p className={`mt-1 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#60706A]"}`}>
+                                            {conversation.updatedAt ? new Date(conversation.updatedAt).toLocaleDateString("pt-BR") : ""}
+                                          </p>
+                                        </div>
                                       </div>
-                                      <div className="text-right">
-                                        <span className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
-                                          {conversation.messages?.length || 0}
-                                        </span>
-                                        <p className={`mt-1 text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#60706A]"}`}>
-                                          {conversation.updatedAt ? new Date(conversation.updatedAt).toLocaleDateString("pt-BR") : ""}
-                                        </p>
-                                      </div>
+                                    </button>
+                                    <div className="shrink-0">
+                                      {renderConversationMenu(conversation)}
                                     </div>
-                                  </button>
+                                  </div>
 
                                   <div className="mt-3 flex flex-wrap gap-2">
                                     <span className={`rounded-full border px-2.5 py-1 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB]"}`}>
@@ -4553,13 +4804,6 @@ const [uiToasts, setUiToasts] = useState([]);
                                       className={`rounded-full border px-2.5 py-1 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#2F7A62] hover:border-[#2F7A62]" : "border-[#35554B] text-[#B7D5CB] hover:border-[#7FC4AF] hover:text-[#7FC4AF]"}`}
                                     >
                                       Concatenar
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => archiveConversation(conversation)}
-                                      className={`rounded-full border px-2.5 py-1 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                                    >
-                                      {conversation.archived ? "Desarquivar" : "Arquivar"}
                                     </button>
                                   </div>
                                 </article>
@@ -4575,7 +4819,7 @@ const [uiToasts, setUiToasts] = useState([]);
                     )}
                   </div>
 
-                  <footer className={`mt-auto shrink-0 border-t px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8] bg-[rgba(255,255,255,0.96)]" : "border-[#22342F] bg-[rgba(12,15,14,0.95)]"}`}>
+                  {!isFocusedCopilotShell ? <footer className={`mt-auto shrink-0 border-t px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8] bg-[rgba(255,255,255,0.96)]" : "border-[#22342F] bg-[rgba(12,15,14,0.95)]"}`}>
                     <div className="flex items-center gap-3">
                       <div className={`flex h-11 w-11 items-center justify-center rounded-full border text-sm font-semibold ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#152421]" : "border-[#22342F] bg-[rgba(255,255,255,0.03)] text-[#F5F1E8]"}`}>
                         {(profile?.full_name || profile?.email || "HM").slice(0, 2).toUpperCase()}
@@ -4613,7 +4857,7 @@ const [uiToasts, setUiToasts] = useState([]);
                         ? "Coluna esquerda dedicada ao histórico, concatenação de diálogos e retomada rápida de contexto."
                         : "Histórico lateral focado em retomada rápida, sem excesso de ações simultâneas."}
                     </p>
-                  </footer>
+                  </footer> : null}
                 </aside>
                 ) : null}
 
@@ -4637,22 +4881,9 @@ const [uiToasts, setUiToasts] = useState([]);
                             Concatene diálogos, recupere contexto e delegue para AI Task sem sair da conversa.
                           </p>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setRightPanelTab("ai-task")}
-                            className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                          >
-                            AI Task
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setRightPanelTab("agentlabs")}
-                            className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                          >
-                            AgentLabs
-                          </button>
-                        </div>
+                        <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
+                          Painel direito para módulos, AI Task e AgentLabs
+                        </span>
                       </div>
                     ) : (
                       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -4920,7 +5151,7 @@ const [uiToasts, setUiToasts] = useState([]);
 
                   <TransitionGroup component={null}>
                     <CSSTransition key={rightPanelTab} timeout={180} classNames="dotobot-panel-tab">
-                      <div className={`overflow-y-auto ${useCondensedRightRail ? "h-full p-3" : "h-[calc(100vh-14rem)] p-4"}`}>
+                      <div className={`overflow-y-auto ${useCondensedRightRail ? "h-full p-3 md:p-4" : "h-[calc(100vh-14rem)] p-4"}`}>
                     {rightPanelTab === "modules" ? (
                       <div className="space-y-3">
                         <div className={`rounded-[18px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-[#F8FAFC]" : "border-[#35554B] bg-[rgba(12,22,19,0.72)]"}`}>
@@ -4928,7 +5159,7 @@ const [uiToasts, setUiToasts] = useState([]);
                           <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeProjectLabel}</p>
                           <p className={`mt-2 text-xs leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
                             {useCondensedRightRail
-                              ? "Atalhos contextuais e navegação lateral sem poluir o centro da conversa."
+                              ? "Apoio lateral enxuto para abrir módulos, subtarefas e AgentLabs sem virar cockpit."
                               : "Módulos integrados em leitura rápida, sem tirar foco da conversa."}
                           </p>
                         </div>

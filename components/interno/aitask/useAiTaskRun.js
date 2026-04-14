@@ -353,7 +353,11 @@ export function useAiTaskRun({
         }
       } finally {
         pollingInFlightRef.current = false;
-        if (!disposed && activeRun?.id) {
+        if (
+          !disposed &&
+          activeRun?.id &&
+          nextDelayMs > 0
+        ) {
           scheduleNextPoll(nextDelayMs);
         }
       }

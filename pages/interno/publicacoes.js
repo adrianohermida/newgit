@@ -17,12 +17,14 @@ const VALIDATION_STORAGE_KEY = "hmadv:interno-publicacoes:validations:v1";
 const ACTION_LABELS = {
   criar_processos_publicacoes: "Criar processos das publicacoes",
   sincronizar_publicacoes_activity: "Sincronizar publicacoes vinculadas no Freshsales",
+  orquestrar_drenagem_publicacoes: "Orquestrar drenagem operacional",
   backfill_partes: "Extracao retroativa de partes",
   sincronizar_partes: "Salvar partes + atualizar polos + corrigir CRM",
   reconciliar_partes_contatos: "Reconciliar partes com contatos",
   run_sync_worker: "Rodar sync-worker (activities/CRM)",
   run_advise_sync: "Rodar ingestao incremental do Advise",
   run_advise_backfill: "Importar backlog historico do Advise",
+  refresh_snapshot_filas: "Atualizar snapshot operacional",
   run_pending_jobs: "Drenar fila HMADV",
 };
 const CONTACT_TYPE_OPTIONS = [
@@ -41,6 +43,7 @@ const CONTACT_TYPE_OPTIONS = [
 ];
 const ASYNC_PUBLICACOES_ACTIONS = new Set([
   "criar_processos_publicacoes",
+  "orquestrar_drenagem_publicacoes",
   "backfill_partes",
   "sincronizar_partes",
   "reconciliar_partes_contatos",
@@ -58,10 +61,11 @@ const MODULE_LIMITS = {
   maxAdviseSync: 12,
   maxDefault: 20,
 };
-const PUBLICACOES_QUEUE_VIEWS = new Set(["operacao", "filas"]);
+const PUBLICACOES_QUEUE_VIEWS = new Set(["filas"]);
 const QUEUE_LABELS = {
   candidatos_processos: "Processos criaveis",
   candidatos_partes: "Partes extraiveis",
+  mesa_integrada: "Mesa integrada",
 };
 
 function stringifyLogPayload(payload, limit = 8000) {
@@ -97,6 +101,7 @@ function extractActionFromRequest(path, init) {
 
 function getSafePublicacoesActionLimit(action, requestedLimit) {
   const normalized = Number(requestedLimit || 0) || 0;
+  if (action === "orquestrar_drenagem_publicacoes") return Math.max(1, Math.min(normalized || 10, MODULE_LIMITS.maxCreateProcess));
   if (action === "sincronizar_partes") return Math.max(1, Math.min(normalized || 10, MODULE_LIMITS.maxSyncPartes));
   if (action === "criar_processos_publicacoes") return Math.max(1, Math.min(normalized || 10, MODULE_LIMITS.maxCreateProcess));
   if (action === "backfill_partes") return Math.max(1, Math.min(normalized || 15, MODULE_LIMITS.maxBackfillPartes));
@@ -696,7 +701,6 @@ function IntegratedQueueList({
   totalRows,
   selectedCount,
   page,
-  setPage,
   pageSize,
   onOpenDetail,
   onToggleRow,
@@ -704,11 +708,16 @@ function IntegratedQueueList({
   onToggleAllFiltered,
   allPageSelected,
   allFilteredSelected,
+  onPreviousPage,
+  onNextPage,
+  canGoPrevious = false,
+  canGoNext = false,
+  queueMode = "legacy",
+  queueSourceLabel = "live",
   limited = false,
   totalEstimated = false,
   errorMessage = "",
 }) {
-  const totalPages = Math.max(1, Math.ceil(Number(totalRows || rows.length || 0) / Math.max(1, pageSize)));
   const pagedRows = rows;
   return (
     <div className="space-y-4">
@@ -717,6 +726,7 @@ function IntegratedQueueList({
           <p className="text-sm font-semibold">Lista operacional integrada</p>
           <p className="text-xs opacity-60">Mesma leitura de filas, agora em modo de lista para validar, editar e agir em lote.</p>
           <p className="mt-1 text-xs opacity-50">{totalRows || rows.length || 0} item(ns) filtrado(s). {selectedCount} marcado(s).</p>
+          <p className="mt-1 text-xs opacity-50">Pagina {page} • leitura {queueMode === "snapshot" ? "por cursor" : "legada"} • origem {queueSourceLabel}</p>
           {limited ? <p className="mt-1 text-xs text-[#FDE68A]">Leitura parcial protegida. A lista e a selecao de filtrados podem representar apenas a amostra carregada.</p> : null}
           {totalEstimated ? <p className="mt-1 text-xs opacity-60">O total atual e estimado porque a fila foi consolidada em multiplas leituras paginadas.</p> : null}
           {errorMessage ? <p className="mt-1 text-xs text-[#FECACA]">{errorMessage}</p> : null}
@@ -728,10 +738,10 @@ function IntegratedQueueList({
           <button type="button" onClick={() => onToggleAllFiltered(!allFilteredSelected)} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">
             {allFilteredSelected ? "Desmarcar filtrados" : "Selecionar filtrados"}
           </button>
-          <button type="button" onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1} className="border border-[#2D2E2E] px-3 py-2 text-xs disabled:opacity-40">
+          <button type="button" onClick={onPreviousPage} disabled={!canGoPrevious} className="border border-[#2D2E2E] px-3 py-2 text-xs disabled:opacity-40">
             Anterior
           </button>
-          <button type="button" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages} className="border border-[#2D2E2E] px-3 py-2 text-xs disabled:opacity-40">
+          <button type="button" onClick={onNextPage} disabled={!canGoNext} className="border border-[#2D2E2E] px-3 py-2 text-xs disabled:opacity-40">
             Proxima
           </button>
         </div>
@@ -1251,9 +1261,10 @@ function PublicacoesContent() {
   const [selectedProcessKeys, setSelectedProcessKeys] = useState([]);
   const [selectedPartesKeys, setSelectedPartesKeys] = useState([]);
   const [validationMap, setValidationMap] = useState({});
-  const [integratedQueue, setIntegratedQueue] = useState({ loading: false, error: null, items: [], totalRows: 0, pageSize: 12, updatedAt: null, limited: false, totalEstimated: false, hasMore: false });
+  const [integratedQueue, setIntegratedQueue] = useState({ loading: false, error: null, items: [], totalRows: 0, pageSize: 12, updatedAt: null, limited: false, totalEstimated: false, hasMore: false, nextCursor: null, mode: "snapshot", source: "snapshot" });
   const [integratedFilters, setIntegratedFilters] = useState({ query: "", source: "todos", validation: "todos", sort: "pendencia" });
   const [integratedPage, setIntegratedPage] = useState(1);
+  const [integratedCursorTrail, setIntegratedCursorTrail] = useState([""]);
   const [selectedIntegratedNumbers, setSelectedIntegratedNumbers] = useState([]);
   const [detailState, setDetailState] = useState({ loading: false, error: null, row: null, data: null });
   const [detailEditForm, setDetailEditForm] = useState({ name: "", email: "", phone: "", note: "" });
@@ -1547,11 +1558,18 @@ function PublicacoesContent() {
   }, [integratedPage, integratedFilters, view]);
   useEffect(() => {
     setIntegratedPage(1);
+    setIntegratedCursorTrail([""]);
   }, [integratedFilters]);
   useEffect(() => {
+    if (integratedPage <= 1) return;
+    if (integratedQueue.mode === "snapshot" && !integratedQueue.hasMore && !(integratedCursorTrail[integratedPage] || "")) {
+      const totalPages = Math.max(1, integratedPage);
+      if (integratedPage > totalPages) setIntegratedPage(totalPages);
+      return;
+    }
     const totalPages = Math.max(1, Math.ceil((integratedQueue.totalRows || 0) / integratedPageSize));
-    if (integratedPage > totalPages) setIntegratedPage(totalPages);
-  }, [integratedQueue.totalRows, integratedPage, integratedPageSize]);
+    if (integratedQueue.mode !== "snapshot" && integratedPage > totalPages) setIntegratedPage(totalPages);
+  }, [integratedQueue.totalRows, integratedQueue.mode, integratedQueue.hasMore, integratedCursorTrail, integratedPage, integratedPageSize]);
   useEffect(() => {
     if (!detailState?.row?.numero_cnj) return;
     const nextValidation = validationMap[detailState.row.numero_cnj] || { status: "", note: "", updatedAt: null };
@@ -1771,7 +1789,7 @@ function PublicacoesContent() {
     });
     const request = (async () => {
       try {
-      const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=candidatos_processos&page=${page}&pageSize=20`, {}, {
+      const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=candidatos_processos&page=${page}&pageSize=20&preferSnapshot=1`, {}, {
         action: "candidatos_processos",
         component: "publicacoes-filas",
         label: `Carregar fila de processos criaveis (pagina ${page})`,
@@ -1886,17 +1904,30 @@ function PublicacoesContent() {
 
   async function loadIntegratedQueue(page, options = {}) {
     const { force = false } = options;
-    const key = JSON.stringify({ page, query: integratedFilters.query, source: integratedFilters.source });
+    const cursor = integratedCursorTrail[Math.max(0, page - 1)] || "";
+    const key = JSON.stringify({ page, cursor, query: integratedFilters.query, source: integratedFilters.source });
     if (!force && integratedQueueRequestRef.current.promise && integratedQueueRequestRef.current.key === key) {
       return integratedQueueRequestRef.current.promise;
     }
     setIntegratedQueue((state) => ({ ...state, loading: true, error: null }));
     const request = (async () => {
       try {
-        const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=mesa_integrada&page=${page}&pageSize=${integratedPageSize}&query=${encodeURIComponent(integratedFilters.query || "")}&source=${encodeURIComponent(integratedFilters.source || "todos")}`, {}, {
+        const params = new URLSearchParams({
+          action: "mesa_integrada",
+          pageSize: String(integratedPageSize),
+          query: integratedFilters.query || "",
+          source: integratedFilters.source || "todos",
+          preferSnapshot: "1",
+        });
+        if (cursor) {
+          params.set("cursor", cursor);
+        } else {
+          params.set("page", String(page));
+        }
+        const payload = await adminFetch(`/api/admin-hmadv-publicacoes?${params.toString()}`, {}, {
           action: "mesa_integrada",
           component: "publicacoes-mesa-integrada",
-          label: `Carregar mesa integrada (pagina ${page})`,
+          label: `Carregar mesa integrada (pagina ${page}${cursor ? " por cursor" : ""})`,
           expectation: "Trazer fila integrada e paginada de publicacoes",
         });
         const nextState = {
@@ -1909,6 +1940,9 @@ function PublicacoesContent() {
           limited: Boolean(payload.data?.limited),
           totalEstimated: Boolean(payload.data?.totalEstimated),
           hasMore: Boolean(payload.data?.hasMore),
+          nextCursor: payload.data?.nextCursor || null,
+          mode: payload.data?.source === "snapshot" ? "snapshot" : "legacy",
+          source: payload.data?.source || "legacy",
         };
         if (Array.isArray(payload.data?.items)) {
           setValidationMap((current) => {
@@ -1916,6 +1950,13 @@ function PublicacoesContent() {
             for (const item of payload.data.items) {
               if (item?.numero_cnj && item?.validation) next[item.numero_cnj] = item.validation;
             }
+            return next;
+          });
+        }
+        if (nextState.mode === "snapshot") {
+          setIntegratedCursorTrail((current) => {
+            const next = current.slice(0, page);
+            next[page - 1] = cursor;
             return next;
           });
         }
@@ -1932,6 +1973,9 @@ function PublicacoesContent() {
           limited: false,
           totalEstimated: false,
           hasMore: false,
+          nextCursor: null,
+          mode: "legacy",
+          source: "error",
         };
         setIntegratedQueue(nextState);
         return nextState;
@@ -2026,6 +2070,25 @@ function PublicacoesContent() {
     setSelectedIntegratedNumbers((current) => current.includes(numero) ? current.filter((item) => item !== numero) : [...current, numero]);
   }
 
+  function goToIntegratedPreviousPage() {
+    setIntegratedPage((current) => Math.max(1, current - 1));
+  }
+
+  function goToIntegratedNextPage() {
+    if (integratedQueue.mode === "snapshot") {
+      if (!integratedQueue.hasMore || !integratedQueue.nextCursor) return;
+      setIntegratedCursorTrail((current) => {
+        const next = current.slice(0, integratedPage);
+        next[integratedPage] = integratedQueue.nextCursor;
+        return next;
+      });
+      setIntegratedPage((current) => current + 1);
+      return;
+    }
+    const totalPages = Math.max(1, Math.ceil(Number(integratedQueue.totalRows || 0) / Math.max(1, integratedPageSize)));
+    setIntegratedPage((current) => Math.min(totalPages, current + 1));
+  }
+
   function toggleIntegratedPage(nextState) {
     const numbers = pagedIntegratedRows.map((row) => row.numero_cnj).filter(Boolean);
     if (nextState) {
@@ -2055,7 +2118,7 @@ function PublicacoesContent() {
           integratedPageSize
         )
       );
-      const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=mesa_integrada_selecao&query=${encodeURIComponent(integratedFilters.query || "")}&source=${encodeURIComponent(integratedFilters.source || "todos")}&limit=${selectionLimit}`, {}, {
+      const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=mesa_integrada_selecao&query=${encodeURIComponent(integratedFilters.query || "")}&source=${encodeURIComponent(integratedFilters.source || "todos")}&limit=${selectionLimit}&preferSnapshot=1`, {}, {
         action: "mesa_integrada_selecao",
         component: "publicacoes-mesa-integrada",
         label: "Selecionar todos os itens filtrados",
@@ -2072,6 +2135,56 @@ function PublicacoesContent() {
       }
     } catch (error) {
       setActionState({ loading: false, error: error.message || "Falha ao selecionar todos os itens filtrados.", result: null });
+    }
+  }
+
+  async function refreshIntegratedSnapshot(queueType = "all") {
+    if (hasBlockingJob) {
+      setActionState({
+        loading: false,
+        error: `Ja existe um job em andamento (${getPublicacoesActionLabel(blockingJob?.acao)}). Aguarde a conclusao antes de reconstruir o snapshot.`,
+        result: blockingJob ? { job: blockingJob } : null,
+      });
+      return;
+    }
+    setActionState({ loading: true, error: null, result: null });
+    try {
+      const payload = await adminFetch("/api/admin-hmadv-publicacoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "refresh_snapshot_filas",
+          asyncJob: true,
+          queueType,
+          snapshotLimit: 800,
+        }),
+      }, {
+        action: "refresh_snapshot_filas",
+        component: "publicacoes-mesa-integrada",
+        label: `Atualizar snapshot da mesa integrada (${queueType})`,
+        expectation: "Reconstruir a fila operacional em snapshot para navegação segura",
+      });
+      const job = payload.data || null;
+      if (job?.id) {
+        setActiveJobId(job.id);
+      }
+      if (queueType === "all") {
+        registerQueueRefresh("candidatos_processos");
+        registerQueueRefresh("candidatos_partes");
+        registerQueueRefresh("mesa_integrada");
+      } else {
+        registerQueueRefresh(queueType);
+      }
+      setActionState({ loading: false, error: null, result: job ? { job } : payload.data || null });
+      setIntegratedCursorTrail([""]);
+      setIntegratedPage(1);
+      await Promise.all([
+        loadJobs(),
+        loadRemoteHistory(),
+        loadIntegratedQueue(1, { force: true }),
+      ]);
+    } catch (error) {
+      setActionState({ loading: false, error: error.message || "Falha ao atualizar snapshot operacional.", result: null });
     }
   }
 
@@ -2323,6 +2436,14 @@ function PublicacoesContent() {
   if (candidateQueueErrorCount > 0 || candidateQueueMismatchCount > 0) {
     healthSuggestedActions.push({ key: "filas", label: healthQueueTarget.label, onClick: () => updateView(healthQueueTarget.view, healthQueueTarget.hash) });
   }
+  if (integratedQueue.mode !== "snapshot" || integratedQueue.error) {
+    healthSuggestedActions.push({
+      key: "snapshot",
+      label: "Atualizar snapshot",
+      onClick: () => refreshIntegratedSnapshot("all"),
+      disabled: actionState.loading || hasBlockingJob,
+    });
+  }
   if (publicacoesPendentesComAccount > 0) {
     healthSuggestedActions.push({ key: "sync-crm", label: "Sincronizar publicacoes", onClick: () => updateView("operacao", "operacao") });
   }
@@ -2370,6 +2491,15 @@ function PublicacoesContent() {
   const selectedUnifiedCount = selectedIntegratedNumbers.length;
   const allIntegratedPageSelected = pagedIntegratedRows.length > 0 && pagedIntegratedRows.every((row) => row.selected);
   const allIntegratedFilteredSelected = filteredIntegratedRows.length > 0 && filteredIntegratedRows.every((row) => selectedIntegratedNumbers.includes(row.numero_cnj));
+  const integratedCanGoPrevious = integratedPage > 1;
+  const integratedCanGoNext = integratedQueue.mode === "snapshot"
+    ? Boolean(integratedQueue.hasMore && integratedQueue.nextCursor)
+    : integratedPage < Math.max(1, Math.ceil(Number(integratedQueue.totalRows || 0) / Math.max(1, integratedPageSize)));
+  const integratedSourceLabel = integratedQueue.source === "snapshot"
+    ? "snapshot"
+    : integratedQueue.source === "legacy"
+      ? "fallback"
+      : integratedQueue.source || "live";
 
   function selectVisibleRecurringPublicacoes() {
     const recurringKeys = new Set(recurringPublicacoes.map((item) => item.key));
@@ -2469,6 +2599,9 @@ function PublicacoesContent() {
       throw new Error(message);
     }
     const safeLimit = getSafePublicacoesActionLimit(action, limit);
+    const createLimit = action === "orquestrar_drenagem_publicacoes" ? safeLimit : undefined;
+    const syncLimit = action === "orquestrar_drenagem_publicacoes" ? Math.max(1, Math.min(safeLimit, 5)) : undefined;
+    const snapshotLimit = action === "orquestrar_drenagem_publicacoes" ? 500 : undefined;
     const response = await adminFetch("/api/admin-hmadv-publicacoes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2477,6 +2610,9 @@ function PublicacoesContent() {
         jobAction: action,
         apply,
         limit: safeLimit,
+        createLimit,
+        syncLimit,
+        snapshotLimit,
         processNumbers: numbers.length ? numbers.join("\n") : processNumbers,
       }),
     }, {
@@ -2565,13 +2701,16 @@ function PublicacoesContent() {
       const payload = await adminFetch("/api/admin-hmadv-publicacoes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action,
-          apply,
-          limit: safeLimit,
-          maxPaginas: action === "run_advise_sync" ? safeLimit : undefined,
-          processNumbers: numbers.length ? numbers.join("\n") : processNumbers,
-        }),
+      body: JSON.stringify({
+        action,
+        apply,
+        limit: safeLimit,
+        createLimit: action === "orquestrar_drenagem_publicacoes" ? safeLimit : undefined,
+        syncLimit: action === "orquestrar_drenagem_publicacoes" ? Math.max(1, Math.min(safeLimit, 5)) : undefined,
+        snapshotLimit: action === "orquestrar_drenagem_publicacoes" ? 500 : undefined,
+        maxPaginas: action === "run_advise_sync" ? safeLimit : undefined,
+        processNumbers: numbers.length ? numbers.join("\n") : processNumbers,
+      }),
       }, {
         action,
         component: "publicacoes-actions",
@@ -2639,6 +2778,15 @@ function PublicacoesContent() {
           return {
             ...payload.data,
             activityTypeStatus,
+          };
+        }
+        if (action === "orquestrar_drenagem_publicacoes") {
+          const created = Number(payload.data?.summary?.created || payload.data?.created?.processosCriados || 0);
+          const synced = Number(payload.data?.summary?.synced || payload.data?.synced?.activitiesCriadas || 0);
+          const snapshots = Number(payload.data?.summary?.snapshots || 0);
+          return {
+            ...payload.data,
+            uiHint: `Pipeline concluido: ${created} processo(s) criado(s), ${synced} activity(s) sincronizada(s) e ${snapshots} snapshot(s) reconstruido(s).`,
           };
         }
         return payload.data;
@@ -2900,6 +3048,14 @@ function PublicacoesContent() {
                 className="bg-[#C5A059] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#050706] disabled:opacity-50"
               >
                 Criar processos ausentes
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAction("orquestrar_drenagem_publicacoes", true, selectedUnifiedNumbers)}
+                disabled={actionState.loading || hasBlockingJob}
+                className="border border-[#30543A] bg-[rgba(24,69,53,0.2)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#B7F7C6] hover:border-[#3E7B63] disabled:opacity-50"
+              >
+                Orquestrar drenagem
               </button>
               <button
                 type="button"
@@ -3171,6 +3327,8 @@ function PublicacoesContent() {
                   <HealthBadge label={`${selectedUnifiedNumbers.length} CNJ(s) unicos`} tone="default" />
                   <HealthBadge label={`${integratedQueue.totalRows || filteredIntegratedRows.length} filtrado(s)`} tone="warning" />
                   {integratedQueue.limited ? <HealthBadge label="leitura parcial protegida" tone="warning" /> : null}
+                  <HealthBadge label={integratedQueue.mode === "snapshot" ? "cursor seguro" : "fallback legado"} tone={integratedQueue.mode === "snapshot" ? "success" : "warning"} />
+                  <HealthBadge label={`origem ${integratedSourceLabel}`} tone="default" />
                 </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-[0.9fr_1.1fr_auto_auto_auto_auto]">
                   <label className="text-xs uppercase tracking-[0.14em] opacity-60">Validacao em massa
@@ -3197,11 +3355,20 @@ function PublicacoesContent() {
                   </button>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => handleAction("orquestrar_drenagem_publicacoes", true, selectedUnifiedNumbers)} disabled={actionState.loading || hasBlockingJob} className="border border-[#30543A] px-3 py-2 text-xs text-[#B7F7C6] disabled:opacity-40">
+                    Orquestrar drenagem
+                  </button>
                   <button type="button" onClick={() => handleAction("criar_processos_publicacoes", true, selectedUnifiedNumbers)} disabled={actionState.loading || hasBlockingJob || !selectedUnifiedNumbers.length} className="border border-[#2D2E2E] px-3 py-2 text-xs disabled:opacity-40">
                     Criar processos
                   </button>
                   <button type="button" onClick={() => handleAction("sincronizar_publicacoes_activity", true, selectedUnifiedNumbers)} disabled={actionState.loading || hasBlockingJob || !selectedUnifiedNumbers.length || noPublicationActivityTypeConfigured} title={publicationActivityTypeHint || undefined} className="border border-[#6E5630] px-3 py-2 text-xs text-[#F8E7B5] disabled:opacity-40">
                     Sincronizar publicacoes
+                  </button>
+                  <button type="button" onClick={() => refreshIntegratedSnapshot(integratedFilters.source === "partes" ? "candidatos_partes" : "mesa_integrada")} disabled={actionState.loading || hasBlockingJob} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-40">
+                    Atualizar snapshot
+                  </button>
+                  <button type="button" onClick={runPendingJobsNow} disabled={actionState.loading || drainInFlight || !canManuallyDrainActiveJob} className="border border-[#30543A] px-3 py-2 text-xs text-[#B7F7C6] disabled:opacity-40">
+                    {drainInFlight ? "Drenando..." : "Drenar fila"}
                   </button>
                   <a href="/interno/processos" className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">
                     Partes em processos
@@ -3213,7 +3380,6 @@ function PublicacoesContent() {
                 totalRows={integratedQueue.totalRows || filteredIntegratedRows.length}
                 selectedCount={selectedUnifiedCount}
                 page={integratedPage}
-                setPage={setIntegratedPage}
                 pageSize={integratedPageSize}
                 onOpenDetail={loadIntegratedDetail}
                 onToggleRow={toggleUnifiedRow}
@@ -3221,6 +3387,12 @@ function PublicacoesContent() {
                 onToggleAllFiltered={toggleIntegratedFiltered}
                 allPageSelected={allIntegratedPageSelected}
                 allFilteredSelected={allIntegratedFilteredSelected}
+                onPreviousPage={goToIntegratedPreviousPage}
+                onNextPage={goToIntegratedNextPage}
+                canGoPrevious={integratedCanGoPrevious}
+                canGoNext={integratedCanGoNext}
+                queueMode={integratedQueue.mode}
+                queueSourceLabel={integratedSourceLabel}
                 limited={integratedQueue.limited}
                 totalEstimated={integratedQueue.totalEstimated}
                 errorMessage={integratedQueue.error}

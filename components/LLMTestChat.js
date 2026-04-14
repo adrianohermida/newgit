@@ -792,10 +792,16 @@ export default function LLMTestChat() {
       setResults((current) => [resultRecord, ...current]);
       setSelectedResultId(resultRecord.id);
       const authErrorType = String(runError?.payload?.errorType || "");
+      const isAdminRuntimeUnavailable =
+        runError?.status === 404 ||
+        runError?.status === 405 ||
+        authErrorType === "admin_runtime_unavailable";
       setError(
         runError?.status === 401 || runError?.status === 403 || ["authentication", "missing_session", "invalid_session", "inactive_profile", "missing_token"].includes(authErrorType)
           ? "Sua sessão administrativa expirou ou perdeu permissão. Faça login novamente no interno antes de rodar o LLM Test."
-          : runError?.message || "Falha ao executar smoke test."
+          : isAdminRuntimeUnavailable
+            ? "O runtime administrativo do LLM Test não está publicado neste deploy. A rota /api/admin-lawdesk-chat precisa estar ativa no ambiente."
+            : runError?.message || "Falha ao executar smoke test."
       );
 
       updateActivityLog(activityId, {

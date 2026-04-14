@@ -946,7 +946,7 @@ function getBulkGuardrail(logPane, paneRisk, paneSla, paneEntries = []) {
 }
 
 function getConsoleHeightLimits() {
-  return { min: 180, max: 260, preferred: 220 };
+  return { min: 180, max: 560, preferred: 260 };
 }
 
 export default function InternoLayout({
@@ -997,11 +997,19 @@ export default function InternoLayout({
     code: "",
     detail: "",
   });
+  const [headerSearch, setHeaderSearch] = useState("");
+  const [debouncedHeaderSearch, setDebouncedHeaderSearch] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [headerLlm, setHeaderLlm] = useState("gpt");
   const [logFilters, setLogFilters] = useState(() => getActivityLogFilters());
   const [logSearch, setLogSearch] = useState("");
   const [logExpanded, setLogExpanded] = useState(null);
   const dragStateRef = useRef({ dragging: false, startY: 0, startHeight: 260 });
   const shellPreferencesHydratedRef = useRef(false);
+  const headerSearchRef = useRef(null);
+  const settingsModalRef = useRef(null);
+  const userMenuRef = useRef(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1147,6 +1155,39 @@ export default function InternoLayout({
   const coverageErrorCount = useMemo(() => {
     return coverageCards.filter((item) => item.tone === "danger").length;
   }, [coverageCards]);
+  const headerSearchResults = useMemo(() => {
+    if (!debouncedHeaderSearch) return [];
+    const needle = debouncedHeaderSearch.toLowerCase();
+    const routeMatches = NAV_ITEMS.filter((item) => item.label.toLowerCase().includes(needle) || item.href.toLowerCase().includes(needle))
+      .map((item) => ({
+        key: `route_${item.href}`,
+        label: item.label,
+        helper: item.href,
+        href: item.href,
+        type: "modulo",
+      }));
+    const snapshotMatches = coverageCards
+      .filter((item) => [item.label, item.key, item.routePath, item.summary].filter(Boolean).some((value) => String(value).toLowerCase().includes(needle)))
+      .map((item) => ({
+        key: `snapshot_${item.key}`,
+        label: item.label || item.key,
+        helper: item.summary || item.routePath || "Snapshot operacional",
+        href: item.routePath || `/interno/${item.key}`,
+        type: "snapshot",
+      }));
+    const noteMatches = operationalNotes
+      .filter((item) => String(item?.note || item?.title || "").toLowerCase().includes(needle))
+      .slice(0, 4)
+      .map((item, index) => ({
+        key: `note_${item.createdAt || index}`,
+        label: item.title || "Nota operacional",
+        helper: item.note || "Registro interno",
+        href: null,
+        type: "nota",
+      }));
+
+    return [...routeMatches, ...snapshotMatches, ...noteMatches].slice(0, 8);
+  }, [coverageCards, debouncedHeaderSearch, operationalNotes]);
   const moduleAlerts = useMemo(() => {
     const map = new Map();
     for (const card of coverageCards) {
@@ -1173,6 +1214,42 @@ export default function InternoLayout({
     window.addEventListener("resize", syncConsoleHeightToViewport);
     return () => {
       window.removeEventListener("resize", syncConsoleHeightToViewport);
+    };
+  }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedHeaderSearch(headerSearch.trim());
+    }, 220);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [headerSearch]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const handlePointerDown = (event) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setUserMenuOpen(false);
+      }
+      if (settingsModalRef.current && !settingsModalRef.current.contains(event.target)) {
+        setSettingsOpen(false);
+      }
+      if (headerSearchRef.current && !headerSearchRef.current.contains(event.target)) {
+        setDebouncedHeaderSearch("");
+      }
+    };
+    const handleEscape = (event) => {
+      if (event.key !== "Escape") return;
+      setUserMenuOpen(false);
+      setSettingsOpen(false);
+      setDebouncedHeaderSearch("");
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
     };
   }, []);
 
@@ -1241,6 +1318,14 @@ export default function InternoLayout({
     dragStateRef.current.dragging = true;
     dragStateRef.current.startY = event.clientY;
     dragStateRef.current.startHeight = consoleHeight;
+  }
+
+  function handleHeaderSearchSelect(result) {
+    if (result?.href) {
+      router.push(result.href);
+    }
+    setHeaderSearch("");
+    setDebouncedHeaderSearch("");
   }
 
   async function handleCopyLog() {
@@ -1613,15 +1698,16 @@ export default function InternoLayout({
   const resolvedRightRail = typeof rightRail === "function"
     ? rightRail({ moduleKey: currentModuleKey, moduleHistory, activityLog })
     : rightRail;
-  const consoleReservedSpace = consoleOpen ? consoleHeight + 20 : 52;
-  const copilotConsoleInset = isCopilotWorkspace ? consoleReservedSpace + (isMobileShell ? 12 : 16) : 0;
+  const consoleReservedSpace = 0;
+  const copilotConsoleInset = 0;
   const consoleDockLeft = hideShellSidebar ? 0 : isMobileShell ? 0 : leftCollapsed ? 88 : 272;
-  const desktopRightRailWidth = rightRailMode === "compact" ? 332 : 396;
+  const desktopRightRailWidth = rightRailMode === "compact" ? 356 : 404;
   const consoleDockRight = !isMobileShell && shouldRenderDotobotRail && !rightCollapsed ? desktopRightRailWidth : 0;
-  const rightRailConversationFirst = !rightRailFullscreen;
+  const showSupplementalRightRail = rightRailFullscreen && Boolean(currentOperationalRail || resolvedRightRail);
+  const rightRailConversationFirst = !showSupplementalRightRail;
 
   return (
-    <div className={`relative flex h-screen w-full overflow-hidden text-[Arial,sans-serif] ${isCopilotWorkspace ? "p-0" : "p-2 md:p-3"} ${isLightTheme ? "bg-[linear-gradient(180deg,#EEF2F6_0%,#E4EAF1_100%)] text-[#13201D]" : "bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.16),transparent_24%),linear-gradient(180deg,#040605_0%,#070A09_100%)] text-[#F4F1EA]"}`}>
+    <div className={`relative flex h-screen w-full flex-col overflow-hidden text-[Arial,sans-serif] ${isCopilotWorkspace ? "p-0" : "p-2 md:p-3"} ${isLightTheme ? "bg-[linear-gradient(180deg,#EEF2F6_0%,#E4EAF1_100%)] text-[#13201D]" : "bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.16),transparent_24%),linear-gradient(180deg,#040605_0%,#070A09_100%)] text-[#F4F1EA]"}`}>
       {isMobileShell && !leftCollapsed && !hideShellSidebar ? (
         <button
           type="button"
@@ -1630,6 +1716,7 @@ export default function InternoLayout({
           className="absolute inset-0 z-30 bg-[rgba(5,8,9,0.5)] backdrop-blur-[2px]"
         />
       ) : null}
+      <div className="flex min-h-0 flex-1">
       {/* SIDEBAR */}
       {!hideShellSidebar ? <aside className={`z-40 shrink-0 flex h-full flex-col rounded-[26px] border px-4 py-4 shadow-[0_18px_48px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all ${isLightTheme ? "border-[#C9D5E2] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(241,245,249,0.98))]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(11,18,16,0.98),rgba(8,14,13,0.95))]"} ${isMobileShell ? `absolute bottom-2 left-2 top-2 w-[292px] max-w-[calc(100vw-1rem)] ${leftCollapsed ? "pointer-events-none -translate-x-[110%] opacity-0" : "translate-x-0 opacity-100"}` : leftCollapsed ? "w-[88px] min-w-[88px]" : "w-[264px] min-w-[220px] max-w-[312px]"}`}>
         <Link href="/interno" prefetch={false} className="mb-8 block">
@@ -1699,31 +1786,55 @@ export default function InternoLayout({
                 {isCopilotWorkspace ? "Conversa centralizada com histórico e módulos" : router.pathname}
               </p>
             </div>
-            <div className={`flex-1 ${isCopilotWorkspace ? "px-1 md:px-4 xl:px-8" : "px-4 xl:px-6"}`}>
+            <div ref={headerSearchRef} className={`relative flex-1 ${isCopilotWorkspace ? "px-1 md:px-4 xl:px-8" : "px-4 xl:px-6"}`}>
               <div className={`mx-auto flex items-center gap-3 rounded-[16px] border px-4 py-2.5 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isCopilotWorkspace ? "max-w-[980px]" : "max-w-xl"} ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.84)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(12,15,14,0.86),rgba(8,10,9,0.9))]"}`}>
+                <label className={`flex shrink-0 items-center gap-2 rounded-[12px] border px-3 py-2 text-[11px] uppercase tracking-[0.16em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
+                  <span>LLM</span>
+                  <select
+                    value={headerLlm}
+                    onChange={(event) => setHeaderLlm(event.target.value)}
+                    className="bg-transparent text-[11px] font-semibold uppercase tracking-[0.12em] outline-none"
+                  >
+                    <option value="gpt">GPT</option>
+                    <option value="claude">Claude</option>
+                    <option value="outros">Outros</option>
+                  </select>
+                </label>
                 <input
                   type="text"
+                  value={headerSearch}
+                  onChange={(event) => setHeaderSearch(event.target.value)}
                   placeholder={isCopilotWorkspace ? "Buscar conversas, processos, publicações, contatos ou contexto..." : "Buscar por processos, publicacoes, contas..."}
-                  className="w-full bg-transparent text-sm outline-none placeholder:text-[#60706A]"
+                  className={`h-11 w-full rounded-[12px] border bg-transparent px-4 text-sm outline-none transition ${isLightTheme ? "border-[#D7DEE8] text-[#22312F] placeholder:text-[#8A99A7] focus:border-[#C5A059]" : "border-[#22342F] text-[#F4F1EA] placeholder:text-[#60706A] focus:border-[#C5A059]"}`}
                 />
+                {headerSearchResults.length ? (
+                  <div className={`absolute left-0 right-0 top-[calc(100%+8px)] z-40 mx-auto max-w-3xl overflow-hidden rounded-[18px] border shadow-[0_22px_44px_rgba(0,0,0,0.18)] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(10,12,11,0.98)]"}`}>
+                    {headerSearchResults.map((result) => (
+                      <button
+                        key={result.key}
+                        type="button"
+                        onClick={() => handleHeaderSearchSelect(result)}
+                        className={`flex w-full items-start justify-between gap-3 px-4 py-3 text-left text-sm transition ${isLightTheme ? "hover:bg-[#F7F9FC]" : "hover:bg-[rgba(255,255,255,0.03)]"}`}
+                      >
+                        <div className="min-w-0">
+                          <p className={`truncate font-medium ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{result.label}</p>
+                          <p className={`mt-1 truncate text-[11px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{result.helper}</p>
+                        </div>
+                        <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>{result.type}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 <button
                   type="button"
                   onClick={isCopilotWorkspace ? handleFocusCopilotComposer : handleToggleCopilot}
                   className={`rounded-[12px] border px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] transition ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#9A6E2D] hover:border-[#C5A059]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#C5A059] hover:border-[#C5A059] hover:text-[#F5E6C5]"}`}
                 >
-                  {isCopilotWorkspace ? "Focar chat" : "Conversar"}
+                  {isCopilotWorkspace ? "Chat" : "Conversar"}
                 </button>
               </div>
             </div>
           <div className={`[&_span.text-lg]:hidden flex shrink-0 items-center gap-2 rounded-[16px] border px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.84)]" : "border-[#1F2D29] bg-[rgba(255,255,255,0.02)]"}`}>
-            <button
-              type="button"
-              onClick={handlePageDebug}
-              className={`rounded-xl border px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] text-[#60706A]" : "border-[#22342F] text-[#9BAEA8]"}`}
-              title="Registrar debug desta pagina"
-            >
-              Debug
-            </button>
             <button
               type="button"
               onClick={toggleTheme}
@@ -1749,32 +1860,18 @@ export default function InternoLayout({
                 </svg>
               )}
             </button>
-            <div className={`hidden items-center gap-1 rounded-[14px] border px-1 py-1 md:flex ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.88)]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
-              {[
-                { key: "light", label: "Claro" },
-                { key: "system", label: "Sistema" },
-                { key: "dark", label: "Escuro" },
-              ].map((option) => {
-                const active = preference === option.key;
-                return (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => setThemePreference(option.key)}
-                    className={`rounded-[10px] px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] transition ${
-                      active
-                        ? "bg-[linear-gradient(180deg,#C5A059,#B08B46)] text-[#07110E] shadow-[0_6px_18px_rgba(197,160,89,0.18)]"
-                        : isLightTheme
-                          ? "text-[#60706A] hover:bg-[rgba(213,222,233,0.76)] hover:text-[#22312F]"
-                          : "text-[#9BAEA8] hover:bg-[rgba(255,255,255,0.05)] hover:text-[#F5E6C5]"
-                    }`}
-                    title={`Usar tema ${option.label.toLowerCase()}`}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className={`flex h-10 w-10 items-center justify-center rounded-[14px] border transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
+              title="Configurações"
+            >
+              <span className="sr-only">Configurações</span>
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01A1.65 1.65 0 0 0 10.44 3.1V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </button>
             <button
               type="button"
               onClick={() => setLeftCollapsed((current) => !current)}
@@ -1804,6 +1901,38 @@ export default function InternoLayout({
                   <span className="text-lg">▣</span>
                 </button>
               ) : null}
+              <div ref={userMenuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setUserMenuOpen((current) => !current)}
+                  className={`flex h-10 min-w-[42px] items-center justify-center rounded-[14px] border px-2 text-sm font-semibold transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#22312F]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA]"}`}
+                  title="Menu do usuário"
+                >
+                  {(normalizeDisplayName(profile).trim().charAt(0) || "H").toUpperCase()}
+                </button>
+                {userMenuOpen ? (
+                  <div className={`absolute right-0 top-[calc(100%+8px)] z-40 w-56 overflow-hidden rounded-[18px] border shadow-[0_22px_44px_rgba(0,0,0,0.18)] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(10,12,11,0.98)]"}`}>
+                    {[
+                      { key: "dashboard", label: "Dashboard", action: () => router.push("/interno") },
+                      { key: "settings", label: "Configurações", action: () => setSettingsOpen(true) },
+                      { key: "notifications", label: "Notificações", action: () => router.push("/interno/copilot#notificacoes") },
+                      { key: "signout", label: "Sair", action: handleSignOut },
+                    ].map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          item.action();
+                        }}
+                        className={`flex w-full items-center justify-between px-4 py-3 text-left text-sm transition ${isLightTheme ? "text-[#22312F] hover:bg-[#F7F9FC]" : "text-[#D8DEDA] hover:bg-[rgba(255,255,255,0.03)]"}`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
               <button
                 type="button"
                 onClick={() => setConsoleOpen((current) => !current)}
@@ -1843,15 +1972,10 @@ export default function InternoLayout({
             {showExtensionManager && !isCopilotWorkspace ? <DotobotExtensionManager /> : null}
           </div>
           </div>
+          </div>
           <div
-            className={`fixed bottom-3 z-30 min-h-[52px] overflow-hidden rounded-[24px] border shadow-[0_-12px_38px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all ${isLightTheme ? "border-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,245,249,0.98))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(10,12,11,0.985),rgba(6,8,7,0.98))]"} ${consoleOpen ? "flex flex-col" : "block h-[52px]"}`}
-            style={{
-              left: `${isMobileShell ? 8 : consoleDockLeft + 12}px`,
-              right: `${isMobileShell ? 8 : consoleDockRight + 12}px`,
-              height: consoleOpen ? `${consoleHeight}px` : undefined,
-              width: isMobileShell ? "calc(100vw - 16px)" : undefined,
-              maxWidth: isMobileShell ? "calc(100vw - 16px)" : undefined,
-            }}
+            className={`z-30 mt-2 min-h-[52px] shrink-0 overflow-hidden rounded-[24px] border shadow-[0_-12px_38px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all ${isLightTheme ? "border-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,245,249,0.98))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(10,12,11,0.985),rgba(6,8,7,0.98))]"} ${consoleOpen ? "flex flex-col" : "block h-[52px]"}`}
+            style={{ height: consoleOpen ? `${consoleHeight}px` : undefined }}
           >
             {consoleOpen ? (
               <div
@@ -1915,8 +2039,9 @@ export default function InternoLayout({
                 type="button"
                 onClick={() => setConsoleOpen((current) => !current)}
                 className={`rounded-[14px] border px-3 py-1.5 text-[10px] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}
+                title={consoleOpen ? "Recolher console" : "Expandir console"}
               >
-                {consoleOpen ? "Minimizar" : "Abrir"}
+                {consoleOpen ? "↓" : "↑"}
               </button>
             </div>
             {consoleOpen ? (
@@ -2899,12 +3024,32 @@ export default function InternoLayout({
                 )}
               </div>
             ) : null}
+            {consoleOpen ? (
+              <div className={`shrink-0 border-t px-4 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[rgba(255,255,255,0.88)]" : "border-[#1E2E29] bg-[rgba(8,10,9,0.72)]"}`}>
+                <div className="flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={handlePageDebug}
+                    className={`rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-white text-[#60706A]" : "border-[#22342F] text-[#9BAEA8]"}`}
+                    title="Registrar debug desta pagina"
+                  >
+                    Debug
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
         {shouldRenderDotobotRail && !rightCollapsed ? (
-          <div className="fixed inset-y-3 right-3 z-40 flex w-[min(100vw-0.75rem,420px)] flex-col overflow-hidden rounded-[30px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(8,10,9,0.985),rgba(7,9,8,0.96))] shadow-[-24px_0_56px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.02)] xl:relative xl:inset-y-auto xl:right-auto xl:z-auto xl:h-full xl:w-[360px] xl:min-w-[320px] xl:max-w-[420px] xl:rounded-[30px] xl:bg-[linear-gradient(180deg,rgba(8,10,9,0.96),rgba(7,9,8,0.94))] xl:shadow-none">
-            {!rightRailConversationFirst && (currentOperationalRail || resolvedRightRail) ? (
-              <div className="max-h-[42%] shrink-0 overflow-auto border-b border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4 xl:max-h-[48%]">
+          <div
+            className={`fixed inset-y-3 right-3 z-40 flex w-[min(100vw-0.75rem,432px)] flex-col overflow-hidden rounded-[30px] border shadow-[-24px_0_56px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.02)] xl:relative xl:inset-y-auto xl:right-auto xl:z-auto xl:h-full xl:min-w-[332px] xl:max-w-[432px] xl:rounded-[30px] xl:shadow-none ${
+              isLightTheme
+                ? "border-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.985),rgba(243,247,251,0.98))]"
+                : "border-[#22342F] bg-[linear-gradient(180deg,rgba(8,10,9,0.985),rgba(7,9,8,0.96))]"
+            } ${rightRailFullscreen ? "xl:w-[404px]" : "xl:w-[356px]"}`}
+          >
+            {!rightRailConversationFirst && showSupplementalRightRail ? (
+              <div className={`max-h-[42%] shrink-0 overflow-auto border-b p-4 xl:max-h-[48%] ${isLightTheme ? "border-[#D7DEE8] bg-[rgba(247,249,252,0.92)]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                 {currentOperationalRail ? (
                   <OperationalRightRail
                     data={currentOperationalRail}
@@ -2940,8 +3085,8 @@ export default function InternoLayout({
                 </div>
               )}
             </div>
-            {rightRailConversationFirst && (currentOperationalRail || resolvedRightRail) ? (
-              <div className="max-h-[34%] shrink-0 overflow-auto border-t border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+            {rightRailConversationFirst && showSupplementalRightRail ? (
+              <div className={`max-h-[34%] shrink-0 overflow-auto border-t p-4 ${isLightTheme ? "border-[#D7DEE8] bg-[rgba(247,249,252,0.92)]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                 {currentOperationalRail ? (
                   <OperationalRightRail
                     data={currentOperationalRail}
@@ -2971,6 +3116,60 @@ export default function InternoLayout({
             <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[#07110E]" />
             <span>{copilotOpen && !rightCollapsed ? "Fechar painel" : "Abrir copilot"}</span>
           </button>
+        ) : null}
+        {settingsOpen ? (
+          <div className="absolute inset-0 z-[95] flex items-center justify-center bg-[rgba(4,7,8,0.48)] px-4 backdrop-blur-sm">
+            <div ref={settingsModalRef} className={`w-full max-w-lg rounded-[28px] border p-5 shadow-[0_24px_70px_rgba(0,0,0,0.24)] ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,#FFFFFF,#F7F9FC)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(12,16,15,0.98),rgba(8,11,10,0.98))]"}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C5A059]">Configurações</p>
+                  <h3 className={`mt-2 text-xl font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Preferências do sistema</h3>
+                  <p className={`mt-2 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>Tema, preferências visuais e comportamento do shell interno.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen(false)}
+                  className={`rounded-full border px-3 py-1 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}
+                >
+                  Fechar
+                </button>
+              </div>
+              <div className="mt-5 space-y-4">
+                <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Tema</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {[
+                      { key: "light", label: "Claro" },
+                      { key: "system", label: "Sistema" },
+                      { key: "dark", label: "Escuro" },
+                    ].map((option) => {
+                      const active = preference === option.key;
+                      return (
+                        <button
+                          key={option.key}
+                          type="button"
+                          onClick={() => setThemePreference(option.key)}
+                          className={`rounded-[12px] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
+                            active
+                              ? "bg-[linear-gradient(180deg,#C5A059,#B08B46)] text-[#07110E] shadow-[0_6px_18px_rgba(197,160,89,0.18)]"
+                              : isLightTheme
+                                ? "border border-[#D7DEE8] bg-white text-[#60706A] hover:border-[#C5A059]"
+                                : "border border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059] hover:text-[#F5E6C5]"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Persistência</p>
+                  <p className={`mt-3 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>O tema e as preferências do shell são persistidos localmente e sincronizados com o modo do sistema quando “Sistema” estiver ativo.</p>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : null}
       </div>
     </div>

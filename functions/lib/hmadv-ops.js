@@ -263,6 +263,47 @@ function formatCnj(value) {
   return `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16)}`;
 }
 
+function encodeSnapshotCursor(payload = {}) {
+  return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+}
+
+function decodeSnapshotCursor(value) {
+  if (!value) return null;
+  try {
+    return JSON.parse(Buffer.from(String(value), "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function buildSnapshotSearchFilter(query = "") {
+  const clean = String(query || "").trim();
+  if (!clean) return "";
+  const digits = normalizeProcessNumber(clean);
+  const pattern = encodeURIComponent(`*${clean}*`);
+  const filters = [
+    `titulo.ilike.${pattern}`,
+    `numero_cnj.ilike.${encodeURIComponent(`*${digits || clean}*`)}`,
+  ];
+  return `or=(${filters.join(",")})`;
+}
+
+function buildSnapshotCursorFilter(cursor) {
+  if (!cursor?.cursor_key) return "";
+  const score = Number(cursor.priority_score || 0);
+  const lastDate = String(cursor.last_publicacao_at || "");
+  const key = encodeURIComponent(String(cursor.cursor_key || ""));
+  const clauses = [
+    `priority_score.lt.${score}`,
+    `and(priority_score.eq.${score},last_publicacao_at.lt.${encodeURIComponent(lastDate)})`,
+    `and(priority_score.eq.${score},last_publicacao_at.eq.${encodeURIComponent(lastDate)},cursor_key.lt.${key})`,
+  ];
+  if (!lastDate) {
+    clauses.splice(1, 2, `and(priority_score.eq.${score},cursor_key.lt.${key})`);
+  }
+  return `or=(${clauses.join(",")})`;
+}
+
 function buildProcessTitle(row) {
   const cnj = formatCnj(row?.numero_cnj || row?.numero_processo || "");
   const active = String(row?.polo_ativo || "").trim();
@@ -851,9 +892,27 @@ async function listTableSafe(env, path, schema = "judiciario", fallback = []) {
 
 export function detectAuctionKeyword(rawPayload) {
   const keywords = Array.isArray(rawPayload?.palavrasChave) ? rawPayload.palavrasChave : [];
-  return keywords
+  const normalizedKeywords = keywords
     .map((item) => normalizeKeyword(item))
-    .some((item) => item === "LEILAO" || item === "LEILOES");
+    .filter(Boolean);
+  if (normalizedKeywords.some((item) => item === "LEILAO" || item === "LEILOES")) {
+    return true;
+  }
+  const textSource = [
+    rawPayload?.conteudo,
+    rawPayload?.despacho,
+    rawPayload?.titulo,
+    rawPayload?.descricaoDiario,
+    rawPayload?.nomeDiario,
+    rawPayload?.descricaoCadernoDiario,
+    rawPayload?.nomeCadernoDiario,
+    rawPayload?.tipoComunicacao,
+    rawPayload?.tipoDocumento,
+  ]
+    .map((item) => normalizeText(item))
+    .filter(Boolean)
+    .join(" ");
+  return /\bleilao\b|\bleiloes\b/.test(textSource);
 }
 
 function isAuctionPublicationRow(row) {
@@ -1212,6 +1271,12 @@ async function collectPublicacoesTargets(loader, env) {
 async function resolvePublicacoesJobTargets(env, action, processNumbers = []) {
   const selected = uniqueNonEmpty(processNumbers);
   if (selected.length) return selected;
+  if (action === "orquestrar_drenagem_publicacoes") {
+    return ["pipeline"];
+  }
+  if (action === "refresh_snapshot_filas") {
+    return ["candidatos_processos", "mesa_integrada", "candidatos_partes"];
+  }
   if (action === "criar_processos_publicacoes") {
     return collectPublicacoesTargets(listCreateProcessCandidates, env);
   }
@@ -1490,6 +1555,188 @@ async function collectPartesExtractionCandidatePage(env, { page = 1, pageSize = 
     hasMore,
     limited: hasMore,
     items: collected.slice(targetStart, targetEnd),
+  };
+}
+
+async function deleteQueueSnapshotByType(env, queueType) {
+  await hmadvRest(
+    env,
+    `publicacoes_fila_snapshot?queue_type=eq.${encodeURIComponent(String(queueType || ""))}`,
+    {
+      method: "DELETE",
+      headers: {
+        Prefer: "return=minimal",
+      },
+    }
+  );
+}
+
+async function upsertQueueSnapshotRows(env, rows = []) {
+  for (const chunk of splitIntoChunks(rows, 200)) {
+    await hmadvRest(
+      env,
+      "publicacoes_fila_snapshot?on_conflict=queue_type,numero_cnj",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Profile": "judiciario",
+          Prefer: "resolution=merge-duplicates,return=minimal",
+        },
+        body: JSON.stringify(chunk),
+      },
+      "judiciario"
+    );
+  }
+}
+
+function mapSnapshotRow(queueType, row, source = queueType) {
+  const numero = normalizeProcessNumber(row?.numero_cnj || row?.key || "");
+  if (!numero) return null;
+  const lastDate = row?.ultima_publicacao || row?.ultima_data || row?.updated_at || null;
+  const priorityScore =
+    queueType === "candidatos_partes"
+      ? Number(row?.partes_novas || row?.total_pendente || 0)
+      : Number(row?.publicacoes || row?.publicacoes_count || row?.total_pendente || 0);
+  return {
+    queue_type: queueType,
+    numero_cnj: numero,
+    cursor_key: `${String(lastDate || "")}:${numero}`,
+    processo_id: row?.processo_id || null,
+    titulo: row?.titulo || null,
+    account_id_freshsales: row?.account_id_freshsales || null,
+    status_atual_processo: row?.status_atual_processo || null,
+    source,
+    publicacoes_count: Number(row?.publicacoes || row?.publicacoes_count || row?.total_pendente || 0),
+    partes_detectadas: Number(row?.partes_detectadas || 0),
+    partes_novas: Number(row?.partes_novas || row?.total_pendente || 0),
+    partes_existentes: Number(row?.partes_existentes || 0),
+    last_publicacao_at: lastDate,
+    priority_score: Math.max(0, priorityScore),
+    metadata: {
+      key: row?.key || numero,
+      snippet: row?.snippet || null,
+      sample_partes: row?.sample_partes || row?.sample_partes_novas || [],
+      sample_ids: row?.sample_ids || [],
+      sample_conteudo: row?.sample_conteudo || [],
+      source,
+    },
+  };
+}
+
+async function collectSnapshotSeed(loader, env, { limit = 500, pageSize = 50 } = {}) {
+  const output = [];
+  let page = 1;
+  let hasMore = true;
+  while (hasMore && output.length < limit) {
+    const data = await loader(env, { page, pageSize });
+    const items = Array.isArray(data?.items) ? data.items : [];
+    output.push(...items);
+    hasMore = Boolean(data?.hasMore) && items.length > 0;
+    if (!items.length) break;
+    page += 1;
+  }
+  return output.slice(0, limit);
+}
+
+export async function rebuildPublicacoesQueueSnapshot(env, { queueType = "mesa_integrada", limit = 500 } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 500), 2000));
+  let rows = [];
+
+  if (queueType === "candidatos_processos") {
+    rows = (await collectSnapshotSeed(listCreateProcessCandidates, env, { limit: safeLimit, pageSize: 50 }))
+      .map((row) => mapSnapshotRow("candidatos_processos", row, "processos"))
+      .filter(Boolean);
+  } else if (queueType === "mesa_integrada") {
+    const [createRows, partesRows] = await Promise.all([
+      collectSnapshotSeed(listCreateProcessCandidates, env, { limit: safeLimit, pageSize: 50 }),
+      collectSnapshotSeed(listPartesExtractionCandidates, env, { limit: safeLimit, pageSize: 50 }),
+    ]);
+    const merged = new Map();
+    for (const row of createRows) {
+      const mapped = mapSnapshotRow("mesa_integrada", row, "processos");
+      if (!mapped) continue;
+      merged.set(mapped.numero_cnj, mapped);
+    }
+    for (const row of partesRows) {
+      const mapped = mapSnapshotRow("mesa_integrada", row, "partes");
+      if (!mapped) continue;
+      const current = merged.get(mapped.numero_cnj);
+      if (!current) {
+        merged.set(mapped.numero_cnj, mapped);
+        continue;
+      }
+      current.priority_score = Math.max(current.priority_score, mapped.priority_score);
+      current.publicacoes_count = Math.max(current.publicacoes_count, mapped.publicacoes_count);
+      current.partes_detectadas = Math.max(current.partes_detectadas, mapped.partes_detectadas);
+      current.partes_novas = Math.max(current.partes_novas, mapped.partes_novas);
+      current.partes_existentes = Math.max(current.partes_existentes, mapped.partes_existentes);
+      current.source = current.source === mapped.source ? current.source : "integrado";
+      current.metadata = {
+        ...current.metadata,
+        merged_sources: uniqueNonEmpty([current.metadata?.source, mapped.metadata?.source]),
+        sample_partes: current.metadata?.sample_partes?.length ? current.metadata.sample_partes : mapped.metadata?.sample_partes || [],
+      };
+      if (!current.last_publicacao_at || String(mapped.last_publicacao_at || "") > String(current.last_publicacao_at || "")) {
+        current.last_publicacao_at = mapped.last_publicacao_at;
+        current.cursor_key = `${String(mapped.last_publicacao_at || "")}:${mapped.numero_cnj}`;
+      }
+    }
+    rows = [...merged.values()];
+  } else if (queueType === "candidatos_partes") {
+    rows = (await collectSnapshotSeed(listPartesExtractionCandidates, env, { limit: safeLimit, pageSize: 50 }))
+      .map((row) => mapSnapshotRow("candidatos_partes", row, "partes"))
+      .filter(Boolean);
+  } else {
+    throw new Error(`queueType nao suportado para snapshot: ${queueType}`);
+  }
+
+  await deleteQueueSnapshotByType(env, queueType);
+  if (rows.length) {
+    await upsertQueueSnapshotRows(env, rows);
+  }
+
+  return {
+    checkedAt: new Date().toISOString(),
+    queueType,
+    rowsRebuilt: rows.length,
+    limitedTo: safeLimit,
+    sample: rows.slice(0, 10),
+  };
+}
+
+export async function listPublicacoesQueueSnapshot(env, { queueType = "mesa_integrada", limit = 20, cursor = "", query = "" } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 20), 50));
+  const filters = [`queue_type=eq.${encodeURIComponent(String(queueType || "mesa_integrada"))}`];
+  const searchFilter = buildSnapshotSearchFilter(query);
+  const cursorFilter = buildSnapshotCursorFilter(decodeSnapshotCursor(cursor));
+  if (searchFilter) filters.push(searchFilter);
+  if (cursorFilter) filters.push(cursorFilter);
+  filters.push(`order=priority_score.desc,last_publicacao_at.desc.nullslast,cursor_key.desc`);
+  filters.push(`limit=${safeLimit + 1}`);
+  const rows = await listTableSafe(
+    env,
+    `publicacoes_fila_snapshot?${filters.join("&")}&select=id,queue_type,numero_cnj,cursor_key,processo_id,titulo,account_id_freshsales,status_atual_processo,source,publicacoes_count,partes_detectadas,partes_novas,partes_existentes,last_publicacao_at,priority_score,metadata,updated_at`,
+    "judiciario",
+    []
+  );
+  const hasMore = rows.length > safeLimit;
+  const items = rows.slice(0, safeLimit);
+  const last = items[items.length - 1] || null;
+  return {
+    queueType,
+    items,
+    limit: safeLimit,
+    hasMore,
+    nextCursor: hasMore && last
+      ? encodeSnapshotCursor({
+          priority_score: last.priority_score,
+          last_publicacao_at: last.last_publicacao_at || "",
+          cursor_key: last.cursor_key,
+        })
+      : null,
+    source: "snapshot",
+    totalRows: await countTableSafe(env, "publicacoes_fila_snapshot", `queue_type=eq.${encodeURIComponent(String(queueType || "mesa_integrada"))}`, "judiciario", 0),
   };
 }
 
@@ -4369,6 +4616,61 @@ export async function createProcessesFromPublicacoes(env, { processNumbers = [],
   };
 }
 
+export async function runPublicacoesOperationalPipeline(env, {
+  processNumbers = [],
+  createLimit = 10,
+  syncLimit = 5,
+  snapshotLimit = 500,
+} = {}) {
+  const normalizedTargets = uniqueNonEmpty((processNumbers || []).map((item) => normalizeProcessNumber(item)).filter(Boolean));
+  const createTargets = normalizedTargets.length
+    ? normalizedTargets
+    : await resolvePublicacoesJobTargets(env, "criar_processos_publicacoes", []);
+  const createScope = createTargets.slice(0, Math.max(1, Math.min(Number(createLimit || 10), 25)));
+  const created = await createProcessesFromPublicacoes(env, {
+    processNumbers: createScope,
+    limit: createScope.length || createLimit,
+  });
+
+  const syncSeed = normalizedTargets.length
+    ? normalizedTargets
+    : await resolvePublicacoesJobTargets(env, "sincronizar_publicacoes_activity", []);
+  const createdLinkedNumbers = uniqueNonEmpty((created?.sample || [])
+    .filter((item) => item?.processo_depois)
+    .map((item) => item?.numero_cnj)
+    .filter(Boolean));
+  const syncTargets = uniqueNonEmpty([...createdLinkedNumbers, ...syncSeed]).slice(0, Math.max(1, Math.min(Number(syncLimit || 5), 20)));
+  const synced = await syncPublicationActivities(env, {
+    processNumbers: syncTargets,
+    limit: syncTargets.length || syncLimit,
+  });
+
+  const snapshots = [];
+  for (const queueType of ["candidatos_processos", "mesa_integrada", "candidatos_partes"]) {
+    snapshots.push(await rebuildPublicacoesQueueSnapshot(env, {
+      queueType,
+      limit: snapshotLimit,
+    }));
+  }
+
+  return {
+    checkedAt: new Date().toISOString(),
+    processNumbers: normalizedTargets,
+    createScope,
+    syncScope: syncTargets,
+    created,
+    synced,
+    snapshots,
+    summary: {
+      processosCriados: Number(created?.processosCriados || 0),
+      publicacoesVinculadas: Number(created?.publicacoesVinculadas || 0),
+      activitiesCriadas: Number(synced?.activitiesCriadas || 0),
+      publicacoesAtualizadas: Number(synced?.publicacoesAtualizadas || 0),
+      snapshotsAtualizados: snapshots.length,
+    },
+  };
+}
+
 export async function pushOrphanAccounts(env, { processNumbers = [], limit = 20 } = {}) {
   const config = getProcessActionLimitConfig("push_orfaos");
   const safeLimit = Math.max(1, Math.min(Number(limit || config.defaultLimit), config.maxLimit));
@@ -4645,12 +4947,18 @@ function normalizePublicacoesJobPayload(action, payload = {}) {
   const normalizedControl = normalizeJobControlPayload(payload, {
     defaultSource: "interno",
     defaultPriority:
+      action === "orquestrar_drenagem_publicacoes"
+        ? 5
+        :
       action === "criar_processos_publicacoes"
         ? 5
         : action === "sincronizar_publicacoes_activity" || action === "sincronizar_partes"
           ? 4
           : 3,
     defaultRateLimitKey:
+      action === "orquestrar_drenagem_publicacoes"
+        ? "publicacoes_pipeline"
+        :
       action === "criar_processos_publicacoes"
         ? "supabase_process_create"
         : action === "sincronizar_publicacoes_activity"
@@ -4661,7 +4969,11 @@ function normalizePublicacoesJobPayload(action, payload = {}) {
     defaultVisibleToPortal: false,
   });
   const maxLimit =
-    action === "backfill_partes"
+    action === "orquestrar_drenagem_publicacoes"
+      ? 1
+      : action === "refresh_snapshot_filas"
+      ? 1
+      : action === "backfill_partes"
       ? 2
       : action === "sincronizar_partes"
         ? 1
@@ -4673,7 +4985,11 @@ function normalizePublicacoesJobPayload(action, payload = {}) {
             ? 15
             : 20;
   const defaultLimit =
-    action === "backfill_partes"
+    action === "orquestrar_drenagem_publicacoes"
+      ? 1
+      : action === "refresh_snapshot_filas"
+      ? 1
+      : action === "backfill_partes"
       ? 1
       : action === "sincronizar_partes"
         ? 1
@@ -4687,6 +5003,9 @@ function normalizePublicacoesJobPayload(action, payload = {}) {
     action,
     jobControl: normalizedControl,
     processNumbers: uniqueNonEmpty(payload.processNumbers || []),
+    snapshotLimit: Math.max(50, Math.min(Number(payload.snapshotLimit || 500), 2000)),
+    createLimit: Math.max(1, Math.min(Number(payload.createLimit || 10), 25)),
+    syncLimit: Math.max(1, Math.min(Number(payload.syncLimit || 5), 20)),
     limit: Math.max(1, Math.min(Number(payload.limit || defaultLimit), maxLimit)),
     apply: payload.apply !== undefined ? Boolean(payload.apply) : true,
   };
@@ -4734,6 +5053,20 @@ async function runPublicacoesJobAction(env, action, processNumbers, limit, optio
   }
   if (action === "criar_processos_publicacoes") {
     return createProcessesFromPublicacoes(env, { processNumbers, limit });
+  }
+  if (action === "orquestrar_drenagem_publicacoes") {
+    return runPublicacoesOperationalPipeline(env, {
+      processNumbers: uniqueNonEmpty((options.processNumbers || processNumbers || []).filter((item) => item !== "pipeline")),
+      createLimit: Number(options.createLimit || limit || 10),
+      syncLimit: Number(options.syncLimit || 5),
+      snapshotLimit: Number(options.snapshotLimit || 500),
+    });
+  }
+  if (action === "refresh_snapshot_filas") {
+    return rebuildPublicacoesQueueSnapshot(env, {
+      queueType: String(processNumbers?.[0] || "mesa_integrada"),
+      limit: Number(options.snapshotLimit || 500),
+    });
   }
   if (action === "sincronizar_publicacoes_activity") {
     return syncPublicationActivities(env, { processNumbers, limit });
@@ -4788,6 +5121,10 @@ export async function processPublicacoesAdminJob(env, id) {
   try {
     const result = await runPublicacoesJobAction(env, job.acao, chunk, chunk.length, {
       apply: payload.apply !== undefined ? Boolean(payload.apply) : true,
+      snapshotLimit: payload.snapshotLimit,
+      createLimit: payload.createLimit,
+      syncLimit: payload.syncLimit,
+      processNumbers: payload.processNumbers,
     });
     const parsed = summarizeOperationResult(result || {});
     const failures = summarizeChunkFailures(result || {});

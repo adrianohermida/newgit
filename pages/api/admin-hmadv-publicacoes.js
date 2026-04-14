@@ -16,13 +16,16 @@ import {
   getPublicationActivityTypes,
   getPublicacoesAdminJob,
   getPublicacoesValidationMap,
+  listPublicacoesQueueSnapshot,
   listPublicationActivityBacklog,
   listProcessCoverage,
   logAdminOperation,
   processPublicacoesAdminJob,
+  rebuildPublicacoesQueueSnapshot,
   savePublicacoesValidation,
   syncPartesFromPublicacoes,
   syncPublicationActivities,
+  runPublicacoesOperationalPipeline,
 } from "../../functions/lib/hmadv-ops.js";
 import {
   getContactDetail,
@@ -60,6 +63,24 @@ function buildQueueFallback({ page, pageSize, error }) {
     items: [],
     limited: true,
     error: error?.message || "Fila em modo reduzido por sobrecarga.",
+  };
+}
+
+function buildSnapshotSafeEmpty({ page, pageSize, source, query, message }) {
+  return {
+    page,
+    pageSize,
+    totalRows: 0,
+    totalEstimated: false,
+    hasMore: false,
+    limited: true,
+    items: [],
+    source: "snapshot",
+    mode: "snapshot",
+    snapshotRequired: true,
+    query: query || "",
+    queueSource: source || "todos",
+    error: message || "Snapshot operacional indisponivel. Atualize o snapshot antes de abrir a fila consolidada.",
   };
 }
 
@@ -206,6 +227,80 @@ async function collectIntegratedSelection({ source = "todos", query = "", limit 
   };
 }
 
+async function collectIntegratedSelectionFromSnapshot(env, { source = "todos", query = "", limit = 500 } = {}) {
+  const safeLimit = Math.max(1, Math.min(Number(limit || 500), 5000));
+  const selected = new Set();
+  const queueTypes = source === "partes"
+    ? ["candidatos_partes"]
+    : source === "todos"
+      ? ["mesa_integrada"]
+      : [];
+  let limited = false;
+
+  for (const queueType of queueTypes) {
+    let cursor = "";
+    let hasMore = true;
+    while (hasMore && selected.size < safeLimit) {
+      const payload = await listPublicacoesQueueSnapshot(env, {
+        queueType,
+        limit: Math.min(200, safeLimit - selected.size),
+        cursor,
+        query,
+      });
+      for (const item of payload?.items || []) {
+        if (item?.numero_cnj) selected.add(item.numero_cnj);
+        if (selected.size >= safeLimit) break;
+      }
+      cursor = payload?.nextCursor || "";
+      hasMore = Boolean(payload?.hasMore && cursor);
+    }
+    if (hasMore) limited = true;
+  }
+
+  return {
+    totalRows: selected.size,
+    items: [...selected],
+    limited: selected.size >= safeLimit || limited,
+    source: "snapshot",
+  };
+}
+
+async function listSnapshotPage(env, { queueType, page = 1, pageSize = 20, query = "" } = {}) {
+  const safePage = Math.max(1, Number(page || 1));
+  const safePageSize = Math.max(1, Math.min(Number(pageSize || 20), 50));
+  let cursor = "";
+  let currentPage = 1;
+  let payload = null;
+
+  while (currentPage <= safePage) {
+    payload = await listPublicacoesQueueSnapshot(env, {
+      queueType,
+      limit: safePageSize,
+      cursor,
+      query,
+    });
+    if (currentPage === safePage) break;
+    if (!payload?.hasMore || !payload?.nextCursor) {
+      return {
+        ...payload,
+        page: safePage,
+        pageSize: safePageSize,
+        items: [],
+        hasMore: false,
+        nextCursor: null,
+      };
+    }
+    cursor = payload.nextCursor;
+    currentPage += 1;
+  }
+
+  return {
+    ...(payload || {}),
+    page: safePage,
+    pageSize: safePageSize,
+  };
+}
+
 async function loadIntegratedDetail(numeroCnj) {
   const safeNumeroCnj = String(numeroCnj || "").trim();
   if (!safeNumeroCnj) {
@@ -287,6 +382,16 @@ async function runInlinePublicacoesAction(action, body) {
     return syncPublicationActivities(runtimeEnv, {
       processNumbers,
       limit: requestedLimit || 5,
+    });
+  }
+  if (action === "orquestrar_drenagem_publicacoes") {
+    const createLimit = Number(body?.createLimit || requestedLimit || 10);
+    const syncLimit = Number(body?.syncLimit || Math.min(createLimit, 5) || 5);
+    return runPublicacoesOperationalPipeline(runtimeEnv, {
+      processNumbers,
+      createLimit,
+      syncLimit,
+      snapshotLimit: Number(body?.snapshotLimit || 500),
     });
   }
   if (action === "reconciliar_partes_contatos") {
@@ -371,12 +476,34 @@ export default async function handler(req, res) {
       if (action === "candidatos_processos") {
         const page = Number(req.query.page || 1);
         const pageSize = Number(req.query.pageSize || 20);
+        const query = String(req.query.query || "");
+        const cursor = String(req.query.cursor || "");
         let data;
         try {
-          data = await listCreateProcessCandidates({
-            page,
-            pageSize,
-          });
+          if (cursor || String(req.query.preferSnapshot || "1") !== "0") {
+            const snapshot = cursor
+              ? await listPublicacoesQueueSnapshot(runtimeEnv, {
+                  queueType: "candidatos_processos",
+                  limit: pageSize,
+                  cursor,
+                  query,
+                })
+              : await listSnapshotPage(runtimeEnv, {
+                  queueType: "candidatos_processos",
+                  page,
+                  pageSize,
+                  query,
+                });
+            if ((snapshot.items || []).length || cursor) {
+              data = snapshot;
+            }
+          }
+          if (!data) {
+            data = await listCreateProcessCandidates({
+              page,
+              pageSize,
+            });
+          }
         } catch (error) {
           if (!isQueueOverloadError(error)) throw error;
           data = buildQueueFallback({ page, pageSize, error });
@@ -386,12 +513,43 @@ export default async function handler(req, res) {
       if (action === "candidatos_partes") {
         const page = Number(req.query.page || 1);
         const pageSize = Number(req.query.pageSize || 20);
+        const cursor = String(req.query.cursor || "");
+        const query = String(req.query.query || "");
+        const preferSnapshot = String(req.query.preferSnapshot || "1") !== "0";
         let data;
         try {
-          data = await listPartesExtractionCandidates({
-            page,
-            pageSize,
-          });
+          if (preferSnapshot) {
+            const snapshot = cursor
+              ? await listPublicacoesQueueSnapshot(runtimeEnv, {
+                  queueType: "candidatos_partes",
+                  limit: pageSize,
+                  cursor,
+                  query,
+                })
+              : await listSnapshotPage(runtimeEnv, {
+                  queueType: "candidatos_partes",
+                  page,
+                  pageSize,
+                  query,
+                });
+            if ((snapshot.items || []).length || cursor || Number(snapshot.totalRows || 0) > 0) {
+              data = snapshot;
+            } else {
+              data = buildSnapshotSafeEmpty({
+                page,
+                pageSize,
+                source: "partes",
+                query,
+                message: "A fila de partes extraiveis agora depende do snapshot operacional para evitar estouro no Cloudflare Worker. Atualize o snapshot antes de consultar esta leitura.",
+              });
+            }
+          }
+          if (!data && !preferSnapshot) {
+            data = await listPartesExtractionCandidates({
+              page,
+              pageSize,
+            });
+          }
         } catch (error) {
           if (!isQueueOverloadError(error)) throw error;
           data = buildQueueFallback({ page, pageSize, error });
@@ -421,14 +579,45 @@ export default async function handler(req, res) {
         const pageSize = Number(req.query.pageSize || 20);
         const query = String(req.query.query || "");
         const source = String(req.query.source || "todos");
+        const cursor = String(req.query.cursor || "");
+        const preferSnapshot = String(req.query.preferSnapshot || "1") !== "0";
         let data;
         try {
-          data = await collectIntegratedQueueSlice({
-            page,
-            pageSize,
-            query,
-            source,
-          });
+          if ((source === "todos" || source === "partes") && preferSnapshot) {
+            const queueType = source === "partes" ? "candidatos_partes" : "mesa_integrada";
+            const snapshot = cursor
+              ? await listPublicacoesQueueSnapshot(runtimeEnv, {
+                  queueType,
+                  limit: pageSize,
+                  cursor,
+                  query,
+                })
+              : await listSnapshotPage(runtimeEnv, {
+                  queueType,
+                  page,
+                  pageSize,
+                  query,
+                });
+            if ((snapshot.items || []).length || cursor || Number(snapshot.totalRows || 0) > 0) {
+              data = snapshot;
+            } else if (source === "todos") {
+              data = buildSnapshotSafeEmpty({
+                page,
+                pageSize,
+                source,
+                query,
+                message: "A mesa integrada agora depende do snapshot operacional para evitar estouro no Cloudflare Worker. Atualize o snapshot e tente novamente.",
+              });
+            }
+          }
+          if (!data) {
+            data = await collectIntegratedQueueSlice({
+              page,
+              pageSize,
+              query,
+              source,
+            });
+          }
         } catch (error) {
           if (!isQueueOverloadError(error)) throw error;
           data = buildQueueFallback({ page, pageSize, error });
@@ -436,11 +625,37 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, data });
       }
       if (action === "mesa_integrada_selecao") {
-        const data = await collectIntegratedSelection({
-          query: String(req.query.query || ""),
-          source: String(req.query.source || "todos"),
-          limit: Number(req.query.limit || 500),
-        });
+        const query = String(req.query.query || "");
+        const source = String(req.query.source || "todos");
+        const limit = Number(req.query.limit || 500);
+        let data;
+        try {
+          if ((source === "todos" || source === "partes") && String(req.query.preferSnapshot || "1") !== "0") {
+            const snapshot = await collectIntegratedSelectionFromSnapshot(runtimeEnv, {
+              query,
+              source,
+              limit,
+            });
+            if ((snapshot.items || []).length) {
+              data = snapshot;
+            }
+          }
+          if (!data) {
+            data = await collectIntegratedSelection({
+              query,
+              source,
+              limit,
+            });
+          }
+        } catch (error) {
+          if (!isQueueOverloadError(error)) throw error;
+          data = {
+            totalRows: 0,
+            items: [],
+            limited: true,
+            error: error?.message || "Selecao em massa indisponivel por sobrecarga.",
+          };
+        }
         return res.status(200).json({ ok: true, data });
       }
       if (action === "detalhe_integrado") {
@@ -486,6 +701,9 @@ export default async function handler(req, res) {
             payload: {
               processNumbers: parseProcessNumbers(req.body?.processNumbers),
               limit: Number(req.body?.limit || 0),
+              createLimit: Number(req.body?.createLimit || 0),
+              syncLimit: Number(req.body?.syncLimit || 0),
+              snapshotLimit: Number(req.body?.snapshotLimit || 0),
               jobControl: req.body?.jobControl || null,
             },
           });
@@ -540,6 +758,17 @@ export default async function handler(req, res) {
         });
         return res.status(200).json({ ok: true, data });
       }
+      if (action === "orquestrar_drenagem_publicacoes") {
+        const createLimit = Number(req.body?.createLimit || req.body?.limit || 10);
+        const syncLimit = Number(req.body?.syncLimit || Math.min(createLimit, 5) || 5);
+        const data = await runPublicacoesOperationalPipeline(runtimeEnv, {
+          processNumbers: parseProcessNumbers(req.body?.processNumbers),
+          createLimit,
+          syncLimit,
+          snapshotLimit: Number(req.body?.snapshotLimit || 500),
+        });
+        return res.status(200).json({ ok: true, data });
+      }
       if (action === "salvar_validacao") {
         const data = await savePublicacoesValidation(runtimeEnv, {
           processNumbers: parseProcessNumbers(req.body?.processNumbers),
@@ -574,7 +803,59 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, data });
       }
       if (action === "run_advise_backfill") {
-        const data = await runAdviseBackfill();
+        try {
+          const data = await runAdviseBackfill();
+          return res.status(200).json({ ok: true, data });
+        } catch (error) {
+          const history = await listAdminOperations({
+            modulo: "publicacoes",
+            acao: "run_advise_backfill",
+            limit: 5,
+          }).catch(() => ({ items: [] }));
+          const latestSuccess = (history?.items || []).find((item) => item?.status === "success") || null;
+          const overview = await getPublicacoesOverview().catch(() => null);
+          const fallback = {
+            status: "fallback_error",
+            execucao_parcial: true,
+            upstream_error: error?.message || "Falha ao executar sync-advise-backfill.",
+            latestSuccessfulRunAt: latestSuccess?.created_at || latestSuccess?.finished_at || null,
+            latestSuccessfulSummary: latestSuccess?.result_summary || {},
+            publicacoesTotal: Number(overview?.publicacoesTotal || 0),
+            publicacoesOperacionais: Number(overview?.publicacoesOperacionais || 0),
+            publicacoesSemProcesso: Number(overview?.publicacoesSemProcesso || 0),
+            adviseCursorTotal: Number(overview?.adviseCursorTotal || 0),
+            advisePersistedDelta: Number(overview?.advisePersistedDelta || 0),
+            uiHint: "O backfill do Advise falhou na edge function, mas o portal preservou o estado atual para continuarmos a drenagem sem quebrar a interface.",
+          };
+          try {
+            await logAdminOperation(runtimeEnv, {
+              modulo: "publicacoes",
+              acao: "run_advise_backfill_fallback",
+              status: "warning",
+              payload: req.body || {},
+              result: fallback,
+            });
+          } catch {}
+          return res.status(200).json({ ok: true, data: fallback });
+        }
+      }
+      if (action === "refresh_snapshot_filas") {
+        const queueType = String(req.body?.queueType || "mesa_integrada");
+        if (req.body?.asyncJob) {
+          const data = await createPublicacoesAdminJob(runtimeEnv, {
+            action: "refresh_snapshot_filas",
+            payload: {
+              processNumbers: queueType === "all" ? ["candidatos_processos", "mesa_integrada", "candidatos_partes"] : [queueType],
+              limit: 1,
+              snapshotLimit: Number(req.body?.snapshotLimit || 500),
+            },
+          });
+          return res.status(202).json({ ok: true, data });
+        }
+        const data = await rebuildPublicacoesQueueSnapshot(runtimeEnv, {
+          queueType,
+          limit: Number(req.body?.snapshotLimit || 500),
+        });
         return res.status(200).json({ ok: true, data });
       }
       return res.status(400).json({ ok: false, error: "Acao POST invalida." });
