@@ -20,8 +20,19 @@ export async function syncSession() {
 export async function renderSessions(el, addSystemMessage, switchTab, addMessage, updateProviderBadge) {
   const data = await fetchJson("/sessions");
   const sessions = data.sessions || [];
-  if (!sessions.length) return void (el.paneSessions.innerHTML = '<p class="empty-list">Nenhuma sessao salva.</p>');
-  el.paneSessions.innerHTML = sessions.map((session) => `<div class="list-item"><div class="list-item-title">${escHtml(session.metadata?.tabTitle || session.id)}</div><div class="list-item-meta">${session.messageCount} msgs - ${session.taskCount || 0} tasks - ${escHtml(session.provider || "local")} - ${formatDate(session.updatedAt)}</div><div class="list-item-actions"><button class="btn-list-action" data-load="${session.id}">Retomar</button><button class="btn-list-action danger" data-delete-session="${session.id}">Apagar</button></div></div>`).join("");
+  if (!sessions.length) return void (el.paneSessions.innerHTML = renderEmpty("Sessoes", "Nenhuma sessao salva ainda."));
+  el.paneSessions.innerHTML = `
+    <div class="view-toolbar"><div class="view-title-wrap"><div class="view-title">Sessoes</div><div class="view-subtitle">Historico de conversas, provider usado e contexto salvo.</div></div></div>
+    ${sessions.map((session) => `
+      <article class="list-card">
+        <div class="list-item-title">${escHtml(session.metadata?.tabTitle || session.id)}</div>
+        <div class="list-item-meta">${session.messageCount} mensagens · ${session.taskCount || 0} tasks · ${escHtml(session.provider || "local")}</div>
+        <div class="list-item-meta">${escHtml(session.metadata?.tabUrl || "")}</div>
+        <div class="list-item-meta">Atualizada em ${formatDate(session.updatedAt)}</div>
+        <div class="list-item-actions"><button class="btn-list-action" data-load="${session.id}">Retomar</button><button class="btn-list-action danger" data-delete-session="${session.id}">Apagar</button></div>
+      </article>
+    `).join("")}
+  `;
   el.paneSessions.querySelectorAll("[data-load]").forEach((button) => button.addEventListener("click", async () => {
     const sessionData = await fetchJson(`/sessions/${button.dataset.load}`);
     state.sessionId = sessionData.session.id;
@@ -42,16 +53,29 @@ export async function renderSessions(el, addSystemMessage, switchTab, addMessage
 export async function renderTasks(el) {
   const data = await fetchJson(`/sessions/${state.sessionId}/tasks`);
   const tasks = data.tasks || [];
-  if (!tasks.length) return void (el.paneTasks.innerHTML = '<p class="empty-list">Nenhuma AI-Task nesta sessao.</p>');
-  el.paneTasks.innerHTML = tasks.map(renderTaskCard).join("");
+  if (!tasks.length) return void (el.paneTasks.innerHTML = renderEmpty("Tasks", "Nenhuma AI-Task nesta sessao."));
+  el.paneTasks.innerHTML = `
+    <div class="view-toolbar"><div class="view-title-wrap"><div class="view-title">Tasks</div><div class="view-subtitle">Execucao viva do agente com passos, aprovacoes e logs recentes.</div></div></div>
+    <div class="list-grid">${tasks.map(renderTaskCard).join("")}</div>
+  `;
   bindTaskApproval(el);
 }
 
 export async function renderAutomations(el, addSystemMessage, switchTab) {
   const data = await fetchJson("/automations");
   const automations = data.automations || [];
-  if (!automations.length) return void (el.paneAutomations.innerHTML = '<p class="empty-list">Nenhuma automacao gravada.</p>');
-  el.paneAutomations.innerHTML = automations.map((item) => `<div class="list-item"><div class="list-item-title">${escHtml(item.title || item.id)}</div><div class="list-item-meta">${item.stepCount} passos - ${formatDate(item.updatedAt || item.createdAt)}</div><div class="list-item-actions"><button class="btn-list-action" data-replay="${item.id}">Replay</button><button class="btn-list-action danger" data-delete-auto="${item.id}">Apagar</button></div></div>`).join("");
+  if (!automations.length) return void (el.paneAutomations.innerHTML = renderEmpty("Automacoes", "Nenhuma automacao gravada."));
+  el.paneAutomations.innerHTML = `
+    <div class="view-toolbar"><div class="view-title-wrap"><div class="view-title">Automacoes</div><div class="view-subtitle">Gravacoes reutilizaveis do operador para replay controlado.</div></div></div>
+    ${automations.map((item) => `
+      <article class="list-card">
+        <div class="list-item-title">${escHtml(item.title || item.id)}</div>
+        <div class="list-item-meta">${item.stepCount} passos gravados</div>
+        <div class="list-item-meta">Ultima atualizacao: ${formatDate(item.updatedAt || item.createdAt)}</div>
+        <div class="list-item-actions"><button class="btn-list-action" data-replay="${item.id}">Replay</button><button class="btn-list-action danger" data-delete-auto="${item.id}">Apagar</button></div>
+      </article>
+    `).join("")}
+  `;
   el.paneAutomations.querySelectorAll("[data-replay]").forEach((button) => button.addEventListener("click", async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     await fetchJson(`/play/${button.dataset.replay}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tabId: String(tab?.id || "default") }) });
@@ -67,11 +91,16 @@ export async function renderAutomations(el, addSystemMessage, switchTab) {
 
 function renderTaskCard(task) {
   const pendingStep = (task.steps || []).find((step) => step.status === "awaiting_approval");
-  const target = pendingStep?.action?.selector || pendingStep?.action?.url || pendingStep?.action?.command || "";
-  const approval = task.status === "awaiting_approval" ? `<div class="list-item-meta">Acao pendente: ${escHtml(pendingStep?.action?.type || "acao")} ${target ? `- ${escHtml(target)}` : ""}</div><div class="list-item-actions"><button class="btn-list-action" data-approve-task="${task.id}">Permitir</button><button class="btn-list-action danger" data-deny-task="${task.id}">Negar</button></div>` : "";
-  const logs = Array.isArray(task.logs) && task.logs.length ? `<div class="list-item-meta">${escHtml(task.logs.slice(-3).join(" | "))}</div>` : "";
-  const steps = (task.steps || []).map((step) => `<li>${escHtml(step.description)} - ${escHtml(step.status)}${step.error ? ` (${escHtml(step.error)})` : ""}</li>`).join("");
-  return `<details class="list-item"><summary class="list-item-title">${escHtml(task.title || task.goal || task.id)} <span class="list-item-meta">${escHtml(task.status || "pending")} - ${task.progressPct || 0}%</span></summary><div class="list-item-meta">${escHtml(task.goal || "")}</div>${approval}${logs}<ul>${steps}</ul></details>`;
+  const logs = Array.isArray(task.logs) ? task.logs.slice(-4) : [];
+  return `
+    <article class="list-card">
+      <div class="list-item-title">${escHtml(task.title || task.goal || task.id)}</div>
+      <div class="list-item-meta">${escHtml(task.status || "pending")} · ${task.progressPct || 0}%</div>
+      <div class="list-item-meta">${escHtml(task.goal || "")}</div>
+      ${pendingStep ? `<div class="approval-box"><div class="list-item-meta">Aprovacao pendente para ${escHtml(pendingStep.action?.type || "acao")} ${escHtml(pendingStep.action?.selector || pendingStep.action?.url || "")}</div><div class="list-item-actions"><button class="btn-list-action" data-approve-task="${task.id}">Permitir</button><button class="btn-list-action danger" data-deny-task="${task.id}">Negar</button></div></div>` : ""}
+      <details class="task-detail"><summary>Passos e logs</summary><ul class="task-step-list">${(task.steps || []).map((step) => `<li><strong>${escHtml(step.status)}</strong> · ${escHtml(step.description)}${step.error ? ` · ${escHtml(step.error)}` : ""}</li>`).join("")}</ul>${logs.length ? `<pre class="task-log">${escHtml(logs.join("\n"))}</pre>` : ""}</details>
+    </article>
+  `;
 }
 
 function bindTaskApproval(el) {
@@ -93,4 +122,8 @@ async function updateTaskApproval(taskId, approved) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ approved, tabId: tab?.id ? String(tab.id) : "" }),
   });
+}
+
+function renderEmpty(title, text) {
+  return `<div class="view-toolbar"><div class="view-title-wrap"><div class="view-title">${title}</div></div></div><p class="empty-list">${text}</p>`;
 }

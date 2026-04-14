@@ -1,9 +1,9 @@
 export const LOG_PANES = [
-  { key: "activity", label: "Atividade", group: "visao", alwaysVisible: true },
-  { key: "history", label: "Historico", group: "visao", alwaysVisible: true },
-  { key: "debug", label: "Debug", group: "visao", alwaysVisible: true },
+  { key: "activity", label: "Atividade", group: "fluxo", alwaysVisible: true },
+  { key: "history", label: "Historico", group: "fluxo", alwaysVisible: true },
+  { key: "debug", label: "Debug", group: "fluxo", alwaysVisible: true },
   { key: "frontend", label: "Frontend", group: "auditoria", alwaysVisible: true },
-  { key: "schema", label: "Schema", group: "auditoria", alwaysVisible: true },
+  { key: "schema", label: "Banco", group: "auditoria", alwaysVisible: true },
   { key: "notes", label: "Notas", group: "auditoria", alwaysVisible: true },
   { key: "crm", label: "CRM", group: "integracoes" },
   { key: "supabase", label: "Supabase", group: "integracoes" },
@@ -18,12 +18,16 @@ export const LOG_PANES = [
 ];
 
 export const LOG_PANE_GROUPS = [
-  { key: "visao", label: "Visao" },
+  { key: "fluxo", label: "Fluxo" },
   { key: "auditoria", label: "Auditoria" },
   { key: "integracoes", label: "Integracoes" },
   { key: "ia", label: "IA" },
   { key: "governanca", label: "Governanca" },
 ];
+
+export function formatActivityCountLabel(count) {
+  return `${count} ${count === 1 ? "item" : "itens"}`;
+}
 
 export function getSeverityTone(severity) {
   if (severity === "error") return "border-[#5B2D2D] text-[#FECACA]";
