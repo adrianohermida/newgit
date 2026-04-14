@@ -52,6 +52,28 @@ async function autoDispatchTasks(commandQueue, tasks, tabId) {
   }
 }
 
+async function dispatchNextTaskStep(commandQueue, task, tabId) {
+  if (!task) return null;
+  const nextStep = getRunnableStep(task);
+  if (!nextStep) {
+    normalizeTask(task);
+    return null;
+  }
+  if (nextStep.status === "awaiting_approval") {
+    normalizeTask(task);
+    return null;
+  }
+  if (nextStep.action?.type !== "command" && !tabId) {
+    task.logs = [...(task.logs || []), `dispatch_skipped_missing_tab step=${nextStep.id}`];
+    normalizeTask(task);
+    return null;
+  }
+  nextStep.status = "running";
+  const dispatch = await dispatchApprovedStep({ commandQueue, tabId, task, step: nextStep });
+  normalizeTask(task);
+  return dispatch;
+}
+
 function createTasksRouter(commandQueue) {
   const router = express.Router();
 
@@ -122,11 +144,15 @@ function createTasksRouter(commandQueue) {
 
   router.post("/tasks/result", (req, res) => {
     try {
-      const { sessionId, taskId, stepId, status, output, error } = req.body || {};
+      const { sessionId, taskId, stepId, status, output, error, tabId } = req.body || {};
       const session = loadTaskSession(String(sessionId || ""));
       updateTask(session, String(taskId || ""), (task) =>
         applyStepResult(task, String(stepId || ""), { status, output, error })
       );
+      const task = (session.tasks || []).find((item) => item.id === String(taskId || ""));
+      Promise.resolve(dispatchNextTaskStep(commandQueue, task, tabId ? String(tabId) : ""))
+        .then(() => saveTaskSession(session))
+        .catch(() => saveTaskSession(session));
       res.json({ ok: true, tasks: session.tasks });
     } catch (error) {
       res.status(500).json({ ok: false, error: error?.message || "Falha ao atualizar resultado da task." });

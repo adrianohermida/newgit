@@ -22,14 +22,14 @@ _LOCAL_PROVIDER_TIMEOUT_SECONDS = 180
 _DEFAULT_LOCAL_MODEL = 'aetherlab-legal-local-v1'
 _DEFAULT_CLOUD_MODEL = 'aetherlab-legal-v1'
 _DEFAULT_LOCAL_MAX_TOKENS = 512
-_DEFAULT_LOCAL_FAST_MAX_TOKENS = 224
-_DEFAULT_LOCAL_HISTORY_LIMIT = 4
-_DEFAULT_LOCAL_TEXT_LIMIT = 1_800
-_DEFAULT_LOCAL_SYSTEM_LIMIT = 600
+_DEFAULT_LOCAL_FAST_MAX_TOKENS = 160
+_DEFAULT_LOCAL_HISTORY_LIMIT = 3
+_DEFAULT_LOCAL_TEXT_LIMIT = 1_200
+_DEFAULT_LOCAL_SYSTEM_LIMIT = 320
 _DEFAULT_LOCAL_RAG_TOP_K = 2
-_DEFAULT_LOCAL_MEMORY_ITEMS = 4
-_DEFAULT_LOCAL_MEMORY_LINE_LIMIT = 120
-_DEFAULT_LOCAL_AUGMENT_LIMIT = 700
+_DEFAULT_LOCAL_MEMORY_ITEMS = 3
+_DEFAULT_LOCAL_MEMORY_LINE_LIMIT = 90
+_DEFAULT_LOCAL_AUGMENT_LIMIT = 480
 _LOCAL_EXTENSION_DEFAULT_ALLOWLIST = (
     'search_files',
     'open_local_file',
@@ -420,7 +420,7 @@ def build_local_provider_config(env: Mapping[str, Any]) -> CompatibleProviderCon
     max_tokens = _int_env(env, 'AICORE_LOCAL_LLM_MAX_TOKENS', 'LOCAL_LLM_MAX_TOKENS', 'LLM_MAX_TOKENS', default=default_max_tokens)
     return CompatibleProviderConfig(
         provider_id='local',
-        label='AetherLab Local',
+        label='Ai-Core Local',
         base_url=base_url,
         model=model or _DEFAULT_LOCAL_MODEL,
         api_key=api_key,

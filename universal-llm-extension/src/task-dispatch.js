@@ -33,7 +33,7 @@ async function dispatchApprovedStep({ commandQueue, tabId, task, step }) {
   if (!commandQueue.has(tabId)) commandQueue.set(tabId, []);
   commandQueue.get(tabId).push({
     type: "TASK_STEP",
-    payload: { sessionId: task.sessionId, taskId: task.id, stepId: step.id, action },
+    payload: { sessionId: task.sessionId, taskId: task.id, stepId: step.id, tabId, action },
   });
   task.logs = [...(task.logs || []), `${ts()} queued_browser_action=${action.type || "unknown"} step=${step.id} tab=${tabId}`];
   return { mode: "queued", tabId };

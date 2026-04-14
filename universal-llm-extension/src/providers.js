@@ -51,7 +51,7 @@ async function callLocal(messages, model, options = {}) {
         {
           model,
           messages,
-          max_tokens: 224,
+          max_tokens: 160,
           sessionId: options.sessionId || null,
           session_id: options.sessionId || null,
           context: options.context || null,

@@ -5,7 +5,7 @@ export function buildPanelMarkup() {
         <span class="logo">LLM</span>
         <div class="provider-row">
           <select id="provider-select" title="Selecionar provider LLM">
-            <option value="local">AetherLab Local</option>
+            <option value="local">Ai-Core Local</option>
             <option value="cloud">LLM Customizado</option>
             <option value="cloudflare">Cloudflare Workers AI</option>
           </select>
