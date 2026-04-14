@@ -4,7 +4,7 @@ import { useInternalTheme } from "../../../components/interno/InternalThemeProvi
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import OperationalHealthPanel from "../../../components/interno/hmadv/OperationalHealthPanel";
 import OperationalPlanPanel from "../../../components/interno/hmadv/OperationalPlanPanel";
-import { appendActivityLog, setModuleHistory } from "../../../lib/admin/activity-log";
+import { setModuleHistory } from "../../../lib/admin/activity-log";
 import {
   ACTION_LABELS,
   MODULE_LIMITS,
@@ -13,7 +13,6 @@ import {
 import {
   buildJobPreview,
   getPublicacoesActionLabel,
-  stringifyLogPayload,
 } from "./action-utils";
 import {
   loadHistoryEntries,
@@ -48,6 +47,19 @@ import { usePublicacoesQueuesViewModel } from "./usePublicacoesQueuesViewModel";
 import { usePublicacoesOperationalPlan } from "./usePublicacoesOperationalPlan";
 import { usePublicacoesDataLoader } from "./usePublicacoesDataLoader";
 import { usePublicacoesMetaLoader } from "./usePublicacoesMetaLoader";
+import {
+  candidateQueueHasReadMismatch,
+  formatDateTimeLabel,
+  formatFallbackReason,
+  formatSnapshotLabel,
+  formatValidationMeta,
+  getPublicacaoSelectionValue,
+  isResourceLimitError,
+  matchesPublicacaoSelection,
+  validationLabel,
+  validationTone,
+} from "./publicacoesFormatting";
+import { usePublicacoesActivityLog } from "./usePublicacoesActivityLog";
 
 function isResourceLimitError(error) {
   const text = String(error?.payload || error?.message || error || "").toLowerCase();
