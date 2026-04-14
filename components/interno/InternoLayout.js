@@ -7,7 +7,6 @@ import InternoSettingsModal from "./layout/InternoSettingsModal";
 import InternoShellContent from "./layout/InternoShellContent";
 import InternoShellRightRail from "./layout/InternoShellRightRail";
 import InternoShellHeader from "./layout/InternoShellHeader";
-import RailPanel from "./layout/RailPanel";
 import {
   buildCoverageCards,
   deriveModuleSafeWindow,
@@ -20,7 +19,7 @@ import {
   getSeverityTone,
 } from "./layout/consoleSummary";
 import { getConsoleHeightLimits } from "./layout/consolePlaybooks";
-import { NAV_ITEMS, normalizeDisplayName } from "./layout/sidebarConfig";
+import { NAV_ITEMS } from "./layout/sidebarConfig";
 import { useInternoConsoleActions } from "./layout/useInternoConsoleActions";
 import { useInternoConsoleAnalytics } from "./layout/useInternoConsoleAnalytics";
 import { useInternoLayoutDerived } from "./layout/useInternoLayoutDerived";

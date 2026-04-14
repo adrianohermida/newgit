@@ -20,12 +20,6 @@ import {
 } from "./ui-primitives";
 import { usePublicacoesDerivedState } from "./usePublicacoesDerivedState";
 import { usePublicacoesQueueSelection } from "./usePublicacoesQueueSelection";
-import { usePublicacoesValidationActions } from "./usePublicacoesValidationActions";
-import { usePublicacoesIntegratedDetail } from "./usePublicacoesIntegratedDetail";
-import { usePublicacoesParteActions } from "./usePublicacoesParteActions";
-import { usePublicacoesExecutionHistory } from "./usePublicacoesExecutionHistory";
-import { usePublicacoesActionRunner } from "./usePublicacoesActionRunner";
-import { usePublicacoesUiActions } from "./usePublicacoesUiActions";
 import { usePublicacoesOperationalPlan } from "./usePublicacoesOperationalPlan";
 import { usePublicacoesCoreState } from "./usePublicacoesCoreState";
 import { usePublicacoesQueueState } from "./usePublicacoesQueueState";
@@ -48,13 +42,12 @@ import { usePublicacoesLifecycle } from "./usePublicacoesLifecycle";
 import { usePublicacoesHealthStatus } from "./usePublicacoesHealthStatus";
 import { usePublicacoesJobDrain } from "./usePublicacoesJobDrain";
 import { usePublicacoesQueueEffects } from "./usePublicacoesQueueEffects";
-import { recoverPublicacoesAdviseBackfillFailure } from "./publicacoesBackfillRecovery";
-import { usePublicacoesRefreshActions } from "./usePublicacoesRefreshActions";
 import { usePublicacoesOverviewState } from "./usePublicacoesOverviewState";
 import { PublicacoesScreenBody } from "./PublicacoesScreenBody";
 import { usePublicacoesQueuesScreenModel } from "./usePublicacoesQueuesScreenModel";
 import { usePublicacoesLoaders } from "./usePublicacoesLoaders";
 import { usePublicacoesIntegratedRows } from "./usePublicacoesIntegratedRows";
+import { usePublicacoesActionSuite } from "./usePublicacoesActionSuite";
 
 
 function PublicacoesContent() {
@@ -84,24 +77,14 @@ function PublicacoesContent() {
   } = usePublicacoesDetailState();
   const adminFetch = usePublicacoesAdminFetch();
   const {
+    loadIntegratedQueue,
     loadJobs,
     loadOverview,
-    loadRemoteHistory,
-  } = usePublicacoesMetaLoader({
-    adminFetch,
-    globalErrorUntil,
-    setGlobalError,
-    setGlobalErrorUntil,
-    setJobs,
-    setOverview,
-    setRemoteHistory,
-  });
-  const {
-    loadIntegratedQueue,
     loadPartesCandidates,
     loadProcessCandidates,
+    loadRemoteHistory,
     pushQueueRefresh,
-  } = usePublicacoesDataLoader({
+  } = usePublicacoesLoaders({
     adminFetch,
     globalErrorUntil,
     heavyQueuesEnabled,
@@ -115,56 +98,31 @@ function PublicacoesContent() {
     partesCandidatesRequestRef,
     processCandidates,
     processCandidatesRequestRef,
+    setGlobalError,
+    setGlobalErrorUntil,
     setIntegratedCursorTrail,
     setIntegratedQueue,
+    setJobs,
+    setOverview,
     setPartesCandidates,
     setProcessCandidates,
     setQueueRefreshLog,
+    setRemoteHistory,
     setValidationMap,
   });
-  const integratedRows = useMemo(
-    () => (integratedQueue.items || []).map((row) => ({
-      ...row,
-      validation: validationMap[row.numero_cnj] || { status: "", note: "", updatedAt: null },
-    })),
-    [integratedQueue.items, validationMap]
-  );
-  const filteredIntegratedRows = useMemo(() => {
-    const filtered = integratedRows.filter((row) => {
-      if (integratedFilters.validation !== "todos" && (row.validation?.status || "") !== integratedFilters.validation) return false;
-      return true;
-    });
-    const sorted = [...filtered];
-    if (integratedFilters.sort === "cnj") {
-      sorted.sort((a, b) => String(a.numero_cnj || "").localeCompare(String(b.numero_cnj || "")));
-      return sorted;
-    }
-    if (integratedFilters.sort === "validacao_recente") {
-      sorted.sort((a, b) => new Date(b.validation?.updatedAt || 0).getTime() - new Date(a.validation?.updatedAt || 0).getTime());
-      return sorted;
-    }
-    if (integratedFilters.sort === "validado_por") {
-      sorted.sort((a, b) => String(a.validation?.updatedBy || "").localeCompare(String(b.validation?.updatedBy || "")));
-      return sorted;
-    }
-    sorted.sort((a, b) => {
-      const aCount = Number(a?.partes_novas || a?.partes_detectadas || a?.publicacoes || 0);
-      const bCount = Number(b?.partes_novas || b?.partes_detectadas || b?.publicacoes || 0);
-      if (bCount !== aCount) return bCount - aCount;
-      return String(a.numero_cnj || "").localeCompare(String(b.numero_cnj || ""));
-    });
-    return sorted;
-  }, [integratedFilters.sort, integratedFilters.validation, integratedRows]);
-  const pagedIntegratedRows = useMemo(() => {
-    return filteredIntegratedRows.map((row) => ({
-      ...row,
-      selected: selectedIntegratedNumbers.includes(row.numero_cnj),
-    }));
-  }, [filteredIntegratedRows, selectedIntegratedNumbers]);
-  const selectedUnifiedNumbers = useMemo(
-    () => selectedIntegratedNumbers,
-    [selectedIntegratedNumbers]
-  );
+  const {
+    filteredIntegratedRows,
+    pagedIntegratedRows,
+    selectedProcessNumbers,
+    selectedUnifiedNumbers,
+  } = usePublicacoesIntegratedRows({
+    integratedFilters,
+    integratedQueue,
+    processCandidates,
+    selectedIntegratedNumbers,
+    selectedProcessKeys,
+    validationMap,
+  });
   const {
     recurringPublicacoes,
     recurringPublicacoesSummary,
@@ -468,10 +426,6 @@ function PublicacoesContent() {
 
 
 
-  const selectedProcessNumbers = useMemo(
-    () => processCandidates.items.filter((item) => matchesPublicacaoSelection(item, selectedProcessKeys)).map((item) => item.numero_cnj).filter(Boolean),
-    [processCandidates.items, selectedProcessKeys]
-  );
   const data = overview.data || {};
   const {
     adviseBackfillProgress,
