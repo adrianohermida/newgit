@@ -79,6 +79,9 @@ function InternoProcessosContent() {
   const adminFetch = useProcessosAdminFetch();
   useProcessosUiPersistence({ audPage, covPage, fgPage, lastFocusHash, limit, maPage, miPage, movPage, orphanPage, partesPage, processNumbers, pubPage, queueBatchSizes, relationMinScore, search, selectedAudienciaCandidates, selectedFieldGaps, selectedMonitoringActive, selectedMonitoringInactive, selectedMovementBacklog, selectedOrphans, selectedPartesBacklog, selectedPublicationBacklog, selectedRelations, selectedSuggestionKeys, selectedWithoutMovements, setAudPage, setCovPage, setFgPage, setLastFocusHash, setLimit, setMaPage, setMiPage, setMovPage, setOrphanPage, setPartesPage, setProcessNumbers, setPubPage, setQueueBatchSizes, setRelationMinScore, setSearch, setSelectedAudienciaCandidates, setSelectedFieldGaps, setSelectedMonitoringActive, setSelectedMonitoringInactive, setSelectedMovementBacklog, setSelectedOrphans, setSelectedPartesBacklog, setSelectedPublicationBacklog, setSelectedRelations, setSelectedSuggestionKeys, setSelectedWithoutMovements, setUiHydrated, setView, setWmPage, view, wmPage });
   const { buildRefreshPlan, loadCoverage, loadJobs, loadOrphans, loadOverview, loadQueue, loadRelationSuggestions, loadRelations, loadRemoteHistory, loadRunnerMetrics, loadSchemaStatus, mergeJobIntoState, refreshAfterAction, refreshOperationalContext, refreshOperationalQueues } = useProcessosFetchers({ adminFetch, audPage, covPage, fgPage, globalErrorUntil, maPage, miPage, movPage, orphanPage, partesPage, processCoverage, pubPage, relationMinScore, schemaStatus, setAudienciaCandidates, setFieldGaps, setGlobalError, setGlobalErrorUntil, setJobs, setMonitoringActive, setMonitoringInactive, setMovementBacklog, setOrphans, setOverview, setPartesBacklog, setProcessCoverage, setPublicationBacklog, setQueueRefreshLog, setRelationSuggestions, setRelations, setRemoteHistory, setRunnerMetrics, setSchemaStatus, setWithoutMovements, view, wmPage });
+  useProcessosOperationalHealth({ audienciaCandidates, fieldGaps, globalError, monitoringActive, monitoringInactive, movementBacklog, orphans, partesBacklog, publicationBacklog, remoteHistory, setBackendHealth, setOperationalStatus, withoutMovements });
+  useProcessosBootstrap({ adminFetch, audPage, bootstrappedRef, covPage, fgPage, loadCoverage, loadJobs, loadOrphans, loadOverview, loadQueue, loadRelationSuggestions, loadRelations, loadRemoteHistory, loadRunnerMetrics, loadSchemaStatus, lookupTerm, maPage, miPage, movPage, orphanPage, partesPage, pubPage, relationMinScore, relationSuggestions, relations, search, setAllMatchingRelationsSelected, setAllMatchingSuggestionsSelected, setAudienciaCandidates, setFieldGaps, setLookup, setMonitoringActive, setMonitoringInactive, setMovementBacklog, setOrphans, setPartesBacklog, setPublicationBacklog, setWithoutMovements, uiHydrated, view, wmPage });
+  useProcessosJobDrain({ activeJobId, adminFetch, loadJobs, loadRemoteHistory, jobs, mergeJobIntoState, pageVisible, refreshAfterAction, refreshOperationalContext, setActionState, setActiveJobId, setDrainInFlight });
 
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
@@ -277,101 +280,6 @@ function InternoProcessosContent() {
       ...snapshotPayload,
     });
   }, [overview, processCoverage, withoutMovements, movementBacklog, publicationBacklog, partesBacklog, audienciaCandidates, monitoringActive, monitoringInactive, fieldGaps, orphans, remoteHistory, jobs, actionState.error, actionState.result]);
-  useEffect(() => {
-    if (!uiHydrated) return undefined;
-    let cancelled = false;
-    bootstrappedRef.current = false;
-    const shouldLoadQueues = OPERATIONAL_VIEWS.has(view);
-    const shouldLoadCoverage = COVERAGE_VIEWS.has(view);
-    const shouldLoadRelations = RELATION_VIEWS.has(view);
-    async function bootstrap() {
-      const baseCalls = [
-        loadOverview(),
-        loadSchemaStatus(),
-        loadRunnerMetrics(),
-        loadRemoteHistory(),
-        loadJobs(),
-      ];
-      const queueCalls = shouldLoadQueues
-        ? [
-          loadQueue("sem_movimentacoes", setWithoutMovements, wmPage),
-          loadQueue("movimentacoes_pendentes", setMovementBacklog, movPage),
-          loadQueue("publicacoes_pendentes", setPublicationBacklog, pubPage),
-          loadQueue("partes_sem_contato", setPartesBacklog, partesPage),
-          loadQueue("audiencias_pendentes", setAudienciaCandidates, audPage),
-          loadQueue("monitoramento_ativo", setMonitoringActive, maPage),
-          loadQueue("monitoramento_inativo", setMonitoringInactive, miPage),
-          loadQueue("campos_orfaos", setFieldGaps, fgPage),
-          loadOrphans(orphanPage),
-        ]
-        : [];
-      const coverageCalls = shouldLoadCoverage ? [loadCoverage(covPage)] : [];
-      const relationCalls = shouldLoadRelations ? [loadRelations(1, search), loadRelationSuggestions(1, search, relationMinScore)] : [];
-      await Promise.all([...baseCalls, ...queueCalls, ...coverageCalls, ...relationCalls]);
-      if (!cancelled) bootstrappedRef.current = true;
-    }
-    bootstrap();
-    return () => {
-      cancelled = true;
-    };
-  }, [uiHydrated, view, relationMinScore]);
-  useEffect(() => {
-    if (globalError) {
-      setOperationalStatus({ mode: "error", message: globalError, updatedAt: new Date().toISOString() });
-      return;
-    }
-    const queues = [withoutMovements, movementBacklog, publicationBacklog, partesBacklog, audienciaCandidates, monitoringActive, monitoringInactive, fieldGaps, orphans];
-    const queueErrorCount = countQueueErrors(queues);
-    const mismatchCount = countQueueReadMismatches(queues);
-    const limitedCount = queues.filter((queue) => queue?.limited).length;
-    if (queueErrorCount > 0) {
-      setOperationalStatus({
-        mode: "error",
-        message: `${queueErrorCount} fila(s) com erro de leitura no painel.`,
-        updatedAt: new Date().toISOString(),
-      });
-      return;
-    }
-    if (mismatchCount > 0) {
-      setOperationalStatus({
-        mode: "limited",
-        message: `${mismatchCount} fila(s) com contagem maior que a pagina retornada.`,
-        updatedAt: new Date().toISOString(),
-      });
-      return;
-    }
-    if (limitedCount > 0) {
-      setOperationalStatus({
-        mode: "limited",
-        message: `${limitedCount} fila(s) em modo reduzido para evitar sobrecarga.`,
-        updatedAt: new Date().toISOString(),
-      });
-      return;
-    }
-    setOperationalStatus({ mode: "ok", message: "Operacao normal", updatedAt: new Date().toISOString() });
-  }, [globalError, withoutMovements, movementBacklog, publicationBacklog, partesBacklog, audienciaCandidates, monitoringActive, monitoringInactive, fieldGaps, orphans]);
-  useEffect(() => {
-    const latest = remoteHistory[0];
-    if (!latest) {
-      setBackendHealth({ status: "unknown", message: "Sem historico recente.", updatedAt: null });
-      return;
-    }
-    if (latest.status === "error") {
-      setBackendHealth({ status: "error", message: "A ultima rodada apresentou falha.", updatedAt: latest.created_at });
-      return;
-    }
-    const latestRows = Array.isArray(latest?.result_sample) ? latest.result_sample : [];
-    const truncationErrors = latestRows.filter((row) => hasJsonTruncationMessage(row?.detalhe)).length;
-    if (truncationErrors > 0) {
-      setBackendHealth({ status: "warning", message: `Ultimo ciclo remoto devolveu JSON truncado em ${truncationErrors} item(ns).`, updatedAt: latest.created_at });
-      return;
-    }
-    if (Number(latest.affected_count || 0) === 0) {
-      setBackendHealth({ status: "warning", message: "Ultimo ciclo nao teve progresso.", updatedAt: latest.created_at });
-      return;
-    }
-    setBackendHealth({ status: "ok", message: "Ultima rodada concluida com estabilidade.", updatedAt: latest.created_at });
-  }, [remoteHistory]);
   useEffect(() => {
     if (!bootstrappedRef.current) return;
     if (!OPERATIONAL_VIEWS.has(view)) return;
