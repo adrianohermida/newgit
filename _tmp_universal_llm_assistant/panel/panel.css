@@ -168,6 +168,10 @@ button,input,textarea,select{font:inherit}
 .workspace-card{margin-bottom:10px;padding:11px 12px;border:1px solid var(--border);border-radius:16px;background:linear-gradient(180deg,var(--surface) 0%,var(--bg-elev) 100%)}
 .workspace-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .workspace-chip.active{background:rgba(17,24,39,.08);color:var(--text);border-color:var(--border-strong)}
+.automation-replay-status{margin:8px 0 10px;padding:9px 10px;border:1px solid var(--border);border-radius:12px;background:var(--bg-soft)}
+.automation-replay-status.running{border-color:rgba(181,71,8,.28);background:rgba(181,71,8,.05)}
+.automation-replay-status.completed{border-color:rgba(6,118,71,.28);background:rgba(6,118,71,.05)}
+.automation-replay-status.error{border-color:rgba(180,35,24,.28);background:rgba(180,35,24,.05)}
 
 .task-status{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.04em}
 .task-status.pending,.task-status.paused{background:var(--surface-2);color:var(--text-soft)}

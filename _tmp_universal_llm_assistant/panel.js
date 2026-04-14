@@ -5,7 +5,7 @@ import { bindChat, enqueueOutgoingMessage } from "./panel/chat.js";
 import { bindRecorder, bindUpload, injectPageText, injectSelection, openAgentTab, refreshWorkspaceContext, takeScreenshot } from "./panel/browser.js";
 import { renderAutomations, renderSessions, renderTasks, syncSession } from "./panel/lists.js";
 import { checkBridge, testProvider } from "./panel/bridge.js";
-import { fillSettingsInputs, hydrateSettings, loadSettings, saveSettings } from "./panel/settings.js";
+import { fillSettingsInputs, hydrateSettings, loadLocalModelCatalog, loadSettings, saveSettings } from "./panel/settings.js";
 import { installGlobalErrorHandlers, loadErrorLog, renderErrorLog } from "./panel/error-log.js";
 import { bindMediaControls } from "./panel/media.js";
 
@@ -37,7 +37,10 @@ async function initPanel() {
     await saveSettings(el);
     updateProviderBadge(el);
   });
-  el.btnSettings.addEventListener("click", () => openOverlay(el, "settings"));
+  el.btnSettings.addEventListener("click", async () => {
+    openOverlay(el, "settings");
+    await loadLocalModelCatalog(el).catch(() => {});
+  });
   el.btnErrors.addEventListener("click", () => openOverlay(el, "errors"));
   el.btnCloseSettings?.addEventListener("click", () => closeOverlays(el));
   el.paneSettings?.addEventListener("click", (event) => { if (event.target === el.paneSettings) closeOverlays(el); });
@@ -88,6 +91,7 @@ async function initPanel() {
     closeOverlays(el);
   });
   el.btnTestLocal.addEventListener("click", () => testProvider("local", el.testLocalResult));
+  el.btnRefreshLocalModels?.addEventListener("click", () => loadLocalModelCatalog(el).catch(() => {}));
   el.btnTestCloud.addEventListener("click", () => testProvider("cloud", el.testCloudResult));
   el.btnTestCf.addEventListener("click", () => testProvider("cloudflare", el.testCfResult));
 

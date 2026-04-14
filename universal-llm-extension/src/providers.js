@@ -39,10 +39,49 @@ function parseCatalogProbe(probe, parser) {
     : [];
 }
 
+async function readLocalRuntimeCatalog(configs) {
+  const seen = new Set();
+  const urls = [];
+  for (const baseUrl of configs.local.runtimeCatalogCandidates || []) {
+    for (const target of getRuntimeCatalogUrls(baseUrl)) {
+      if (!target?.url || seen.has(target.url)) continue;
+      seen.add(target.url);
+      urls.push(target);
+    }
+  }
+  for (const target of urls) {
+    try {
+      const probe = await probeJsonGetEndpoint(target.url, {}, { timeoutMs: 5000 });
+      const models = parseCatalogProbe(probe, target.parser);
+      if (probe.ok && Array.isArray(models) && models.length) {
+        return { url: target.url, models };
+      }
+    } catch {}
+  }
+  return { url: "", models: [] };
+}
+
+async function resolveRequestedLocalModel(requestedModel, configs) {
+  const requested = String(requestedModel || "").trim();
+  if (!requested) return { model: requested, catalog: [] };
+  const catalog = await readLocalRuntimeCatalog(configs);
+  if (!catalog.models.length) return { model: requested, catalog: [] };
+  if (catalog.models.includes(requested)) return { model: requested, catalog: catalog.models, catalogUrl: catalog.url };
+  const normalized = requested.replace(/:latest$/i, "");
+  const alias = catalog.models.find((item) => item.replace(/:latest$/i, "") === normalized);
+  return {
+    model: alias || requested,
+    catalog: catalog.models,
+    catalogUrl: catalog.url,
+  };
+}
+
 // ─── Chamadas LLM ─────────────────────────────────────────────────────────────
 
 async function callLocal(messages, model, options = {}) {
   const configs = getConfigs();
+  const resolvedModelInfo = await resolveRequestedLocalModel(model, configs);
+  const effectiveModel = resolvedModelInfo.model || model;
   let lastError = null;
   for (const baseUrl of configs.local.candidates) {
     const target = joinUrl(baseUrl, "/v1/messages");
@@ -53,7 +92,7 @@ async function callLocal(messages, model, options = {}) {
         const response = await jsonPost(
           target,
           {
-            model,
+            model: effectiveModel,
             messages: attempt.messages,
             max_tokens: attempt.maxTokens,
             sessionId: options.sessionId || null,
@@ -71,13 +110,17 @@ async function callLocal(messages, model, options = {}) {
           return {
             ok: true,
             provider: "local",
-            model,
+            model: effectiveModel,
             content,
             target,
             metadata: {
               ...(response.body?.metadata || {}),
               retryCount: index,
               retryProfile: attempt.profile,
+              requested_model: model,
+              effective_model: effectiveModel,
+              runtime_catalog_url: resolvedModelInfo.catalogUrl || null,
+              runtime_catalog_count: Array.isArray(resolvedModelInfo.catalog) ? resolvedModelInfo.catalog.length : 0,
             },
             degraded,
           };

@@ -30,6 +30,11 @@ function formatApps(values) {
 export function fillSettingsInputs(el) {
   el.inputRuntimeUrl.value = state.settings.runtimeUrl;
   el.inputRuntimeModel.value = state.settings.runtimeModel;
+  if (el.localModelList) {
+    el.localModelList.innerHTML = Array.isArray(state.localModelCatalog)
+      ? state.localModelCatalog.map((item) => `<option value="${item.replace(/"/g, "&quot;")}"></option>`).join("")
+      : "";
+  }
   el.inputAlwaysAllowTabs.checked = !!state.settings.alwaysAllowTabAccess;
   el.inputLocalRoots.value = formatLines(state.settings.localRoots);
   el.inputLocalApps.value = formatApps(state.settings.localApps);
@@ -68,6 +73,7 @@ export async function loadSettings(el) {
     });
   });
   fillSettingsInputs(el);
+  await loadLocalModelCatalog(el).catch(() => {});
 }
 
 export async function pushBridgeSettings() {
@@ -111,4 +117,48 @@ export async function syncFromBridge(el) {
   if (data.settings) hydrateSettings(data.settings);
   fillSettingsInputs(el);
   return data;
+}
+
+export async function loadLocalModelCatalog(el) {
+  if (el.localModelsResult) {
+    el.localModelsResult.textContent = "Carregando...";
+    el.localModelsResult.style.color = "#6b7280";
+  }
+  if (el.localModelsDetail) el.localModelsDetail.textContent = "";
+  try {
+    const response = await safeFetch(`${BRIDGE_URL}/settings/local-models`, {}, 8000);
+    const data = await parseJsonResponse(response);
+    state.localModelCatalog = Array.isArray(data.models) ? data.models : [];
+    fillSettingsInputs(el);
+    if (state.localModelCatalog.length) {
+      const configured = String(state.settings.runtimeModel || "").trim();
+      const normalized = configured.replace(/:latest$/i, "");
+      const suggested = state.localModelCatalog.find((item) => item === configured)
+        || state.localModelCatalog.find((item) => item.replace(/:latest$/i, "") === normalized)
+        || state.localModelCatalog[0];
+      if (!configured || !state.localModelCatalog.includes(configured)) {
+        state.settings.runtimeModel = suggested;
+        el.inputRuntimeModel.value = suggested;
+      }
+      if (el.localModelsResult) {
+        el.localModelsResult.textContent = `${state.localModelCatalog.length} modelos locais`;
+        el.localModelsResult.style.color = "#16a34a";
+      }
+      if (el.localModelsDetail) el.localModelsDetail.textContent = `Catalogo: ${data.catalogUrl || "desconhecido"} | Ativo: ${state.settings.runtimeModel}`;
+      return data;
+    }
+    if (el.localModelsResult) {
+      el.localModelsResult.textContent = "Nenhum modelo encontrado";
+      el.localModelsResult.style.color = "#dc2626";
+    }
+    if (el.localModelsDetail) el.localModelsDetail.textContent = data.error || "O runtime local nao publicou catalogo utilizavel.";
+    return data;
+  } catch (error) {
+    if (el.localModelsResult) {
+      el.localModelsResult.textContent = "Falha ao listar modelos";
+      el.localModelsResult.style.color = "#dc2626";
+    }
+    if (el.localModelsDetail) el.localModelsDetail.textContent = error.message || "Falha ao consultar o runtime local.";
+    throw error;
+  }
 }

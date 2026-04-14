@@ -170,7 +170,7 @@ function bindAutomationActions(el, addSystemMessage, switchTab) {
       body: JSON.stringify({ tabId: String(tab?.id || "default") }),
     });
     if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "START_REPLAY", tabId: String(tab.id) }).catch(() => {});
-    switchTab(el, "chat");
+    startAutomationReplayPolling(btn.dataset.replay, String(tab?.id || "default"), null);
     addSystemMessage(el, `Replay iniciado: ${btn.dataset.replay}`);
   }));
 
@@ -186,6 +186,8 @@ function bindAutomationActions(el, addSystemMessage, switchTab) {
     host.innerHTML = renderAutomationDetails(data.automation || {});
     host.dataset.loaded = "true";
     bindAutomationDetailActions(el, host, addSystemMessage, switchTab);
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    startAutomationReplayPolling(btn.dataset.inspectAuto, String(tab?.id || "default"), host);
   }));
 
   el.paneAutomations.querySelectorAll("[data-delete-auto]").forEach((btn) => btn.addEventListener("click", async () => {
@@ -381,6 +383,7 @@ function renderAutomationDetails(automation) {
   return `
     <details class="task-detail" open>
       <summary style="font-size:11px;color:var(--text-soft);cursor:pointer;user-select:none">Passos gravados</summary>
+      <div class="automation-replay-status" data-replay-status="${escHtml(automation.id)}"></div>
       <ul class="task-step-list">
         ${steps.map((step) => `
           <li class="task-step-card">
@@ -391,7 +394,12 @@ function renderAutomationDetails(automation) {
             ${step.pageTitle || step.pageUrl ? `<div class="task-step-meta">${escHtml(step.pageTitle || step.pageUrl)}</div>` : ""}
             ${step.selector ? `<div class="task-step-meta">selector ${escHtml(step.selector)}</div>` : ""}
             <div class="list-item-actions" style="margin-top:8px">
+              <button class="btn-list-action" data-replay-step-auto="${escHtml(automation.id)}" data-replay-step-index="${step.index}">Executar 1 passo</button>
               <button class="btn-list-action" data-replay-from-auto="${escHtml(automation.id)}" data-replay-from-step="${step.index}">Replay daqui</button>
+              <button class="btn-list-action" data-edit-auto-step="${escHtml(automation.id)}" data-step-index="${step.index}" data-step-label="${escHtml(step.label || "")}" data-step-selector="${escHtml(step.selector || "")}" data-step-url="${escHtml(step.pageUrl || "")}">Editar</button>
+              <button class="btn-list-action" data-move-auto-step="${escHtml(automation.id)}" data-move-direction="up" data-step-index="${step.index}">Subir</button>
+              <button class="btn-list-action" data-move-auto-step="${escHtml(automation.id)}" data-move-direction="down" data-step-index="${step.index}">Descer</button>
+              <button class="btn-list-action danger" data-delete-auto-step="${escHtml(automation.id)}" data-step-index="${step.index}">Excluir passo</button>
             </div>
           </li>
         `).join("")}
@@ -401,6 +409,18 @@ function renderAutomationDetails(automation) {
 }
 
 function bindAutomationDetailActions(el, host, addSystemMessage, switchTab) {
+  host.querySelectorAll("[data-replay-step-auto]").forEach((btn) => btn.addEventListener("click", async () => {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    await fetchJson(`/play/${btn.dataset.replayStepAuto}/step/${btn.dataset.replayStepIndex}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tabId: String(tab?.id || "default") }),
+    });
+    if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "START_REPLAY", tabId: String(tab.id) }).catch(() => {});
+    startAutomationReplayPolling(btn.dataset.replayStepAuto, String(tab?.id || "default"), host);
+    addSystemMessage(el, `Executando somente o passo ${Number(btn.dataset.replayStepIndex) + 1}.`);
+  }));
+
   host.querySelectorAll("[data-replay-from-auto]").forEach((btn) => btn.addEventListener("click", async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     await fetchJson(`/play/${btn.dataset.replayFromAuto}/from/${btn.dataset.replayFromStep}`, {
@@ -409,9 +429,92 @@ function bindAutomationDetailActions(el, host, addSystemMessage, switchTab) {
       body: JSON.stringify({ tabId: String(tab?.id || "default") }),
     });
     if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "START_REPLAY", tabId: String(tab.id) }).catch(() => {});
-    switchTab(el, "chat");
+    startAutomationReplayPolling(btn.dataset.replayFromAuto, String(tab?.id || "default"), host);
     addSystemMessage(el, `Replay iniciado a partir do passo ${Number(btn.dataset.replayFromStep) + 1}.`);
   }));
+
+  host.querySelectorAll("[data-move-auto-step]").forEach((btn) => btn.addEventListener("click", async () => {
+    await fetchJson(`/automations/${btn.dataset.moveAutoStep}/steps/${btn.dataset.stepIndex}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ direction: btn.dataset.moveDirection }),
+    });
+    const data = await fetchJson(`/automations/${btn.dataset.moveAutoStep}`);
+    host.innerHTML = renderAutomationDetails(data.automation || {});
+    bindAutomationDetailActions(el, host, addSystemMessage, switchTab);
+  }));
+
+  host.querySelectorAll("[data-edit-auto-step]").forEach((btn) => btn.addEventListener("click", async () => {
+    const label = window.prompt("Rotulo visual do passo:", btn.dataset.stepLabel || "");
+    if (label === null) return;
+    const selector = window.prompt("Selector CSS do passo:", btn.dataset.stepSelector || "");
+    if (selector === null) return;
+    const url = window.prompt("URL do passo (se aplicavel):", btn.dataset.stepUrl || "");
+    if (url === null) return;
+    const value = window.prompt("Valor/digitacao do passo (se aplicavel):", "");
+    if (value === null) return;
+    await fetchJson(`/automations/${btn.dataset.editAutoStep}/steps/${btn.dataset.stepIndex}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label, selector, url, value }),
+    });
+    const data = await fetchJson(`/automations/${btn.dataset.editAutoStep}`);
+    host.innerHTML = renderAutomationDetails(data.automation || {});
+    bindAutomationDetailActions(el, host, addSystemMessage, switchTab);
+  }));
+
+  host.querySelectorAll("[data-delete-auto-step]").forEach((btn) => btn.addEventListener("click", async () => {
+    await fetchJson(`/automations/${btn.dataset.deleteAutoStep}/steps/${btn.dataset.stepIndex}`, {
+      method: "DELETE",
+    });
+    const data = await fetchJson(`/automations/${btn.dataset.deleteAutoStep}`);
+    host.innerHTML = renderAutomationDetails(data.automation || {});
+    bindAutomationDetailActions(el, host, addSystemMessage, switchTab);
+  }));
+}
+
+function startAutomationReplayPolling(automationId, tabId, host) {
+  if (!automationId) return;
+  stopAutomationReplayPolling(automationId);
+  const tick = async () => {
+    try {
+      const data = await fetchJson(`/automations/${automationId}/replay-status?tabId=${encodeURIComponent(tabId || "default")}`);
+      updateAutomationReplayStatus(host, automationId, data.replay || {});
+      if (["completed", "error", "idle"].includes(String(data.replay?.status || ""))) {
+        stopAutomationReplayPolling(automationId);
+      }
+    } catch {}
+  };
+  tick();
+  state.automationReplayTimers[automationId] = window.setInterval(tick, 1200);
+}
+
+function stopAutomationReplayPolling(automationId) {
+  const timer = state.automationReplayTimers?.[automationId];
+  if (timer) window.clearInterval(timer);
+  if (state.automationReplayTimers) delete state.automationReplayTimers[automationId];
+}
+
+function updateAutomationReplayStatus(host, automationId, replay) {
+  const scope = host || document;
+  const node = scope.querySelector?.(`[data-replay-status="${automationId}"]`);
+  if (!node) return;
+  const status = String(replay?.status || "idle");
+  const currentIndex = Number.isFinite(Number(replay?.currentIndex)) ? Number(replay.currentIndex) : -1;
+  const completed = Array.isArray(replay?.completedSteps) ? replay.completedSteps.length : 0;
+  const total = Number.isFinite(Number(replay?.totalSteps)) ? Number(replay.totalSteps) : 0;
+  const label = String(replay?.lastStepLabel || "").trim();
+  const error = String(replay?.lastError || "").trim();
+  const summary = [
+    status === "running" ? `Executando passo ${currentIndex + 1}` : "",
+    total ? `${completed}/${total} concluidos` : "",
+    label || "",
+  ].filter(Boolean).join(" | ");
+  node.className = `automation-replay-status ${escHtml(status)}`;
+  node.innerHTML = `
+    <div class="list-item-meta">${escHtml(summary || "Replay inativo.")}</div>
+    ${error ? `<div class="task-step-error">${escHtml(error)}</div>` : ""}
+  `;
 }
 
 function renderWorkspaceSummary(workspaceTabs = [], activeTabId = "") {

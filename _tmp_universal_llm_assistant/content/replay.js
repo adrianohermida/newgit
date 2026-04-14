@@ -60,7 +60,19 @@
   };
 
   content.handleCommand = async (command) => {
-    if (command.type === "REPLAY_STEP") return content.executeStep(command.payload);
+    if (command.type === "REPLAY_STEP") {
+      const step = command.payload || {};
+      const meta = step.__meta || {};
+      await reportReplayStatus(meta, "started");
+      try {
+        await content.executeStep(step);
+        await reportReplayStatus(meta, "completed");
+        return;
+      } catch (error) {
+        await reportReplayStatus(meta, "failed", error);
+        throw error;
+      }
+    }
     if (command.type === "TASK_STEP") return content.executeTaskStep(command.payload);
   };
 
@@ -180,5 +192,23 @@
       return new Error(`browser_error: ${message}`);
     }
     return new Error(message);
+  }
+
+  async function reportReplayStatus(meta, event, error = null) {
+    if (!meta?.automationId) return;
+    await fetch(`${content.bridgeUrl}/replay/status`, {
+      method: "POST",
+      keepalive: event !== "started",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        automationId: meta.automationId,
+        tabId: meta.tabId || null,
+        stepIndex: meta.stepIndex,
+        totalSteps: meta.totalSteps,
+        stepLabel: meta.stepLabel || "",
+        event,
+        error: error ? String(error.message || error) : null,
+      }),
+    }).catch(() => {});
   }
 })(window.LLMAssistantContent);
