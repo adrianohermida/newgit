@@ -2,10 +2,10 @@ import { getProfileInitials, normalizeDisplayName, resolveProfileAvatar } from "
 
 function getAvatarButtonClass({ isLightTheme, variant }) {
   if (variant === "sidebar") {
-    return `flex w-full items-center gap-3 rounded-[18px] border px-3 py-3 text-left transition hover:border-[#C5A059] ${
+    return `flex w-full items-center gap-3 rounded-[20px] border px-3 py-3 text-left transition hover:border-[#C5A059] ${
       isLightTheme
-        ? "border-[#D6E0EA] bg-[rgba(255,255,255,0.94)] text-[#22312F]"
-        : "border-[#243732] bg-[rgba(255,255,255,0.02)] text-[#F4F1EA]"
+        ? "border-[#D6E0EA] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.10),transparent_42%),rgba(255,255,255,0.98)] text-[#22312F]"
+        : "border-[#243732] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.10),transparent_40%),rgba(255,255,255,0.03)] text-[#F4F1EA]"
     }`;
   }
 
@@ -60,6 +60,11 @@ export default function InternoUserAvatarMenu({
         </span>
         {variant === "sidebar" ? (
           <span className="min-w-0 flex-1">
+            <span className={`mb-1 inline-flex rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] ${
+              isLightTheme ? "border-[#E6D29A] bg-[#FFF8EA] text-[#8A6217]" : "border-[#4B3F22] text-[#F1D39A]"
+            }`}>
+              conta ativa
+            </span>
             <span className={`block truncate text-sm font-medium ${isLightTheme ? "text-[#152421]" : "text-[#F8F4EB]"}`}>
               {displayName}
             </span>

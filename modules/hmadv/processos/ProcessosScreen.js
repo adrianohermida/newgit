@@ -598,11 +598,6 @@ function InternoProcessosContent() {
       });
     }
   }
-  useEffect(() => {
-    if (!uiHydrated) return;
-    if (!COVERAGE_VIEWS.has(view)) return;
-    loadCoverage(covPage);
-  }, [covPage, view, uiHydrated]);
   function reuseHistoryEntry(entry) {
     if (entry?.payload?.processNumbers) setProcessNumbers(entry.payload.processNumbers);
     if (entry?.payload?.limit) {
