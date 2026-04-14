@@ -819,7 +819,7 @@ export default function LLMTestChat() {
           ? "Sua sessão administrativa expirou ou perdeu permissão. Faça login novamente no interno antes de rodar o LLM Test."
           : isAdminRuntimeUnavailable
             ? "O runtime administrativo do LLM Test não está publicado neste deploy. A rota /api/admin-lawdesk-chat precisa estar ativa no ambiente."
-            : runError?.message || "Falha ao executar smoke test."
+            : runError?.message || "Falha ao executar validacao."
       );
 
       updateActivityLog(activityId, {
@@ -853,7 +853,7 @@ export default function LLMTestChat() {
           ],
         }),
         error: buildDiagnosticReport({
-          title: "Falha ao executar smoke test",
+          title: "Falha ao executar validacao",
           summary: runError?.message || "Falha desconhecida.",
           sections: [
             { label: "request", value: { provider: effectiveProvider, prompt: trimmedPrompt } },
@@ -1039,7 +1039,7 @@ export default function LLMTestChat() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Panorama</p>
-              <h3 className="mt-1 text-lg font-semibold text-[#F5F1E8]">Comparativo técnico dos providers</h3>
+              <h3 className="mt-1 text-lg font-semibold text-[#F5F1E8]">Comparativo dos modelos</h3>
             </div>
           </div>
           <div className="mt-3 grid gap-3 xl:grid-cols-4">

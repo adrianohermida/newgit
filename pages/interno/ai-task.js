@@ -8,8 +8,8 @@ export default function AITaskPage() {
       {(profile) => (
         <InternoLayout
           profile={profile}
-          title="AI Task Hermida Maia"
-          description="Centro de execução assistida para transformar pedidos em tarefas, entregas e próximos passos."
+          title="AI Task"
+          description="Centro de execucao assistida para transformar pedidos em tarefas, entregas e proximos passos."
           hideDotobotRail
         >
           <AITaskModule profile={profile} routePath="/interno/ai-task" />

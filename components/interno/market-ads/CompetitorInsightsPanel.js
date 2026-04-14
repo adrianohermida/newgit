@@ -7,7 +7,7 @@ export default function CompetitorInsightsPanel({ data }) {
     <PageSection
       label="Mercado"
       title="Leituras de concorrencia que ajudam a escrever melhor"
-      description="O benchmark nao pode ser um dump de anuncios. Ele precisa evidenciar angulo, dor e sinais de escala para orientar o proximo criativo."
+      description="O benchmark nao pode ser apenas uma lista de anuncios. Ele precisa evidenciar angulo, dor e sinais de escala para orientar o proximo criativo."
       aside={<Tag tone="accent">{data.competitorAds?.length || 0} anuncios mapeados</Tag>}
     >
       <div className="space-y-6">
@@ -22,7 +22,7 @@ export default function CompetitorInsightsPanel({ data }) {
             <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <Tile label="Keyword" value={leadAd.keyword} helper="Busca dominante observada na concorrencia." />
               <Tile label="Dor" value={leadAd.pain} helper="Problema central atacado pela copy." />
-              <Tile label="Posicao" value={leadAd.placement} helper="Onde a mensagem esta aparecendo." />
+              <Tile label="Posicionamento" value={leadAd.placement} helper="Onde a mensagem esta aparecendo." />
               <Tile label="Escala" value={`${leadAd.repetitionScore}/100`} helper="Sinal de repeticao e sustentacao." accent />
             </div>
           </Panel>

@@ -9,7 +9,7 @@ export default function InternoCopilotPage() {
         <InternoLayout
           profile={profile}
           title="Copilot"
-      description="Assistente central do produto para conversar, organizar contexto e avançar com mais agilidade."
+      description="Assistente central do produto para conversar, organizar contexto e avancar com mais agilidade."
           hideDotobotRail={true}
         >
           <div className="min-h-0 flex-1 overflow-hidden">

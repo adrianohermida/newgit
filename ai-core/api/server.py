@@ -642,7 +642,10 @@ def _build_provider_headers(config: CompatibleProviderConfig) -> dict[str, str]:
     return headers
 
 
-def _probe_provider_transport(config: CompatibleProviderConfig) -> ProviderTransportProbe:
+def _probe_provider_transport(
+    config: CompatibleProviderConfig,
+    timeout: float = 2.5,
+) -> ProviderTransportProbe:
     if not config.base_url:
         raise RuntimeError(f"Provider '{config.provider_id}' is not configured.")
 
@@ -664,7 +667,7 @@ def _probe_provider_transport(config: CompatibleProviderConfig) -> ProviderTrans
                     ],
                 },
                 headers={'x-llm-version': '2023-06-01', **headers},
-                timeout=12,
+                timeout=timeout,
             )
             return ProviderTransportProbe(endpoint=anthropic_endpoint, mode='anthropic_messages', model=config.model)
         except RuntimeError:
@@ -673,7 +676,7 @@ def _probe_provider_transport(config: CompatibleProviderConfig) -> ProviderTrans
     openai_endpoint = _join_url(config.base_url, '/v1/models')
     if openai_endpoint:
         try:
-            payload = _json_get_request(openai_endpoint, headers=headers, timeout=12)
+            payload = _json_get_request(openai_endpoint, headers=headers, timeout=timeout)
             model = config.model
             if isinstance(payload.get('data'), list) and payload['data']:
                 first = payload['data'][0]
@@ -690,7 +693,7 @@ def _probe_provider_transport(config: CompatibleProviderConfig) -> ProviderTrans
     ollama_endpoint = _join_url(config.base_url, '/api/tags')
     if ollama_endpoint:
         try:
-            payload = _json_get_request(ollama_endpoint, timeout=12)
+            payload = _json_get_request(ollama_endpoint, timeout=timeout)
             model = config.model
             models = payload.get('models')
             if isinstance(models, list) and models:
@@ -735,7 +738,7 @@ def _provider_runtime_diagnostics(config: CompatibleProviderConfig) -> dict[str,
         diagnostics['error'] = 'Provider is not configured.'
         return diagnostics
     try:
-        transport = _probe_provider_transport(config)
+        transport = _probe_provider_transport(config, timeout=1.5)
         diagnostics.update(
             {
                 'runtime_family': _runtime_family_from_transport(transport.mode),
@@ -828,7 +831,7 @@ def _invoke_compatible_provider(config: CompatibleProviderConfig, payload: dict[
     system_prompt = _get_clean(payload.get('system')) or _get_clean(payload.get('system_prompt')) or ''
     model = _get_clean(payload.get('model')) or config.model
     max_tokens = payload.get('max_tokens') or payload.get('maxTokens') or config.max_tokens
-    transport = _probe_provider_transport(config)
+    transport = _probe_provider_transport(config, timeout=2.5)
     transport_default_model = transport.model or config.model
     requested_model = model or transport_default_model
     headers = _build_provider_headers(config)

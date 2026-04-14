@@ -167,16 +167,16 @@ function LeadsContent({ draftEmail, setDraftEmail, filters, setFilters, state, s
     <div>
       {copilotContext ? (
         <div className={`mb-6 border p-4 text-sm ${isLightTheme ? "border-[#bdd8cf] bg-[#f3fbf8] text-[#25403a]" : "border-[#35554B] bg-[rgba(12,22,19,0.72)] text-[#C6D1CC]"}`}>
-          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#2c7a66]" : "text-[#7FC4AF]"}`}>Contexto vindo do Copilot</p>
+          <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#2c7a66]" : "text-[#7FC4AF]"}`}>Contexto da conversa</p>
           <p className={`mt-2 font-semibold ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{copilotContext.conversationTitle || "Conversa ativa"}</p>
           {copilotContext.mission ? <p className={`mt-2 leading-6 ${isLightTheme ? "text-[#4b5563]" : "text-[#9BAEA8]"}`}>{copilotContext.mission}</p> : null}
         </div>
       ) : null}
       <div className="mb-6 grid gap-4 md:grid-cols-4">
         <SummaryCard label="Total" value={total} isLightTheme={isLightTheme} />
-        <SummaryCard label="Abertos" value={abertos} isLightTheme={isLightTheme} />
-        <SummaryCard label="Pendentes" value={pendentes} isLightTheme={isLightTheme} />
-        <SummaryCard label="Resolvidos" value={resolvidos} isLightTheme={isLightTheme} />
+        <SummaryCard label="Em atendimento" value={abertos} isLightTheme={isLightTheme} />
+        <SummaryCard label="Aguardando retorno" value={pendentes} isLightTheme={isLightTheme} />
+        <SummaryCard label="Concluidos" value={resolvidos} isLightTheme={isLightTheme} />
       </div>
 
       <div className={`mb-6 border p-5 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>
@@ -238,7 +238,7 @@ function LeadsContent({ draftEmail, setDraftEmail, filters, setFilters, state, s
 
       {!state.loading && !state.error && !state.items.length ? (
         <div className={`border p-6 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#6b7280]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] opacity-70"}`}>
-          Nenhum ticket encontrado para a consulta atual.
+          Nenhuma oportunidade encontrada para a consulta atual.
         </div>
       ) : null}
 

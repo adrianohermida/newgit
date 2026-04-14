@@ -2,12 +2,12 @@ import { ActionButton, PageSection, Panel, StatLine, Tag, Tile, toneFor } from "
 
 export default function SummarySection({ state, data, load, generateOptimizations }) {
   if (state.loading) {
-    return <Panel eyebrow="HMADV Market Ads" title="Carregando cockpit" helper="Buscando benchmarks, campanhas, templates e compliance." />;
+    return <Panel eyebrow="Market Ads" title="Carregando painel" helper="Buscando benchmarks, campanhas, templates e compliance." />;
   }
 
   if (state.error) {
     return (
-      <Panel eyebrow="HMADV Market Ads" title="Falha ao carregar modulo" helper={state.error}>
+      <Panel eyebrow="Market Ads" title="Falha ao carregar modulo" helper={state.error}>
         <div className="mt-6">
           <ActionButton tone="primary" onClick={load}>Recarregar modulo</ActionButton>
         </div>
@@ -18,7 +18,7 @@ export default function SummarySection({ state, data, load, generateOptimization
   if (!data) return null;
 
   const highlights = [
-    { label: "Campanhas ativas", value: data.overview?.activeCampaigns || 0, helper: "Google Ads e Meta operando no mesmo cockpit." },
+    { label: "Campanhas ativas", value: data.overview?.activeCampaigns || 0, helper: "Google Ads e Meta operando no mesmo painel." },
     { label: "Verba mensal", value: data.overview?.monthlyBudget || "R$ 0,00", helper: "Investimento consolidado das campanhas visiveis.", accent: true },
     { label: "ROI real", value: data.overview?.realRoi || "0.00", helper: "Receita atribuida dividida pela verba consolidada." },
     { label: "CPA medio", value: data.overview?.averageCpa || "R$ 0,00", helper: "Custo medio de aquisicao no recorte atual." },
@@ -44,16 +44,16 @@ export default function SummarySection({ state, data, load, generateOptimization
 
       <Panel
         eyebrow="Publicidade juridica"
-        title="HMADV Market Ads"
-        helper="Operacao publicitaria juridica com leitura de concorrencia, criacao de anuncios, sincronizacao de campanhas e validacao etica no mesmo fluxo."
+        title="Market Ads"
+        helper="Publicidade juridica com leitura de concorrencia, criacao de anuncios, sincronizacao de campanhas e validacao etica no mesmo fluxo."
         className="overflow-hidden border-[#2A3324] bg-[radial-gradient(circle_at_top_left,rgba(192,149,84,0.14),transparent_36%),linear-gradient(180deg,rgba(11,16,15,0.98),rgba(6,10,9,0.95))]"
       >
         <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="space-y-6">
             <div className="max-w-3xl">
-              <p className="text-4xl font-semibold tracking-[-0.05em] text-[#F5F1E8] md:text-5xl">Cockpit de aquisicao para advocacia com compliance nativo.</p>
+              <p className="text-4xl font-semibold tracking-[-0.05em] text-[#F5F1E8] md:text-5xl">Aquisicao juridica com compliance nativo.</p>
               <p className="mt-4 max-w-2xl text-base leading-7 text-[#99ACA5]">
-                O modulo precisa ajudar quem opera: descobrir o melhor angulo, publicar com seguranca e saber rapido onde o funil esta perdendo margem.
+                O modulo precisa ajudar o time comercial a descobrir o melhor angulo, publicar com seguranca e entender onde o funil perde margem.
               </p>
             </div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

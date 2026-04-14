@@ -2541,6 +2541,27 @@ function PublicacoesContent() {
   const candidateQueues = [processCandidates, partesCandidates];
   const candidateQueueErrorCount = candidateQueues.filter((queue) => queue?.error).length;
   const candidateQueueMismatchCount = candidateQueues.filter((queue) => candidateQueueHasReadMismatch(queue)).length;
+  const backendRecommendedAction = data?.recommendedNextAction || null;
+  const backendRecommendedHealthAction = backendRecommendedAction?.label
+    ? {
+        key: `backend_${backendRecommendedAction.key || "action"}`,
+        label: backendRecommendedAction.label,
+        onClick: () => {
+          if (backendRecommendedAction.key === "run_advise_backfill") {
+            handleAction("run_advise_backfill", false);
+            return;
+          }
+          if (backendRecommendedAction.key === "refresh_snapshot_filas") {
+            refreshIntegratedSnapshot("all");
+            return;
+          }
+          updateView(backendRecommendedAction.view || "operacao", backendRecommendedAction.hash || "operacao");
+        },
+        disabled: backendRecommendedAction.key === "refresh_snapshot_filas"
+          ? actionState.loading || hasBlockingJob
+          : actionState.loading,
+      }
+    : null;
   const healthQueueTarget = processCandidates.error || candidateQueueHasReadMismatch(processCandidates)
     ? { hash: "publicacoes-fila-processos-criaveis", label: "Criar processos", view: "filas" }
     : partesCandidates.error || candidateQueueHasReadMismatch(partesCandidates)
@@ -2549,6 +2570,9 @@ function PublicacoesContent() {
         ? { hash: "publicacoes-mesa-integrada", label: "Revisar mesa integrada", view: "operacao" }
         : { hash: "filas", label: "Abrir filas", view: "filas" };
   const healthSuggestedActions = [];
+  if (backendRecommendedHealthAction) {
+    healthSuggestedActions.push(backendRecommendedHealthAction);
+  }
   if (advisePersistedDelta > 0 || publicacoesSemProcesso > 0) {
     healthSuggestedActions.push({ key: "operacao-drenagem", label: "Abrir drenagem principal", onClick: () => updateView("operacao", "operacao") });
     healthSuggestedActions.push({ key: "advise-backfill", label: "Importar backlog Advise", onClick: () => handleAction("run_advise_backfill", false), disabled: actionState.loading });
@@ -2620,6 +2644,36 @@ function PublicacoesContent() {
     : integratedQueue.source === "legacy"
       ? "fallback"
       : integratedQueue.source || "live";
+  const operationalPlan = Array.isArray(data?.operationalPlan) ? data.operationalPlan : [];
+  function getOperationalPlanStepState(step, index) {
+    const latestAction = String(latestHistory?.action || "");
+    const stepAction = String(step?.actionKey || "");
+    if (actionState.loading && latestAction && latestAction === stepAction) {
+      return { label: "em andamento", tone: "warning" };
+    }
+    if (latestHistory?.status === "success" && latestAction && latestAction === stepAction) {
+      return { label: "concluido", tone: "success" };
+    }
+    if (latestHistory?.status === "error" && latestAction && latestAction === stepAction) {
+      return { label: "falhou", tone: "danger" };
+    }
+    if (index === 0) {
+      return { label: "agora", tone: "default" };
+    }
+    return { label: "proximo", tone: "default" };
+  }
+  function runOperationalPlanStep(step) {
+    if (!step) return;
+    if (step.actionKey === "run_advise_backfill") {
+      handleAction("run_advise_backfill", false);
+      return;
+    }
+    if (step.actionKey === "refresh_snapshot_filas") {
+      refreshIntegratedSnapshot("all");
+      return;
+    }
+    updateView(step.targetView || "operacao", step.targetHash || "operacao");
+  }
 
   function selectVisibleRecurringPublicacoes() {
     const recurringKeys = new Set(recurringPublicacoes.map((item) => item.key));
@@ -2993,6 +3047,7 @@ function PublicacoesContent() {
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-60">Barra de saude operacional</p>
                 <p className="mt-2">{operationalStatus.message || "Operacao normal"} • {backendHealth.message || "Sem historico recente."}</p>
                 <p className="mt-2 text-xs opacity-70">Acao sugerida: {healthSuggestedActions[0]?.label || "Ir para operacao"}</p>
+                {backendRecommendedAction?.reason ? <p className="mt-2 text-xs opacity-70">{backendRecommendedAction.reason}</p> : null}
               </div>
               <div className="flex flex-wrap gap-2">
                 <StatusBadge tone={operationalStatus.mode === "error" ? "danger" : operationalStatus.mode === "limited" ? "warning" : "success"}>{operationalStatus.mode === "error" ? "operacao com alerta" : operationalStatus.mode === "limited" ? "operacao degradada" : "operacao estavel"}</StatusBadge>
@@ -3005,6 +3060,23 @@ function PublicacoesContent() {
               {healthSuggestedActions.map((action) => <button key={action.key} type="button" onClick={action.onClick} disabled={action.disabled} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50">{action.label}</button>)}
             </div>
           </div>
+          {!isResultView && operationalPlan.length ? (
+            <div className="border border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] p-4 text-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-60">Plano operacional</p>
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
+                {operationalPlan.map((step, index) => (
+                  <button key={`${step.title}-${index}`} type="button" onClick={() => runOperationalPlanStep(step)} disabled={actionState.loading || (step.actionKey === "refresh_snapshot_filas" && hasBlockingJob)} className="border border-[#2D2E2E] bg-[rgba(5,7,6,0.72)] p-3 text-left hover:border-[#C5A059] disabled:opacity-50">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-[#C5A059]">Passo {index + 1}</p>
+                      <StatusBadge tone={getOperationalPlanStepState(step, index).tone}>{getOperationalPlanStepState(step, index).label}</StatusBadge>
+                    </div>
+                    <p className="mt-2 font-semibold">{step.title}</p>
+                    <p className="mt-2 text-xs opacity-70">{step.detail}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div className={`border p-4 text-xs ${operationalStatus.mode === "error" ? (isLightTheme ? "border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E]" : "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200") : operationalStatus.mode === "limited" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#9a6d14]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="uppercase tracking-[0.18em] text-[10px]">Status operacional</span>

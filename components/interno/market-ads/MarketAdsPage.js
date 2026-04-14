@@ -14,8 +14,8 @@ export default function InternoMarketAdsPage() {
       {(profile) => (
         <InternoLayout
           profile={profile}
-          title="HMADV Market Ads"
-          description="Cockpit executivo para inteligencia publicitaria juridica, geracao de anuncios e compliance com a OAB."
+          title="Market Ads"
+          description="Centro de campanhas para inteligencia publicitaria juridica, criacao de anuncios e conformidade com a OAB."
         >
           <MarketAdsContent />
         </InternoLayout>
@@ -37,7 +37,7 @@ function MarketAdsContent() {
           <PageSection
             label="Conectividade"
             title="Leitura externa antes de mover verba"
-            description="Integracoes devem aparecer como uma camada de prontidao operacional, nao como mais uma lista de botoes espalhados."
+            description="Integracoes devem aparecer como uma camada clara de prontidao, sem poluir a experiencia com acoes dispersas."
             aside={<Tag tone="neutral">{data.integrations?.providers?.length || 0} provedores</Tag>}
           >
             <IntegrationsSection data={data} {...controller} />
@@ -46,7 +46,7 @@ function MarketAdsContent() {
           <PageSection
             label="Workspace"
             title="Criacao, edicao e validacao no mesmo plano"
-            description="A operacao principal do modulo fica aqui: montar campanha, registrar anuncios, abrir testes e revisar a copy antes da publicacao."
+            description="Monte campanhas, organize anuncios, abra testes e revise a copy em um fluxo unico e mais comercial."
           >
             <FormsWorkspaceSection {...controller} />
           </PageSection>

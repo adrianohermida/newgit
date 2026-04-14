@@ -11,7 +11,7 @@ import TemplateLibraryCard from "./operations/TemplateLibraryCard";
 export default function OperationsInsightsPanel(props) {
   return (
     <div className="space-y-6">
-      <Panel eyebrow="Operacao" title="Execucao, previsao e biblioteca" helper="A coluna operacional precisa responder tres perguntas: o que esta funcionando, o que merece atencao agora e o que vale reaproveitar.">
+      <Panel eyebrow="Performance" title="Execucao, previsao e biblioteca" helper="Essa coluna responde o que esta funcionando, o que merece atencao agora e o que vale reaproveitar.">
         <div className="flex flex-wrap gap-2">
           <Tag tone="accent">{props.data.campaigns?.length || 0} campanhas</Tag>
           <Tag tone="neutral">{props.data.adItems?.length || 0} anuncios</Tag>
@@ -21,7 +21,7 @@ export default function OperationsInsightsPanel(props) {
 
       <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
         <div className="space-y-6">
-          <Panel eyebrow="Performance" title="Campanhas e otimizacoes" helper="Use este bloco para decidir onde editar, pausar, escalar ou revisar criativos.">
+          <Panel eyebrow="Campanhas" title="Otimizacoes e desempenho" helper="Use este bloco para decidir onde editar, pausar, escalar ou revisar criativos.">
             <div className="space-y-4">
               <CampaignCards campaigns={props.data.campaigns} beginEditCampaign={props.beginEditCampaign} />
               <OptimizationCard {...props} />
@@ -29,7 +29,7 @@ export default function OperationsInsightsPanel(props) {
             </div>
           </Panel>
 
-          <Panel eyebrow="Conversao" title="Funil e previsao de fechamento" helper="As leituras de atribuicao e forecast precisam ficar proximas porque fazem parte da mesma decisao comercial.">
+          <Panel eyebrow="Conversao" title="Funil e previsao de resultado" helper="As leituras de atribuicao e previsao precisam ficar proximas porque fazem parte da mesma decisao comercial.">
             <div className="space-y-4">
               <AttributionCard {...props} />
               <FunnelCard funnel={props.data.funnel} funnelRecentLeads={props.funnelRecentLeads} />
@@ -39,7 +39,7 @@ export default function OperationsInsightsPanel(props) {
         </div>
 
         <div className="space-y-6">
-          <Panel eyebrow="Biblioteca" title="Criativos, templates e acervo local" helper="Essa area concentra os insumos que ajudam a reaproveitar aprendizado sem perder controle editorial.">
+          <Panel eyebrow="Biblioteca" title="Criativos, templates e acervo local" helper="Essa area concentra os insumos que ajudam a reaproveitar aprendizado sem perder consistencia editorial.">
             <div className="space-y-4">
               <CreativeRankingCard ranking={props.data.creativeRanking} generateFromWinner={props.generateFromWinner} />
               <TemplateLibraryCard {...props} />
@@ -48,7 +48,7 @@ export default function OperationsInsightsPanel(props) {
             </div>
           </Panel>
 
-          <Panel eyebrow="Governanca" title="Compliance e arquitetura" helper="Mantem visivel o historico de validacao e a stack tecnica que sustenta o modulo.">
+          <Panel eyebrow="Governanca" title="Compliance e estrutura" helper="Mantem visivel o historico de validacao e a base que sustenta o modulo.">
             <div className="space-y-4">
               <ComplianceLogCard items={props.data.complianceLog} />
               <ArchitectureCard data={props.data.architecture} />
@@ -61,7 +61,7 @@ export default function OperationsInsightsPanel(props) {
 }
 
 function ArchitectureCard({ data }) {
-  return <Block title="Arquitetura tecnica" items={data.backend.concat(data.integrations).concat(data.safeguards)} />;
+  return <Block title="Estrutura tecnica" items={data.backend.concat(data.integrations).concat(data.safeguards)} />;
 }
 
 function SimpleDraftsCard({ items }) {
@@ -79,7 +79,7 @@ function SimpleDraftsCard({ items }) {
 
 function ComplianceLogCard({ items }) {
   return (
-    <Block title="Historico de compliance" empty="Nenhum log persistido ainda.">
+    <Block title="Historico de compliance" empty="Nenhum registro persistido ainda.">
       {items?.map((item) => (
         <div key={item.id} className="rounded-[16px] border border-[#1D2B27] px-3 py-3 text-sm text-[#C7D0CA]">
           <div className="flex flex-wrap items-center justify-between gap-2">

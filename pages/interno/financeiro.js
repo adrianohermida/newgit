@@ -118,7 +118,7 @@ export default function InternoFinanceiroPage() {
         <InternoLayout
           profile={profile}
           title="Financeiro"
-      description="Visão financeira do produto com contratos, recebíveis e pendências em uma jornada mais clara."
+      description="Visao financeira do produto com contratos, recebiveis e acompanhamento claro para o time e para o cliente."
         >
           <FinanceiroInternoContent routeFocus={routeFocus} copilotContext={copilotContext} />
         </InternoLayout>
@@ -394,7 +394,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
         module: "financeiro",
         page: "/interno/financeiro",
         status: "success",
-        response: "Configuracao operacional persistida com sucesso.",
+        response: "Configuracao salva com sucesso.",
         tags: ["financeiro", "manual"],
       });
       await load();
@@ -406,10 +406,10 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
         module: "financeiro",
         page: "/interno/financeiro",
         status: "error",
-        error: error.message || "Falha ao salvar configuracao operacional.",
+        error: error.message || "Falha ao salvar configuracao.",
         tags: ["financeiro", "manual"],
       });
-      setConfigState({ loading: false, error: error.message || "Falha ao salvar configuracao operacional.", result: null });
+      setConfigState({ loading: false, error: error.message || "Falha ao salvar configuracao.", result: null });
     }
   }
 
@@ -520,7 +520,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
   return (
     <div className="space-y-8">
       {copilotContext ? (
-        <Panel title="Contexto vindo do Copilot" eyebrow="Handoff operacional">
+        <Panel title="Contexto da conversa" eyebrow="Copilot">
           <p className={`font-semibold ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{copilotContext.conversationTitle || "Conversa ativa"}</p>
           {copilotContext.mission ? <p className={`mt-4 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>{copilotContext.mission}</p> : null}
           <div className="mt-4 flex flex-wrap gap-2">
@@ -534,7 +534,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
         </Panel>
       ) : null}
       {routeFocus?.dealId || routeFocus?.processAccountId || routeFocus?.clientId ? (
-        <Panel title="Contexto vindo de Jobs" eyebrow="Handoff operacional">
+        <Panel title="Contexto trazido por automacoes" eyebrow="Jobs">
           <div className={`flex flex-wrap gap-3 text-sm ${isLightTheme ? "text-[#374151]" : "opacity-80"}`}>
             {routeFocus.dealId ? <StatusBadge tone="accent">Deal {routeFocus.dealId}</StatusBadge> : null}
             {routeFocus.processAccountId ? <StatusBadge tone="accent">Process account {routeFocus.processAccountId}</StatusBadge> : null}
@@ -560,7 +560,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
         ))}
       </section>
 
-      <Panel title="Resumo executivo" eyebrow="Migracao total">
+      <Panel title="Resumo executivo" eyebrow="Panorama financeiro">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Sync Freshsales"
@@ -604,7 +604,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
         </div>
       </Panel>
 
-      <Panel title="Bloqueios de produto" eyebrow="Catalogo">
+      <Panel title="Bloqueios comerciais" eyebrow="Catalogo">
         <div className="mb-4 flex flex-wrap gap-2">
           <StatusBadge tone={data.product_sync?.pending ? "warn" : "success"}>
             {data.product_sync?.pending || 0} produto(s) sem mapeamento
@@ -647,19 +647,19 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
       </Panel>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <Panel title="Estado da migração" eyebrow="Pipeline">
+        <Panel title="Estado da carteira" eyebrow="Pipeline">
           <div className="grid gap-3 md:grid-cols-2">
-            <MetricCard label="Pendente contato" value={data.resolution?.pending_contact || 0} helper="Ainda depende de vínculo de contact." />
-            <MetricCard label="Pendente revisão" value={data.resolution?.pending_review || 0} helper="Linhas com erro ou ambiguidade." />
-            <MetricCard label="Textual only" value={data.resolution?.contracts_textual_only || 0} helper="Contratos sem account resolvido, mas já úteis para o portal." />
-            <MetricCard label="Receivables sem account" value={data.resolution?.receivables_without_account || 0} helper="Ficam fora da publicação em Deals por enquanto." />
+            <MetricCard label="Contato pendente" value={data.resolution?.pending_contact || 0} helper="Ainda depende de vinculacao com contato." />
+            <MetricCard label="Revisao pendente" value={data.resolution?.pending_review || 0} helper="Linhas com erro ou ambiguidade." />
+            <MetricCard label="Contratos textuais" value={data.resolution?.contracts_textual_only || 0} helper="Contratos ainda sem conta resolvida, mas ja aproveitaveis no portal." />
+            <MetricCard label="Recebiveis sem conta" value={data.resolution?.receivables_without_account || 0} helper="Ainda ficam fora da publicacao em deals." />
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <StatusBadge tone={diagnostics.ready_for_freshsales_publish ? "success" : "warn"}>
               {diagnostics.ready_for_freshsales_publish ? "Deals aptos para publicar" : "Deals ainda parciais"}
             </StatusBadge>
-            <StatusBadge tone="accent">{diagnostics.contracts_textual_only_share || 0}% contratos textual_only</StatusBadge>
-            <StatusBadge tone="accent">{diagnostics.receivables_without_account_share || 0}% recebíveis sem account</StatusBadge>
+            <StatusBadge tone="accent">{diagnostics.contracts_textual_only_share || 0}% contratos textuais</StatusBadge>
+            <StatusBadge tone="accent">{diagnostics.receivables_without_account_share || 0}% recebiveis sem conta</StatusBadge>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             {Object.entries(counts.import_status || {}).map(([key, value]) => (
@@ -668,7 +668,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
           </div>
         </Panel>
 
-        <Panel title="Filas e publicação" eyebrow="Freshsales + CRM">
+        <Panel title="Atualizacao e publicacao" eyebrow="Freshsales + CRM">
           <div className="mb-4 grid gap-3 md:grid-cols-[140px_auto]">
             <input
               type="number"
@@ -684,17 +684,17 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
               disabled={textualBackfillState.loading}
               className="border border-[#C5A059] bg-[#C5A059] px-4 py-3 text-sm font-semibold text-[#050706] disabled:opacity-50"
             >
-              {textualBackfillState.loading ? "Criando/vinculando accounts..." : "Backfill de accounts textuais"}
+              {textualBackfillState.loading ? "Criando e vinculando contas..." : "Atualizar contas textuais"}
             </button>
           </div>
           {textualBackfillState.error ? <p className={`mb-4 text-sm ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>{textualBackfillState.error}</p> : null}
           {textualBackfillState.result ? (
             <div className={`mb-4 rounded-[18px] border p-4 text-sm ${isLightTheme ? "border-[#b7d8c8] bg-[#eefbf4] text-[#1f2937]" : "border-[#35554B] bg-[rgba(11,24,21,0.72)]"}`}>
               <p className="font-semibold">
-                {textualBackfillState.result.updated_contracts || 0} contrato(s) atualizados, {textualBackfillState.result.updated_receivables || 0} recebível(is) ligados.
+                {textualBackfillState.result.updated_contracts || 0} contrato(s) atualizados, {textualBackfillState.result.updated_receivables || 0} recebivel(is) conectados.
               </p>
               <p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>
-                Existing: {textualBackfillState.result.linked_existing || 0} | Criadas: {textualBackfillState.result.created_accounts || 0}
+                Ja existentes: {textualBackfillState.result.linked_existing || 0} | Novas: {textualBackfillState.result.created_accounts || 0}
               </p>
             </div>
           ) : null}
@@ -717,18 +717,18 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
             ))}
           </div>
           {!Object.keys(counts.deal_sync_status || {}).length && !Object.keys(counts.crm_queue_status || {}).length ? (
-            <p className="text-sm opacity-65">Ainda não há volume operacional suficiente nas filas para esta leitura.</p>
+            <p className="text-sm opacity-65">Ainda nao ha volume suficiente para uma leitura consolidada nesta area.</p>
           ) : null}
         </Panel>
       </div>
 
-      <Panel title="Operacao assistida" eyebrow="Runner">
+      <Panel title="Acoes assistidas" eyebrow="Runner">
         <p className={`mb-4 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-65"}`}>
-          Este runner lê a configuração operacional do backend do financeiro e expõe sempre os acionamentos disponíveis para migração, publicação e suporte de CRM.
+          Este runner usa a configuracao do backend financeiro para expor os acionamentos disponiveis de atualizacao, publicacao e suporte ao CRM.
         </p>
         {data.config?.endpoints ? (
           <div className={`mb-4 rounded-[18px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[#050706]"}`}>
-            <p className="font-semibold">Endpoints configurados no backend</p>
+            <p className="font-semibold">Rotas configuradas no backend</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {Object.entries(data.config.endpoints).map(([key, endpoint]) => (
                 <StatusBadge key={key} tone="accent">
@@ -792,17 +792,17 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
             disabled={configState.loading}
             className="border border-[#C5A059] bg-[#C5A059] px-4 py-3 text-sm font-semibold text-[#050706] disabled:opacity-50"
           >
-            {configState.loading ? "Salvando configuracao..." : "Salvar configuracao operacional"}
+            {configState.loading ? "Salvando configuracao..." : "Salvar configuracao"}
           </button>
           {data.config?.settings?.updated_at ? (
             <span className="text-sm opacity-65">Atualizado em {formatDate(data.config.settings.updated_at)}</span>
           ) : null}
         </div>
         {configState.error ? <p className={`mb-4 text-sm ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>{configState.error}</p> : null}
-        {configState.result ? <p className="mb-4 text-sm opacity-70">Configuracao operacional persistida no backend.</p> : null}
+        {configState.result ? <p className="mb-4 text-sm opacity-70">Configuracao salva no backend.</p> : null}
         {runnerUnavailable ? (
           <p className="mb-4 text-sm text-amber-200">
-            Este ambiente expõe apenas a leitura e as ações diretas do financeiro. O runner de scripts administrativos precisa da rota Node
+            Este ambiente expoe apenas a leitura e as acoes diretas do financeiro. O runner administrativo precisa da rota Node
             <code className="ml-1">/api/admin-hmadv-financeiro</code>.
           </p>
         ) : null}
@@ -834,12 +834,12 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
             ) : null}
             {operationState.result.guidance ? (
               <div className={`mt-4 border p-4 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[#050706]"}`}>
-                <p className="font-semibold">Proximo passo recomendado</p>
+                <p className="font-semibold">Proximo passo sugerido</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <StatusBadge tone="accent">publish_ready: {operationState.result.guidance.snapshot?.publish_ready ?? 0}</StatusBadge>
-                  <StatusBadge tone="warn">sem account: {operationState.result.guidance.snapshot?.receivables_without_account ?? 0}</StatusBadge>
-                  <StatusBadge tone="warn">pendente contato: {operationState.result.guidance.snapshot?.pending_contact ?? 0}</StatusBadge>
-                  <StatusBadge tone="warn">pendente account: {operationState.result.guidance.snapshot?.pending_account ?? 0}</StatusBadge>
+                  <StatusBadge tone="warn">sem conta: {operationState.result.guidance.snapshot?.receivables_without_account ?? 0}</StatusBadge>
+                  <StatusBadge tone="warn">contato pendente: {operationState.result.guidance.snapshot?.pending_contact ?? 0}</StatusBadge>
+                  <StatusBadge tone="warn">conta pendente: {operationState.result.guidance.snapshot?.pending_account ?? 0}</StatusBadge>
                   <StatusBadge tone="warn">produtos pendentes: {operationState.result.guidance.snapshot?.pending_products ?? 0}</StatusBadge>
                 </div>
                 <div className="mt-3 space-y-2">
@@ -857,9 +857,9 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
                   </div>
                 ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {operationState.result.guidance.fallback?.should_export_accounts_csv ? <StatusBadge tone="accent">fallback accounts CSV</StatusBadge> : null}
-                  {operationState.result.guidance.fallback?.should_export_deals_csv ? <StatusBadge tone="accent">fallback deals CSV</StatusBadge> : null}
-                  {operationState.result.guidance.fallback?.should_retry_publish ? <StatusBadge tone="success">retry publish direto</StatusBadge> : null}
+                  {operationState.result.guidance.fallback?.should_export_accounts_csv ? <StatusBadge tone="accent">exportar contas CSV</StatusBadge> : null}
+                  {operationState.result.guidance.fallback?.should_export_deals_csv ? <StatusBadge tone="accent">exportar deals CSV</StatusBadge> : null}
+                  {operationState.result.guidance.fallback?.should_retry_publish ? <StatusBadge tone="success">tentar publicacao novamente</StatusBadge> : null}
                   {operationState.result.guidance.fallback?.should_sync_products ? <StatusBadge tone="warn">sincronizar produtos</StatusBadge> : null}
                 </div>
               </div>
@@ -869,7 +869,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
       </Panel>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <Panel title="Importações recentes" eyebrow="Runs">
+        <Panel title="Importacoes recentes" eyebrow="Historico">
           <div className="space-y-3">
             {(data.recent_import_runs || []).map((run) => (
               <article key={run.id} className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
@@ -879,16 +879,16 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
                 </div>
                 <div className={`mt-2 flex flex-wrap gap-x-4 gap-y-1 ${isLightTheme ? "text-[#6b7280]" : "opacity-65"}`}>
                   <span>Total: {run.total_rows || 0}</span>
-                  <span>Válidas: {run.valid_rows || 0}</span>
+                  <span>Validas: {run.valid_rows || 0}</span>
                   <span>Erro: {run.error_rows || 0}</span>
                 </div>
-                <p className="mt-2 opacity-55">Início: {formatDate(run.started_at)}</p>
+                <p className="mt-2 opacity-55">Inicio: {formatDate(run.started_at)}</p>
               </article>
             ))}
           </div>
         </Panel>
 
-        <Panel title="Fontes do staging" eyebrow="CSV">
+        <Panel title="Fontes da base temporaria" eyebrow="CSV">
           <div className="space-y-3 text-sm">
             {Object.entries(counts.import_sources || {}).map(([key, value]) => (
               <div key={key} className={`flex items-center justify-between border p-4 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
@@ -896,12 +896,12 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
                 <StatusBadge tone="accent">{value}</StatusBadge>
               </div>
             ))}
-            {!Object.keys(counts.import_sources || {}).length ? <p className="opacity-65">Nenhuma fonte de importação detectada.</p> : null}
+            {!Object.keys(counts.import_sources || {}).length ? <p className="opacity-65">Nenhuma fonte de importacao detectada.</p> : null}
           </div>
         </Panel>
       </div>
 
-      <Panel title="Migracao para Deals" eyebrow="Por origem">
+      <Panel title="Evolucao por origem" eyebrow="Deals">
         <div className="space-y-3">
           {(data.migration_progress_by_source || []).map((item) => (
             <article key={item.source_file} className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
@@ -918,26 +918,26 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
                 <StatusBadge tone="success">deals: {item.freshsales_synced}</StatusBadge>
                 <StatusBadge tone="accent">publish_ready: {item.publish_ready}</StatusBadge>
                 <StatusBadge tone="warn">canonical_only: {item.canonical_only}</StatusBadge>
-                <StatusBadge tone="warn">pendente_contato: {item.pending_contact}</StatusBadge>
-                <StatusBadge tone="warn">pendente_account: {item.pending_account}</StatusBadge>
-                <StatusBadge tone="danger">pendente_revisao: {item.pending_review}</StatusBadge>
+                <StatusBadge tone="warn">contato_pendente: {item.pending_contact}</StatusBadge>
+                <StatusBadge tone="warn">conta_pendente: {item.pending_account}</StatusBadge>
+                <StatusBadge tone="danger">revisao_pendente: {item.pending_review}</StatusBadge>
                 {item.duplicates ? <StatusBadge tone="neutral">duplicadas: {item.duplicates}</StatusBadge> : null}
               </div>
             </article>
           ))}
-          {!data.migration_progress_by_source?.length ? <p className="opacity-65">Sem dados de migracao por origem neste momento.</p> : null}
+          {!data.migration_progress_by_source?.length ? <p className="opacity-65">Sem dados por origem neste momento.</p> : null}
         </div>
       </Panel>
 
-      <Panel title="Freshsales auth" eyebrow="OAuth">
+      <Panel title="Conexao com Freshsales" eyebrow="OAuth">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="API key" value={freshsalesAuth.has_api_key ? "OK" : "Ausente"} helper="Melhor rota para operar a migração sem depender de OAuth." />
-          <MetricCard label="Access token" value={freshsalesAuth.has_access_token ? "OK" : "Ausente"} helper="Token atual para leitura/escrita." />
-          <MetricCard label="Refresh token" value={freshsalesAuth.has_refresh_token ? "OK" : "Ausente"} helper="Necessário para renovar o acesso." />
+          <MetricCard label="API key" value={freshsalesAuth.has_api_key ? "OK" : "Ausente"} helper="Melhor rota para operar sem depender de OAuth." />
+          <MetricCard label="Access token" value={freshsalesAuth.has_access_token ? "OK" : "Ausente"} helper="Token atual para leitura e escrita." />
+          <MetricCard label="Refresh token" value={freshsalesAuth.has_refresh_token ? "OK" : "Ausente"} helper="Necessario para renovar o acesso." />
           <MetricCard
             label="OAuth client"
             value={freshsalesAuth.has_client_id && freshsalesAuth.has_client_secret ? "OK" : freshsalesAuth.has_api_key ? "Opcional" : "Faltando"}
-            helper={freshsalesAuth.has_api_key ? "No modo API key, OAuth fica opcional para a migracao." : "Client ID e secret do app Freshsales."}
+            helper={freshsalesAuth.has_api_key ? "No modo API key, OAuth fica opcional." : "Client ID e secret do app Freshsales."}
           />
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
@@ -945,13 +945,13 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
             {freshsalesAuth.has_api_key ? "API key pronta" : "Sem API key local"}
           </StatusBadge>
           <StatusBadge tone={freshsalesAuth.has_access_token ? "success" : "warn"}>
-            {freshsalesAuth.has_access_token ? "Token presente" : "Token ausente ou inválido"}
+            {freshsalesAuth.has_access_token ? "Token presente" : "Token ausente ou invalido"}
           </StatusBadge>
           <StatusBadge tone={freshsalesAuth.has_refresh_token ? "success" : "warn"}>
             {freshsalesAuth.has_refresh_token ? "Refresh configurado" : "Sem refresh"}
           </StatusBadge>
           <StatusBadge tone={freshsalesAuth.auth_operational ? "success" : "danger"}>
-            {freshsalesAuth.auth_summary || "Sem credencial operacional"}
+            {freshsalesAuth.auth_summary || "Sem credencial ativa"}
           </StatusBadge>
         </div>
         {freshsalesAuth.preferred_auth_mode ? <p className={`mt-4 text-sm ${isLightTheme ? "text-[#6b7280]" : "opacity-65"}`}>Modo preferido: {freshsalesAuth.preferred_auth_mode}</p> : null}
@@ -972,12 +972,12 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
         ) : freshsalesAuth.has_api_key ? (
           <p className="mt-4 text-sm opacity-65">OAuth nao e obrigatorio neste ambiente enquanto a operacao estiver usando API key.</p>
         ) : (
-          <p className="mt-4 text-sm opacity-65">Preencha as variáveis OAuth para gerar a URL de autorização.</p>
+          <p className="mt-4 text-sm opacity-65">Preencha as variaveis OAuth para gerar a URL de autorizacao.</p>
         )}
       </Panel>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <Panel title="Recebíveis recentes" eyebrow="Base canônica">
+        <Panel title="Recebiveis recentes" eyebrow="Base canonica">
           <div className="space-y-3">
             {(data.recent_receivables || []).map((item) => (
               <article key={item.id} className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
@@ -1001,12 +1001,12 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
           </div>
         </Panel>
 
-        <Panel title="Pendências de account" eyebrow="Reconciliação">
+        <Panel title="Pendencias de conta" eyebrow="Conciliacao">
           <div className="mb-4 grid gap-3 md:grid-cols-[1fr_auto]">
             <input
               value={processQuery}
               onChange={(event) => setProcessQuery(event.target.value)}
-              placeholder="Buscar processo por CNJ, número, account ou título"
+              placeholder="Buscar processo por CNJ, numero, conta ou titulo"
               className={`border p-3 text-sm outline-none transition ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937] focus:border-[#9a6d14]" : "border-[#2D2E2E] bg-[#050706] focus:border-[#C5A059]"}`}
             />
             <button
@@ -1024,7 +1024,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
           {resolutionState.error ? <p className={`mb-4 text-sm ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>{resolutionState.error}</p> : null}
           {resolutionState.result ? (
             <div className={`mb-4 rounded-[18px] border p-4 text-sm ${isLightTheme ? "border-[#b7d8c8] bg-[#eefbf4] text-[#1f2937]" : "border-[#35554B] bg-[rgba(11,24,21,0.72)]"}`}>
-              <p className="font-semibold">Reconciliacao aplicada em {resolutionState.result.updated || 0} linha(s).</p>
+              <p className="font-semibold">Conciliacao aplicada em {resolutionState.result.updated || 0} linha(s).</p>
               <p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>
                 Processo: {resolutionState.result.process_reference || resolutionState.result.process?.label || "n/d"}
               </p>
@@ -1042,16 +1042,16 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold">{row.person_name || row.email || "Linha sem identificação"}</p>
+                      <p className="font-semibold">{row.person_name || row.email || "Linha sem identificacao"}</p>
                       <StatusBadge tone="warn">{row.matching_status}</StatusBadge>
                     </div>
                     <div className={`mt-2 flex flex-wrap gap-x-4 gap-y-1 ${isLightTheme ? "text-[#6b7280]" : "opacity-70"}`}>
                       {row.resolved_contact_name ? <span>Contato: {row.resolved_contact_name}</span> : null}
                       {row.invoice_number ? <span>Fatura: {row.invoice_number}</span> : null}
-                      {row.billing_type_inferred ? <span>Cobrança: {row.billing_type_inferred}</span> : null}
+                      {row.billing_type_inferred ? <span>Cobranca: {row.billing_type_inferred}</span> : null}
                     </div>
                     <p className="mt-2 opacity-55">
-                      Processo: {row.resolved_process_reference || row.deal_reference_raw || "sem referência forte"}
+                      Processo: {row.resolved_process_reference || row.deal_reference_raw || "sem referencia forte"}
                     </p>
                     {(row.resolved_process_reference || row.deal_reference_raw) ? (
                       <button
@@ -1070,12 +1070,12 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
                 </div>
               </label>
             ))}
-            {!data.pending_account_rows?.length ? <p className="opacity-65">Nenhuma pendência de account encontrada neste recorte.</p> : null}
+            {!data.pending_account_rows?.length ? <p className="opacity-65">Nenhuma pendencia de conta encontrada neste recorte.</p> : null}
           </div>
         </Panel>
       </div>
 
-      <Panel title="Candidatos de processo/account" eyebrow="Resolução manual">
+      <Panel title="Candidatos para conciliacao" eyebrow="Resolucao manual">
         {processSearch.loading ? <p className="text-sm opacity-65">Buscando processos...</p> : null}
         {processSearch.error ? <p className={`text-sm ${isLightTheme ? "text-[#B25E5E]" : "text-red-200"}`}>{processSearch.error}</p> : null}
         <div className="grid gap-3 xl:grid-cols-2">
@@ -1083,12 +1083,12 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
             <article key={item.id} className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold">{item.label}</p>
-                {item.account_id_freshsales ? <StatusBadge tone="success">account {item.account_id_freshsales}</StatusBadge> : <StatusBadge tone="warn">sem account</StatusBadge>}
+                {item.account_id_freshsales ? <StatusBadge tone="success">conta {item.account_id_freshsales}</StatusBadge> : <StatusBadge tone="warn">sem conta</StatusBadge>}
                 <StatusBadge tone="accent">{item.matched_by}</StatusBadge>
               </div>
               <div className={`mt-2 flex flex-wrap gap-x-4 gap-y-1 ${isLightTheme ? "text-[#6b7280]" : "opacity-70"}`}>
                 {item.numero_cnj ? <span>CNJ: {item.numero_cnj}</span> : null}
-                {item.numero_processo ? <span>Número: {item.numero_processo}</span> : null}
+                {item.numero_processo ? <span>Numero: {item.numero_processo}</span> : null}
                 {item.status ? <span>Status: {item.status}</span> : null}
               </div>
               {item.titulo ? <p className="mt-2 opacity-55">{item.titulo}</p> : null}
@@ -1105,12 +1105,12 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
             </article>
           ))}
           {!processSearch.loading && !processSearch.error && !processSearch.items.length ? (
-            <p className="opacity-65">Busque um processo para aplicar reconciliação manual nas linhas pendentes.</p>
+            <p className="opacity-65">Busque um processo para aplicar conciliacao manual nas linhas pendentes.</p>
           ) : null}
         </div>
       </Panel>
 
-      <Panel title="Pendências de contato" eyebrow="Staging">
+      <Panel title="Pendencias de contato" eyebrow="Staging">
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <StatusBadge tone="accent">{selectedPendingContactRows.length} linha(s) selecionada(s)</StatusBadge>
           <button
@@ -1143,7 +1143,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-semibold">{row.person_name || row.email || "Linha sem identificação"}</p>
+                    <p className="font-semibold">{row.person_name || row.email || "Linha sem identificacao"}</p>
                     <StatusBadge tone="warn">{row.matching_status}</StatusBadge>
                   </div>
                   <div className={`mt-2 flex flex-wrap gap-x-4 gap-y-1 ${isLightTheme ? "text-[#6b7280]" : "opacity-70"}`}>
@@ -1158,7 +1158,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
               </div>
             </label>
           ))}
-          {!data.pending_contact_rows?.length ? <p className="opacity-65">Sem pendências de contato neste recorte.</p> : null}
+          {!data.pending_contact_rows?.length ? <p className="opacity-65">Sem pendencias de contato neste recorte.</p> : null}
         </div>
         {contactResolutionState.result?.rows?.length ? (
           <div className="mt-4 grid gap-3 xl:grid-cols-2">
@@ -1190,7 +1190,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
         ) : null}
       </Panel>
       <div className="grid gap-6 xl:grid-cols-2">
-        <Panel title="Backlog CRM" eyebrow="Fila">
+      <Panel title="Fila do CRM" eyebrow="Historico">
           <div className="space-y-3">
             {(data.crm_queue_backlog || []).map((item) => (
               <article key={item.id} className={`border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E]"}`}>
@@ -1202,7 +1202,7 @@ function FinanceiroInternoContent({ routeFocus, copilotContext }) {
                 {item.error ? <p className={`mt-2 ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>{item.error}</p> : null}
               </article>
             ))}
-            {!data.crm_queue_backlog?.length ? <p className="opacity-65">Sem backlog atual de eventos CRM.</p> : null}
+            {!data.crm_queue_backlog?.length ? <p className="opacity-65">Sem fila atual de eventos do CRM.</p> : null}
           </div>
         </Panel>
       </div>

@@ -62,7 +62,7 @@ export default function AgentLabPage() {
         <InternoLayout
           profile={profile}
           title="AgentLab"
-      description="Hub de evolução dos agentes com qualidade, repertório e testes para escalar a experiência."
+      description="Centro de evolucao dos agentes com qualidade, repertorio e testes para escalar a experiencia do produto."
         >
           <AgentLabModuleNav />
           <AgentLabContent state={state} copilotContext={copilotContext} />
@@ -76,7 +76,7 @@ function AgentLabContent({ state, copilotContext }) {
   const { isLightTheme } = useInternalTheme();
 
   if (state.loading) {
-    return <div className={`border p-6 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#4b5563]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>Carregando AgentLab...</div>;
+    return <div className={`border p-6 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#4b5563]" : "border-[#2D2E2E] bg-[rgba(13,15,14,0.96)]"}`}>Carregando visao do AgentLab...</div>;
   }
 
   if (state.error) {
@@ -210,7 +210,7 @@ function AgentLabContent({ state, copilotContext }) {
       ) : null}
 
       {environment.mode === "degraded" ? (
-        <Panel title="Modo de contingência" eyebrow="Ambiente" isLightTheme={isLightTheme}>
+        <Panel title="Modo de continuidade" eyebrow="Ambiente" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             <p>{environment.message}</p>
             {(environment.missingSources || []).length ? (
@@ -233,7 +233,7 @@ function AgentLabContent({ state, copilotContext }) {
       ) : null}
 
       {(environment.schemaChecklist || []).length ? (
-        <Panel title="Checklist técnico" eyebrow="Base" isLightTheme={isLightTheme}>
+        <Panel title="Base pronta para evolucao" eyebrow="Estrutura" isLightTheme={isLightTheme}>
           <div className={`grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-3 ${textTone(isLightTheme)}`}>
             {environment.schemaChecklist.map((item) => (
               <div key={item.table} className={`border p-3 ${itemCardTone(isLightTheme)}`}>
@@ -248,7 +248,7 @@ function AgentLabContent({ state, copilotContext }) {
       ) : null}
 
       {warnings.length ? (
-        <Panel title="Avisos de integração" eyebrow="Ambiente" isLightTheme={isLightTheme}>
+        <Panel title="Pontos de atencao nas integracoes" eyebrow="Ambiente" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             {warnings.map((item) => (
               <p key={`${item.source}-${item.message}`}>
@@ -301,7 +301,7 @@ function AgentLabContent({ state, copilotContext }) {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
-        <Panel title="Fila de CRM" eyebrow="Relacionamento" isLightTheme={isLightTheme}>
+        <Panel title="Fila de relacionamento" eyebrow="CRM" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             <p>Ready: {actionQueueSummary.ready || 0}</p>
             <p>Pending: {actionQueueSummary.pending || 0}</p>
@@ -311,7 +311,7 @@ function AgentLabContent({ state, copilotContext }) {
           </div>
         </Panel>
 
-        <Panel title="Fila de envios" eyebrow="Email e WhatsApp" isLightTheme={isLightTheme}>
+        <Panel title="Envios em acompanhamento" eyebrow="Email e WhatsApp" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             <p>Pending approval: {dispatchSummary.pending_approval || 0}</p>
             <p>Approved: {dispatchSummary.approved || 0}</p>
@@ -424,7 +424,7 @@ function AgentLabContent({ state, copilotContext }) {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <Panel title="Matriz de modelos" eyebrow="Experimentos" isLightTheme={isLightTheme}>
+        <Panel title="Portifolio de modelos" eyebrow="Experimentos" isLightTheme={isLightTheme}>
           <div className={`space-y-3 text-sm ${textTone(isLightTheme)}`}>
             {providerMatrix.length ? providerMatrix.map((item) => (
               <div key={item.id} className={`border p-4 ${itemCardTone(isLightTheme)}`}>
@@ -480,7 +480,7 @@ function AgentLabContent({ state, copilotContext }) {
         </Panel>
       </div>
 
-      <Panel title="Trilhas de experimento" eyebrow="Comparação" isLightTheme={isLightTheme}>
+      <Panel title="Trilhas de evolucao" eyebrow="Comparacao" isLightTheme={isLightTheme}>
         <div className={`grid gap-4 text-sm md:grid-cols-3 ${textTone(isLightTheme)}`}>
           {experimentTracks.length ? experimentTracks.map((item) => (
             <div key={item.id} className={`border p-4 ${itemCardTone(isLightTheme)}`}>

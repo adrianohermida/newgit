@@ -17,9 +17,9 @@ const HISTORY_STORAGE_KEY = "hmadv:interno-processos:history:v1";
 const UI_STATE_STORAGE_KEY = "hmadv:interno-processos:ui:v1";
 const SNAPSHOT_STORAGE_KEY = "hmadv:interno-processos:snapshot:v1";
 const ACTION_LABELS = {
-  run_sync_worker: "Rodar sync-worker",
-  push_orfaos: "Criar accounts no Freshsales",
-  repair_freshsales_accounts: "Corrigir campos no Freshsales",
+  run_sync_worker: "Atualizar integracoes",
+  push_orfaos: "Criar contas comerciais",
+  repair_freshsales_accounts: "Corrigir dados comerciais",
   sync_supabase_crm: "Atualizar base comercial",
   sincronizar_movimentacoes_activity: "Refletir andamentos no CRM",
   sincronizar_publicacoes_activity: "Refletir publicacoes no CRM",
@@ -58,14 +58,14 @@ const QUEUE_REFRESHERS = {
   campos_orfaos: "campos_orfaos",
 };
 const QUEUE_LABELS = {
-  sem_movimentacoes: "Sem movimentacoes",
-  movimentacoes_pendentes: "Movimentacoes pendentes",
+  sem_movimentacoes: "Sem atualizacoes",
+  movimentacoes_pendentes: "Andamentos pendentes",
   publicacoes_pendentes: "Publicacoes pendentes",
   partes_sem_contato: "Partes sem contato",
-  audiencias_pendentes: "Audiencias detectaveis",
+  audiencias_pendentes: "Audiencias em aberto",
   monitoramento_ativo: "Monitoramento ativo",
-  monitoramento_inativo: "Monitoramento inativo",
-  campos_orfaos: "Campos orfaos",
+  monitoramento_inativo: "Monitoramento pausado",
+  campos_orfaos: "Dados incompletos",
   orfaos: "Sem conta comercial",
   cobertura: "Cobertura da carteira",
 };
@@ -2705,6 +2705,28 @@ function InternoProcessosContent() {
     getSelectedNumbers,
     limit,
   });
+  const operationalPlan = Array.isArray(data?.operationalPlan) ? data.operationalPlan : [];
+  function getOperationalPlanStepState(step, index) {
+    const latestAction = String(latestHistory?.action || "");
+    const stepAction = String(step?.actionKey || "");
+    if (actionState.loading && latestAction && latestAction === stepAction) {
+      return { label: "em andamento", tone: "warning" };
+    }
+    if (latestHistory?.status === "success" && latestAction && latestAction === stepAction) {
+      return { label: "concluido", tone: "success" };
+    }
+    if (latestHistory?.status === "error" && latestAction && latestAction === stepAction) {
+      return { label: "falhou", tone: "danger" };
+    }
+    if (index === 0) {
+      return { label: "agora", tone: "default" };
+    }
+    return { label: "proximo", tone: "default" };
+  }
+  function runOperationalPlanStep(step) {
+    if (!step) return;
+    updateView(step.targetView || "filas", step.targetHash || "filas");
+  }
   const isSuggestedAction = (action, intent = "") => {
     if (!selectionSuggestedAction) return false;
     return selectionSuggestedAction.key === action && String(selectionSuggestedAction.intent || "") === String(intent || "");
@@ -2961,6 +2983,19 @@ function InternoProcessosContent() {
               {healthSuggestedActions.map((action) => <ActionButton key={action.key} className="px-3 py-2 text-xs" onClick={action.onClick} disabled={action.disabled}>{action.label}</ActionButton>)}
             </div>
           </div>
+          {!isResultView && operationalPlan.length ? <div className={`rounded-[22px] border p-4 text-sm ${isLightTheme ? "border-[#d7d4cb] bg-[rgba(255,255,255,0.82)] text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)]"}`}>
+            <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Plano operacional</p>
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
+              {operationalPlan.map((step, index) => <button key={`${step.title}-${index}`} type="button" onClick={() => runOperationalPlanStep(step)} className={`rounded-[18px] border p-3 text-left hover:border-[#C5A059] ${isLightTheme ? "border-[#d7d4cb] bg-white" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#C5A059]"}`}>Passo {index + 1}</p>
+                  <StatusBadge tone={getOperationalPlanStepState(step, index).tone}>{getOperationalPlanStepState(step, index).label}</StatusBadge>
+                </div>
+                <p className="mt-2 font-semibold">{step.title}</p>
+                <p className={`mt-2 text-xs ${isLightTheme ? "text-[#4b5563]" : "opacity-70"}`}>{step.detail}</p>
+              </button>)}
+            </div>
+          </div> : null}
           <div className={`rounded-[20px] border p-4 text-xs ${operationalStatus.mode === "error" ? (isLightTheme ? "border-[#E7C4C4] bg-[#FFF4F4] text-[#B25E5E]" : "border-[#4B2222] bg-[rgba(127,29,29,0.15)] text-red-200") : operationalStatus.mode === "limited" ? "border-[#6E5630] bg-[rgba(76,57,26,0.18)] text-[#FDE68A]" : isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7] text-[#9a6d14]" : "border-[#2D2E2E] bg-[rgba(4,6,6,0.35)] text-[#C5A059]"}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="uppercase tracking-[0.18em] text-[10px]">Status operacional</span>
