@@ -1181,6 +1181,16 @@ function PublicacoesContent() {
   const latestHistory = executionHistory[0] || null;
   const latestRemoteRun = remoteHistory[0] || null;
   const latestJob = jobs[0] || null;
+  const {
+    getOperationalPlanStepState,
+    runOperationalPlanStep,
+  } = usePublicacoesOperationalPlan({
+    actionState,
+    latestHistory,
+    handleAction,
+    refreshIntegratedSnapshot,
+    updateView,
+  });
   const pendingOrRunningJobs = jobs.filter((item) => ["pending", "running"].includes(String(item.status || "")));
   const blockingJob = pendingOrRunningJobs[0] || null;
   const hasBlockingJob = pendingOrRunningJobs.length > 0;
@@ -1289,35 +1299,6 @@ function PublicacoesContent() {
     selectedPartesKeys,
   });
   const operationalPlan = Array.isArray(data?.operationalPlan) ? data.operationalPlan : [];
-  function getOperationalPlanStepState(step, index) {
-    const latestAction = String(latestHistory?.action || "");
-    const stepAction = String(step?.actionKey || "");
-    if (actionState.loading && latestAction && latestAction === stepAction) {
-      return { label: "em andamento", tone: "warning" };
-    }
-    if (latestHistory?.status === "success" && latestAction && latestAction === stepAction) {
-      return { label: "concluido", tone: "success" };
-    }
-    if (latestHistory?.status === "error" && latestAction && latestAction === stepAction) {
-      return { label: "falhou", tone: "danger" };
-    }
-    if (index === 0) {
-      return { label: "agora", tone: "default" };
-    }
-    return { label: "proximo", tone: "default" };
-  }
-  function runOperationalPlanStep(step) {
-    if (!step) return;
-    if (step.actionKey === "run_advise_backfill") {
-      handleAction("run_advise_backfill", false);
-      return;
-    }
-    if (step.actionKey === "refresh_snapshot_filas") {
-      refreshIntegratedSnapshot("all");
-      return;
-    }
-    updateView(step.targetView || "operacao", step.targetHash || "operacao");
-  }
 
   const isResultView = view === "resultado";
   const isDockedPublicacoesView = view === "operacao" || view === "resultado";
@@ -1537,4 +1518,3 @@ export default function PublicacoesScreen() {
   );
 }
 
-                                                                                                                                                                                                                        

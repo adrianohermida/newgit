@@ -4,6 +4,7 @@ import { useSupabaseBrowser } from "../../lib/supabase";
 import { useInternalTheme } from "./InternalThemeProvider";
 import DotobotCopilot from "./DotobotPanel";
 import InternoConsoleChrome from "./layout/InternoConsoleChrome";
+import InternoConsoleIssuePane from "./layout/InternoConsoleIssuePane";
 import InternoConsoleLogEntryCard from "./layout/InternoConsoleLogEntryCard";
 import InternoConsoleLogInsights from "./layout/InternoConsoleLogInsights";
 import InternoConsoleNotesPanel from "./layout/InternoConsoleNotesPanel";
@@ -31,16 +32,7 @@ import { useInternoConsoleAnalytics } from "./layout/useInternoConsoleAnalytics"
 import { useInternoShellUi } from "./layout/useInternoShellUi";
 import { useInternoShellState } from "./layout/useInternoShellState";
 import {
-  appendFrontendIssue,
-  appendActivityLog,
-  appendOperationalNote,
-  appendSchemaIssue,
-  archiveActivityLog,
   clearActivityLog,
-  formatActivityLogText,
-  formatActivityLogMarkdown,
-  formatFrontendIssuesMarkdown,
-  formatSchemaIssuesMarkdown,
   getActivityLogFilters,
   getFrontendIssues,
   getFingerprintStates,

@@ -1,14 +1,18 @@
 import { state } from "./state.js";
-import { callChat } from "./bridge.js";
+import { callChat, runTask } from "./bridge.js";
 import { syncSession } from "./lists.js";
 
-export function bindChat(el, addMessage, addSystemMessage) {
-  el.btnSend.addEventListener("click", () => sendMessage(el, addMessage, addSystemMessage));
+const TASK_TOKENS = [
+  "analisar", "extrair", "preencher", "abrir", "navegar",
+  "buscar", "executar", "planejar", "automatizar", "/tarefa", "/tarefas",
+];
+
+export function bindChat(el, addMessage, addSystemMessage, renderTasks) {
+  el.btnSend.addEventListener("click", () => sendMessage(el, addMessage, addSystemMessage, renderTasks));
   el.msgInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      sendMessage(el, addMessage, addSystemMessage);
-    }
+    if (event.key !== "Enter" || event.shiftKey) return;
+    event.preventDefault();
+    sendMessage(el, addMessage, addSystemMessage, renderTasks);
   });
   el.msgInput.addEventListener("input", () => {
     el.msgInput.style.height = "auto";
@@ -16,7 +20,7 @@ export function bindChat(el, addMessage, addSystemMessage) {
   });
 }
 
-export async function sendMessage(el, addMessage, addSystemMessage) {
+export async function sendMessage(el, addMessage, addSystemMessage, renderTasks) {
   const text = String(el.msgInput.value || "").trim();
   if (!text || state.isLoading) return;
 
@@ -28,8 +32,9 @@ export async function sendMessage(el, addMessage, addSystemMessage) {
   el.msgInput.style.height = "auto";
 
   try {
-    const result = await callChat(state.provider, state.messages);
-    const reply = result.content || "(sem resposta)";
+    const reply = isTaskIntent(text)
+      ? await sendTaskMessage(el, text, addSystemMessage, renderTasks)
+      : await sendChatMessage(text);
     state.messages.push({ role: "assistant", content: reply });
     addMessage(el, "assistant", reply);
     if (state.settings.autoSaveSessions) await syncSession();
@@ -40,6 +45,36 @@ export async function sendMessage(el, addMessage, addSystemMessage) {
     state.isLoading = false;
     setLoading(el, false);
   }
+}
+
+async function sendChatMessage(text) {
+  const result = await callChat(state.provider, [...state.messages.slice(0, -1), { role: "user", content: text }]);
+  return result.content || "(sem resposta)";
+}
+
+async function sendTaskMessage(el, text, addSystemMessage, renderTasks) {
+  const result = await runTask(state.sessionId, text);
+  if (Array.isArray(result.tasks) && result.tasks.length) await renderTasks(el);
+  if (result.tasks?.some((task) => task.status === "awaiting_approval")) {
+    addSystemMessage(el, "Uma ou mais Tasks ficaram aguardando sua aprovacao.");
+  }
+  return buildTaskReply(text, result);
+}
+
+function isTaskIntent(text) {
+  const normalized = String(text || "").trim().toLowerCase();
+  return TASK_TOKENS.some((token) => normalized.includes(token));
+}
+
+function buildTaskReply(text, result) {
+  const tasks = Array.isArray(result.tasks) ? result.tasks : [];
+  const primary = tasks[0];
+  const title = primary?.title || primary?.goal || text;
+  const status = primary?.status || "pending";
+  const progress = Number(primary?.progressPct || 0);
+  const summary = result.result?.message || result.result?.content || "";
+  const suffix = summary ? `\n\n${summary}` : "";
+  return `Plano iniciado: ${title}\nStatus: ${status}\nProgresso: ${progress}%\nTasks criadas: ${tasks.length || 1}${suffix}`;
 }
 
 function setLoading(el, value) {
