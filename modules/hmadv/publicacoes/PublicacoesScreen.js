@@ -8,7 +8,6 @@ import {
   buildJobPreview,
 } from "./action-utils";
 import { usePublicacoesAdminFetch } from "./usePublicacoesAdminFetch";
-import { usePublicacoesDerivedState } from "./usePublicacoesDerivedState";
 import { usePublicacoesQueueSelection } from "./usePublicacoesQueueSelection";
 import { usePublicacoesOperationalPlan } from "./usePublicacoesOperationalPlan";
 import { usePublicacoesCoreState } from "./usePublicacoesCoreState";
@@ -25,15 +24,13 @@ import {
   validationTone,
 } from "./publicacoesFormatting";
 import { usePublicacoesActivityLog } from "./usePublicacoesActivityLog";
-import { usePublicacoesDashboardState } from "./usePublicacoesDashboardState";
-import { usePublicacoesBlockingState } from "./usePublicacoesBlockingState";
-import { usePublicacoesOverviewState } from "./usePublicacoesOverviewState";
 import { PublicacoesScreenBody } from "./PublicacoesScreenBody";
 import { usePublicacoesQueuesScreenModel } from "./usePublicacoesQueuesScreenModel";
 import { usePublicacoesLoaders } from "./usePublicacoesLoaders";
 import { usePublicacoesIntegratedRows } from "./usePublicacoesIntegratedRows";
 import { usePublicacoesActionSuite } from "./usePublicacoesActionSuite";
 import { usePublicacoesEffects } from "./usePublicacoesEffects";
+import { usePublicacoesViewState } from "./usePublicacoesViewState";
 
 
 function PublicacoesContent() {
@@ -110,58 +107,6 @@ function PublicacoesContent() {
     validationMap,
   });
   const {
-    recurringPublicacoes,
-    recurringPublicacoesSummary,
-    recurringPublicacoesBands,
-    recurringPublicacoesGroups,
-    recurringPublicacoesFocus,
-    recurringPublicacoesBatch,
-    recurringPublicacoesActions,
-    recurringPublicacoesChecklist,
-    queueDiagnostics,
-    visibleRecurringCount,
-    visibleSevereRecurringCount,
-    selectedVisibleSevereRecurringCount,
-    primaryPublicacoesAction,
-    partesBacklogCount,
-    syncWorkerShouldFocusCrm,
-    selectedUnifiedCount,
-    allIntegratedPageSelected,
-    allIntegratedFilteredSelected,
-    integratedCanGoPrevious,
-    integratedCanGoNext,
-    integratedSourceLabel,
-    priorityBatchReady,
-  } = usePublicacoesDerivedState({
-    remoteHistory,
-    processCandidates,
-    partesCandidates,
-    integratedQueue,
-    selectedIntegratedNumbers,
-    pagedIntegratedRows,
-    filteredIntegratedRows,
-    integratedPage,
-    integratedPageSize,
-    data: overview.data || {},
-    limit,
-    selectedProcessKeys,
-    selectedPartesKeys,
-  });
-  const {
-    blockingJob,
-    candidateQueueErrorCount,
-    candidateQueueMismatchCount,
-    canManuallyDrainActiveJob,
-    currentDrainJobId,
-    hasBlockingJob,
-    hasMultipleBlockingJobs,
-  } = usePublicacoesBlockingState({
-    activeJobId,
-    jobs,
-    partesCandidates,
-    processCandidates,
-  });
-  const {
     toggleSelection,
     togglePageSelection,
     toggleUnifiedRow,
@@ -176,6 +121,88 @@ function PublicacoesContent() {
     setIntegratedCursorTrail,
     setIntegratedPage,
     setSelectedIntegratedNumbers,
+  });
+  const {
+    allIntegratedFilteredSelected,
+    allIntegratedPageSelected,
+    blockingJob,
+    candidateQueueErrorCount,
+    candidateQueueMismatchCount,
+    canManuallyDrainActiveJob,
+    currentDrainJobId,
+    hasBlockingJob,
+    hasMultipleBlockingJobs,
+    integratedCanGoNext,
+    integratedCanGoPrevious,
+    integratedSourceLabel,
+    latestHistory,
+    latestJob,
+    latestRemoteRun,
+    noPublicationActivityTypeConfigured,
+    operationalPlan,
+    partesBacklogCount,
+    pendingJobCount,
+    primaryPublicacoesAction,
+    priorityBatchReady,
+    publicationActivityTypeHint,
+    publicationActivityTypes,
+    queueDiagnostics,
+    recurringPublicacoes,
+    recurringPublicacoesActions,
+    recurringPublicacoesBands,
+    recurringPublicacoesBatch,
+    recurringPublicacoesChecklist,
+    recurringPublicacoesFocus,
+    recurringPublicacoesGroups,
+    recurringPublicacoesSummary,
+    remoteHealth,
+    selectedUnifiedCount,
+    selectedVisibleSevereRecurringCount,
+    snapshotMesaIntegrada,
+    snapshotPartes,
+    snapshotProcessos,
+    syncWorkerLastPublicacoes,
+    adviseBackfillProgress,
+    adviseCursor,
+    adviseLastCycleTotal,
+    adviseLastRunAt,
+    adviseMode,
+    advisePersistedDelta,
+    adviseSync,
+    adviseTokenOk,
+    isDockedPublicacoesView,
+    isResultView,
+    runOperationalPlanStep,
+    getOperationalPlanStepState,
+    healthSuggestedActions,
+    visibleRecurringCount,
+    visibleSevereRecurringCount,
+    syncWorkerShouldFocusCrm,
+  } = usePublicacoesViewState({
+    actionState,
+    activeJobId,
+    backendHealth,
+    data: overview.data || {},
+    drainInFlight,
+    executionHistory,
+    filteredIntegratedRows,
+    handleAction: () => null,
+    integratedPage,
+    integratedPageSize,
+    integratedQueue,
+    jobs,
+    limit,
+    pagedIntegratedRows,
+    partesCandidates,
+    processCandidates,
+    refreshIntegratedSnapshot: () => null,
+    remoteHistory,
+    runPendingJobsNow: () => null,
+    selectedIntegratedNumbers,
+    selectedPartesKeys,
+    selectedProcessKeys,
+    updateView: () => null,
+    view,
   });
   const {
     applySevereRecurringPreset,
