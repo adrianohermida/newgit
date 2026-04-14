@@ -4,7 +4,6 @@ import { useInternalTheme } from "../../../components/interno/InternalThemeProvi
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import OperationalHealthPanel from "../../../components/interno/hmadv/OperationalHealthPanel";
 import OperationalPlanPanel from "../../../components/interno/hmadv/OperationalPlanPanel";
-import { setModuleHistory } from "../../../lib/admin/activity-log";
 import {
   ACTION_LABELS,
   MODULE_LIMITS,
@@ -15,10 +14,7 @@ import {
   getPublicacoesActionLabel,
 } from "./action-utils";
 import {
-  loadHistoryEntries,
-  loadValidationState,
   parseCopilotContext,
-  persistValidationState,
 } from "./storage";
 import { usePublicacoesAdminFetch } from "./usePublicacoesAdminFetch";
 import { usePublicacoesNavigationState } from "./usePublicacoesNavigationState";
@@ -63,66 +59,37 @@ import {
   validationTone,
 } from "./publicacoesFormatting";
 import {
-  createInitialActionState,
-  createInitialDetailEditForm,
-  createInitialDetailState,
-  createInitialIntegratedFilters,
-  createInitialIntegratedQueueState,
-  createInitialOperationalStatus,
-  createInitialOverviewState,
-  createInitialPartesCandidatesState,
-  createInitialProcessCandidatesState,
 } from "./publicacoesState";
 import { usePublicacoesActivityLog } from "./usePublicacoesActivityLog";
+import { usePublicacoesLifecycle } from "./usePublicacoesLifecycle";
 
 
 function PublicacoesContent() {
   const { isLightTheme } = useInternalTheme();
   const { logUiEvent } = usePublicacoesActivityLog();
-  const [view, setView] = useState("operacao");
-  const [overview, setOverview] = useState(createInitialOverviewState);
-  const [processCandidates, setProcessCandidates] = useState(createInitialProcessCandidatesState);
-  const [partesCandidates, setPartesCandidates] = useState(createInitialPartesCandidatesState);
-  const [actionState, setActionState] = useState(createInitialActionState);
-  const [executionHistory, setExecutionHistory] = useState([]);
-  const [remoteHistory, setRemoteHistory] = useState([]);
-  const [jobs, setJobs] = useState([]);
-  const [activeJobId, setActiveJobId] = useState(null);
-  const [drainInFlight, setDrainInFlight] = useState(false);
-  const [processNumbers, setProcessNumbers] = useState("");
-  const [copilotContext, setCopilotContext] = useState(null);
-  const copilotQueryAppliedRef = useRef(false);
-  const [queueRefreshLog, setQueueRefreshLog] = useState([]);
-  const [pageVisible, setPageVisible] = useState(true);
-  const [lastFocusHash, setLastFocusHash] = useState("");
-  const [globalError, setGlobalError] = useState(null);
-  const [globalErrorUntil, setGlobalErrorUntil] = useState(null);
-  const [operationalStatus, setOperationalStatus] = useState(createInitialOperationalStatus);
-  const [backendHealth, setBackendHealth] = useState({ status: "ok", message: "", updatedAt: null });
-  const [limit, setLimit] = useState(10);
-  const [processPage, setProcessPage] = useState(1);
-  const [partesPage, setPartesPage] = useState(1);
-  const [selectedProcessKeys, setSelectedProcessKeys] = useState([]);
-  const [selectedPartesKeys, setSelectedPartesKeys] = useState([]);
-  const [validationMap, setValidationMap] = useState({});
-  const [integratedQueue, setIntegratedQueue] = useState(createInitialIntegratedQueueState);
-  const [heavyQueuesEnabled, setHeavyQueuesEnabled] = useState(false);
-  const [integratedFilters, setIntegratedFilters] = useState(createInitialIntegratedFilters);
-  const [integratedPage, setIntegratedPage] = useState(1);
-  const [integratedCursorTrail, setIntegratedCursorTrail] = useState([""]);
-  const [selectedIntegratedNumbers, setSelectedIntegratedNumbers] = useState([]);
-  const [detailState, setDetailState] = useState(createInitialDetailState);
-  const [detailEditForm, setDetailEditForm] = useState(createInitialDetailEditForm);
-  const [detailLinkType, setDetailLinkType] = useState("Cliente");
-  const [selectedDetailPendingPartes, setSelectedDetailPendingPartes] = useState([]);
-  const [selectedDetailLinkedPartes, setSelectedDetailLinkedPartes] = useState([]);
-  const [bulkValidationStatus, setBulkValidationStatus] = useState("validado");
-  const [bulkValidationNote, setBulkValidationNote] = useState("");
+  const {
+    activeJobId, actionState, backendHealth, copilotContext, copilotQueryAppliedRef, drainInFlight,
+    executionHistory, globalError, globalErrorUntil, jobs, lastFocusHash, limit, operationalStatus,
+    overview, pageVisible, processNumbers, queueRefreshLog, remoteHistory, setActiveJobId, setActionState,
+    setBackendHealth, setCopilotContext, setDrainInFlight, setExecutionHistory, setGlobalError,
+    setGlobalErrorUntil, setJobs, setLastFocusHash, setLimit, setOperationalStatus, setOverview,
+    setPageVisible, setProcessNumbers, setQueueRefreshLog, setRemoteHistory, setView, view,
+  } = usePublicacoesCoreState();
+  const {
+    heavyQueuesEnabled, integratedCursorTrail, integratedFilters, integratedPage, integratedPageSize,
+    integratedQueue, integratedQueueRequestRef, partesCandidates, partesCandidatesRequestRef, partesPage,
+    processCandidates, processCandidatesRequestRef, processPage, selectedIntegratedNumbers, selectedPartesKeys,
+    selectedProcessKeys, setHeavyQueuesEnabled, setIntegratedCursorTrail, setIntegratedFilters, setIntegratedPage,
+    setIntegratedQueue, setPartesCandidates, setPartesPage, setProcessCandidates, setProcessPage,
+    setSelectedIntegratedNumbers, setSelectedPartesKeys, setSelectedProcessKeys, setValidationMap, validationMap,
+  } = usePublicacoesQueueState();
+  const {
+    bulkValidationNote, bulkValidationStatus, detailEditForm, detailLinkType, detailState,
+    selectedDetailLinkedPartes, selectedDetailPendingPartes, setBulkValidationNote,
+    setBulkValidationStatus, setDetailEditForm, setDetailLinkType, setDetailState,
+    setSelectedDetailLinkedPartes, setSelectedDetailPendingPartes,
+  } = usePublicacoesDetailState();
   const adminFetch = usePublicacoesAdminFetch();
-  const processCandidatesRequestRef = useRef({ promise: null, page: null });
-  const partesCandidatesRequestRef = useRef({ promise: null, page: null });
-  const integratedQueueRequestRef = useRef({ promise: null, key: "" });
-  const integratedPageSize = 12;
   const {
     loadJobs,
     loadOverview,
@@ -332,92 +299,36 @@ function PublicacoesContent() {
     loadIntegratedDetail,
   });
   usePublicacoesNavigationState({ view, lastFocusHash, setView, setLastFocusHash });
-  useEffect(() => {
-    if (typeof document === "undefined") return undefined;
-    const handleVisibilityChange = () => {
-      setPageVisible(document.visibilityState !== "hidden");
-    };
-    handleVisibilityChange();
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, []);
-  useEffect(() => {
-    if (typeof window === "undefined" || copilotQueryAppliedRef.current) return;
-    const url = new URL(window.location.href);
-    const queryProcessNumbers = String(url.searchParams.get("processNumbers") || "").trim();
-    const queryContext = parseCopilotContext(url.searchParams.get("copilotContext") || "");
-    if (queryProcessNumbers) setProcessNumbers(queryProcessNumbers);
-    if (queryContext) setCopilotContext(queryContext);
-    copilotQueryAppliedRef.current = true;
-  }, []);
-  useEffect(() => { setExecutionHistory(loadHistoryEntries()); }, []);
-  useEffect(() => { setValidationMap(loadValidationState()); }, []);
-  useEffect(() => { persistValidationState(validationMap); }, [validationMap]);
-  useEffect(() => {
-    setModuleHistory("publicacoes", {
-      executionHistory,
-      remoteHistory,
-      jobs,
-      overview: overview?.data || null,
-      queues: {
-        candidatosProcessos: {
-          totalRows: Number(processCandidates?.totalRows || 0),
-          pageSize: Number(processCandidates?.pageSize || 20),
-          updatedAt: processCandidates?.updatedAt || null,
-          limited: Boolean(processCandidates?.limited),
-          error: processCandidates?.error || null,
-        },
-        candidatosPartes: {
-          totalRows: Number(partesCandidates?.totalRows || 0),
-          pageSize: Number(partesCandidates?.pageSize || 20),
-          updatedAt: partesCandidates?.updatedAt || null,
-          limited: Boolean(partesCandidates?.limited),
-          error: partesCandidates?.error || null,
-        },
-      },
-      queueRefreshLog,
-      operationalStatus,
-      backendHealth,
-      actionState: {
-        loading: Boolean(actionState?.loading),
-        error: actionState?.error || null,
-        result: actionState?.result || null,
-      },
-      ui: {
-        view,
-        limit,
-        processPage,
-        partesPage,
-        selectedProcessCount: selectedProcessKeys.length,
-        selectedPartesCount: selectedPartesKeys.length,
-      },
-    });
-  }, [
-    executionHistory,
-    remoteHistory,
-    jobs,
-    overview,
-    processCandidates,
-    partesCandidates,
-    queueRefreshLog,
-    operationalStatus,
-    backendHealth,
+  usePublicacoesLifecycle({
     actionState,
-    view,
+    backendHealth,
+    copilotQueryAppliedRef,
+    executionHistory,
+    jobs,
+    lastFocusHash,
     limit,
+    loadJobs,
+    loadOverview,
+    loadRemoteHistory,
+    operationalStatus,
+    overview,
+    pageVisible,
+    partesCandidates,
+    processCandidates,
     processPage,
-    partesPage,
-    selectedProcessKeys,
+    queueRefreshLog,
+    remoteHistory,
     selectedPartesKeys,
-  ]);
-  useEffect(() => { loadRemoteHistory(); }, []);
-  useEffect(() => { loadJobs(); }, []);
-
-  useEffect(() => {
-    loadOverview();
-  }, []);
+    selectedProcessKeys,
+    setCopilotContext,
+    setExecutionHistory,
+    setLastFocusHash,
+    setPageVisible,
+    setProcessNumbers,
+    setValidationMap,
+    validationMap,
+    view,
+  });
 
   useEffect(() => {
     if (!PUBLICACOES_QUEUE_VIEWS.has(view)) return;
