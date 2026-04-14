@@ -90,9 +90,11 @@ import {
 } from "./dotobotPanelLogging";
 import { useDotobotAdminSession } from "./dotobotPanelRuntime";
 import useDotobotPersistedBootstrap from "./useDotobotPersistedBootstrap";
+import useDotobotAgentLabActions from "./useDotobotAgentLabActions";
 import useDotobotConversationActions from "./useDotobotConversationActions";
 import useDotobotConversationViewModel from "./useDotobotConversationViewModel";
 import useDotobotComposerActions from "./useDotobotComposerActions";
+import useDotobotRightRailViewModel from "./useDotobotRightRailViewModel";
 import useDotobotShellState from "./useDotobotShellState";
 import useDotobotShellUiEffects from "./useDotobotShellUiEffects";
 import {
@@ -525,6 +527,23 @@ export default function DotobotCopilot({
 
   function dismissUiToast(toastId) {
     setUiToasts((current) => current.filter((item) => item.id !== toastId));
+  }
+
+  function renderConversationMenu(conversation) {
+    return (
+      <DotobotConversationMenu
+        compact={false}
+        conversation={conversation}
+        conversationMenuId={conversationMenuId}
+        conversationMenuRef={conversationMenuRef}
+        isLightTheme={isLightTheme}
+        onArchive={archiveConversation}
+        onDelete={deleteConversation}
+        onRename={renameConversation}
+        onShare={shareConversation}
+        setConversationMenuId={setConversationMenuId}
+      />
+    );
   }
 
   useEffect(() => {
