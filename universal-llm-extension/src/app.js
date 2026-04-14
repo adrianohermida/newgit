@@ -19,7 +19,7 @@ function createApp() {
   app.use(createSessionsRouter());
   app.use(createAssetsRouter());
   app.use(createAutomationsRouter(commandQueue));
-  app.use(createTasksRouter());
+  app.use(createTasksRouter(commandQueue));
   app.use(createSystemRouter());
 
   app.use((req, res) => {

@@ -1,36 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-
-const EXTENSION_SOURCE = "universal-llm-assistant-extension";
-const FRONTEND_SOURCE = "dotobot-frontend";
-
-function normalizeValue(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function isExtensionSource(source) {
-  const normalized = normalizeValue(source);
-  return normalized === EXTENSION_SOURCE
-    || normalized === "universal-llm-extension"
-    || normalized === "universal_llm_assistant_extension"
-    || normalized.includes("universal-llm")
-    || normalized.includes("llm-assistant-extension");
-}
-
-function normalizeEventType(type, command = "") {
-  const normalizedType = normalizeValue(type);
-  const normalizedCommand = normalizeValue(command);
-  if (normalizedType === "extension_ready" || normalizedType === "ready" || normalizedType === "pong") return "EXTENSION_READY";
-  if (normalizedType === "extension_response" || normalizedType === "command_response" || normalizedType === "response") return "EXTENSION_RESPONSE";
-  if (normalizedType === "health_check_response" || (normalizedType === "health_check" && normalizedCommand === "health_check")) return "EXTENSION_RESPONSE";
-  return String(type || "");
-}
-
-function extractBridgePayload(rawPayload) {
-  if (!rawPayload) return null;
-  if (rawPayload.detail && typeof rawPayload.detail === "object") return rawPayload.detail;
-  if (typeof rawPayload === "object") return rawPayload;
-  return null;
-}
+import { buildCommandMessage, buildHandshakeMessages, createDebugEvent, extractBridgePayload, FRONTEND_SOURCE, isExtensionSource, normalizeEventType } from "./dotobotExtensionBridgeUtils";
 
 export default function useDotobotExtensionBridge() {
   const [extensionReady, setExtensionReady] = useState(false);
@@ -41,40 +10,18 @@ export default function useDotobotExtensionBridge() {
 
   const pushDebugEvent = useCallback((event) => {
     setDebugEvents((current) => {
-      const next = [
-        {
-          id: `${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
-          timestamp: new Date().toISOString(),
-          ...event,
-        },
-        ...current,
-      ];
+      const next = [createDebugEvent(event), ...current];
       return next.slice(0, 12);
     });
   }, []);
 
   const postHandshake = useCallback(() => {
     if (typeof window === "undefined") return;
-    pushDebugEvent({ direction: "out", type: "DOTOBOT_EXTENSION_PING", source: FRONTEND_SOURCE });
-    window.postMessage(
-      {
-        source: FRONTEND_SOURCE,
-        type: "DOTOBOT_EXTENSION_PING",
-        timestamp: Date.now(),
-      },
-      "*",
-    );
-    pushDebugEvent({ direction: "out", type: "DOTOBOT_COMMAND", source: FRONTEND_SOURCE, command: "health_check" });
-    window.postMessage(
-      {
-        source: FRONTEND_SOURCE,
-        type: "DOTOBOT_COMMAND",
-        command: "health_check",
-        payload: { origin: "dotobot" },
-        requestId: `health_${Date.now()}`,
-      },
-      "*",
-    );
+    const [pingMessage, healthCheckMessage] = buildHandshakeMessages();
+    pushDebugEvent({ direction: "out", type: pingMessage.type, source: FRONTEND_SOURCE });
+    window.postMessage(pingMessage, "*");
+    pushDebugEvent({ direction: "out", type: healthCheckMessage.type, source: FRONTEND_SOURCE, command: healthCheckMessage.command });
+    window.postMessage(healthCheckMessage, "*");
   }, [pushDebugEvent]);
 
   useEffect(() => {
@@ -148,16 +95,7 @@ export default function useDotobotExtensionBridge() {
       const id = ++requestId.current;
       pendingRequests.current[id] = resolve;
       pushDebugEvent({ direction: "out", type: "DOTOBOT_COMMAND", source: FRONTEND_SOURCE, command, requestId: id });
-      window.postMessage(
-        {
-          source: FRONTEND_SOURCE,
-          type: "DOTOBOT_COMMAND",
-          command,
-          payload,
-          requestId: id,
-        },
-        "*",
-      );
+      window.postMessage(buildCommandMessage(command, payload, id), "*");
     });
   }
 
@@ -175,16 +113,7 @@ export default function useDotobotExtensionBridge() {
       };
 
       pushDebugEvent({ direction: "out", type: "DOTOBOT_COMMAND", source: FRONTEND_SOURCE, command: "health_check", requestId: probeId });
-      window.postMessage(
-        {
-          source: FRONTEND_SOURCE,
-          type: "DOTOBOT_COMMAND",
-          command: "health_check",
-          payload: { origin: "manual_probe" },
-          requestId: probeId,
-        },
-        "*",
-      );
+      window.postMessage(buildCommandMessage("health_check", { origin: "manual_probe" }, probeId), "*");
     });
   }
 

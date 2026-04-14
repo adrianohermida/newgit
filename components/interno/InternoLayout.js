@@ -4,12 +4,7 @@ import { useSupabaseBrowser } from "../../lib/supabase";
 import { useInternalTheme } from "./InternalThemeProvider";
 import DotobotCopilot from "./DotobotPanel";
 import InternoConsoleChrome from "./layout/InternoConsoleChrome";
-import InternoConsoleIssuePane from "./layout/InternoConsoleIssuePane";
-import InternoConsoleHistoryTab from "./layout/InternoConsoleHistoryTab";
-import InternoConsoleLogAnalytics from "./layout/InternoConsoleLogAnalytics";
-import InternoConsoleLogEntryCard from "./layout/InternoConsoleLogEntryCard";
-import InternoConsoleLogInsights from "./layout/InternoConsoleLogInsights";
-import InternoConsoleNotesPanel from "./layout/InternoConsoleNotesPanel";
+import InternoConsolePaneBody from "./layout/InternoConsolePaneBody";
 import InternoConsoleOverviewTab from "./layout/InternoConsoleOverviewTab";
 import InternoShellContent from "./layout/InternoShellContent";
 import InternoShellHeader from "./layout/InternoShellHeader";
@@ -550,170 +545,61 @@ export default function InternoLayout({
                         {formattedArchiveHint}
                       </span>
                     </div>
-                    {!SPECIAL_LOG_PANES.has(logPane) ? <div className={`flex flex-wrap items-center gap-2 rounded-xl border p-3 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#7B8B98]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)] text-[#7F928C]"}`}>
-                      <span>Filtros</span>
-                      <input
-                        value={logFilters.module || ""}
-                        onChange={(event) => updateFilters({ ...logFilters, module: event.target.value })}
-                        placeholder="Modulo"
-                        className={`h-7 w-[110px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
-                      />
-                      <input
-                        value={logFilters.page || ""}
-                        onChange={(event) => updateFilters({ ...logFilters, page: event.target.value })}
-                        placeholder="Pagina"
-                        className={`h-7 w-[140px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
-                      />
-                      <input
-                        value={logFilters.component || ""}
-                        onChange={(event) => updateFilters({ ...logFilters, component: event.target.value })}
-                        placeholder="Componente"
-                        className={`h-7 w-[140px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
-                      />
-                      <input
-                        value={logFilters.status || ""}
-                        onChange={(event) => updateFilters({ ...logFilters, status: event.target.value })}
-                        placeholder="Status"
-                        className={`h-7 w-[90px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
-                      />
-                      <input
-                        value={logFilters.tag || ""}
-                        onChange={(event) => updateFilters({ ...logFilters, tag: event.target.value })}
-                        placeholder="Tag"
-                        className={`h-7 w-[90px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
-                      />
-                      <input
-                        value={logSearch}
-                        onChange={(event) => setLogSearch(event.target.value)}
-                        placeholder="Buscar detalhes"
-                        className={`h-7 flex-1 min-w-[160px] rounded-full border bg-transparent px-2 text-[10px] outline-none ${isLightTheme ? "border-[#D7DEE8] text-[#51606B] placeholder:text-[#93A1AD]" : "border-[#22342F] text-[#E6E0D3] placeholder:text-[#53625C]"}`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => updateFilters({ ...logFilters, tag: "severity:error" })}
-                        className="rounded-full border border-[#5B2D2D] px-3 py-1 text-[10px] text-[#FECACA] transition hover:border-[#FCA5A5]"
-                      >
-                        So erro
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateFilters({ ...logFilters, tag: "severity:warn" })}
-                        className="rounded-full border border-[#6E5630] px-3 py-1 text-[10px] text-[#FDE68A] transition hover:border-[#FDE68A]"
-                      >
-                        So warn
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLogSearch("");
-                          updateFilters({});
-                        }}
-                        className={`rounded-full border px-3 py-1 text-[10px] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
-                      >
-                        Limpar filtros
-                      </button>
-                    </div> : null}
-                    <div className={`sticky top-0 z-10 -mx-4 border-b px-4 py-3 backdrop-blur md:-mx-5 md:px-5 ${isLightTheme ? "border-[#D7DEE8] bg-[rgba(247,249,252,0.94)]" : "border-[#1E2E29] bg-[rgba(8,10,9,0.92)]"}`}>
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#6F837B]"}`}>Fluxo ativo</p>
-                          <p className={`mt-1 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{LOG_PANES.find((pane) => pane.key === logPane)?.label || logPane}</p>
-                        </div>
-                        <div className={`flex flex-wrap items-center gap-2 font-mono text-[11px] ${isLightTheme ? "text-[#51606B]" : "text-[#C7D0CA]"}`}>
-                          <span>{paneEntries.length} visiveis</span>
-                          <span className="opacity-45">/</span>
-                          <span>{activityLog.length} totais</span>
-                          {logFilters?.module ? <span className={`rounded-full border px-2 py-1 font-sans text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>modulo {logFilters.module}</span> : null}
-                          {logFilters?.tag ? <span className={`rounded-full border px-2 py-1 font-sans text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>tag {logFilters.tag}</span> : null}
-                        </div>
-                      </div>
-                    </div>
-                    {TAG_LOG_PANES.has(logPane) ? <div className={`rounded-xl border p-3 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)] text-[#9BAEA8]"}`}>
-                      Trilha automatica por tag: <span className="text-[#F4E7C2]">{LOG_PANES.find((pane) => pane.key === logPane)?.label || logPane}</span>. Os eventos entram aqui pela taxonomia do console.
-                      {!paneEntries.length && unclassifiedTagEntriesCount ? (
-                        <span className={`block mt-2 ${isLightTheme ? "text-[#5B6670]" : "text-[#C7D0CA]"}`}>
-                          Nenhuma entrada classificada nesta trilha. Existem {unclassifiedTagEntriesCount} evento(s) ainda sem tag automatica compativel.
-                        </span>
-                      ) : null}
-                    </div> : null}
-                    {!SPECIAL_LOG_PANES.has(logPane) && paneEntries.length ? <div className="grid gap-3 xl:grid-cols-2">
-                      <InternoConsoleLogInsights
-                        getSeverityTone={getSeverityTone}
-                        isLightTheme={isLightTheme}
-                        logFilters={logFilters}
-                        logPane={logPane}
-                        noteClass={isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#1E2E29] bg-[rgba(10,12,11,0.6)]"}
-                        paneBulkGuardrail={paneBulkGuardrail}
-                        paneRisk={paneRisk}
-                        paneSla={paneSla}
-                        paneTagPlaybook={paneTagPlaybook}
-                        updateFilters={updateFilters}
-                      />
-                      <InternoConsoleLogAnalytics
-                        getFingerprintStatusTone={getFingerprintStatusTone}
-                        getSeverityTone={getSeverityTone}
-                        handleBulkFingerprintReset={handleBulkFingerprintReset}
-                        handleBulkFingerprintStateChange={handleBulkFingerprintStateChange}
-                        handleFingerprintNote={handleFingerprintNote}
-                        handleFingerprintStateChange={handleFingerprintStateChange}
-                        isLightTheme={isLightTheme}
-                        paneFingerprintSummary={paneFingerprintSummary}
-                        paneRecommendationSummary={paneRecommendationSummary}
-                        paneTimeline={paneTimeline}
-                      />
-                    </div> : null}
-                    {logPane === "history" ? <InternoConsoleHistoryTab
+                    <InternoConsolePaneBody
+                      SPECIAL_LOG_PANES={SPECIAL_LOG_PANES}
+                      TAG_LOG_PANES={TAG_LOG_PANES}
+                      activityLog={activityLog}
                       aiTaskHistory={aiTaskHistory}
                       contactsHistory={contactsHistory}
                       dotobotHistory={dotobotHistory}
+                      fingerprintStates={fingerprintStates}
+                      frontendForm={frontendForm}
+                      frontendIssues={frontendIssues}
+                      getFingerprintStatusTone={getFingerprintStatusTone}
+                      getSeverityTone={getSeverityTone}
+                      handleAddFrontendIssue={handleAddFrontendIssue}
+                      handleAddNote={handleAddNote}
+                      handleAddSchemaIssue={handleAddSchemaIssue}
+                      handleBulkFingerprintReset={handleBulkFingerprintReset}
+                      handleBulkFingerprintStateChange={handleBulkFingerprintStateChange}
                       handleCopyAiTaskHistory={handleCopyAiTaskHistory}
                       handleCopyContactsHistory={handleCopyContactsHistory}
                       handleCopyDotobotHistory={handleCopyDotobotHistory}
+                      handleCopyFrontendIssues={handleCopyFrontendIssues}
                       handleCopyProcessHistory={handleCopyProcessHistory}
                       handleCopyPublicacoesHistory={handleCopyPublicacoesHistory}
+                      handleCopySchemaIssues={handleCopySchemaIssues}
+                      handleFingerprintNote={handleFingerprintNote}
+                      handleFingerprintStateChange={handleFingerprintStateChange}
                       isLightTheme={isLightTheme}
+                      logExpanded={logExpanded}
+                      logFilters={logFilters}
+                      logPane={logPane}
+                      logSearch={logSearch}
+                      noteInput={noteInput}
+                      operationalNotes={operationalNotes}
+                      paneBulkGuardrail={paneBulkGuardrail}
+                      paneEntries={paneEntries}
+                      paneFingerprintSummary={paneFingerprintSummary}
+                      paneRecommendationSummary={paneRecommendationSummary}
+                      paneRisk={paneRisk}
+                      paneSla={paneSla}
+                      paneTagPlaybook={paneTagPlaybook}
+                      paneTimeline={paneTimeline}
                       processosLocalHistory={processosLocalHistory}
                       processosRemoteHistory={processosRemoteHistory}
                       publicacoesLocalHistory={publicacoesLocalHistory}
                       publicacoesRemoteHistory={publicacoesRemoteHistory}
-                    /> : null}
-                    <InternoConsoleIssuePane
-                      frontendForm={frontendForm}
-                      frontendIssues={frontendIssues}
-                      handleAddFrontendIssue={handleAddFrontendIssue}
-                      handleAddSchemaIssue={handleAddSchemaIssue}
-                      handleCopyFrontendIssues={handleCopyFrontendIssues}
-                      handleCopySchemaIssues={handleCopySchemaIssues}
-                      isLightTheme={isLightTheme}
-                      logPane={logPane}
                       schemaForm={schemaForm}
                       schemaIssues={schemaIssues}
                       setFrontendForm={setFrontendForm}
+                      setLogExpanded={setLogExpanded}
+                      setLogSearch={setLogSearch}
+                      setNoteInput={setNoteInput}
                       setSchemaForm={setSchemaForm}
+                      unclassifiedTagEntriesCount={unclassifiedTagEntriesCount}
+                      updateFilters={updateFilters}
                     />
-                    {paneEntries.length ? (
-                      <div className="space-y-2">
-                        {paneEntries.slice(0, 30).map((entry) => (
-                          <InternoConsoleLogEntryCard
-                            key={entry.id}
-                            entry={entry}
-                            fingerprintStates={fingerprintStates}
-                            getFingerprintStatusTone={getFingerprintStatusTone}
-                            getSeverityTone={getSeverityTone}
-                            handleFingerprintNote={handleFingerprintNote}
-                            handleFingerprintStateChange={handleFingerprintStateChange}
-                            isLightTheme={isLightTheme}
-                            logExpanded={logExpanded}
-                            setLogExpanded={setLogExpanded}
-                          />
-                        ))}
-                      </div>
-                    ) : !SPECIAL_LOG_PANES.has(logPane) ? (
-                      <div className="text-[11px] opacity-60">
-                        {logPane === "debug" ? "Nenhum debug UI registrado." : `Nenhuma entrada classificada em ${LOG_PANES.find((pane) => pane.key === logPane)?.label || logPane}.`}
-                      </div>
-                    ) : null}
-                    {logPane === "notes" ? <InternoConsoleNotesPanel handleAddNote={handleAddNote} isLightTheme={isLightTheme} noteInput={noteInput} operationalNotes={operationalNotes} setNoteInput={setNoteInput} /> : null}
                   </div>
                 )}
               </div>

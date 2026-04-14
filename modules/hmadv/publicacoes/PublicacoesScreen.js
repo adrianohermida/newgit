@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import { useInternalTheme } from "../../../components/interno/InternalThemeProvider";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
@@ -47,6 +47,9 @@ import { usePublicacoesQueuesViewModel } from "./usePublicacoesQueuesViewModel";
 import { usePublicacoesOperationalPlan } from "./usePublicacoesOperationalPlan";
 import { usePublicacoesDataLoader } from "./usePublicacoesDataLoader";
 import { usePublicacoesMetaLoader } from "./usePublicacoesMetaLoader";
+import { usePublicacoesCoreState } from "./usePublicacoesCoreState";
+import { usePublicacoesQueueState } from "./usePublicacoesQueueState";
+import { usePublicacoesDetailState } from "./usePublicacoesDetailState";
 import {
   candidateQueueHasReadMismatch,
   formatDateTimeLabel,
@@ -59,85 +62,28 @@ import {
   validationLabel,
   validationTone,
 } from "./publicacoesFormatting";
+import {
+  createInitialActionState,
+  createInitialDetailEditForm,
+  createInitialDetailState,
+  createInitialIntegratedFilters,
+  createInitialIntegratedQueueState,
+  createInitialOperationalStatus,
+  createInitialOverviewState,
+  createInitialPartesCandidatesState,
+  createInitialProcessCandidatesState,
+} from "./publicacoesState";
 import { usePublicacoesActivityLog } from "./usePublicacoesActivityLog";
 
-function isResourceLimitError(error) {
-  const text = String(error?.payload || error?.message || error || "").toLowerCase();
-  return text.includes("worker exceeded resource limits");
-}
-
-function getPublicacaoSelectionValue(row) {
-  return String(row?.numero_cnj || row?.publicacao_id || row?.id || row?.key || "").trim();
-}
-
-function matchesPublicacaoSelection(row, selectedValues = []) {
-  const selectionValue = getPublicacaoSelectionValue(row);
-  return Boolean(selectionValue) && selectedValues.includes(selectionValue);
-}
-
-function validationTone(status) {
-  if (status === "validado") return "success";
-  if (status === "bloqueado") return "danger";
-  if (status === "revisar") return "warning";
-  return "default";
-}
-
-function validationLabel(status) {
-  if (status === "validado") return "validado";
-  if (status === "bloqueado") return "bloqueado";
-  if (status === "revisar") return "revisar";
-  return "sem validacao";
-}
-
-function formatValidationMeta(validation) {
-  if (!validation?.updatedAt && !validation?.updatedBy) return "";
-  const parts = [];
-  if (validation.updatedBy) parts.push(String(validation.updatedBy));
-  if (validation.updatedAt) {
-    const date = new Date(validation.updatedAt);
-    parts.push(Number.isNaN(date.getTime()) ? String(validation.updatedAt) : date.toLocaleString("pt-BR"));
-  }
-  return parts.join(" • ");
-}
-
-function formatDateTimeLabel(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("pt-BR");
-}
-
-function formatSnapshotLabel(snapshot) {
-  if (!snapshot?.updatedAt) return "snapshot ausente";
-  return `snapshot ${formatDateTimeLabel(snapshot.updatedAt)}`;
-}
-
-function formatFallbackReason(reason) {
-  if (reason === "edge_function_unavailable") return "Fallback local apos falha da edge function.";
-  if (reason === "local_backlog_path") return "Processamento local orientado pelo backlog.";
-  if (reason === "edge_function_unavailable_or_empty") return "Fallback local apos resposta vazia ou indisponivel.";
-  return reason ? String(reason) : "";
-}
-
-function candidateQueueHasReadMismatch(queue) {
-  return Number(queue?.totalRows || 0) > 0 && !(queue?.items || []).length;
-}
 
 function PublicacoesContent() {
   const { isLightTheme } = useInternalTheme();
+  const { logUiEvent } = usePublicacoesActivityLog();
   const [view, setView] = useState("operacao");
-  const [overview, setOverview] = useState({ loading: true, error: null, data: null });
-  const [processCandidates, setProcessCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20, updatedAt: null, limited: false, errorUntil: null });
-  const [partesCandidates, setPartesCandidates] = useState({
-    loading: false,
-    error: "Leitura sob demanda para evitar estouro do Worker. Use o botao de carregar ou atualize o snapshot.",
-    items: [],
-    totalRows: 0,
-    pageSize: 20,
-    updatedAt: null,
-    limited: true,
-    errorUntil: null,
-  });
-  const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
+  const [overview, setOverview] = useState(createInitialOverviewState);
+  const [processCandidates, setProcessCandidates] = useState(createInitialProcessCandidatesState);
+  const [partesCandidates, setPartesCandidates] = useState(createInitialPartesCandidatesState);
+  const [actionState, setActionState] = useState(createInitialActionState);
   const [executionHistory, setExecutionHistory] = useState([]);
   const [remoteHistory, setRemoteHistory] = useState([]);
   const [jobs, setJobs] = useState([]);
@@ -151,7 +97,7 @@ function PublicacoesContent() {
   const [lastFocusHash, setLastFocusHash] = useState("");
   const [globalError, setGlobalError] = useState(null);
   const [globalErrorUntil, setGlobalErrorUntil] = useState(null);
-  const [operationalStatus, setOperationalStatus] = useState({ mode: "ok", message: "", updatedAt: null });
+  const [operationalStatus, setOperationalStatus] = useState(createInitialOperationalStatus);
   const [backendHealth, setBackendHealth] = useState({ status: "ok", message: "", updatedAt: null });
   const [limit, setLimit] = useState(10);
   const [processPage, setProcessPage] = useState(1);
@@ -159,27 +105,14 @@ function PublicacoesContent() {
   const [selectedProcessKeys, setSelectedProcessKeys] = useState([]);
   const [selectedPartesKeys, setSelectedPartesKeys] = useState([]);
   const [validationMap, setValidationMap] = useState({});
-  const [integratedQueue, setIntegratedQueue] = useState({
-    loading: false,
-    error: "Leitura sob demanda para evitar estouro do Worker. Atualize o snapshot ou carregue a mesa manualmente.",
-    items: [],
-    totalRows: 0,
-    pageSize: 12,
-    updatedAt: null,
-    limited: true,
-    totalEstimated: false,
-    hasMore: false,
-    nextCursor: null,
-    mode: "snapshot",
-    source: "snapshot",
-  });
+  const [integratedQueue, setIntegratedQueue] = useState(createInitialIntegratedQueueState);
   const [heavyQueuesEnabled, setHeavyQueuesEnabled] = useState(false);
-  const [integratedFilters, setIntegratedFilters] = useState({ query: "", source: "todos", validation: "todos", sort: "pendencia" });
+  const [integratedFilters, setIntegratedFilters] = useState(createInitialIntegratedFilters);
   const [integratedPage, setIntegratedPage] = useState(1);
   const [integratedCursorTrail, setIntegratedCursorTrail] = useState([""]);
   const [selectedIntegratedNumbers, setSelectedIntegratedNumbers] = useState([]);
-  const [detailState, setDetailState] = useState({ loading: false, error: null, row: null, data: null });
-  const [detailEditForm, setDetailEditForm] = useState({ name: "", email: "", phone: "", note: "" });
+  const [detailState, setDetailState] = useState(createInitialDetailState);
+  const [detailEditForm, setDetailEditForm] = useState(createInitialDetailEditForm);
   const [detailLinkType, setDetailLinkType] = useState("Cliente");
   const [selectedDetailPendingPartes, setSelectedDetailPendingPartes] = useState([]);
   const [selectedDetailLinkedPartes, setSelectedDetailLinkedPartes] = useState([]);
@@ -300,22 +233,6 @@ function PublicacoesContent() {
     setExecutionHistory,
   });
 
-  function logUiEvent(label, action, response, patch = {}) {
-    appendActivityLog({
-      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      module: "publicacoes",
-      component: patch.component || "publicacoes-ui",
-      label,
-      action,
-      method: "UI",
-      path: "/interno/publicacoes",
-      expectation: patch.expectation || label,
-      status: patch.status || "success",
-      request: patch.request || "",
-      response: stringifyLogPayload(response),
-      error: patch.error || "",
-    });
-  }
   const {
     applySevereRecurringPreset,
     clearHistory,

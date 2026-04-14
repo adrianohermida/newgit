@@ -66,7 +66,9 @@ export async function renderAutomations(el, addSystemMessage, switchTab) {
 }
 
 function renderTaskCard(task) {
-  const approval = task.status === "awaiting_approval" ? `<div class="list-item-actions"><button class="btn-list-action" data-approve-task="${task.id}">Permitir</button><button class="btn-list-action danger" data-deny-task="${task.id}">Negar</button></div>` : "";
+  const pendingStep = (task.steps || []).find((step) => step.status === "awaiting_approval");
+  const target = pendingStep?.action?.selector || pendingStep?.action?.url || pendingStep?.action?.command || "";
+  const approval = task.status === "awaiting_approval" ? `<div class="list-item-meta">Acao pendente: ${escHtml(pendingStep?.action?.type || "acao")} ${target ? `- ${escHtml(target)}` : ""}</div><div class="list-item-actions"><button class="btn-list-action" data-approve-task="${task.id}">Permitir</button><button class="btn-list-action danger" data-deny-task="${task.id}">Negar</button></div>` : "";
   const logs = Array.isArray(task.logs) && task.logs.length ? `<div class="list-item-meta">${escHtml(task.logs.slice(-3).join(" | "))}</div>` : "";
   const steps = (task.steps || []).map((step) => `<li>${escHtml(step.description)} - ${escHtml(step.status)}${step.error ? ` (${escHtml(step.error)})` : ""}</li>`).join("");
   return `<details class="list-item"><summary class="list-item-title">${escHtml(task.title || task.goal || task.id)} <span class="list-item-meta">${escHtml(task.status || "pending")} - ${task.progressPct || 0}%</span></summary><div class="list-item-meta">${escHtml(task.goal || "")}</div>${approval}${logs}<ul>${steps}</ul></details>`;
@@ -84,9 +86,11 @@ function bindTaskApproval(el) {
 }
 
 async function updateTaskApproval(taskId, approved) {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (approved && tab?.id) chrome.tabs.sendMessage(tab.id, { type: "START_REPLAY", tabId: String(tab.id) }).catch(() => {});
   await fetchJson(`/sessions/${state.sessionId}/tasks/${taskId}/approval`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ approved }),
+    body: JSON.stringify({ approved, tabId: tab?.id ? String(tab.id) : "" }),
   });
 }

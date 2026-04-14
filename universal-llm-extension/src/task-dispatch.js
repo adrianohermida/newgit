@@ -5,6 +5,10 @@ function getApprovalStep(task) {
   return (Array.isArray(task.steps) ? task.steps : []).find((step) => step.status === "awaiting_approval");
 }
 
+function getRunnableStep(task) {
+  return (Array.isArray(task.steps) ? task.steps : []).find((step) => step.status === "pending" && step.action);
+}
+
 function markApprovalDecision(task, approved) {
   const step = getApprovalStep(task);
   if (!step) return task;
@@ -48,6 +52,7 @@ function applyStepResult(task, stepId, result) {
 module.exports = {
   applyStepResult,
   dispatchApprovedStep,
+  getRunnableStep,
   getApprovalStep,
   markApprovalDecision,
 };
