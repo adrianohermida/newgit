@@ -24,6 +24,7 @@
     "supabase:start-local": "npx supabase start",
     "env:load-local": "powershell -ExecutionPolicy Bypass -Command \". .\\scripts\\load-local-env.ps1 -Path .local.supabase.env\"",
     "setup:ai-core-local": "powershell -ExecutionPolicy Bypass -Command \"Set-Location ai-core; python -m pip install -e .\"",
+    "setup:aetherlab-local-model": "powershell -ExecutionPolicy Bypass -File scripts/setup-aetherlab-local-model.ps1",
     "start:ai-core-local": "powershell -ExecutionPolicy Bypass -File scripts/start-ai-core-local.ps1",
     "start:universal-llm-extension": "powershell -ExecutionPolicy Bypass -File scripts/start-universal-llm-extension.ps1",
     "diagnose:pages-admin": "powershell -ExecutionPolicy Bypass -File scripts/diagnose-pages-admin-runtime.ps1",

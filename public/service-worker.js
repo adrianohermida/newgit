@@ -1,6 +1,6 @@
-const STATIC_CACHE = "hmadv-static-v1";
-const DYNAMIC_CACHE = "hmadv-dynamic-v1";
-const DATA_CACHE = "hmadv-data-v1";
+const STATIC_CACHE = "hmadv-static-v2";
+const DYNAMIC_CACHE = "hmadv-dynamic-v2";
+const DATA_CACHE = "hmadv-data-v2";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE_URLS = [
   "/",
@@ -56,7 +56,24 @@ async function networkFirst(request, cacheName, fallbackToOffline = false) {
       }
     }
 
-    throw error;
+    const url = new URL(request.url);
+    if (url.pathname.startsWith('/api/')) {
+      return new Response(JSON.stringify({ ok: false, error: 'offline_or_network_failure' }), {
+        status: 503,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
+
+    return new Response('Service unavailable', {
+      status: 503,
+      headers: {
+        'Cache-Control': 'no-store',
+        'Content-Type': 'text/plain; charset=utf-8',
+      },
+    });
   }
 }
 
@@ -98,6 +115,11 @@ self.addEventListener("fetch", (event) => {
 
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(networkFirst(request, DATA_CACHE, false));
+    return;
+  }
+
+  if (url.pathname.startsWith('/_next/static/')) {
+    event.respondWith(networkFirst(request, STATIC_CACHE, false));
     return;
   }
 

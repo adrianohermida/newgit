@@ -381,17 +381,17 @@ def _ensure_query(value: Any) -> str:
 def build_local_provider_config(env: Mapping[str, Any]) -> CompatibleProviderConfig:
     _, base_url = _resolve_env(
         env,
+        'AICORE_LOCAL_LLM_BASE_URL',
         'LOCAL_LLM_BASE_URL',
         'LLM_BASE_URL',
-        'AICORE_LOCAL_LLM_BASE_URL',
         'LAWDESK_CODE_API_BASE_URL',
         'AICORE_API_BASE_URL',
         'DOTOBOT_PYTHON_API_BASE',
     )
     _, api_key = _resolve_env(env, 'LOCAL_LLM_API_KEY', 'LLM_API_KEY', 'AICORE_LOCAL_LLM_API_KEY')
     _, auth_token = _resolve_env(env, 'LOCAL_LLM_AUTH_TOKEN', 'LLM_AUTH_TOKEN', 'AICORE_LOCAL_LLM_AUTH_TOKEN')
-    _, model = _resolve_env(env, 'LOCAL_LLM_MODEL', 'LLM_MODEL', 'AICORE_LOCAL_LLM_MODEL', default=_DEFAULT_LOCAL_MODEL)
-    max_tokens = _int_env(env, 'LOCAL_LLM_MAX_TOKENS', 'LLM_MAX_TOKENS', 'AICORE_LOCAL_LLM_MAX_TOKENS', default=1400)
+    _, model = _resolve_env(env, 'AICORE_LOCAL_LLM_MODEL', 'LOCAL_LLM_MODEL', 'LLM_MODEL', default=_DEFAULT_LOCAL_MODEL)
+    max_tokens = _int_env(env, 'AICORE_LOCAL_LLM_MAX_TOKENS', 'LOCAL_LLM_MAX_TOKENS', 'LLM_MAX_TOKENS', default=1400)
     return CompatibleProviderConfig(
         provider_id='local',
         label='AetherLab Local',

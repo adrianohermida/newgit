@@ -393,55 +393,26 @@ async function runCompatibleMessagesApi(env: Env, body: Json | null) {
     return json({ ok: false, error: { message: 'messages_required' } }, 400);
   }
 
-  const runId = crypto.randomUUID();
   const combinedPrompt = system ? `${system}\n\n${prompt}` : prompt;
-  const retrievedContext = await queryRelatedMemory(env, combinedPrompt.slice(0, 6000), 6).catch(() => []);
-  const ragSnippet = retrievedContext.length
-    ? `\n\nContexto RAG recuperado:\n${JSON.stringify(retrievedContext.slice(0, 6), null, 2)}`
-    : '';
+  const conversation = await runConversation(env, combinedPrompt, {
+    mode: 'messages',
+    locale: 'pt-BR',
+    assistant: {
+      mode: 'messages',
+      system_prompt: system || CONVERSATION_SYSTEM_PROMPT,
+      requested_model: requestedModel || null,
+      requested_max_tokens: Math.min(Math.max(maxTokens, 128), 4096),
+    },
+  });
+  const responseText = String((conversation as Json)?.resultText || '').trim() || 'Sem resposta do modelo.';
+  const sessionId = String((conversation as Json)?.session_id || crypto.randomUUID());
+  const retrievedContext = Array.isArray((conversation as Json)?.rag?.retrieved_context)
+    ? ((conversation as Json).rag as { retrieved_context?: Json[] }).retrieved_context || []
+    : [];
   const model = resolveChatModel(env, requestedModel);
 
-  await recordRun(env, {
-    id: runId,
-    kind: 'messages_api',
-    route: '/v1/messages',
-    mission: combinedPrompt.slice(0, 120),
-    mode: 'messages',
-    provider: model,
-    status: 'running',
-    metadata_json: JSON.stringify({ retrieved_context_count: retrievedContext.length }),
-  }).catch(() => null);
-
-  const result = await runAi(env, model, {
-    messages: [
-      {
-        role: 'system',
-        content: system || CONVERSATION_SYSTEM_PROMPT,
-      },
-      {
-        role: 'user',
-        content: `${prompt}${ragSnippet}`,
-      },
-    ],
-    max_tokens: Math.min(Math.max(maxTokens, 128), 4096),
-  });
-
-  const responseText = String((result as Json)?.response || '').trim() || 'Sem resposta do modelo.';
-
-  await recordRun(env, {
-    id: runId,
-    kind: 'messages_api',
-    route: '/v1/messages',
-    mission: combinedPrompt.slice(0, 120),
-    mode: 'messages',
-    provider: model,
-    status: 'done',
-    result: responseText,
-    metadata_json: JSON.stringify({ retrieved_context_count: retrievedContext.length }),
-  }).catch(() => null);
-
   return json({
-    id: `msg_${runId}`,
+    id: `msg_${sessionId}`,
     type: 'message',
     role: 'assistant',
     model: requestedModel || model,
@@ -450,7 +421,7 @@ async function runCompatibleMessagesApi(env: Env, body: Json | null) {
       input_tokens: combinedPrompt.length,
       output_tokens: responseText.length,
     },
-    request_id: runId,
+    request_id: sessionId,
     metadata: {
       requested_model: requestedModel || model,
       resolved_model: model,

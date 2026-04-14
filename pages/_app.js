@@ -9,7 +9,7 @@ import { InternalThemeProvider } from '../components/interno/InternalThemeProvid
 import useConsoleRouteInstrumentation from '../hooks/useConsoleRouteInstrumentation';
 
 const FreshchatWebMessenger = dynamic(() => import('../components/FreshchatWebMessenger'), { ssr: false });
-const CHUNK_RECOVERY_MARKER = 'hmadv_chunk_recovery_once_v1';
+const CHUNK_RECOVERY_MARKER = 'hmadv_chunk_recovery_once_v2';
 const LEGACY_PORTAL_SW_MARKER = 'hmadv_legacy_portal_sw_cleanup_v1';
 
 function shouldRecoverFromChunkError(reason = '') {
@@ -20,7 +20,11 @@ function shouldRecoverFromChunkError(reason = '') {
     message.includes('failed to fetch dynamically imported module') ||
     message.includes('/_next/static/') ||
     message.includes('strict mime type checking') ||
-    message.includes('is not executable')
+    message.includes('is not executable') ||
+    message.includes('before initialization') ||
+    message.includes('cannot access') ||
+    message.includes('is not defined') ||
+    message.includes('renderconversationmenu')
   );
 }
 

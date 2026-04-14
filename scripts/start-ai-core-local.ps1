@@ -83,20 +83,22 @@ $resolvedPort = Resolve-AiCorePort -PreferredPort $Port
 $resolvedAiCoreBaseUrl = "http://127.0.0.1:$resolvedPort"
 $resolvedLocalLlmBaseUrl = First-Value @(
   $LocalLlmBaseUrl,
+  $env:AICORE_LOCAL_LLM_BASE_URL,
   $env:LOCAL_LLM_BASE_URL,
   $env:LLM_BASE_URL,
-  $env:AICORE_LOCAL_LLM_BASE_URL,
   "http://127.0.0.1:11434"
 )
 $resolvedLocalLlmModel = First-Value @(
   $LocalLlmModel,
+  $env:AICORE_LOCAL_LLM_MODEL,
   $env:LOCAL_LLM_MODEL,
   $env:LLM_MODEL,
-  $env:AICORE_LOCAL_LLM_MODEL,
   "aetherlab-legal-local-v1"
 )
 
 $env:AICORE_API_BASE_URL = $resolvedAiCoreBaseUrl
+$env:AICORE_LOCAL_LLM_BASE_URL = $resolvedLocalLlmBaseUrl
+$env:AICORE_LOCAL_LLM_MODEL = $resolvedLocalLlmModel
 $env:LOCAL_LLM_BASE_URL = $resolvedLocalLlmBaseUrl
 $env:LLM_BASE_URL = $resolvedLocalLlmBaseUrl
 $env:LOCAL_LLM_MODEL = $resolvedLocalLlmModel

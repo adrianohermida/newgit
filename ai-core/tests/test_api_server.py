@@ -20,13 +20,27 @@ class ApiServerTests(unittest.TestCase):
         config = build_local_provider_config(
             {
                 'AICORE_API_BASE_URL': 'http://127.0.0.1:8000',
+                'AICORE_LOCAL_LLM_BASE_URL': 'http://127.0.0.1:11434',
                 'AICORE_LOCAL_LLM_MODEL': 'aetherlab-legal-local-v1',
             }
         )
 
-        self.assertEqual(config.base_url, 'http://127.0.0.1:8000')
+        self.assertEqual(config.base_url, 'http://127.0.0.1:11434')
         self.assertEqual(config.model, 'aetherlab-legal-local-v1')
         self.assertTrue(config.configured)
+
+    def test_build_local_provider_prefers_aicore_runtime_over_generic_local_alias(self) -> None:
+        config = build_local_provider_config(
+            {
+                'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:8000',
+                'LOCAL_LLM_MODEL': 'wrong-model',
+                'AICORE_LOCAL_LLM_BASE_URL': 'http://127.0.0.1:11434',
+                'AICORE_LOCAL_LLM_MODEL': 'aetherlab-legal-local-v1',
+            }
+        )
+
+        self.assertEqual(config.base_url, 'http://127.0.0.1:11434')
+        self.assertEqual(config.model, 'aetherlab-legal-local-v1')
 
     def test_build_cloud_provider_reuses_existing_remote_runtime(self) -> None:
         config = build_cloud_provider_config(

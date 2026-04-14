@@ -38,7 +38,7 @@ function GroupCard({ activeConversationId, collapsed, group, isLightTheme, onCon
                     </div>
                   </div>
                 </button>
-                <div className="shrink-0">{renderConversationMenu(conversation)}</div>
+                <div className="shrink-0">{typeof renderConversationMenu === "function" ? renderConversationMenu(conversation) : null}</div>
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -57,12 +57,12 @@ function GroupCard({ activeConversationId, collapsed, group, isLightTheme, onCon
 export default function FocusedConversationGroups(props) {
   const {
     activeConversationId,
-    conversationProjectGroups,
+    conversationProjectGroups = [],
     handleDrop,
     isLightTheme,
     onConcatConversation,
     onSelectConversation,
-    renderConversationMenu,
+    renderConversationMenu = null,
   } = props;
   const [collapsedGroups, setCollapsedGroups] = useState({});
 
