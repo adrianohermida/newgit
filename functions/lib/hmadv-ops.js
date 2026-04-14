@@ -2618,7 +2618,7 @@ export async function listMonitoringProcesses(env, { page = 1, pageSize = 20, ac
     if (!schemaMessageMatches(error?.message, "monitoramento_ativo")) throw error;
     unsupported = true;
   }
-  if (active && (!totalRows || (!items.length && totalRows > 0))) {
+  if (active && unsupported) {
     items = await listTableSafe(
       env,
       `processos?select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo&account_id_freshsales=not.is.null&order=updated_at.desc.nullslast&limit=${safePageSize}&offset=${(safePage - 1) * safePageSize}`

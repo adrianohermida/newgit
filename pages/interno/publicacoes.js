@@ -1238,7 +1238,16 @@ function PublicacoesContent() {
   const [view, setView] = useState("operacao");
   const [overview, setOverview] = useState({ loading: true, error: null, data: null });
   const [processCandidates, setProcessCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20, updatedAt: null, limited: false, errorUntil: null });
-  const [partesCandidates, setPartesCandidates] = useState({ loading: true, error: null, items: [], totalRows: 0, pageSize: 20, updatedAt: null, limited: false, errorUntil: null });
+  const [partesCandidates, setPartesCandidates] = useState({
+    loading: false,
+    error: "Leitura sob demanda para evitar estouro do Worker. Use o botao de carregar ou atualize o snapshot.",
+    items: [],
+    totalRows: 0,
+    pageSize: 20,
+    updatedAt: null,
+    limited: true,
+    errorUntil: null,
+  });
   const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
   const [executionHistory, setExecutionHistory] = useState([]);
   const [remoteHistory, setRemoteHistory] = useState([]);
@@ -1261,7 +1270,21 @@ function PublicacoesContent() {
   const [selectedProcessKeys, setSelectedProcessKeys] = useState([]);
   const [selectedPartesKeys, setSelectedPartesKeys] = useState([]);
   const [validationMap, setValidationMap] = useState({});
-  const [integratedQueue, setIntegratedQueue] = useState({ loading: false, error: null, items: [], totalRows: 0, pageSize: 12, updatedAt: null, limited: false, totalEstimated: false, hasMore: false, nextCursor: null, mode: "snapshot", source: "snapshot" });
+  const [integratedQueue, setIntegratedQueue] = useState({
+    loading: false,
+    error: "Leitura sob demanda para evitar estouro do Worker. Atualize o snapshot ou carregue a mesa manualmente.",
+    items: [],
+    totalRows: 0,
+    pageSize: 12,
+    updatedAt: null,
+    limited: true,
+    totalEstimated: false,
+    hasMore: false,
+    nextCursor: null,
+    mode: "snapshot",
+    source: "snapshot",
+  });
+  const [heavyQueuesEnabled, setHeavyQueuesEnabled] = useState(false);
   const [integratedFilters, setIntegratedFilters] = useState({ query: "", source: "todos", validation: "todos", sort: "pendencia" });
   const [integratedPage, setIntegratedPage] = useState(1);
   const [integratedCursorTrail, setIntegratedCursorTrail] = useState([""]);
@@ -1550,12 +1573,14 @@ function PublicacoesContent() {
   useEffect(() => {
     if (!PUBLICACOES_QUEUE_VIEWS.has(view)) return;
     if (activeJobId) return;
+    if (!heavyQueuesEnabled) return;
     loadPartesCandidates(partesPage);
-  }, [partesPage, view, activeJobId]);
+  }, [partesPage, view, activeJobId, heavyQueuesEnabled]);
   useEffect(() => {
     if (view !== "filas") return;
+    if (!heavyQueuesEnabled) return;
     loadIntegratedQueue(integratedPage);
-  }, [integratedPage, integratedFilters, view]);
+  }, [integratedPage, integratedFilters, view, heavyQueuesEnabled]);
   useEffect(() => {
     setIntegratedPage(1);
     setIntegratedCursorTrail([""]);
@@ -1837,6 +1862,9 @@ function PublicacoesContent() {
 
   async function loadPartesCandidates(page, options = {}) {
     const { force = false } = options;
+    if (!force && !heavyQueuesEnabled) {
+      return partesCandidates;
+    }
     const now = Date.now();
     if (!force && partesCandidatesRequestRef.current.promise && partesCandidatesRequestRef.current.page === page) {
       return partesCandidatesRequestRef.current.promise;
@@ -1904,6 +1932,9 @@ function PublicacoesContent() {
 
   async function loadIntegratedQueue(page, options = {}) {
     const { force = false } = options;
+    if (!force && !heavyQueuesEnabled) {
+      return integratedQueue;
+    }
     const cursor = integratedCursorTrail[Math.max(0, page - 1)] || "";
     const key = JSON.stringify({ page, cursor, query: integratedFilters.query, source: integratedFilters.source });
     if (!force && integratedQueueRequestRef.current.promise && integratedQueueRequestRef.current.key === key) {
@@ -2029,17 +2060,19 @@ function PublicacoesContent() {
     const calls = [loadOverview(), loadRemoteHistory(), loadJobs()];
     if (shouldLoadQueues) {
       calls.push(loadProcessCandidates(processPage, { force: forceAll || forceQueues }));
-      if (!activeJobId || forceAll || forceQueues) {
+      if (heavyQueuesEnabled && (!activeJobId || forceAll || forceQueues)) {
         calls.push(loadPartesCandidates(partesPage, { force: forceAll || forceQueues }));
       }
-      calls.push(loadIntegratedQueue(integratedPage, { force: forceAll || forceQueues }));
+      if (heavyQueuesEnabled) {
+        calls.push(loadIntegratedQueue(integratedPage, { force: forceAll || forceQueues }));
+      }
     }
     await Promise.all(calls);
   }
 
   async function refreshAfterAction(action) {
     const calls = [loadOverview(), loadRemoteHistory(), loadJobs()];
-    if (PUBLICACOES_QUEUE_VIEWS.has(view)) {
+    if (PUBLICACOES_QUEUE_VIEWS.has(view) && heavyQueuesEnabled) {
       calls.push(loadIntegratedQueue(integratedPage, { force: true }));
       if (action === "criar_processos_publicacoes") {
         calls.push(loadProcessCandidates(processPage, { force: true }));
@@ -2148,6 +2181,7 @@ function PublicacoesContent() {
       return;
     }
     setActionState({ loading: true, error: null, result: null });
+    setHeavyQueuesEnabled(true);
     try {
       const payload = await adminFetch("/api/admin-hmadv-publicacoes", {
         method: "POST",
@@ -2186,6 +2220,24 @@ function PublicacoesContent() {
     } catch (error) {
       setActionState({ loading: false, error: error.message || "Falha ao atualizar snapshot operacional.", result: null });
     }
+  }
+
+  async function loadHeavyQueueReads(scope = "all") {
+    setHeavyQueuesEnabled(true);
+    if (scope === "partes") {
+      await loadPartesCandidates(partesPage, { force: true });
+      return;
+    }
+    if (scope === "mesa") {
+      setIntegratedCursorTrail([""]);
+      setIntegratedPage(1);
+      await loadIntegratedQueue(1, { force: true });
+      return;
+    }
+    await Promise.all([
+      loadPartesCandidates(partesPage, { force: true }),
+      loadIntegratedQueue(integratedPage, { force: true }),
+    ]);
   }
 
   function applyValidationToNumbers(numbers, status, note = "") {
@@ -3355,6 +3407,9 @@ function PublicacoesContent() {
                   </button>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => loadHeavyQueueReads("mesa")} disabled={actionState.loading} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-40">
+                    Carregar mesa manualmente
+                  </button>
                   <button type="button" onClick={() => handleAction("orquestrar_drenagem_publicacoes", true, selectedUnifiedNumbers)} disabled={actionState.loading || hasBlockingJob} className="border border-[#30543A] px-3 py-2 text-xs text-[#B7F7C6] disabled:opacity-40">
                     Orquestrar drenagem
                   </button>
@@ -3444,6 +3499,15 @@ function PublicacoesContent() {
           />
         </Panel></div>
         <div id="publicacoes-fila-partes-extraiveis"><Panel title="Fila de partes extraiveis" eyebrow="Backfill pelo conteudo das publicacoes">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <HealthBadge label={heavyQueuesEnabled ? "leituras pesadas liberadas" : "leituras pesadas sob demanda"} tone={heavyQueuesEnabled ? "success" : "warning"} />
+            <button type="button" onClick={() => loadHeavyQueueReads("partes")} disabled={actionState.loading} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-40">
+              Carregar fila manualmente
+            </button>
+            <button type="button" onClick={() => refreshIntegratedSnapshot("candidatos_partes")} disabled={actionState.loading || hasBlockingJob} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-40">
+              Atualizar snapshot de partes
+            </button>
+          </div>
           <QueueList
             title="Processos com partes extraiveis"
             helper="Leitura de apoio para encaminhar a extracao de partes ao modulo de processos."

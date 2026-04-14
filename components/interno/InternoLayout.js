@@ -1703,6 +1703,7 @@ export default function InternoLayout({
   const consoleDockLeft = hideShellSidebar ? 0 : isMobileShell ? 0 : leftCollapsed ? 88 : 272;
   const desktopRightRailWidth = rightRailMode === "compact" ? 356 : 404;
   const consoleDockRight = !isMobileShell && shouldRenderDotobotRail && !rightCollapsed ? desktopRightRailWidth : 0;
+  const mobileConsoleHeight = Math.min(Math.max(consoleHeight, 320), 560);
   const showSupplementalRightRail = rightRailFullscreen && Boolean(currentOperationalRail || resolvedRightRail);
   const rightRailConversationFirst = !showSupplementalRightRail;
 
@@ -1714,6 +1715,14 @@ export default function InternoLayout({
           aria-label="Fechar menu"
           onClick={() => setLeftCollapsed(true)}
           className="absolute inset-0 z-30 bg-[rgba(5,8,9,0.5)] backdrop-blur-[2px]"
+        />
+      ) : null}
+      {isMobileShell && consoleOpen ? (
+        <button
+          type="button"
+          aria-label="Fechar console"
+          onClick={() => setConsoleOpen(false)}
+          className="absolute inset-0 z-20 bg-[rgba(5,8,9,0.34)] backdrop-blur-[1px]"
         />
       ) : null}
       <div className="flex min-h-0 flex-1">
@@ -1779,16 +1788,16 @@ export default function InternoLayout({
               : "bg-[linear-gradient(180deg,rgba(6,8,7,0.92),rgba(8,10,9,0.94))]"
             : `rounded-[26px] border shadow-[0_20px_56px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#CBD5E1] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,247,250,0.96))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.985),rgba(7,9,8,0.95))]"}`
         }`}>
-          <div className={`sticky top-0 z-20 shrink-0 flex flex-wrap items-center justify-between gap-4 border-b px-4 py-3 md:px-5 md:py-3.5 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(247,249,251,0.92))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.99),rgba(7,9,8,0.96))]"}`}>
+          <div className={`sticky top-0 z-20 shrink-0 flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3 md:items-center md:gap-4 md:px-5 md:py-3.5 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(247,249,251,0.92))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.99),rgba(7,9,8,0.96))]"}`}>
             <div className={`rounded-[16px] border px-3 py-2 ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.82)]" : "border-[#1F2D29] bg-[rgba(255,255,255,0.02)]"}`}>
               <p className="text-[10px] uppercase tracking-[0.28em] text-[#7F928C]">{isCopilotWorkspace ? "Copilot" : "Workspace"}</p>
               <p className={`mt-1 text-[11px] ${isLightTheme ? "text-[#51606B]" : "text-[#C6D1CC]"}`}>
                 {isCopilotWorkspace ? "Conversa centralizada com histórico e módulos" : router.pathname}
               </p>
             </div>
-            <div ref={headerSearchRef} className={`relative flex-1 ${isCopilotWorkspace ? "px-1 md:px-4 xl:px-8" : "px-4 xl:px-6"}`}>
-              <div className={`mx-auto flex items-center gap-3 rounded-[16px] border px-4 py-2.5 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isCopilotWorkspace ? "max-w-[980px]" : "max-w-xl"} ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.84)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(12,15,14,0.86),rgba(8,10,9,0.9))]"}`}>
-                <label className={`flex shrink-0 items-center gap-2 rounded-[12px] border px-3 py-2 text-[11px] uppercase tracking-[0.16em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
+            <div ref={headerSearchRef} className={`order-3 w-full ${isCopilotWorkspace ? "md:flex-1 md:px-4 xl:px-8" : "md:flex-1 md:px-4 xl:px-6"}`}>
+              <div className={`mx-auto flex flex-col gap-2 rounded-[16px] border px-3 py-3 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] md:flex-row md:items-center md:gap-3 md:px-4 md:py-2.5 ${isCopilotWorkspace ? "max-w-[980px]" : "max-w-xl"} ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.84)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(12,15,14,0.86),rgba(8,10,9,0.9))]"}`}>
+                <label className={`flex h-11 shrink-0 items-center gap-2 rounded-[12px] border px-3 py-2 text-[11px] uppercase tracking-[0.16em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#9BAEA8]"}`}>
                   <span>LLM</span>
                   <select
                     value={headerLlm}
@@ -1828,13 +1837,13 @@ export default function InternoLayout({
                 <button
                   type="button"
                   onClick={isCopilotWorkspace ? handleFocusCopilotComposer : handleToggleCopilot}
-                  className={`rounded-[12px] border px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] transition ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#9A6E2D] hover:border-[#C5A059]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#C5A059] hover:border-[#C5A059] hover:text-[#F5E6C5]"}`}
+                  className={`h-11 shrink-0 rounded-[12px] border px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] transition md:min-w-[88px] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(255,255,255,0.92)] text-[#9A6E2D] hover:border-[#C5A059]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#C5A059] hover:border-[#C5A059] hover:text-[#F5E6C5]"}`}
                 >
                   {isCopilotWorkspace ? "Chat" : "Conversar"}
                 </button>
               </div>
             </div>
-          <div className={`[&_span.text-lg]:hidden flex shrink-0 items-center gap-2 rounded-[16px] border px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.84)]" : "border-[#1F2D29] bg-[rgba(255,255,255,0.02)]"}`}>
+          <div className={`order-2 [&_span.text-lg]:hidden flex shrink-0 items-center gap-2 rounded-[16px] border px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] md:order-none ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.84)]" : "border-[#1F2D29] bg-[rgba(255,255,255,0.02)]"}`}>
             <button
               type="button"
               onClick={toggleTheme}
@@ -1974,14 +1983,14 @@ export default function InternoLayout({
           </div>
           </div>
           <div
-            className={`z-30 mt-2 min-h-[52px] shrink-0 overflow-hidden rounded-[24px] border shadow-[0_-12px_38px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all ${isLightTheme ? "border-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,245,249,0.98))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(10,12,11,0.985),rgba(6,8,7,0.98))]"} ${consoleOpen ? "flex flex-col" : "block h-[52px]"}`}
-            style={{ height: consoleOpen ? `${consoleHeight}px` : undefined }}
+            className={`z-30 min-h-[52px] shrink-0 overflow-hidden rounded-[24px] border shadow-[0_-12px_38px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.02)] transition-all ${isLightTheme ? "border-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,245,249,0.98))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(10,12,11,0.985),rgba(6,8,7,0.98))]"} ${consoleOpen ? "flex flex-col" : "block h-[52px]"} ${isMobileShell ? "fixed inset-x-2 bottom-2" : "mt-2"}`}
+            style={isMobileShell ? { height: consoleOpen ? `${mobileConsoleHeight}px` : undefined } : { height: consoleOpen ? `${consoleHeight}px` : undefined }}
           >
             {consoleOpen ? (
               <div
-                onMouseDown={handleStartResize}
-                className={`shrink-0 flex h-3 cursor-row-resize items-center justify-center border-b text-[#60706A] ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(210,219,229,0.55)]" : "border-[#1E2E29] bg-[rgba(255,255,255,0.02)]"}`}
-                title="Arraste para redimensionar"
+                onMouseDown={isMobileShell ? undefined : handleStartResize}
+                className={`shrink-0 flex h-3 items-center justify-center border-b text-[#60706A] ${isMobileShell ? "cursor-default" : "cursor-row-resize"} ${isLightTheme ? "border-[#D4DEE8] bg-[rgba(210,219,229,0.55)]" : "border-[#1E2E29] bg-[rgba(255,255,255,0.02)]"}`}
+                title={isMobileShell ? "Console mobile" : "Arraste para redimensionar"}
               >
                 <span className={`h-1 w-10 rounded-full ${isLightTheme ? "bg-[#A5B4C3]" : "bg-[#22342F]"}`} />
               </div>
