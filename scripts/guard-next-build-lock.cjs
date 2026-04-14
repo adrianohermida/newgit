@@ -43,6 +43,27 @@ function listLingeringNextProcessIds() {
   }
 }
 
+function listNextDevProcessIds() {
+  try {
+    if (os.platform() === 'win32') {
+      const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -Command "$current = ${process.pid}; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $current -and $_.Name -eq 'node.exe' -and $_.CommandLine -and $_.CommandLine -like '*next*dev*' } | Select-Object -ExpandProperty ProcessId"`;
+      const out = execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+      return out ? out.split(/\s+/).map((value) => Number(value)).filter(Boolean) : [];
+    }
+
+    const out = execSync("ps -ax -o pid=,command= | grep -E 'next(.+)?dist/bin/next dev| next dev ' | grep -v grep", {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      shell: '/bin/sh',
+    }).toString().trim();
+
+    return out
+      ? out.split(/\r?\n/).map((line) => Number(line.trim().split(/\s+/)[0])).filter(Boolean)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 function hasConcurrentNextBuild() {
   return listLingeringNextProcessIds().length > 0;
 }
@@ -107,6 +128,7 @@ function seedNextDir() {
       path.join(nextDir, 'server', 'next-font-manifest.json'),
       '{"pages":{},"app":{},"appUsingSizeAdjust":false,"pagesUsingSizeAdjust":false}\n',
     ],
+    [path.join(nextDir, 'server', 'pages-manifest.json'), '{}\n'],
     [path.join(nextDir, 'diagnostics', 'build-diagnostics.json'), '{}\n'],
   ];
 
@@ -178,6 +200,12 @@ if (hasConcurrentNextBuild()) {
   console.warn('guard-next-build-lock: found lingering build process(es); cleaning before starting.');
   killLingeringNextProcesses();
   sleep(1200);
+}
+
+const nextDevPids = listNextDevProcessIds();
+if (nextDevPids.length) {
+  console.error(`guard-next-build-lock: stop next dev before building (${nextDevPids.join(', ')}).`);
+  process.exit(1);
 }
 
 const nextCli = path.join(process.cwd(), 'node_modules', 'next', 'dist', 'bin', 'next');

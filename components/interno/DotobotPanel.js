@@ -38,6 +38,7 @@ import {
   FocusedHistoryRail,
   GenericCopilotRightRail,
 } from "./copilot";
+import DotobotWorkspaceShell from "./copilot/DotobotWorkspaceShell";
 import { cancelTaskRun, createPendingTaskRun, pollTaskRun, startTaskRun } from "./dotobotTaskRun";
 import {
   buildCopilotContextPayload,
@@ -2618,102 +2619,105 @@ const [uiToasts, setUiToasts] = useState([]);
       ) : null}
 
         {isWorkspaceShell ? (
-          <div className={`${embeddedInInternoShell
-            ? suppressInnerChrome
-              ? "relative min-h-0 h-full overflow-hidden"
-              : isLightTheme
-                ? "relative min-h-0 h-full overflow-hidden rounded-[28px] border border-[#D7DEE8] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.08),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,248,252,0.98))]"
-                : "relative min-h-0 h-full overflow-hidden rounded-[28px] border border-[#1C2623] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.1),transparent_24%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.97))]"
-            : isLightTheme
-              ? "fixed inset-0 z-[70] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.08),transparent_26%),linear-gradient(180deg,rgba(239,243,248,0.98),rgba(228,234,241,0.96))] backdrop-blur-xl"
-              : "fixed inset-0 z-[70] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.14),transparent_26%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.96))] backdrop-blur-xl"} ${isLightTheme ? "text-[#152421]" : "text-[#F4F1EA]"}`}>
-          <div className={`${embeddedInInternoShell ? "flex h-full w-full flex-col" : `ml-auto flex h-full ${workspaceShellWidthClass} flex-col ${isLightTheme ? "border-l border-[#D7DEE8] bg-[rgba(255,255,255,0.72)]" : "border-l border-[#1C2623]/70 bg-[rgba(4,7,6,0.68)]"} shadow-[-24px_0_54px_rgba(0,0,0,0.24)]`} transition-[max-width,width] duration-300 ease-out`}>
-            <style jsx>{`
-              .dotobot-panel-tab-enter {
-                opacity: 0;
-                transform: translateY(10px) scale(0.985);
-              }
-              .dotobot-panel-tab-enter-active {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-                transition: opacity 180ms ease, transform 180ms ease;
-              }
-              .dotobot-panel-tab-exit {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-              }
-              .dotobot-panel-tab-exit-active {
-                opacity: 0;
-                transform: translateY(-6px) scale(0.99);
-                transition: opacity 140ms ease, transform 140ms ease;
-              }
-            `}</style>
-            {uiToasts.length ? (
-              <div className="pointer-events-none absolute right-4 top-4 z-[90] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2">
-                {uiToasts.map((toast) => (
-                  <div
-                    key={toast.id}
-                    className={`pointer-events-auto rounded-[20px] border px-4 py-3 shadow-[0_18px_42px_rgba(0,0,0,0.28)] backdrop-blur-xl ${
-                      toast.tone === "success"
-                        ? "border-[#2E5A46] bg-[rgba(15,33,25,0.92)] text-[#D9F5E5]"
-                        : toast.tone === "danger"
-                          ? "border-[#6A3131] bg-[rgba(46,16,16,0.92)] text-[#FFD1D1]"
-                          : toast.tone === "warning"
-                            ? "border-[#6A5320] bg-[rgba(54,39,12,0.92)] text-[#F7E2AE]"
-                            : "border-[#2A3A35] bg-[rgba(13,18,17,0.92)] text-[#E7ECE9]"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-80">{toast.title}</p>
-                        {toast.body ? <p className="mt-1 text-sm leading-6 opacity-90">{toast.body}</p> : null}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => dismissUiToast(toast.id)}
-                        className="rounded-full border border-current/20 px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-70 transition hover:opacity-100"
-                      >
-                        Fechar
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            {!suppressInnerChrome && (
-            <header className={`border-b backdrop-blur-xl ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,248,252,0.96))]" : "border-[#22342F]/80 bg-[linear-gradient(180deg,rgba(11,14,13,0.82),rgba(7,10,9,0.78))]"} ${isFocusedCopilotShell ? "px-4 py-3 md:px-5" : "px-4 py-4 md:px-5"}`}>
-              {isFocusedCopilotShell && (
-                <div className="flex flex-col gap-3">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                          {activeProjectLabel}
-                        </span>
-                        <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] ${activeStatus === "processing" ? "border-[#8b6f33] text-[#D9B46A]" : "border-[#234034] text-[#80C7A1]"}`}>
-                          <span className={`h-2 w-2 rounded-full ${activeStatus === "processing" ? "bg-[#D9B46A]" : "bg-[#80C7A1]"}`} />
-                          {activeStatus === "processing" ? "Processando" : "Online"}
-                        </span>
-                      </div>
-                      <p className={`mt-3 truncate text-base font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
-                        {activeConversation?.title || "Nova conversa"}
-                      </p>
-                      <p className={`mt-1 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                        Fluxo de conversa contínua com histórico lateral e módulos de apoio no rail direito.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={handleResetChat}
-                        className={`rounded-full border px-4 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                      >
-                        Nova conversa
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
+          <DotobotWorkspaceShell
+            activeConversationTitle={activeConversation?.title}
+            activeProjectLabel={activeProjectLabel}
+            activeStatus={activeStatus}
+            centerNode={isConversationCentricShell ? (
+              <FocusedConversationCenter
+                activeConversation={activeConversation}
+                activeMode={activeMode}
+                activeProjectLabel={activeProjectLabel}
+                attachments={attachments}
+                centerShellClass={centerShellClass}
+                composerBlockedReason={composerBlockedReason}
+                composerRef={composerRef}
+                error={error}
+                focusedConversationColumnClass={focusedConversationColumnClass}
+                formatBytes={formatBytes}
+                handleComposerKeyDown={handleComposerKeyDown}
+                handleCopyMessage={handleCopyMessage}
+                handleDrop={handleDrop}
+                handleLocalStackAction={handleLocalStackAction}
+                handleMessageAction={handleMessageAction}
+                handleOpenFiles={handleOpenFiles}
+                handleOpenMessageInAiTask={handleOpenMessageInAiTask}
+                handlePaste={handlePaste}
+                handleQuickAction={handleQuickAction}
+                handleReuseMessage={handleReuseMessage}
+                handleSlashCommand={handleSlashCommand}
+                handleSubmit={handleSubmit}
+                input={input}
+                isComposerBlocked={isComposerBlocked}
+                isLightTheme={isLightTheme}
+                isRecording={isRecording}
+                loading={loading}
+                localInferenceAlert={localInferenceAlert}
+                messages={messages}
+                onOpenAiTask={() => router.push("/interno/ai-task")}
+                scrollRef={scrollRef}
+                setInput={setInput}
+                setShowSlashCommands={setShowSlashCommands}
+                showSlashCommands={showSlashCommands}
+                slashCommands={SLASH_COMMANDS}
+                toggleVoiceInput={toggleVoiceInput}
+                visibleLegalActions={visibleLegalActions}
+              />
+            ) : (
+              <DotobotStandardConversationCenter
+                activeConversation={activeConversation}
+                activeMode={activeMode}
+                activeProjectLabel={activeProjectLabel}
+                attachments={attachments}
+                centerShellClass={centerShellClass}
+                composerBlockedReason={composerBlockedReason}
+                composerRef={composerRef}
+                error={error}
+                focusedConversationColumnClass={focusedConversationColumnClass}
+                formatBytes={formatBytes}
+                handleComposerKeyDown={handleComposerKeyDown}
+                handleCopyMessage={handleCopyMessage}
+                handleDrop={handleDrop}
+                handleLocalStackAction={handleLocalStackAction}
+                handleMessageAction={handleMessageAction}
+                handleOpenFiles={handleOpenFiles}
+                handleOpenMessageInAiTask={handleOpenMessageInAiTask}
+                handlePaste={handlePaste}
+                handleQuickAction={handleQuickAction}
+                handleResetChat={handleResetChat}
+                handleReuseMessage={handleReuseMessage}
+                handleSlashCommand={handleSlashCommand}
+                handleSubmit={handleSubmit}
+                input={input}
+                isComposerBlocked={isComposerBlocked}
+                isConversationCentricShell={isConversationCentricShell}
+                isLightTheme={isLightTheme}
+                isRecording={isRecording}
+                loading={loading}
+                localInferenceAlert={localInferenceAlert}
+                messages={messages}
+                onChangeInput={(value) => {
+                  setInput(value);
+                  setShowSlashCommands(value.trimStart().startsWith("/"));
+                }}
+                onOpenAiTask={() => router.push("/interno/ai-task")}
+                onOpenLlmTest={openLlmTest}
+                openPrompt={input}
+                provider={provider}
+                scrollRef={scrollRef}
+                showSlashCommands={showSlashCommands}
+                slashCommands={SLASH_COMMANDS}
+                toggleVoiceInput={toggleVoiceInput}
+                visibleLegalActions={visibleLegalActions}
+                visibleQuickPrompts={visibleQuickPrompts}
+              />
+            )}
+            dismissUiToast={dismissUiToast}
+            embeddedInInternoShell={embeddedInInternoShell}
+            focusedShellContentClass={focusedShellContentClass}
+            gridGapClass={workspaceGridGapClass}
+            gridTemplateClass={workspaceShellGridClass}
+            headerNode={(
               <DotobotWorkspaceHeader
                 MODE_OPTIONS={MODE_OPTIONS}
                 activeConversation={activeConversation}
@@ -2772,13 +2776,9 @@ const [uiToasts, setUiToasts] = useState([]);
                 taskCount={taskHistory.length}
                 workspaceLayoutMode={workspaceLayoutMode}
               />
-            </header>
             )}
-
-            <div className={`flex-1 overflow-hidden ${focusedShellContentClass}`}>
-              <div className={`grid h-full min-h-0 transition-all duration-300 ease-out ${workspaceGridGapClass} ${workspaceShellGridClass}`}>
-                {!isRailConversationShell ? (
-                isFocusedCopilotShell ? (
+            historyNode={!isRailConversationShell ? (
+              isFocusedCopilotShell ? (
                 <FocusedHistoryRail
                   activeConversationId={activeConversationId}
                   activeProjectLabel={activeProjectLabel}
@@ -2802,7 +2802,7 @@ const [uiToasts, setUiToasts] = useState([]);
                   setShowArchived={setShowArchived}
                   showArchived={showArchived}
                 />
-                ) : (
+              ) : (
                 <DotobotStandardHistoryRail
                   activeConversationId={activeConversationId}
                   activeProjectLabel={activeProjectLabel}
@@ -2838,101 +2838,22 @@ const [uiToasts, setUiToasts] = useState([]);
                   showArchived={showArchived}
                   workspaceNavigatorItems={workspaceNavigatorItems}
                 />
-                )
-                ) : null}
-
-                {isConversationCentricShell ? (
-                <FocusedConversationCenter
-                  activeConversation={activeConversation}
-                  activeMode={activeMode}
-                  activeProjectLabel={activeProjectLabel}
-                  attachments={attachments}
-                  centerShellClass={centerShellClass}
-                  composerBlockedReason={composerBlockedReason}
-                  composerRef={composerRef}
-                  error={error}
-                  focusedConversationColumnClass={focusedConversationColumnClass}
-                  formatBytes={formatBytes}
-                  handleComposerKeyDown={handleComposerKeyDown}
-                  handleCopyMessage={handleCopyMessage}
-                  handleDrop={handleDrop}
-                  handleLocalStackAction={handleLocalStackAction}
-                  handleMessageAction={handleMessageAction}
-                  handleOpenFiles={handleOpenFiles}
-                  handleOpenMessageInAiTask={handleOpenMessageInAiTask}
-                  handlePaste={handlePaste}
-                  handleQuickAction={handleQuickAction}
-                  handleReuseMessage={handleReuseMessage}
-                  handleSlashCommand={handleSlashCommand}
-                  handleSubmit={handleSubmit}
-                  input={input}
-                  isComposerBlocked={isComposerBlocked}
-                  isLightTheme={isLightTheme}
-                  isRecording={isRecording}
-                  loading={loading}
-                  localInferenceAlert={localInferenceAlert}
-                  messages={messages}
-                  onOpenAiTask={() => router.push("/interno/ai-task")}
-                  scrollRef={scrollRef}
-                  setInput={setInput}
-                  setShowSlashCommands={setShowSlashCommands}
-                  showSlashCommands={showSlashCommands}
-                  slashCommands={SLASH_COMMANDS}
-                  toggleVoiceInput={toggleVoiceInput}
-                  visibleLegalActions={visibleLegalActions}
-                />
-                ) : (
-                <DotobotStandardConversationCenter
-                  activeConversation={activeConversation}
-                  activeMode={activeMode}
-                  activeProjectLabel={activeProjectLabel}
-                  attachments={attachments}
-                  centerShellClass={centerShellClass}
-                  composerBlockedReason={composerBlockedReason}
-                  composerRef={composerRef}
-                  error={error}
-                  focusedConversationColumnClass={focusedConversationColumnClass}
-                  formatBytes={formatBytes}
-                  handleComposerKeyDown={handleComposerKeyDown}
-                  handleCopyMessage={handleCopyMessage}
-                  handleDrop={handleDrop}
-                  handleLocalStackAction={handleLocalStackAction}
-                  handleMessageAction={handleMessageAction}
-                  handleOpenFiles={handleOpenFiles}
-                  handleOpenMessageInAiTask={handleOpenMessageInAiTask}
-                  handlePaste={handlePaste}
-                  handleQuickAction={handleQuickAction}
-                  handleResetChat={handleResetChat}
-                  handleReuseMessage={handleReuseMessage}
-                  handleSlashCommand={handleSlashCommand}
-                  handleSubmit={handleSubmit}
-                  input={input}
-                  isComposerBlocked={isComposerBlocked}
-                  isConversationCentricShell={isConversationCentricShell}
-                  isLightTheme={isLightTheme}
-                  isRecording={isRecording}
-                  loading={loading}
-                  localInferenceAlert={localInferenceAlert}
-                  messages={messages}
-                  onChangeInput={(value) => {
-                    setInput(value);
-                    setShowSlashCommands(value.trimStart().startsWith("/"));
-                  }}
-                  onOpenAiTask={() => router.push("/interno/ai-task")}
-                  onOpenLlmTest={openLlmTest}
-                  openPrompt={input}
-                  provider={provider}
-                  scrollRef={scrollRef}
-                  showSlashCommands={showSlashCommands}
-                  slashCommands={SLASH_COMMANDS}
-                  toggleVoiceInput={toggleVoiceInput}
-                  visibleLegalActions={visibleLegalActions}
-                  visibleQuickPrompts={visibleQuickPrompts}
-                />
-                )}
-
-                {!isRailConversationShell ? (
-                isFocusedCopilotShell ? (
+              )
+            ) : null}
+            isFocusedCopilotShell={isFocusedCopilotShell}
+            isLightTheme={isLightTheme}
+            onResetChat={handleResetChat}
+            outerClassName={embeddedInInternoShell
+              ? suppressInnerChrome
+                ? "relative min-h-0 h-full overflow-hidden"
+                : isLightTheme
+                  ? "relative min-h-0 h-full overflow-hidden rounded-[28px] border border-[#D7DEE8] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.08),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,248,252,0.98))]"
+                  : "relative min-h-0 h-full overflow-hidden rounded-[28px] border border-[#1C2623] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.1),transparent_24%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.97))]"
+              : isLightTheme
+                ? "fixed inset-0 z-[70] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.08),transparent_26%),linear-gradient(180deg,rgba(239,243,248,0.98),rgba(228,234,241,0.96))] backdrop-blur-xl"
+                : "fixed inset-0 z-[70] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.14),transparent_26%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.96))] backdrop-blur-xl"}
+            rightNode={!isRailConversationShell ? (
+              isFocusedCopilotShell ? (
                 <FocusedCopilotAside
                   activeRightPanelMeta={activeRightPanelMeta}
                   activeTaskLabel={activeTaskLabel}
@@ -2949,7 +2870,7 @@ const [uiToasts, setUiToasts] = useState([]);
                   setRightPanelTab={setRightPanelTab}
                   taskHistory={taskHistory}
                 />
-                ) : (
+              ) : (
                 <GenericCopilotRightRail
                   activeConversation={activeConversation}
                   activeConversationPreview={activeConversationPreview}
@@ -3005,13 +2926,13 @@ const [uiToasts, setUiToasts] = useState([]);
                   updateAgentLabQueueItemStatus={updateAgentLabQueueItemStatus}
                   useCondensedRightRail={useCondensedRightRail}
                 />
-                )
-                ) : null}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+              )
+            ) : null}
+            shellClassName={`ml-auto flex h-full ${workspaceShellWidthClass} flex-col ${isLightTheme ? "border-l border-[#D7DEE8] bg-[rgba(255,255,255,0.72)]" : "border-l border-[#1C2623]/70 bg-[rgba(4,7,6,0.68)]"} shadow-[-24px_0_54px_rgba(0,0,0,0.24)]`}
+            suppressInnerChrome={suppressInnerChrome}
+            uiToasts={uiToasts}
+          />
+        ) : null}
 
       <input ref={fileInputRef} type="file" multiple hidden accept=".pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,.webp,.mp3,.wav,.m4a,application/pdf,text/plain,image/*,audio/*" onChange={handleFilesSelected} />
     </>

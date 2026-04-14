@@ -7,40 +7,27 @@ import InternoSettingsModal from "./layout/InternoSettingsModal";
 import InternoShellContent from "./layout/InternoShellContent";
 import InternoShellRightRail from "./layout/InternoShellRightRail";
 import InternoShellHeader from "./layout/InternoShellHeader";
-import {
-  buildCoverageCards,
-  deriveModuleSafeWindow,
-  PRIORITY_MODULE_KEYS,
-  summarizeModuleAlert,
-} from "./layout/moduleCoverage";
 import InternoSidebar from "./layout/InternoSidebar";
 import {
   getFingerprintStatusTone,
   getSeverityTone,
 } from "./layout/consoleSummary";
 import { getConsoleHeightLimits } from "./layout/consolePlaybooks";
-import { NAV_ITEMS } from "./layout/sidebarConfig";
 import { useInternoConsoleActions } from "./layout/useInternoConsoleActions";
 import { useInternoConsoleAnalytics } from "./layout/useInternoConsoleAnalytics";
+import useInternoConsoleState from "./layout/useInternoConsoleState";
 import { useInternoLayoutDerived } from "./layout/useInternoLayoutDerived";
 import { useInternoShellUi } from "./layout/useInternoShellUi";
 import { useInternoShellState } from "./layout/useInternoShellState";
 import {
   clearActivityLog,
-  getActivityLogFilters,
-  getFrontendIssues,
-  getFingerprintStates,
-  getSchemaIssues,
-  setModuleHistory as persistModuleHistory,
   setFingerprintState,
-  subscribeActivityLog,
   setActivityLogFilters,
 } from "../../lib/admin/activity-log";
 import {
   SPECIAL_LOG_PANES,
   TAG_LOG_PANES,
 } from "../../lib/admin/console-log-utils.js";
-import { inferModuleKeyFromPathname } from "../../lib/admin/module-registry.js";
 
 export default function InternoLayout({
   title,
@@ -85,13 +72,6 @@ export default function InternoLayout({
     shouldRenderDotobotRail,
     shouldStartWithOpenRail,
   });
-  const [activityLog, setActivityLog] = useState([]);
-  const [archivedLogs, setArchivedLogs] = useState([]);
-  const [operationalNotes, setOperationalNotes] = useState([]);
-  const [frontendIssues, setFrontendIssues] = useState(() => getFrontendIssues());
-  const [fingerprintStates, setFingerprintStates] = useState(() => getFingerprintStates());
-  const [schemaIssues, setSchemaIssues] = useState(() => getSchemaIssues());
-  const [moduleHistory, setModuleHistory] = useState({});
   const [noteInput, setNoteInput] = useState("");
   const [frontendForm, setFrontendForm] = useState({
     page: "",
@@ -109,7 +89,6 @@ export default function InternoLayout({
   const [headerSearch, setHeaderSearch] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [logFilters, setLogFilters] = useState(() => getActivityLogFilters());
   const [logSearch, setLogSearch] = useState("");
   const deferredLogSearch = useDeferredValue(logSearch);
   const [logExpanded, setLogExpanded] = useState(null);
@@ -118,106 +97,31 @@ export default function InternoLayout({
   const settingsModalRef = useRef(null);
   const userMenuRef = useRef(null);
 
-  useEffect(() => {
-    return subscribeActivityLog((entries, archives, notes, filters, frontendItems, schemaItems, moduleSnapshot, fingerprintSnapshot) => {
-      setActivityLog(entries);
-      setArchivedLogs(archives || []);
-      setOperationalNotes(notes || []);
-      setFrontendIssues(frontendItems || []);
-      setSchemaIssues(schemaItems || []);
-      setFingerprintStates(fingerprintSnapshot && typeof fingerprintSnapshot === "object" ? fingerprintSnapshot : {});
-      if (moduleSnapshot && typeof moduleSnapshot === "object") {
-        setModuleHistory(moduleSnapshot);
-      }
-      setLogFilters(filters && typeof filters === "object" ? filters : {});
-    });
-  }, []);
-
-  const archivedCount = archivedLogs.length;
-  const lastArchiveAt = archivedLogs[0]?.createdAt || null;
-  const formattedArchiveHint = useMemo(() => {
-    if (!lastArchiveAt) return "Sem arquivos ainda";
-    const date = new Date(lastArchiveAt);
-    return `Ultimo arquivo: ${date.toLocaleString("pt-BR")}`;
-  }, [lastArchiveAt]);
-  const coverageCards = useMemo(() => buildCoverageCards(moduleHistory), [moduleHistory]);
-  const currentModuleKey = useMemo(() => inferModuleKeyFromPathname(router.pathname), [router.pathname]);
-  const coverageSummary = useMemo(() => ({
-    routeCount: new Set(coverageCards.map((item) => item.routePath).filter(Boolean)).size,
-    errorCount: coverageCards.filter((item) => item.tone === "danger").length,
-  }), [coverageCards]);
-  const moduleAlerts = useMemo(() => {
-    const map = new Map();
-    for (const card of coverageCards) {
-      if (!PRIORITY_MODULE_KEYS.has(card.key)) continue;
-      const alert = summarizeModuleAlert(card.key, activityLog, fingerprintStates);
-      map.set(card.key, {
-        ...alert,
-        safeWindow: deriveModuleSafeWindow(card.key, card.snapshot, alert),
-      });
-    }
-    return map;
-  }, [activityLog, coverageCards, fingerprintStates]);
-
-  useEffect(() => {
-    persistModuleHistory("interno-shell", {
-      routePath: router.pathname,
-      shell: "interno",
-      title,
-      description,
-      consoleOpen,
-      consoleTab,
-      logPane,
-      copilotOpen,
-      navItems: NAV_ITEMS.length,
-      archivedCount,
-      recentLogCount: activityLog.length,
-      frontendIssueCount: frontendIssues.length,
-      schemaIssueCount: schemaIssues.length,
-      updatedAt: new Date().toISOString(),
-    });
-  }, [
-    activityLog.length,
+  const {
+    activityLog,
     archivedCount,
-    consoleOpen,
-    consoleTab,
-    copilotOpen,
-    description,
-    frontendIssues.length,
-    logPane,
-    router.pathname,
-    schemaIssues.length,
-    title,
-  ]);
-
-  useEffect(() => {
-    if (!currentModuleKey) return;
-    persistModuleHistory(currentModuleKey, {
-      routePath: router.pathname,
-      title,
-      description,
-      shell: "interno-page",
-      consoleOpen,
-      consoleTab,
-      logPane,
-      copilotOpen,
-      coverage: {
-        routeTracked: true,
-        consoleIntegrated: true,
-        rightRailEnabled: shouldRenderDotobotRail,
-      },
-    });
-  }, [
-    consoleOpen,
-    consoleTab,
-    copilotOpen,
+    coverageCards,
+    coverageSummary,
     currentModuleKey,
+    fingerprintStates,
+    formattedArchiveHint,
+    frontendIssues,
+    logFilters,
+    moduleAlerts,
+    moduleHistory,
+    operationalNotes,
+    schemaIssues,
+    setLogFilters,
+  } = useInternoConsoleState({
+    consoleOpen,
+    consoleTab,
+    copilotOpen,
     description,
     logPane,
-    router.pathname,
+    pathname: router.pathname,
     shouldRenderDotobotRail,
     title,
-  ]);
+  });
 
   const { handleHeaderSearchSelect, handleStartResize, headerSearchResults } = useInternoShellUi({
     consoleHeight,
