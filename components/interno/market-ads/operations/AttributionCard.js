@@ -1,3 +1,4 @@
+import { useInternalTheme } from "../../InternalThemeProvider";
 import { Tag, money } from "../shared";
 
 export default function AttributionCard({
@@ -10,20 +11,21 @@ export default function AttributionCard({
   persistedTemplates,
   saveAttribution,
 }) {
+  const { isLightTheme } = useInternalTheme();
   return (
-    <div className="rounded-[20px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
+    <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="font-semibold text-[#F7F2E8]">Atribuicao real de leads</p>
+        <p className={`font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F7F2E8]"}`}>Atribuicao real de leads</p>
         <Tag tone="accent">{data.attributionAnalytics?.summary || "Sem atribuicoes ainda"}</Tag>
       </div>
-      {attributionState.error ? <p className="mt-3 text-sm text-[#F8C5C5]">{attributionState.error}</p> : null}
+      {attributionState.error ? <p className={`mt-3 text-sm ${isLightTheme ? "text-[#B25E5E]" : "text-[#F8C5C5]"}`}>{attributionState.error}</p> : null}
       <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <select value={attributionForm.campaignId} onChange={(event) => setAttributionForm({ ...attributionForm, campaignId: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"><option value="">Selecionar campanha</option>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select>
-        <select value={attributionForm.adItemId} onChange={(event) => setAttributionForm({ ...attributionForm, adItemId: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"><option value="">Selecionar anuncio</option>{adItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-        <select value={attributionForm.templateId} onChange={(event) => setAttributionForm({ ...attributionForm, templateId: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"><option value="">Selecionar template</option>{persistedTemplates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-        <select value={attributionForm.stage} onChange={(event) => setAttributionForm({ ...attributionForm, stage: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-[#0A0F0D] px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]"><option value="lead">lead</option><option value="qualificado">qualificado</option><option value="atendimento">atendimento</option><option value="cliente">cliente</option></select>
-        <input value={attributionForm.leadName} onChange={(event) => setAttributionForm({ ...attributionForm, leadName: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Nome do lead" />
-        <input value={attributionForm.value} onChange={(event) => setAttributionForm({ ...attributionForm, value: event.target.value })} className="rounded-[18px] border border-[#22342F] bg-transparent px-4 py-3 text-sm text-[#F5F1E8] outline-none focus:border-[#C5A059]" placeholder="Valor" />
+        <select value={attributionForm.campaignId} onChange={(event) => setAttributionForm({ ...attributionForm, campaignId: event.target.value })} className={`rounded-[18px] border px-4 py-3 text-sm outline-none focus:border-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#152421]" : "border-[#22342F] bg-[#0A0F0D] text-[#F5F1E8]"}`}><option value="">Selecionar campanha</option>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select>
+        <select value={attributionForm.adItemId} onChange={(event) => setAttributionForm({ ...attributionForm, adItemId: event.target.value })} className={`rounded-[18px] border px-4 py-3 text-sm outline-none focus:border-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#152421]" : "border-[#22342F] bg-[#0A0F0D] text-[#F5F1E8]"}`}><option value="">Selecionar anuncio</option>{adItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+        <select value={attributionForm.templateId} onChange={(event) => setAttributionForm({ ...attributionForm, templateId: event.target.value })} className={`rounded-[18px] border px-4 py-3 text-sm outline-none focus:border-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#152421]" : "border-[#22342F] bg-[#0A0F0D] text-[#F5F1E8]"}`}><option value="">Selecionar template</option>{persistedTemplates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+        <select value={attributionForm.stage} onChange={(event) => setAttributionForm({ ...attributionForm, stage: event.target.value })} className={`rounded-[18px] border px-4 py-3 text-sm outline-none focus:border-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#152421]" : "border-[#22342F] bg-[#0A0F0D] text-[#F5F1E8]"}`}><option value="lead">lead</option><option value="qualificado">qualificado</option><option value="atendimento">atendimento</option><option value="cliente">cliente</option></select>
+        <input value={attributionForm.leadName} onChange={(event) => setAttributionForm({ ...attributionForm, leadName: event.target.value })} className={`rounded-[18px] border px-4 py-3 text-sm outline-none focus:border-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#152421]" : "border-[#22342F] bg-transparent text-[#F5F1E8]"}`} placeholder="Nome do lead" />
+        <input value={attributionForm.value} onChange={(event) => setAttributionForm({ ...attributionForm, value: event.target.value })} className={`rounded-[18px] border px-4 py-3 text-sm outline-none focus:border-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#152421]" : "border-[#22342F] bg-transparent text-[#F5F1E8]"}`} placeholder="Valor" />
       </div>
       <div className="mt-4 flex flex-wrap gap-3">
         <button type="button" onClick={saveAttribution} disabled={attributionState.loading} className="rounded-full border border-[#C5A059] bg-[#C5A059] px-5 py-3 text-sm font-semibold text-[#07110E] disabled:opacity-50">

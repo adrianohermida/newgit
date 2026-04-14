@@ -1715,7 +1715,7 @@ export default function InternoLayout({
                 </button>
               </div>
             </div>
-          <div className={`flex shrink-0 items-center gap-2 rounded-[16px] border px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.84)]" : "border-[#1F2D29] bg-[rgba(255,255,255,0.02)]"}`}>
+          <div className={`[&_span.text-lg]:hidden flex shrink-0 items-center gap-2 rounded-[16px] border px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#D5DEE9] bg-[rgba(255,255,255,0.84)]" : "border-[#1F2D29] bg-[rgba(255,255,255,0.02)]"}`}>
             <button
               type="button"
               onClick={handlePageDebug}

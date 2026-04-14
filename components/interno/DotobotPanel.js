@@ -2784,7 +2784,7 @@ const [uiToasts, setUiToasts] = useState([]);
       ? "grid-cols-1"
       : effectiveWorkspaceLayout === "immersive"
       ? isFocusedCopilotShell
-        ? "lg:grid-cols-[432px_minmax(0,1fr)_304px] xl:grid-cols-[448px_minmax(0,1fr)_320px] 2xl:grid-cols-[468px_minmax(0,1fr)_336px]"
+        ? "lg:grid-cols-[396px_minmax(0,1fr)_276px] xl:grid-cols-[412px_minmax(0,1fr)_292px] 2xl:grid-cols-[428px_minmax(0,1fr)_308px]"
         : "lg:grid-cols-[320px_minmax(0,1.6fr)_320px] xl:grid-cols-[360px_minmax(0,2.05fr)_360px] 2xl:grid-cols-[420px_minmax(0,2.45fr)_420px]"
       : effectiveWorkspaceLayout === "balanced"
         ? "lg:grid-cols-[220px_minmax(0,1.25fr)_240px] xl:grid-cols-[240px_minmax(0,1.5fr)_260px] 2xl:grid-cols-[260px_minmax(0,1.65fr)_280px]"
@@ -3109,7 +3109,7 @@ const [uiToasts, setUiToasts] = useState([]);
               ) : null}
               {showConversationCockpitCards ? <div className="mt-4 grid gap-3">
                 <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#E6D29A] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.12),transparent_60%),#FFFDF7]" : "border-[#3C3320] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.14),transparent_60%),rgba(255,255,255,0.02)]"}`}>
-                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#9A6E2D]" : "text-[#D9B46A]"}`}>Cockpit ativo</p>
+                  <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#9A6E2D]" : "text-[#D9B46A]"}`}>Resumo da conversa</p>
                   <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeConversation?.title || "Nova conversa"}</p>
                   <p className={`mt-2 line-clamp-3 text-[12px] leading-6 ${isLightTheme ? "text-[#51606B]" : "text-[#C6D1CC]"}`}>{activeConversationPreview}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -3997,86 +3997,54 @@ const [uiToasts, setUiToasts] = useState([]);
                 ))}
               </div>
             ) : null}
-            {!suppressInnerChrome ? (
+            {!suppressInnerChrome && (
             <header className={`border-b backdrop-blur-xl ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,248,252,0.96))]" : "border-[#22342F]/80 bg-[linear-gradient(180deg,rgba(11,14,13,0.82),rgba(7,10,9,0.78))]"} ${isFocusedCopilotShell ? "px-4 py-3 md:px-5" : "px-4 py-4 md:px-5"}`}>
-              {isFocusedCopilotShell ? (
+              {isFocusedCopilotShell && (
                 <div className="flex flex-col gap-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] ${activeStatus === "processing" ? "border-[#8b6f33] text-[#D9B46A]" : "border-[#234034] text-[#80C7A1]"}`}>
-                          <span className={`h-2 w-2 rounded-full ${activeStatus === "processing" ? "bg-[#D9B46A]" : "bg-[#80C7A1]"}`} />
-                          {activeStatus === "processing" ? "Processando" : "Online"}
-                        </span>
                         <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                           {activeProjectLabel}
                         </span>
-                        <span className={`rounded-full border px-3 py-1.5 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
-                          {messages.length} msg
+                        <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] ${activeStatus === "processing" ? "border-[#8b6f33] text-[#D9B46A]" : "border-[#234034] text-[#80C7A1]"}`}>
+                          <span className={`h-2 w-2 rounded-full ${activeStatus === "processing" ? "bg-[#D9B46A]" : "bg-[#80C7A1]"}`} />
+                          {activeStatus === "processing" ? "Processando" : "Online"}
                         </span>
                       </div>
                       <p className={`mt-3 truncate text-base font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>
                         {activeConversation?.title || "Nova conversa"}
                       </p>
                       <p className={`mt-1 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                        Histórico à esquerda, conversa ao centro e módulos fixos na lateral direita.
+                        Fluxo de conversa contínua com histórico lateral e módulos de apoio no rail direito.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => router.push("/interno/ai-task")}
-                      className={`rounded-full border px-4 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
-                    >
-                      Abrir AI Task
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {MODE_OPTIONS.map((item) => (
+                    <div className="flex flex-wrap gap-2">
                       <button
-                        key={item.value}
                         type="button"
-                        onClick={() => setMode(item.value)}
-                        className={`rounded-full border px-3 py-1.5 text-[11px] font-medium transition ${
-                          mode === item.value
-                            ? isLightTheme
-                              ? "border-[#C79B2C] bg-[#FFF6DF] text-[#8A6217]"
-                              : "border-[#C5A059] bg-[rgba(197,160,89,0.14)] text-[#F1D39A]"
-                            : isLightTheme
-                              ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]"
-                              : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"
-                        }`}
+                        onClick={handleResetChat}
+                        className={`rounded-full border px-4 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                       >
-                        {item.label}
+                        Nova conversa
                       </button>
-                    ))}
-                    <select
-                      value={provider}
-                      onChange={(event) => setProvider(normalizeWorkspaceProvider(event.target.value, providerCatalog))}
-                      aria-label="Selecionar LLM do Copilot"
-                      className={`h-9 rounded-full border px-4 text-[11px] outline-none transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] focus:border-[#9A6E2D]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)] text-[#D8DEDA] focus:border-[#C5A059]"}`}
-                    >
-                      {providerCatalog.map((item) => (
-                        <option key={item.value} value={item.value} disabled={item.disabled}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => setContextEnabled((value) => !value)}
-                      className={`rounded-full border px-3 py-1.5 text-[11px] font-medium transition ${
-                        contextEnabled
-                          ? "border-[#3E5B50] bg-[rgba(64,122,97,0.16)] text-[#A9E3C3]"
-                          : isLightTheme
-                            ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#9A6E2D] hover:text-[#9A6E2D]"
-                            : "border-[#22342F] text-[#9BAEA8] hover:border-[#35554B] hover:text-[#D8DEDA]"
-                      }`}
-                    >
-                      Contexto {contextEnabled ? "ON" : "OFF"}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => router.push("/interno/ai-task")}
+                        className={`rounded-full border px-4 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
+                      >
+                        AI Task
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => router.push("/interno/agentlab/conversations")}
+                        className={`rounded-full border px-4 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
+                      >
+                        AgentLabs
+                      </button>
+                    </div>
                   </div>
                 </div>
-              ) : null}
+              )}
               <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-3">
@@ -4178,8 +4146,8 @@ const [uiToasts, setUiToasts] = useState([]);
                       <div className={`rounded-[20px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Atalhos do cockpit</p>
-                            <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Shell pronto para operar como painel lateral.</p>
+                            <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Atalhos rápidos</p>
+                            <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>Conversa pronta para operar no shell interno.</p>
                           </div>
                           <span className={`rounded-full border px-3 py-1.5 text-[10px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] text-[#D8DEDA]"}`}>
                             {routePath === "/interno/copilot" ? "fullscreen ativo" : "painel lateral"}
@@ -4317,12 +4285,12 @@ const [uiToasts, setUiToasts] = useState([]);
                     ))}
                   </select> : null}
                   {isConversationCentricShell ? (
-                    <div className="flex flex-wrap gap-2">
-                      <span className={`rounded-full border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] bg-[rgba(7,9,8,0.72)] text-[#D8DEDA]"}`}>
-                        Conversa centralizada
-                      </span>
-                      <span className={`rounded-full border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] bg-[rgba(7,9,8,0.72)] text-[#D8DEDA]"}`}>
+                    <div className={`flex min-w-0 items-center gap-3 text-xs ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
+                      <span className={`rounded-full border px-3 py-2 ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B]" : "border-[#22342F] bg-[rgba(7,9,8,0.72)] text-[#D8DEDA]"}`}>
                         {activeProjectLabel}
+                      </span>
+                      <span className="truncate">
+                        Conversa contínua com histórico, contexto e módulos laterais.
                       </span>
                     </div>
                   ) : null}
@@ -4346,8 +4314,17 @@ const [uiToasts, setUiToasts] = useState([]);
                     onClick={() => router.push("/interno/ai-task")}
                     className={`rounded-full border px-4 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                   >
-                    Abrir no AI Task
+                    {isConversationCentricShell ? "AI Task" : "Abrir no AI Task"}
                   </button>
+                  {isConversationCentricShell ? (
+                    <button
+                      type="button"
+                      onClick={() => router.push("/interno/agentlab/conversations")}
+                      className={`rounded-full border px-4 py-2 text-xs transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
+                    >
+                      AgentLab
+                    </button>
+                  ) : null}
                   {!isConversationCentricShell ? [
                     { id: "snap", label: "Snap" },
                     { id: "balanced", label: "Balanceado" },
@@ -4403,7 +4380,7 @@ const [uiToasts, setUiToasts] = useState([]);
                 </div>
               </div>
             </header>
-            ) : null}
+            )}
 
             <div className={`flex-1 overflow-hidden ${focusedShellContentClass}`}>
               <div className={`grid h-full min-h-0 transition-all duration-300 ease-out ${workspaceGridGapClass} ${workspaceShellGridClass}`}>
@@ -4654,9 +4631,20 @@ const [uiToasts, setUiToasts] = useState([]);
                               {activeProjectLabel}
                             </span>
                             <span>{messages.length} mensagem(ns)</span>
+                            <span>{activeMode.label}</span>
                           </div>
+                          <p className={`mt-2 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
+                            Concatene diálogos, recupere contexto e delegue para AI Task sem sair da conversa.
+                          </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setRightPanelTab("ai-task")}
+                            className={`rounded-full border px-3 py-1.5 text-[11px] transition ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#51606B] hover:border-[#9A6E2D] hover:text-[#9A6E2D]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
+                          >
+                            AI Task
+                          </button>
                           <button
                             type="button"
                             onClick={() => setRightPanelTab("agentlabs")}
@@ -4782,7 +4770,7 @@ const [uiToasts, setUiToasts] = useState([]);
                         <div className={`mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
                           <div className="flex flex-wrap items-center gap-2">
                             <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>
-                              {isConversationCentricShell ? "Conversa ativa" : `/${showSlashCommands ? "comandos ativos" : "comandos"}`}
+                              {isConversationCentricShell ? `${activeMode.label} · ${contextEnabled ? "contexto ativo" : "contexto reduzido"}` : `/${showSlashCommands ? "comandos ativos" : "comandos"}`}
                             </span>
                             {!isConversationCentricShell ? (
                               <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F]"}`}>Enter envia</span>
@@ -4886,12 +4874,12 @@ const [uiToasts, setUiToasts] = useState([]);
                     <div className="flex flex-col gap-3">
                       <div>
                         <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
-                          {isFocusedCopilotShell ? "Sidebar direita" : "Painel"}
+                          {isFocusedCopilotShell ? "Módulos" : "Painel"}
                         </p>
                         <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeRightPanelMeta.title}</p>
                         <p className={`mt-1 max-w-[19rem] text-[11px] leading-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#7F928C]"}`}>
                           {isFocusedCopilotShell
-                            ? "Módulos, subtarefas e contexto auxiliar sem competir com a conversa central."
+                            ? "Contexto operacional, subtarefas e AgentLabs como apoio lateral da conversa."
                             : activeRightPanelMeta.detail}
                         </p>
                       </div>
