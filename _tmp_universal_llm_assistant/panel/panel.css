@@ -84,7 +84,7 @@ button,input,textarea,select{font:inherit}
 .hero-pill{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:var(--surface);border:1px solid var(--border);font-size:10px;font-weight:700;color:var(--text-soft);letter-spacing:.04em;text-transform:uppercase}
 
 .memory-strip,.asset-group-strip,.runtime-strip{margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 10px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
-.memory-strip.hidden,.asset-group-strip.hidden,.runtime-strip.hidden{display:none}
+.memory-strip.hidden,.asset-group-strip.hidden,.runtime-strip.hidden,.queue-strip.hidden{display:none}
 .asset-group-strip,.runtime-strip{justify-content:space-between}
 .asset-group-strip-main,.asset-group-strip-actions,.runtime-strip-main{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .memory-badge,.asset-group-badge,.runtime-badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
@@ -97,6 +97,22 @@ button,input,textarea,select{font:inherit}
 .runtime-badge.error{background:rgba(180,35,24,.1);color:var(--danger)}
 .memory-strip-text,.asset-group-meta,.runtime-strip-text,.runtime-strip-queue,.inline-status,.list-item-meta,.test-result,.test-detail{font-size:11px;color:var(--text-soft);line-height:1.45}
 .asset-group-text{font-size:12px;font-weight:700;color:var(--text)}
+.queue-strip{margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
+.queue-strip-head,.queue-card-head,.queue-card-actions{display:flex;align-items:center;gap:8px}
+.queue-strip-head{justify-content:space-between;margin-bottom:8px}
+.queue-strip-title{font-size:11px;font-weight:800;color:var(--text);letter-spacing:.04em;text-transform:uppercase}
+.queue-strip-summary{font-size:11px;color:var(--text-soft)}
+.queue-list{display:grid;gap:8px}
+.queue-card{padding:9px 10px;border:1px solid var(--border);border-radius:12px;background:var(--bg-soft)}
+.queue-card-active{background:linear-gradient(180deg,var(--surface) 0%,var(--bg-elev) 100%);border-color:var(--border-strong)}
+.queue-card-head{justify-content:space-between}
+.queue-card-actions{justify-content:flex-end;flex-wrap:wrap}
+.queue-card-text{margin-top:6px;font-size:12px;line-height:1.55;color:var(--text)}
+.queue-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;background:var(--surface-2);font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text-soft)}
+.queue-badge.active{background:rgba(181,71,8,.12);color:var(--warning)}
+.queue-btn{padding:4px 8px;border:1px solid var(--border);border-radius:999px;background:var(--surface);font-size:10px;font-weight:700;color:var(--text-soft);cursor:pointer}
+.queue-btn:hover{background:var(--surface-2);color:var(--text)}
+.queue-btn.danger{color:var(--danger)}
 .chat-area{display:flex;flex-direction:column;gap:12px;padding:2px 2px 18px}
 
 .view-toolbar{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px;flex-shrink:0}
@@ -172,6 +188,10 @@ button,input,textarea,select{font:inherit}
 .automation-replay-status.running{border-color:rgba(181,71,8,.28);background:rgba(181,71,8,.05)}
 .automation-replay-status.completed{border-color:rgba(6,118,71,.28);background:rgba(6,118,71,.05)}
 .automation-replay-status.error{border-color:rgba(180,35,24,.28);background:rgba(180,35,24,.05)}
+.automation-step-card{transition:border-color .16s ease,background .16s ease,box-shadow .16s ease}
+.automation-step-running{border-color:rgba(181,71,8,.36);background:rgba(181,71,8,.06);box-shadow:inset 0 0 0 1px rgba(181,71,8,.12)}
+.automation-step-completed{border-color:rgba(6,118,71,.32);background:rgba(6,118,71,.05)}
+.automation-step-error{border-color:rgba(180,35,24,.34);background:rgba(180,35,24,.06)}
 
 .task-status{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.04em}
 .task-status.pending,.task-status.paused{background:var(--surface-2);color:var(--text-soft)}

@@ -28,6 +28,11 @@ function createChatRouter() {
         browser_actions: ["ler_pagina", "usar_selecao", "capturar_tela", "anexar", "gravar", "replay", "ai_tasks", "click", "input", "extract", "navigate"],
         local_roots: configs.local.roots || [],
         local_apps: (configs.local.apps || []).map((item) => item.name),
+        local_skills: (configs.local.skills || []).filter((item) => item.enabled !== false).map((item) => ({
+          name: item.name,
+          path: item.path,
+          description: item.description || "",
+        })),
       },
     };
 
@@ -61,6 +66,9 @@ function createChatRouter() {
 function buildOperationalProfile(provider, configs, context) {
   const roots = Array.isArray(configs.local.roots) ? configs.local.roots.filter(Boolean) : [];
   const apps = Array.isArray(configs.local.apps) ? configs.local.apps.map((item) => item?.name).filter(Boolean) : [];
+  const skills = Array.isArray(configs.local.skills)
+    ? configs.local.skills.filter((item) => item?.enabled !== false).map((item) => item?.name).filter(Boolean)
+    : [];
   const browserActions = Array.isArray(context?.extension?.browser_actions) ? context.extension.browser_actions : [];
   return {
     persona: "assistente_operacional_navegador",
@@ -71,6 +79,7 @@ function buildOperationalProfile(provider, configs, context) {
     browser_actions: browserActions,
     local_roots: roots,
     local_apps: apps,
+    local_skills: skills,
   };
 }
 

@@ -386,7 +386,7 @@ function renderAutomationDetails(automation) {
       <div class="automation-replay-status" data-replay-status="${escHtml(automation.id)}"></div>
       <ul class="task-step-list">
         ${steps.map((step) => `
-          <li class="task-step-card">
+          <li class="task-step-card automation-step-card" data-automation-step-index="${step.index}">
             <div class="task-step-head">
               <span class="task-step-status step-pending">#${step.index + 1}</span>
               <span class="task-step-title">${escHtml(step.label || step.type || "passo")}</span>
@@ -501,7 +501,8 @@ function updateAutomationReplayStatus(host, automationId, replay) {
   if (!node) return;
   const status = String(replay?.status || "idle");
   const currentIndex = Number.isFinite(Number(replay?.currentIndex)) ? Number(replay.currentIndex) : -1;
-  const completed = Array.isArray(replay?.completedSteps) ? replay.completedSteps.length : 0;
+  const completedSteps = Array.isArray(replay?.completedSteps) ? replay.completedSteps.map((item) => Number(item)).filter((item) => Number.isFinite(item)) : [];
+  const completed = completedSteps.length;
   const total = Number.isFinite(Number(replay?.totalSteps)) ? Number(replay.totalSteps) : 0;
   const label = String(replay?.lastStepLabel || "").trim();
   const error = String(replay?.lastError || "").trim();
@@ -515,6 +516,28 @@ function updateAutomationReplayStatus(host, automationId, replay) {
     <div class="list-item-meta">${escHtml(summary || "Replay inativo.")}</div>
     ${error ? `<div class="task-step-error">${escHtml(error)}</div>` : ""}
   `;
+  updateAutomationStepCards(scope, completedSteps, currentIndex, status);
+}
+
+function updateAutomationStepCards(scope, completedSteps, currentIndex, status) {
+  const cards = scope.querySelectorAll?.("[data-automation-step-index]");
+  if (!cards?.length) return;
+  const completedSet = new Set(completedSteps);
+  cards.forEach((card) => {
+    const stepIndex = Number(card.dataset.automationStepIndex);
+    card.classList.remove("automation-step-running", "automation-step-completed", "automation-step-error");
+    if (completedSet.has(stepIndex)) {
+      card.classList.add("automation-step-completed");
+      return;
+    }
+    if (stepIndex === currentIndex && status === "running") {
+      card.classList.add("automation-step-running");
+      return;
+    }
+    if (stepIndex === currentIndex && status === "error") {
+      card.classList.add("automation-step-error");
+    }
+  });
 }
 
 function renderWorkspaceSummary(workspaceTabs = [], activeTabId = "") {

@@ -37,8 +37,12 @@ const DEFAULT_SETTINGS = {
       process.env.AICORE_LOCAL_LLM_MODEL ||
       "aetherlab-legal-local-v1",
     ).trim(),
+    alwaysAllowTabAccess: false,
+    trustedTabOrigins: [],
     roots: [],
     apps: [],
+    skillRoots: [],
+    skills: [],
   },
   cloud: {
     appUrl: cleanUrl(process.env.APP_BASE_URL || process.env.NEXTJS_APP_URL || "http://127.0.0.1:3000"),
@@ -93,6 +97,7 @@ module.exports = {
   PORT: Number(process.env.UNIVERSAL_LLM_EXTENSION_PORT || 32123),
   DIR,
   REPO_DIR,
+  USER_HOME: process.env.USERPROFILE || process.env.HOME || "",
   DATA_DIR,
   SESSIONS_DIR,
   AUTOMATIONS_DIR,

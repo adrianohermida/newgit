@@ -5,6 +5,7 @@ import { syncSession } from "./lists.js";
 import { updateChatRuntime, updateMemoryStrip } from "./dom.js";
 import { maybeSpeakAssistantReply } from "./media.js";
 import { collectWorkspaceTabs } from "./browser.js";
+import { renderPendingQueue } from "./pending-queue.js";
 
 const TASK_TOKENS = [
   "analisar", "extrair", "preencher", "abrir", "navegar",
@@ -13,6 +14,7 @@ const TASK_TOKENS = [
 
 export function bindChat(el, addMessage, addSystemMessage, renderTasks) {
   el.btnSend.addEventListener("click", () => sendMessage(el, addMessage, addSystemMessage, renderTasks));
+  el.btnCancelEdit?.addEventListener("click", () => cancelQueueEdit(el));
   el.msgInput.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || event.shiftKey) return;
     event.preventDefault();
@@ -22,11 +24,17 @@ export function bindChat(el, addMessage, addSystemMessage, renderTasks) {
     el.msgInput.style.height = "auto";
     el.msgInput.style.height = `${Math.min(el.msgInput.scrollHeight, 100)}px`;
   });
+  syncComposerState(el);
+  renderQueueState(el, addMessage, addSystemMessage, renderTasks);
 }
 
 export async function sendMessage(el, addMessage, addSystemMessage, renderTasks) {
   const text = String(el.msgInput.value || "").trim();
   if (!text) return;
+  if (state.editingQueueId) {
+    updateQueuedMessage(el, state.editingQueueId, text, addMessage, addSystemMessage, renderTasks);
+    return;
+  }
   el.msgInput.value = "";
   el.msgInput.style.height = "auto";
   enqueueOutgoingMessage(el, { text, visibleText: text }, addMessage, addSystemMessage, renderTasks);
@@ -35,11 +43,16 @@ export async function sendMessage(el, addMessage, addSystemMessage, renderTasks)
 export function enqueueOutgoingMessage(el, payload, addMessage, addSystemMessage, renderTasks) {
   const text = String(payload?.text || "").trim();
   if (!text) return;
-  const finalText = payload?.skipAssetGroup ? text : appendActiveAssetGroupContext(text);
   const visibleText = String(payload?.visibleText || text).trim();
-  if (visibleText) addMessage(el, "user", visibleText);
-  state.messages.push({ role: "user", content: finalText });
-  state.pendingMessages.push({ text: finalText, kind: payload?.kind || "chat" });
+  state.pendingMessages.push({
+    id: `queue_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    text,
+    visibleText,
+    skipAssetGroup: Boolean(payload?.skipAssetGroup),
+    kind: payload?.kind || "chat",
+    createdAt: new Date().toISOString(),
+  });
+  renderQueueState(el, addMessage, addSystemMessage, renderTasks);
   syncRuntimeStrip(el, "queued", "Sua mensagem entrou na fila do assistente.");
   pumpQueue(el, addMessage, addSystemMessage, renderTasks).catch(() => {});
 }
@@ -47,14 +60,19 @@ export function enqueueOutgoingMessage(el, payload, addMessage, addSystemMessage
 async function pumpQueue(el, addMessage, addSystemMessage, renderTasks) {
   if (state.isLoading || !state.pendingMessages.length) return;
   const current = state.pendingMessages.shift();
+  state.activeRequest = current || null;
   state.isLoading = true;
-  setLoading(el, true, current?.text || "");
+  renderQueueState(el, addMessage, addSystemMessage, renderTasks);
+  const finalText = current?.skipAssetGroup ? current.text : appendActiveAssetGroupContext(current?.text || "");
+  if (current?.visibleText) addMessage(el, "user", current.visibleText);
+  state.messages.push({ role: "user", content: finalText });
+  setLoading(el, true, current?.visibleText || current?.text || "");
   beginRuntimeLifecycle(el, current?.text || "");
 
   try {
-    const reply = isTaskIntent(current.text)
-      ? await sendTaskMessage(el, current.text, addSystemMessage, renderTasks)
-      : await sendChatMessage(current.text, (phase, text) => syncRuntimeStrip(el, phase, text));
+    const reply = isTaskIntent(finalText)
+      ? await sendTaskMessage(el, finalText, addSystemMessage, renderTasks)
+      : await sendChatMessage(finalText, (phase, text) => syncRuntimeStrip(el, phase, text));
     state.messages.push({ role: "assistant", content: reply.content });
     addMessage(el, "assistant", reply.content);
     maybeSpeakAssistantReply(reply.content);
@@ -82,8 +100,10 @@ async function pumpQueue(el, addMessage, addSystemMessage, renderTasks) {
     addSystemMessage(el, "Use Testar conexao em Config para ver a causa exata.");
   } finally {
     state.isLoading = false;
+    state.activeRequest = null;
     clearRuntimeLifecycle();
     setLoading(el, false, "");
+    renderQueueState(el, addMessage, addSystemMessage, renderTasks);
     if (state.pendingMessages.length) {
       setTimeout(() => {
         pumpQueue(el, addMessage, addSystemMessage, renderTasks).catch(() => {});
@@ -133,9 +153,11 @@ function buildTaskReply(text, result) {
 }
 
 function setLoading(el, value, userText = "") {
-  el.btnSend.disabled = false;
   const queueCount = state.pendingMessages.length + (value ? 1 : 0);
-  el.btnSend.textContent = queueCount > 1 ? `Fila ${queueCount}` : "Enviar";
+  el.btnSend.disabled = false;
+  if (!state.editingQueueId) {
+    el.btnSend.textContent = queueCount > 1 ? `Fila ${queueCount}` : "Enviar";
+  }
   clearTimeout(window.__llmTypingTimer);
   document.getElementById("typing-indicator")?.remove();
   if (!value) return;
@@ -229,4 +251,78 @@ function appendActiveAssetGroupContext(text) {
     summary ? `Itens:\n${summary}` : "",
   ].filter(Boolean).join("\n");
   return `${packageHeader}${workspaceHeader ? `\n\n${workspaceHeader}` : ""}\n\n[Pedido do usuario]\n${text}`;
+}
+
+function renderQueueState(el, addMessage, addSystemMessage, renderTasks) {
+  renderPendingQueue(el, {
+    onEdit: (id) => startQueueEdit(el, id),
+    onPrioritize: (id) => prioritizeQueuedMessage(el, id, addMessage, addSystemMessage, renderTasks),
+    onRemove: (id) => removeQueuedMessage(el, id, addMessage, addSystemMessage, renderTasks),
+  });
+  syncComposerState(el);
+}
+
+function startQueueEdit(el, itemId) {
+  const item = state.pendingMessages.find((entry) => entry.id === itemId);
+  if (!item) return;
+  state.editingQueueId = itemId;
+  el.msgInput.value = item.visibleText || item.text || "";
+  el.msgInput.focus();
+  el.msgInput.style.height = "auto";
+  el.msgInput.style.height = `${Math.min(el.msgInput.scrollHeight, 100)}px`;
+  syncComposerState(el);
+}
+
+function cancelQueueEdit(el) {
+  state.editingQueueId = "";
+  el.msgInput.value = "";
+  el.msgInput.style.height = "auto";
+  syncComposerState(el);
+}
+
+function updateQueuedMessage(el, itemId, text, addMessage, addSystemMessage, renderTasks) {
+  const nextText = String(text || "").trim();
+  if (!nextText) return;
+  state.pendingMessages = state.pendingMessages.map((item) => item.id === itemId ? {
+    ...item,
+    text: nextText,
+    visibleText: nextText,
+    updatedAt: new Date().toISOString(),
+  } : item);
+  state.editingQueueId = "";
+  el.msgInput.value = "";
+  el.msgInput.style.height = "auto";
+  renderQueueState(el, addMessage, addSystemMessage, renderTasks);
+  syncRuntimeStrip(el, state.pendingMessages.length || state.isLoading ? "queued" : "ready", "Mensagem da fila atualizada.");
+}
+
+function prioritizeQueuedMessage(el, itemId, addMessage, addSystemMessage, renderTasks) {
+  const index = state.pendingMessages.findIndex((item) => item.id === itemId);
+  if (index <= 0) {
+    renderQueueState(el, addMessage, addSystemMessage, renderTasks);
+    return;
+  }
+  const [item] = state.pendingMessages.splice(index, 1);
+  state.pendingMessages.unshift(item);
+  renderQueueState(el, addMessage, addSystemMessage, renderTasks);
+  syncRuntimeStrip(el, "queued", "Mensagem priorizada para o proximo turno.");
+}
+
+function removeQueuedMessage(el, itemId, addMessage, addSystemMessage, renderTasks) {
+  state.pendingMessages = state.pendingMessages.filter((item) => item.id !== itemId);
+  if (state.editingQueueId === itemId) {
+    state.editingQueueId = "";
+    el.msgInput.value = "";
+    el.msgInput.style.height = "auto";
+  }
+  renderQueueState(el, addMessage, addSystemMessage, renderTasks);
+  syncRuntimeStrip(el, state.pendingMessages.length || state.isLoading ? "queued" : "ready", "Mensagem removida da fila.");
+}
+
+function syncComposerState(el) {
+  const editing = Boolean(state.editingQueueId);
+  el.btnSend.textContent = editing ? "Atualizar" : "Enviar";
+  if (el.btnCancelEdit) {
+    el.btnCancelEdit.style.display = editing ? "inline-flex" : "none";
+  }
 }

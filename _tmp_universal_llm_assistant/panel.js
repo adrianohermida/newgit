@@ -5,7 +5,7 @@ import { bindChat, enqueueOutgoingMessage } from "./panel/chat.js";
 import { bindRecorder, bindUpload, injectPageText, injectSelection, openAgentTab, refreshWorkspaceContext, takeScreenshot } from "./panel/browser.js";
 import { renderAutomations, renderSessions, renderTasks, syncSession } from "./panel/lists.js";
 import { checkBridge, testProvider } from "./panel/bridge.js";
-import { fillSettingsInputs, hydrateSettings, loadLocalModelCatalog, loadSettings, saveSettings } from "./panel/settings.js";
+import { fillSettingsInputs, hydrateSettings, loadLocalModelCatalog, loadSettings, loadSkillCatalog, saveSettings } from "./panel/settings.js";
 import { installGlobalErrorHandlers, loadErrorLog, renderErrorLog } from "./panel/error-log.js";
 import { bindMediaControls } from "./panel/media.js";
 
@@ -17,6 +17,7 @@ async function initPanel() {
   const el = collectElements();
   await loadErrorLog();
   await loadSettings(el);
+  await loadSkillCatalog(el).catch(() => {});
   bindChat(el, addMessage, addSystemMessage, renderTasks);
   bindMediaControls(el, addSystemMessage, () => document.getElementById("btn-send")?.click());
   bindUpload(el, addSystemMessage, enqueueOutgoingMessage, addMessage, renderTasks);
@@ -40,6 +41,7 @@ async function initPanel() {
   el.btnSettings.addEventListener("click", async () => {
     openOverlay(el, "settings");
     await loadLocalModelCatalog(el).catch(() => {});
+    await loadSkillCatalog(el).catch(() => {});
   });
   el.btnErrors.addEventListener("click", () => openOverlay(el, "errors"));
   el.btnCloseSettings?.addEventListener("click", () => closeOverlays(el));
@@ -92,6 +94,7 @@ async function initPanel() {
   });
   el.btnTestLocal.addEventListener("click", () => testProvider("local", el.testLocalResult));
   el.btnRefreshLocalModels?.addEventListener("click", () => loadLocalModelCatalog(el).catch(() => {}));
+  el.btnRefreshSkills?.addEventListener("click", () => loadSkillCatalog(el).catch(() => {}));
   el.btnTestCloud.addEventListener("click", () => testProvider("cloud", el.testCloudResult));
   el.btnTestCf.addEventListener("click", () => testProvider("cloudflare", el.testCfResult));
 

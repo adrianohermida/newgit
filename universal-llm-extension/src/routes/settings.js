@@ -1,4 +1,6 @@
 const express = require("express");
+const fs = require("fs");
+const path = require("path");
 const { mergeSettings, loadSettings, saveSettings } = require("../storage");
 const { getConfigs } = require("../storage");
 const { probeJsonGetEndpoint } = require("../http-client");
@@ -65,7 +67,83 @@ function createSettingsRouter() {
     });
   });
 
+  router.get("/settings/skills", (_req, res) => {
+    const configs = getConfigs();
+    const roots = Array.isArray(configs.local.skillRoots) ? configs.local.skillRoots : [];
+    const discovered = discoverSkills(roots);
+    const configured = Array.isArray(configs.local.skills) ? configs.local.skills : [];
+    const merged = mergeDiscoveredSkills(discovered, configured);
+    res.json({
+      ok: true,
+      roots,
+      skills: merged,
+      count: merged.length,
+    });
+  });
+
   return router;
+}
+
+function discoverSkills(roots) {
+  const results = [];
+  const seen = new Set();
+  roots.forEach((rootPath) => walkSkillDir(rootPath, 0, results, seen));
+  return results;
+}
+
+function walkSkillDir(rootPath, depth, results, seen) {
+  const safeRoot = String(rootPath || "").trim();
+  if (!safeRoot || depth > 4 || !fs.existsSync(safeRoot)) return;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(safeRoot, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  entries.forEach((entry) => {
+    const fullPath = path.join(safeRoot, entry.name);
+    if (entry.isFile() && entry.name.toUpperCase() === "SKILL.MD") {
+      if (seen.has(fullPath)) return;
+      seen.add(fullPath);
+      results.push(readSkillDescriptor(fullPath));
+      return;
+    }
+    if (entry.isDirectory()) walkSkillDir(fullPath, depth + 1, results, seen);
+  });
+}
+
+function readSkillDescriptor(filePath) {
+  let content = "";
+  try {
+    content = fs.readFileSync(filePath, "utf8");
+  } catch {
+    content = "";
+  }
+  const lines = String(content || "").split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+  const heading = lines.find((line) => line.startsWith("# "));
+  const description = lines.find((line) => !line.startsWith("#"));
+  return {
+    name: heading ? heading.replace(/^#\s+/, "").trim() : path.basename(path.dirname(filePath)),
+    path: filePath,
+    description: description || "",
+    enabled: true,
+  };
+}
+
+function mergeDiscoveredSkills(discovered, configured) {
+  const byPath = new Map();
+  discovered.forEach((item) => byPath.set(item.path, item));
+  configured.forEach((item) => {
+    const existing = byPath.get(item.path);
+    byPath.set(item.path, {
+      ...(existing || {}),
+      ...item,
+      name: item.name || existing?.name || path.basename(path.dirname(item.path || "")),
+      description: item.description || existing?.description || "",
+      enabled: item.enabled !== false,
+    });
+  });
+  return Array.from(byPath.values()).sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
 }
 
 module.exports = {

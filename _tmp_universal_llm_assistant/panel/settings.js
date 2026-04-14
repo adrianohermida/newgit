@@ -27,6 +27,27 @@ function formatApps(values) {
   return Array.isArray(values) ? values.map((item) => JSON.stringify(item)).join("\n") : "";
 }
 
+function parseSkills(value) {
+  return parseLines(value).map((line) => {
+    const [name, skillPath, ...rest] = line.split("|").map((item) => item.trim());
+    if (!name || !skillPath) {
+      throw new Error(`Skill invalida. Use: nome | caminho | descricao opcional -> ${line}`);
+    }
+    return {
+      name,
+      path: skillPath,
+      description: rest.join(" | "),
+      enabled: true,
+    };
+  });
+}
+
+function formatSkills(values) {
+  return Array.isArray(values)
+    ? values.map((item) => [item.name, item.path, item.description].filter(Boolean).join(" | ")).join("\n")
+    : "";
+}
+
 export function fillSettingsInputs(el) {
   el.inputRuntimeUrl.value = state.settings.runtimeUrl;
   el.inputRuntimeModel.value = state.settings.runtimeModel;
@@ -38,6 +59,8 @@ export function fillSettingsInputs(el) {
   el.inputAlwaysAllowTabs.checked = !!state.settings.alwaysAllowTabAccess;
   el.inputLocalRoots.value = formatLines(state.settings.localRoots);
   el.inputLocalApps.value = formatApps(state.settings.localApps);
+  el.inputLocalSkillRoots.value = formatLines(state.settings.localSkillRoots);
+  el.inputLocalSkills.value = formatSkills(state.settings.localSkills);
   el.inputAppUrl.value = state.settings.appUrl;
   el.inputCloudBaseUrl.value = state.settings.cloudBaseUrl;
   el.inputCloudAuthToken.value = state.settings.cloudAuthToken;
@@ -55,6 +78,8 @@ export function hydrateSettings(settings) {
   state.settings.trustedTabOrigins = Array.isArray(settings.local?.trustedTabOrigins) ? settings.local.trustedTabOrigins : state.settings.trustedTabOrigins;
   state.settings.localRoots = Array.isArray(settings.local?.roots) ? settings.local.roots : state.settings.localRoots;
   state.settings.localApps = Array.isArray(settings.local?.apps) ? settings.local.apps : state.settings.localApps;
+  state.settings.localSkillRoots = Array.isArray(settings.local?.skillRoots) ? settings.local.skillRoots : state.settings.localSkillRoots;
+  state.settings.localSkills = Array.isArray(settings.local?.skills) ? settings.local.skills : state.settings.localSkills;
   state.settings.appUrl = normalizeLoopback(settings.cloud?.appUrl || state.settings.appUrl);
   state.settings.cloudBaseUrl = settings.cloud?.baseUrl || state.settings.cloudBaseUrl;
   state.settings.cloudModel = settings.cloud?.model || state.settings.cloudModel;
@@ -82,7 +107,7 @@ export async function pushBridgeSettings() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       settings: {
-        local: { runtimeUrl: state.settings.runtimeUrl, runtimeModel: state.settings.runtimeModel, alwaysAllowTabAccess: state.settings.alwaysAllowTabAccess, trustedTabOrigins: state.settings.trustedTabOrigins, roots: state.settings.localRoots, apps: state.settings.localApps },
+        local: { runtimeUrl: state.settings.runtimeUrl, runtimeModel: state.settings.runtimeModel, alwaysAllowTabAccess: state.settings.alwaysAllowTabAccess, trustedTabOrigins: state.settings.trustedTabOrigins, roots: state.settings.localRoots, apps: state.settings.localApps, skillRoots: state.settings.localSkillRoots, skills: state.settings.localSkills },
         cloud: { appUrl: state.settings.appUrl, baseUrl: state.settings.cloudBaseUrl, model: state.settings.cloudModel, authToken: state.settings.cloudAuthToken },
         cloudflare: { model: state.settings.cfModel, accountId: state.settings.cfAccountId, apiToken: state.settings.cfApiToken },
       },
@@ -99,6 +124,8 @@ export async function saveSettings(el) {
     alwaysAllowTabAccess: !!el.inputAlwaysAllowTabs.checked,
     localRoots: parseLines(el.inputLocalRoots.value),
     localApps: parseApps(el.inputLocalApps.value),
+    localSkillRoots: parseLines(el.inputLocalSkillRoots.value),
+    localSkills: parseSkills(el.inputLocalSkills.value),
     appUrl: normalizeLoopback(el.inputAppUrl.value || state.settings.appUrl),
     cloudBaseUrl: String(el.inputCloudBaseUrl.value || state.settings.cloudBaseUrl).trim(),
     cloudAuthToken: String(el.inputCloudAuthToken.value || state.settings.cloudAuthToken).trim(),
@@ -109,6 +136,40 @@ export async function saveSettings(el) {
   };
   await new Promise((resolve) => chrome.storage.local.set({ llm_settings: state.settings, llm_provider: state.provider }, resolve));
   await pushBridgeSettings();
+}
+
+export async function loadSkillCatalog(el) {
+  if (el.localSkillsResult) {
+    el.localSkillsResult.textContent = "Carregando...";
+    el.localSkillsResult.style.color = "#6b7280";
+  }
+  if (el.localSkillsDetail) el.localSkillsDetail.textContent = "";
+  try {
+    const response = await safeFetch(`${BRIDGE_URL}/settings/skills`, {}, 8000);
+    const data = await parseJsonResponse(response);
+    state.localSkillCatalog = Array.isArray(data.skills) ? data.skills : [];
+    if (state.localSkillCatalog.length && !state.settings.localSkills.length) {
+      state.settings.localSkills = state.localSkillCatalog.filter((item) => item.enabled !== false);
+      fillSettingsInputs(el);
+    }
+    if (el.localSkillsResult) {
+      el.localSkillsResult.textContent = `${state.localSkillCatalog.length} skills`;
+      el.localSkillsResult.style.color = state.localSkillCatalog.length ? "#16a34a" : "#6b7280";
+    }
+    if (el.localSkillsDetail) {
+      el.localSkillsDetail.textContent = data.roots?.length
+        ? `Roots: ${data.roots.join(" | ")}`
+        : "Nenhuma pasta de skills configurada.";
+    }
+    return data;
+  } catch (error) {
+    if (el.localSkillsResult) {
+      el.localSkillsResult.textContent = "Falha ao listar";
+      el.localSkillsResult.style.color = "#dc2626";
+    }
+    if (el.localSkillsDetail) el.localSkillsDetail.textContent = error.message || "Falha ao consultar skills.";
+    throw error;
+  }
 }
 
 export async function syncFromBridge(el) {

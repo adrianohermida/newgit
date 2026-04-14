@@ -9,6 +9,8 @@ const {
   DEFAULT_SETTINGS,
   ENV_AICORE_CANDIDATES,
   LOCAL_RUNTIME_CANDIDATES,
+  REPO_DIR,
+  USER_HOME,
   cleanUrl,
 } = require("./config");
 
@@ -73,6 +75,28 @@ function normalizeApps(values) {
     .filter((item) => item.name && item.path);
 }
 
+function normalizeSkills(values) {
+  if (!Array.isArray(values)) return [];
+  return values
+    .map((item) => ({
+      name: String(item?.name || "").trim(),
+      path: String(item?.path || "").trim(),
+      description: String(item?.description || "").trim(),
+      enabled: item?.enabled !== false,
+    }))
+    .filter((item) => item.name && item.path);
+}
+
+function defaultSkillRoots() {
+  const roots = [
+    path.join(REPO_DIR, ".agents", "skills"),
+    path.join(REPO_DIR, ".codex", "skills"),
+    USER_HOME ? path.join(USER_HOME, ".codex", "skills") : "",
+    USER_HOME ? path.join(USER_HOME, ".agents", "skills") : "",
+  ].filter(Boolean);
+  return roots.filter((item, index, list) => list.indexOf(item) === index);
+}
+
 function normalizeLoopbackUrl(value, fallback) {
   const normalized = cleanUrl(value, fallback);
   if (!normalized) return normalized;
@@ -85,8 +109,12 @@ function normalizeSettings(raw) {
     local: {
       runtimeUrl: cleanUrl(merged.local.runtimeUrl, DEFAULT_SETTINGS.local.runtimeUrl),
       runtimeModel: String(merged.local.runtimeModel || DEFAULT_SETTINGS.local.runtimeModel).trim(),
+      alwaysAllowTabAccess: Boolean(merged.local.alwaysAllowTabAccess),
+      trustedTabOrigins: normalizeStringList(merged.local.trustedTabOrigins),
       roots: normalizeStringList(merged.local.roots),
       apps: normalizeApps(merged.local.apps),
+      skillRoots: normalizeStringList(merged.local.skillRoots).length ? normalizeStringList(merged.local.skillRoots) : defaultSkillRoots(),
+      skills: normalizeSkills(merged.local.skills),
     },
     cloud: {
       appUrl: normalizeLoopbackUrl(merged.cloud.appUrl, DEFAULT_SETTINGS.cloud.appUrl),
@@ -126,8 +154,12 @@ function getConfigs() {
       candidates: localCandidates,
       runtimeCatalogCandidates,
       model: settings.local.runtimeModel,
+      alwaysAllowTabAccess: settings.local.alwaysAllowTabAccess,
+      trustedTabOrigins: settings.local.trustedTabOrigins,
       roots: settings.local.roots,
       apps: settings.local.apps,
+      skillRoots: settings.local.skillRoots,
+      skills: settings.local.skills,
     },
     cloud: settings.cloud,
     cloudflare: { ...settings.cloudflare, appUrl: settings.cloud.appUrl },

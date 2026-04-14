@@ -63,6 +63,13 @@ export function buildPanelMarkup() {
             </div>
             <span id="runtime-strip-queue" class="runtime-strip-queue"></span>
           </div>
+          <div id="queue-strip" class="queue-strip hidden">
+            <div class="queue-strip-head">
+              <div class="queue-strip-title">Fila</div>
+              <div id="queue-summary" class="queue-strip-summary"></div>
+            </div>
+            <div id="queue-list" class="queue-list"></div>
+          </div>
           <div id="workspace-strip" class="asset-group-strip hidden">
             <div class="asset-group-strip-main">
               <span class="asset-group-badge">Workspace</span>
@@ -102,6 +109,7 @@ export function buildPanelMarkup() {
         </div>
         <div class="input-row">
           <div class="textarea-wrap"><textarea id="msg-input" placeholder="Escreva a meta, pergunta ou instrucao..."></textarea></div>
+          <button id="btn-cancel-edit" class="btn-list-action ghost-btn" type="button" style="display:none">Cancelar</button>
           <button id="btn-send" class="btn-send">Enviar</button>
         </div>
         <input id="file-input" type="file" multiple />
@@ -122,7 +130,7 @@ export function buildPanelMarkup() {
           </div>
         </div>
         <div class="settings-pane">
-          <div class="setting-section"><h4>Local</h4><label>URL do ai-core<input id="input-runtime-url" /></label><label>Modelo local<input id="input-runtime-model" list="local-model-list" /><datalist id="local-model-list"></datalist></label><div class="test-row"><button id="btn-refresh-local-models" class="btn-test">Atualizar modelos</button><span id="local-models-result" class="test-result"></span></div><div id="local-models-detail" class="test-detail"></div><label class="checkbox-row"><input id="input-always-allow-tabs" type="checkbox" /> Permitir acesso recorrente do assistente as guias sem pedir toda vez</label><label>Pastas locais permitidas<textarea id="input-local-roots" rows="4" placeholder="Uma pasta por linha"></textarea></label><label>Aplicativos locais permitidos<textarea id="input-local-apps" rows="5" placeholder='JSON por linha: {"name":"Obsidian","path":"C:\\\\Users\\\\...\\\\Obsidian.exe","args":[]}'></textarea></label><div class="test-row"><button id="btn-test-local" class="btn-test">Testar conexao</button><span id="test-local-result" class="test-result"></span></div><div id="test-local-detail" class="test-detail"></div></div>
+          <div class="setting-section"><h4>Local</h4><label>URL do ai-core<input id="input-runtime-url" /></label><label>Modelo local<input id="input-runtime-model" list="local-model-list" /><datalist id="local-model-list"></datalist></label><div class="test-row"><button id="btn-refresh-local-models" class="btn-test">Atualizar modelos</button><span id="local-models-result" class="test-result"></span></div><div id="local-models-detail" class="test-detail"></div><label class="checkbox-row"><input id="input-always-allow-tabs" type="checkbox" /> Permitir acesso recorrente do assistente as guias sem pedir toda vez</label><label>Pastas locais permitidas<textarea id="input-local-roots" rows="4" placeholder="Uma pasta por linha"></textarea></label><label>Aplicativos locais permitidos<textarea id="input-local-apps" rows="5" placeholder='JSON por linha: {"name":"Obsidian","path":"C:\\\\Users\\\\...\\\\Obsidian.exe","args":[]}'></textarea></label><label>Pastas de skills<textarea id="input-local-skill-roots" rows="4" placeholder="Uma pasta por linha com SKILL.md"></textarea></label><div class="test-row"><button id="btn-refresh-skills" class="btn-test">Descobrir skills</button><span id="local-skills-result" class="test-result"></span></div><div id="local-skills-detail" class="test-detail"></div><label>Skills ativas<textarea id="input-local-skills" rows="5" placeholder="nome | caminho | descricao opcional"></textarea></label><div class="test-row"><button id="btn-test-local" class="btn-test">Testar conexao</button><span id="test-local-result" class="test-result"></span></div><div id="test-local-detail" class="test-detail"></div></div>
           <div class="setting-section"><h4>Cloud</h4><label>URL da aplicacao/proxy<input id="input-app-url" /></label><label>URL direta da API cloud<input id="input-cloud-base-url" placeholder="Opcional: https://..."/></label><label>Token cloud/admin<input id="input-cloud-auth-token" type="password" placeholder="Bearer admin ou token direto"/></label><label>Modelo cloud<input id="input-cloud-model" /></label><div class="test-row"><button id="btn-test-cloud" class="btn-test">Testar conexao</button><span id="test-cloud-result" class="test-result"></span></div><div id="test-cloud-detail" class="test-detail"></div></div>
           <div class="setting-section"><h4>Cloudflare</h4><label>Modelo Workers AI<input id="input-cf-model" /></label><label>Account ID<input id="input-cf-account-id" placeholder="Opcional"/></label><label>API Token<input id="input-cf-api-token" type="password" placeholder="Opcional"/></label><div class="test-row"><button id="btn-test-cf" class="btn-test">Testar conexao</button><span id="test-cf-result" class="test-result"></span></div><div id="test-cf-detail" class="test-detail"></div></div>
           <button id="btn-save-settings" class="btn-save">Salvar configuracoes</button>
