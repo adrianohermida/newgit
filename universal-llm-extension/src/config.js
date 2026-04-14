@@ -37,6 +37,8 @@ const DEFAULT_SETTINGS = {
       process.env.AICORE_LOCAL_LLM_MODEL ||
       "aetherlab-legal-local-v1",
     ).trim(),
+    roots: [],
+    apps: [],
   },
   cloud: {
     appUrl: cleanUrl(process.env.APP_BASE_URL || process.env.NEXTJS_APP_URL || "http://127.0.0.1:3000"),

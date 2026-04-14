@@ -46,9 +46,12 @@ export function buildPanelMarkup() {
           <button id="btn-page-text" class="act-btn">Ler pagina</button>
           <button id="btn-selection" class="act-btn">Usar selecao</button>
           <button id="btn-screenshot" class="act-btn">Capturar tela</button>
+          <button id="btn-camera" class="act-btn">Camera</button>
           <button id="btn-upload" class="act-btn">Anexar</button>
           <button id="btn-record" class="act-btn">Gravar</button>
           <button id="btn-replay" class="act-btn ghost-btn">Replay</button>
+          <button id="btn-voice" class="act-btn ghost-btn">Audio</button>
+          <button id="btn-mic" class="act-btn ghost-btn">Falar</button>
           <span id="recorder-status" class="inline-status">Parado</span>
         </div>
         <div class="input-row">
@@ -73,10 +76,30 @@ export function buildPanelMarkup() {
           </div>
         </div>
         <div class="settings-pane">
-          <div class="setting-section"><h4>Local</h4><label>URL do ai-core<input id="input-runtime-url" /></label><label>Modelo local<input id="input-runtime-model" /></label><div class="test-row"><button id="btn-test-local" class="btn-test">Testar conexao</button><span id="test-local-result" class="test-result"></span></div><div id="test-local-detail" class="test-detail"></div></div>
+          <div class="setting-section"><h4>Local</h4><label>URL do ai-core<input id="input-runtime-url" /></label><label>Modelo local<input id="input-runtime-model" /></label><label>Pastas locais permitidas<textarea id="input-local-roots" rows="4" placeholder="Uma pasta por linha"></textarea></label><label>Aplicativos locais permitidos<textarea id="input-local-apps" rows="5" placeholder='JSON por linha: {"name":"Obsidian","path":"C:\\\\Users\\\\...\\\\Obsidian.exe","args":[]}'></textarea></label><div class="test-row"><button id="btn-test-local" class="btn-test">Testar conexao</button><span id="test-local-result" class="test-result"></span></div><div id="test-local-detail" class="test-detail"></div></div>
           <div class="setting-section"><h4>Cloud</h4><label>URL da aplicacao/proxy<input id="input-app-url" /></label><label>URL direta da API cloud<input id="input-cloud-base-url" placeholder="Opcional: https://..."/></label><label>Token cloud/admin<input id="input-cloud-auth-token" type="password" placeholder="Bearer admin ou token direto"/></label><label>Modelo cloud<input id="input-cloud-model" /></label><div class="test-row"><button id="btn-test-cloud" class="btn-test">Testar conexao</button><span id="test-cloud-result" class="test-result"></span></div><div id="test-cloud-detail" class="test-detail"></div></div>
           <div class="setting-section"><h4>Cloudflare</h4><label>Modelo Workers AI<input id="input-cf-model" /></label><label>Account ID<input id="input-cf-account-id" placeholder="Opcional"/></label><label>API Token<input id="input-cf-api-token" type="password" placeholder="Opcional"/></label><div class="test-row"><button id="btn-test-cf" class="btn-test">Testar conexao</button><span id="test-cf-result" class="test-result"></span></div><div id="test-cf-detail" class="test-detail"></div></div>
           <button id="btn-save-settings" class="btn-save">Salvar configuracoes</button>
+        </div>
+      </div>
+    </section>
+    <section id="pane-camera" class="overlay-pane">
+      <div class="overlay-card camera-card">
+        <div class="view-toolbar">
+          <div class="view-title-wrap">
+            <div class="view-title">Camera</div>
+            <div class="view-subtitle">Preview local para captura de contexto visual.</div>
+          </div>
+          <div class="view-actions">
+            <button id="btn-close-camera" class="btn-list-action">Fechar</button>
+          </div>
+        </div>
+        <div class="camera-wrap">
+          <video id="camera-preview" autoplay playsinline muted></video>
+          <canvas id="camera-canvas" class="hidden"></canvas>
+        </div>
+        <div class="list-item-actions" style="margin-top:10px">
+          <button id="btn-capture-camera" class="btn-list-action">Capturar frame</button>
         </div>
       </div>
     </section>

@@ -3,6 +3,7 @@ import { callChat, runTask } from "./bridge.js";
 import { pushErrorLog } from "./error-log.js";
 import { syncSession } from "./lists.js";
 import { updateMemoryStrip } from "./dom.js";
+import { maybeSpeakAssistantReply } from "./media.js";
 
 const TASK_TOKENS = [
   "analisar", "extrair", "preencher", "abrir", "navegar",
@@ -27,11 +28,11 @@ export async function sendMessage(el, addMessage, addSystemMessage, renderTasks)
   if (!text || state.isLoading) return;
 
   state.isLoading = true;
-  setLoading(el, true);
   addMessage(el, "user", text);
   state.messages.push({ role: "user", content: text });
   el.msgInput.value = "";
   el.msgInput.style.height = "auto";
+  setLoading(el, true);
 
   try {
     const reply = isTaskIntent(text)
@@ -39,6 +40,7 @@ export async function sendMessage(el, addMessage, addSystemMessage, renderTasks)
       : await sendChatMessage(text);
     state.messages.push({ role: "assistant", content: reply.content });
     addMessage(el, "assistant", reply.content);
+    maybeSpeakAssistantReply(reply.content);
     state.localMemoryMeta = reply.metadata || null;
     updateMemoryStrip(el, state.localMemoryMeta);
     const memoryHint = buildMemoryHint(reply.metadata);
@@ -107,14 +109,18 @@ function buildTaskReply(text, result) {
 function setLoading(el, value) {
   el.btnSend.disabled = value;
   el.btnSend.textContent = value ? "..." : "Enviar";
+  clearTimeout(window.__llmTypingTimer);
   document.getElementById("typing-indicator")?.remove();
   if (!value) return;
-  const wrap = document.createElement("div");
-  wrap.id = "typing-indicator";
-  wrap.className = "message assistant";
-  wrap.innerHTML = '<div class="message-bubble typing"><span></span><span></span><span></span></div>';
-  el.chatArea.appendChild(wrap);
-  el.chatArea.scrollTop = el.chatArea.scrollHeight;
+  window.__llmTypingTimer = setTimeout(() => {
+    if (!state.isLoading) return;
+    const wrap = document.createElement("div");
+    wrap.id = "typing-indicator";
+    wrap.className = "message assistant typing-row";
+    wrap.innerHTML = '<div class="message-bubble typing"><span></span><span></span><span></span></div>';
+    el.chatArea.appendChild(wrap);
+    el.chatArea.scrollTop = el.chatArea.scrollHeight;
+  }, 450);
 }
 
 function buildMemoryHint(metadata) {

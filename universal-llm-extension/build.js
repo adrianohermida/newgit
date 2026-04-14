@@ -25,6 +25,7 @@ const INCLUDE_FILES = [
   "panel/chat.js",
   "panel/dom.js",
   "panel/error-log.js",
+  "panel/media.js",
   "panel/lists.js",
   "panel/panel.css",
   "panel/settings.js",

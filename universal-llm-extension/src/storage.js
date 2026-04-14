@@ -56,6 +56,23 @@ function mergeSettings(base, patch) {
   };
 }
 
+function normalizeStringList(values) {
+  return Array.isArray(values)
+    ? values.map((item) => String(item || "").trim()).filter(Boolean)
+    : [];
+}
+
+function normalizeApps(values) {
+  if (!Array.isArray(values)) return [];
+  return values
+    .map((item) => ({
+      name: String(item?.name || "").trim(),
+      path: String(item?.path || "").trim(),
+      args: normalizeStringList(item?.args),
+    }))
+    .filter((item) => item.name && item.path);
+}
+
 function normalizeLoopbackUrl(value, fallback) {
   const normalized = cleanUrl(value, fallback);
   if (!normalized) return normalized;
@@ -68,6 +85,8 @@ function normalizeSettings(raw) {
     local: {
       runtimeUrl: cleanUrl(merged.local.runtimeUrl, DEFAULT_SETTINGS.local.runtimeUrl),
       runtimeModel: String(merged.local.runtimeModel || DEFAULT_SETTINGS.local.runtimeModel).trim(),
+      roots: normalizeStringList(merged.local.roots),
+      apps: normalizeApps(merged.local.apps),
     },
     cloud: {
       appUrl: normalizeLoopbackUrl(merged.cloud.appUrl, DEFAULT_SETTINGS.cloud.appUrl),
@@ -107,6 +126,8 @@ function getConfigs() {
       candidates: localCandidates,
       runtimeCatalogCandidates,
       model: settings.local.runtimeModel,
+      roots: settings.local.roots,
+      apps: settings.local.apps,
     },
     cloud: settings.cloud,
     cloudflare: { ...settings.cloudflare, appUrl: settings.cloud.appUrl },

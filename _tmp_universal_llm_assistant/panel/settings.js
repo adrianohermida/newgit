@@ -5,9 +5,27 @@ function normalizeLoopback(url) {
   return String(url || "").trim().replace(/^http:\/\/localhost:3000$/i, "http://127.0.0.1:3000");
 }
 
+function parseLines(value) {
+  return String(value || "").split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+}
+
+function formatLines(values) {
+  return Array.isArray(values) ? values.join("\n") : "";
+}
+
+function parseApps(value) {
+  return parseLines(value).map((line) => JSON.parse(line)).filter((item) => item?.name && item?.path);
+}
+
+function formatApps(values) {
+  return Array.isArray(values) ? values.map((item) => JSON.stringify(item)).join("\n") : "";
+}
+
 export function fillSettingsInputs(el) {
   el.inputRuntimeUrl.value = state.settings.runtimeUrl;
   el.inputRuntimeModel.value = state.settings.runtimeModel;
+  el.inputLocalRoots.value = formatLines(state.settings.localRoots);
+  el.inputLocalApps.value = formatApps(state.settings.localApps);
   el.inputAppUrl.value = state.settings.appUrl;
   el.inputCloudBaseUrl.value = state.settings.cloudBaseUrl;
   el.inputCloudAuthToken.value = state.settings.cloudAuthToken;
@@ -21,6 +39,8 @@ export function hydrateSettings(settings) {
   if (!settings) return;
   state.settings.runtimeUrl = settings.local?.runtimeUrl || state.settings.runtimeUrl;
   state.settings.runtimeModel = settings.local?.runtimeModel || state.settings.runtimeModel;
+  state.settings.localRoots = Array.isArray(settings.local?.roots) ? settings.local.roots : state.settings.localRoots;
+  state.settings.localApps = Array.isArray(settings.local?.apps) ? settings.local.apps : state.settings.localApps;
   state.settings.appUrl = normalizeLoopback(settings.cloud?.appUrl || state.settings.appUrl);
   state.settings.cloudBaseUrl = settings.cloud?.baseUrl || state.settings.cloudBaseUrl;
   state.settings.cloudModel = settings.cloud?.model || state.settings.cloudModel;
@@ -48,6 +68,7 @@ export async function pushBridgeSettings() {
     body: JSON.stringify({
       settings: {
         local: { runtimeUrl: state.settings.runtimeUrl, runtimeModel: state.settings.runtimeModel },
+        local: { runtimeUrl: state.settings.runtimeUrl, runtimeModel: state.settings.runtimeModel, roots: state.settings.localRoots, apps: state.settings.localApps },
         cloud: { appUrl: state.settings.appUrl, baseUrl: state.settings.cloudBaseUrl, model: state.settings.cloudModel, authToken: state.settings.cloudAuthToken },
         cloudflare: { model: state.settings.cfModel, accountId: state.settings.cfAccountId, apiToken: state.settings.cfApiToken },
       },
@@ -61,6 +82,8 @@ export async function saveSettings(el) {
     ...state.settings,
     runtimeUrl: String(el.inputRuntimeUrl.value || state.settings.runtimeUrl).trim(),
     runtimeModel: String(el.inputRuntimeModel.value || state.settings.runtimeModel).trim(),
+    localRoots: parseLines(el.inputLocalRoots.value),
+    localApps: parseApps(el.inputLocalApps.value),
     appUrl: normalizeLoopback(el.inputAppUrl.value || state.settings.appUrl),
     cloudBaseUrl: String(el.inputCloudBaseUrl.value || state.settings.cloudBaseUrl).trim(),
     cloudAuthToken: String(el.inputCloudAuthToken.value || state.settings.cloudAuthToken).trim(),

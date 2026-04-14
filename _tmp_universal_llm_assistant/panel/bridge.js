@@ -6,12 +6,15 @@ import { pushErrorLog } from "./error-log.js";
 export async function checkBridge(el, updateStatusDot) {
   try {
     const data = await readBridgeHealth();
+    state.bridgeFailures = 0;
     state.bridgeOk = data.ok === true;
     updateStatusDot(el, state.bridgeOk ? "online" : "degraded");
     return data;
   } catch (error) {
-    state.bridgeOk = false;
-    updateStatusDot(el, "offline");
+    state.bridgeFailures = Number(state.bridgeFailures || 0) + 1;
+    state.bridgeOk = state.bridgeFailures < 2;
+    updateStatusDot(el, state.bridgeFailures < 2 ? "degraded" : "offline");
+    if (state.bridgeFailures < 2) return null;
     pushErrorLog({
       scope: "bridge.health",
       title: "Bridge local indisponivel",

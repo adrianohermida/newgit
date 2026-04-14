@@ -7,6 +7,7 @@ import { renderAutomations, renderSessions, renderTasks } from "./panel/lists.js
 import { checkBridge, testProvider } from "./panel/bridge.js";
 import { fillSettingsInputs, hydrateSettings, loadSettings, saveSettings } from "./panel/settings.js";
 import { installGlobalErrorHandlers, loadErrorLog, renderErrorLog } from "./panel/error-log.js";
+import { bindMediaControls } from "./panel/media.js";
 
 let bootstrapTimer = null;
 
@@ -17,6 +18,7 @@ async function initPanel() {
   await loadErrorLog();
   await loadSettings(el);
   bindChat(el, addMessage, addSystemMessage, renderTasks);
+  bindMediaControls(el, addSystemMessage, () => document.getElementById("btn-send")?.click());
   bindUpload(el, addSystemMessage);
   bindRecorder(el, addSystemMessage);
 

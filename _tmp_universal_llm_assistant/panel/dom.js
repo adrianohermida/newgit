@@ -3,7 +3,7 @@ import { PROVIDER_META, state } from "./state.js";
 import { renderErrorLog } from "./error-log.js";
 
 const TABS = ["chat", "sessions", "tasks", "automations"];
-const OVERLAYS = ["settings", "errors"];
+const OVERLAYS = ["settings", "errors", "camera"];
 
 export function collectElements() {
   return {
@@ -26,6 +26,7 @@ export function collectElements() {
     paneTasks: $("pane-tasks"),
     paneAutomations: $("pane-automations"),
     paneSettings: $("pane-settings"),
+    paneCamera: $("pane-camera"),
     paneErrors: $("pane-errors"),
     memoryStrip: $("memory-strip"),
     memoryStripBadge: $("memory-strip-badge"),
@@ -33,13 +34,22 @@ export function collectElements() {
     btnPageText: $("btn-page-text"),
     btnSelection: $("btn-selection"),
     btnScreenshot: $("btn-screenshot"),
+    btnCamera: $("btn-camera"),
     btnUpload: $("btn-upload"),
     fileInput: $("file-input"),
     btnRecord: $("btn-record"),
     btnReplay: $("btn-replay"),
+    btnVoice: $("btn-voice"),
+    btnMic: $("btn-mic"),
+    btnCloseCamera: $("btn-close-camera"),
+    btnCaptureCamera: $("btn-capture-camera"),
+    cameraPreview: $("camera-preview"),
+    cameraCanvas: $("camera-canvas"),
     recorderStatus: $("recorder-status"),
     inputRuntimeUrl: $("input-runtime-url"),
     inputRuntimeModel: $("input-runtime-model"),
+    inputLocalRoots: $("input-local-roots"),
+    inputLocalApps: $("input-local-apps"),
     inputAppUrl: $("input-app-url"),
     inputCloudBaseUrl: $("input-cloud-base-url"),
     inputCloudAuthToken: $("input-cloud-auth-token"),
