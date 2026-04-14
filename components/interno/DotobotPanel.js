@@ -29,6 +29,8 @@ import DotobotCompactComposer from "./DotobotCompactComposer";
 import DotobotCompactRuntimeDiagnostics from "./DotobotCompactRuntimeDiagnostics";
 import DotobotAccessGate from "./DotobotAccessGate";
 import DotobotConversationMenu from "./DotobotConversationMenu";
+import DotobotEmbeddedCompactRail from "./DotobotEmbeddedCompactRail";
+import DotobotEmbeddedStandardRail from "./DotobotEmbeddedStandardRail";
 import DotobotStandardHistoryRail from "./DotobotStandardHistoryRail";
 import DotobotStandardConversationCenter from "./DotobotStandardConversationCenter";
 import DotobotWorkspaceHeader from "./DotobotWorkspaceHeader";
