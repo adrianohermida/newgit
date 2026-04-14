@@ -56,7 +56,7 @@ function FocusedSidebarUserMenu({ isLightTheme, profile }) {
 
 export default function FocusedHistoryRail(props) {
   return (
-    <aside className="flex min-h-0 flex-col overflow-hidden">
+    <aside className={`flex h-full min-h-0 flex-col overflow-hidden ${props.leftRailShellClass || ""}`}>
       <FocusedHistoryRailHeader {...props} />
       <FocusedConversationGroups
         activeConversationId={props.activeConversationId}

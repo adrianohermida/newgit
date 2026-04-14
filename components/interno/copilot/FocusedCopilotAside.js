@@ -14,10 +14,10 @@ function TabButton({ active, isLightTheme, label, onClick }) {
 }
 
 export default function FocusedCopilotAside(props) {
-  const { activeRightPanelMeta, isLightTheme, rightPanelTab, setRightPanelTab } = props;
+  const { activeRightPanelMeta, isLightTheme, rightPanelTab, rightRailShellClass, setRightPanelTab } = props;
 
   return (
-    <aside className="block min-h-0 overflow-hidden border-l border-[#22342F]/40 lg:w-[336px]">
+    <aside className={`hidden h-full min-h-0 flex-col overflow-hidden xl:flex ${rightRailShellClass || ""}`}>
       <div className={`border-b px-4 py-4 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>
         <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>Apoio lateral</p>
         <p className={`mt-2 text-sm font-semibold ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{activeRightPanelMeta.title}</p>
@@ -28,7 +28,7 @@ export default function FocusedCopilotAside(props) {
         </div>
       </div>
 
-      <div className="h-[calc(100vh-14rem)] overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {rightPanelTab === "ai-task" ? <FocusedAiTaskPanel {...props} /> : <FocusedContextPanel {...props} />}
       </div>
     </aside>

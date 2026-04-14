@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import InternoUserAvatarMenu from "./InternoUserAvatarMenu";
 
 const actionButtonClass = (isLightTheme, active = false) =>
@@ -21,10 +22,12 @@ function HeaderIconButton({ active = false, children, isLightTheme, onClick, tit
 }
 
 export default function InternoShellHeader(props) {
+  const searchInputRef = useRef(null);
   const {
     consoleOpen,
     handleHeaderSearchSelect,
     handleSignOut,
+    handleToggleCopilot,
     handleToggleRightRail,
     headerSearch,
     headerSearchRef,
@@ -33,11 +36,13 @@ export default function InternoShellHeader(props) {
     isLightTheme,
     leftCollapsed,
     onChangeHeaderSearch,
+    onCloseConsole,
     onOpenSettings,
     onToggleConsole,
     onToggleLeftCollapsed,
     onToggleUserMenu,
     profile,
+    railChatOpen,
     rightRailOpen,
     router,
     setUserMenuOpen,
@@ -51,6 +56,19 @@ export default function InternoShellHeader(props) {
     { key: "settings", label: "Configuracoes", action: onOpenSettings },
     { key: "signout", label: "Sair", action: handleSignOut },
   ];
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const handleKeydown = (event) => {
+      const shouldFocusSearch = (event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === "k" || (event.shiftKey && event.key.toLowerCase() === "f"));
+      if (!shouldFocusSearch) return;
+      event.preventDefault();
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    };
+    window.addEventListener("keydown", handleKeydown);
+    return () => window.removeEventListener("keydown", handleKeydown);
+  }, []);
 
   return (
     <div
@@ -66,7 +84,7 @@ export default function InternoShellHeader(props) {
           <p className={`truncate text-xs ${isLightTheme ? "text-[#60707D]" : "text-[#9BAEA8]"}`}>{router.pathname}</p>
         </div>
 
-        <div ref={headerSearchRef} className="relative mx-auto w-full max-w-[720px]">
+        <div ref={headerSearchRef} className="relative mx-auto w-full max-w-[760px]">
           <div
             className={`flex h-11 items-center gap-3 rounded-[14px] border px-3 ${
               isLightTheme
@@ -87,14 +105,21 @@ export default function InternoShellHeader(props) {
               <path d="m20 20-3.5-3.5" />
             </svg>
             <input
+              ref={searchInputRef}
               type="text"
               value={headerSearch}
               onChange={(event) => onChangeHeaderSearch(event.target.value)}
-              placeholder="Busca global"
+              onKeyDown={(event) => {
+                if (event.key === "Escape" && headerSearch) onChangeHeaderSearch("");
+              }}
+              placeholder="Buscar em todo o workspace"
               className={`w-full bg-transparent text-sm outline-none ${
                 isLightTheme ? "text-[#22312F] placeholder:text-[#8A99A7]" : "text-[#F4F1EA] placeholder:text-[#60706A]"
               }`}
             />
+            <span className={`hidden rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] md:inline-flex ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
+              Ctrl+K
+            </span>
           </div>
           {headerSearchResults.length ? (
             <div
@@ -130,6 +155,19 @@ export default function InternoShellHeader(props) {
 
         <div className="flex items-center justify-end gap-2">
           <HeaderIconButton
+            active={Boolean(railChatOpen)}
+            isLightTheme={isLightTheme}
+            onClick={handleToggleCopilot}
+            title={railChatOpen ? "Fechar conversa lateral" : "Abrir conversa lateral"}
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M7 10h10" />
+              <path d="M7 14h6" />
+              <path d="M6 5h12a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-7l-4 3v-3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z" />
+            </svg>
+          </HeaderIconButton>
+
+          <HeaderIconButton
             active={!leftCollapsed}
             isLightTheme={isLightTheme}
             onClick={onToggleLeftCollapsed}
@@ -145,7 +183,7 @@ export default function InternoShellHeader(props) {
           <HeaderIconButton
             active={consoleOpen}
             isLightTheme={isLightTheme}
-            onClick={onToggleConsole}
+            onClick={consoleOpen ? onCloseConsole : onToggleConsole}
             title={consoleOpen ? "Fechar console" : "Abrir console"}
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">

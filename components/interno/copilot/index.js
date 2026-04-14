@@ -4,6 +4,7 @@ export { default as FocusedConversationComposer } from "./FocusedConversationCom
 export { default as FocusedConversationCenter } from "./FocusedConversationCenter";
 export { default as FocusedConversationHeader } from "./FocusedConversationHeader";
 export { default as FocusedHistoryRail } from "./FocusedHistoryRail";
+export { default as FocusedWorkspaceTopbar } from "./FocusedWorkspaceTopbar";
 export { default as GenericAgentLabsPanel } from "./GenericAgentLabsPanel";
 export { default as GenericAiTaskPanel } from "./GenericAiTaskPanel";
 export { default as GenericCopilotRightRail } from "./GenericCopilotRightRail";

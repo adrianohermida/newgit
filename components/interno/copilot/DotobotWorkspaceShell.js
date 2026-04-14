@@ -65,7 +65,7 @@ export default function DotobotWorkspaceShell(props) {
         <DotobotToastStack dismissUiToast={dismissUiToast} uiToasts={uiToasts} />
         {!suppressInnerChrome ? (
           <header className={`border-b backdrop-blur-xl ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,248,252,0.96))]" : "border-[#22342F]/80 bg-[linear-gradient(180deg,rgba(11,14,13,0.82),rgba(7,10,9,0.78))]"} ${isFocusedCopilotShell ? "px-4 py-3 md:px-5" : "px-4 py-4 md:px-5"}`}>
-            {isFocusedCopilotShell ? <WorkspaceSummary activeConversationTitle={activeConversationTitle} activeProjectLabel={activeProjectLabel} activeStatus={activeStatus} isLightTheme={isLightTheme} onResetChat={onResetChat} /> : null}
+            {isFocusedCopilotShell && !headerNode ? <WorkspaceSummary activeConversationTitle={activeConversationTitle} activeProjectLabel={activeProjectLabel} activeStatus={activeStatus} isLightTheme={isLightTheme} onResetChat={onResetChat} /> : null}
             {headerNode}
           </header>
         ) : null}

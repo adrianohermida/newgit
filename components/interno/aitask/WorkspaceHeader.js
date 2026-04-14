@@ -10,7 +10,7 @@ export default function WorkspaceHeader(props) {
   const { isLightTheme } = useInternalTheme();
   const activeProvider = providerOptions.find((item) => item.value === provider) || null;
   const providerLabel = activeProvider?.label || provider;
-  const providerSegments = String(providerLabel).split("Â·").map((item) => item.trim()).filter(Boolean);
+  const providerSegments = String(providerLabel).split(/(?:·|Â·|Ã‚Â·)/).map((item) => item.trim()).filter(Boolean);
   const providerStatus = providerSegments.slice(1).find((item) => ["operational", "degraded", "failed"].includes(String(item).toLowerCase())) || null;
   const providerTone = String(providerStatus || "").toLowerCase() === "operational" ? "success" : String(providerStatus || "").toLowerCase() === "failed" ? "danger" : "accent";
   const resolvedProviderName = activeProvider?.displayLabel || providerSegments[0] || providerLabel;

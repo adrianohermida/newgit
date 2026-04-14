@@ -5,7 +5,8 @@ export function useInternoShellState({ isCopilotWorkspace, shouldRenderDotobotRa
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(!shouldStartWithOpenRail);
   const [rightRailMode, setRightRailMode] = useState("expanded");
-  const [consoleOpen, setConsoleOpen] = useState(false);
+  const [consoleOpen, setConsoleOpen] = useState(true);
+  const [consoleExpanded, setConsoleExpanded] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(shouldStartWithOpenRail);
   const [isMobileShell, setIsMobileShell] = useState(false);
   const [consoleTab, setConsoleTab] = useState("console");
@@ -127,5 +128,5 @@ export function useInternoShellState({ isCopilotWorkspace, shouldRenderDotobotRa
     });
   }
 
-  return { closeMobileSidebar, consoleHeight, consoleOpen, consoleTab, copilotOpen, handleToggleCopilot, handleToggleRightRail, isMobileShell, leftCollapsed, logPane, rightCollapsed, rightRailMode, setConsoleHeight, setConsoleOpen, setConsoleTab, setLeftCollapsed, setLogPane, toggleRightRailMode };
+  return { closeMobileSidebar, consoleExpanded, consoleHeight, consoleOpen, consoleTab, copilotOpen, handleToggleCopilot, handleToggleRightRail, isMobileShell, leftCollapsed, logPane, rightCollapsed, rightRailMode, setConsoleExpanded, setConsoleHeight, setConsoleOpen, setConsoleTab, setLeftCollapsed, setLogPane, toggleRightRailMode };
 }

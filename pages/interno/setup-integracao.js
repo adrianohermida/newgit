@@ -1,6 +1,11 @@
+import dynamic from "next/dynamic";
 import InternoLayout from "../../components/interno/InternoLayout";
 import OptionalAdminAccess from "../../components/interno/OptionalAdminAccess";
-import SetupIntegracaoScreen from "../../components/interno/integration-kit/setup/SetupIntegracaoScreen";
+
+const SetupIntegracaoScreen = dynamic(
+  () => import("../../components/interno/integration-kit/setup/SetupIntegracaoScreen"),
+  { ssr: false }
+);
 
 export default function SetupIntegracaoPage() {
   return <OptionalAdminAccess>
@@ -12,4 +17,8 @@ export default function SetupIntegracaoPage() {
       <SetupIntegracaoScreen accessMode={accessMode} />
     </InternoLayout>}
   </OptionalAdminAccess>;
+}
+
+export async function getServerSideProps() {
+  return { props: {} };
 }

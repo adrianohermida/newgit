@@ -36,6 +36,7 @@ import {
   FocusedCopilotAside,
   FocusedConversationCenter,
   FocusedHistoryRail,
+  FocusedWorkspaceTopbar,
   GenericCopilotRightRail,
 } from "./copilot";
 import DotobotWorkspaceShell from "./copilot/DotobotWorkspaceShell";
@@ -155,7 +156,7 @@ export default function DotobotCopilot({
   const isFocusedCopilotShell = focusedWorkspaceMode || (embeddedInInternoShell && isFullscreenCopilot);
   const isRailConversationShell = embeddedInInternoShell && !isFullscreenCopilot;
   const isConversationCentricShell = isFocusedCopilotShell || isRailConversationShell;
-  const suppressInnerChrome = isFocusedCopilotShell;
+  const suppressInnerChrome = false;
   const isCompactViewport = useMediaQuery({ maxWidth: 640 });
   const availableRightPanelTabs = useMemo(
     () => normalizeRightPanelTabs(
@@ -464,6 +465,25 @@ const [uiToasts, setUiToasts] = useState([]);
         window.requestAnimationFrame(applyScroll);
       });
     }
+  }
+
+  function exportActiveConversation() {
+    if (typeof window === "undefined") return;
+    const payload = {
+      conversation: activeConversation || null,
+      messages,
+      attachments,
+      exportedAt: nowIso(),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${(activeConversation?.title || "conversa-principal").toLowerCase().replace(/[^a-z0-9]+/gi, "-")}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.URL.revokeObjectURL(url);
   }
 
   function pushUiToast(toast) {
@@ -1918,36 +1938,36 @@ const [uiToasts, setUiToasts] = useState([]);
       ? "grid-cols-1"
       : effectiveWorkspaceLayout === "immersive"
       ? isFocusedCopilotShell
-        ? "lg:grid-cols-[280px_minmax(0,1fr)_280px] xl:grid-cols-[300px_minmax(0,1fr)_300px] 2xl:grid-cols-[320px_minmax(0,1fr)_320px]"
+        ? "grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)_320px]"
         : "lg:grid-cols-[320px_minmax(0,1.6fr)_320px] xl:grid-cols-[360px_minmax(0,2.05fr)_360px] 2xl:grid-cols-[420px_minmax(0,2.45fr)_420px]"
       : effectiveWorkspaceLayout === "balanced"
         ? "lg:grid-cols-[220px_minmax(0,1.25fr)_240px] xl:grid-cols-[240px_minmax(0,1.5fr)_260px] 2xl:grid-cols-[260px_minmax(0,1.65fr)_280px]"
         : "lg:grid-cols-[180px_minmax(0,1fr)_220px] xl:grid-cols-[190px_minmax(0,1.12fr)_240px] 2xl:grid-cols-[210px_minmax(0,1.2fr)_260px]";
-  const focusedShellContentClass = suppressInnerChrome ? "px-0 pt-0 pb-0" : "p-3 md:p-5";
+  const focusedShellContentClass = isFocusedCopilotShell ? "px-0 pt-0 pb-0" : suppressInnerChrome ? "px-0 pt-0 pb-0" : "p-3 md:p-5";
   const workspaceGridGapClass = isConversationCentricShell ? "gap-px" : "gap-4";
   const leftRailShellClass = isFocusedCopilotShell
     ? isLightTheme
-      ? "h-full min-h-full overflow-hidden border-r border-y-0 border-l-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.985),rgba(246,249,252,0.995))] rounded-none shadow-none"
-      : "h-full min-h-full overflow-hidden border-r border-y-0 border-l-0 border-[#1C2623] bg-[linear-gradient(180deg,rgba(9,11,10,0.985),rgba(10,14,12,0.99))] rounded-none shadow-none"
+      ? "h-full min-h-full overflow-hidden border-r border-y-0 border-l-0 border-[#E1E6EB] bg-[#F4F6F8] rounded-none shadow-none"
+      : "h-full min-h-full overflow-hidden border-r border-y-0 border-l-0 border-[#1C2623] bg-[#0C1110] rounded-none shadow-none"
     : isLightTheme
       ? "rounded-[22px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,248,251,0.98))]"
       : "rounded-[22px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] border-[#1C2623] bg-[rgba(255,255,255,0.018)]";
   const centerShellClass = isFocusedCopilotShell
     ? isLightTheme
-      ? "min-h-full border-x border-y-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(247,249,252,0.99))] rounded-none shadow-none"
-      : "min-h-full border-x border-y-0 border-[#1C2623] bg-[linear-gradient(180deg,rgba(11,13,12,0.985),rgba(13,16,15,0.99))] rounded-none shadow-none"
+      ? "min-h-full border-x border-y-0 border-[#E1E6EB] bg-[#F7F8FA] rounded-none shadow-none"
+      : "min-h-full border-x border-y-0 border-[#1C2623] bg-[#0E1211] rounded-none shadow-none"
     : isLightTheme
       ? "rounded-[24px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,248,251,0.98))]"
       : "rounded-[24px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] border-[#1C2623] bg-[rgba(255,255,255,0.015)]";
   const rightRailShellClass = isFocusedCopilotShell
     ? isLightTheme
-      ? "h-full min-h-full overflow-hidden border-l border-y-0 border-r-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.985),rgba(246,249,252,0.995))] rounded-none shadow-none"
-      : "h-full min-h-full overflow-hidden border-l border-y-0 border-r-0 border-[#1C2623] bg-[linear-gradient(180deg,rgba(9,11,10,0.985),rgba(10,14,12,0.99))] rounded-none shadow-none"
+      ? "h-full min-h-full overflow-hidden border-l border-y-0 border-r-0 border-[#E1E6EB] bg-[#F4F6F8] rounded-none shadow-none"
+      : "h-full min-h-full overflow-hidden border-l border-y-0 border-r-0 border-[#1C2623] bg-[#0C1110] rounded-none shadow-none"
     : isLightTheme
       ? "rounded-[24px] border border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(245,247,250,0.98))]"
       : "rounded-[24px] border border-[#1C2623] bg-[rgba(255,255,255,0.015)]";
   const activeConversation = conversations.find((item) => item.id === activeConversationId) || conversations[0] || null;
-  const focusedConversationColumnClass = isFocusedCopilotShell ? "mx-auto flex h-full w-full max-w-[900px] flex-col" : isRailConversationShell ? "w-full" : "";
+  const focusedConversationColumnClass = isFocusedCopilotShell ? "mx-auto flex h-full w-full max-w-[880px] flex-col" : isRailConversationShell ? "w-full" : "";
   const useCondensedRightRail = isFocusedCopilotShell;
   const visibleLegalActions = isFocusedCopilotShell || isRailConversationShell ? [] : LEGAL_ACTIONS.slice(0, isCompactViewport ? 1 : 3);
   const visibleQuickPrompts = isFocusedCopilotShell ? [] : QUICK_PROMPTS.slice(0, isCompactViewport ? 1 : isConversationCentricShell ? 1 : 2);
@@ -2717,7 +2737,15 @@ const [uiToasts, setUiToasts] = useState([]);
             focusedShellContentClass={focusedShellContentClass}
             gridGapClass={workspaceGridGapClass}
             gridTemplateClass={workspaceShellGridClass}
-            headerNode={(
+            headerNode={isFocusedCopilotShell ? (
+              <FocusedWorkspaceTopbar
+                isLightTheme={isLightTheme}
+                messageCount={messages.length}
+                onExportConversation={exportActiveConversation}
+                onOpenHelp={() => router.push("/interno/agentlab/environment")}
+                onOpenSettings={() => router.push("/interno/setup-integracao")}
+              />
+            ) : (
               <DotobotWorkspaceHeader
                 MODE_OPTIONS={MODE_OPTIONS}
                 activeConversation={activeConversation}
@@ -2790,6 +2818,7 @@ const [uiToasts, setUiToasts] = useState([]);
                   handleConcatConversation={handleConcatConversation}
                   handleDrop={handleDrop}
                   isLightTheme={isLightTheme}
+                  leftRailShellClass={leftRailShellClass}
                   onCreateConversation={() => createConversationFromCurrentState("Nova conversa")}
                   profile={profile}
                   projectInsights={projectInsights}
@@ -2844,8 +2873,12 @@ const [uiToasts, setUiToasts] = useState([]);
             isLightTheme={isLightTheme}
             onResetChat={handleResetChat}
             outerClassName={embeddedInInternoShell
-              ? suppressInnerChrome
-                ? "relative min-h-0 h-full overflow-hidden"
+              ? isFocusedCopilotShell
+                ? isLightTheme
+                  ? "relative min-h-0 h-full overflow-hidden border border-[#E1E6EB] bg-[#F3F5F7]"
+                  : "relative min-h-0 h-full overflow-hidden border border-[#1C2623] bg-[#0A0E0C]"
+                : suppressInnerChrome
+                  ? "relative min-h-0 h-full overflow-hidden"
                 : isLightTheme
                   ? "relative min-h-0 h-full overflow-hidden rounded-[28px] border border-[#D7DEE8] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.08),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,248,252,0.98))]"
                   : "relative min-h-0 h-full overflow-hidden rounded-[28px] border border-[#1C2623] bg-[radial-gradient(circle_at_top_left,rgba(52,46,18,0.1),transparent_24%),linear-gradient(180deg,rgba(3,5,4,0.98),rgba(5,8,7,0.97))]"
@@ -2865,6 +2898,7 @@ const [uiToasts, setUiToasts] = useState([]);
                   onOpenAiTask={() => router.push("/interno/ai-task")}
                   ragSummary={ragSummary}
                   rightPanelTab={rightPanelTab}
+                  rightRailShellClass={rightRailShellClass}
                   routePath={routePath}
                   runningCount={runningCount}
                   setRightPanelTab={setRightPanelTab}

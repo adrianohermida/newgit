@@ -2,6 +2,7 @@ import { formatPaneCountLabel } from "./consoleSummary";
 
 export default function InternoConsoleChrome({
   activityLogCount,
+  consoleExpanded,
   consoleOpen,
   consoleTab,
   formatClass,
@@ -9,6 +10,7 @@ export default function InternoConsoleChrome({
   isLightTheme,
   isMobileShell,
   logPane,
+  onToggleConsoleExpanded,
   onToggleConsole,
   onToggleTab,
   paneCounts,
@@ -44,7 +46,12 @@ export default function InternoConsoleChrome({
             {group.panes.map((pane) => <button key={pane.key} type="button" onClick={() => onToggleTab("log", pane.key)} className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${logPane === pane.key ? "border-[#C5A059] bg-[rgba(197,160,89,0.08)] text-[#C5A059]" : formatClass}`}>{pane.label} {formatPaneCountLabel(paneCounts[pane.key] || 0)}</button>)}
           </div>)}
         </div> : null}
-          <button type="button" onClick={onToggleConsole} className={`rounded-[14px] border px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${formatClass}`} title={consoleOpen ? "Recolher console" : "Expandir console"}>{consoleOpen ? "Recolher" : "Expandir"}</button>
+          {consoleOpen ? (
+            <button type="button" onClick={onToggleConsoleExpanded} className={`rounded-[14px] border px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${formatClass}`} title={consoleExpanded ? "Voltar ao modo compacto" : "Expandir console"}>
+              {consoleExpanded ? "Compacto" : "Expandir"}
+            </button>
+          ) : null}
+          <button type="button" onClick={onToggleConsole} className={`rounded-[14px] border px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${formatClass}`} title={consoleOpen ? "Ocultar console" : "Abrir console"}>{consoleOpen ? "Ocultar" : "Abrir"}</button>
         </div>
       </div>
     </div>

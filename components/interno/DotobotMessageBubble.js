@@ -16,7 +16,21 @@ function RichText({ text, isLightTheme }) {
       );
     }
 
-    return block.split("\n").filter(Boolean).map((line, lineIndex) => (
+    const lines = block.split("\n").filter(Boolean);
+    const bulletLines = lines.filter((line) => /^[-*•]\s+/.test(line.trim()));
+    if (bulletLines.length >= 2 && bulletLines.length === lines.length) {
+      return (
+        <ul key={`list-${index}`} className="space-y-2 pl-5">
+          {bulletLines.map((line, lineIndex) => (
+            <li key={`line-${index}-${lineIndex}`} className="leading-7">
+              {line.trim().replace(/^[-*•]\s+/, "")}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+
+    return lines.map((line, lineIndex) => (
       <p key={`line-${index}-${lineIndex}`} className="leading-7">
         {line}
       </p>
@@ -41,17 +55,18 @@ export default function DotobotMessageBubble({ isTyping = false, message, onActi
   const { isLightTheme } = useInternalTheme();
   const isAssistant = message?.role === "assistant";
   const isSystem = message?.role === "system";
-  const label = isAssistant ? "Dotobot" : isSystem ? "Sistema" : "Equipe";
-  const bubbleWrapperClass = isAssistant || isSystem ? "mr-auto max-w-[88%]" : "ml-auto max-w-[82%]";
-  const bubbleTone = isAssistant || isSystem
-    ? isLightTheme ? "border-[#D7DEE8] bg-white text-[#1F2A37] shadow-[0_10px_28px_rgba(15,23,42,0.06)]" : "border-[#22342F] bg-[rgba(255,255,255,0.03)] text-[#F5F1E8] shadow-[0_10px_28px_rgba(0,0,0,0.18)]"
-    : isLightTheme ? "border-[#E6D29A] bg-[#FFF8EA] text-[#1F2A37] shadow-[0_10px_28px_rgba(197,160,89,0.10)]" : "border-[#6A5A27] bg-[rgba(197,160,89,0.08)] text-[#F5F1E8] shadow-[0_10px_28px_rgba(0,0,0,0.18)]";
+  const isUser = !isAssistant && !isSystem;
+  const label = isAssistant ? "Agente IA" : isSystem ? "Sistema" : "Usuario";
+  const bubbleWrapperClass = isUser ? "mr-auto max-w-[82%]" : "ml-auto max-w-[88%]";
+  const bubbleTone = isUser
+    ? isLightTheme ? "border-[#D7DEE8] bg-[#F1F4F7] text-[#1F2A37] shadow-[0_10px_28px_rgba(15,23,42,0.05)]" : "border-[#384843] bg-[rgba(207,214,220,0.08)] text-[#E7ECEA] shadow-[0_10px_28px_rgba(0,0,0,0.16)]"
+    : isLightTheme ? "border-[#8DB8FF] bg-[#EAF3FF] text-[#12304F] shadow-[0_12px_30px_rgba(59,130,246,0.10)]" : "border-[#2E5B96] bg-[rgba(37,99,235,0.18)] text-[#E8F1FF] shadow-[0_10px_28px_rgba(0,0,0,0.20)]";
   const media = Array.isArray(message?.media) ? message.media : [];
 
   return (
     <article className={`${bubbleWrapperClass} rounded-[22px] border px-4 py-4 text-sm transition-all duration-200 ease-out hover:-translate-y-[1px] ${isLightTheme ? "hover:shadow-[0_18px_40px_rgba(148,163,184,0.14)]" : "hover:shadow-[0_18px_40px_rgba(0,0,0,0.24)]"} ${bubbleTone}`}>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#C5A059]">{label}</p>
+        <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isUser ? (isLightTheme ? "text-[#6B7C88]" : "text-[#A9B8B3]") : (isLightTheme ? "text-[#2F6FDF]" : "text-[#8DB8FF]")}`}>{label}</p>
         {message?.createdAt ? (
           <span className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
             {new Date(message.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}

@@ -5,7 +5,7 @@ export default function FocusedContextPanel({
   ragSummary,
   routePath,
 }) {
-  const panelTone = isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]";
+  const panelTone = isLightTheme ? "border-[#E1E6EB] bg-[rgba(255,255,255,0.84)]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]";
   const mutedTone = isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]";
 
   return (

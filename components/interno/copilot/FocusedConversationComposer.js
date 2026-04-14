@@ -23,9 +23,9 @@ export default function FocusedConversationComposer(props) {
   } = props;
 
   return (
-    <div className={`shrink-0 border-t px-4 py-4 md:px-5 ${isLightTheme ? "border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.98))]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(8,10,9,0.98),rgba(10,13,12,0.98))]"}`}>
+    <div className={`shrink-0 border-t px-4 py-4 md:px-6 ${isLightTheme ? "border-[#E1E6EB] bg-[#F7F8FA]" : "border-[#22342F] bg-[#0E1211]"}`}>
       <form onSubmit={handleSubmit} className="space-y-3">
-        <div className={`rounded-[24px] border p-3 transition-all duration-200 ${isLightTheme ? "border-[#D7DEE8] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.08),transparent_42%),white] focus-within:border-[#C79B2C] focus-within:shadow-[0_0_0_3px_rgba(197,160,89,0.10),0_18px_36px_rgba(148,163,184,0.12)]" : "border-[#1C2623] bg-[radial-gradient(circle_at_top_left,rgba(197,160,89,0.08),transparent_40%),rgba(7,9,8,0.98)] focus-within:border-[#C5A059] focus-within:shadow-[0_0_0_3px_rgba(197,160,89,0.10),0_18px_36px_rgba(0,0,0,0.20)]"}`} onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}>
+        <div className={`rounded-[24px] border p-3 transition-all duration-200 ${isLightTheme ? "border-[#D7DEE8] bg-white focus-within:border-[#2F7A62] focus-within:shadow-[0_0_0_3px_rgba(47,122,98,0.10)]" : "border-[#1C2623] bg-[#101514] focus-within:border-[#7FC4AF] focus-within:shadow-[0_0_0_3px_rgba(127,196,175,0.10)]"}`} onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}>
           <div className={`mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
             <div className="flex flex-wrap items-center gap-2">
               <span className={`rounded-full border px-2.5 py-1 ${isLightTheme ? "border-[#E6D29A] bg-[#FFF8EA] text-[#8A6217]" : "border-[#4B3F22] text-[#F1D39A]"}`}>

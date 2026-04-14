@@ -2,6 +2,12 @@ import { buildOfflineHealthSnapshot } from "../../../lib/lawdesk/offline-health.
 import { buildLocalBootstrapPlan } from "../../../lib/lawdesk/local-bootstrap.js";
 import { buildSupabaseLocalBootstrap } from "../../../lib/lawdesk/supabase-local-bootstrap.js";
 import { useInternalTheme } from "../InternalThemeProvider";
+import Bubble from "./Bubble";
+import LogRow from "./LogRow";
+import MetricPill from "./MetricPill";
+import RunHistoryCard from "./RunHistoryCard";
+import ThinkingBlock from "./ThinkingBlock";
+import { summarizeOrchestration } from "./aiTaskPanelUtils";
 
 export function TaskCard({ task, isSelected, onSelect, compact = false, draggable = false, onDragStart = null }) {
   const { isLightTheme } = useInternalTheme();
@@ -48,187 +54,7 @@ export function TaskCard({ task, isSelected, onSelect, compact = false, draggabl
   );
 }
 
-export function ThinkingBlock({ block }) {
-  const { isLightTheme } = useInternalTheme();
-  return (
-    <details open={Boolean(block.expanded)} className={`rounded-[22px] border p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))]"}`}>
-      <summary className="cursor-pointer list-none">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className={`text-[10px] uppercase tracking-[0.2em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{block.title}</p>
-            <p className={`mt-2 text-sm leading-6 ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{block.summary}</p>
-          </div>
-          <span className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#9BAEA8]"}`}>
-            {new Date(block.timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-          </span>
-        </div>
-      </summary>
-      <div className={`mt-3 space-y-2 text-sm ${isLightTheme ? "text-[#51606B]" : "text-[#C6D1CC]"}`}>
-        {block.details.map((line) => (
-          <p key={line} className={`rounded-2xl border px-3 py-2 leading-6 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC]" : "border-[#22342F] bg-[rgba(7,9,8,0.75)]"}`}>
-            {line}
-          </p>
-        ))}
-      </div>
-    </details>
-  );
-}
-
-export function LogRow({ log }) {
-  const { isLightTheme } = useInternalTheme();
-  return (
-    <div className={`rounded-[18px] border px-4 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.012))]"}`}>
-      <div className="flex items-center justify-between gap-3">
-        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{log.type}</p>
-        <span className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#9BAEA8]"}`}>
-          {new Date(log.timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-        </span>
-      </div>
-      <p className={`mt-2 text-sm ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{log.action}</p>
-      <p className={`mt-1 text-sm leading-6 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>{log.result}</p>
-    </div>
-  );
-}
-
-export function Bubble({ role = "assistant", title, body, details = [], time }) {
-  const { isLightTheme } = useInternalTheme();
-  const isUser = role === "user";
-  const isSystem = role === "system";
-  const alignClass = isUser ? "justify-end" : "justify-start";
-  const bubbleClass = isUser
-    ? isLightTheme
-      ? "border-[#E6D29A] bg-[#FFF8EA] text-[#5B4A22]"
-      : "border-[#3C3320] bg-[rgba(40,32,19,0.28)] text-[#F7F1E6]"
-    : isSystem
-      ? isLightTheme
-        ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#6B7C88]"
-        : "border-[#2E3A36] bg-[rgba(255,255,255,0.02)] text-[#9FB1AA]"
-      : isLightTheme
-        ? "border-[#D7DEE8] bg-white text-[#2B3A42]"
-        : "border-[#22342F] bg-[rgba(255,255,255,0.03)] text-[#F4F1EA]";
-
-  return (
-    <div className={`flex ${alignClass}`}>
-      <article className={`max-w-[min(46rem,92%)] rounded-[26px] border px-4 py-3 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${bubbleClass}`}>
-        <div className="mb-2 flex items-center justify-between gap-4 text-[10px] uppercase tracking-[0.2em] opacity-60">
-          <span>{title || (isUser ? "Equipe" : isSystem ? "Sistema" : "Hermida Maia IA")}</span>
-          <span>{time ? new Date(time).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "agora"}</span>
-        </div>
-        <p className="whitespace-pre-wrap leading-7">{String(body || "")}</p>
-        {Array.isArray(details) && details.length ? (
-          <div className="mt-3 space-y-2">
-            {details.slice(0, 6).map((line, index) => (
-              <p key={`${index}_${line}`} className={`rounded-2xl border px-3 py-2 text-xs leading-6 ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#51606B]" : "border-[#22342F] bg-[rgba(7,9,8,0.75)] text-[#C6D1CC]"}`}>
-                {line}
-              </p>
-            ))}
-          </div>
-        ) : null}
-      </article>
-    </div>
-  );
-}
-
-export function MetricPill({ label, value, tone = "default" }) {
-  const { isLightTheme } = useInternalTheme();
-  const toneClass =
-    tone === "accent"
-      ? "border-[#C5A059] text-[#F1D39A]"
-      : tone === "success"
-        ? "border-[#234034] text-[#8FCFA9]"
-        : tone === "danger"
-          ? "border-[#5b2d2d] text-[#f2b2b2]"
-          : isLightTheme
-            ? "border-[#D7DEE8] text-[#51606B]"
-            : "border-[#22342F] text-[#D8DEDA]";
-  return (
-    <div className={`rounded-[18px] border px-3 py-2 ${isLightTheme ? "bg-white" : "bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.012))]"} ${toneClass}`}>
-      <p className="text-[10px] uppercase tracking-[0.18em] opacity-70">{label}</p>
-      <p className="mt-1 text-sm font-medium">{formatInlineValue(value)}</p>
-    </div>
-  );
-}
-
-function formatInlineValue(value) {
-  if (value == null || value === "") return "n/a";
-  if (["string", "number", "boolean"].includes(typeof value)) return String(value);
-  if (Array.isArray(value)) return value.map((entry) => formatInlineValue(entry)).join(", ");
-  if (typeof value === "object") {
-    if (typeof value.label === "string" && value.label.trim()) return value.label;
-    if (typeof value.value === "string" || typeof value.value === "number") return String(value.value);
-    if (typeof value.type === "string" && value.type.trim()) return value.type;
-    try {
-      return JSON.stringify(value);
-    } catch {
-      return "[objeto]";
-    }
-  }
-  return String(value);
-}
-
-function summarizeOrchestration(orchestration) {
-  const subagents = Array.isArray(orchestration?.subagents) ? orchestration.subagents : [];
-  const tasks = Array.isArray(orchestration?.tasks) ? orchestration.tasks : [];
-  const availableModules = Array.isArray(orchestration?.available_modules) ? orchestration.available_modules : [];
-  const parallelGroups = new Set(tasks.map((task) => task?.parallel_group).filter(Boolean));
-  const stages = Array.from(new Set(tasks.map((task) => task?.stage).filter(Boolean)));
-  const dependencyEdges = tasks.reduce((total, task) => {
-    const dependsOn = Array.isArray(task?.depends_on) ? task.depends_on : Array.isArray(task?.dependencies) ? task.dependencies : [];
-    return total + dependsOn.filter(Boolean).length;
-  }, 0);
-  return {
-    enabled: Boolean(orchestration?.multi_agent || subagents.length || tasks.length),
-    multiAgent: Boolean(orchestration?.multi_agent),
-    subagents,
-    tasks,
-    availableModules,
-    parallelGroups,
-    stages,
-    dependencyEdges,
-  };
-}
-
-export function RunHistoryCard({ item, isActive, onSelect, formatHistoryStatus, formatExecutionSourceLabel, nowIso }) {
-  const { isLightTheme } = useInternalTheme();
-  const orchestrationSummary = summarizeOrchestration(item?.orchestration);
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect?.(item)}
-      className={`w-full rounded-[20px] border p-4 text-left transition ${
-        isActive
-          ? isLightTheme
-            ? "border-[#D2B06A] bg-[#FFF8EA]"
-            : "border-[#C5A059] bg-[rgba(197,160,89,0.08)]"
-          : isLightTheme
-            ? "border-[#D7DEE8] bg-white hover:border-[#BAC8D6]"
-            : "border-[#22342F] bg-[rgba(255,255,255,0.02)] hover:border-[#35554B]"
-      }`}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>{formatHistoryStatus(item.status)}</p>
-        <p className={`text-[10px] ${isLightTheme ? "text-[#7B8B98]" : "text-[#9BAEA8]"}`}>
-          {new Date(item.updated_at || item.created_at || nowIso()).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-        </p>
-      </div>
-      <p className={`mt-2 line-clamp-2 text-sm leading-6 ${isLightTheme ? "text-[#152421]" : "text-[#F5F1E8]"}`}>{String(item.mission || "Sem conversa registrada")}</p>
-      <div className={`mt-3 flex flex-wrap gap-2 text-[10px] ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-        <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>{formatExecutionSourceLabel(item.source)}</span>
-        <span className={`rounded-full border px-2 py-1 ${isLightTheme ? "border-[#D7DEE8]" : "border-[#22342F]"}`}>{item.model || "n/a"}</span>
-        {orchestrationSummary.enabled ? (
-          <span className="rounded-full border border-[#35554B] px-2 py-1 text-[#B7D5CB]">
-            {orchestrationSummary.subagents.length || 1} agentes / {orchestrationSummary.tasks.length} tarefas
-          </span>
-        ) : null}
-        {orchestrationSummary.parallelGroups.size ? (
-          <span className="rounded-full border border-[#234034] px-2 py-1 text-[#8FCFA9]">
-            paralelo {orchestrationSummary.parallelGroups.size}
-          </span>
-        ) : null}
-      </div>
-    </button>
-  );
-}
+export { Bubble, LogRow, MetricPill, RunHistoryCard, ThinkingBlock };
 
 export function WorkspaceHeader({
   stateLabel,

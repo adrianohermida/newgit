@@ -49,6 +49,7 @@ export default function InternoLayout({
   const shouldStartWithOpenRail = rightRailFullscreen || router.pathname === "/interno/agentlab/conversations" || shouldRenderDotobotRail;
   const {
     closeMobileSidebar,
+    consoleExpanded,
     consoleHeight,
     consoleOpen,
     consoleTab,
@@ -60,6 +61,7 @@ export default function InternoLayout({
     logPane,
     rightCollapsed,
     rightRailMode,
+    setConsoleExpanded,
     setConsoleHeight,
     setConsoleOpen,
     setConsoleTab,
@@ -356,6 +358,7 @@ export default function InternoLayout({
               consoleOpen={consoleOpen}
               handleHeaderSearchSelect={handleHeaderSearchSelect}
               handleSignOut={handleSignOut}
+              handleToggleCopilot={handleToggleCopilot}
               handleToggleRightRail={handleToggleRightRail}
               headerSearch={headerSearch}
               headerSearchRef={headerSearchRef}
@@ -364,10 +367,12 @@ export default function InternoLayout({
               isLightTheme={isLightTheme}
               leftCollapsed={leftCollapsed}
               onChangeHeaderSearch={setHeaderSearch}
+              onCloseConsole={() => setConsoleOpen(false)}
               onOpenSettings={() => setSettingsOpen(true)}
               onToggleConsole={() => setConsoleOpen((current) => !current)}
               onToggleLeftCollapsed={() => setLeftCollapsed((current) => !current)}
               onToggleUserMenu={() => setUserMenuOpen((current) => !current)}
+              railChatOpen={copilotOpen && !rightCollapsed}
               profile={profile}
               rightRailOpen={!rightCollapsed}
               router={router}
@@ -391,6 +396,7 @@ export default function InternoLayout({
             activityLog={activityLog}
             archivedCount={archivedCount}
             clearActivityLog={clearActivityLog}
+            consoleExpanded={consoleExpanded}
             consoleHeight={consoleHeight}
             consoleOpen={consoleOpen}
             consoleTab={consoleTab}
@@ -414,6 +420,7 @@ export default function InternoLayout({
             paneCounts={paneCounts}
             schemaIssues={schemaIssues}
             setConsoleOpen={setConsoleOpen}
+            setConsoleExpanded={setConsoleExpanded}
             setConsoleTab={setConsoleTab}
             setLogPane={setLogPane}
             setLogSearch={setLogSearch}

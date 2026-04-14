@@ -1,11 +1,5 @@
 import { useInternalTheme } from "../InternalThemeProvider";
-
-function summarizeOrchestration(orchestration) {
-  const subagents = Array.isArray(orchestration?.subagents) ? orchestration.subagents : [];
-  const tasks = Array.isArray(orchestration?.tasks) ? orchestration.tasks : [];
-  const parallelGroups = new Set(tasks.map((task) => task?.parallel_group).filter(Boolean));
-  return { enabled: Boolean(orchestration?.multi_agent || subagents.length || tasks.length), parallelGroups, subagents, tasks };
-}
+import { summarizeOrchestration } from "./aiTaskPanelUtils";
 
 export default function RunHistoryCard({ item, isActive, onSelect, formatHistoryStatus, formatExecutionSourceLabel, nowIso }) {
   const { isLightTheme } = useInternalTheme();
