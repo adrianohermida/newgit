@@ -319,6 +319,8 @@ def _json_request(
         raise RuntimeError(str(message)) from exc
     except urllib.error.URLError as exc:
         raise RuntimeError(str(exc.reason or exc)) from exc
+    except (TimeoutError, OSError) as exc:
+        raise RuntimeError(str(exc)) from exc
 
 
 def _json_get_request(
@@ -349,6 +351,8 @@ def _json_get_request(
         raise RuntimeError(str(message)) from exc
     except urllib.error.URLError as exc:
         raise RuntimeError(str(exc.reason or exc)) from exc
+    except (TimeoutError, OSError) as exc:
+        raise RuntimeError(str(exc)) from exc
 
 
 def _ensure_query(value: Any) -> str:
@@ -586,11 +590,9 @@ def _build_degraded_local_messages_response(
                 or _get_clean(result.get('output'))
                 or ''
             )
-            if execute_text and 'No tool selected; step processed as reasoning-only action.' not in execute_text:
-                response_text = f"{fallback_message}\n\n{execute_text}".strip()
+            response_text = _merge_degraded_response_text(fallback_message, execute_text, execute_payload)
         elif isinstance(result, str) and result.strip():
-            if 'No tool selected; step processed as reasoning-only action.' not in result:
-                response_text = f"{fallback_message}\n\n{result.strip()}".strip()
+            response_text = _merge_degraded_response_text(fallback_message, result.strip(), execute_payload)
     except Exception:
         execute_payload = None
 
@@ -615,6 +617,25 @@ def _build_degraded_local_messages_response(
             'execute_payload': execute_payload,
         },
     }
+
+
+def _merge_degraded_response_text(
+    fallback_message: str,
+    execute_text: str,
+    execute_payload: dict[str, Any] | None,
+) -> str:
+    if not execute_text or 'No tool selected; step processed as reasoning-only action.' in execute_text:
+        return f"{fallback_message}\n\nModo seguro ativo: responda com perguntas curtas, resumos ou comandos simples enquanto o modelo principal estiver indisponivel.".strip()
+    if 'not implemented in the execution registry' in execute_text.lower():
+        return (
+            f"{fallback_message}\n\n"
+            "Modo seguro ativo: o planner encontrou uma tool ainda nao implementada para esta acao. "
+            "Tente uma pergunta mais direta, um resumo textual ou uma task sem depender dessa tool especifica."
+        ).strip()
+    result = execute_payload.get('result') if isinstance(execute_payload, dict) else {}
+    if isinstance(result, dict) and result.get('kind') == 'structured':
+        return f"{fallback_message}\n\n{execute_text}".strip()
+    return f"{fallback_message}\n\n{execute_text}".strip()
 
 
 def _resolve_runtime_provider(payload: dict[str, Any], env: Mapping[str, Any]) -> str:

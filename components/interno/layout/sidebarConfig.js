@@ -19,5 +19,39 @@ export const NAV_ITEMS = [
 ];
 
 export function normalizeDisplayName(profile) {
-  return profile?.full_name || profile?.email || "Hermida Maia";
+  return profile?.full_name || profile?.display_name || profile?.email || "Hermida Maia";
+}
+
+export function getProfileInitials(profile) {
+  const label = normalizeDisplayName(profile);
+  const parts = String(label)
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (!parts.length) return "HM";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+
+  return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
+}
+
+export function resolveProfileAvatar(profile) {
+  const candidates = [
+    profile?.avatar_url,
+    profile?.avatarUrl,
+    profile?.photo_url,
+    profile?.photoUrl,
+    profile?.image_url,
+    profile?.imageUrl,
+    profile?.picture,
+    profile?.avatar,
+    profile?.metadata?.avatar_url,
+    profile?.metadata?.avatarUrl,
+    profile?.metadata?.photo_url,
+    profile?.metadata?.photoUrl,
+    profile?.metadata?.image_url,
+    profile?.metadata?.imageUrl,
+  ];
+
+  return candidates.find((value) => typeof value === "string" && value.trim()) || null;
 }

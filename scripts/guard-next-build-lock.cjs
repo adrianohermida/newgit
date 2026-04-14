@@ -97,7 +97,7 @@ function seedNextDir() {
   }
 
   const seededFiles = [
-    [path.join(nextDir, 'package.json'), '{"private":true}\n'],
+    [path.join(nextDir, 'package.json'), '{"type":"commonjs"}\n'],
     [
       path.join(nextDir, 'server', 'next-font-manifest.json'),
       '{"pages":{},"app":{},"appUsingSizeAdjust":false,"pagesUsingSizeAdjust":false}\n',
@@ -185,6 +185,9 @@ for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
 
   const stdout = result.stdout ? result.stdout.toString() : '';
   const stderr = result.stderr ? result.stderr.toString() : '';
+  if (result.error) {
+    console.error(`guard-next-build-lock: failed to launch next build: ${result.error.message}`);
+  }
   if (stdout) process.stdout.write(stdout);
   if (stderr) process.stderr.write(stderr);
 

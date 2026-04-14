@@ -30,6 +30,12 @@ class OrchestrationEngineTests(TempPathsMixin):
         self.assertIn('tasks', plan.orchestration)
         self.assertGreaterEqual(len(plan.orchestration['tasks']), 2)
 
+    def test_short_prompt_does_not_select_noisy_tool_match(self) -> None:
+        planner = PlannerAgent()
+        plan = planner.build_plan('OK')
+        self.assertEqual(len(plan.steps), 1)
+        self.assertIsNone(plan.steps[0].tool)
+
     def test_planner_builds_multi_agent_orchestration_from_repository_modules(self) -> None:
         planner = PlannerAgent()
         plan = planner.build_plan(

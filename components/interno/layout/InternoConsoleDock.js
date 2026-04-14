@@ -18,7 +18,6 @@ export default function InternoConsoleDock(props) {
     mobileConsoleHeight,
     consoleOpen,
     consoleHeight,
-    desktopConsoleStyle,
     consoleTab,
     logPane,
     paneCounts,
@@ -38,8 +37,9 @@ export default function InternoConsoleDock(props) {
     paneBodyProps,
   } = props;
   const formatClass = isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#C5A059] hover:text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059] hover:text-[#C5A059]";
+  const resolvedHeight = consoleOpen ? `${isMobileShell ? mobileConsoleHeight : consoleHeight}px` : undefined;
 
-  return <div className={`z-30 min-h-[52px] shrink-0 overflow-hidden border transition-all ${isCopilotWorkspace ? `${isLightTheme ? "border-x-0 border-b-0 border-t-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.985),rgba(241,245,249,0.985))]" : "border-x-0 border-b-0 border-t-[#1E2E29] bg-[linear-gradient(180deg,rgba(10,12,11,0.99),rgba(6,8,7,0.99))]"} rounded-none shadow-none` : `${isLightTheme ? "border-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,245,249,0.98))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(10,12,11,0.985),rgba(6,8,7,0.98))]"} rounded-[24px] shadow-[0_-12px_38px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.02)]`} ${consoleOpen ? "flex flex-col" : "block h-[60px]"} ${isMobileShell ? "fixed inset-x-2 bottom-2" : "fixed"}`} style={isMobileShell ? { height: consoleOpen ? `${mobileConsoleHeight}px` : undefined } : desktopConsoleStyle}>
+  return <div className={`z-30 shrink-0 overflow-hidden border-t transition-[height] ${isCopilotWorkspace ? `${isLightTheme ? "border-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.985),rgba(241,245,249,0.985))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(10,12,11,0.99),rgba(6,8,7,0.99))]"} rounded-none shadow-none` : `${isLightTheme ? "border-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,245,249,0.98))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(10,12,11,0.985),rgba(6,8,7,0.98))]"}`} ${consoleOpen ? "flex flex-col" : "block h-[60px]"}`} style={resolvedHeight ? { height: resolvedHeight } : undefined}>
     <InternoConsoleChrome activityLogCount={activityLog.length} consoleOpen={consoleOpen} consoleTab={consoleTab} formatClass={formatClass} handleStartResize={handleStartResize} isLightTheme={isLightTheme} isMobileShell={isMobileShell} logPane={logPane} onToggleConsole={() => setConsoleOpen((current) => !current)} onToggleTab={(tab, pane) => { setConsoleTab(tab); if (pane) setLogPane(pane); }} paneCounts={paneCounts} visibleLogPaneGroups={visibleLogPaneGroups} />
     {consoleOpen ? <div className={`min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3 text-xs md:px-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
       {consoleTab === "console" ? <InternoConsoleOverviewTab coverageCards={coverageCards} coverageSummary={coverageSummary} frontendIssues={frontendIssues} handleOpenModuleAlert={handleOpenModuleAlert} isLightTheme={isLightTheme} moduleAlerts={moduleAlerts} schemaIssues={schemaIssues} setConsoleOpen={setConsoleOpen} setConsoleTab={setConsoleTab} setLogPane={setLogPane} setLogSearch={setLogSearch} updateFilters={updateFilters} /> : <div className="space-y-3">

@@ -130,6 +130,25 @@ class ApiServerTests(unittest.TestCase):
         self.assertTrue(payload['metadata']['degraded'])
         self.assertIn('modo degradado', payload['content'][0]['text'].lower())
 
+    def test_degraded_local_fallback_hides_raw_unimplemented_tool_error(self) -> None:
+        with patch('api.server._json_request') as mocked_request, patch('api.server._json_get_request') as mocked_get:
+            mocked_request.side_effect = RuntimeError('model requires more system memory (20.3 GiB) than is available (12.5 GiB)')
+            mocked_get.return_value = {
+                'object': 'list',
+                'data': [{'id': 'llama3.1:latest'}],
+            }
+
+            payload = messages_json(
+                {
+                    'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'OK'}]}],
+                    'model': 'aetherlab-legal-local-v1',
+                },
+                env={'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:11434'},
+            )
+
+        self.assertIn('modo seguro ativo', payload['content'][0]['text'].lower())
+        self.assertNotIn('NotebookEditTool', payload['content'][0]['text'])
+
     def test_messages_json_routes_to_cloud_provider_when_requested(self) -> None:
         with patch('api.server._json_request') as mocked_request:
             mocked_request.return_value = {

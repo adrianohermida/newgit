@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo } from "react";
 import InternoLayout from "../../../components/interno/InternoLayout";
 import RequireAdmin from "../../../components/interno/RequireAdmin";
 import { useInternalTheme } from "../../../components/interno/InternalThemeProvider";
@@ -39,10 +39,12 @@ import ProcessosFilasView from "./ProcessosFilasView";
 import ProcessosOperacaoView from "./ProcessosOperacaoView";
 import ProcessosRelacoesView from "./ProcessosRelacoesView";
 import ProcessosResultadoView from "./ProcessosResultadoView";
-import { useProcessosNavigationState } from "./useProcessosNavigationState";
 import { deriveRemoteHealth, RecurringProcessGroup } from "./recurrence";
 import { useProcessosRecurringSelection } from "./useProcessosRecurringSelection";
 import { useProcessosRelationActions } from "./useProcessosRelationActions";
+import { useProcessosPageState } from "./useProcessosPageState";
+import { useProcessosUiPersistence } from "./useProcessosUiPersistence";
+import { useProcessosFetchers } from "./useProcessosFetchers";
 
 import {
   countQueueErrors,
@@ -69,172 +71,9 @@ return <RequireAdmin>{(profile) => <InternoLayout profile={profile} title="GestÃ
 
 function InternoProcessosContent() {
   const { isLightTheme } = useInternalTheme();
-  const [view, setView] = useState("operacao");
-  const [overview, setOverview] = useState({ loading: true, data: null });
-  const [processCoverage, setProcessCoverage] = useState({ loading: true, items: [], totalRows: 0, page: 1, pageSize: 20 });
-  const [actionState, setActionState] = useState({ loading: false, error: null, result: null });
-  const [executionHistory, setExecutionHistory] = useState([]);
-  const [queueRefreshLog, setQueueRefreshLog] = useState([]);
-  const [operationalStatus, setOperationalStatus] = useState({ mode: "ok", message: "", updatedAt: null });
-  const [backendHealth, setBackendHealth] = useState({ status: "ok", message: "", updatedAt: null });
-  const [remoteHistory, setRemoteHistory] = useState([]);
-  const [jobs, setJobs] = useState([]);
-  const [activeJobId, setActiveJobId] = useState(null);
-  const [drainInFlight, setDrainInFlight] = useState(false);
-  const [schemaStatus, setSchemaStatus] = useState({ loading: true, data: null });
-  const [runnerMetrics, setRunnerMetrics] = useState({ loading: true, data: null });
-  const [snapshotAt, setSnapshotAt] = useState(null);
-  const [globalError, setGlobalError] = useState(null);
-  const [globalErrorUntil, setGlobalErrorUntil] = useState(null);
-  const [uiHydrated, setUiHydrated] = useState(false);
-  const [pageVisible, setPageVisible] = useState(true);
-  const [lastFocusHash, setLastFocusHash] = useState("");
-  const bootstrappedRef = useRef(false);
-  const snapshotPayloadRef = useRef("");
-  const [limit, setLimit] = useState(2);
-  const [queueBatchSizes, setQueueBatchSizes] = useState(DEFAULT_QUEUE_BATCHES);
-  const [processNumbers, setProcessNumbers] = useState("");
-  const [copilotContext, setCopilotContext] = useState(null);
-  const copilotQueryAppliedRef = useRef(false);
-  const [withoutMovements, setWithoutMovements] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
-  const [movementBacklog, setMovementBacklog] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
-  const [publicationBacklog, setPublicationBacklog] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
-  const [partesBacklog, setPartesBacklog] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
-  const [audienciaCandidates, setAudienciaCandidates] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
-  const [monitoringActive, setMonitoringActive] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
-  const [monitoringInactive, setMonitoringInactive] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
-  const [fieldGaps, setFieldGaps] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
-  const [orphans, setOrphans] = useState({ loading: true, items: [], updatedAt: null, error: null, errorUntil: null, limited: false });
-  const [wmPage, setWmPage] = useState(1);
-  const [movPage, setMovPage] = useState(1);
-  const [pubPage, setPubPage] = useState(1);
-  const [partesPage, setPartesPage] = useState(1);
-  const [audPage, setAudPage] = useState(1);
-  const [maPage, setMaPage] = useState(1);
-  const [miPage, setMiPage] = useState(1);
-  const [fgPage, setFgPage] = useState(1);
-  const [orphanPage, setOrphanPage] = useState(1);
-  const [covPage, setCovPage] = useState(1);
-  const [selectedWithoutMovements, setSelectedWithoutMovements] = useState([]);
-  const [selectedMovementBacklog, setSelectedMovementBacklog] = useState([]);
-  const [selectedPublicationBacklog, setSelectedPublicationBacklog] = useState([]);
-  const [selectedPartesBacklog, setSelectedPartesBacklog] = useState([]);
-  const [selectedAudienciaCandidates, setSelectedAudienciaCandidates] = useState([]);
-  const [selectedMonitoringActive, setSelectedMonitoringActive] = useState([]);
-  const [selectedMonitoringInactive, setSelectedMonitoringInactive] = useState([]);
-  const [selectedFieldGaps, setSelectedFieldGaps] = useState([]);
-  const [selectedOrphans, setSelectedOrphans] = useState([]);
-  const [relations, setRelations] = useState({ loading: true, error: null, items: [], totalRows: 0, page: 1, pageSize: 20 });
-  const [relationSuggestions, setRelationSuggestions] = useState({ loading: true, error: null, items: [], totalRows: 0, page: 1, pageSize: 20 });
-  const [search, setSearch] = useState("");
-  const [relationMinScore, setRelationMinScore] = useState("0.45");
-  const [lookup, setLookup] = useState({ loading: false, items: [] });
-  const [lookupTerm, setLookupTerm] = useState("");
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [editingRelationId, setEditingRelationId] = useState(null);
-  const [selectedRelations, setSelectedRelations] = useState([]);
-  const [selectedSuggestionKeys, setSelectedSuggestionKeys] = useState([]);
-  const [allMatchingRelationsSelected, setAllMatchingRelationsSelected] = useState(false);
-  const [allMatchingSuggestionsSelected, setAllMatchingSuggestionsSelected] = useState(false);
-  const [relationSelectionLoading, setRelationSelectionLoading] = useState(false);
-  const [suggestionSelectionLoading, setSuggestionSelectionLoading] = useState(false);
+  const { actionState, activeJobId, allMatchingRelationsSelected, allMatchingSuggestionsSelected, audPage, audienciaCandidates, backendHealth, bootstrappedRef, copilotContext, copilotQueryAppliedRef, covPage, drainInFlight, editingRelationId, executionHistory, fgPage, fieldGaps, form, globalError, globalErrorUntil, jobs, lastFocusHash, limit, lookup, lookupTerm, maPage, miPage, monitoringActive, monitoringInactive, movPage, movementBacklog, operationalStatus, orphanPage, orphans, overview, pageVisible, partesBacklog, partesPage, processCoverage, processNumbers, pubPage, publicationBacklog, queueBatchSizes, queueRefreshLog, relationMinScore, relationSelectionLoading, relationSuggestions, relations, remoteHistory, runnerMetrics, schemaStatus, search, selectedAudienciaCandidates, selectedFieldGaps, selectedMonitoringActive, selectedMonitoringInactive, selectedMovementBacklog, selectedOrphans, selectedPartesBacklog, selectedPublicationBacklog, selectedRelations, selectedSuggestionKeys, selectedWithoutMovements, setActionState, setActiveJobId, setAllMatchingRelationsSelected, setAllMatchingSuggestionsSelected, setAudPage, setAudienciaCandidates, setBackendHealth, setCopilotContext, setCovPage, setDrainInFlight, setEditingRelationId, setExecutionHistory, setFgPage, setFieldGaps, setForm, setGlobalError, setGlobalErrorUntil, setJobs, setLastFocusHash, setLimit, setLookup, setLookupTerm, setMaPage, setMiPage, setMonitoringActive, setMonitoringInactive, setMovPage, setMovementBacklog, setOperationalStatus, setOrphanPage, setOrphans, setOverview, setPageVisible, setPartesBacklog, setPartesPage, setProcessCoverage, setProcessNumbers, setPubPage, setPublicationBacklog, setQueueBatchSizes, setQueueRefreshLog, setRelationMinScore, setRelationSelectionLoading, setRelationSuggestions, setRelations, setRemoteHistory, setRunnerMetrics, setSchemaStatus, setSearch, setSelectedAudienciaCandidates, setSelectedFieldGaps, setSelectedMonitoringActive, setSelectedMonitoringInactive, setSelectedMovementBacklog, setSelectedOrphans, setSelectedPartesBacklog, setSelectedPublicationBacklog, setSelectedRelations, setSelectedSuggestionKeys, setSelectedWithoutMovements, setSuggestionSelectionLoading, setUiHydrated, setView, setWmPage, snapshotAt, snapshotPayloadRef, suggestionSelectionLoading, uiHydrated, view, wmPage, withoutMovements, setWithoutMovements, setSnapshotAt } = useProcessosPageState();
   const adminFetch = useProcessosAdminFetch();
-  const persistedUiState = useMemo(() => ({
-    view,
-    lastFocusHash,
-    processNumbers,
-    limit,
-    queueBatchSizes,
-    wmPage,
-    movPage,
-    pubPage,
-    partesPage,
-    audPage,
-    maPage,
-    miPage,
-    fgPage,
-    orphanPage,
-    covPage,
-    search,
-    relationMinScore,
-    selectedWithoutMovements,
-    selectedMovementBacklog,
-    selectedPublicationBacklog,
-    selectedPartesBacklog,
-    selectedAudienciaCandidates,
-    selectedMonitoringActive,
-    selectedMonitoringInactive,
-    selectedFieldGaps,
-    selectedOrphans,
-    selectedRelations,
-    selectedSuggestionKeys,
-  }), [
-    view,
-    lastFocusHash,
-    processNumbers,
-    limit,
-    queueBatchSizes,
-    wmPage,
-    movPage,
-    pubPage,
-    partesPage,
-    audPage,
-    maPage,
-    miPage,
-    fgPage,
-    orphanPage,
-    covPage,
-    search,
-    relationMinScore,
-    selectedWithoutMovements,
-    selectedMovementBacklog,
-    selectedPublicationBacklog,
-    selectedPartesBacklog,
-    selectedAudienciaCandidates,
-    selectedMonitoringActive,
-    selectedMonitoringInactive,
-    selectedFieldGaps,
-    selectedOrphans,
-    selectedRelations,
-    selectedSuggestionKeys,
-  ]);
-  const applySavedUiState = useMemo(() => (saved) => {
-    if (saved.processNumbers) setProcessNumbers(String(saved.processNumbers));
-    if (saved.limit) setLimit(Number(saved.limit) || 2);
-    if (saved.queueBatchSizes && typeof saved.queueBatchSizes === "object") setQueueBatchSizes((current) => ({ ...current, ...saved.queueBatchSizes }));
-    if (saved.wmPage) setWmPage(Math.max(1, Number(saved.wmPage) || 1));
-    if (saved.movPage) setMovPage(Math.max(1, Number(saved.movPage) || 1));
-    if (saved.pubPage) setPubPage(Math.max(1, Number(saved.pubPage) || 1));
-    if (saved.partesPage) setPartesPage(Math.max(1, Number(saved.partesPage) || 1));
-    if (saved.audPage) setAudPage(Math.max(1, Number(saved.audPage) || 1));
-    if (saved.maPage) setMaPage(Math.max(1, Number(saved.maPage) || 1));
-    if (saved.miPage) setMiPage(Math.max(1, Number(saved.miPage) || 1));
-    if (saved.fgPage) setFgPage(Math.max(1, Number(saved.fgPage) || 1));
-    if (saved.orphanPage) setOrphanPage(Math.max(1, Number(saved.orphanPage) || 1));
-    if (saved.covPage) setCovPage(Math.max(1, Number(saved.covPage) || 1));
-    if (saved.search) setSearch(String(saved.search));
-    if (saved.relationMinScore) setRelationMinScore(String(saved.relationMinScore));
-    if (Array.isArray(saved.selectedWithoutMovements)) setSelectedWithoutMovements(saved.selectedWithoutMovements);
-    if (Array.isArray(saved.selectedMovementBacklog)) setSelectedMovementBacklog(saved.selectedMovementBacklog);
-    if (Array.isArray(saved.selectedPublicationBacklog)) setSelectedPublicationBacklog(saved.selectedPublicationBacklog);
-    if (Array.isArray(saved.selectedPartesBacklog)) setSelectedPartesBacklog(saved.selectedPartesBacklog);
-    if (Array.isArray(saved.selectedAudienciaCandidates)) setSelectedAudienciaCandidates(saved.selectedAudienciaCandidates);
-    if (Array.isArray(saved.selectedMonitoringActive)) setSelectedMonitoringActive(saved.selectedMonitoringActive);
-    if (Array.isArray(saved.selectedMonitoringInactive)) setSelectedMonitoringInactive(saved.selectedMonitoringInactive);
-    if (Array.isArray(saved.selectedFieldGaps)) setSelectedFieldGaps(saved.selectedFieldGaps);
-    if (Array.isArray(saved.selectedOrphans)) setSelectedOrphans(saved.selectedOrphans);
-    if (Array.isArray(saved.selectedRelations)) setSelectedRelations(saved.selectedRelations);
-    if (Array.isArray(saved.selectedSuggestionKeys)) setSelectedSuggestionKeys(saved.selectedSuggestionKeys);
-  }, []);
-  useProcessosNavigationState({
-    view,
-    lastFocusHash,
-    setView,
-    setLastFocusHash,
-    applySavedState: applySavedUiState,
-    persistedState: persistedUiState,
-    setUiHydrated,
-  });
+  useProcessosUiPersistence({ audPage, covPage, fgPage, lastFocusHash, limit, maPage, miPage, movPage, orphanPage, partesPage, processNumbers, pubPage, queueBatchSizes, relationMinScore, search, selectedAudienciaCandidates, selectedFieldGaps, selectedMonitoringActive, selectedMonitoringInactive, selectedMovementBacklog, selectedOrphans, selectedPartesBacklog, selectedPublicationBacklog, selectedRelations, selectedSuggestionKeys, selectedWithoutMovements, setAudPage, setCovPage, setFgPage, setLastFocusHash, setLimit, setMaPage, setMiPage, setMovPage, setOrphanPage, setPartesPage, setProcessNumbers, setPubPage, setQueueBatchSizes, setRelationMinScore, setSearch, setSelectedAudienciaCandidates, setSelectedFieldGaps, setSelectedMonitoringActive, setSelectedMonitoringInactive, setSelectedMovementBacklog, setSelectedOrphans, setSelectedPartesBacklog, setSelectedPublicationBacklog, setSelectedRelations, setSelectedSuggestionKeys, setSelectedWithoutMovements, setUiHydrated, setView, setWmPage, view, wmPage });
 
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
