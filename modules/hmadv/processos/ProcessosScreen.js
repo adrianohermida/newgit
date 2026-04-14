@@ -40,19 +40,9 @@ import ProcessosOperacaoView from "./ProcessosOperacaoView";
 import ProcessosRelacoesView from "./ProcessosRelacoesView";
 import ProcessosResultadoView from "./ProcessosResultadoView";
 import { useProcessosNavigationState } from "./useProcessosNavigationState";
-import {
-  derivePrimaryProcessAction,
-  deriveRecurringProcessEntries,
-  deriveRecurringProcessFocus,
-  deriveRemoteHealth,
-  deriveSuggestedProcessActions,
-  deriveSuggestedProcessBatch,
-  deriveSuggestedProcessChecklist,
-  groupRecurringProcessEntries,
-  RecurringProcessGroup,
-  summarizeRecurrenceBands,
-  summarizeRecurringProcessEntries,
-} from "./recurrence";
+import { deriveRemoteHealth, RecurringProcessGroup } from "./recurrence";
+import { useProcessosRecurringSelection } from "./useProcessosRecurringSelection";
+import { useProcessosRelationActions } from "./useProcessosRelationActions";
 
 import {
   countQueueErrors,
@@ -999,55 +989,50 @@ function InternoProcessosContent() {
   function runQueueAction(action, queueKey, payload = {}) {
     handleAction(action, { ...payload, limit: getQueueBatchSize(queueKey) });
   }
-  const recurringProcesses = deriveRecurringProcessEntries(remoteHistory);
-  const recurringProcessSummary = summarizeRecurringProcessEntries(recurringProcesses);
-  const recurringProcessBands = summarizeRecurrenceBands(recurringProcesses);
-  const recurringProcessGroups = groupRecurringProcessEntries(recurringProcesses);
-  const recurringProcessFocus = deriveRecurringProcessFocus(recurringProcessSummary, recurringProcessBands);
-  const recurringProcessBatch = deriveSuggestedProcessBatch(recurringProcessSummary, recurringProcessBands);
-  const recurringProcessActions = deriveSuggestedProcessActions(recurringProcessSummary, recurringProcessBands);
-  const recurringProcessChecklist = deriveSuggestedProcessChecklist(recurringProcessSummary, recurringProcessBands);
-  function selectVisibleRecurringProcesses() {
-    const recurringKeys = new Set(recurringProcesses.map((item) => item.key));
-    setSelectedWithoutMovements(withoutMovements.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
-    setSelectedMovementBacklog(movementBacklog.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
-    setSelectedPublicationBacklog(publicationBacklog.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
-    setSelectedPartesBacklog(partesBacklog.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
-    setSelectedAudienciaCandidates(audienciaCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
-    setSelectedMonitoringActive(monitoringActive.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
-    setSelectedMonitoringInactive(monitoringInactive.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
-    setSelectedFieldGaps(fieldGaps.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
-    setSelectedOrphans(orphans.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
-    updateView("filas");
-  }
-  function selectVisibleSevereRecurringProcesses() {
-    const recurringKeys = new Set(recurringProcesses.filter((item) => item.hits >= 3).map((item) => item.key));
-    setSelectedWithoutMovements(withoutMovements.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
-    setSelectedMovementBacklog(movementBacklog.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
-    setSelectedPublicationBacklog(publicationBacklog.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
-    setSelectedPartesBacklog(partesBacklog.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
-    setSelectedAudienciaCandidates(audienciaCandidates.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
-    setSelectedMonitoringActive(monitoringActive.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
-    setSelectedMonitoringInactive(monitoringInactive.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
-    setSelectedFieldGaps(fieldGaps.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
-    setSelectedOrphans(orphans.items.filter((item) => recurringKeys.has(item.numero_cnj || item.key)).map((item) => getProcessSelectionValue(item)));
-    updateView("filas");
-  }
-  function applySevereRecurringPreset() {
-    setLimit(recurringProcessBatch.size);
-    selectVisibleSevereRecurringProcesses();
-  }
-  function clearAllQueueSelections() {
-    setSelectedWithoutMovements([]);
-    setSelectedMovementBacklog([]);
-    setSelectedPublicationBacklog([]);
-    setSelectedPartesBacklog([]);
-    setSelectedAudienciaCandidates([]);
-    setSelectedMonitoringActive([]);
-    setSelectedMonitoringInactive([]);
-    setSelectedFieldGaps([]);
-    setSelectedOrphans([]);
-  }
+  const {
+    recurringProcesses,
+    recurringProcessSummary,
+    recurringProcessBands,
+    recurringProcessGroups,
+    recurringProcessFocus,
+    recurringProcessBatch,
+    recurringProcessActions,
+    recurringProcessChecklist,
+    primaryProcessAction,
+    visibleRecurringCount,
+    visibleSevereRecurringCount,
+    selectVisibleRecurringProcesses,
+    selectVisibleSevereRecurringProcesses,
+    applySevereRecurringPreset,
+    clearAllQueueSelections,
+  } = useProcessosRecurringSelection({
+    remoteHistory,
+    queueSets: [
+      { items: withoutMovements.items, setter: setSelectedWithoutMovements },
+      { items: movementBacklog.items, setter: setSelectedMovementBacklog },
+      { items: publicationBacklog.items, setter: setSelectedPublicationBacklog },
+      { items: partesBacklog.items, setter: setSelectedPartesBacklog },
+      { items: audienciaCandidates.items, setter: setSelectedAudienciaCandidates },
+      { items: monitoringActive.items, setter: setSelectedMonitoringActive },
+      { items: monitoringInactive.items, setter: setSelectedMonitoringInactive },
+      { items: fieldGaps.items, setter: setSelectedFieldGaps },
+      { items: orphans.items, setter: setSelectedOrphans },
+    ],
+    getProcessSelectionValue,
+    updateView,
+    setLimit,
+    clearSelectionSetters: [
+      setSelectedWithoutMovements,
+      setSelectedMovementBacklog,
+      setSelectedPublicationBacklog,
+      setSelectedPartesBacklog,
+      setSelectedAudienciaCandidates,
+      setSelectedMonitoringActive,
+      setSelectedMonitoringInactive,
+      setSelectedFieldGaps,
+      setSelectedOrphans,
+    ],
+  });
   function toggleCustomSelection(setter, current, key) {
     setter(current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
   }
@@ -1418,15 +1403,8 @@ function InternoProcessosContent() {
   const latestJob = jobs[0] || null;
   const remoteHealth = deriveRemoteHealth(remoteHistory);
   const monitoringUnsupported = Boolean(monitoringActive.unsupported || monitoringInactive.unsupported);
-  const primaryProcessAction = derivePrimaryProcessAction(recurringProcessActions);
   const combinedSelectedNumbers = getCombinedSelectedNumbers();
   const selectedSummary = combinedSelectedNumbers.length;
-  const visibleRecurringCount = [...withoutMovements.items, ...movementBacklog.items, ...publicationBacklog.items, ...partesBacklog.items, ...audienciaCandidates.items, ...monitoringActive.items, ...monitoringInactive.items, ...fieldGaps.items, ...orphans.items]
-    .filter((item, index, array) => array.findIndex((other) => (other.numero_cnj || other.key) === (item.numero_cnj || item.key)) === index)
-    .filter((item) => recurringProcesses.some((recurring) => recurring.key === (item.numero_cnj || item.key))).length;
-  const visibleSevereRecurringCount = [...withoutMovements.items, ...movementBacklog.items, ...publicationBacklog.items, ...partesBacklog.items, ...audienciaCandidates.items, ...monitoringActive.items, ...monitoringInactive.items, ...fieldGaps.items, ...orphans.items]
-    .filter((item, index, array) => array.findIndex((other) => (other.numero_cnj || other.key) === (item.numero_cnj || item.key)) === index)
-    .filter((item) => recurringProcesses.some((recurring) => recurring.key === (item.numero_cnj || item.key) && recurring.hits >= 3)).length;
   const selectedVisibleSevereRecurringCount = [...withoutMovements.items, ...movementBacklog.items, ...publicationBacklog.items, ...partesBacklog.items, ...audienciaCandidates.items, ...monitoringActive.items, ...monitoringInactive.items, ...fieldGaps.items, ...orphans.items]
     .filter((item, index, array) => array.findIndex((other) => (other.numero_cnj || other.key) === (item.numero_cnj || item.key)) === index)
     .filter((item) => recurringProcesses.some((recurring) => recurring.key === (item.numero_cnj || item.key) && recurring.hits >= 3))
