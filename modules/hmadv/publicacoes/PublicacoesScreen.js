@@ -475,75 +475,7 @@ function PublicacoesContent() {
   });
 
 
-  async function refreshOperationalContext(options = {}) {
-    const { forceAll = false, forceQueues = false } = options;
-    const shouldLoadQueues = forceAll || PUBLICACOES_QUEUE_VIEWS.has(view);
-    const calls = [loadOverview(), loadRemoteHistory(), loadJobs()];
-    if (shouldLoadQueues) {
-      calls.push(loadProcessCandidates(processPage, { force: forceAll || forceQueues }));
-      if (heavyQueuesEnabled && (!activeJobId || forceAll || forceQueues)) {
-        calls.push(loadPartesCandidates(partesPage, { force: forceAll || forceQueues }));
-      }
-      if (heavyQueuesEnabled) {
-        calls.push(loadIntegratedQueue(integratedPage, { force: forceAll || forceQueues }));
-      }
-    }
-    await Promise.all(calls);
-  }
 
-  async function refreshAfterAction(action) {
-    const calls = [loadOverview(), loadRemoteHistory(), loadJobs()];
-    if (PUBLICACOES_QUEUE_VIEWS.has(view) && heavyQueuesEnabled) {
-      calls.push(loadIntegratedQueue(integratedPage, { force: true }));
-      if (action === "criar_processos_publicacoes") {
-        calls.push(loadProcessCandidates(processPage, { force: true }));
-      }
-      if ((action === "backfill_partes" || action === "sincronizar_partes") && !activeJobId) {
-        calls.push(loadPartesCandidates(partesPage, { force: false }));
-      }
-    }
-    await Promise.all(calls);
-  }
-
-  async function toggleIntegratedFiltered(nextState) {
-    if (!nextState) {
-      const numbers = filteredIntegratedRows.map((row) => row.numero_cnj).filter(Boolean);
-      setSelectedIntegratedNumbers((current) => current.filter((item) => !numbers.includes(item)));
-      return;
-    }
-    if (!integratedQueue.hasMore && filteredIntegratedRows.length >= (integratedQueue.totalRows || 0)) {
-      const numbers = filteredIntegratedRows.map((row) => row.numero_cnj).filter(Boolean);
-      setSelectedIntegratedNumbers((current) => [...new Set([...current, ...numbers])]);
-      return;
-    }
-    try {
-      const selectionLimit = Math.min(
-        5000,
-        Math.max(
-          Number(integratedQueue.totalRows || 0) || 0,
-          filteredIntegratedRows.length || 0,
-          integratedPageSize
-        )
-      );
-      const payload = await adminFetch(`/api/admin-hmadv-publicacoes?action=mesa_integrada_selecao&query=${encodeURIComponent(integratedFilters.query || "")}&source=${encodeURIComponent(integratedFilters.source || "todos")}&limit=${selectionLimit}&preferSnapshot=1`, {}, {
-        action: "mesa_integrada_selecao",
-        component: "publicacoes-mesa-integrada",
-        label: "Selecionar todos os itens filtrados",
-        expectation: "Trazer todos os CNJs filtrados da mesa integrada",
-      });
-      const numbers = payload.data?.items || [];
-      setSelectedIntegratedNumbers((current) => [...new Set([...current, ...numbers])]);
-      if (payload.data?.limited) {
-        setActionState({
-          loading: false,
-          error: `A selecao filtrada atingiu o teto operacional de ${selectionLimit} itens. Refine os filtros para continuar a drenagem com seguranca.`,
-          result: payload.data,
-        });
-      }
-    } catch (error) {
-      setActionState({ loading: false, error: error.message || "Falha ao selecionar todos os itens filtrados.", result: null });
-    }
-  }
 
   async function refreshIntegratedSnapshot(queueType = "all") {
     if (hasBlockingJob) {

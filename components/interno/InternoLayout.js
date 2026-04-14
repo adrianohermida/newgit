@@ -456,7 +456,7 @@ export default function InternoLayout({
         ) : null}
       {/* MAIN + COPILOT */}
         <div className={`${isCopilotWorkspace || isMobileShell || hideShellSidebar ? "ml-0" : "ml-2 md:ml-3"} flex h-full min-h-0 flex-1`}>
-          {/* CONTEUDO PRINCIPAL */}
+          {/* Conteudo principal */}
         <div className={`relative flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden ${
           isCopilotWorkspace
             ? copilotMainShellClass
