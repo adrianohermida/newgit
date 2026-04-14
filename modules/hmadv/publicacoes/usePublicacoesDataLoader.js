@@ -1,5 +1,4 @@
 import {
-  GLOBAL_ERROR_TTL_MS,
   PARTES_QUEUE_REFRESH_TTL_MS,
   PARTES_QUEUE_RESOURCE_ERROR_TTL_MS,
   PROCESS_QUEUE_REFRESH_TTL_MS,
@@ -21,41 +20,17 @@ export function usePublicacoesDataLoader({
   partesCandidatesRequestRef,
   processCandidates,
   processCandidatesRequestRef,
-  setGlobalError,
-  setGlobalErrorUntil,
   setIntegratedCursorTrail,
   setIntegratedQueue,
-  setJobs,
-  setOverview,
   setPartesCandidates,
   setProcessCandidates,
   setQueueRefreshLog,
-  setRemoteHistory,
   setValidationMap,
 }) {
   function pushQueueRefresh(key) {
     const label = QUEUE_LABELS[key] || key;
     const entry = { key, label, ts: new Date().toISOString() };
     setQueueRefreshLog((current) => [entry, ...(current || []).filter((item) => item.key !== key)].slice(0, 6));
-  }
-
-  async function loadOverview() {
-    if (globalErrorUntil && Date.now() < globalErrorUntil) {
-      setOverview((state) => ({ ...state, loading: false }));
-      return;
-    }
-    setOverview({ loading: true, error: null, data: null });
-    try {
-      const payload = await adminFetch("/api/admin-hmadv-publicacoes?action=overview", {}, { action: "overview", component: "publicacoes-overview", label: "Carregar overview de publicacoes", expectation: "Atualizar indicadores e leitura do modulo" });
-      setOverview({ loading: false, error: null, data: payload.data });
-      setGlobalError(null);
-      setGlobalErrorUntil(null);
-    } catch (error) {
-      const message = error.message || "Falha ao carregar modulo de publicacoes.";
-      setOverview({ loading: false, error: message, data: null });
-      setGlobalError(message);
-      setGlobalErrorUntil(Date.now() + GLOBAL_ERROR_TTL_MS);
-    }
   }
 
   async function loadProcessCandidates(page, options = {}) {
@@ -161,37 +136,10 @@ export function usePublicacoesDataLoader({
     return request;
   }
 
-  async function loadRemoteHistory() {
-    if (globalErrorUntil && Date.now() < globalErrorUntil) return;
-    try {
-      const payload = await adminFetch("/api/admin-hmadv-publicacoes?action=historico&limit=20", {}, { action: "historico", component: "publicacoes-console", label: "Carregar historico remoto de publicacoes", expectation: "Sincronizar o historico HMADV no console" });
-      setRemoteHistory(payload.data.items || []);
-      setGlobalError(null);
-      setGlobalErrorUntil(null);
-    } catch {
-      setRemoteHistory([]);
-    }
-  }
-
-  async function loadJobs() {
-    if (globalErrorUntil && Date.now() < globalErrorUntil) return;
-    try {
-      const payload = await adminFetch("/api/admin-hmadv-publicacoes?action=jobs&limit=12", {}, { action: "jobs", component: "publicacoes-jobs", label: "Carregar jobs de publicacoes", expectation: "Atualizar a fila operacional de jobs" });
-      setJobs(payload.data.items || []);
-      setGlobalError(null);
-      setGlobalErrorUntil(null);
-    } catch {
-      setJobs([]);
-    }
-  }
-
   return {
     loadIntegratedQueue,
-    loadJobs,
-    loadOverview,
     loadPartesCandidates,
     loadProcessCandidates,
-    loadRemoteHistory,
     pushQueueRefresh,
   };
 }

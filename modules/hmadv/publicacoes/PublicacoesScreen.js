@@ -47,6 +47,7 @@ import { usePublicacoesUiActions } from "./usePublicacoesUiActions";
 import { usePublicacoesQueuesViewModel } from "./usePublicacoesQueuesViewModel";
 import { usePublicacoesOperationalPlan } from "./usePublicacoesOperationalPlan";
 import { usePublicacoesDataLoader } from "./usePublicacoesDataLoader";
+import { usePublicacoesMetaLoader } from "./usePublicacoesMetaLoader";
 
 function isResourceLimitError(error) {
   const text = String(error?.payload || error?.message || error || "").toLowerCase();
@@ -178,12 +179,22 @@ function PublicacoesContent() {
   const integratedQueueRequestRef = useRef({ promise: null, key: "" });
   const integratedPageSize = 12;
   const {
-    loadIntegratedQueue,
     loadJobs,
     loadOverview,
+    loadRemoteHistory,
+  } = usePublicacoesMetaLoader({
+    adminFetch,
+    globalErrorUntil,
+    setGlobalError,
+    setGlobalErrorUntil,
+    setJobs,
+    setOverview,
+    setRemoteHistory,
+  });
+  const {
+    loadIntegratedQueue,
     loadPartesCandidates,
     loadProcessCandidates,
-    loadRemoteHistory,
     pushQueueRefresh,
   } = usePublicacoesDataLoader({
     adminFetch,
@@ -199,16 +210,11 @@ function PublicacoesContent() {
     partesCandidatesRequestRef,
     processCandidates,
     processCandidatesRequestRef,
-    setGlobalError,
-    setGlobalErrorUntil,
     setIntegratedCursorTrail,
     setIntegratedQueue,
-    setJobs,
-    setOverview,
     setPartesCandidates,
     setProcessCandidates,
     setQueueRefreshLog,
-    setRemoteHistory,
     setValidationMap,
   });
   const integratedRows = useMemo(
