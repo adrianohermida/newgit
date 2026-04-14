@@ -1,10 +1,10 @@
 import { useInternalTheme } from "../../../components/interno/InternalThemeProvider";
 import { ViewToggle } from "./ui-primitives";
 import { RemoteRunSummary } from "./processos-result-components";
-import { CopilotContextCard, SessionSummary } from "./ProcessosHeaderContextCards";
-import ProcessosHealthSummary from "./ProcessosHealthSummary";
-import ProcessosPlanSummary from "./ProcessosPlanSummary";
-import ProcessosReadinessSummary from "./ProcessosReadinessSummary";
+import { CopilotContextCard, SessionSummary } from "./ProcessosHeaderContextCards.js";
+import ProcessosHealthSummary from "./ProcessosHealthSummary.js";
+import ProcessosPlanSummary from "./ProcessosPlanSummary.js";
+import ProcessosReadinessSummary from "./ProcessosReadinessSummary.js";
 
 export default function ProcessosHeaderPanel(props) {
   const { isLightTheme } = useInternalTheme();

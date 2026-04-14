@@ -81,9 +81,33 @@ function seedNextDir() {
     fs.mkdirSync(folder, { recursive: true });
   }
 
-  const packageJsonPath = path.join(nextDir, 'package.json');
-  if (!fs.existsSync(packageJsonPath)) {
-    fs.writeFileSync(packageJsonPath, '{"private":true}\n');
+  const pagesRoot = path.join(process.cwd(), 'pages');
+  if (fs.existsSync(pagesRoot)) {
+    const stack = [pagesRoot];
+    while (stack.length) {
+      const current = stack.pop();
+      for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const sourceDir = path.join(current, entry.name);
+        const relativeDir = path.relative(pagesRoot, sourceDir);
+        fs.mkdirSync(path.join(nextDir, 'server', 'pages', relativeDir), { recursive: true });
+        stack.push(sourceDir);
+      }
+    }
+  }
+
+  const seededFiles = [
+    [path.join(nextDir, 'package.json'), '{"private":true}\n'],
+    [
+      path.join(nextDir, 'server', 'next-font-manifest.json'),
+      '{"pages":{},"app":{},"appUsingSizeAdjust":false,"pagesUsingSizeAdjust":false}\n',
+    ],
+  ];
+
+  for (const [filePath, content] of seededFiles) {
+    if (!fs.existsSync(filePath)) {
+      fs.writeFileSync(filePath, content);
+    }
   }
 }
 

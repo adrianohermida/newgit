@@ -3,7 +3,6 @@ import { useMemo, useState } from "react";
 import InternoLayout from "../../components/interno/InternoLayout";
 import OptionalAdminAccess from "../../components/interno/OptionalAdminAccess";
 import { adminFetch } from "../../lib/admin/api";
-const { buildPortableSetupPreview } = require("../../lib/integration-kit/portable-preview");
 
 const initialSetup = {
   project: {
@@ -173,6 +172,7 @@ export default function SetupIntegracaoPage() {
     setNotice("");
 
     try {
+      const { buildPortableSetupPreview } = await import("../../lib/integration-kit/portable-preview");
       const localPreview = buildPortableSetupPreview(form, {});
       setPreview(localPreview);
       setCapabilities({

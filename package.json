@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "dev:pages": "npm run build:pages && npx wrangler pages dev out --project-name=newgit-pages",
     "build:core": "node scripts/guard-next-build-lock.cjs",
     "build": "npm run build:core && node scripts/normalize-pages-export-assets.js",

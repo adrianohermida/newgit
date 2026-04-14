@@ -18,9 +18,6 @@ import {
   Panel,
   QueueSummaryCard,
 } from "./ui-primitives";
-import {
-  deriveRemoteHealth,
-} from "./recurrence";
 import { usePublicacoesDerivedState } from "./usePublicacoesDerivedState";
 import { usePublicacoesQueueSelection } from "./usePublicacoesQueueSelection";
 import { usePublicacoesValidationActions } from "./usePublicacoesValidationActions";
@@ -29,7 +26,6 @@ import { usePublicacoesParteActions } from "./usePublicacoesParteActions";
 import { usePublicacoesExecutionHistory } from "./usePublicacoesExecutionHistory";
 import { usePublicacoesActionRunner } from "./usePublicacoesActionRunner";
 import { usePublicacoesUiActions } from "./usePublicacoesUiActions";
-import { usePublicacoesQueuesViewModel } from "./usePublicacoesQueuesViewModel";
 import { usePublicacoesOperationalPlan } from "./usePublicacoesOperationalPlan";
 import { usePublicacoesDataLoader } from "./usePublicacoesDataLoader";
 import { usePublicacoesMetaLoader } from "./usePublicacoesMetaLoader";
@@ -59,6 +55,7 @@ import { recoverPublicacoesAdviseBackfillFailure } from "./publicacoesBackfillRe
 import { usePublicacoesRefreshActions } from "./usePublicacoesRefreshActions";
 import { usePublicacoesOverviewState } from "./usePublicacoesOverviewState";
 import { PublicacoesScreenBody } from "./PublicacoesScreenBody";
+import { usePublicacoesQueuesScreenModel } from "./usePublicacoesQueuesScreenModel";
 
 
 function PublicacoesContent() {
@@ -275,7 +272,7 @@ function PublicacoesContent() {
     setView,
     partesCandidates,
   });
-  const recoverAdviseBackfillFailure = async (error, safeLimit) => recoverPublicacoesAdviseBackfillFailure({
+  const runAdviseBackfillRecovery = async (error, safeLimit) => recoverPublicacoesAdviseBackfillFailure({
     adminFetch,
     error,
     safeLimit,
@@ -336,7 +333,7 @@ function PublicacoesContent() {
     partsBacklogCount,
     processNumbers,
     pushHistoryEntry,
-    recoverAdviseBackfillFailure,
+    recoverAdviseBackfillFailure: runAdviseBackfillRecovery,
     refreshAfterAction,
     refreshOperationalContext,
     replaceHistoryEntry,
@@ -476,10 +473,6 @@ function PublicacoesContent() {
     () => processCandidates.items.filter((item) => matchesPublicacaoSelection(item, selectedProcessKeys)).map((item) => item.numero_cnj).filter(Boolean),
     [processCandidates.items, selectedProcessKeys]
   );
-  const selectedPartesNumbers = useMemo(
-    () => partesCandidates.items.filter((item) => matchesPublicacaoSelection(item, selectedPartesKeys)).map((item) => item.numero_cnj).filter(Boolean),
-    [partesCandidates.items, selectedPartesKeys]
-  );
   const data = overview.data || {};
   const {
     adviseBackfillProgress,
@@ -548,98 +541,98 @@ function PublicacoesContent() {
     runPendingJobsNow,
     updateView,
   });
-  const queuesViewModel = usePublicacoesQueuesViewModel({
-    isLightTheme,
-    queueDiagnostics,
-    updateView,
-    recurringPublicacoes,
-    recurringPublicacoesFocus,
-    recurringPublicacoesBatch,
-    visibleRecurringCount,
-    visibleSevereRecurringCount,
-    selectedVisibleSevereRecurringCount,
-    priorityBatchReady,
-    setLimit,
-    applySevereRecurringPreset,
-    selectVisibleRecurringPublicacoes,
-    selectVisibleSevereRecurringPublicacoes,
-    clearQueueSelections,
-    recurringPublicacoesActions,
-    primaryPublicacoesAction,
-    runPendingJobsNow,
+  const queuesViewModel = usePublicacoesQueuesScreenModel({
     actionState,
-    drainInFlight,
-    canManuallyDrainActiveJob,
-    recurringPublicacoesChecklist,
-    recurringPublicacoesSummary,
-    recurringPublicacoesBands,
-    recurringPublicacoesGroups,
-    processCandidates,
-    partesCandidates,
-    data,
-    integratedFilters,
-    setIntegratedFilters,
-    selectedUnifiedCount,
-    selectedUnifiedNumbers,
-    integratedQueue,
-    filteredIntegratedRows,
-    integratedSourceLabel,
-    bulkValidationStatus,
-    setBulkValidationStatus,
-    bulkValidationNote,
-    setBulkValidationNote,
+    allIntegratedFilteredSelected,
+    allIntegratedPageSelected,
+    applySevereRecurringPreset,
     applyValidationToNumbers,
-    runBulkContactsReconcile,
-    loadHeavyQueueReads,
+    bulkValidationNote,
+    bulkValidationStatus,
+    canManuallyDrainActiveJob,
+    clearQueueSelections,
+    data,
+    detailEditForm,
+    detailLinkType,
+    detailState,
+    drainInFlight,
+    filteredIntegratedRows,
+    formatDateTimeLabel,
+    formatValidationMeta,
+    getPublicacaoSelectionValue,
+    goToIntegratedNextPage,
+    goToIntegratedPreviousPage,
     handleAction,
     hasBlockingJob,
-    noPublicationActivityTypeConfigured,
-    publicationActivityTypeHint,
-    refreshIntegratedSnapshot,
-    pagedIntegratedRows,
+    heavyQueuesEnabled,
+    integratedCanGoNext,
+    integratedCanGoPrevious,
+    integratedFilters,
     integratedPage,
     integratedPageSize,
+    integratedQueue,
+    integratedSourceLabel,
+    isLightTheme,
+    linkPendingDetailPartes,
+    loadHeavyQueueReads,
     loadIntegratedDetail,
-    toggleUnifiedRow,
-    toggleIntegratedPage,
-    toggleIntegratedFiltered,
-    allIntegratedPageSelected,
-    allIntegratedFilteredSelected,
-    goToIntegratedPreviousPage,
-    goToIntegratedNextPage,
-    integratedCanGoPrevious,
-    integratedCanGoNext,
-    validationLabel,
-    validationTone,
-    formatValidationMeta,
-    detailState,
-    detailEditForm,
-    setDetailEditForm,
-    detailLinkType,
-    setDetailLinkType,
-    selectedDetailPendingPartes,
+    moveLinkedDetailPartes,
+    noPublicationActivityTypeConfigured,
+    pagedIntegratedRows,
+    partesCandidates,
+    partesPage,
+    primaryPublicacoesAction,
+    priorityBatchReady,
+    processCandidates,
+    processPage,
+    publicationActivityTypeHint,
+    queueDiagnostics,
+    reclassifyLinkedDetailPartes,
+    recurringPublicacoes,
+    recurringPublicacoesActions,
+    recurringPublicacoesBands,
+    recurringPublicacoesBatch,
+    recurringPublicacoesChecklist,
+    recurringPublicacoesFocus,
+    recurringPublicacoesGroups,
+    recurringPublicacoesSummary,
+    refreshIntegratedSnapshot,
+    runBulkContactsReconcile,
+    runPendingJobsNow,
+    saveDetailContact,
     selectedDetailLinkedPartes,
-    toggleDetailPendingParte,
+    selectedDetailPendingPartes,
+    selectedPartesKeys,
+    selectedProcessKeys,
+    selectedUnifiedCount,
+    selectedUnifiedNumbers,
+    selectedVisibleSevereRecurringCount,
+    selectVisibleRecurringPublicacoes,
+    selectVisibleSevereRecurringPublicacoes,
+    setBulkValidationNote,
+    setBulkValidationStatus,
+    setDetailEditForm,
+    setDetailLinkType,
+    setIntegratedFilters,
+    setLimit,
+    setPartesPage,
+    setProcessPage,
+    setSelectedPartesKeys,
+    toggleDetailLinkedPage,
     toggleDetailLinkedParte,
     toggleDetailPendingPage,
-    toggleDetailLinkedPage,
-    linkPendingDetailPartes,
-    moveLinkedDetailPartes,
-    reclassifyLinkedDetailPartes,
-    unlinkLinkedDetailPartes,
-    saveDetailContact,
-    formatDateTimeLabel,
-    processPage,
-    setProcessPage,
-    selectedProcessKeys,
-    toggleSelection,
+    toggleDetailPendingParte,
+    toggleIntegratedFiltered,
+    toggleIntegratedPage,
     togglePageSelection,
-    partesPage,
-    setPartesPage,
-    selectedPartesKeys,
-    setSelectedPartesKeys,
-    getPublicacaoSelectionValue,
-    heavyQueuesEnabled,
+    toggleSelection,
+    toggleUnifiedRow,
+    unlinkLinkedDetailPartes,
+    updateView,
+    validationLabel,
+    validationTone,
+    visibleRecurringCount,
+    visibleSevereRecurringCount,
   });
 
   return (
@@ -663,10 +656,8 @@ function PublicacoesContent() {
       data={data}
       drainInFlight={drainInFlight}
       executionHistory={executionHistory}
-      formatDateTimeLabel={formatDateTimeLabel}
       formatFallbackReason={formatFallbackReason}
       formatSnapshotLabel={formatSnapshotLabel}
-      formatValidationMeta={formatValidationMeta}
       getOperationalPlanStepState={getOperationalPlanStepState}
       handleAction={handleAction}
       hasBlockingJob={hasBlockingJob}

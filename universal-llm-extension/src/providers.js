@@ -31,7 +31,8 @@ async function callCloud(messages, model) {
   }
   const target = joinUrl(configs.cloud.appUrl, "/api/admin-lawdesk-chat");
   const query = messages.map((item) => `[${item.role}] ${item.content}`).join("\n");
-  const response = await jsonPost(target, { query, provider: "cloud", model });
+  const headers = configs.cloud.authToken ? { Authorization: `Bearer ${configs.cloud.authToken}` } : {};
+  const response = await jsonPost(target, { query, provider: "cloud", model }, headers);
   const content = extractContent(response.body);
   if (response.status >= 200 && response.status < 300 && content) return { ok: true, provider: "cloud", model, content, target };
   throw buildProviderError("Cloud proxy", target, response);
@@ -48,7 +49,8 @@ async function callCloudflare(messages, model) {
   }
   const target = joinUrl(configs.cloudflare.appUrl, "/api/admin-lawdesk-chat");
   const query = messages.map((item) => `[${item.role}] ${item.content}`).join("\n");
-  const response = await jsonPost(target, { query, provider: "cloudflare", model });
+  const headers = configs.cloud.authToken ? { Authorization: `Bearer ${configs.cloud.authToken}` } : {};
+  const response = await jsonPost(target, { query, provider: "cloudflare", model }, headers);
   const content = extractContent(response.body);
   if (response.status >= 200 && response.status < 300 && content) return { ok: true, provider: "cloudflare", model, content, target };
   throw buildProviderError("Cloudflare proxy", target, response);
@@ -70,7 +72,7 @@ async function diagnose(provider) {
         body: { model: configs.cloud.model, max_tokens: 8, messages: [{ role: "user", content: "OK" }] },
         headers: configs.cloud.authToken ? { Authorization: `Bearer ${configs.cloud.authToken}` } : {},
       }] : []),
-      { url: joinUrl(configs.cloud.appUrl, "/api/admin-lawdesk-chat"), body: { query: "Responda com OK", provider: "cloud", model: configs.cloud.model } },
+      { url: joinUrl(configs.cloud.appUrl, "/api/admin-lawdesk-chat"), body: { query: "Responda com OK", provider: "cloud", model: configs.cloud.model }, headers: configs.cloud.authToken ? { Authorization: `Bearer ${configs.cloud.authToken}` } : {}, hint: "Essa rota exige token administrativo Bearer de uma sessao admin valida." },
     ],
     cloudflare: [
       ...((configs.cloudflare.accountId && configs.cloudflare.apiToken) ? [{
@@ -78,7 +80,7 @@ async function diagnose(provider) {
         body: { messages: [{ role: "user", content: "OK" }] },
         headers: { Authorization: `Bearer ${configs.cloudflare.apiToken}` },
       }] : []),
-      { url: joinUrl(configs.cloudflare.appUrl, "/api/admin-lawdesk-chat"), body: { query: "Responda com OK", provider: "cloudflare", model: configs.cloudflare.model } },
+      { url: joinUrl(configs.cloudflare.appUrl, "/api/admin-lawdesk-chat"), body: { query: "Responda com OK", provider: "cloudflare", model: configs.cloudflare.model }, headers: configs.cloud.authToken ? { Authorization: `Bearer ${configs.cloud.authToken}` } : {}, hint: "Sem Account ID/API Token, o fallback usa o proxy admin e exige token Bearer." },
     ],
   }[provider] || [];
 
@@ -102,6 +104,7 @@ function describeAttempt(attempt, hint) {
 
 function classifyAttempt(attempt, hint) {
   const raw = String(attempt?.rawSnippet || attempt?.error || "").toLowerCase();
+  const errorType = String(attempt?.body?.errorType || "").toLowerCase();
   if (raw.includes("<!doctype") || raw.includes("<html")) {
     return {
       issue: "html_response",
@@ -121,6 +124,13 @@ function classifyAttempt(attempt, hint) {
       issue: "route_not_found",
       summary: "O servidor respondeu, mas a rota esperada nao existe.",
       recommendation: "Revise a base URL. Ela deve apontar para a API correta, nao apenas para a home da aplicacao.",
+    };
+  }
+  if (attempt?.status === 401 || attempt?.status === 403 || errorType === "missing_token" || errorType === "invalid_session" || errorType === "inactive_profile") {
+    return {
+      issue: "auth_failed",
+      summary: "O endpoint respondeu, mas exige autenticacao administrativa valida.",
+      recommendation: "Preencha o token Bearer admin no painel ou use uma API direta que aceite o secret configurado.",
     };
   }
   if (raw.includes("401") || raw.includes("403") || raw.includes("unauthorized") || raw.includes("forbidden")) {

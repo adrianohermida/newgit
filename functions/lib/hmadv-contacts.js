@@ -8,6 +8,12 @@ function cleanValue(value) {
   return text || null;
 }
 
+function buildQuotedInFilter(field, values = []) {
+  const items = [...new Set((values || []).map((value) => cleanValue(value)).filter(Boolean))];
+  if (!items.length) return "";
+  return `${field}=in.(${items.map((value) => `"${encodeURIComponent(value)}"`).join(",")})`;
+}
+
 function safeJsonObject(value, fallback = {}) {
   if (!value) return { ...fallback };
   if (typeof value === "object" && !Array.isArray(value)) return { ...fallback, ...value };
@@ -513,7 +519,8 @@ export async function listUnlinkedPartes(env, { page = 1, pageSize = 20, query =
   const filters = [query ? `nome=ilike.${encodeURIComponent(`*${query}*`)}` : null, "contato_freshsales_id=is.null", "select=id,processo_id,nome,polo,tipo_pessoa,cliente_hmadv,representada_pelo_escritorio,principal_no_account", `limit=${safePageSize}`, `offset=${(safePage - 1) * safePageSize}`].filter(Boolean).join("&");
   const partes = await hmadvRest(env, `partes?${filters}`, {}, "judiciario");
   const processIds = [...new Set(partes.map((item) => item.processo_id).filter(Boolean))];
-  const processos = processIds.length ? await hmadvRest(env, `processos?id=in.(${processIds.map((id) => `"${id}"`).join(",")})&select=id,numero_cnj,titulo,account_id_freshsales`, {}, "judiciario") : [];
+  const processFilter = buildQuotedInFilter("id", processIds);
+  const processos = processFilter ? await hmadvRest(env, `processos?${processFilter}&select=id,numero_cnj,titulo,account_id_freshsales`, {}, "judiciario") : [];
   const procMap = new Map(processos.map((row) => [row.id, row]));
   return { page: safePage, pageSize: safePageSize, totalRows: await hmadvCount(env, "partes", `${query ? `nome=ilike.${encodeURIComponent(`*${query}*`)}&` : ""}contato_freshsales_id=is.null`, "judiciario"), items: partes.map((item) => ({ ...item, processo: procMap.get(item.processo_id) || null })) };
 }
@@ -531,9 +538,11 @@ export async function listLinkedPartes(env, { page = 1, pageSize = 20, query = "
   const partes = await hmadvRest(env, `partes?${filters}`, {}, "judiciario");
   const processIds = [...new Set(partes.map((item) => item.processo_id).filter(Boolean))];
   const contactIds = [...new Set(partes.map((item) => item.contato_freshsales_id).filter(Boolean))];
+  const processFilter = buildQuotedInFilter("id", processIds);
+  const contactFilter = buildQuotedInFilter("freshsales_contact_id", contactIds);
   const [processos, contacts] = await Promise.all([
-    processIds.length ? hmadvRest(env, `processos?id=in.(${processIds.map((id) => `"${id}"`).join(",")})&select=id,numero_cnj,titulo,account_id_freshsales`, {}, "judiciario") : [],
-    contactIds.length ? hmadvRest(env, `freshsales_contacts?freshsales_contact_id=in.(${contactIds.map((id) => `"${id}"`).join(",")})&select=id,freshsales_contact_id,name,raw_payload`) : [],
+    processFilter ? hmadvRest(env, `processos?${processFilter}&select=id,numero_cnj,titulo,account_id_freshsales`, {}, "judiciario") : [],
+    contactFilter ? hmadvRest(env, `freshsales_contacts?${contactFilter}&select=id,freshsales_contact_id,name,raw_payload`) : [],
   ]);
   const procMap = new Map(processos.map((row) => [row.id, row]));
   const contactMap = new Map(contacts.map((row) => [row.freshsales_contact_id, mapMirrorRow(row)]));
@@ -561,13 +570,15 @@ export async function getContactDetail(env, contactId) {
   const contact = mapMirrorRow(row);
   const partes = await hmadvRest(env, `partes?contato_freshsales_id=eq.${encodeURIComponent(String(contactId))}&select=id,processo_id,nome,polo,cliente_hmadv,principal_no_account`, {}, "judiciario");
   const processIds = [...new Set(partes.map((item) => item.processo_id).filter(Boolean))];
-  const processos = processIds.length ? await hmadvRest(env, `processos?id=in.(${processIds.map((id) => `"${id}"`).join(",")})&select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo`, {}, "judiciario") : [];
-  const publicacoes = processIds.length ? await hmadvRest(env, `publicacoes?processo_id=in.(${processIds.map((id) => `"${id}"`).join(",")})&select=id,processo_id,data_publicacao&limit=200`, {}, "judiciario") : [];
-  const audiencias = processIds.length ? await hmadvRest(env, `audiencias?processo_id=in.(${processIds.map((id) => `"${id}"`).join(",")})&select=id,processo_id,data_audiencia&limit=200`, {}, "judiciario") : [];
+  const processFilter = buildQuotedInFilter("id", processIds);
+  const processLinkFilter = buildQuotedInFilter("processo_id", processIds);
+  const processos = processFilter ? await hmadvRest(env, `processos?${processFilter}&select=id,numero_cnj,titulo,account_id_freshsales,status_atual_processo`, {}, "judiciario") : [];
+  const publicacoes = processLinkFilter ? await hmadvRest(env, `publicacoes?${processLinkFilter}&select=id,processo_id,data_publicacao&limit=200`, {}, "judiciario") : [];
+  const audiencias = processLinkFilter ? await hmadvRest(env, `audiencias?${processLinkFilter}&select=id,processo_id,data_audiencia&limit=200`, {}, "judiciario") : [];
   const recentPublicacoes = processIds.length
     ? await hmadvRest(
         env,
-        `publicacoes?processo_id=in.(${processIds.map((id) => `"${id}"`).join(",")})&select=id,processo_id,data_publicacao,conteudo,raw_payload&order=data_publicacao.desc.nullslast&limit=20`,
+        `publicacoes?${processLinkFilter}&select=id,processo_id,data_publicacao,conteudo,raw_payload&order=data_publicacao.desc.nullslast&limit=20`,
         {},
         "judiciario"
       )
@@ -1097,10 +1108,11 @@ export async function linkPartesToExistingContact(env, { parteIds = [], contactI
   const linkedContactId = cleanValue(contactId);
   if (!ids.length) throw new Error("Selecione ao menos uma parte para vincular.");
   if (!linkedContactId) throw new Error("Selecione um contato para vincular as partes.");
-  const partes = await hmadvRest(env, `partes?id=in.(${ids.map((id) => `"${id}"`).join(",")})&select=id,processo_id,nome,polo,tipo_pessoa,cliente_hmadv,representada_pelo_escritorio,principal_no_account`, {}, "judiciario");
+  const parteFilter = buildQuotedInFilter("id", ids);
+  const partes = await hmadvRest(env, `partes?${parteFilter}&select=id,processo_id,nome,polo,tipo_pessoa,cliente_hmadv,representada_pelo_escritorio,principal_no_account`, {}, "judiciario");
   const processIds = [...new Set(partes.map((item) => item.processo_id).filter(Boolean))];
   const processos = processIds.length
-    ? await hmadvRest(env, `processos?id=in.(${processIds.map((id) => `"${id}"`).join(",")})&select=id,numero_cnj,account_id_freshsales,titulo`, {}, "judiciario")
+    ? await hmadvRest(env, `processos?${buildQuotedInFilter("id", processIds)}&select=id,numero_cnj,account_id_freshsales,titulo`, {}, "judiciario")
     : [];
   const procMap = new Map(processos.map((row) => [row.id, row]));
   if (type) {
@@ -1134,8 +1146,9 @@ export async function linkPartesToExistingContact(env, { parteIds = [], contactI
 export async function unlinkPartesFromContact(env, { parteIds = [] } = {}) {
   const ids = Array.isArray(parteIds) ? parteIds.map((item) => cleanValue(item)).filter(Boolean) : [];
   if (!ids.length) throw new Error("Selecione ao menos uma parte para desvincular.");
-  const partes = await hmadvRest(env, `partes?id=in.(${ids.map((id) => `"${id}"`).join(",")})&select=id,processo_id,nome,contato_freshsales_id`, {}, "judiciario");
-  await hmadvRest(env, `partes?id=in.(${ids.map((id) => `"${id}"`).join(",")})`, {
+  const parteFilter = buildQuotedInFilter("id", ids);
+  const partes = await hmadvRest(env, `partes?${parteFilter}&select=id,processo_id,nome,contato_freshsales_id`, {}, "judiciario");
+  await hmadvRest(env, `partes?${parteFilter}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", "Content-Profile": "judiciario", Prefer: "return=minimal" },
     body: JSON.stringify({
@@ -1166,7 +1179,8 @@ export async function reclassifyLinkedPartes(env, { parteIds = [], type = "" } =
   const nextType = cleanValue(type);
   if (!ids.length) throw new Error("Selecione ao menos uma parte vinculada.");
   if (!nextType) throw new Error("Informe o tipo para reclassificar.");
-  const partes = await hmadvRest(env, `partes?id=in.(${ids.map((id) => `"${id}"`).join(",")})&select=id,processo_id,nome,polo,contato_freshsales_id`, {}, "judiciario");
+  const parteFilter = buildQuotedInFilter("id", ids);
+  const partes = await hmadvRest(env, `partes?${parteFilter}&select=id,processo_id,nome,polo,contato_freshsales_id`, {}, "judiciario");
   const contactIds = [...new Set(partes.map((item) => cleanValue(item.contato_freshsales_id)).filter(Boolean))];
   for (const contactId of contactIds) {
     await updateFreshsalesContactType(env, contactId, nextType);
@@ -1202,7 +1216,7 @@ async function resolveContactsForBulkAction(env, { contactIds = [], query = "", 
   if (explicitIds.length) {
     const rows = await hmadvRest(
       env,
-      `freshsales_contacts?freshsales_contact_id=in.(${explicitIds.map((id) => `"${id}"`).join(",")})&select=id,freshsales_contact_id,name,email,phone,last_synced_at,raw_payload&limit=${Math.min(explicitIds.length, 1000)}`
+      `freshsales_contacts?${buildQuotedInFilter("freshsales_contact_id", explicitIds)}&select=id,freshsales_contact_id,name,email,phone,last_synced_at,raw_payload&limit=${Math.min(explicitIds.length, 1000)}`
     );
     return rows.map(mapMirrorRow);
   }
