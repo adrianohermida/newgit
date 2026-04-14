@@ -149,21 +149,18 @@ class ApiServerTests(unittest.TestCase):
 
     def test_messages_json_uses_low_resource_profile_by_default_for_local(self) -> None:
         with patch('api.server._json_request') as mocked_request, patch('api.server._json_get_request') as mocked_get:
-            mocked_request.side_effect = [
-                RuntimeError('404'),
-                {
-                    'id': 'chatcmpl_local',
-                    'model': 'aetherlab-legal-local-v1:latest',
-                    'choices': [
-                        {
-                            'message': {
-                                'role': 'assistant',
-                                'content': 'Resposta enxuta local',
-                            }
+            mocked_request.return_value = {
+                'id': 'chatcmpl_local',
+                'model': 'aetherlab-legal-local-v1:latest',
+                'choices': [
+                    {
+                        'message': {
+                            'role': 'assistant',
+                            'content': 'Resposta enxuta local',
                         }
-                    ],
-                },
-            ]
+                    }
+                ],
+            }
             mocked_get.return_value = {
                 'object': 'list',
                 'data': [{'id': 'aetherlab-legal-local-v1:latest'}],
@@ -197,21 +194,18 @@ class ApiServerTests(unittest.TestCase):
              patch('api.server.FileBackedLongTermMemory.load') as mocked_load, \
              patch('api.server.search_supabase_context') as mocked_supabase, \
              patch('api.server.search_obsidian_context') as mocked_obsidian:
-            mocked_request.side_effect = [
-                RuntimeError('404'),
-                {
-                    'id': 'chatcmpl_local',
-                    'model': 'aetherlab-legal-local-v1:latest',
-                    'choices': [
-                        {
-                            'message': {
-                                'role': 'assistant',
-                                'content': 'Resposta com memoria',
-                            }
+            mocked_request.return_value = {
+                'id': 'chatcmpl_local',
+                'model': 'aetherlab-legal-local-v1:latest',
+                'choices': [
+                    {
+                        'message': {
+                            'role': 'assistant',
+                            'content': 'Resposta com memoria',
                         }
-                    ],
-                },
-            ]
+                    }
+                ],
+            }
             mocked_get.return_value = {
                 'object': 'list',
                 'data': [{'id': 'aetherlab-legal-local-v1:latest'}],
@@ -266,6 +260,7 @@ class ApiServerTests(unittest.TestCase):
             )
 
         self.assertEqual(payload['metadata']['session_id'], 'sess_test_memory')
+        self.assertGreaterEqual(payload['metadata']['conversation_turns_used'], 1)
         self.assertEqual(payload['metadata']['memory_entries_used'], 2)
         self.assertGreaterEqual(payload['metadata']['rag_matches_used'], 1)
         self.assertIn('obsidian', payload['metadata']['rag_sources'])
@@ -341,7 +336,7 @@ class ApiServerTests(unittest.TestCase):
         self.assertIn('modo seguro ativo', payload['content'][0]['text'].lower())
         self.assertNotIn('NotebookEditTool', payload['content'][0]['text'])
 
-    def test_messages_json_falls_back_to_local_context_when_model_is_not_found(self) -> None:
+    def test_messages_json_raises_when_local_model_is_not_found(self) -> None:
         with patch('api.server._json_request') as mocked_request, patch('api.server._json_get_request') as mocked_get:
             mocked_request.side_effect = RuntimeError("model 'aetherlab-legal-local-v1' not found")
             mocked_get.return_value = {
@@ -349,18 +344,14 @@ class ApiServerTests(unittest.TestCase):
                 'data': None,
             }
 
-            payload = messages_json(
-                {
-                    'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'prazo recurso'}]}],
-                    'model': 'aetherlab-legal-local-v1',
-                },
-                env={'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:11434'},
-            )
-
-        self.assertEqual(payload['metadata']['provider'], 'local')
-        self.assertEqual(payload['metadata']['route'], 'degraded_execute_fallback')
-        self.assertTrue(payload['metadata']['degraded'])
-        self.assertIn('provider local', payload['content'][0]['text'].lower())
+            with self.assertRaises(RuntimeError):
+                messages_json(
+                    {
+                        'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'prazo recurso'}]}],
+                        'model': 'aetherlab-legal-local-v1',
+                    },
+                    env={'LOCAL_LLM_BASE_URL': 'http://127.0.0.1:11434'},
+                )
 
     def test_messages_json_routes_to_cloud_provider_when_requested(self) -> None:
         with patch('api.server._json_request') as mocked_request:

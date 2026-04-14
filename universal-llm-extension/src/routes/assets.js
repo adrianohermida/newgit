@@ -1,9 +1,29 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
+const { PDFParse } = require("pdf-parse");
 const { DIR, SCREENSHOTS_DIR, UPLOADS_DIR } = require("../config");
 const { safeWrite } = require("../storage");
 const { uid, ts } = require("../utils");
+
+async function extractUploadedText(filePath, safeName, mimeType) {
+  const normalizedName = String(safeName || "");
+  const normalizedType = String(mimeType || "").toLowerCase();
+  if (/\.(txt|md|json|csv|js|py|ts|html|css|xml|yaml|yml)$/i.test(normalizedName)) {
+    return fs.readFileSync(filePath, "utf8").slice(0, 12000);
+  }
+  if (normalizedType === "application/pdf" || /\.pdf$/i.test(normalizedName)) {
+    const buffer = fs.readFileSync(filePath);
+    const parser = new PDFParse({ data: buffer });
+    try {
+      const parsed = await parser.getText({ pageJoiner: "\n\n-- pagina page_number de total_number --\n\n" });
+      return String(parsed?.text || "").replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, 16000);
+    } finally {
+      await parser.destroy().catch(() => {});
+    }
+  }
+  return null;
+}
 
 function createAssetsRouter() {
   const router = express.Router();
@@ -44,7 +64,7 @@ function createAssetsRouter() {
     } catch (error) { res.status(500).json({ ok: false, error: error?.message }); }
   });
 
-  router.post("/upload", (req, res) => {
+  router.post("/upload", async (req, res) => {
     try {
       const { dataUrl, fileName, mimeType, sessionId } = req.body || {};
       if (!dataUrl || !fileName) return res.status(400).json({ ok: false, error: "dataUrl e fileName obrigatorios." });
@@ -53,7 +73,7 @@ function createAssetsRouter() {
       const filePath = path.join(UPLOADS_DIR, `${id}_${safeName}`);
       fs.writeFileSync(filePath, Buffer.from(String(dataUrl).replace(/^data:[^;]+;base64,/, ""), "base64"));
       safeWrite(path.join(UPLOADS_DIR, `${id}.json`), { id, fileName: safeName, mimeType, sessionId, filePath, createdAt: ts() });
-      const textContent = /\.(txt|md|json|csv|js|py|ts|html|css|xml|yaml|yml)$/i.test(safeName) ? fs.readFileSync(filePath, "utf8").slice(0, 12000) : null;
+      const textContent = await extractUploadedText(filePath, safeName, mimeType);
       res.json({ ok: true, id, filePath, fileName: safeName, textContent });
     } catch (error) { res.status(500).json({ ok: false, error: error?.message }); }
   });

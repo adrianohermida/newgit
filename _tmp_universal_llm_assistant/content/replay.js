@@ -1,4 +1,39 @@
 (function attachReplay(content) {
+  async function resolveReplayElement(step) {
+    const direct = content.resolveElement(step);
+    if (direct) return direct;
+    const pointer = step?.pointer || step?.element?.rect || null;
+    if (pointer && Number.isFinite(pointer.clientX) && Number.isFinite(pointer.clientY)) {
+      const byPoint = document.elementFromPoint(pointer.clientX, pointer.clientY);
+      if (byPoint) return byPoint;
+    }
+    if (step?.element?.rect) {
+      const rect = step.element.rect;
+      const byRect = document.elementFromPoint(
+        Math.max(0, Math.round(rect.x + rect.width / 2)),
+        Math.max(0, Math.round(rect.y + rect.height / 2)),
+      );
+      if (byRect) return byRect;
+    }
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await content.sleep(250 * (attempt + 1));
+      const delayed = content.resolveElement(step);
+      if (delayed) return delayed;
+    }
+    return null;
+  }
+
+  function setNativeValue(element, value) {
+    const prototype = element instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : element instanceof HTMLInputElement
+        ? HTMLInputElement.prototype
+        : null;
+    const descriptor = prototype ? Object.getOwnPropertyDescriptor(prototype, "value") : null;
+    if (descriptor?.set) descriptor.set.call(element, value);
+    else if ("value" in element) element.value = value;
+  }
+
   content.startReplayPolling = (tabId) => {
     content.stopReplayPolling();
     const id = tabId || "default";
@@ -42,7 +77,14 @@
         location.href = action.url;
         return;
       }
-      await content.executeStep({ type: action.type, selector: action.selector, value: action.value, url: action.url });
+      await content.executeStep({
+        type: action.type,
+        selector: action.selector,
+        value: action.value,
+        url: action.url,
+        element: action.element || payload?.element || null,
+        pointer: payload?.pointer || null,
+      });
       await content.reportTaskResult(payload, "ok", { action: action.type, selector: action.selector || null });
     } catch (error) {
       console.warn("[LLMAssistant] executeTaskStep falhou:", error?.message || error);
@@ -77,29 +119,51 @@
       window.scrollTo({ top: step.y || 0, left: step.x || 0, behavior: "smooth" });
       return;
     }
-    const element = step.selector ? document.querySelector(step.selector) : document.activeElement;
+    const element = await resolveReplayElement(step) || document.activeElement;
     if (!element && step.type !== "navigate") {
       throw new Error(`Elemento nao encontrado para selector: ${step.selector || "(nenhum)"}`);
     }
     if (step.type === "click") {
       element.scrollIntoView({ behavior: "smooth", block: "center" });
       await content.sleep(180);
-      element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
-      element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
+      const pointer = step?.pointer || {};
+      const mouseInit = {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        clientX: Number(pointer.clientX || 0),
+        clientY: Number(pointer.clientY || 0),
+        button: Number(pointer.button || 0),
+      };
+      element.dispatchEvent(new MouseEvent("mouseover", mouseInit));
+      element.dispatchEvent(new MouseEvent("mousedown", mouseInit));
+      element.dispatchEvent(new MouseEvent("mouseup", mouseInit));
       element.click();
     }
     if (step.type === "input") {
       element.focus();
       const nextValue = String(step.value || "");
-      if ("value" in element) element.value = "";
+      setNativeValue(element, "");
       element.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, cancelable: true, data: nextValue, inputType: "insertText" }));
-      if ("value" in element) element.value = nextValue;
-      element.dispatchEvent(new KeyboardEvent("keydown", { key: "Process", bubbles: true }));
+      setNativeValue(element, nextValue);
+      element.dispatchEvent(new KeyboardEvent("keydown", { key: "Process", bubbles: true, cancelable: true }));
       element.dispatchEvent(new Event("input", { bubbles: true }));
       element.dispatchEvent(new Event("change", { bubbles: true }));
+      element.dispatchEvent(new Event("blur", { bubbles: true }));
       element.dispatchEvent(new KeyboardEvent("keyup", { key: "Process", bubbles: true }));
     }
-    if (step.type === "submit") element.submit();
+    if (step.type === "change") {
+      element.focus();
+      if (typeof step.value !== "undefined") setNativeValue(element, String(step.value));
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+      element.dispatchEvent(new Event("blur", { bubbles: true }));
+    }
+    if (step.type === "submit") {
+      if (typeof element.requestSubmit === "function") element.requestSubmit();
+      else if (typeof element.submit === "function") element.submit();
+      else element.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    }
     if (step.type === "key") {
       element.dispatchEvent(new KeyboardEvent("keydown", { key: step.key, code: step.code || "", bubbles: true }));
       element.dispatchEvent(new KeyboardEvent("keyup", { key: step.key, code: step.code || "", bubbles: true }));

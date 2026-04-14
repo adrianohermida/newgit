@@ -3,7 +3,7 @@ const { getConfigs } = require("../storage");
 const { jsonPost } = require("../http-client");
 const { joinUrl } = require("../utils");
 const { loadTaskSession, normalizeTask, saveTaskSession, updateTask } = require("../task-store");
-const { applyStepResult, dispatchApprovedStep, getApprovalStep, getRunnableStep, markApprovalDecision } = require("../task-dispatch");
+const { applyStepResult, describeStepAction, dispatchApprovedStep, getApprovalStep, getRunnableStep, markApprovalDecision, markStepAwaitingApproval, shouldRequireApproval } = require("../task-dispatch");
 
 function shouldCreateTask(query) {
   const text = String(query || "").trim().toLowerCase();
@@ -45,6 +45,11 @@ async function autoDispatchTasks(commandQueue, tasks, tabId) {
   for (const task of tasks) {
     const step = getRunnableStep(task);
     if (!step) continue;
+    if (shouldRequireApproval(step)) {
+      markStepAwaitingApproval(task, step);
+      normalizeTask(task);
+      continue;
+    }
     if (step.action?.type !== "command" && !tabId) continue;
     step.status = "running";
     await dispatchApprovedStep({ commandQueue, tabId, task, step });
@@ -58,6 +63,11 @@ async function dispatchNextTaskStep(commandQueue, task, tabId) {
   if (!nextStep) {
     normalizeTask(task);
     return null;
+  }
+  if (shouldRequireApproval(nextStep)) {
+    markStepAwaitingApproval(task, nextStep);
+    normalizeTask(task);
+    return { mode: "awaiting_approval", action: describeStepAction(nextStep) };
   }
   if (nextStep.status === "awaiting_approval") {
     normalizeTask(task);
@@ -87,6 +97,7 @@ function createTasksRouter(commandQueue) {
       const aiTasks = rawTasks.map((task) => {
         const normalized = normalizeTask({ ...task });
         normalized.sessionId = session.id; // propaga sessionId para uso no content script
+        normalized.logs = Array.isArray(normalized.logs) ? normalized.logs : [];
         return normalized;
       });
       await autoDispatchTasks(commandQueue, aiTasks, tabId ? String(tabId) : "");

@@ -19,9 +19,10 @@ function getRuntimeCatalogUrls(runtimeEndpoint) {
   const endpoint = String(runtimeEndpoint || "").trim();
   if (!endpoint) return [];
   const base = endpoint.replace(/\/v1\/chat\/completions$/i, "");
-  return endpoint.includes("/v1/chat/completions")
-    ? [{ url: joinUrl(base, "/v1/models"), parser: "openai" }]
-    : [{ url: joinUrl(base, "/api/tags"), parser: "ollama" }];
+  return [
+    { url: joinUrl(base, "/v1/models"), parser: "openai" },
+    { url: joinUrl(base, "/api/tags"), parser: "ollama" },
+  ];
 }
 
 function parseCatalogProbe(probe, parser) {
@@ -45,44 +46,85 @@ async function callLocal(messages, model, options = {}) {
   let lastError = null;
   for (const baseUrl of configs.local.candidates) {
     const target = joinUrl(baseUrl, "/v1/messages");
-    try {
-      const response = await jsonPost(
-        target,
-        {
-          model,
-          messages,
-          max_tokens: 160,
-          sessionId: options.sessionId || null,
-          session_id: options.sessionId || null,
-          context: options.context || null,
-        },
-        {},
-        { timeoutMs: 240000 },
-      );
-      const content = extractContent(response.body);
-      if (response.status >= 200 && response.status < 300 && content) {
-        return {
-          ok: true,
-          provider: "local",
-          model,
-          content,
+    const attempts = buildLocalAttempts(messages, options);
+    for (let index = 0; index < attempts.length; index += 1) {
+      const attempt = attempts[index];
+      try {
+        const response = await jsonPost(
           target,
-          metadata: response.body?.metadata || null,
-          degraded: Boolean(response.body?.metadata?.degraded),
-        };
+          {
+            model,
+            messages: attempt.messages,
+            max_tokens: attempt.maxTokens,
+            sessionId: options.sessionId || null,
+            session_id: options.sessionId || null,
+            context: attempt.context,
+          },
+          {},
+          { timeoutMs: attempt.timeoutMs },
+        );
+        const degraded = Boolean(response.body?.metadata?.degraded);
+        const content = degraded
+          ? sanitizeLocalFallbackContent(extractContent(response.body))
+          : extractContent(response.body);
+        if (response.status >= 200 && response.status < 300 && content) {
+          return {
+            ok: true,
+            provider: "local",
+            model,
+            content,
+            target,
+            metadata: {
+              ...(response.body?.metadata || {}),
+              retryCount: index,
+              retryProfile: attempt.profile,
+            },
+            degraded,
+          };
+        }
+        lastError = buildProviderError("ai-core", target, response);
+        lastError.provider = "local";
+        lastError.target = target;
+        lastError.responseStatus = response.status;
+        lastError.responseBody = response.body;
+        if (!isConnectionError(lastError)) break;
+      } catch (error) {
+        lastError = error;
+        if (!isConnectionError(error)) break;
       }
-      lastError = buildProviderError("ai-core", target, response);
-      lastError.provider = "local";
-      lastError.target = target;
-      lastError.responseStatus = response.status;
-      lastError.responseBody = response.body;
-      if (!isConnectionError(lastError)) break;
-    } catch (error) {
-      lastError = error;
-      if (!isConnectionError(error)) break;
     }
+    if (!isConnectionError(lastError)) break;
   }
   throw lastError || new Error("Runtime local indisponivel.");
+}
+
+function buildLocalAttempts(messages, options = {}) {
+  const primaryContext = options.context || null;
+  return [
+    {
+      profile: "fast_primary",
+      messages: trimLocalMessages(messages),
+      maxTokens: 80,
+      timeoutMs: 50000,
+      context: { ...(primaryContext || {}), retry_profile: "fast_primary", compact_context: true },
+    },
+  ];
+}
+
+function trimLocalMessages(messages) {
+  const safeMessages = Array.isArray(messages) ? messages : [];
+  const tail = safeMessages.slice(-4);
+  const lastUser = [...safeMessages].reverse().find((item) => item?.role === "user");
+  if (lastUser && !tail.includes(lastUser)) return [...tail.slice(-3), lastUser];
+  return tail.length ? tail : safeMessages.slice(-1);
+}
+
+function sanitizeLocalFallbackContent(content) {
+  const text = String(content || "").trim();
+  if (!text) return text;
+  const [head] = text.split(/\n\s*Contexto local recuperado:/i);
+  const cleaned = head.trim();
+  return `${cleaned}\n\nResumo: usei memoria local de apoio, mas nao vou despejar trechos crus aqui. Posso seguir com uma resposta curta, perguntas objetivas ou um proximo passo operacional.`.trim();
 }
 
 async function callCloud(messages, model) {
@@ -302,7 +344,7 @@ async function enrichLocalCatalogDiagnosis(configs, attempts) {
       if (healthInsight.issue === "runtime_catalog_invalid") {
         modelNotFoundAttempt.issue = "runtime_catalog_invalid";
         modelNotFoundAttempt.summary = "O ai-core encontrou o runtime local, mas o catalogo publicado por ele esta invalido ou vazio.";
-        modelNotFoundAttempt.recommendation = `Corrija o runtime local apontado pelo ai-core (${runtimeEndpoint || "endpoint nao informado"}) para responder um catalogo valido em /v1/models ou /api/tags antes de usar o chat local.`;
+        modelNotFoundAttempt.recommendation = `Corrija o runtime local apontado pelo ai-core (${runtimeEndpoint || "endpoint nao informado"}) para responder um catalogo valido do modelo antes de usar o chat local.`;
       }
     }
   }

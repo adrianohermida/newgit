@@ -2,20 +2,24 @@ export function buildPanelMarkup() {
   return `
     <div class="header">
       <div class="header-left">
-        <span class="logo">LLM</span>
-        <div class="provider-row">
+        <div class="brand-mark">AI</div>
+        <div class="brand-copy">
+          <div class="brand-title">Universal LLM Assistant</div>
+          <div class="brand-sub">Copiloto operacional do navegador</div>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="provider-pill">
+          <span id="status-dot" class="status-dot"></span>
           <select id="provider-select" title="Selecionar provider LLM">
             <option value="local">Ai-Core Local</option>
             <option value="cloud">LLM Customizado</option>
             <option value="cloudflare">Cloudflare Workers AI</option>
           </select>
+          <span id="provider-badge"></span>
         </div>
-      </div>
-      <div class="header-right">
-        <span id="provider-badge"></span>
-        <span id="status-dot" class="status-dot"></span>
-        <button id="btn-errors" class="icon-btn" title="Ver erros">!</button>
-        <button id="btn-settings" class="icon-btn" title="Configuracoes">⚙</button>
+        <button id="btn-errors" class="icon-btn" title="Ver logs">LOG</button>
+        <button id="btn-settings" class="icon-btn" title="Configuracoes">CFG</button>
       </div>
     </div>
     <div class="tabs">
@@ -27,38 +31,70 @@ export function buildPanelMarkup() {
     <section id="pane-chat" class="pane active-pane">
       <div class="chat-shell">
         <div class="chat-hero">
-          <div class="chat-hero-title">Universal LLM Assistant</div>
-          <div class="chat-hero-sub">Chat operacional com contexto de pagina, tasks auditaveis e automacoes de navegador.</div>
+          <div class="chat-hero-top">
+            <div>
+              <div class="chat-hero-title">Assistente operacional</div>
+              <div class="chat-hero-sub">Memoria local, contexto de pagina, tasks auditaveis e automacoes em um fluxo unico.</div>
+            </div>
+            <div class="chat-hero-badges">
+              <span class="hero-pill">Navegador</span>
+              <span class="hero-pill">Ai-Tasks</span>
+              <span class="hero-pill">Memoria</span>
+            </div>
+          </div>
           <div id="memory-strip" class="memory-strip hidden">
             <span id="memory-strip-badge" class="memory-badge">Memoria local</span>
             <span id="memory-strip-text" class="memory-strip-text"></span>
+          </div>
+          <div id="asset-group-strip" class="asset-group-strip hidden">
+            <div class="asset-group-strip-main">
+              <span id="asset-group-badge" class="asset-group-badge">Pacote ativo</span>
+              <span id="asset-group-text" class="asset-group-text"></span>
+            </div>
+            <div class="asset-group-strip-actions">
+              <span id="asset-group-meta" class="asset-group-meta"></span>
+              <button id="btn-clear-asset-group" class="btn-list-action" type="button">Limpar</button>
+            </div>
+          </div>
+          <div id="runtime-strip" class="runtime-strip hidden">
+            <div class="runtime-strip-main">
+              <span id="runtime-strip-badge" class="runtime-badge">Pronto</span>
+              <span id="runtime-strip-text" class="runtime-strip-text"></span>
+            </div>
+            <span id="runtime-strip-queue" class="runtime-strip-queue"></span>
           </div>
         </div>
         <div id="chat-area" class="chat-area">
           <div class="empty-state">
             <div class="empty-title">Pronto para operar</div>
-            <div class="empty-sub">Use leitura de pagina, selecao, captura de tela ou anexos para enviar contexto real ao agente.</div>
+            <div class="empty-sub">Leia pagina, envie arquivos, capture tela e transforme o contexto real em acoes e respostas.</div>
           </div>
         </div>
       </div>
       <div class="input-area">
         <div class="actions-row">
-          <button id="btn-page-text" class="act-btn">Ler pagina</button>
-          <button id="btn-selection" class="act-btn">Usar selecao</button>
-          <button id="btn-screenshot" class="act-btn">Capturar tela</button>
-          <button id="btn-camera" class="act-btn">Camera</button>
-          <button id="btn-upload" class="act-btn">Anexar</button>
-          <button id="btn-record" class="act-btn">Gravar</button>
-          <button id="btn-replay" class="act-btn ghost-btn">Replay</button>
-          <button id="btn-voice" class="act-btn ghost-btn">Audio</button>
-          <button id="btn-mic" class="act-btn ghost-btn">Falar</button>
+          <div class="action-group">
+            <button id="btn-agent-tab" class="act-btn compact-btn" title="Nova guia do agente">+ Guia</button>
+            <button id="btn-page-text" class="act-btn">Ler pagina</button>
+            <button id="btn-selection" class="act-btn">Selecao</button>
+            <button id="btn-screenshot" class="act-btn">Tela</button>
+            <button id="btn-upload" class="act-btn">Anexar</button>
+          </div>
+          <div class="action-group action-group-secondary">
+            <button id="btn-record" class="act-btn">Gravar</button>
+            <button id="btn-replay" class="act-btn ghost-btn">Replay</button>
+            <button id="btn-camera" class="act-btn compact-btn ghost-btn" title="Ativar camera">Cam</button>
+            <button id="btn-voice" class="act-btn compact-btn ghost-btn" title="Audio ligado ou desligado">Som</button>
+            <button id="btn-lang" class="act-btn compact-btn ghost-btn" title="Idioma">PT</button>
+            <button id="btn-mic" class="act-btn compact-btn ghost-btn" title="Falar com o assistente">Mic</button>
+          </div>
           <span id="recorder-status" class="inline-status">Parado</span>
         </div>
         <div class="input-row">
           <div class="textarea-wrap"><textarea id="msg-input" placeholder="Escreva a meta, pergunta ou instrucao..."></textarea></div>
           <button id="btn-send" class="btn-send">Enviar</button>
         </div>
-        <input id="file-input" type="file" />
+        <input id="file-input" type="file" multiple />
       </div>
     </section>
     <section id="pane-sessions" class="pane list-pane"></section>
@@ -76,7 +112,7 @@ export function buildPanelMarkup() {
           </div>
         </div>
         <div class="settings-pane">
-          <div class="setting-section"><h4>Local</h4><label>URL do ai-core<input id="input-runtime-url" /></label><label>Modelo local<input id="input-runtime-model" /></label><label>Pastas locais permitidas<textarea id="input-local-roots" rows="4" placeholder="Uma pasta por linha"></textarea></label><label>Aplicativos locais permitidos<textarea id="input-local-apps" rows="5" placeholder='JSON por linha: {"name":"Obsidian","path":"C:\\\\Users\\\\...\\\\Obsidian.exe","args":[]}'></textarea></label><div class="test-row"><button id="btn-test-local" class="btn-test">Testar conexao</button><span id="test-local-result" class="test-result"></span></div><div id="test-local-detail" class="test-detail"></div></div>
+          <div class="setting-section"><h4>Local</h4><label>URL do ai-core<input id="input-runtime-url" /></label><label>Modelo local<input id="input-runtime-model" /></label><label class="checkbox-row"><input id="input-always-allow-tabs" type="checkbox" /> Permitir acesso recorrente do assistente as guias sem pedir toda vez</label><label>Pastas locais permitidas<textarea id="input-local-roots" rows="4" placeholder="Uma pasta por linha"></textarea></label><label>Aplicativos locais permitidos<textarea id="input-local-apps" rows="5" placeholder='JSON por linha: {"name":"Obsidian","path":"C:\\\\Users\\\\...\\\\Obsidian.exe","args":[]}'></textarea></label><div class="test-row"><button id="btn-test-local" class="btn-test">Testar conexao</button><span id="test-local-result" class="test-result"></span></div><div id="test-local-detail" class="test-detail"></div></div>
           <div class="setting-section"><h4>Cloud</h4><label>URL da aplicacao/proxy<input id="input-app-url" /></label><label>URL direta da API cloud<input id="input-cloud-base-url" placeholder="Opcional: https://..."/></label><label>Token cloud/admin<input id="input-cloud-auth-token" type="password" placeholder="Bearer admin ou token direto"/></label><label>Modelo cloud<input id="input-cloud-model" /></label><div class="test-row"><button id="btn-test-cloud" class="btn-test">Testar conexao</button><span id="test-cloud-result" class="test-result"></span></div><div id="test-cloud-detail" class="test-detail"></div></div>
           <div class="setting-section"><h4>Cloudflare</h4><label>Modelo Workers AI<input id="input-cf-model" /></label><label>Account ID<input id="input-cf-account-id" placeholder="Opcional"/></label><label>API Token<input id="input-cf-api-token" type="password" placeholder="Opcional"/></label><div class="test-row"><button id="btn-test-cf" class="btn-test">Testar conexao</button><span id="test-cf-result" class="test-result"></span></div><div id="test-cf-detail" class="test-detail"></div></div>
           <button id="btn-save-settings" class="btn-save">Salvar configuracoes</button>

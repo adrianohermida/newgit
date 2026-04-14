@@ -14,7 +14,13 @@ function formatLines(values) {
 }
 
 function parseApps(value) {
-  return parseLines(value).map((line) => JSON.parse(line)).filter((item) => item?.name && item?.path);
+  return parseLines(value).map((line) => {
+    try {
+      return JSON.parse(line);
+    } catch {
+      throw new Error(`JSON invalido em aplicativos locais: ${line}`);
+    }
+  }).filter((item) => item?.name && item?.path);
 }
 
 function formatApps(values) {
@@ -24,6 +30,7 @@ function formatApps(values) {
 export function fillSettingsInputs(el) {
   el.inputRuntimeUrl.value = state.settings.runtimeUrl;
   el.inputRuntimeModel.value = state.settings.runtimeModel;
+  el.inputAlwaysAllowTabs.checked = !!state.settings.alwaysAllowTabAccess;
   el.inputLocalRoots.value = formatLines(state.settings.localRoots);
   el.inputLocalApps.value = formatApps(state.settings.localApps);
   el.inputAppUrl.value = state.settings.appUrl;
@@ -39,6 +46,8 @@ export function hydrateSettings(settings) {
   if (!settings) return;
   state.settings.runtimeUrl = settings.local?.runtimeUrl || state.settings.runtimeUrl;
   state.settings.runtimeModel = settings.local?.runtimeModel || state.settings.runtimeModel;
+  state.settings.alwaysAllowTabAccess = Boolean(settings.local?.alwaysAllowTabAccess ?? state.settings.alwaysAllowTabAccess);
+  state.settings.trustedTabOrigins = Array.isArray(settings.local?.trustedTabOrigins) ? settings.local.trustedTabOrigins : state.settings.trustedTabOrigins;
   state.settings.localRoots = Array.isArray(settings.local?.roots) ? settings.local.roots : state.settings.localRoots;
   state.settings.localApps = Array.isArray(settings.local?.apps) ? settings.local.apps : state.settings.localApps;
   state.settings.appUrl = normalizeLoopback(settings.cloud?.appUrl || state.settings.appUrl);
@@ -67,8 +76,7 @@ export async function pushBridgeSettings() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       settings: {
-        local: { runtimeUrl: state.settings.runtimeUrl, runtimeModel: state.settings.runtimeModel },
-        local: { runtimeUrl: state.settings.runtimeUrl, runtimeModel: state.settings.runtimeModel, roots: state.settings.localRoots, apps: state.settings.localApps },
+        local: { runtimeUrl: state.settings.runtimeUrl, runtimeModel: state.settings.runtimeModel, alwaysAllowTabAccess: state.settings.alwaysAllowTabAccess, trustedTabOrigins: state.settings.trustedTabOrigins, roots: state.settings.localRoots, apps: state.settings.localApps },
         cloud: { appUrl: state.settings.appUrl, baseUrl: state.settings.cloudBaseUrl, model: state.settings.cloudModel, authToken: state.settings.cloudAuthToken },
         cloudflare: { model: state.settings.cfModel, accountId: state.settings.cfAccountId, apiToken: state.settings.cfApiToken },
       },
@@ -82,6 +90,7 @@ export async function saveSettings(el) {
     ...state.settings,
     runtimeUrl: String(el.inputRuntimeUrl.value || state.settings.runtimeUrl).trim(),
     runtimeModel: String(el.inputRuntimeModel.value || state.settings.runtimeModel).trim(),
+    alwaysAllowTabAccess: !!el.inputAlwaysAllowTabs.checked,
     localRoots: parseLines(el.inputLocalRoots.value),
     localApps: parseApps(el.inputLocalApps.value),
     appUrl: normalizeLoopback(el.inputAppUrl.value || state.settings.appUrl),

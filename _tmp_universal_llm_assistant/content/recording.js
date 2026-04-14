@@ -64,6 +64,17 @@
     });
   }
 
+  function onRecordChange(event) {
+    const element = event.target;
+    if (!element || !["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName) || element.type === "password") return;
+    postStep({
+      type: "change",
+      ...buildMeta(event, element),
+      value: String(element.value || "").slice(0, 400),
+      inputType: element.type || "text",
+    });
+  }
+
   function onRecordSubmit(event) {
     const form = event.target;
     postStep({
@@ -126,6 +137,7 @@
     content.recordingState = { active: true, automationId, lastScrollAt: 0 };
     document.addEventListener("click", onRecordPointer, { capture: true });
     document.addEventListener("input", onRecordInput, { capture: true });
+    document.addEventListener("change", onRecordChange, { capture: true });
     document.addEventListener("submit", onRecordSubmit, { capture: true });
     document.addEventListener("keydown", onRecordKey, { capture: true });
     window.addEventListener("scroll", onRecordScroll, { capture: true, passive: true });
@@ -137,6 +149,7 @@
     content.recordingState = { active: false, automationId: null, lastScrollAt: 0 };
     document.removeEventListener("click", onRecordPointer, { capture: true });
     document.removeEventListener("input", onRecordInput, { capture: true });
+    document.removeEventListener("change", onRecordChange, { capture: true });
     document.removeEventListener("submit", onRecordSubmit, { capture: true });
     document.removeEventListener("keydown", onRecordKey, { capture: true });
     window.removeEventListener("scroll", onRecordScroll, { capture: true });

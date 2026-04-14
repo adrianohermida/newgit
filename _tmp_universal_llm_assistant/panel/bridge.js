@@ -61,14 +61,23 @@ export async function testProvider(provider, resultEl) {
   }
 }
 
-export async function callChat(provider, messages) {
+export async function callChat(provider, messages, options = {}) {
   if (!state.bridgeOk) throw new Error("Bridge local offline (porta 32123).");
+  const providerMessages = provider === "local" ? trimMessagesForLocal(messages) : messages;
+  options.onPhase?.("thinking", provider === "local" ? "Preparando chamada ao Ai-Core Local." : "Preparando chamada ao provider.");
   await pushBridgeSettings();
+  options.onPhase?.("responding", provider === "local" ? "Aguardando resposta do runtime local." : "Aguardando resposta do provider.");
   const response = await safeFetch(`${BRIDGE_URL}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ provider, model: getModelForProvider(provider), messages, sessionId: state.sessionId, context: { session_id: state.sessionId, route: "/extension/chat" } }),
-  }, provider === "local" ? 240000 : 60000);
+    body: JSON.stringify({
+      provider,
+      model: getModelForProvider(provider),
+      messages: providerMessages,
+      sessionId: state.sessionId,
+      context: { session_id: state.sessionId, route: "/extension/chat", queue_depth: state.pendingMessages.length },
+    }),
+  }, provider === "local" ? 70000 : 60000);
   const data = await parseJsonResponse(response);
   if (!data.ok) {
     const failedAttempt = data?.diagnosis?.attempts?.find((item) => !item.ok);
@@ -177,4 +186,13 @@ async function readBridgeHealth() {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function trimMessagesForLocal(messages) {
+  const safeMessages = Array.isArray(messages) ? messages : [];
+  if (safeMessages.length <= 8) return safeMessages;
+  const tail = safeMessages.slice(-8);
+  const lastUser = [...safeMessages].reverse().find((item) => item?.role === "user");
+  if (lastUser && !tail.includes(lastUser)) return [...tail.slice(-7), lastUser];
+  return tail;
 }

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -30,6 +31,9 @@ _DEFAULT_LOCAL_RAG_TOP_K = 2
 _DEFAULT_LOCAL_MEMORY_ITEMS = 3
 _DEFAULT_LOCAL_MEMORY_LINE_LIMIT = 90
 _DEFAULT_LOCAL_AUGMENT_LIMIT = 480
+_DEFAULT_LOCAL_CONVERSATION_SUMMARY_LIMIT = 320
+_DEFAULT_LOCAL_SIMPLE_MAX_TOKENS = 96
+_DEFAULT_LOCAL_SIMPLE_RAG_TOP_K = 1
 _LOCAL_EXTENSION_DEFAULT_ALLOWLIST = (
     'search_files',
     'open_local_file',
@@ -171,6 +175,10 @@ class ProviderTransportProbe:
     endpoint: str
     mode: str
     model: str | None = None
+
+
+_TRANSPORT_PROBE_CACHE: dict[tuple[str, str, str], tuple[float, ProviderTransportProbe]] = {}
+_TRANSPORT_PROBE_TTL_SECONDS = 45.0
 
 
 def _is_offline_mode(env: Mapping[str, Any]) -> bool:
@@ -655,25 +663,52 @@ def _load_session_memory_snippets(session_id: str | None) -> list[str]:
     return snippets
 
 
-def _format_rag_memory_lines(query: str) -> tuple[list[str], dict[str, Any]]:
+def _is_simple_local_query(query: str) -> bool:
+    normalized = str(query or '').strip().lower()
+    if not normalized:
+        return True
+    if len(normalized) > 180:
+        return False
+    complex_markers = (
+        '[pagina:',
+        '[selecao da pagina]',
+        '[arquivo:',
+        '[screenshot',
+        'analise a pagina',
+        'descreva a interface',
+        'proximas acoes',
+        'task',
+        'tarefa',
+        'navegar',
+        'preencher',
+        'extrair',
+        'scraping',
+    )
+    return not any(marker in normalized for marker in complex_markers)
+
+
+def _format_rag_memory_lines(query: str, top_k: int = _DEFAULT_LOCAL_RAG_TOP_K) -> tuple[list[str], dict[str, Any]]:
+    effective_top_k = max(0, int(top_k or 0))
+    if effective_top_k <= 0:
+        return [], {'rag_matches_used': 0, 'rag_sources': []}
     contexts = []
     if supabase_rag_is_configured():
         try:
-            contexts.append(search_supabase_context(query, top_k=_DEFAULT_LOCAL_RAG_TOP_K))
+            contexts.append(search_supabase_context(query, top_k=effective_top_k))
         except Exception:
             pass
     try:
-        contexts.append(search_obsidian_context(query, top_k=_DEFAULT_LOCAL_RAG_TOP_K))
+        contexts.append(search_obsidian_context(query, top_k=effective_top_k))
     except Exception:
         pass
 
     if not contexts:
         return [], {'rag_matches_used': 0, 'rag_sources': []}
 
-    rag_context = merge_rag_contexts(*contexts, top_k=_DEFAULT_LOCAL_RAG_TOP_K)
+    rag_context = merge_rag_contexts(*contexts, top_k=effective_top_k)
     lines: list[str] = []
     source_names: list[str] = []
-    for match in rag_context.matches[:_DEFAULT_LOCAL_RAG_TOP_K]:
+    for match in rag_context.matches[:effective_top_k]:
         sources = match.metadata.get('sources', [match.metadata.get('source', 'local')])
         if isinstance(sources, list):
             source_names.extend(str(source) for source in sources if source)
@@ -688,6 +723,50 @@ def _format_rag_memory_lines(query: str) -> tuple[list[str], dict[str, Any]]:
     }
 
 
+def _build_conversation_summary(message_sequence: list[dict[str, str]]) -> str:
+    if not message_sequence:
+        return ''
+    recent = message_sequence[-6:]
+    user_points = [_compact_text(item['content'], 90) for item in recent if item.get('role') == 'user'][-3:]
+    assistant_points = [_compact_text(item['content'], 90) for item in recent if item.get('role') == 'assistant'][-2:]
+    parts: list[str] = []
+    if user_points:
+        parts.append('Pontos recentes do usuário: ' + ' | '.join(user_points))
+    if assistant_points:
+        parts.append('Pontos recentes já respondidos: ' + ' | '.join(assistant_points))
+    if not parts:
+        return ''
+    return _compact_text('\n'.join(parts), _DEFAULT_LOCAL_CONVERSATION_SUMMARY_LIMIT)
+
+
+def _build_local_operator_prompt(payload: dict[str, Any]) -> str:
+    context = payload.get('context') if isinstance(payload.get('context'), dict) else {}
+    extension = context.get('extension') if isinstance(context.get('extension'), dict) else {}
+    local_roots = extension.get('local_roots') if isinstance(extension.get('local_roots'), list) else []
+    local_apps = extension.get('local_apps') if isinstance(extension.get('local_apps'), list) else []
+    browser_actions = extension.get('browser_actions') if isinstance(extension.get('browser_actions'), list) else []
+
+    roots_line = ', '.join(str(item) for item in local_roots[:6]) if local_roots else 'nenhuma pasta local adicional configurada'
+    apps_line = ', '.join(str(item) for item in local_apps[:8]) if local_apps else 'nenhum aplicativo local nomeado configurado'
+    browser_line = ', '.join(str(item) for item in browser_actions[:12]) if browser_actions else 'ler pagina, usar selecao, capturar tela, gravar, replay e executar AI-Tasks'
+
+    return (
+        "Você é o Ai-Core Local do AetherLab operando dentro do Universal LLM Assistant acoplado ao navegador. "
+        "Responda em português do Brasil, de forma objetiva, operacional, acolhedora e humana. "
+        "Converse como um assistente real de trabalho: direto, claro, sem jargão desnecessário e sem soar robótico. "
+        "Espere o contexto da conversa antes de concluir, conecte os pontos recentes e produza uma resposta coerente como continuação natural do diálogo. "
+        "Reconheça explicitamente quando está usando contexto do navegador, memória local ou aprovação do usuário.\n\n"
+        f"Capacidades atuais no navegador: {browser_line}.\n"
+        f"Pastas locais autorizadas no bridge: {roots_line}.\n"
+        f"Aplicativos locais autorizados no bridge: {apps_line}.\n"
+        "Você enxerga o navegador apenas pelos dados enviados pelo bridge, como leitura da página, seleção atual, captura de tela, uploads, gravações e tarefas aprovadas pelo usuário. "
+        "Se faltar contexto visual ou operacional, peça a ação correta em vez de inventar observações.\n"
+        "Quando o pedido exigir execução, prefira quebrar em tasks auditáveis com passos claros. "
+        "Quando o pedido for apenas conversacional, responda sem inventar tasks. "
+        "Nunca afirme acesso a recursos que não estejam configurados no contexto atual."
+    )
+
+
 def _augment_local_chat_payload(
     payload: dict[str, Any],
     env: Mapping[str, Any],
@@ -695,12 +774,19 @@ def _augment_local_chat_payload(
     del env
     query = _normalize_message_text(payload)
     session_id = _get_session_id(payload)
+    message_sequence = _extract_message_sequence(payload)
     if not query:
         return payload, {'session_id': session_id, 'memory_entries_used': 0, 'rag_matches_used': 0, 'rag_sources': []}
 
     memory_snippets = _load_session_memory_snippets(session_id)
-    rag_lines, rag_meta = _format_rag_memory_lines(query)
+    rag_top_k = 0 if _is_simple_local_query(query) else _DEFAULT_LOCAL_RAG_TOP_K
+    if memory_snippets and rag_top_k == 0:
+        rag_top_k = _DEFAULT_LOCAL_SIMPLE_RAG_TOP_K
+    rag_lines, rag_meta = _format_rag_memory_lines(query, top_k=rag_top_k)
+    conversation_summary = _build_conversation_summary(message_sequence)
     blocks: list[str] = []
+    if conversation_summary:
+        blocks.append("Resumo recente da conversa:\n" + conversation_summary)
     if memory_snippets:
         blocks.append("Memoria recente da sessao:\n" + '\n'.join(f"- {item}" for item in memory_snippets))
     if rag_lines:
@@ -714,10 +800,12 @@ def _augment_local_chat_payload(
         _DEFAULT_LOCAL_AUGMENT_LIMIT,
     )
     augmented = dict(payload)
+    operator_prompt = _build_local_operator_prompt(payload)
     existing_system = _get_clean(payload.get('system')) or _get_clean(payload.get('system_prompt')) or ''
-    augmented['system'] = f"{existing_system}\n\n{context_block}".strip() if existing_system else context_block
+    augmented['system'] = '\n\n'.join(part for part in (operator_prompt, existing_system, context_block) if part).strip()
     return augmented, {
         'session_id': session_id,
+        'conversation_turns_used': len(message_sequence[-6:]),
         'memory_entries_used': len(memory_snippets),
         **rag_meta,
     }
@@ -752,7 +840,9 @@ def _optimize_local_payload(
 
     if low_resource_mode:
         system_prompt = _compact_text(system_prompt, _DEFAULT_LOCAL_SYSTEM_LIMIT)
-        max_tokens = max(96, min(max_tokens, config.max_tokens, _DEFAULT_LOCAL_FAST_MAX_TOKENS))
+        simple_query = _is_simple_local_query(text)
+        dynamic_cap = _DEFAULT_LOCAL_SIMPLE_MAX_TOKENS if simple_query else _DEFAULT_LOCAL_FAST_MAX_TOKENS
+        max_tokens = max(72, min(max_tokens, config.max_tokens, dynamic_cap))
     else:
         max_tokens = max(96, min(max_tokens, config.max_tokens))
 
@@ -765,15 +855,7 @@ def _is_provider_memory_error(error: Exception) -> bool:
 
 
 def _is_provider_unavailable_error(error: Exception) -> bool:
-    message = str(error or '').strip().lower()
-    return (
-        _is_provider_memory_error(error)
-        or ('model' in message and 'not found' in message)
-        or 'did not respond as /v1/messages' in message
-        or 'connection refused' in message
-        or 'timed out' in message
-        or 'timeout' in message
-    )
+    return _is_provider_memory_error(error)
 
 
 def _search_local_rag_matches(query: str) -> list[dict[str, Any]]:
@@ -928,9 +1010,34 @@ def _probe_provider_transport(
     if not config.base_url:
         raise RuntimeError(f"Provider '{config.provider_id}' is not configured.")
 
+    cache_key = (config.provider_id, str(config.base_url), str(config.model))
+    cached = _TRANSPORT_PROBE_CACHE.get(cache_key)
+    if cached and (time.time() - cached[0]) < _TRANSPORT_PROBE_TTL_SECONDS:
+        return cached[1]
+
     headers = _build_provider_headers(config)
+
+    openai_endpoint = _join_url(config.base_url, '/v1/models')
+    if openai_endpoint:
+        try:
+            payload = _json_get_request(openai_endpoint, headers=headers, timeout=timeout)
+            model = config.model
+            if isinstance(payload.get('data'), list) and payload['data']:
+                first = payload['data'][0]
+                if isinstance(first, dict):
+                    model = _get_clean(first.get('id')) or model
+            probe = ProviderTransportProbe(
+                endpoint=_join_url(config.base_url, '/v1/chat/completions') or config.base_url,
+                mode='openai_chat_completions',
+                model=model,
+            )
+            _TRANSPORT_PROBE_CACHE[cache_key] = (time.time(), probe)
+            return probe
+        except RuntimeError:
+            pass
+
     anthropic_endpoint = _join_url(config.base_url, '/v1/messages')
-    if anthropic_endpoint:
+    if anthropic_endpoint and config.provider_id != 'local':
         try:
             _json_request(
                 anthropic_endpoint,
@@ -948,24 +1055,9 @@ def _probe_provider_transport(
                 headers={'x-llm-version': '2023-06-01', **headers},
                 timeout=timeout,
             )
-            return ProviderTransportProbe(endpoint=anthropic_endpoint, mode='anthropic_messages', model=config.model)
-        except RuntimeError:
-            pass
-
-    openai_endpoint = _join_url(config.base_url, '/v1/models')
-    if openai_endpoint:
-        try:
-            payload = _json_get_request(openai_endpoint, headers=headers, timeout=timeout)
-            model = config.model
-            if isinstance(payload.get('data'), list) and payload['data']:
-                first = payload['data'][0]
-                if isinstance(first, dict):
-                    model = _get_clean(first.get('id')) or model
-            return ProviderTransportProbe(
-                endpoint=_join_url(config.base_url, '/v1/chat/completions') or config.base_url,
-                mode='openai_chat_completions',
-                model=model,
-            )
+            probe = ProviderTransportProbe(endpoint=anthropic_endpoint, mode='anthropic_messages', model=config.model)
+            _TRANSPORT_PROBE_CACHE[cache_key] = (time.time(), probe)
+            return probe
         except RuntimeError:
             pass
 
@@ -983,19 +1075,23 @@ def _probe_provider_transport(
                 headers=headers,
                 timeout=timeout,
             )
-            return ProviderTransportProbe(
+            probe = ProviderTransportProbe(
                 endpoint=openai_chat_endpoint,
                 mode='openai_chat_completions',
                 model=_get_clean(payload.get('model')) or config.model,
             )
+            _TRANSPORT_PROBE_CACHE[cache_key] = (time.time(), probe)
+            return probe
         except RuntimeError as exc:
             message = str(exc).lower()
             if 'model' in message and 'not found' in message:
-                return ProviderTransportProbe(
+                probe = ProviderTransportProbe(
                     endpoint=openai_chat_endpoint,
                     mode='openai_chat_completions',
                     model=config.model,
                 )
+                _TRANSPORT_PROBE_CACHE[cache_key] = (time.time(), probe)
+                return probe
 
     ollama_endpoint = _join_url(config.base_url, '/api/tags')
     if ollama_endpoint:
@@ -1008,11 +1104,13 @@ def _probe_provider_transport(
                 if isinstance(first, dict):
                     model = _get_clean(first.get('name')) or model
             openai_chat_endpoint = _join_url(config.base_url, '/v1/chat/completions') or config.base_url
-            return ProviderTransportProbe(
+            probe = ProviderTransportProbe(
                 endpoint=openai_chat_endpoint,
                 mode='openai_chat_completions',
                 model=model,
             )
+            _TRANSPORT_PROBE_CACHE[cache_key] = (time.time(), probe)
+            return probe
         except RuntimeError:
             pass
 

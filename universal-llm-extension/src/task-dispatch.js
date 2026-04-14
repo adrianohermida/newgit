@@ -1,12 +1,48 @@
 const { runCommand } = require("./commands");
 const { ts } = require("./utils");
 
+const APPROVAL_ACTIONS = new Set(["click", "input", "change", "navigate", "submit", "key", "command"]);
+
 function getApprovalStep(task) {
   return (Array.isArray(task.steps) ? task.steps : []).find((step) => step.status === "awaiting_approval");
 }
 
 function getRunnableStep(task) {
   return (Array.isArray(task.steps) ? task.steps : []).find((step) => step.status === "pending" && step.action);
+}
+
+function shouldRequireApproval(step) {
+  const action = step?.action || {};
+  if (!action.type) return false;
+  if (action.requiresApproval === false) return false;
+  if (action.requiresApproval === true) return true;
+  return APPROVAL_ACTIONS.has(String(action.type));
+}
+
+function describeStepAction(step) {
+  const action = step?.action || {};
+  const target = action.selector || action.url || action.command || action.value || null;
+  const pieces = [action.type || step?.description || "acao"];
+  if (target) pieces.push(target);
+  return pieces.filter(Boolean).join(" -> ");
+}
+
+function markStepAwaitingApproval(task, step) {
+  if (!step) return task;
+  step.status = "awaiting_approval";
+  step.approval = {
+    required: true,
+    reason: buildApprovalReason(step),
+    target: step.action?.selector || step.action?.url || step.action?.command || null,
+    actionLabel: describeStepAction(step),
+  };
+  task.logs = [
+    ...(Array.isArray(task.logs) ? task.logs : []),
+    `${ts()} awaiting_approval step=${step.id} action=${describeStepAction(step)}`,
+  ];
+  task.status = "awaiting_approval";
+  task.updatedAt = ts();
+  return task;
 }
 
 function markApprovalDecision(task, approved) {
@@ -49,10 +85,24 @@ function applyStepResult(task, stepId, result) {
   return task;
 }
 
+function buildApprovalReason(step) {
+  const actionType = String(step?.action?.type || "");
+  if (actionType === "navigate") return "Esta etapa vai abrir ou trocar a pagina atual.";
+  if (actionType === "input" || actionType === "change") return "Esta etapa vai preencher ou alterar um campo da pagina.";
+  if (actionType === "submit") return "Esta etapa pode enviar dados para o site.";
+  if (actionType === "click") return "Esta etapa vai interagir com um elemento da interface.";
+  if (actionType === "command") return "Esta etapa vai executar um comando local autorizado.";
+  if (actionType === "key") return "Esta etapa vai simular digitacao ou atalho de teclado.";
+  return "Esta etapa pode alterar o estado da pagina ou do ambiente.";
+}
+
 module.exports = {
   applyStepResult,
+  describeStepAction,
   dispatchApprovedStep,
   getRunnableStep,
   getApprovalStep,
   markApprovalDecision,
+  markStepAwaitingApproval,
+  shouldRequireApproval,
 };

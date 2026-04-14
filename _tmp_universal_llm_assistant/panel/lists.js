@@ -1,4 +1,4 @@
-import { state } from "./state.js";
+import { BRIDGE_URL, state } from "./state.js";
 import { escHtml, formatDate } from "./utils.js";
 import { fetchJson } from "./bridge.js";
 
@@ -14,12 +14,23 @@ export async function syncSession() {
       model: state.provider === "local" ? state.settings.runtimeModel
         : state.provider === "cloud" ? state.settings.cloudModel
         : state.settings.cfModel,
-      metadata: { tabUrl: tab?.url, tabTitle: tab?.title, savedAt: new Date().toISOString() },
+      metadata: {
+        tabUrl: tab?.url,
+        tabTitle: tab?.title,
+        savedAt: new Date().toISOString(),
+        activeAssetGroup: state.activeAssetGroup ? {
+          id: state.activeAssetGroup.id,
+          title: state.activeAssetGroup.title || "",
+          sessionId: state.activeAssetGroup.sessionId || state.sessionId,
+          assetRefs: Array.isArray(state.activeAssetGroup.assetRefs) ? state.activeAssetGroup.assetRefs : [],
+          assets: Array.isArray(state.activeAssetGroup.assets) ? state.activeAssetGroup.assets : [],
+        } : null,
+      },
     }),
   }, 10000);
 }
 
-export async function renderSessions(el, addSystemMessage, switchTab, addMessage, updateProviderBadge) {
+export async function renderSessions(el, addSystemMessage, switchTab, addMessage, updateProviderBadge, enqueueOutgoingMessage, updateActiveAssetGroup) {
   try {
     const data = await fetchJson("/sessions");
     const sessions = data.sessions || [];
@@ -31,51 +42,15 @@ export async function renderSessions(el, addSystemMessage, switchTab, addMessage
       <div class="view-toolbar">
         <div class="view-title-wrap">
           <div class="view-title">Sessoes</div>
-          <div class="view-subtitle">Historico de conversas salvas por sessao de navegador.</div>
+          <div class="view-subtitle">Historico salvo do chat e das tasks por sessao.</div>
         </div>
       </div>
       ${sessions.map(renderSessionCard).join("")}
     `;
-    el.paneSessions.querySelectorAll("[data-load]").forEach((btn) => btn.addEventListener("click", async () => {
-      const sessionData = await fetchJson(`/sessions/${btn.dataset.load}`);
-      state.sessionId = sessionData.session.id;
-      state.messages = Array.isArray(sessionData.session.messages) ? sessionData.session.messages : [];
-      state.provider = sessionData.session.provider || state.provider;
-      el.chatArea.innerHTML = "";
-      state.messages.forEach((msg) => addMessage(el, msg.role, msg.content));
-      updateProviderBadge(el);
-      switchTab(el, "chat");
-      addSystemMessage(el, `Sessao "${sessionData.session.id}" retomada.`);
-    }));
-    el.paneSessions.querySelectorAll("[data-delete-session]").forEach((btn) => btn.addEventListener("click", async () => {
-      await fetchJson(`/sessions/${btn.dataset.deleteSession}`, { method: "DELETE" });
-      await renderSessions(el, addSystemMessage, switchTab, addMessage, updateProviderBadge);
-    }));
+    bindSessionActions(el, addSystemMessage, switchTab, addMessage, updateProviderBadge, enqueueOutgoingMessage, updateActiveAssetGroup);
   } catch (error) {
     el.paneSessions.innerHTML = renderEmpty("Sessoes", `Falha ao carregar sessoes: ${escHtml(error.message)}`);
   }
-}
-
-function renderSessionCard(session) {
-  const title = session.metadata?.tabTitle || session.id;
-  const url = session.metadata?.tabUrl || "";
-  const counts = [
-    `${session.messageCount} msg`,
-    session.taskCount ? `${session.taskCount} tasks` : null,
-    escHtml(session.provider || "local"),
-  ].filter(Boolean).join(" · ");
-  return `
-    <article class="list-card">
-      <div class="list-item-title">${escHtml(title)}</div>
-      <div class="list-item-meta">${counts}</div>
-      ${url ? `<div class="list-item-meta">${escHtml(url)}</div>` : ""}
-      <div class="list-item-meta">Atualizada em ${formatDate(session.updatedAt)}</div>
-      <div class="list-item-actions" style="margin-top:8px">
-        <button class="btn-list-action" data-load="${escHtml(session.id)}">Retomar</button>
-        <button class="btn-list-action danger" data-delete-session="${escHtml(session.id)}">Apagar</button>
-      </div>
-    </article>
-  `;
 }
 
 export async function renderTasks(el) {
@@ -90,7 +65,7 @@ export async function renderTasks(el) {
       <div class="view-toolbar">
         <div class="view-title-wrap">
           <div class="view-title">Tasks</div>
-          <div class="view-subtitle">Execucao viva do agente — passos, aprovacoes e logs.</div>
+          <div class="view-subtitle">Execucao viva do agente com passos, aprovacoes e resultado auditavel.</div>
         </div>
       </div>
       <div class="list-grid">${tasks.map(renderTaskCard).join("")}</div>
@@ -113,39 +88,140 @@ export async function renderAutomations(el, addSystemMessage, switchTab) {
       <div class="view-toolbar">
         <div class="view-title-wrap">
           <div class="view-title">Automacoes</div>
-          <div class="view-subtitle">Gravacoes reutilizaveis para replay controlado pelo agente.</div>
+          <div class="view-subtitle">Gravacoes reutilizaveis para replay supervisionado.</div>
         </div>
       </div>
       ${automations.map(renderAutomationCard).join("")}
     `;
-    el.paneAutomations.querySelectorAll("[data-replay]").forEach((btn) => btn.addEventListener("click", async () => {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      await fetchJson(`/play/${btn.dataset.replay}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tabId: String(tab?.id || "default") }),
-      });
-      if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "START_REPLAY", tabId: String(tab.id) }).catch(() => {});
-      switchTab(el, "chat");
-      addSystemMessage(el, `Replay iniciado: ${btn.dataset.replay}`);
-    }));
-    el.paneAutomations.querySelectorAll("[data-delete-auto]").forEach((btn) => btn.addEventListener("click", async () => {
-      await fetchJson(`/automations/${btn.dataset.deleteAuto}`, { method: "DELETE" });
-      await renderAutomations(el, addSystemMessage, switchTab);
-    }));
+    bindAutomationActions(el, addSystemMessage, switchTab);
   } catch (error) {
     el.paneAutomations.innerHTML = renderEmpty("Automacoes", `Falha ao carregar automacoes: ${escHtml(error.message)}`);
   }
 }
 
+function bindSessionActions(el, addSystemMessage, switchTab, addMessage, updateProviderBadge, enqueueOutgoingMessage, updateActiveAssetGroup) {
+  el.paneSessions.querySelectorAll("[data-load]").forEach((btn) => btn.addEventListener("click", async () => {
+    const sessionData = await fetchJson(`/sessions/${btn.dataset.load}`);
+    state.sessionId = sessionData.session.id;
+    state.messages = Array.isArray(sessionData.session.messages) ? sessionData.session.messages : [];
+    state.provider = sessionData.session.provider || state.provider;
+    state.activeAssetGroup = sessionData.session.metadata?.activeAssetGroup || null;
+    el.chatArea.innerHTML = "";
+    state.messages.forEach((msg) => addMessage(el, msg.role, msg.content));
+    updateProviderBadge(el);
+    updateActiveAssetGroup?.(el, state.activeAssetGroup);
+    switchTab(el, "chat");
+    addSystemMessage(el, `Sessao "${sessionData.session.metadata?.tabTitle || sessionData.session.id}" retomada.`);
+  }));
+
+  el.paneSessions.querySelectorAll("[data-delete-session]").forEach((btn) => btn.addEventListener("click", async () => {
+    await fetchJson(`/sessions/${btn.dataset.deleteSession}`, { method: "DELETE" });
+    await renderSessions(el, addSystemMessage, switchTab, addMessage, updateProviderBadge, enqueueOutgoingMessage, updateActiveAssetGroup);
+  }));
+
+  el.paneSessions.querySelectorAll("[data-rename-session]").forEach((btn) => btn.addEventListener("click", async () => {
+    const nextTitle = window.prompt("Novo nome da sessao:", btn.dataset.currentTitle || "");
+    if (nextTitle === null) return;
+    await fetchJson(`/sessions/${btn.dataset.renameSession}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: nextTitle }),
+    });
+    await renderSessions(el, addSystemMessage, switchTab, addMessage, updateProviderBadge, enqueueOutgoingMessage, updateActiveAssetGroup);
+  }));
+
+  el.paneSessions.querySelectorAll("[data-export-session]").forEach((btn) => btn.addEventListener("click", () => {
+    window.open(`${BRIDGE_URL}/sessions/${encodeURIComponent(btn.dataset.exportSession)}/export.md`, "_blank");
+  }));
+
+  el.paneSessions.querySelectorAll("[data-assets-session]").forEach((btn) => btn.addEventListener("click", async () => {
+    const sessionId = btn.dataset.assetsSession;
+    const host = el.paneSessions.querySelector(`[data-assets-host="${sessionId}"]`);
+    if (!host) return;
+    if (host.dataset.loaded === "true") {
+      host.innerHTML = "";
+      host.dataset.loaded = "false";
+      return;
+    }
+    const data = await fetchJson(`/sessions/${sessionId}/assets`);
+    const assets = Array.isArray(data.assets) ? data.assets : [];
+    const groups = Array.isArray(data.groups) ? data.groups : [];
+    host.innerHTML = assets.length
+      ? renderAssetsPanel(sessionId, assets, groups)
+      : `<div class="list-item-meta" style="margin-top:8px">Nenhum anexo ou captura nesta sessao.</div>`;
+    host.dataset.loaded = "true";
+    bindAssetActions(host, sessionId, switchTab, addSystemMessage, addMessage, enqueueOutgoingMessage, updateActiveAssetGroup);
+  }));
+}
+
+function bindAutomationActions(el, addSystemMessage, switchTab) {
+  el.paneAutomations.querySelectorAll("[data-replay]").forEach((btn) => btn.addEventListener("click", async () => {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    await fetchJson(`/play/${btn.dataset.replay}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tabId: String(tab?.id || "default") }),
+    });
+    if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "START_REPLAY", tabId: String(tab.id) }).catch(() => {});
+    switchTab(el, "chat");
+    addSystemMessage(el, `Replay iniciado: ${btn.dataset.replay}`);
+  }));
+
+  el.paneAutomations.querySelectorAll("[data-delete-auto]").forEach((btn) => btn.addEventListener("click", async () => {
+    await fetchJson(`/automations/${btn.dataset.deleteAuto}`, { method: "DELETE" });
+    await renderAutomations(el, addSystemMessage, switchTab);
+  }));
+
+  el.paneAutomations.querySelectorAll("[data-rename-auto]").forEach((btn) => btn.addEventListener("click", async () => {
+    const nextTitle = window.prompt("Novo nome da automacao:", btn.dataset.currentTitle || "");
+    if (nextTitle === null) return;
+    await fetchJson(`/automations/${btn.dataset.renameAuto}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: nextTitle }),
+    });
+    await renderAutomations(el, addSystemMessage, switchTab);
+  }));
+}
+
+function renderSessionCard(session) {
+  const title = session.metadata?.tabTitle || session.id;
+  const url = session.metadata?.tabUrl || "";
+  const counts = [
+    `${session.messageCount} msg`,
+    session.taskCount ? `${session.taskCount} tasks` : null,
+    session.provider || "local",
+  ].filter(Boolean).join(" | ");
+  return `
+    <article class="list-card">
+      <div class="list-item-title">${escHtml(title)}</div>
+      <div class="list-item-meta">${escHtml(counts)}</div>
+      ${url ? `<div class="list-item-meta">${escHtml(url)}</div>` : ""}
+      <div class="list-item-meta">Atualizada em ${formatDate(session.updatedAt)}</div>
+      <div class="list-item-actions" style="margin-top:8px">
+        <button class="btn-list-action" data-load="${escHtml(session.id)}">Retomar</button>
+        <button class="btn-list-action" data-assets-session="${escHtml(session.id)}">Arquivos</button>
+        <button class="btn-list-action" data-export-session="${escHtml(session.id)}">Exportar MD</button>
+        <button class="btn-list-action" data-rename-session="${escHtml(session.id)}" data-current-title="${escHtml(title)}">Renomear</button>
+        <button class="btn-list-action danger" data-delete-session="${escHtml(session.id)}">Apagar</button>
+      </div>
+      <div data-assets-host="${escHtml(session.id)}"></div>
+    </article>
+  `;
+}
+
 function renderAutomationCard(item) {
+  const preview = Array.isArray(item.previewSteps) ? item.previewSteps.join(" | ") : "";
   return `
     <article class="list-card">
       <div class="list-item-title">${escHtml(item.title || item.id)}</div>
       <div class="list-item-meta">${item.stepCount || 0} passos gravados</div>
+      ${item.startUrl ? `<div class="list-item-meta">${escHtml(item.startUrl)}</div>` : ""}
+      ${preview ? `<div class="list-item-meta">Fluxo: ${escHtml(preview)}</div>` : ""}
       <div class="list-item-meta">Atualizada em ${formatDate(item.updatedAt || item.createdAt)}</div>
       <div class="list-item-actions" style="margin-top:8px">
         <button class="btn-list-action" data-replay="${escHtml(item.id)}">Replay</button>
+        <button class="btn-list-action" data-rename-auto="${escHtml(item.id)}" data-current-title="${escHtml(item.title || item.id)}">Renomear</button>
         <button class="btn-list-action danger" data-delete-auto="${escHtml(item.id)}">Apagar</button>
       </div>
     </article>
@@ -155,7 +231,10 @@ function renderAutomationCard(item) {
 function renderTaskCard(task) {
   const status = task.status || "pending";
   const pendingStep = (task.steps || []).find((step) => step.status === "awaiting_approval");
+  const currentStep = (task.steps || []).find((step) => ["running", "awaiting_approval", "pending"].includes(step.status));
   const logs = Array.isArray(task.logs) ? task.logs.slice(-3) : [];
+  const completedSteps = (task.steps || []).filter((step) => step.status === "done").length;
+  const pct = Number(task.progressPct || 0);
   return `
     <article class="list-card">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
@@ -163,7 +242,9 @@ function renderTaskCard(task) {
         <span class="task-status ${escHtml(status)}">${escHtml(status)}</span>
       </div>
       ${task.goal && task.title && task.goal !== task.title ? `<div class="list-item-meta">${escHtml(task.goal)}</div>` : ""}
-      <div class="list-item-meta">${task.progressPct || 0}% concluido · ${(task.steps || []).length} passos</div>
+      <div class="list-item-meta">${pct}% concluido | ${completedSteps}/${(task.steps || []).length} passos</div>
+      <div class="task-progress"><span class="task-progress-bar" style="width:${Math.max(0, Math.min(100, pct))}%"></span></div>
+      ${currentStep ? `<div class="list-item-meta">Step atual: ${escHtml(currentStep.description || currentStep.action?.type || currentStep.id)}</div>` : ""}
       ${pendingStep ? renderApprovalBox(task, pendingStep) : ""}
       ${(task.steps || []).length ? renderStepDetails(task, logs) : ""}
     </article>
@@ -171,10 +252,14 @@ function renderTaskCard(task) {
 }
 
 function renderApprovalBox(task, step) {
-  const actionDesc = [step.action?.type, step.action?.selector || step.action?.url].filter(Boolean).join(": ");
+  const actionDesc = step.approval?.actionLabel || [step.action?.type, step.action?.selector || step.action?.url].filter(Boolean).join(": ");
+  const target = step.approval?.target || step.action?.selector || step.action?.url || step.action?.command || "";
+  const reason = step.approval?.reason || "Esta etapa pode alterar a pagina ou o ambiente local.";
   return `
     <div class="approval-box">
       <div class="list-item-meta">Aprovacao necessaria: <strong>${escHtml(actionDesc || step.description || "acao do navegador")}</strong></div>
+      ${target ? `<div class="list-item-meta">Alvo: ${escHtml(target)}</div>` : ""}
+      <div class="list-item-meta">${escHtml(reason)}</div>
       <div class="list-item-actions" style="margin-top:6px">
         <button class="btn-list-action" data-approve-task="${escHtml(task.id)}">Permitir</button>
         <button class="btn-list-action danger" data-deny-task="${escHtml(task.id)}">Negar</button>
@@ -190,8 +275,9 @@ function renderStepDetails(task, logs) {
       : step.status === "running" ? "step-running"
       : step.status === "awaiting_approval" ? "step-waiting"
       : "";
-    const err = step.error ? ` — ${escHtml(step.error)}` : "";
-    return `<li><span class="${cls}">${escHtml(step.status)}</span> ${escHtml(step.description || step.action?.type || step.id)}${err}</li>`;
+    const output = step.output ? ` | saida: ${formatStepOutput(step.output)}` : "";
+    const err = step.error ? ` | ${escHtml(step.error)}` : "";
+    return `<li><span class="${cls}">${escHtml(step.status)}</span> ${escHtml(step.description || step.action?.type || step.id)}${output}${err}</li>`;
   }).join("");
   return `
     <details class="task-detail">
@@ -228,4 +314,215 @@ function renderEmpty(title, text) {
     <div class="view-toolbar"><div class="view-title-wrap"><div class="view-title">${title}</div></div></div>
     <div class="empty-state"><div class="empty-sub">${text}</div></div>
   `;
+}
+
+function renderAssetLine(item) {
+  const label = item.kind === "screenshot" ? "captura" : "arquivo";
+  const name = item.fileName || item.id;
+  const extra = item.tabTitle || item.mimeType || "";
+  return `- [${label}] ${name}${extra ? ` | ${extra}` : ""}${item.createdAt ? ` | ${formatDate(item.createdAt)}` : ""}`;
+}
+
+function renderAssetCard(item) {
+  const label = item.kind === "screenshot" ? "Captura" : "Arquivo";
+  const extra = item.tabTitle || item.mimeType || item.tabUrl || "";
+  const previewUrl = isPreviewable(item)
+    ? `${BRIDGE_URL}/sessions/${encodeURIComponent(item.sessionId || "")}/assets/${encodeURIComponent(item.kind)}/${encodeURIComponent(item.id)}/file`
+    : "";
+  return `
+    <article class="list-card asset-card" style="margin-bottom:0">
+      <input class="asset-select" type="checkbox" data-select-asset="${escHtml(item.id)}" />
+      ${previewUrl ? `<img class="asset-preview" src="${escHtml(previewUrl)}" alt="${escHtml(item.fileName || item.id)}" />` : ""}
+      <div class="list-item-title">${escHtml(item.fileName || item.id)}</div>
+      <div class="list-item-meta">${escHtml(label)}${extra ? ` | ${escHtml(extra)}` : ""}</div>
+      <div class="list-item-meta">${item.createdAt ? escHtml(formatDate(item.createdAt)) : ""}</div>
+      <div class="list-item-actions" style="margin-top:8px">
+        <button class="btn-list-action" data-open-asset="${escHtml(item.filePath || "")}">Abrir</button>
+        <button class="btn-list-action" data-open-folder="${escHtml(item.directoryPath || "")}">Pasta</button>
+        <button class="btn-list-action danger" data-delete-asset-kind="${escHtml(item.kind)}" data-delete-asset-id="${escHtml(item.id)}">Excluir</button>
+      </div>
+    </article>
+  `;
+}
+
+function bindAssetActions(host, sessionId, switchTab, addSystemMessage, addMessage, enqueueOutgoingMessage, updateActiveAssetGroup) {
+  syncAssetSelection(host, sessionId);
+
+  host.querySelectorAll("[data-select-asset]").forEach((input) => input.addEventListener("change", () => {
+    const assetId = input.dataset.selectAsset;
+    const bucket = new Set(state.sessionAssetSelection[sessionId] || []);
+    if (input.checked) bucket.add(assetId);
+    else bucket.delete(assetId);
+    state.sessionAssetSelection[sessionId] = Array.from(bucket);
+    syncAssetSelection(host, sessionId);
+  }));
+
+  host.querySelectorAll("[data-create-asset-group]").forEach((btn) => btn.addEventListener("click", async () => {
+    const selectedIds = state.sessionAssetSelection[sessionId] || [];
+    if (selectedIds.length < 2) return;
+    const title = window.prompt("Nome do grupo visual:", `Grupo ${selectedIds.length} arquivos`);
+    if (title === null) return;
+    const data = await fetchJson(`/sessions/${sessionId}/assets`);
+    const assets = Array.isArray(data.assets) ? data.assets : [];
+    const refs = assets.filter((item) => selectedIds.includes(item.id)).map((item) => ({ id: item.id, kind: item.kind }));
+    await fetchJson(`/sessions/${sessionId}/asset-groups`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, assetRefs: refs }),
+    });
+    state.sessionAssetSelection[sessionId] = [];
+    const refreshed = await fetchJson(`/sessions/${sessionId}/assets`);
+    const nextAssets = Array.isArray(refreshed.assets) ? refreshed.assets : [];
+    const nextGroups = Array.isArray(refreshed.groups) ? refreshed.groups : [];
+    host.innerHTML = nextAssets.length
+      ? renderAssetsPanel(sessionId, nextAssets, nextGroups)
+      : `<div class="list-item-meta" style="margin-top:8px">Nenhum anexo ou captura nesta sessao.</div>`;
+    if (nextAssets.length) bindAssetActions(host, sessionId, switchTab, addSystemMessage, addMessage, enqueueOutgoingMessage, updateActiveAssetGroup);
+  }));
+
+  host.querySelectorAll("[data-delete-asset-group]").forEach((btn) => btn.addEventListener("click", async () => {
+    await fetchJson(`/sessions/${sessionId}/asset-groups/${btn.dataset.deleteAssetGroup}`, { method: "DELETE" });
+    const refreshed = await fetchJson(`/sessions/${sessionId}/assets`);
+    const nextAssets = Array.isArray(refreshed.assets) ? refreshed.assets : [];
+    const nextGroups = Array.isArray(refreshed.groups) ? refreshed.groups : [];
+    host.innerHTML = nextAssets.length
+      ? renderAssetsPanel(sessionId, nextAssets, nextGroups)
+      : `<div class="list-item-meta" style="margin-top:8px">Nenhum anexo ou captura nesta sessao.</div>`;
+    if (nextAssets.length) bindAssetActions(host, sessionId, switchTab, addSystemMessage, addMessage, enqueueOutgoingMessage, updateActiveAssetGroup);
+  }));
+
+  host.querySelectorAll("[data-use-asset-group]").forEach((btn) => btn.addEventListener("click", async () => {
+    const data = await fetchJson(`/sessions/${sessionId}/assets`);
+    const groups = Array.isArray(data.groups) ? data.groups : [];
+    const group = groups.find((item) => item.id === btn.dataset.useAssetGroup);
+    if (!group) return;
+    const members = Array.isArray(group.assets) ? group.assets : [];
+    const summary = members.map((item, index) => `${index + 1}. ${item.fileName || item.id}${item.mimeType ? ` (${item.mimeType})` : ""}`).join("\n");
+    state.activeAssetGroup = { ...group, sessionId, assets: members };
+    updateActiveAssetGroup?.(elFromHost(host), state.activeAssetGroup);
+    syncSession().catch(() => {});
+    switchTab(elFromHost(host), "chat");
+    enqueueOutgoingMessage(
+      elFromHost(host),
+      {
+        text: `[Pacote visual ativo: ${group.title || group.id}]\nSessao: ${sessionId}\nQuantidade de arquivos: ${members.length}\n\nArquivos do grupo:\n${summary}\n\nConsidere este grupo como um conjunto unico de documentos. Resuma o conteudo esperado, diga como devemos analisar esse pacote e quais proximos passos voce recomenda.`,
+        visibleText: `Use o grupo de arquivos "${group.title || group.id}" como contexto unico.`,
+        skipAssetGroup: true,
+      },
+      addMessage,
+      addSystemMessage,
+      async () => {},
+    );
+  }));
+
+  host.querySelectorAll("[data-open-asset]").forEach((btn) => btn.addEventListener("click", async () => {
+    const filePath = btn.dataset.openAsset;
+    if (!filePath) return;
+    await fetchJson("/execute", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command: "open_local_file", payload: { path: filePath } }),
+    });
+  }));
+
+  host.querySelectorAll("[data-open-folder]").forEach((btn) => btn.addEventListener("click", async () => {
+    const directoryPath = btn.dataset.openFolder;
+    if (!directoryPath) return;
+    await fetchJson("/execute", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command: "open_local_file", payload: { path: directoryPath } }),
+    });
+  }));
+
+  host.querySelectorAll("[data-delete-asset-id]").forEach((btn) => btn.addEventListener("click", async () => {
+    const assetId = btn.dataset.deleteAssetId;
+    const kind = btn.dataset.deleteAssetKind;
+    if (!assetId || !kind) return;
+    await fetchJson(`/sessions/${sessionId}/assets/${kind}/${assetId}`, { method: "DELETE" });
+    const data = await fetchJson(`/sessions/${sessionId}/assets`);
+    const assets = Array.isArray(data.assets) ? data.assets : [];
+    const groups = Array.isArray(data.groups) ? data.groups : [];
+    state.sessionAssetSelection[sessionId] = (state.sessionAssetSelection[sessionId] || []).filter((item) => item !== assetId);
+    host.innerHTML = assets.length
+      ? renderAssetsPanel(sessionId, assets, groups)
+      : `<div class="list-item-meta" style="margin-top:8px">Nenhum anexo ou captura nesta sessao.</div>`;
+    if (assets.length) bindAssetActions(host, sessionId, switchTab, addSystemMessage, addMessage, enqueueOutgoingMessage, updateActiveAssetGroup);
+  }));
+}
+
+function renderAssetsPanel(sessionId, assets, groups = []) {
+  return `
+    <div class="asset-toolbar">
+      <div class="asset-selection-count">Selecionados: ${(state.sessionAssetSelection[sessionId] || []).length}</div>
+      <div class="list-item-actions">
+        <button class="btn-list-action" data-create-asset-group="${escHtml(sessionId)}">Agrupar selecionados</button>
+        <button class="btn-list-action" data-clear-asset-selection="${escHtml(sessionId)}">Limpar selecao</button>
+      </div>
+    </div>
+    ${groups.length ? `<div class="asset-groups">${groups.map(renderAssetGroupCard).join("")}</div>` : ""}
+    <div class="list-grid">${assets.map((item) => renderAssetCard({ ...item, sessionId })).join("")}</div>
+  `;
+}
+
+function syncAssetSelection(host, sessionId) {
+  const selected = new Set(state.sessionAssetSelection[sessionId] || []);
+  host.querySelectorAll("[data-select-asset]").forEach((input) => {
+    input.checked = selected.has(input.dataset.selectAsset);
+  });
+  const counter = host.querySelector(".asset-selection-count");
+  if (counter) counter.textContent = `Selecionados: ${selected.size}`;
+  host.querySelectorAll("[data-clear-asset-selection]").forEach((btn) => btn.onclick = () => {
+    state.sessionAssetSelection[sessionId] = [];
+    syncAssetSelection(host, sessionId);
+  });
+}
+
+function isPreviewable(item) {
+  if (item.kind === "screenshot") return true;
+  return /^image\//i.test(String(item.mimeType || ""));
+}
+
+function renderAssetGroupCard(group) {
+  const count = Array.isArray(group.assetRefs) ? group.assetRefs.length : 0;
+  const names = Array.isArray(group.assets) ? group.assets.map((item) => item.fileName || item.id).slice(0, 3).join(" | ") : "";
+  return `
+    <article class="asset-group-card">
+      <div class="list-item-title">${escHtml(group.title || group.id)}</div>
+      <div class="list-item-meta">Grupo visual | ${count} itens | ${group.createdAt ? escHtml(formatDate(group.createdAt)) : ""}</div>
+      ${names ? `<div class="list-item-meta">${escHtml(names)}${count > 3 ? "..." : ""}</div>` : ""}
+      <div class="list-item-actions" style="margin-top:8px">
+        <button class="btn-list-action" data-use-asset-group="${escHtml(group.id)}">Usar no chat</button>
+        <button class="btn-list-action danger" data-delete-asset-group="${escHtml(group.id)}">Desfazer grupo</button>
+      </div>
+    </article>
+  `;
+}
+
+function elFromHost(host) {
+  return {
+    paneChat: document.getElementById("pane-chat"),
+    tabChat: document.getElementById("tab-chat"),
+    tabSessions: document.getElementById("tab-sessions"),
+    tabTasks: document.getElementById("tab-tasks"),
+    tabAutomations: document.getElementById("tab-automations"),
+    paneSessions: document.getElementById("pane-sessions"),
+    paneTasks: document.getElementById("pane-tasks"),
+    paneAutomations: document.getElementById("pane-automations"),
+    chatArea: document.getElementById("chat-area"),
+    msgInput: document.getElementById("msg-input"),
+    btnSend: document.getElementById("btn-send"),
+  };
+}
+
+function formatStepOutput(output) {
+  if (typeof output === "string") return escHtml(output.slice(0, 120));
+  if (!output || typeof output !== "object") return escHtml(String(output || ""));
+  const summary = [
+    output.action,
+    output.selector,
+    output.url,
+    output.dispatched ? "despachado" : "",
+  ].filter(Boolean).join(" | ");
+  return escHtml(summary || JSON.stringify(output).slice(0, 120));
 }

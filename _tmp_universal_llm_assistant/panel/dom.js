@@ -31,7 +31,17 @@ export function collectElements() {
     memoryStrip: $("memory-strip"),
     memoryStripBadge: $("memory-strip-badge"),
     memoryStripText: $("memory-strip-text"),
+    assetGroupStrip: $("asset-group-strip"),
+    assetGroupBadge: $("asset-group-badge"),
+    assetGroupText: $("asset-group-text"),
+    assetGroupMeta: $("asset-group-meta"),
+    btnClearAssetGroup: $("btn-clear-asset-group"),
+    runtimeStrip: $("runtime-strip"),
+    runtimeStripBadge: $("runtime-strip-badge"),
+    runtimeStripText: $("runtime-strip-text"),
+    runtimeStripQueue: $("runtime-strip-queue"),
     btnPageText: $("btn-page-text"),
+    btnAgentTab: $("btn-agent-tab"),
     btnSelection: $("btn-selection"),
     btnScreenshot: $("btn-screenshot"),
     btnCamera: $("btn-camera"),
@@ -40,6 +50,7 @@ export function collectElements() {
     btnRecord: $("btn-record"),
     btnReplay: $("btn-replay"),
     btnVoice: $("btn-voice"),
+    btnLang: $("btn-lang"),
     btnMic: $("btn-mic"),
     btnCloseCamera: $("btn-close-camera"),
     btnCaptureCamera: $("btn-capture-camera"),
@@ -48,6 +59,7 @@ export function collectElements() {
     recorderStatus: $("recorder-status"),
     inputRuntimeUrl: $("input-runtime-url"),
     inputRuntimeModel: $("input-runtime-model"),
+    inputAlwaysAllowTabs: $("input-always-allow-tabs"),
     inputLocalRoots: $("input-local-roots"),
     inputLocalApps: $("input-local-apps"),
     inputAppUrl: $("input-app-url"),
@@ -126,6 +138,59 @@ export function addSystemMessage(el, text) {
   el.chatArea.scrollTop = el.chatArea.scrollHeight;
 }
 
+export function addMediaPreview(el, title, dataUrl, caption = "") {
+  el.chatArea.querySelector(".empty-state")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "message system preview-row";
+  wrap.innerHTML = `
+    <div class="message-bubble media-preview">
+      <div class="media-preview-title">${escHtml(title)}</div>
+      <img src="${escHtml(dataUrl)}" alt="${escHtml(title)}" class="media-preview-image" />
+      ${caption ? `<div class="media-preview-caption">${escHtml(caption)}</div>` : ""}
+    </div>
+  `;
+  el.chatArea.appendChild(wrap);
+  el.chatArea.scrollTop = el.chatArea.scrollHeight;
+}
+
+export function addProgressMessage(el, title, detail = "") {
+  el.chatArea.querySelector(".empty-state")?.remove();
+  const wrap = document.createElement("div");
+  const progressId = `progress_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  wrap.className = "message system progress-row";
+  wrap.dataset.progressId = progressId;
+  wrap.innerHTML = `
+    <div class="message-bubble upload-progress-card">
+      <div class="upload-progress-head">
+        <div class="media-preview-title">${escHtml(title)}</div>
+        <div class="upload-progress-pct">0%</div>
+      </div>
+      ${detail ? `<div class="media-preview-caption">${escHtml(detail)}</div>` : ""}
+      <div class="upload-progress-track"><div class="upload-progress-bar" style="width:0%"></div></div>
+    </div>
+  `;
+  el.chatArea.appendChild(wrap);
+  el.chatArea.scrollTop = el.chatArea.scrollHeight;
+  return progressId;
+}
+
+export function updateProgressMessage(el, progressId, pct, detail = "") {
+  const wrap = el.chatArea.querySelector(`[data-progress-id="${progressId}"]`);
+  if (!wrap) return;
+  const safePct = Math.max(0, Math.min(100, Number(pct || 0)));
+  const bar = wrap.querySelector(".upload-progress-bar");
+  const label = wrap.querySelector(".upload-progress-pct");
+  const caption = wrap.querySelector(".media-preview-caption");
+  if (bar) bar.style.width = `${safePct}%`;
+  if (label) label.textContent = `${safePct}%`;
+  if (caption && detail) caption.textContent = detail;
+  el.chatArea.scrollTop = el.chatArea.scrollHeight;
+}
+
+export function finishProgressMessage(el, progressId, detail = "") {
+  updateProgressMessage(el, progressId, 100, detail);
+}
+
 export function updateMemoryStrip(el, metadata) {
   if (!el.memoryStrip || !el.memoryStripText || !el.memoryStripBadge) return;
   if (!metadata || state.provider !== "local") {
@@ -151,4 +216,51 @@ export function updateMemoryStrip(el, metadata) {
   el.memoryStrip.classList.remove("hidden");
   el.memoryStripBadge.textContent = "Memoria local";
   el.memoryStripText.textContent = parts.join(" | ");
+}
+
+export function updateActiveAssetGroup(el, group) {
+  if (!el.assetGroupStrip || !el.assetGroupText || !el.assetGroupMeta || !el.assetGroupBadge) return;
+  if (!group) {
+    el.assetGroupStrip.classList.add("hidden");
+    el.assetGroupText.textContent = "";
+    el.assetGroupMeta.textContent = "";
+    return;
+  }
+
+  const assetCount = Array.isArray(group.assets) ? group.assets.length : Array.isArray(group.assetRefs) ? group.assetRefs.length : 0;
+  const previewNames = Array.isArray(group.assets)
+    ? group.assets.map((item) => item.fileName || item.id).slice(0, 3).join(" | ")
+    : "";
+
+  el.assetGroupBadge.textContent = "Pacote ativo";
+  el.assetGroupText.textContent = group.summaryTitle || group.title || group.id || "Grupo visual";
+  el.assetGroupMeta.textContent = [assetCount ? `${assetCount} arquivos` : "", previewNames].filter(Boolean).join(" | ");
+  el.assetGroupStrip.classList.remove("hidden");
+}
+
+export function updateChatRuntime(el, runtime = null) {
+  if (!el.runtimeStrip || !el.runtimeStripBadge || !el.runtimeStripText || !el.runtimeStripQueue) return;
+  if (!runtime || (!runtime.phase && !runtime.queueCount)) {
+    el.runtimeStrip.classList.add("hidden");
+    el.runtimeStripBadge.textContent = "Pronto";
+    el.runtimeStripBadge.className = "runtime-badge";
+    el.runtimeStripText.textContent = "";
+    el.runtimeStripQueue.textContent = "";
+    return;
+  }
+
+  const phaseMap = {
+    queued: { label: "Na fila", cls: "queued" },
+    thinking: { label: "Pensando", cls: "thinking" },
+    memory: { label: "Memoria", cls: "memory" },
+    responding: { label: "Respondendo", cls: "responding" },
+    ready: { label: "Pronto", cls: "ready" },
+    error: { label: "Erro", cls: "error" },
+  };
+  const meta = phaseMap[runtime.phase] || phaseMap.ready;
+  el.runtimeStrip.classList.remove("hidden");
+  el.runtimeStripBadge.textContent = meta.label;
+  el.runtimeStripBadge.className = `runtime-badge ${meta.cls}`;
+  el.runtimeStripText.textContent = runtime.text || "";
+  el.runtimeStripQueue.textContent = runtime.queueCount > 1 ? `${runtime.queueCount} mensagens` : runtime.queueCount === 1 ? "1 mensagem" : "";
 }

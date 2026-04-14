@@ -1,9 +1,9 @@
 import { buildPanelMarkup } from "./panel/template.js";
 import { state } from "./panel/state.js";
-import { collectElements, addMessage, addSystemMessage, switchTab, updateProviderBadge, updateStatusDot, openOverlay, closeOverlays, updateMemoryStrip } from "./panel/dom.js";
-import { bindChat } from "./panel/chat.js";
-import { bindRecorder, bindUpload, injectPageText, injectSelection, takeScreenshot } from "./panel/browser.js";
-import { renderAutomations, renderSessions, renderTasks } from "./panel/lists.js";
+import { collectElements, addMediaPreview, addMessage, addSystemMessage, switchTab, updateActiveAssetGroup, updateProviderBadge, updateStatusDot, openOverlay, closeOverlays, updateMemoryStrip } from "./panel/dom.js";
+import { bindChat, enqueueOutgoingMessage } from "./panel/chat.js";
+import { bindRecorder, bindUpload, injectPageText, injectSelection, openAgentTab, takeScreenshot } from "./panel/browser.js";
+import { renderAutomations, renderSessions, renderTasks, syncSession } from "./panel/lists.js";
 import { checkBridge, testProvider } from "./panel/bridge.js";
 import { fillSettingsInputs, hydrateSettings, loadSettings, saveSettings } from "./panel/settings.js";
 import { installGlobalErrorHandlers, loadErrorLog, renderErrorLog } from "./panel/error-log.js";
@@ -19,8 +19,14 @@ async function initPanel() {
   await loadSettings(el);
   bindChat(el, addMessage, addSystemMessage, renderTasks);
   bindMediaControls(el, addSystemMessage, () => document.getElementById("btn-send")?.click());
-  bindUpload(el, addSystemMessage);
+  bindUpload(el, addSystemMessage, enqueueOutgoingMessage, addMessage, renderTasks);
   bindRecorder(el, addSystemMessage);
+  el.btnClearAssetGroup?.addEventListener("click", () => {
+    state.activeAssetGroup = null;
+    updateActiveAssetGroup(el, null);
+    addSystemMessage(el, "Pacote visual removido do contexto ativo.");
+    syncSession().catch(() => {});
+  });
 
   el.providerSelect.addEventListener("change", async () => {
     state.provider = el.providerSelect.value;
@@ -36,7 +42,7 @@ async function initPanel() {
   el.tabSessions.addEventListener("click", async () => {
     closeOverlays(el);
     switchTab(el, "sessions");
-    await renderSessions(el, addSystemMessage, switchTab, addMessage, updateProviderBadge);
+    await renderSessions(el, addSystemMessage, switchTab, addMessage, updateProviderBadge, enqueueOutgoingMessage, updateActiveAssetGroup);
   });
   el.tabTasks.addEventListener("click", async () => {
     closeOverlays(el);
@@ -48,9 +54,24 @@ async function initPanel() {
     switchTab(el, "automations");
     await renderAutomations(el, addSystemMessage, switchTab);
   });
-  el.btnPageText.addEventListener("click", () => injectPageText(el));
-  el.btnSelection.addEventListener("click", () => injectSelection(el, addSystemMessage));
-  el.btnScreenshot.addEventListener("click", () => takeScreenshot(el, addSystemMessage));
+  el.btnPageText.addEventListener("click", () => injectPageText(el, addSystemMessage, enqueueOutgoingMessage, addMessage, renderTasks));
+  el.btnAgentTab.addEventListener("click", () => openAgentTab(el, addSystemMessage));
+  el.btnSelection.addEventListener("click", () => injectSelection(el, addSystemMessage, enqueueOutgoingMessage, addMessage, renderTasks));
+  el.btnScreenshot.addEventListener("click", async () => {
+    const shot = await takeScreenshot(el, addSystemMessage);
+    if (!shot?.dataUrl) return;
+    addMediaPreview(el, "Screenshot capturado", shot.dataUrl, shot.tab?.title || shot.tab?.url || "");
+    enqueueOutgoingMessage(
+      el,
+      {
+        text: `[Screenshot capturado de: ${shot.tab?.title || shot.tab?.url || "aba ativa"}]\n\nDescreva a interface, os elementos relevantes e as proximas acoes recomendadas.`,
+        visibleText: "Analise a captura de tela que acabei de enviar.",
+      },
+      addMessage,
+      addSystemMessage,
+      renderTasks,
+    );
+  });
   el.btnReplay.addEventListener("click", async () => {
     switchTab(el, "automations");
     await renderAutomations(el, addSystemMessage, switchTab);
@@ -80,6 +101,7 @@ async function bootstrapBridge(el) {
   fillSettingsInputs(el);
   updateProviderBadge(el);
   updateMemoryStrip(el, state.localMemoryMeta);
+  updateActiveAssetGroup(el, state.activeAssetGroup);
   if (state.activeTab === "tasks") await renderTasks(el);
 }
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Universal LLM Assistant",
-  "version": "9.0.0",
+  "version": "9.1.5",
   "description": "Assistente IA universal — LLM local (ai-core), LLM customizado e Cloudflare Workers AI",
 
   "permissions": [
@@ -9,7 +9,9 @@
     "scripting",
     "activeTab",
     "storage",
-    "tabs"
+    "tabs",
+    "videoCapture",
+    "audioCapture"
   ],
 
   "host_permissions": [

@@ -22,10 +22,33 @@ function createAutomationsRouter(commandQueue) {
     } catch (error) { res.status(500).json({ ok: false, error: error?.message }); }
   });
 
-  router.get("/automations", (_req, res) => res.json({ ok: true, automations: listJsonDir(AUTOMATIONS_DIR).map((item) => ({ id: item.id, title: item.title, startUrl: item.startUrl, stepCount: item.stepCount || (Array.isArray(item.steps) ? item.steps.length : 0), createdAt: item.createdAt, updatedAt: item.updatedAt })) }));
+  router.get("/automations", (_req, res) => res.json({
+    ok: true,
+    automations: listJsonDir(AUTOMATIONS_DIR).map((item) => ({
+      id: item.id,
+      title: item.title,
+      startUrl: item.startUrl,
+      stepCount: item.stepCount || (Array.isArray(item.steps) ? item.steps.length : 0),
+      previewSteps: Array.isArray(item.steps)
+        ? item.steps.slice(0, 4).map((step) => step.type || step.action?.type || "passo")
+        : [],
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    })),
+  }));
   router.get("/automations/:id", (req, res) => {
     const automation = safeRead(path.join(AUTOMATIONS_DIR, `${req.params.id}.json`));
     if (!automation) return res.status(404).json({ ok: false, error: "Automacao nao encontrada." });
+    return res.json({ ok: true, automation });
+  });
+  router.patch("/automations/:id", (req, res) => {
+    const filePath = path.join(AUTOMATIONS_DIR, `${req.params.id}.json`);
+    const automation = safeRead(filePath);
+    if (!automation) return res.status(404).json({ ok: false, error: "Automacao nao encontrada." });
+    const title = String(req.body?.title || "").trim();
+    automation.title = title || automation.title || automation.id;
+    automation.updatedAt = ts();
+    safeWrite(filePath, automation);
     return res.json({ ok: true, automation });
   });
   router.delete("/automations/:id", (req, res) => {

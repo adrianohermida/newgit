@@ -91,6 +91,87 @@ function collectPageScan() {
   };
 }
 
+function resolveDomPath(domPath) {
+  if (!domPath || typeof domPath !== "string") return null;
+  try {
+    return document.querySelector(domPath);
+  } catch {
+    return null;
+  }
+}
+
+function findByText(candidates, text) {
+  const normalized = String(text || "").replace(/\s+/g, " ").trim().toLowerCase();
+  if (!normalized) return null;
+  return candidates.find((item) => {
+    const current = String(item.innerText || item.textContent || item.value || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+    return current && (current === normalized || current.includes(normalized));
+  }) || null;
+}
+
+function resolveElement(target) {
+  if (!target) return null;
+  if (target.selector) {
+    try {
+      const bySelector = document.querySelector(target.selector);
+      if (bySelector) return bySelector;
+    } catch {}
+  }
+  const snapshot = target.element || {};
+  if (snapshot.id) {
+    const byId = document.getElementById(snapshot.id);
+    if (byId) return byId;
+  }
+  if (snapshot.name) {
+    const byName = document.querySelector(`[name="${CSS.escape(snapshot.name)}"]`);
+    if (byName) return byName;
+  }
+  if (snapshot.placeholder) {
+    const byPlaceholder = document.querySelector(`[placeholder="${CSS.escape(snapshot.placeholder)}"]`);
+    if (byPlaceholder) return byPlaceholder;
+  }
+  if (snapshot.ariaLabel) {
+    const byAria = document.querySelector(`[aria-label="${CSS.escape(snapshot.ariaLabel)}"]`);
+    if (byAria) return byAria;
+  }
+  if (snapshot.domPath) {
+    const byPath = resolveDomPath(snapshot.domPath);
+    if (byPath) return byPath;
+  }
+  const tagName = String(snapshot.tagName || "").toLowerCase();
+  if (tagName) {
+    const pool = Array.from(document.querySelectorAll(tagName));
+    const byText = findByText(pool, snapshot.text);
+    if (byText) return byText;
+  }
+  const genericPool = Array.from(document.querySelectorAll("button,a,input,textarea,select,[role='button']"));
+  return findByText(genericPool, snapshot.text);
+}
+
+function ensureAgentBadge(reason = "Em uso pelo agente") {
+  let badge = document.getElementById("llm-assistant-agent-badge");
+  if (!badge) {
+    badge = document.createElement("div");
+    badge.id = "llm-assistant-agent-badge";
+    badge.style.position = "fixed";
+    badge.style.right = "14px";
+    badge.style.bottom = "14px";
+    badge.style.zIndex = "2147483647";
+    badge.style.padding = "8px 12px";
+    badge.style.borderRadius = "999px";
+    badge.style.background = "rgba(17,24,39,.92)";
+    badge.style.color = "#fff";
+    badge.style.font = "12px Segoe UI, sans-serif";
+    badge.style.boxShadow = "0 10px 30px rgba(0,0,0,.25)";
+    badge.style.pointerEvents = "none";
+    document.documentElement.appendChild(badge);
+  }
+  badge.textContent = `IA ativa: ${reason}`;
+}
+
 window.LLMAssistantContent = {
   bridgeUrl: "http://127.0.0.1:32123",
   pollInterval: 2000,
@@ -101,4 +182,6 @@ window.LLMAssistantContent = {
   buildDomPath,
   buildElementSnapshot,
   collectPageScan,
+  resolveElement,
+  ensureAgentBadge,
 };
