@@ -101,12 +101,17 @@ export async function callChat(provider, messages, options = {}) {
   return data;
 }
 
-export async function runTask(sessionId, query, tabId = "") {
+export async function runTask(sessionId, query, workspace = {}) {
   await pushBridgeSettings();
   const data = await parseJsonResponse(await safeFetch(`${BRIDGE_URL}/tasks/run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionId, query, tabId }),
+    body: JSON.stringify({
+      sessionId,
+      query,
+      tabId: workspace.tabId || "",
+      tabs: Array.isArray(workspace.tabs) ? workspace.tabs : [],
+    }),
   }, 60000));
   if (!data.ok) {
     pushErrorLog({

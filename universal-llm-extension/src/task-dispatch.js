@@ -27,6 +27,30 @@ function describeStepAction(step) {
   return pieces.filter(Boolean).join(" -> ");
 }
 
+function resolveDispatchTabId(task, step, fallbackTabId, workspaceTabs = []) {
+  const action = step?.action || {};
+  const requestedTabId = String(action.tabId || action.targetTabId || "").trim();
+  if (requestedTabId) return requestedTabId;
+
+  const tabTarget = action.tabTarget && typeof action.tabTarget === "object" ? action.tabTarget : {};
+  const normalizedTabs = Array.isArray(workspaceTabs) ? workspaceTabs : [];
+  const titleHint = String(tabTarget.title || action.tabTitle || "").trim().toLowerCase();
+  const urlHint = String(tabTarget.url || action.urlContains || "").trim().toLowerCase();
+  const originHint = String(tabTarget.origin || action.origin || "").trim().toLowerCase();
+
+  const matched = normalizedTabs.find((tab) => {
+    const title = String(tab?.title || "").toLowerCase();
+    const url = String(tab?.url || "").toLowerCase();
+    const origin = String(tab?.origin || "").toLowerCase();
+    if (titleHint && title.includes(titleHint)) return true;
+    if (urlHint && url.includes(urlHint)) return true;
+    if (originHint && origin === originHint) return true;
+    return false;
+  });
+
+  return matched?.id ? String(matched.id) : String(fallbackTabId || "");
+}
+
 function markStepAwaitingApproval(task, step) {
   if (!step) return task;
   step.status = "awaiting_approval";
@@ -104,5 +128,6 @@ module.exports = {
   getApprovalStep,
   markApprovalDecision,
   markStepAwaitingApproval,
+  resolveDispatchTabId,
   shouldRequireApproval,
 };

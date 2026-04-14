@@ -235,6 +235,7 @@ function renderTaskCard(task) {
   const logs = Array.isArray(task.logs) ? task.logs.slice(-3) : [];
   const completedSteps = (task.steps || []).filter((step) => step.status === "done").length;
   const pct = Number(task.progressPct || 0);
+  const targetTab = currentStep?.action?.tabId ? `Aba alvo: ${currentStep.action.tabId}` : "";
   return `
     <article class="list-card">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
@@ -245,6 +246,7 @@ function renderTaskCard(task) {
       <div class="list-item-meta">${pct}% concluido | ${completedSteps}/${(task.steps || []).length} passos</div>
       <div class="task-progress"><span class="task-progress-bar" style="width:${Math.max(0, Math.min(100, pct))}%"></span></div>
       ${currentStep ? `<div class="list-item-meta">Step atual: ${escHtml(currentStep.description || currentStep.action?.type || currentStep.id)}</div>` : ""}
+      ${targetTab ? `<div class="list-item-meta">${escHtml(targetTab)}</div>` : ""}
       ${pendingStep ? renderApprovalBox(task, pendingStep) : ""}
       ${(task.steps || []).length ? renderStepDetails(task, logs) : ""}
     </article>

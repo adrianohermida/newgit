@@ -4,6 +4,25 @@ import { pushErrorLog } from "./error-log.js";
 import { addMediaPreview, addProgressMessage, finishProgressMessage, updateActiveAssetGroup, updateProgressMessage } from "./dom.js";
 import { syncSession } from "./lists.js";
 
+export async function collectWorkspaceTabs() {
+  const tabs = await chrome.tabs.query({ currentWindow: true });
+  return tabs
+    .filter((tab) => tab?.id && !isRestrictedUrl(tab.url))
+    .map((tab) => {
+      const url = String(tab.url || "");
+      return {
+        id: String(tab.id),
+        title: String(tab.title || ""),
+        url,
+        origin: safeOrigin(url),
+        active: Boolean(tab.active),
+        audible: Boolean(tab.audible),
+        pinned: Boolean(tab.pinned),
+        agentControlled: false,
+      };
+    });
+}
+
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) throw new Error("Nenhuma aba ativa disponivel.");

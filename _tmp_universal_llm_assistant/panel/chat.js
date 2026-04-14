@@ -4,6 +4,7 @@ import { pushErrorLog } from "./error-log.js";
 import { syncSession } from "./lists.js";
 import { updateChatRuntime, updateMemoryStrip } from "./dom.js";
 import { maybeSpeakAssistantReply } from "./media.js";
+import { collectWorkspaceTabs } from "./browser.js";
 
 const TASK_TOKENS = [
   "analisar", "extrair", "preencher", "abrir", "navegar",
@@ -102,7 +103,8 @@ async function sendChatMessage(text, onPhase) {
 async function sendTaskMessage(el, text, addSystemMessage, renderTasks) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "START_REPLAY", tabId: String(tab.id) }).catch(() => {});
-  const result = await runTask(state.sessionId, text, tab?.id ? String(tab.id) : "");
+  const tabs = await collectWorkspaceTabs().catch(() => []);
+  const result = await runTask(state.sessionId, text, { tabId: tab?.id ? String(tab.id) : "", tabs });
   state.sessionId = result.sessionId || state.sessionId;
   if (Array.isArray(result.tasks) && result.tasks.length) await renderTasks(el);
   if (result.tasks?.some((task) => task.status === "awaiting_approval")) {
