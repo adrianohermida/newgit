@@ -2,9 +2,8 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import { useInternalTheme } from "./InternalThemeProvider";
-import InternoConsoleChrome from "./layout/InternoConsoleChrome";
+import InternoConsoleDock from "./layout/InternoConsoleDock";
 import InternoConsolePaneBody from "./layout/InternoConsolePaneBody";
-import InternoConsoleOverviewTab from "./layout/InternoConsoleOverviewTab";
 import InternoSettingsModal from "./layout/InternoSettingsModal";
 import InternoShellContent from "./layout/InternoShellContent";
 import InternoShellRightRail from "./layout/InternoShellRightRail";
@@ -419,7 +418,7 @@ export default function InternoLayout({
         ) : null}
       {/* MAIN + COPILOT */}
         <div className={`${isCopilotWorkspace || isMobileShell || hideShellSidebar ? "ml-0" : "ml-2 md:ml-3"} flex h-full min-h-0 flex-1`}>
-        {/* CONTEÃšDO PRINCIPAL */}
+          {/* CONTEUDO PRINCIPAL */}
         <div className={`relative flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden ${
           isCopilotWorkspace
             ? copilotMainShellClass
