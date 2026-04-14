@@ -56,6 +56,7 @@ import {
   validationTone,
 } from "./publicacoesFormatting";
 import { usePublicacoesActivityLog } from "./usePublicacoesActivityLog";
+import { usePublicacoesDashboardState } from "./usePublicacoesDashboardState";
 import { usePublicacoesLifecycle } from "./usePublicacoesLifecycle";
 import { usePublicacoesHealthStatus } from "./usePublicacoesHealthStatus";
 import { usePublicacoesJobDrain } from "./usePublicacoesJobDrain";
@@ -623,75 +624,32 @@ function PublicacoesContent() {
     refreshIntegratedSnapshot,
     updateView,
   });
-  const pendingOrRunningJobs = jobs.filter((item) => ["pending", "running"].includes(String(item.status || "")));
-  const blockingJob = pendingOrRunningJobs[0] || null;
-  const hasBlockingJob = pendingOrRunningJobs.length > 0;
-  const hasMultipleBlockingJobs = pendingOrRunningJobs.length > 1;
-  const currentDrainJobId = activeJobId || blockingJob?.id || null;
-  const canManuallyDrainActiveJob = Boolean(currentDrainJobId);
-  const candidateQueues = [processCandidates, partesCandidates];
-  const candidateQueueErrorCount = candidateQueues.filter((queue) => queue?.error).length;
-  const candidateQueueMismatchCount = candidateQueues.filter((queue) => candidateQueueHasReadMismatch(queue)).length;
-  const backendRecommendedAction = data?.recommendedNextAction || null;
-  const backendRecommendedHealthAction = backendRecommendedAction?.label
-    ? {
-        key: `backend_${backendRecommendedAction.key || "action"}`,
-        label: backendRecommendedAction.label,
-        onClick: () => {
-          if (backendRecommendedAction.key === "run_advise_backfill") {
-            handleAction("run_advise_backfill", false);
-            return;
-          }
-          if (backendRecommendedAction.key === "refresh_snapshot_filas") {
-            refreshIntegratedSnapshot("all");
-            return;
-          }
-          updateView(backendRecommendedAction.view || "operacao", backendRecommendedAction.hash || "operacao");
-        },
-        disabled: backendRecommendedAction.key === "refresh_snapshot_filas"
-          ? actionState.loading || hasBlockingJob
-          : actionState.loading,
-      }
-    : null;
-  const healthQueueTarget = processCandidates.error || candidateQueueHasReadMismatch(processCandidates)
-    ? { hash: "publicacoes-fila-processos-criaveis", label: "Criar processos", view: "filas" }
-    : partesCandidates.error || candidateQueueHasReadMismatch(partesCandidates)
-      ? { hash: "publicacoes-fila-partes-extraiveis", label: "Salvar + CRM", view: "filas" }
-      : integratedQueue.error
-        ? { hash: "publicacoes-mesa-integrada", label: "Revisar mesa integrada", view: "operacao" }
-        : { hash: "filas", label: "Abrir filas", view: "filas" };
-  const healthSuggestedActions = [];
-  if (backendRecommendedHealthAction) {
-    healthSuggestedActions.push(backendRecommendedHealthAction);
-  }
-  if (advisePersistedDelta > 0 || publicacoesSemProcesso > 0) {
-    healthSuggestedActions.push({ key: "operacao-drenagem", label: "Abrir drenagem principal", onClick: () => updateView("operacao", "operacao") });
-    healthSuggestedActions.push({ key: "advise-backfill", label: "Importar backlog Advise", onClick: () => handleAction("run_advise_backfill", false), disabled: actionState.loading });
-  }
-  if (candidateQueueErrorCount > 0 || candidateQueueMismatchCount > 0) {
-    healthSuggestedActions.push({ key: "filas", label: healthQueueTarget.label, onClick: () => updateView(healthQueueTarget.view, healthQueueTarget.hash) });
-  }
-  if (integratedQueue.mode !== "snapshot" || integratedQueue.error) {
-    healthSuggestedActions.push({
-      key: "snapshot",
-      label: "Atualizar snapshot",
-      onClick: () => refreshIntegratedSnapshot("all"),
-      disabled: actionState.loading || hasBlockingJob,
-    });
-  }
-  if (publicacoesPendentesComAccount > 0) {
-    healthSuggestedActions.push({ key: "sync-crm", label: "Sincronizar publicacoes", onClick: () => updateView("operacao", "operacao") });
-  }
-  if (backendHealth.status === "warning" || backendHealth.status === "error") {
-    healthSuggestedActions.push({ key: "resultado", label: "Ver resultado", onClick: () => updateView("resultado", "resultado") });
-  }
-  if (canManuallyDrainActiveJob) {
-    healthSuggestedActions.push({ key: "drain", label: drainInFlight ? "Drenando..." : "Drenar fila", onClick: runPendingJobsNow, disabled: actionState.loading || drainInFlight || !canManuallyDrainActiveJob });
-  }
-  if (!healthSuggestedActions.length || (candidateQueueErrorCount === 0 && candidateQueueMismatchCount === 0 && backendHealth.status === "ok" && !canManuallyDrainActiveJob)) {
-    healthSuggestedActions.push({ key: "operacao", label: "Ir para operacao", onClick: () => updateView("operacao", "operacao") });
-  }
-  const remoteHealth = deriveRemoteHealth(remoteHistory);
+  const {
+    blockingJob,
+    candidateQueueErrorCount,
+    candidateQueueMismatchCount,
+    canManuallyDrainActiveJob,
+    currentDrainJobId,
+    hasBlockingJob,
+    hasMultipleBlockingJobs,
+    healthSuggestedActions,
+    remoteHealth,
+  } = usePublicacoesDashboardState({
+    actionState,
+    activeJobId,
+    backendHealth,
+    data,
+    drainInFlight,
+    handleAction,
+    jobs,
+    overview,
+    partesCandidates,
+    processCandidates,
+    refreshIntegratedSnapshot,
+    remoteHistory,
+    runPendingJobsNow,
+    updateView,
+  });
   const {
     recurringPublicacoes,
     recurringPublicacoesSummary,

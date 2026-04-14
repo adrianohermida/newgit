@@ -1,6 +1,6 @@
 const { getConfigs } = require("./storage");
 const { jsonPost, probeJsonEndpoint } = require("./http-client");
-const { joinUrl, extractContent, buildProviderError } = require("./utils");
+const { joinUrl, extractContent, buildProviderError, htmlSnippet } = require("./utils");
 
 async function callLocal(messages, model) {
   const configs = getConfigs();
@@ -83,12 +83,58 @@ async function diagnose(provider) {
   }[provider] || [];
 
   for (const test of tests) {
-    try { attempts.push(await probeJsonEndpoint(test.url, test.body, test.headers || {})); } catch (error) { attempts.push({ ok: false, url: test.url, error: error?.message || "Falha de conexao." }); }
+    try {
+      attempts.push(describeAttempt(await probeJsonEndpoint(test.url, test.body, test.headers || {}), test.hint));
+    } catch (error) {
+      attempts.push(describeAttempt({ ok: false, url: test.url, error: error?.message || "Falha de conexao." }, test.hint));
+    }
   }
 
   const success = attempts.find((item) => item.ok);
   if (success) return { ok: true, provider, message: `Conexao ${provider} confirmada.`, activeUrl: success.url, model: configs[provider].model, attempts };
   return { ok: false, provider, message: `Nao foi possivel conectar ao provider ${provider}.`, configuredUrl: tests[0]?.url || null, model: configs[provider]?.model, attempts };
+}
+
+function describeAttempt(attempt, hint) {
+  const details = classifyAttempt(attempt);
+  return { ...attempt, hint: hint || null, ...details };
+}
+
+function classifyAttempt(attempt) {
+  const raw = String(attempt?.rawSnippet || attempt?.error || "").toLowerCase();
+  if (raw.includes("<!doctype") || raw.includes("<html")) {
+    return {
+      issue: "html_response",
+      summary: "A URL respondeu HTML, provavelmente uma pagina web e nao uma API JSON.",
+      recommendation: "Ajuste para um endpoint de API real. Ex.: ai-core em /v1/messages ou proxy que responda JSON.",
+    };
+  }
+  if (raw.includes("econnrefused") || raw.includes("connect econnrefused") || raw.includes("socket hang up")) {
+    return {
+      issue: "service_offline",
+      summary: "Nao foi possivel abrir conexao com o servico configurado.",
+      recommendation: "Confirme se o processo esta rodando na porta informada e se a URL esta correta.",
+    };
+  }
+  if (attempt?.status === 404) {
+    return {
+      issue: "route_not_found",
+      summary: "O servidor respondeu, mas a rota esperada nao existe.",
+      recommendation: "Revise a base URL. Ela deve apontar para a API correta, nao apenas para a home da aplicacao.",
+    };
+  }
+  if (raw.includes("401") || raw.includes("403") || raw.includes("unauthorized") || raw.includes("forbidden")) {
+    return {
+      issue: "auth_failed",
+      summary: "A autenticacao falhou para o endpoint configurado.",
+      recommendation: "Revise token, secret ou permissoes do provider.",
+    };
+  }
+  return {
+    issue: "unknown",
+    summary: attempt?.ok ? "Conexao valida." : `Falha: ${htmlSnippet(attempt?.error || attempt?.rawSnippet || "Sem detalhes")}`,
+    recommendation: hint || "Revise a URL, o modelo e a autenticacao deste provider.",
+  };
 }
 
 module.exports = {

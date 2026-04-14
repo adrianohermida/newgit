@@ -21,8 +21,12 @@ export const state = {
     runtimeUrl: "http://127.0.0.1:8010",
     runtimeModel: "aetherlab-legal-local-v1",
     appUrl: "http://localhost:3000",
+    cloudBaseUrl: "",
     cloudModel: "aetherlab-legal-v1",
+    cloudAuthToken: "",
     cfModel: "@cf/meta/llama-3.1-8b-instruct",
+    cfAccountId: "",
+    cfApiToken: "",
     autoSaveSessions: true,
   },
 };

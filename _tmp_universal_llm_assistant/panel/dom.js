@@ -32,15 +32,22 @@ export function collectElements() {
     inputRuntimeUrl: $("input-runtime-url"),
     inputRuntimeModel: $("input-runtime-model"),
     inputAppUrl: $("input-app-url"),
+    inputCloudBaseUrl: $("input-cloud-base-url"),
+    inputCloudAuthToken: $("input-cloud-auth-token"),
     inputCloudModel: $("input-cloud-model"),
     inputCfModel: $("input-cf-model"),
+    inputCfAccountId: $("input-cf-account-id"),
+    inputCfApiToken: $("input-cf-api-token"),
     btnSaveSettings: $("btn-save-settings"),
     btnTestLocal: $("btn-test-local"),
     btnTestCloud: $("btn-test-cloud"),
     btnTestCf: $("btn-test-cf"),
     testLocalResult: $("test-local-result"),
+    testLocalDetail: $("test-local-detail"),
     testCloudResult: $("test-cloud-result"),
+    testCloudDetail: $("test-cloud-detail"),
     testCfResult: $("test-cf-result"),
+    testCfDetail: $("test-cf-detail"),
   };
 }
 

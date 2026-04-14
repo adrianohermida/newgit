@@ -16,22 +16,27 @@ export async function checkBridge(el, updateStatusDot) {
 }
 
 export async function testProvider(provider, resultEl) {
+  const detailEl = getDetailElement(provider);
   resultEl.textContent = "Testando...";
   resultEl.style.color = "#6b7280";
+  if (detailEl) detailEl.textContent = "";
   try {
     await pushBridgeSettings();
     const data = await parseJsonResponse(await safeFetch(`${BRIDGE_URL}/diagnostics/provider/${encodeURIComponent(provider)}`, {}, 15000));
     if (data.ok) {
       resultEl.textContent = `OK (${data.model || ""})${data.activeUrl ? ` -> ${data.activeUrl}` : ""}`;
       resultEl.style.color = "#16a34a";
+      if (detailEl) detailEl.textContent = formatSuccessDetail(data);
       return;
     }
     const attempt = Array.isArray(data.attempts) ? data.attempts.find((item) => item && !item.ok) : null;
-    resultEl.textContent = `Falha: ${attempt?.rawSnippet || attempt?.error || data.message || "Sem detalhes"}`;
+    resultEl.textContent = `Falha: ${attempt?.summary || attempt?.error || data.message || "Sem detalhes"}`;
     resultEl.style.color = "#dc2626";
+    if (detailEl) detailEl.textContent = formatFailureDetail(data, attempt);
   } catch (error) {
     resultEl.textContent = `Falha: ${error.message}`;
     resultEl.style.color = "#dc2626";
+    if (detailEl) detailEl.textContent = "O bridge nao conseguiu concluir o teste deste provider.";
   }
 }
 
@@ -67,4 +72,23 @@ export function getModelForProvider(provider) {
   if (provider === "local") return state.settings.runtimeModel;
   if (provider === "cloud") return state.settings.cloudModel;
   return state.settings.cfModel;
+}
+
+function getDetailElement(provider) {
+  if (provider === "local") return document.getElementById("test-local-detail");
+  if (provider === "cloud") return document.getElementById("test-cloud-detail");
+  return document.getElementById("test-cf-detail");
+}
+
+function formatSuccessDetail(data) {
+  return [`Endpoint ativo: ${data.activeUrl || "desconhecido"}`, data.message || "Conexao validada."].filter(Boolean).join(" | ");
+}
+
+function formatFailureDetail(data, attempt) {
+  const parts = [
+    attempt?.url ? `URL: ${attempt.url}` : "",
+    attempt?.recommendation || "",
+    attempt?.hint || "",
+  ].filter(Boolean);
+  return parts.join(" | ");
 }

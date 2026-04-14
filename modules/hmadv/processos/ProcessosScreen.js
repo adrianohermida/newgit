@@ -73,6 +73,7 @@ import { CoverageList, QueueActionBlock, QueueList } from "./processos-queue-com
 import { RegisteredRelationCard, RelationSelectionBar, RelationSuggestionCard } from "./processos-relation-components";
 import { HistoryCard, JobCard, OperationResult, RemoteRunSummary } from "./processos-result-components";
 import { buildSelectionSuggestedAction, deriveSelectionActionHint } from "./processos-selection-utils";
+import ProcessosHeaderPanel from "./ProcessosHeaderPanel";
 
 export default function InternoProcessosPage() {
 return <RequireAdmin>{(profile) => <InternoLayout profile={profile} title="Gestão de Processos" description="Gestão da carteira processual com acompanhamento, relacionamento e atualização contínua."><InternoProcessosContent /></InternoLayout>}</RequireAdmin>;

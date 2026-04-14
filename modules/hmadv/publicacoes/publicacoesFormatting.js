@@ -34,7 +34,7 @@ export function formatValidationMeta(validation) {
     const date = new Date(validation.updatedAt);
     parts.push(Number.isNaN(date.getTime()) ? String(validation.updatedAt) : date.toLocaleString("pt-BR"));
   }
-  return parts.join(" • ");
+  return parts.join(" | ");
 }
 
 export function formatDateTimeLabel(value) {

@@ -5,8 +5,12 @@ export function fillSettingsInputs(el) {
   el.inputRuntimeUrl.value = state.settings.runtimeUrl;
   el.inputRuntimeModel.value = state.settings.runtimeModel;
   el.inputAppUrl.value = state.settings.appUrl;
+  el.inputCloudBaseUrl.value = state.settings.cloudBaseUrl;
+  el.inputCloudAuthToken.value = state.settings.cloudAuthToken;
   el.inputCloudModel.value = state.settings.cloudModel;
   el.inputCfModel.value = state.settings.cfModel;
+  el.inputCfAccountId.value = state.settings.cfAccountId;
+  el.inputCfApiToken.value = state.settings.cfApiToken;
 }
 
 export function hydrateSettings(settings) {
@@ -14,8 +18,12 @@ export function hydrateSettings(settings) {
   state.settings.runtimeUrl = settings.local?.runtimeUrl || state.settings.runtimeUrl;
   state.settings.runtimeModel = settings.local?.runtimeModel || state.settings.runtimeModel;
   state.settings.appUrl = settings.cloud?.appUrl || state.settings.appUrl;
+  state.settings.cloudBaseUrl = settings.cloud?.baseUrl || state.settings.cloudBaseUrl;
   state.settings.cloudModel = settings.cloud?.model || state.settings.cloudModel;
+  state.settings.cloudAuthToken = settings.cloud?.authToken || state.settings.cloudAuthToken;
   state.settings.cfModel = settings.cloudflare?.model || state.settings.cfModel;
+  state.settings.cfAccountId = settings.cloudflare?.accountId || state.settings.cfAccountId;
+  state.settings.cfApiToken = settings.cloudflare?.apiToken || state.settings.cfApiToken;
 }
 
 export async function loadSettings(el) {
@@ -36,8 +44,8 @@ export async function pushBridgeSettings() {
     body: JSON.stringify({
       settings: {
         local: { runtimeUrl: state.settings.runtimeUrl, runtimeModel: state.settings.runtimeModel },
-        cloud: { appUrl: state.settings.appUrl, model: state.settings.cloudModel },
-        cloudflare: { model: state.settings.cfModel },
+        cloud: { appUrl: state.settings.appUrl, baseUrl: state.settings.cloudBaseUrl, model: state.settings.cloudModel, authToken: state.settings.cloudAuthToken },
+        cloudflare: { model: state.settings.cfModel, accountId: state.settings.cfAccountId, apiToken: state.settings.cfApiToken },
       },
     }),
   }, 6000);
@@ -50,8 +58,12 @@ export async function saveSettings(el) {
     runtimeUrl: String(el.inputRuntimeUrl.value || state.settings.runtimeUrl).trim(),
     runtimeModel: String(el.inputRuntimeModel.value || state.settings.runtimeModel).trim(),
     appUrl: String(el.inputAppUrl.value || state.settings.appUrl).trim(),
+    cloudBaseUrl: String(el.inputCloudBaseUrl.value || state.settings.cloudBaseUrl).trim(),
+    cloudAuthToken: String(el.inputCloudAuthToken.value || state.settings.cloudAuthToken).trim(),
     cloudModel: String(el.inputCloudModel.value || state.settings.cloudModel).trim(),
     cfModel: String(el.inputCfModel.value || state.settings.cfModel).trim(),
+    cfAccountId: String(el.inputCfAccountId.value || state.settings.cfAccountId).trim(),
+    cfApiToken: String(el.inputCfApiToken.value || state.settings.cfApiToken).trim(),
   };
   await new Promise((resolve) => chrome.storage.local.set({ llm_settings: state.settings, llm_provider: state.provider }, resolve));
   await pushBridgeSettings();

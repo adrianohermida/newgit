@@ -3,7 +3,6 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useSupabaseBrowser } from "../../lib/supabase";
 import { useInternalTheme } from "./InternalThemeProvider";
 import InternoConsoleDock from "./layout/InternoConsoleDock";
-import InternoConsolePaneBody from "./layout/InternoConsolePaneBody";
 import InternoSettingsModal from "./layout/InternoSettingsModal";
 import InternoShellContent from "./layout/InternoShellContent";
 import InternoShellRightRail from "./layout/InternoShellRightRail";
@@ -21,10 +20,10 @@ import {
   getSeverityTone,
 } from "./layout/consoleSummary";
 import { getConsoleHeightLimits } from "./layout/consolePlaybooks";
-import { getModuleIntegrationGuide as getExternalModuleIntegrationGuide } from "./layout/IntegrationGuideCard";
 import { NAV_ITEMS, normalizeDisplayName } from "./layout/sidebarConfig";
 import { useInternoConsoleActions } from "./layout/useInternoConsoleActions";
 import { useInternoConsoleAnalytics } from "./layout/useInternoConsoleAnalytics";
+import { useInternoLayoutDerived } from "./layout/useInternoLayoutDerived";
 import { useInternoShellUi } from "./layout/useInternoShellUi";
 import { useInternoShellState } from "./layout/useInternoShellState";
 import {
@@ -298,8 +297,6 @@ export default function InternoLayout({
     setSchemaForm,
     title,
   });
-  const integrationGuide = useMemo(() => getExternalModuleIntegrationGuide(router.pathname), [router.pathname]);
-
   const {
     activityOnlyLog,
     currentOperationalRail,
@@ -346,98 +343,93 @@ export default function InternoLayout({
     window.dispatchEvent(new CustomEvent("hmadv:copilot-focus-composer"));
   }
 
-  const showExtensionManager = router.pathname === "/interno/ai-task" || router.pathname === "/interno/agentlab";
-  const resolvedRightRail = useMemo(() => (
-    typeof rightRail === "function"
-      ? rightRail({ moduleKey: currentModuleKey, moduleHistory, activityLog })
-      : rightRail
-  ), [activityLog, currentModuleKey, moduleHistory, rightRail]);
-  const desktopConsoleBarHeight = consoleOpen ? consoleHeight : 60;
-  const consoleDockInset = isCopilotWorkspace ? 0 : isMobileShell ? 8 : 12;
-  const copilotConsoleInset = isMobileShell ? 0 : desktopConsoleBarHeight + consoleDockInset + (isCopilotWorkspace ? 0 : 10);
-  const consoleDockLeft = hideShellSidebar ? 0 : isMobileShell ? 0 : leftCollapsed ? 88 : 272;
-  const desktopRightRailWidth = rightRailMode === "compact" ? 356 : 404;
-  const consoleDockRight = !isMobileShell && shouldRenderDotobotRail && !rightCollapsed ? desktopRightRailWidth : 0;
-  const mobileConsoleHeight = Math.min(Math.max(consoleHeight, 320), 560);
-  const desktopConsoleStyle = !isMobileShell
-    ? {
-        left: `${consoleDockLeft + consoleDockInset}px`,
-        right: `${consoleDockRight + consoleDockInset}px`,
-        bottom: `${consoleDockInset}px`,
-        height: consoleOpen ? `${consoleHeight}px` : "60px",
-      }
-    : undefined;
-  const paneBodyProps = {
-    SPECIAL_LOG_PANES,
-    TAG_LOG_PANES,
-    activityLog,
+  const {
     aiTaskHistory,
     contactsHistory,
+    copilotConsoleInset,
+    copilotMainShellClass,
+    copilotShellSidebarClass,
+    desktopConsoleStyle,
     dotobotHistory,
-    fingerprintStates,
-    frontendForm,
-    frontendIssues,
-    getFingerprintStatusTone,
-    getSeverityTone,
-    handleAddFrontendIssue,
-    handleAddNote,
-    handleAddSchemaIssue,
-    handleBulkFingerprintReset,
-    handleBulkFingerprintStateChange,
-    handleCopyAiTaskHistory,
-    handleCopyContactsHistory,
-    handleCopyDotobotHistory,
-    handleCopyFrontendIssues,
-    handleCopyProcessHistory,
-    handleCopyPublicacoesHistory,
-    handleCopySchemaIssues,
-    handleFingerprintNote,
-    handleFingerprintStateChange,
-    isLightTheme,
-    logExpanded,
-    logFilters,
-    logPane,
-    logSearch,
-    noteInput,
-    operationalNotes,
-    paneBulkGuardrail,
-    paneEntries,
-    paneFingerprintSummary,
-    paneRecommendationSummary,
-    paneRisk,
-    paneSla,
-    paneTagPlaybook,
-    paneTimeline,
+    integrationGuide,
+    mobileConsoleHeight,
+    paneBodyProps,
     processosLocalHistory,
     processosRemoteHistory,
+    publicacoesHistory,
     publicacoesLocalHistory,
     publicacoesRemoteHistory,
-    schemaForm,
-    schemaIssues,
-    setFrontendForm,
-    setLogExpanded,
-    setLogSearch,
-    setNoteInput,
-    setSchemaForm,
-    unclassifiedTagEntriesCount,
-    updateFilters,
-  };
-  const showSupplementalRightRail = rightRailFullscreen && Boolean(currentOperationalRail || resolvedRightRail);
-  const rightRailConversationFirst = !showSupplementalRightRail;
-  const copilotShellSidebarClass = isCopilotWorkspace
-    ? isLightTheme
-      ? "rounded-none border-y-0 border-l-0 border-r border-[#C9D5E2] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,245,249,0.98))] shadow-none"
-      : "rounded-none border-y-0 border-l-0 border-r border-[#22342F] bg-[linear-gradient(180deg,rgba(11,18,16,0.995),rgba(8,14,13,0.985))] shadow-none"
-    : isLightTheme
-      ? "rounded-[26px] border-[#C9D5E2] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(241,245,249,0.98))]"
-      : "rounded-[26px] border-[#22342F] bg-[linear-gradient(180deg,rgba(11,18,16,0.98),rgba(8,14,13,0.95))]";
-  const copilotMainShellClass = isCopilotWorkspace
-    ? isLightTheme
-      ? "border-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(244,247,251,0.96))] shadow-none"
-      : "border-0 bg-[linear-gradient(180deg,rgba(6,8,7,0.98),rgba(8,10,9,0.985))] shadow-none"
-    : isLightTheme
-      ? "border-[#CBD5E1] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,247,250,0.96))]"
-      : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(8,10,9,0.985),rgba(7,9,8,0.95))]";
+    resolvedRightRail,
+    rightRailConversationFirst,
+    showExtensionManager,
+    showSupplementalRightRail,
+  } = useInternoLayoutDerived({
+    activityLog,
+    consoleHeight,
+    consoleOpen,
+    currentModuleKey,
+    currentOperationalRail,
+    handleActions: {
+      SPECIAL_LOG_PANES,
+      TAG_LOG_PANES,
+      fingerprintStates,
+      frontendForm,
+      frontendIssues,
+      getFingerprintStatusTone,
+      getSeverityTone,
+      handleAddFrontendIssue,
+      handleAddNote,
+      handleAddSchemaIssue,
+      handleBulkFingerprintReset,
+      handleBulkFingerprintStateChange,
+      handleCopyAiTaskHistory,
+      handleCopyContactsHistory,
+      handleCopyDotobotHistory,
+      handleCopyFrontendIssues,
+      handleCopyProcessHistory,
+      handleCopyPublicacoesHistory,
+      handleCopySchemaIssues,
+      handleFingerprintNote,
+      handleFingerprintStateChange,
+      isLightTheme,
+      logExpanded,
+      logFilters,
+      logPane,
+      logSearch,
+      noteInput,
+      operationalNotes,
+      paneBulkGuardrail,
+      paneEntries,
+      paneFingerprintSummary,
+      paneRecommendationSummary,
+      paneRisk,
+      paneSla,
+      paneTagPlaybook,
+      paneTimeline,
+      schemaForm,
+      schemaIssues,
+      setFrontendForm,
+      setLogExpanded,
+      setLogSearch,
+      setNoteInput,
+      setSchemaForm,
+      unclassifiedTagEntriesCount,
+      updateFilters,
+    },
+    hideShellSidebar,
+    isCopilotWorkspace,
+    isLightTheme,
+    isMobileShell,
+    leftCollapsed,
+    logState: {},
+    moduleHistory,
+    rightCollapsed,
+    rightRail,
+    rightRailFullscreen,
+    rightRailMode,
+    router,
+    shouldRenderDotobotRail,
+  });
   return (
     <div className={`relative flex h-screen w-full flex-col overflow-hidden text-[Arial,sans-serif] ${isCopilotWorkspace ? "p-0" : "p-2 md:p-3"} ${isLightTheme ? "bg-[linear-gradient(180deg,#EEF2F6_0%,#E4EAF1_100%)] text-[#13201D]" : "bg-[radial-gradient(circle_at_top_left,rgba(30,24,13,0.16),transparent_24%),linear-gradient(180deg,#040605_0%,#070A09_100%)] text-[#F4F1EA]"}`}>
       {isMobileShell && !leftCollapsed && !hideShellSidebar ? (
@@ -516,163 +508,40 @@ export default function InternoLayout({
             {children}
           </InternoShellContent>
           </div>
-          <div
-            className={`z-30 min-h-[52px] shrink-0 overflow-hidden border transition-all ${
-              isCopilotWorkspace
-                ? `${isLightTheme ? "border-x-0 border-b-0 border-t-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.985),rgba(241,245,249,0.985))]" : "border-x-0 border-b-0 border-t-[#1E2E29] bg-[linear-gradient(180deg,rgba(10,12,11,0.99),rgba(6,8,7,0.99))]"} rounded-none shadow-none`
-                : `${isLightTheme ? "border-[#D4DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,245,249,0.98))]" : "border-[#1E2E29] bg-[linear-gradient(180deg,rgba(10,12,11,0.985),rgba(6,8,7,0.98))]"} rounded-[24px] shadow-[0_-12px_38px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.02)]`
-            } ${consoleOpen ? "flex flex-col" : "block h-[60px]"} ${isMobileShell ? "fixed inset-x-2 bottom-2" : "fixed"}`}
-            style={isMobileShell ? { height: consoleOpen ? `${mobileConsoleHeight}px` : undefined } : desktopConsoleStyle}
-          >
-            <InternoConsoleChrome
-              activityLogCount={activityLog.length}
-              consoleOpen={consoleOpen}
-              consoleTab={consoleTab}
-              formatClass={isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88] hover:border-[#C5A059] hover:text-[#C5A059]" : "border-[#22342F] text-[#9BAEA8] hover:border-[#C5A059] hover:text-[#C5A059]"}
-              handleStartResize={handleStartResize}
-              isLightTheme={isLightTheme}
-              isMobileShell={isMobileShell}
-              logPane={logPane}
-              onToggleConsole={() => setConsoleOpen((current) => !current)}
-              onToggleTab={(tab, pane) => {
-                setConsoleTab(tab);
-                if (pane) setLogPane(pane);
-              }}
-              paneCounts={paneCounts}
-              visibleLogPaneGroups={visibleLogPaneGroups}
-            />
-            {consoleOpen ? (
-              <div className={`min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3 text-xs md:px-5 ${isLightTheme ? "text-[#6B7C88]" : "text-[#9BAEA8]"}`}>
-                {consoleTab === "console" ? (
-                  <InternoConsoleOverviewTab
-                    coverageCards={coverageCards}
-                    coverageSummary={coverageSummary}
-                    frontendIssues={frontendIssues}
-                    handleOpenModuleAlert={handleOpenModuleAlert}
-                    isLightTheme={isLightTheme}
-                    moduleAlerts={moduleAlerts}
-                    schemaIssues={schemaIssues}
-                    setConsoleOpen={setConsoleOpen}
-                    setConsoleTab={setConsoleTab}
-                    setLogPane={setLogPane}
-                    setLogSearch={setLogSearch}
-                    updateFilters={updateFilters}
-                  />
-                ) : (
-                  <div className="space-y-3">
-                    <div className={`rounded-xl border px-3 py-2 text-[11px] ${isLightTheme ? "border-[#D7DEE8] bg-[#F7F9FC] text-[#7B8B98]" : "border-[#1E2E29] bg-[rgba(10,12,11,0.45)] text-[#7F928C]"}`}>
-                      Itens organizados por grupos de visao, auditoria, integracoes, IA e governanca para reduzir mistura entre tipo de evento e origem tecnica.
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => clearActivityLog()}
-                        className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
-                      >
-                        Limpar (arquivar)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleArchive("Arquivo manual")}
-                        className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
-                      >
-                        Arquivar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleCopyLog}
-                        className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
-                      >
-                        Copiar log
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleExportLog}
-                        className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}
-                      >
-                        Exportar MD
-                      </button>
-                      <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
-                        Arquivos: {archivedCount}
-                      </span>
-                      <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.14em] ${isLightTheme ? "border-[#D7DEE8] bg-white text-[#6B7C88]" : "border-[#22342F] text-[#9BAEA8]"}`}>
-                        {formattedArchiveHint}
-                      </span>
-                    </div>
-                    <InternoConsolePaneBody
-                      SPECIAL_LOG_PANES={SPECIAL_LOG_PANES}
-                      TAG_LOG_PANES={TAG_LOG_PANES}
-                      activityLog={activityLog}
-                      aiTaskHistory={aiTaskHistory}
-                      contactsHistory={contactsHistory}
-                      dotobotHistory={dotobotHistory}
-                      fingerprintStates={fingerprintStates}
-                      frontendForm={frontendForm}
-                      frontendIssues={frontendIssues}
-                      getFingerprintStatusTone={getFingerprintStatusTone}
-                      getSeverityTone={getSeverityTone}
-                      handleAddFrontendIssue={handleAddFrontendIssue}
-                      handleAddNote={handleAddNote}
-                      handleAddSchemaIssue={handleAddSchemaIssue}
-                      handleBulkFingerprintReset={handleBulkFingerprintReset}
-                      handleBulkFingerprintStateChange={handleBulkFingerprintStateChange}
-                      handleCopyAiTaskHistory={handleCopyAiTaskHistory}
-                      handleCopyContactsHistory={handleCopyContactsHistory}
-                      handleCopyDotobotHistory={handleCopyDotobotHistory}
-                      handleCopyFrontendIssues={handleCopyFrontendIssues}
-                      handleCopyProcessHistory={handleCopyProcessHistory}
-                      handleCopyPublicacoesHistory={handleCopyPublicacoesHistory}
-                      handleCopySchemaIssues={handleCopySchemaIssues}
-                      handleFingerprintNote={handleFingerprintNote}
-                      handleFingerprintStateChange={handleFingerprintStateChange}
-                      isLightTheme={isLightTheme}
-                      logExpanded={logExpanded}
-                      logFilters={logFilters}
-                      logPane={logPane}
-                      logSearch={logSearch}
-                      noteInput={noteInput}
-                      operationalNotes={operationalNotes}
-                      paneBulkGuardrail={paneBulkGuardrail}
-                      paneEntries={paneEntries}
-                      paneFingerprintSummary={paneFingerprintSummary}
-                      paneRecommendationSummary={paneRecommendationSummary}
-                      paneRisk={paneRisk}
-                      paneSla={paneSla}
-                      paneTagPlaybook={paneTagPlaybook}
-                      paneTimeline={paneTimeline}
-                      processosLocalHistory={processosLocalHistory}
-                      processosRemoteHistory={processosRemoteHistory}
-                      publicacoesLocalHistory={publicacoesLocalHistory}
-                      publicacoesRemoteHistory={publicacoesRemoteHistory}
-                      schemaForm={schemaForm}
-                      schemaIssues={schemaIssues}
-                      setFrontendForm={setFrontendForm}
-                      setLogExpanded={setLogExpanded}
-                      setLogSearch={setLogSearch}
-                      setNoteInput={setNoteInput}
-                      setSchemaForm={setSchemaForm}
-                      unclassifiedTagEntriesCount={unclassifiedTagEntriesCount}
-                      updateFilters={updateFilters}
-                    />
-                  </div>
-                )}
-              </div>
-            ) : null}
-            {consoleOpen ? (
-              <div className={`shrink-0 border-t px-4 py-3 ${isLightTheme ? "border-[#D7DEE8] bg-[rgba(255,255,255,0.88)]" : "border-[#1E2E29] bg-[rgba(8,10,9,0.72)]"}`}>
-                <div className="flex items-center justify-end">
-                  <button
-                    type="button"
-                    onClick={handlePageDebug}
-                    className={`rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] transition hover:border-[#C5A059] hover:text-[#C5A059] ${isLightTheme ? "border-[#D4DEE8] bg-white text-[#60706A]" : "border-[#22342F] text-[#9BAEA8]"}`}
-                    title="Registrar debug desta pagina"
-                  >
-                    Debug
-                  </button>
-                </div>
-              </div>
-            ) : null}
-          </div>
+          <InternoConsoleDock
+            activityLog={activityLog}
+            archivedCount={archivedCount}
+            clearActivityLog={clearActivityLog}
+            consoleHeight={consoleHeight}
+            consoleOpen={consoleOpen}
+            consoleTab={consoleTab}
+            coverageCards={coverageCards}
+            coverageSummary={coverageSummary}
+            desktopConsoleStyle={desktopConsoleStyle}
+            formattedArchiveHint={formattedArchiveHint}
+            frontendIssues={frontendIssues}
+            handleArchive={handleArchive}
+            handleCopyLog={handleCopyLog}
+            handleExportLog={handleExportLog}
+            handleOpenModuleAlert={handleOpenModuleAlert}
+            handlePageDebug={handlePageDebug}
+            handleStartResize={handleStartResize}
+            isCopilotWorkspace={isCopilotWorkspace}
+            isLightTheme={isLightTheme}
+            isMobileShell={isMobileShell}
+            logPane={logPane}
+            mobileConsoleHeight={mobileConsoleHeight}
+            moduleAlerts={moduleAlerts}
+            paneBodyProps={paneBodyProps}
+            paneCounts={paneCounts}
+            schemaIssues={schemaIssues}
+            setConsoleOpen={setConsoleOpen}
+            setConsoleTab={setConsoleTab}
+            setLogPane={setLogPane}
+            setLogSearch={setLogSearch}
+            updateFilters={updateFilters}
+            visibleLogPaneGroups={visibleLogPaneGroups}
+          />
         </div>
         <InternoShellRightRail
           copilotOpen={copilotOpen}
