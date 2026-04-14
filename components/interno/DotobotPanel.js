@@ -43,16 +43,12 @@ import DotobotWorkspaceShell from "./copilot/DotobotWorkspaceShell";
 import { cancelTaskRun, createPendingTaskRun, pollTaskRun, startTaskRun } from "./dotobotTaskRun";
 import {
   buildCopilotContextPayload,
-  buildContextualModuleHref,
   buildConversationRuntimeMetadata,
-  extractConversationEntities,
-  getConversationTimestamp,
   normalizeRightPanelTabs,
   RIGHT_PANEL_META,
 } from "./dotobotPanelContext";
 import { buildLocalInferenceAlert, buildRagAlert } from "./dotobotPanelAlerts";
 import {
-  buildConversationConcatBlock,
   buildLocalFallbackActions,
   buildLocalFallbackResponse,
   buildModuleFallbackPlaybook,
@@ -122,12 +118,10 @@ import {
   DOTOBOT_LAYOUT_STORAGE_PREFIX,
   LEGAL_ACTIONS,
   MODE_OPTIONS,
-  MODULE_WORKSPACES,
   PROVIDER_OPTIONS,
   QUICK_PROMPTS,
   SKILL_OPTIONS,
   buildLocalStackUnavailableSummary,
-  buildProjectInsights,
   inferCopilotModuleFromRoute,
   normalizeWorkspaceProvider,
   resolveWorkspaceProviderSelection,

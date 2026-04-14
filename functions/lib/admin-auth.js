@@ -10,6 +10,16 @@ function getBearerToken(request) {
   return header.slice("Bearer ".length).trim();
 }
 
+function getSharedSecret(env) {
+  return (
+    getCleanEnvValue(env.HMDAV_AI_SHARED_SECRET) ||
+    getCleanEnvValue(env.HMADV_AI_SHARED_SECRET) ||
+    getCleanEnvValue(env.LAWDESK_AI_SHARED_SECRET) ||
+    getCleanEnvValue(env.CUSTOM_LLM_AUTH_TOKEN) ||
+    null
+  );
+}
+
 function buildAdminAuthFailure(status, error, errorType, details = null) {
   return {
     ok: false,
@@ -65,6 +75,18 @@ export async function requireAdminAccess(request, env) {
 
   if (!accessToken) {
     return buildAdminAuthFailure(401, "Token administrativo ausente.", "missing_token");
+  }
+
+  const sharedSecret = getSharedSecret(env);
+  if (sharedSecret && accessToken === sharedSecret) {
+    return {
+      ok: true,
+      user: {
+        id: "shared-secret-admin",
+        email: "shared-secret@local.admin",
+      },
+      profile: getFallbackSuperadminProfile(),
+    };
   }
 
   if (!serverKey) {

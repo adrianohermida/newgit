@@ -44,6 +44,7 @@ async function callLocal(messages, model) {
 
 async function callCloud(messages, model) {
   const configs = getConfigs();
+  let directError = null;
   if (configs.cloud.baseUrl) {
     const target = joinUrl(configs.cloud.baseUrl, "/v1/messages");
     const headers = configs.cloud.authToken ? { Authorization: `Bearer ${configs.cloud.authToken}` } : {};
@@ -52,17 +53,22 @@ async function callCloud(messages, model) {
     if (response.status >= 200 && response.status < 300 && content) {
       return { ok: true, provider: "cloud", model, content, target };
     }
-    throw buildProviderError("Cloud", target, response);
+    directError = buildProviderError("Cloud", target, response);
   }
-  if (!configs.cloud.appUrl) throw new Error("Provider cloud nao configurado. Defina a URL da API ou do proxy em Configuracoes.");
+  if (!configs.cloud.appUrl) throw directError || new Error("Provider cloud nao configurado. Defina a URL da API ou do proxy em Configuracoes.");
   const query = messages.map((item) => `[${item.role}] ${item.content}`).join("\n");
   const headers = configs.cloud.authToken ? { Authorization: `Bearer ${configs.cloud.authToken}` } : {};
-  const result = await callProxyProvider(configs.cloud.appUrl, { query, provider: "cloud", model }, headers, "Cloud proxy");
-  return { ok: true, provider: "cloud", model, content: result.content, target: result.target };
+  try {
+    const result = await callProxyProvider(configs.cloud.appUrl, { query, provider: "cloud", model }, headers, "Cloud proxy");
+    return { ok: true, provider: "cloud", model, content: result.content, target: result.target };
+  } catch (proxyError) {
+    throw directError || proxyError;
+  }
 }
 
 async function callCloudflare(messages, model) {
   const configs = getConfigs();
+  let directError = null;
   if (configs.cloudflare.accountId && configs.cloudflare.apiToken) {
     const target = buildCloudflareRunUrl(configs.cloudflare.accountId, model);
     const response = await jsonPost(target, { messages }, { Authorization: `Bearer ${configs.cloudflare.apiToken}` });
@@ -70,13 +76,17 @@ async function callCloudflare(messages, model) {
     if (response.status >= 200 && response.status < 300 && content) {
       return { ok: true, provider: "cloudflare", model, content, target };
     }
-    throw buildProviderError("Cloudflare API", target, response);
+    directError = buildProviderError("Cloudflare API", target, response);
   }
-  if (!configs.cloudflare.appUrl) throw new Error("Provider cloudflare nao configurado. Defina Account ID + API Token ou URL do proxy em Configuracoes.");
+  if (!configs.cloudflare.appUrl) throw directError || new Error("Provider cloudflare nao configurado. Defina Account ID + API Token ou URL do proxy em Configuracoes.");
   const query = messages.map((item) => `[${item.role}] ${item.content}`).join("\n");
   const headers = configs.cloud.authToken ? { Authorization: `Bearer ${configs.cloud.authToken}` } : {};
-  const result = await callProxyProvider(configs.cloudflare.appUrl, { query, provider: "cloudflare", model }, headers, "Cloudflare proxy");
-  return { ok: true, provider: "cloudflare", model, content: result.content, target: result.target };
+  try {
+    const result = await callProxyProvider(configs.cloudflare.appUrl, { query, provider: "cloudflare", model }, headers, "Cloudflare proxy");
+    return { ok: true, provider: "cloudflare", model, content: result.content, target: result.target };
+  } catch (proxyError) {
+    throw directError || proxyError;
+  }
 }
 
 // ─── Diagnóstico ──────────────────────────────────────────────────────────────
