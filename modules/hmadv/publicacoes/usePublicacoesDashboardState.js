@@ -1,8 +1,11 @@
 import { useMemo } from "react";
 
 import { deriveRemoteHealth } from "./recurrence";
-import { candidateQueueHasReadMismatch } from "./publicacoesFormatting";
 import { usePublicacoesBlockingState } from "./usePublicacoesBlockingState";
+
+function hasReadMismatch(queue) {
+  return Number(queue?.totalRows || 0) > 0 && !(queue?.items || []).length;
+}
 
 export function usePublicacoesDashboardState(params) {
   const {
@@ -57,7 +60,7 @@ export function usePublicacoesDashboardState(params) {
     }
 
     if (candidateQueueErrorCount > 0 || candidateQueueMismatchCount > 0) {
-      const queueTarget = processCandidates.error || candidateQueueHasReadMismatch(processCandidates)
+      const queueTarget = processCandidates.error || hasReadMismatch(processCandidates)
         ? { hash: "publicacoes-fila-processos-criaveis", label: "Criar processos", view: "filas" }
         : { hash: "publicacoes-fila-partes-extraiveis", label: "Salvar + CRM", view: "filas" };
       actions.push({ key: "filas", label: queueTarget.label, onClick: () => updateView(queueTarget.view, queueTarget.hash) });

@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 
-import { candidateQueueHasReadMismatch } from "./publicacoesFormatting";
+function hasReadMismatch(queue) {
+  return Number(queue?.totalRows || 0) > 0 && !(queue?.items || []).length;
+}
 
 export function usePublicacoesHealthStatus(params) {
   const {
@@ -21,7 +23,7 @@ export function usePublicacoesHealthStatus(params) {
 
     const overviewData = overview?.data || {};
     const queueErrorCount = [processCandidates, partesCandidates].filter((queue) => queue?.error).length;
-    const mismatchCount = [processCandidates, partesCandidates].filter((queue) => candidateQueueHasReadMismatch(queue)).length;
+    const mismatchCount = [processCandidates, partesCandidates].filter((queue) => hasReadMismatch(queue)).length;
     const limitedCount = [processCandidates, partesCandidates].filter((queue) => queue?.limited).length;
     const advisePersistedDelta = Number(overviewData.advisePersistedDelta || 0);
     const publicacoesSemProcesso = Number(overviewData.publicacoesSemProcesso || 0);

@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 
-import { candidateQueueHasReadMismatch } from "./publicacoesFormatting";
+function hasReadMismatch(queue) {
+  return Number(queue?.totalRows || 0) > 0 && !(queue?.items || []).length;
+}
 
 export function usePublicacoesBlockingState({ activeJobId, jobs, partesCandidates, processCandidates }) {
   return useMemo(() => {
@@ -12,7 +14,7 @@ export function usePublicacoesBlockingState({ activeJobId, jobs, partesCandidate
     return {
       blockingJob,
       candidateQueueErrorCount: [processCandidates, partesCandidates].filter((queue) => queue?.error).length,
-      candidateQueueMismatchCount: [processCandidates, partesCandidates].filter((queue) => candidateQueueHasReadMismatch(queue)).length,
+      candidateQueueMismatchCount: [processCandidates, partesCandidates].filter((queue) => hasReadMismatch(queue)).length,
       canManuallyDrainActiveJob: Boolean(currentDrainJobId),
       currentDrainJobId,
       hasBlockingJob,

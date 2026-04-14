@@ -9,12 +9,21 @@ function classifyAttempt(attempt, hint) {
   const raw = String(attempt?.rawSnippet || attempt?.error || "").toLowerCase();
   const errorType = String(attempt?.body?.errorType || "").toLowerCase();
   const detail = String(attempt?.body?.detail || "").toLowerCase();
+  const apiErrors = Array.isArray(attempt?.body?.errors) ? attempt.body.errors : [];
+  const apiMessage = String(apiErrors[0]?.message || "").toLowerCase();
   const attemptUrl = String(attempt?.url || "");
   if (raw.includes("<!doctype") || raw.includes("<html")) {
     return {
       issue: "html_response",
       summary: "A URL respondeu HTML, provavelmente uma pagina web e nao uma API JSON.",
       recommendation: "Ajuste para um endpoint de API real. Ex.: ai-core em /v1/messages ou proxy que responda JSON.",
+    };
+  }
+  if (raw.includes("error code: 1101")) {
+    return {
+      issue: "cloudflare_worker_exception",
+      summary: "O endpoint respondeu, mas o worker remoto falhou internamente durante o processamento.",
+      recommendation: "Verifique o deploy e os logs do endpoint remoto em ai.hermidamaia.adv.br. O problema atual esta no worker/upstream, nao no painel da extensao.",
     };
   }
   if (raw.includes("timeout") || detail.includes("timed out")) {
@@ -43,6 +52,13 @@ function classifyAttempt(attempt, hint) {
       issue: "route_not_found",
       summary: "O servidor respondeu, mas a rota esperada nao existe.",
       recommendation: "Revise a base URL. Ela deve apontar para a API correta, nao apenas para a home da aplicacao.",
+    };
+  }
+  if (apiMessage.includes("no route for that uri")) {
+    return {
+      issue: "route_not_found",
+      summary: "A API respondeu, mas a rota configurada nao existe para esta conta/modelo.",
+      recommendation: "Revise Account ID, disponibilidade do Workers AI nesta conta e a rota direta usada para Cloudflare.",
     };
   }
   if (detail.includes("model") && detail.includes("not found")) {

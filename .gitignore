@@ -10,6 +10,8 @@
 *.userosscache
 *.sln.docstates
 *.env
+universal-llm-extension/data/
+universal-llm-extension/dist/
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
