@@ -20,6 +20,7 @@ export function buildPanelMarkup() {
     <div class="tabs">
       <button id="tab-chat" class="tab-btn active">Chat</button>
       <button id="tab-sessions" class="tab-btn">Sessoes</button>
+      <button id="tab-tasks" class="tab-btn">Tasks</button>
       <button id="tab-automations" class="tab-btn">Automacoes</button>
       <button id="tab-settings" class="tab-btn">Config</button>
     </div>
@@ -43,6 +44,7 @@ export function buildPanelMarkup() {
       </div>
     </section>
     <section id="pane-sessions" class="pane list-pane"></section>
+    <section id="pane-tasks" class="pane list-pane"></section>
     <section id="pane-automations" class="pane list-pane"></section>
     <section id="pane-settings" class="pane settings-pane">
       <div class="setting-section"><h4>Local</h4><label>URL do ai-core<input id="input-runtime-url" /></label><label>Modelo local<input id="input-runtime-model" /></label><div class="test-row"><button id="btn-test-local" class="btn-test">Testar conexao</button><span id="test-local-result" class="test-result"></span></div></div>

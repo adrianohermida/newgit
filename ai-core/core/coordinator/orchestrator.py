@@ -7,6 +7,7 @@ from uuid import uuid4
 from adapters.obsidian_adapter import ObsidianRagContext
 from ..agents import CriticAgent, ExecutionResultPayload, ExecutorAgent, PlannerAgent
 from ..memory import LongTermMemoryRecord, SessionMemory
+from .ai_tasks import build_ai_tasks
 from .models import OrchestrationError, OrchestrationResult, OrchestrationState
 from .services import (
     DefaultRagService,
@@ -151,7 +152,16 @@ class Coordinator:
             status=status,
             session_id=session_id,
             rag=rag_context,
-            orchestration=dict(state.plan.orchestration) if getattr(state.plan, 'orchestration', None) else {},
+            orchestration={
+                **(dict(state.plan.orchestration) if getattr(state.plan, 'orchestration', None) else {}),
+                'ai_tasks': build_ai_tasks(
+                    session_id=session_id,
+                    plan=state.plan,
+                    results=steps,
+                    logs=state.logs,
+                    verdict=state.verdict,
+                ),
+            },
             errors=tuple(errors),
             telemetry=tuple(state.telemetry + [{
                 'event': 'orchestration_complete',

@@ -13,10 +13,12 @@ export function collectElements() {
     btnSettings: $("btn-settings"),
     tabChat: $("tab-chat"),
     tabSessions: $("tab-sessions"),
+    tabTasks: $("tab-tasks"),
     tabAutomations: $("tab-automations"),
     tabSettings: $("tab-settings"),
     paneChat: $("pane-chat"),
     paneSessions: $("pane-sessions"),
+    paneTasks: $("pane-tasks"),
     paneAutomations: $("pane-automations"),
     paneSettings: $("pane-settings"),
     btnPageText: $("btn-page-text"),
@@ -55,7 +57,7 @@ export function updateStatusDot(el, status) {
 
 export function switchTab(el, tab) {
   state.activeTab = tab;
-  for (const name of ["chat", "sessions", "automations", "settings"]) {
+  for (const name of ["chat", "sessions", "tasks", "automations", "settings"]) {
     el[`tab${name.charAt(0).toUpperCase() + name.slice(1)}`].classList.toggle("active", name === tab);
     el[`pane${name.charAt(0).toUpperCase() + name.slice(1)}`].style.display = name === tab ? "flex" : "none";
   }

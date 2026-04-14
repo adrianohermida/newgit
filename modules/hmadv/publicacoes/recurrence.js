@@ -1,5 +1,4 @@
-import { ACTION_LABELS } from "./constants";
-import { HealthBadge } from "./ui-primitives";
+import { RecurringPublicacaoGroup } from "./recurring-publicacao-group";
 
 export function deriveRemoteHealth(history = []) {
   const latest = history[0] || null;
@@ -12,7 +11,6 @@ export function deriveRemoteHealth(history = []) {
   if (!badges.length && latest.status === "success") badges.push({ label: "ciclo saudavel", tone: "success" });
   return badges;
 }
-
 export function deriveRecurringPublicacoes(history = []) {
   const counts = new Map();
   for (const entry of history.slice(0, 6)) {
@@ -42,7 +40,6 @@ export function deriveRecurringPublicacoes(history = []) {
   }
   return Array.from(counts.values()).filter((item) => item.hits > 1).sort((a, b) => b.hits - a.hits).slice(0, 8);
 }
-
 export function summarizeRecurringPublicacoes(items = []) {
   return items.reduce((acc, item) => {
     acc.total += 1;
@@ -52,7 +49,6 @@ export function summarizeRecurringPublicacoes(items = []) {
     return acc;
   }, { total: 0, supabase: 0, freshsales: 0, datajud: 0, advise: 0, manual: 0, stagnant: 0 });
 }
-
 function classifyPublicacaoRecurringSource(entry, row) {
   if (entry?.acao === "run_sync_worker") return "freshsales";
   if (entry?.acao === "criar_processos_publicacoes") return "advise";
@@ -60,7 +56,6 @@ function classifyPublicacaoRecurringSource(entry, row) {
   if ((row?.partes_detectadas || row?.partes_novas || 0) > 0 || row?.publicacoes_lidas > 0) return "advise";
   return "supabase";
 }
-
 function publicacaoNeedsManualReview(row) {
   return Boolean(row?.erro || row?.freshsales_repair?.ok === false || row?.freshsales_repair?.skipped);
 }
@@ -69,27 +64,6 @@ function publicacaoHasNoProgress(entry, row) {
   if (Number(entry?.affected_count || 0) === 0) return true;
   return Number(row?.partesInseridas || 0) === 0 && Number(row?.processosAtualizados || 0) === 0 && Number(row?.accountsReparadas || 0) === 0 && !row?.processo_criado;
 }
-
-function recurringSourceTone(source) {
-  if (source === "freshsales") return "warning";
-  if (source === "advise" || source === "datajud") return "danger";
-  return "default";
-}
-
-function recurringSourceLabel(source) {
-  if (source === "freshsales") return "ajuste no CRM";
-  if (source === "advise") return "origem da publicacao";
-  if (source === "datajud") return "atualizacao judicial";
-  return "ajuste de base";
-}
-
-function recurrenceBand(hits) {
-  if (hits >= 4) return { label: "critico 4x+", tone: "danger" };
-  if (hits >= 3) return { label: "reincidente 3x", tone: "warning" };
-  if (hits >= 2) return { label: "recorrente 2x", tone: "default" };
-  return null;
-}
-
 export function summarizeRecurrenceBands(items = []) {
   return items.reduce((acc, item) => {
     if (item.hits >= 4) acc.critical += 1;
@@ -173,33 +147,4 @@ function suggestPublicacaoNextAction(source, row, current) {
   }
   if (current?.noProgress) return "revisar fila de publicacoes";
   return "sincronizar publicacao vinculada";
-}
-
-function RecurringPublicacaoItem({ item }) {
-  return <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
-    <div className="flex flex-wrap items-center gap-2">
-      <p className="font-semibold break-all">{item.key}</p>
-      <HealthBadge label={`${item.hits} ciclos`} tone="danger" />
-      {recurrenceBand(item.hits) ? <HealthBadge label={recurrenceBand(item.hits).label} tone={recurrenceBand(item.hits).tone} /> : null}
-      <HealthBadge label={ACTION_LABELS[item.lastAction] || item.lastAction} tone="warning" />
-      <HealthBadge label={recurringSourceLabel(item.source)} tone={recurringSourceTone(item.source)} />
-      {item.noProgress ? <HealthBadge label="sem progresso relevante" tone="warning" /> : null}
-      {item.needsManualReview ? <HealthBadge label="precisa revisao manual" tone="danger" /> : null}
-      {item.nextAction ? <HealthBadge label={item.nextAction} tone="success" /> : null}
-    </div>
-    {item.titulo ? <p className="mt-2 opacity-70">{item.titulo}</p> : null}
-  </div>;
-}
-
-export function RecurringPublicacaoGroup({ title, helper, items }) {
-  if (!items.length) return null;
-  return <div className="space-y-3">
-    <div>
-      <p className="text-sm font-semibold">{title}</p>
-      <p className="text-xs opacity-60">{helper}</p>
-    </div>
-    <div className="space-y-3">
-      {items.map((item) => <RecurringPublicacaoItem key={item.key} item={item} />)}
-    </div>
-  </div>;
 }

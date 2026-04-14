@@ -42,7 +42,6 @@ export function QueueSummaryCard({ title, count, helper, accent = "text-[#C5A059
     </div>
   );
 }
-
 export function RemoteRunSummary({ entry, actionLabels }) {
   if (!entry) return null;
   const summary = entry.result_summary || {};

@@ -1,0 +1,79 @@
+import { HealthBadge } from "./ui-primitives";
+
+export function IntegratedQueueList({
+  rows,
+  totalRows,
+  selectedCount,
+  page,
+  onOpenDetail,
+  onToggleRow,
+  onTogglePage,
+  onToggleAllFiltered,
+  onPreviousPage,
+  onNextPage,
+  allPageSelected,
+  allFilteredSelected,
+  canGoPrevious = false,
+  canGoNext = false,
+  queueMode = "legacy",
+  queueSourceLabel = "live",
+  limited = false,
+  totalEstimated = false,
+  errorMessage = "",
+  validationLabel,
+  validationTone,
+  formatValidationMeta,
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">Lista integrada</p>
+          <p className="text-xs opacity-60">A mesma leitura das prioridades, agora em modo de lista para validar, editar e agir em lote.</p>
+          <p className="mt-1 text-xs opacity-50">{totalRows || rows.length || 0} item(ns) filtrado(s). {selectedCount} marcado(s).</p>
+          <p className="mt-1 text-xs opacity-50">Pagina {page} • leitura {queueMode === "snapshot" ? "por cursor" : "legada"} • origem {queueSourceLabel}</p>
+          {limited ? <p className="mt-1 text-xs text-[#FDE68A]">Leitura parcial protegida. A lista e a selecao de filtrados podem representar apenas a amostra carregada.</p> : null}
+          {totalEstimated ? <p className="mt-1 text-xs opacity-60">O total atual e estimado porque a fila foi consolidada em multiplas leituras paginadas.</p> : null}
+          {errorMessage ? <p className="mt-1 text-xs text-[#FECACA]">{errorMessage}</p> : null}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => onTogglePage(!allPageSelected)} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">{allPageSelected ? "Desmarcar pagina" : "Selecionar pagina"}</button>
+          <button type="button" onClick={() => onToggleAllFiltered(!allFilteredSelected)} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">{allFilteredSelected ? "Desmarcar filtrados" : "Selecionar filtrados"}</button>
+          <button type="button" onClick={onPreviousPage} disabled={!canGoPrevious} className="border border-[#2D2E2E] px-3 py-2 text-xs disabled:opacity-40">Anterior</button>
+          <button type="button" onClick={onNextPage} disabled={!canGoNext} className="border border-[#2D2E2E] px-3 py-2 text-xs disabled:opacity-40">Proxima</button>
+        </div>
+      </div>
+      {!rows.length ? <p className="text-sm opacity-60">Nenhum item atende aos filtros atuais.</p> : null}
+      <div className="space-y-3">
+        {rows.map((row) => (
+          <div key={row.unifiedKey} className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4">
+            <div className="flex gap-3">
+              <input type="checkbox" checked={Boolean(row.selected)} onChange={() => onToggleRow(row)} className="mt-1" />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold break-all">{row.numero_cnj || row.key}</p>
+                  <HealthBadge label={row.queueSource === "partes" ? "enriquecimento de partes" : "criacao de processo"} tone={row.queueSource === "partes" ? "warning" : "default"} />
+                  <HealthBadge label={validationLabel(row.validation?.status)} tone={validationTone(row.validation?.status)} />
+                  {row.account_id_freshsales ? <HealthBadge label={`conta ${row.account_id_freshsales}`} tone="success" /> : null}
+                  {row.partes_novas ? <HealthBadge label={`${row.partes_novas} novas`} tone="warning" /> : null}
+                </div>
+                {row.titulo ? <p className="mt-2 opacity-75">{row.titulo}</p> : null}
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60">
+                  <span>Origem: {row.queueSource}</span>
+                  <span>{row.enrichmentLabel}: {row.enrichmentCount || 0}</span>
+                  {row.partes_existentes !== undefined ? <span>Partes existentes: {row.partes_existentes}</span> : null}
+                  {row.partes_detectadas !== undefined ? <span>Detectadas: {row.partes_detectadas}</span> : null}
+                </div>
+                {row.validation?.note ? <p className="mt-2 text-xs opacity-60">Validacao: {row.validation.note}</p> : null}
+                {formatValidationMeta(row.validation) ? <p className="mt-1 text-xs opacity-50">Auditoria: {formatValidationMeta(row.validation)}</p> : null}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => onOpenDetail(row)} className="border border-[#2D2E2E] px-3 py-2 text-xs hover:border-[#C5A059] hover:text-[#C5A059]">Ver detalhe</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

@@ -6,6 +6,7 @@ const { createSessionsRouter } = require("./routes/sessions");
 const { createAssetsRouter } = require("./routes/assets");
 const { createAutomationsRouter } = require("./routes/automations");
 const { createSystemRouter } = require("./routes/system");
+const { createTasksRouter } = require("./routes/tasks");
 
 function createApp() {
   const app = express();
@@ -18,6 +19,7 @@ function createApp() {
   app.use(createSessionsRouter());
   app.use(createAssetsRouter());
   app.use(createAutomationsRouter(commandQueue));
+  app.use(createTasksRouter());
   app.use(createSystemRouter());
 
   app.use((req, res) => {

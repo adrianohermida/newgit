@@ -48,6 +48,17 @@ export async function callChat(provider, messages) {
   return data;
 }
 
+export async function runTask(sessionId, query) {
+  await pushBridgeSettings();
+  const data = await parseJsonResponse(await safeFetch(`${BRIDGE_URL}/tasks/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId, query }),
+  }, 60000));
+  if (!data.ok) throw new Error(data.error || "Falha ao executar AI-Task.");
+  return data;
+}
+
 export async function fetchJson(path, opts = {}, timeout = 5000) {
   return parseJsonResponse(await safeFetch(`${BRIDGE_URL}${path}`, opts, timeout));
 }

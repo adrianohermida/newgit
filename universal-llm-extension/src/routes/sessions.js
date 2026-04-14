@@ -14,7 +14,7 @@ function createSessionsRouter() {
       const id = sessionId || uid();
       const filePath = path.join(SESSIONS_DIR, `${id}.json`);
       const existing = safeRead(filePath) || {};
-      const session = { id, provider: provider || existing.provider || "local", model: model || existing.model || "unknown", metadata: { ...existing.metadata, ...metadata }, messages: messages || existing.messages || [], createdAt: existing.createdAt || ts(), updatedAt: ts() };
+      const session = { id, provider: provider || existing.provider || "local", model: model || existing.model || "unknown", metadata: { ...existing.metadata, ...metadata }, messages: messages || existing.messages || [], tasks: Array.isArray(existing.tasks) ? existing.tasks : [], createdAt: existing.createdAt || ts(), updatedAt: ts() };
       safeWrite(filePath, session);
 
       for (const baseUrl of getConfigs().local.candidates) {
@@ -31,7 +31,7 @@ function createSessionsRouter() {
     }
   });
 
-  router.get("/sessions", (_req, res) => res.json({ ok: true, sessions: listJsonDir(SESSIONS_DIR).map((session) => ({ id: session.id, provider: session.provider, model: session.model, messageCount: Array.isArray(session.messages) ? session.messages.length : 0, createdAt: session.createdAt, updatedAt: session.updatedAt, metadata: session.metadata })) }));
+  router.get("/sessions", (_req, res) => res.json({ ok: true, sessions: listJsonDir(SESSIONS_DIR).map((session) => ({ id: session.id, provider: session.provider, model: session.model, messageCount: Array.isArray(session.messages) ? session.messages.length : 0, taskCount: Array.isArray(session.tasks) ? session.tasks.length : 0, createdAt: session.createdAt, updatedAt: session.updatedAt, metadata: session.metadata })) }));
   router.get("/sessions/:id", (req, res) => {
     const session = safeRead(path.join(SESSIONS_DIR, `${req.params.id}.json`));
     if (!session) return res.status(404).json({ ok: false, error: "Sessao nao encontrada." });
