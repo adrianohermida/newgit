@@ -908,23 +908,22 @@ export default function LLMTestChat() {
   }
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-6 px-6 py-8 text-[#F5F1E8]">
-      <section className="rounded-[30px] border border-[#22342F] bg-[linear-gradient(180deg,rgba(11,15,14,0.98),rgba(7,10,9,0.98))] p-6 shadow-[0_18px_54px_rgba(0,0,0,0.24)]">
+    <div className={`mx-auto max-w-[1600px] space-y-6 px-4 py-6 md:px-6 md:py-8 ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>
+      <section className={`rounded-[30px] border p-6 shadow-[0_18px_54px_rgba(0,0,0,0.18)] ${isLightTheme ? "border-[#d7d4cb] bg-[linear-gradient(180deg,#ffffff,#f7f4ec)]" : "border-[#22342F] bg-[linear-gradient(180deg,rgba(11,15,14,0.98),rgba(7,10,9,0.98))]"}`}>
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_360px]">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C5A059]">Hermida Maia Advocacia</p>
-            <h1 className="mt-2 text-[32px] font-semibold tracking-[-0.04em]">LLM Test Local</h1>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-[#9BAEA8]">
-              Valide `gpt`, `local`, `cloudflare` e `custom` usando o mesmo endpoint administrativo do AI Task e do Dotobot,
-              agora com trilha de console dedicada para request, resposta, telemetria e falhas.
+            <p className={`text-[11px] font-semibold uppercase tracking-[0.28em] ${isLightTheme ? "text-[#9a6d14]" : "text-[#C5A059]"}`}>Laboratorio de IA</p>
+            <h1 className="mt-2 text-[32px] font-semibold tracking-[-0.04em]">Validacao de modelos</h1>
+            <p className={`mt-3 max-w-3xl text-sm leading-7 ${isLightTheme ? "text-[#4b5563]" : "text-[#9BAEA8]"}`}>
+              Compare provedores, revise estabilidade e acompanhe cada resposta com um console dedicado, no mesmo padrao visual do restante do interno.
             </p>
 
-            <div className="mt-5 rounded-[26px] border border-[#22342F] bg-[rgba(7,9,8,0.96)] p-4">
+            <div className={`mt-5 rounded-[26px] border p-4 ${isLightTheme ? "border-[#d7d4cb] bg-white" : "border-[#22342F] bg-[rgba(7,9,8,0.96)]"}`}>
               <textarea
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 rows={6}
-                className="w-full bg-transparent text-sm leading-7 text-[#F5F1E8] outline-none placeholder:text-[#60706A]"
+                className={`w-full bg-transparent text-sm leading-7 outline-none ${isLightTheme ? "text-[#1f2937] placeholder:text-[#9ca3af]" : "text-[#F5F1E8] placeholder:text-[#60706A]"}`}
                 placeholder="Digite o prompt de validacao..."
               />
             </div>
@@ -939,7 +938,7 @@ export default function LLMTestChat() {
                     runSmokeTest(action.provider);
                   }}
                   disabled={loading}
-                  className="rounded-full border border-[#22342F] px-3 py-1.5 text-[11px] text-[#D8DEDA] transition hover:border-[#C5A059] hover:text-[#C5A059] disabled:opacity-50"
+                  className={`rounded-full border px-3 py-1.5 text-[11px] transition disabled:opacity-50 ${isLightTheme ? "border-[#d7d4cb] text-[#4b5563] hover:border-[#c79b2c] hover:text-[#8a6217]" : "border-[#22342F] text-[#D8DEDA] hover:border-[#C5A059] hover:text-[#C5A059]"}`}
                 >
                   {action.label}
                 </button>
@@ -954,12 +953,12 @@ export default function LLMTestChat() {
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-[24px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-4">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Provider</p>
+            <div className={`rounded-[24px] border p-4 ${isLightTheme ? "border-[#d7d4cb] bg-[#fcfbf7]" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
+              <p className={`text-[10px] uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "text-[#7F928C]"}`}>LLM</p>
               <select
                 value={provider}
                 onChange={(event) => setProvider(resolveLlmTestProvider(event.target.value, providerCatalog))}
-                className="mt-3 h-12 w-full rounded-2xl border border-[#22342F] bg-[rgba(7,9,8,0.98)] px-3 text-sm text-[#F5F1E8] outline-none"
+                className={`mt-3 h-12 w-full rounded-2xl border px-3 text-sm outline-none ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#22342F] bg-[rgba(7,9,8,0.98)] text-[#F5F1E8]"}`}
               >
                 {providerCatalog.map((item) => (
                   <option key={item.id} value={item.id} disabled={!item.available}>
@@ -976,20 +975,20 @@ export default function LLMTestChat() {
               disabled={loading || !String(prompt || "").trim()}
               className="w-full rounded-full border border-[#C5A059] bg-[#C5A059] px-5 py-3 text-sm font-semibold text-[#07110E] transition hover:bg-[#D7B570] disabled:opacity-50"
             >
-              {loading ? "Executando..." : "Executar smoke test"}
+              {loading ? "Executando..." : "Executar validacao"}
             </button>
 
             <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
               <div className="rounded-[22px] border border-[#22342F] px-4 py-3">
-                <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Execucoes</p>
+                <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Validacoes</p>
                 <p className="mt-2 text-2xl font-semibold text-[#F5F1E8]">{results.length}</p>
               </div>
               <div className="rounded-[22px] border border-[#22342F] px-4 py-3">
-                <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Eventos console</p>
+                <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Eventos do console</p>
                 <p className="mt-2 text-2xl font-semibold text-[#F5F1E8]">{consoleEntries.length}</p>
               </div>
               <div className="rounded-[22px] border border-[#22342F] px-4 py-3">
-                <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Provider ativo</p>
+                <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">LLM ativo</p>
                 <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">{formatLawdeskProviderLabel(provider)}</p>
               </div>
             </div>
@@ -998,7 +997,7 @@ export default function LLMTestChat() {
 
         <div className="mt-5 grid gap-3 lg:grid-cols-3">
           <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-4">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Health providers</p>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Saude dos modelos</p>
             <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{providersHealth?.status || "carregando"}</p>
               <p className="mt-1 text-sm text-[#8FA39C]">
                 {Number.isFinite(Number(providersHealth?.summary?.operational))
@@ -1013,7 +1012,7 @@ export default function LLMTestChat() {
               ) : null}
           </div>
           <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-4">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Health RAG</p>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Saude do RAG</p>
             <p className="mt-2 text-lg font-semibold text-[#F5F1E8]">{ragHealth?.status || "carregando"}</p>
             <p className="mt-1 text-sm text-[#8FA39C]">
               {ragHealth?.report?.supabaseEmbedding?.error || ragHealth?.error || "Embedding, retrieval e fallback."}
@@ -1025,13 +1024,13 @@ export default function LLMTestChat() {
             ) : null}
           </div>
           <div className="rounded-[22px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] px-4 py-4">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Diagnostico rapido</p>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7F928C]">Leitura rapida</p>
             <p className="mt-2 text-sm font-semibold text-[#F5F1E8]">
               {ragHealth?.status === "failed"
                 ? "RAG com falha; revisar secrets e embedding."
                 : providersHealth?.status === "failed"
-                  ? "Providers sem saude operacional suficiente."
-                  : "Ambiente pronto para smoke tests comparativos."}
+                  ? "Modelos sem saude operacional suficiente."
+                  : "Ambiente pronto para validacoes comparativas."}
             </p>
           </div>
         </div>
@@ -1039,7 +1038,7 @@ export default function LLMTestChat() {
         <div className="mt-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Debug matrix</p>
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[#7F928C]">Panorama</p>
               <h3 className="mt-1 text-lg font-semibold text-[#F5F1E8]">Comparativo técnico dos providers</h3>
             </div>
           </div>
@@ -1056,11 +1055,11 @@ export default function LLMTestChat() {
           <div className="rounded-[28px] border border-[#22342F] bg-[rgba(255,255,255,0.02)] p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Painel operacional</p>
-                <h2 className="mt-2 text-[24px] font-semibold tracking-[-0.03em] text-[#F5F1E8]">Timeline da execucao selecionada</h2>
+                <p className="text-[10px] uppercase tracking-[0.22em] text-[#7F928C]">Resultado selecionado</p>
+                <h2 className="mt-2 text-[24px] font-semibold tracking-[-0.03em] text-[#F5F1E8]">Timeline da validacao</h2>
               </div>
               {selectedResult ? (
-                <span className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em] ${formatStatusTone(selectedResult.status)}`}>
+                <span className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em] ${formatStatusTone(selectedResult.status, isLightTheme)}`}>
                   {selectedResult.status}
                 </span>
               ) : null}

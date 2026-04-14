@@ -8,9 +8,9 @@ import { appendActivityLog, setModuleHistory, updateActivityLog } from "../../li
 
 const EMPTY_FORM = { numero_cnj_pai: "", numero_cnj_filho: "", tipo_relacao: "dependencia", status: "ativo", observacoes: "" };
 const PROCESS_VIEW_ITEMS = [
-  { key: "operacao", label: "Operacao" },
-  { key: "filas", label: "Filas" },
-  { key: "relacoes", label: "Relacoes" },
+  { key: "operacao", label: "Visao geral" },
+  { key: "filas", label: "Prioridades" },
+  { key: "relacoes", label: "Relacionamentos" },
   { key: "resultado", label: "Resultado" },
 ];
 const HISTORY_STORAGE_KEY = "hmadv:interno-processos:history:v1";
@@ -20,18 +20,18 @@ const ACTION_LABELS = {
   run_sync_worker: "Rodar sync-worker",
   push_orfaos: "Criar accounts no Freshsales",
   repair_freshsales_accounts: "Corrigir campos no Freshsales",
-  sync_supabase_crm: "Sincronizar Supabase + Freshsales",
-  sincronizar_movimentacoes_activity: "Sincronizar movimentacoes no Freshsales",
-  sincronizar_publicacoes_activity: "Sincronizar publicacoes no Freshsales",
+  sync_supabase_crm: "Atualizar base comercial",
+  sincronizar_movimentacoes_activity: "Refletir andamentos no CRM",
+  sincronizar_publicacoes_activity: "Refletir publicacoes no CRM",
   reconciliar_partes_contatos: "Reconciliar partes com contatos",
-  backfill_audiencias: "Retroagir audiencias",
+  backfill_audiencias: "Atualizar audiencias",
   auditoria_sync: "Rodar auditoria",
-  enriquecer_datajud: "Reenriquecer via DataJud",
+  enriquecer_datajud: "Atualizar dados judiciais",
   monitoramento_status: "Atualizar monitoramento",
-  executar_integracao_total_hmadv: "Rodar integracao completa (HMADV)",
-  salvar_relacao: "Salvar relacao",
-  remover_relacao: "Remover relacao",
-  run_pending_jobs: "Drenar fila HMADV",
+  executar_integracao_total_hmadv: "Rodar sincronizacao completa",
+  salvar_relacao: "Salvar relacionamento",
+  remover_relacao: "Remover relacionamento",
+  run_pending_jobs: "Avancar fila automatica",
 };
 const QUEUE_ERROR_TTL_MS = 1000 * 60 * 3;
 const GLOBAL_ERROR_TTL_MS = 1000 * 60 * 2;
@@ -66,8 +66,8 @@ const QUEUE_LABELS = {
   monitoramento_ativo: "Monitoramento ativo",
   monitoramento_inativo: "Monitoramento inativo",
   campos_orfaos: "Campos orfaos",
-  orfaos: "Sem Sales Account",
-  cobertura: "Cobertura por processo",
+  orfaos: "Sem conta comercial",
+  cobertura: "Cobertura da carteira",
 };
 const MODULE_LIMITS = {
   maxProcessBatch: 25,
@@ -2873,6 +2873,20 @@ function InternoProcessosContent() {
   const trackedQueueErrorCount = countQueueErrors(trackedQueues);
   const trackedQueueMismatchCount = countQueueReadMismatches(trackedQueues);
   const hasPendingJobs = jobs.some((item) => ["pending", "running"].includes(String(item.status || "")));
+  const backendRecommendedAction = data?.recommendedNextAction || null;
+  const workerStoppedWithoutProgress = String(data?.syncWorker?.worker?.ultimo_lote?.motivo || data?.syncWorker?.ultimo_lote?.motivo || "") === "sem_prog";
+  const workerStructuralSuggestion = workerStoppedWithoutProgress && Number(data?.structuralGapTotal || 0) > 0
+    ? Number(data?.partesSemContato || 0) > 0
+      ? { key: "structural_partes", label: "Abrir partes sem contato", onClick: () => updateView("filas", "processos-partes-sem-contato") }
+      : Number(data?.camposOrfaos || 0) > 0 || Number(data?.processosSemPolos || 0) > 0 || Number(data?.processosSemStatus || 0) > 0
+        ? { key: "structural_gaps", label: "Abrir campos orfaos", onClick: () => updateView("filas", "processos-campos-orfaos") }
+        : Number(data?.processosSemMovimentacao || 0) > 0
+          ? { key: "structural_movs", label: "Buscar movimentacoes", onClick: () => updateView("filas", "processos-sem-movimentacoes") }
+          : { key: "structural_cover", label: "Auditar cobertura", onClick: () => updateView("filas", "processos-cobertura") }
+    : null;
+  const recommendedHealthAction = backendRecommendedAction?.hash
+    ? { key: `backend_${backendRecommendedAction.key || "action"}`, label: backendRecommendedAction.label || "Abrir fila recomendada", onClick: () => updateView("filas", backendRecommendedAction.hash) }
+    : workerStructuralSuggestion;
   const healthQueueTarget = publicationBacklog.error || queueHasReadMismatch(publicationBacklog)
     ? { hash: "processos-publicacoes-pendentes", label: "Sincronizar publicacoes", view: "filas" }
     : partesBacklog.error || queueHasReadMismatch(partesBacklog)
@@ -2885,6 +2899,9 @@ function InternoProcessosContent() {
             ? { hash: "processos-cobertura", label: "Auditar cobertura", view: "filas" }
             : { hash: "filas", label: "Abrir filas", view: "filas" };
   const healthSuggestedActions = [];
+  if (recommendedHealthAction) {
+    healthSuggestedActions.push(recommendedHealthAction);
+  }
   if (trackedQueueErrorCount > 0 || trackedQueueMismatchCount > 0) {
     healthSuggestedActions.push({ key: "filas", label: healthQueueTarget.label, onClick: () => updateView(healthQueueTarget.view, healthQueueTarget.hash) });
   }
@@ -2931,6 +2948,7 @@ function InternoProcessosContent() {
                 <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>Barra de saude operacional</p>
                 <p className="mt-2">{operationalStatus.message || "Operacao normal"} • {backendHealth.message || "Sem historico recente."}</p>
                 <p className={`mt-2 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-70"}`}>Acao sugerida: {healthSuggestedActions[0]?.label || "Ir para operacao"}</p>
+                {data.syncWorkerScopeNote ? <p className={`mt-2 text-xs leading-6 ${isLightTheme ? "text-[#6b7280]" : "opacity-70"}`}>{data.syncWorkerScopeNote}</p> : null}
               </div>
               <div className="flex flex-wrap gap-2">
                 <StatusBadge tone={operationalStatus.mode === "error" ? "danger" : operationalStatus.mode === "limited" ? "warning" : "success"}>{operationalStatus.mode === "error" ? "operacao com alerta" : operationalStatus.mode === "limited" ? "operacao degradada" : "operacao estavel"}</StatusBadge>

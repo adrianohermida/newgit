@@ -7,25 +7,25 @@ import { adminFetch as adminFetchRaw } from "../../lib/admin/api";
 import { appendActivityLog, appendFrontendIssue, setModuleHistory, updateActivityLog } from "../../lib/admin/activity-log";
 
 const PUBLICACOES_VIEW_ITEMS = [
-  { key: "operacao", label: "Operacao" },
-  { key: "filas", label: "Filas" },
+  { key: "operacao", label: "Visao geral" },
+  { key: "filas", label: "Prioridades" },
   { key: "resultado", label: "Resultado" },
 ];
 const HISTORY_STORAGE_KEY = "hmadv:interno-publicacoes:history:v1";
 const UI_STATE_STORAGE_KEY = "hmadv:interno-publicacoes:ui:v1";
 const VALIDATION_STORAGE_KEY = "hmadv:interno-publicacoes:validations:v1";
 const ACTION_LABELS = {
-  criar_processos_publicacoes: "Criar processos das publicacoes",
-  sincronizar_publicacoes_activity: "Sincronizar publicacoes vinculadas no Freshsales",
-  orquestrar_drenagem_publicacoes: "Orquestrar drenagem operacional",
-  backfill_partes: "Extracao retroativa de partes",
-  sincronizar_partes: "Salvar partes + atualizar polos + corrigir CRM",
+  criar_processos_publicacoes: "Criar processos a partir das publicacoes",
+  sincronizar_publicacoes_activity: "Refletir publicacoes no CRM",
+  orquestrar_drenagem_publicacoes: "Avancar fila prioritaria",
+  backfill_partes: "Atualizar partes do historico",
+  sincronizar_partes: "Atualizar partes e contatos",
   reconciliar_partes_contatos: "Reconciliar partes com contatos",
-  run_sync_worker: "Rodar sync-worker (activities/CRM)",
-  run_advise_sync: "Rodar ingestao incremental do Advise",
-  run_advise_backfill: "Importar backlog historico do Advise",
-  refresh_snapshot_filas: "Atualizar snapshot operacional",
-  run_pending_jobs: "Drenar fila HMADV",
+  run_sync_worker: "Atualizar integracoes do CRM",
+  run_advise_sync: "Atualizar leitura incremental do Advise",
+  run_advise_backfill: "Importar historico do Advise",
+  refresh_snapshot_filas: "Atualizar snapshot da operacao",
+  run_pending_jobs: "Avancar fila automatica",
 };
 const CONTACT_TYPE_OPTIONS = [
   "Cliente",
@@ -63,9 +63,9 @@ const MODULE_LIMITS = {
 };
 const PUBLICACOES_QUEUE_VIEWS = new Set(["filas"]);
 const QUEUE_LABELS = {
-  candidatos_processos: "Processos criaveis",
-  candidatos_partes: "Partes extraiveis",
-  mesa_integrada: "Mesa integrada",
+  candidatos_processos: "Processos disponiveis",
+  candidatos_partes: "Partes disponiveis",
+  mesa_integrada: "Visao integrada",
 };
 
 function stringifyLogPayload(payload, limit = 8000) {
