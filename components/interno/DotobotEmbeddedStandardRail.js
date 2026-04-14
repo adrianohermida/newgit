@@ -10,7 +10,7 @@ function AttachmentChip({ attachment, formatBytes, isLightTheme }) {
 }
 
 export default function DotobotEmbeddedStandardRail(props) {
-  const { attachments, composerBlockedReason, composerRef, error, formatBytes, handleComposerKeyDown, handleCopyMessage, handleDrop, handleLocalStackAction, handleMessageAction, handleOpenFiles, handleOpenMessageInAiTask, handlePaste, handleQuickAction, handleResetChat, handleReuseMessage, handleSlashCommand, handleSubmit, input, isCompactViewport, isComposerBlocked, isLightTheme, isRecording, loading, localInferenceAlert, messages, onChangeInput, onFocusComposer, onToggleVoiceInput, scrollRef, setShowSlashCommands, showSlashCommands, visibleLegalActions, visibleQuickPrompts, slashCommands } = props;
+  const { attachments, composerBlockedReason, composerRef, error, formatBytes, handleComposerKeyDown, handleCopyMessage, handleDrop, handleLocalStackAction, handleMessageAction, handleOpenFiles, handleOpenMessageInAiTask, handlePaste, handleQuickAction, handleResetChat, handleReuseMessage, handleSlashCommand, handleSubmit, input, isCompactViewport, isComposerBlocked, isLightTheme, isRecording, loading, localInferenceAlert, messages, onChangeInput, onFocusComposer, onToggleVoiceInput, scrollRef, showSlashCommands, visibleLegalActions, visibleQuickPrompts, slashCommands } = props;
 
   return (
     <>
