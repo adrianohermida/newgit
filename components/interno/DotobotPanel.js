@@ -1249,6 +1249,8 @@ const [uiToasts, setUiToasts] = useState([]);
   const projectFilterRef = useRef(null);
   const agentLabSnapshotRequestedRef = useRef(false);
   const providerCatalogRequestedRef = useRef(false);
+  const ragHealthRequestedRef = useRef(false);
+  const localStackAutoprobeRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -1325,7 +1327,7 @@ const [uiToasts, setUiToasts] = useState([]);
     let timeoutId = null;
     let idleId = null;
     const loadProviderCatalog = () => {
-      adminFetch("/api/admin-lawdesk-providers?include_health=1", { method: "GET" })
+      adminFetch(`/api/admin-lawdesk-providers?include_health=${isFocusedCopilotShell ? 0 : 1}`, { method: "GET" })
         .then(async (payload) => {
           if (!active) return;
           const providers = Array.isArray(payload?.data?.providers) ? payload.data.providers : [];
@@ -1367,9 +1369,9 @@ const [uiToasts, setUiToasts] = useState([]);
     };
 
     if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
-      idleId = window.requestIdleCallback(loadProviderCatalog, { timeout: 500 });
+      idleId = window.requestIdleCallback(loadProviderCatalog, { timeout: isFocusedCopilotShell ? 1600 : 500 });
     } else {
-      timeoutId = window.setTimeout(loadProviderCatalog, isFocusedCopilotShell ? 180 : 0);
+      timeoutId = window.setTimeout(loadProviderCatalog, isFocusedCopilotShell ? 1200 : 0);
     }
     return () => {
       active = false;
@@ -1384,8 +1386,13 @@ const [uiToasts, setUiToasts] = useState([]);
     const shouldLoadRagHealth =
       provider === "local" ||
       localRuntimeConfigOpen ||
+      rightPanelTab === "agentlabs" ||
       !isFocusedCopilotShell;
     if (!shouldLoadRagHealth) return undefined;
+    if (ragHealthRequestedRef.current && provider !== "local" && !localRuntimeConfigOpen && rightPanelTab !== "agentlabs") {
+      return undefined;
+    }
+    ragHealthRequestedRef.current = true;
     let active = true;
     adminFetch("/api/admin-dotobot-rag-health?include_upsert=0", { method: "GET" })
       .then((payload) => {
@@ -1403,7 +1410,7 @@ const [uiToasts, setUiToasts] = useState([]);
     return () => {
       active = false;
     };
-  }, [isFocusedCopilotShell, localRuntimeConfigOpen, provider]);
+  }, [isFocusedCopilotShell, localRuntimeConfigOpen, provider, rightPanelTab]);
 
   async function loadAgentLabSnapshot(options = {}) {
     const silent = options?.silent === true;
@@ -1488,6 +1495,10 @@ const [uiToasts, setUiToasts] = useState([]);
       shouldAutoProbeBrowserLocalRuntime() &&
       (!isFocusedCopilotShell || provider === "local" || localRuntimeConfigOpen);
     if (!canAutoProbe) return undefined;
+    if (localStackAutoprobeRef.current && isFocusedCopilotShell && provider !== "local" && !localRuntimeConfigOpen) {
+      return undefined;
+    }
+    localStackAutoprobeRef.current = true;
     let active = true;
     probeBrowserLocalStackSummary()
       .then((summary) => {
@@ -2961,7 +2972,7 @@ const [uiToasts, setUiToasts] = useState([]);
       ? "grid-cols-1"
       : effectiveWorkspaceLayout === "immersive"
       ? isFocusedCopilotShell
-        ? "lg:grid-cols-[360px_minmax(0,1fr)_288px] xl:grid-cols-[380px_minmax(0,1fr)_304px] 2xl:grid-cols-[400px_minmax(0,1fr)_320px]"
+        ? "lg:grid-cols-[320px_minmax(0,1fr)_320px] xl:grid-cols-[340px_minmax(0,1fr)_340px] 2xl:grid-cols-[360px_minmax(0,1fr)_360px]"
         : "lg:grid-cols-[320px_minmax(0,1.6fr)_320px] xl:grid-cols-[360px_minmax(0,2.05fr)_360px] 2xl:grid-cols-[420px_minmax(0,2.45fr)_420px]"
       : effectiveWorkspaceLayout === "balanced"
         ? "lg:grid-cols-[220px_minmax(0,1.25fr)_240px] xl:grid-cols-[240px_minmax(0,1.5fr)_260px] 2xl:grid-cols-[260px_minmax(0,1.65fr)_280px]"
@@ -2970,22 +2981,22 @@ const [uiToasts, setUiToasts] = useState([]);
   const workspaceGridGapClass = isConversationCentricShell ? "gap-0" : "gap-4";
   const leftRailShellClass = isFocusedCopilotShell
     ? isLightTheme
-      ? "h-full min-h-full border-r border-y-0 border-l-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.985),rgba(246,249,252,0.995))] rounded-none shadow-none"
-      : "h-full min-h-full border-r border-y-0 border-l-0 border-[#1C2623] bg-[rgba(9,11,10,0.985)] rounded-none shadow-none"
+      ? "h-full min-h-full overflow-hidden border-r border-y-0 border-l-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.985),rgba(246,249,252,0.995))] rounded-none shadow-none"
+      : "h-full min-h-full overflow-hidden border-r border-y-0 border-l-0 border-[#1C2623] bg-[rgba(9,11,10,0.985)] rounded-none shadow-none"
     : isLightTheme
       ? "rounded-[22px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,248,251,0.98))]"
       : "rounded-[22px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] border-[#1C2623] bg-[rgba(255,255,255,0.018)]";
   const centerShellClass = isFocusedCopilotShell
     ? isLightTheme
-      ? "border-x border-y-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(247,249,252,0.99))] rounded-none shadow-none"
-      : "border-x border-y-0 border-[#1C2623] bg-[rgba(11,13,12,0.985)] rounded-none shadow-none"
+      ? "min-h-full border-x border-y-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(247,249,252,0.99))] rounded-none shadow-none"
+      : "min-h-full border-x border-y-0 border-[#1C2623] bg-[rgba(11,13,12,0.985)] rounded-none shadow-none"
     : isLightTheme
       ? "rounded-[24px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,248,251,0.98))]"
       : "rounded-[24px] border shadow-[0_18px_48px_rgba(0,0,0,0.18)] border-[#1C2623] bg-[rgba(255,255,255,0.015)]";
   const rightRailShellClass = isFocusedCopilotShell
     ? isLightTheme
-      ? "h-full min-h-full border-l border-y-0 border-r-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.985),rgba(246,249,252,0.995))] rounded-none shadow-none"
-      : "h-full min-h-full border-l border-y-0 border-r-0 border-[#1C2623] bg-[rgba(9,11,10,0.985)] rounded-none shadow-none"
+      ? "h-full min-h-full overflow-hidden border-l border-y-0 border-r-0 border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.985),rgba(246,249,252,0.995))] rounded-none shadow-none"
+      : "h-full min-h-full overflow-hidden border-l border-y-0 border-r-0 border-[#1C2623] bg-[rgba(9,11,10,0.985)] rounded-none shadow-none"
     : isLightTheme
       ? "rounded-[24px] border border-[#D7DEE8] bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(245,247,250,0.98))]"
       : "rounded-[24px] border border-[#1C2623] bg-[rgba(255,255,255,0.015)]";
@@ -3214,6 +3225,7 @@ const [uiToasts, setUiToasts] = useState([]);
   const showConversationCockpitCards = !isConversationCentricShell && !compactRail;
   const showRuntimeOpsHeader = !isFocusedCopilotShell && !compactRail;
   const showRuntimeOpsFullscreen = false;
+  const showCompactRuntimeDiagnostics = compactRail && (localRuntimeConfigOpen || provider === "local");
   const fullscreenConversationSubtitle = "Histórico à esquerda, conversa ao centro e apoio inteligente na lateral.";
 
   useEffect(() => {
@@ -3913,6 +3925,7 @@ const [uiToasts, setUiToasts] = useState([]);
               </div>
             </div>
 
+            {showCompactRuntimeDiagnostics ? (
             <details className={`mt-4 rounded-[24px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(255,255,255,0.02)]"}`}>
               <summary className={`cursor-pointer list-none text-[11px] font-semibold uppercase tracking-[0.16em] ${isLightTheme ? "text-[#7B8B98]" : "text-[#7F928C]"}`}>
                 Diagnóstico e runtime
@@ -3996,6 +4009,7 @@ const [uiToasts, setUiToasts] = useState([]);
                 </div>
               </div>
             </details>
+            ) : null}
 
             <div className={`mt-4 rounded-[24px] border p-4 ${isLightTheme ? "border-[#D7DEE8] bg-white" : "border-[#22342F] bg-[rgba(7,9,8,0.98)]"}`}>
               <form onSubmit={handleSubmit} className="space-y-3">

@@ -153,9 +153,9 @@ function getProcessActionLabel(action, payload = {}) {
   }
   if (normalizedAction === "enriquecer_datajud") {
     if (intent === "buscar_movimentacoes") return `Buscar atualizacoes no DataJud${suffixLabel}`;
-    if (intent === "sincronizar_monitorados") return `Sincronizar monitorados${suffixLabel}`;
+    if (intent === "sincronizar_monitorados") return `Atualizar monitorados${suffixLabel}`;
     if (intent === "reenriquecer_gaps") return `Completar processos com lacunas${suffixLabel}`;
-    return `Reenriquecer via DataJud${suffixLabel}`;
+    return `Atualizar via DataJud${suffixLabel}`;
   }
   if (normalizedAction === "sync_supabase_crm") {
     if (intent === "crm_only") return `Atualizar CRM sem DataJud${suffixLabel}`;
@@ -166,8 +166,8 @@ function getProcessActionLabel(action, payload = {}) {
 
 function getProcessIntentBadge(payload = {}) {
   const intent = String(payload?.intent || "").trim();
-  if (intent === "buscar_movimentacoes") return "subtipo: buscar movimentacoes";
-  if (intent === "sincronizar_monitorados") return "subtipo: sincronizar monitorados";
+  if (intent === "buscar_movimentacoes") return "subtipo: buscar atualizacoes";
+  if (intent === "sincronizar_monitorados") return "subtipo: atualizar monitorados";
   if (intent === "reenriquecer_gaps") return "subtipo: reenriquecer gaps";
   if (intent === "crm_only") return "subtipo: crm only";
   if (intent === "datajud_plus_crm") return "subtipo: datajud + crm";
@@ -208,8 +208,8 @@ function buildHistoryPreview(result) {
   if (typeof result.reparados === "number") return `Reparados: ${result.reparados}`;
   if (typeof result.publicacoes === "number") return `Publicacoes processadas: ${result.publicacoes}`;
   if (typeof result.publicacoesAtualizadas === "number") return `Publicacoes atualizadas: ${result.publicacoesAtualizadas}`;
-  if (typeof result.movimentacoes === "number") return `Movimentacoes sincronizadas: ${result.movimentacoes}`;
-  if (typeof result.movimentacoesAtualizadas === "number") return `Movimentacoes atualizadas: ${result.movimentacoesAtualizadas}`;
+  if (typeof result.movimentacoes === "number") return `Atualizacoes sincronizadas: ${result.movimentacoes}`;
+  if (typeof result.movimentacoesAtualizadas === "number") return `Atualizacoes refletidas: ${result.movimentacoesAtualizadas}`;
   if (typeof result.activitiesCriadas === "number") return `Activities criadas: ${result.activitiesCriadas}`;
   if (typeof result.contatosVinculados === "number") return `Contatos vinculados: ${result.contatosVinculados}`;
   if (typeof result.contatosCriados === "number") return `Contatos criados: ${result.contatosCriados}`;
@@ -257,7 +257,7 @@ function CompactHistoryPanel({ localHistory, remoteHistory, className = "" }) {
           )}
         </div>
         <div>
-          <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#9a6d14]" : "opacity-60"}`}>Ultimo HMADV</p>
+          <p className={`text-[10px] uppercase tracking-[0.16em] ${isLightTheme ? "text-[#9a6d14]" : "opacity-60"}`}>Ultima leitura remota</p>
           {latestRemote ? (
             <p className="mt-1">{getProcessActionLabel(latestRemote.acao, latestRemote.payload || {})} • {latestRemote.status}</p>
           ) : (
@@ -287,7 +287,7 @@ function queueMismatchMessage(state) {
   const totalRows = Number(state?.totalRows || 0);
   const items = Array.isArray(state?.items) ? state.items : [];
   if (totalRows > 0 && !items.length) {
-    return "A fila encontrou itens na contagem, mas esta pagina voltou sem linhas. Isso costuma indicar leitura parcial, timeout ou fallback operacional.";
+    return "A fila encontrou itens na contagem, mas esta pagina voltou sem linhas. Isso costuma indicar leitura parcial, timeout ou modo auxiliar.";
   }
   return "";
 }
@@ -554,30 +554,30 @@ function countFrontendProcessGaps(row) {
 function renderQueueRowStatuses(row, queueKey, { monitoringUnsupported = false } = {}) {
   const statuses = [];
   if (queueKey === "sem_movimentacoes") {
-    statuses.push({ label: "pendente de datajud", tone: "warning" });
+    statuses.push({ label: "pendente de DataJud", tone: "warning" });
     if (!row?.account_id_freshsales) statuses.push({ label: "sem conta", tone: "danger" });
   }
   if (queueKey === "monitoramento_ativo") {
     if (monitoringUnsupported && row?.monitoramento_fallback) {
-      statuses.push({ label: "leitura por fallback", tone: "warning" });
-      statuses.push({ label: "schema pendente", tone: "danger" });
+      statuses.push({ label: "leitura alternativa", tone: "warning" });
+      statuses.push({ label: "estrutura pendente", tone: "danger" });
     } else if (row?.monitoramento_ativo === true) {
       statuses.push({ label: "monitoramento real", tone: "success" });
     }
   }
   if (queueKey === "monitoramento_inativo") {
     if (monitoringUnsupported) {
-      statuses.push({ label: "diagnostico apenas", tone: "warning" });
-      statuses.push({ label: "schema pendente", tone: "danger" });
+      statuses.push({ label: "somente diagnostico", tone: "warning" });
+      statuses.push({ label: "estrutura pendente", tone: "danger" });
     } else if (row?.monitoramento_ativo === false) {
-      statuses.push({ label: "monitoramento inativo", tone: "danger" });
+      statuses.push({ label: "monitoramento pausado", tone: "danger" });
     }
   }
   if (queueKey === "campos_orfaos") {
     const gaps = countFrontendProcessGaps(row);
     if (gaps > 0) {
       statuses.push({ label: `${gaps} ajustes no CRM`, tone: "warning" });
-      statuses.push({ label: "apto para reparo", tone: "success" });
+      statuses.push({ label: "pronto para ajuste", tone: "success" });
     }
   }
   if (queueKey === "movimentacoes_pendentes") {
@@ -616,13 +616,13 @@ function PayloadDetails({ title, payload }) {
 }
 function renderProcessSyncStatuses(row) {
   const statuses = [];
-  if (row.datajud) statuses.push({ label: "supabase atualizado", tone: "success" });
+  if (row.datajud) statuses.push({ label: "base atualizada", tone: "success" });
   if (row.result) statuses.push({ label: "consulta persistida", tone: "success" });
   if ((row.movimentos_novos || 0) > 0) statuses.push({ label: `+${row.movimentos_novos} movimentos`, tone: "success" });
   if ((row.gaps_reduzidos || 0) > 0) statuses.push({ label: `-${row.gaps_reduzidos} gaps`, tone: "success" });
   if (row.quantidade_movimentacoes === 0 || row.quantidade_movimentacoes === null) statuses.push({ label: "sem movimentacoes", tone: "warning" });
-  if (row.freshsales_repair?.reason === "sem_gap_crm") statuses.push({ label: "sem gap crm", tone: "default" });
-  else if (row.freshsales_repair?.reason === "sem_mudanca_util") statuses.push({ label: "sem mudanca util", tone: "default" });
+  if (row.freshsales_repair?.reason === "sem_gap_crm") statuses.push({ label: "sem ajuste no crm", tone: "default" });
+  else if (row.freshsales_repair?.reason === "sem_mudanca_util") statuses.push({ label: "sem mudanca relevante", tone: "default" });
   else if (row.freshsales_repair?.skipped) statuses.push({ label: "crm pendente", tone: "warning" });
   else if (row.freshsales_repair) statuses.push({ label: "crm reparado", tone: "success" });
   if (row.monitoramento_ativo === true) statuses.push({ label: "monitorado", tone: "default" });
@@ -692,30 +692,30 @@ function deriveSelectionActionHint({
   }
   if (selectedMonitoringInactive.length) {
     return {
-      title: monitoringUnsupported ? "Adequacao de schema pendente" : "Reativar monitoramento",
+      title: monitoringUnsupported ? "Estrutura de monitoramento pendente" : "Retomar monitoramento",
       body: monitoringUnsupported
-        ? "A fila esta em modo diagnostico: a coluna monitoramento_ativo ainda nao existe no HMADV, entao nenhuma alteracao pode ser gravada."
-        : "Ha processos fora do monitoramento. Reative a fila para recolocar o sync continuo em andamento.",
+        ? "A fila esta em leitura assistida: a coluna monitoramento_ativo ainda nao esta disponivel na base, entao novas gravacoes ficam temporariamente pausadas."
+        : "Ha processos fora do acompanhamento automatico. Retome o monitoramento para manter a carteira atualizada.",
       badges: [`${selectedMonitoringInactive.length} itens`, monitoringUnsupported ? "somente leitura" : "acao: ativar"],
     };
   }
   if (selectedMonitoringActive.length) {
     if (monitoringUnsupported) {
       return {
-        title: "Adequacao de schema pendente",
-        body: "A leitura de monitoramento ativo esta em fallback e serve apenas para diagnostico. Acoes por lote ficam bloqueadas ate a migracao do schema.",
+        title: "Estrutura de monitoramento pendente",
+        body: "A leitura de monitoramento ativo esta em modo auxiliar e serve apenas para diagnostico. Acoes em lote ficam liberadas assim que a estrutura for concluida.",
         badges: [`${selectedMonitoringActive.length} itens`, "somente leitura"],
       };
     }
     return {
-      title: "Sincronizar monitorados",
-      body: "A selecao atual ja esta em acompanhamento. Vale priorizar sincronismo e retroacao de audiencias nesse recorte.",
+      title: "Atualizar itens monitorados",
+      body: "A selecao atual ja esta em acompanhamento. Vale priorizar atualizacao de andamentos e audiencias nesse recorte.",
       badges: [`${selectedMonitoringActive.length} monitorados`, "acao: sincronizar"],
     };
   }
   return {
     title: "Selecione uma fila para priorizar",
-    body: "Use as filas para montar o lote operacional e o painel destaca automaticamente a proxima acao mais util.",
+    body: "Use as filas para organizar a proxima rodada e o painel destaca automaticamente a acao mais util.",
     badges: ["sem selecao ativa"],
   };
 }
@@ -746,7 +746,7 @@ function buildSelectionSuggestedAction({
   if (selectedOrphans.length) {
     return {
       key: "push_orfaos",
-      label: "Criar accounts agora",
+      label: "Criar contas agora",
       tone: "primary",
       payload: {
         processNumbers: resolveActionProcessNumbers(getSelectedNumbers(orphans, selectedOrphans).join("\n")),
@@ -769,7 +769,7 @@ function buildSelectionSuggestedAction({
     return {
       key: "enriquecer_datajud",
       intent: "buscar_movimentacoes",
-      label: "Buscar movimentacoes agora",
+      label: "Buscar atualizacoes agora",
       tone: "primary",
       payload: {
         processNumbers: resolveActionProcessNumbers(getSelectedNumbers(withoutMovements, selectedWithoutMovements).join("\n")),
@@ -782,7 +782,7 @@ function buildSelectionSuggestedAction({
   if (selectedMovementBacklog.length) {
     return {
       key: "sincronizar_movimentacoes_activity",
-      label: "Sincronizar movimentacoes agora",
+      label: "Atualizar andamentos agora",
       tone: "primary",
       payload: {
         processNumbers: resolveActionProcessNumbers(getSelectedNumbers(movementBacklog, selectedMovementBacklog).join("\n")),
@@ -793,7 +793,7 @@ function buildSelectionSuggestedAction({
   if (selectedPublicationBacklog.length) {
     return {
       key: "sincronizar_publicacoes_activity",
-      label: "Sincronizar publicacoes agora",
+      label: "Atualizar publicacoes agora",
       tone: "primary",
       payload: {
         processNumbers: resolveActionProcessNumbers(getSelectedNumbers(publicationBacklog, selectedPublicationBacklog).join("\n")),
@@ -828,7 +828,7 @@ function buildSelectionSuggestedAction({
     if (monitoringUnsupported) {
       return {
         key: "monitoramento_status",
-        label: "Schema pendente para monitoramento",
+        label: "Estrutura pendente para monitoramento",
         tone: "subtle",
         disabled: true,
       };
@@ -848,7 +848,7 @@ function buildSelectionSuggestedAction({
     if (monitoringUnsupported) {
       return {
         key: "monitoramento_schema",
-        label: "Adequacao de schema pendente",
+        label: "Estrutura pendente de conclusao",
         tone: "subtle",
         disabled: true,
       };
@@ -856,7 +856,7 @@ function buildSelectionSuggestedAction({
     return {
       key: "enriquecer_datajud",
       intent: "sincronizar_monitorados",
-      label: "Sincronizar monitorados agora",
+      label: "Atualizar monitorados agora",
       tone: "primary",
       payload: {
         processNumbers: resolveActionProcessNumbers(getSelectedNumbers(monitoringActive, selectedMonitoringActive).join("\n")),
@@ -1040,7 +1040,7 @@ function RemoteRunSummary({ entry }) {
   return <div className={`rounded-[24px] border p-4 ${isLightTheme ? "border-[#d7d4cb] bg-white text-[#1f2937]" : "border-[#2D2E2E] bg-[rgba(5,7,6,0.72)]"}`}>
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Ultimo ciclo HMADV</p>
+          <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isLightTheme ? "text-[#6b7280]" : "opacity-50"}`}>Ultima rodada remota</p>
         <p className="mt-1 font-semibold">{getProcessActionLabel(entry.acao, entry.payload || {})}</p>
         <p className={`mt-1 text-xs ${isLightTheme ? "text-[#6b7280]" : "opacity-60"}`}>{new Date(entry.created_at).toLocaleString("pt-BR")}</p>
       </div>
@@ -1134,10 +1134,10 @@ function sourceTone(source) {
   return "default";
 }
 function sourceLabel(source) {
-  if (source === "freshsales") return "gargalo freshsales";
-  if (source === "datajud") return "gargalo datajud";
-  if (source === "advise") return "gargalo advise";
-  return "gargalo supabase";
+  if (source === "freshsales") return "ajuste no CRM";
+  if (source === "datajud") return "atualizacao judicial";
+  if (source === "advise") return "origem de publicacao";
+  return "ajuste de base";
 }
 function recurrenceBand(hits) {
   if (hits >= 4) return { label: "critico 4x+", tone: "danger" };
@@ -1764,7 +1764,7 @@ function InternoProcessosContent() {
       return;
     }
     if (latest.status === "error") {
-      setBackendHealth({ status: "error", message: "Ultimo ciclo HMADV falhou.", updatedAt: latest.created_at });
+      setBackendHealth({ status: "error", message: "A ultima rodada apresentou falha.", updatedAt: latest.created_at });
       return;
     }
     const latestRows = Array.isArray(latest?.result_sample) ? latest.result_sample : [];
@@ -1777,7 +1777,7 @@ function InternoProcessosContent() {
       setBackendHealth({ status: "warning", message: "Ultimo ciclo nao teve progresso.", updatedAt: latest.created_at });
       return;
     }
-    setBackendHealth({ status: "ok", message: "Ciclo HMADV saudavel.", updatedAt: latest.created_at });
+    setBackendHealth({ status: "ok", message: "Ultima rodada concluida com estabilidade.", updatedAt: latest.created_at });
   }, [remoteHistory]);
   useEffect(() => {
     if (!bootstrappedRef.current) return;
@@ -1894,7 +1894,7 @@ function InternoProcessosContent() {
               if (Notification.permission === "default") {
                 Notification.requestPermission().catch(() => {});
               } else if (Notification.permission === "granted") {
-                new Notification("HMADV concluiu um job de processos", {
+                new Notification("Atualizacao de processos concluida", {
                   body: result.completedAll
                     ? "Todas as pendencias de processos desta fila foram drenadas."
                     : `${ACTION_LABELS[job?.acao] || job?.acao}: ${buildJobPreview(job)}`,

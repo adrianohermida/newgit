@@ -24,7 +24,7 @@ const ACTION_LABELS = {
   run_sync_worker: "Atualizar integracoes do CRM",
   run_advise_sync: "Atualizar leitura incremental do Advise",
   run_advise_backfill: "Importar historico do Advise",
-  refresh_snapshot_filas: "Atualizar snapshot da operacao",
+  refresh_snapshot_filas: "Atualizar visao das filas",
   run_pending_jobs: "Avancar fila automatica",
 };
 const CONTACT_TYPE_OPTIONS = [
@@ -120,16 +120,16 @@ function buildHistoryPreview(result) {
   if (result.erro) return String(result.erro);
   if (result.uiHint) return String(result.uiHint);
   if (result.activityTypeStatus && result.activityTypeStatus.matchedName) {
-    return `Tipo Freshsales: ${result.activityTypeStatus.matchedName}`;
+    return `Tipo de atividade no CRM: ${result.activityTypeStatus.matchedName}`;
   }
   if (typeof result.processosCriados === "number") return `Processos criados: ${result.processosCriados}`;
   if (typeof result.partesInseridas === "number") return `Partes inseridas: ${result.partesInseridas}`;
   if (typeof result.processosAtualizados === "number") return `Processos atualizados: ${result.processosAtualizados}`;
-  if (typeof result.accountsReparadas === "number") return `Accounts reparadas: ${result.accountsReparadas}`;
+  if (typeof result.accountsReparadas === "number") return `Contas ajustadas: ${result.accountsReparadas}`;
   if (typeof result.publicacoes === "number") return `Publicacoes processadas: ${result.publicacoes}`;
   if (typeof result.total === "number") return `Total: ${result.total}`;
   if (typeof result.affected_count === "number" || typeof result.requested_count === "number") {
-    return `Sync-worker: ${Number(result.affected_count || 0)} afetado(s) de ${Number(result.requested_count || 0)} solicitado(s)`;
+    return `Integracoes atualizadas: ${Number(result.affected_count || 0)} de ${Number(result.requested_count || 0)} itens previstos`;
   }
   if (typeof result.items?.length === "number") return `Itens retornados: ${result.items.length}`;
   if (typeof result.sample?.length === "number") return `Amostra: ${result.sample.length}`;
@@ -282,7 +282,7 @@ function CompactHistoryPanel({ localHistory, remoteHistory, className = "" }) {
           )}
         </div>
         <div>
-          <p className="text-[10px] uppercase tracking-[0.16em] opacity-60">Ultimo HMADV</p>
+          <p className="text-[10px] uppercase tracking-[0.16em] opacity-60">Ultima leitura remota</p>
           {latestRemote ? (
             <p className="mt-1">{latestRemote.acao} • {latestRemote.status}</p>
           ) : (
@@ -347,7 +347,7 @@ function RemoteRunSummary({ entry, actionLabels }) {
     <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold tracking-[0.15em] uppercase opacity-50">Ultimo ciclo HMADV</p>
+          <p className="text-xs font-semibold tracking-[0.15em] uppercase opacity-50">Ultima rodada remota</p>
           <p className="mt-1 font-semibold">{actionLabels[entry.acao] || entry.acao}</p>
           <p className="mt-1 text-xs opacity-60">{new Date(entry.created_at).toLocaleString("pt-BR")}</p>
         </div>
@@ -388,7 +388,7 @@ function deriveRecurringPublicacoes(history = []) {
         source: "advise",
         needsManualReview: false,
         noProgress: false,
-        nextAction: "rodar sync-worker",
+        nextAction: "atualizar integracoes",
       };
       current.hits += 1;
       if (!current.titulo && (row?.titulo || row?.titulo_processo)) current.titulo = row?.titulo || row?.titulo_processo;
@@ -439,10 +439,10 @@ function recurringSourceTone(source) {
   return "default";
 }
 function recurringSourceLabel(source) {
-  if (source === "freshsales") return "gargalo freshsales";
-  if (source === "advise") return "gargalo advise";
-  if (source === "datajud") return "gargalo datajud";
-  return "gargalo supabase";
+  if (source === "freshsales") return "ajuste no CRM";
+  if (source === "advise") return "origem da publicacao";
+  if (source === "datajud") return "atualizacao judicial";
+  return "ajuste de base";
 }
 function recurrenceBand(hits) {
   if (hits >= 4) return { label: "critico 4x+", tone: "danger" };
@@ -475,19 +475,19 @@ function deriveRecurringPublicacoesFocus(summary, bands) {
 }
 function deriveSuggestedPublicacoesBatch(summary, bands) {
   if (bands.critical > 0 || summary.manual > 0) return { size: 5, reason: "Use lote minimo para validar regra e evitar retrabalho em massa." };
-  if (summary.advise > 0 || summary.freshsales > 0) return { size: 10, reason: "Use lote curto para medir criacao de processo e reflexo no Freshsales." };
+  if (summary.advise > 0 || summary.freshsales > 0) return { size: 10, reason: "Use lote curto para medir criacao de processo e reflexo no CRM." };
   if (summary.stagnant > 0) return { size: 8, reason: "Reduza o lote para isolar por que a fila nao esta ganhando progresso." };
   return { size: 20, reason: "A fila parece sob controle para uma rodada padrao." };
 }
 function deriveSuggestedPublicacoesActions(summary, bands) {
-  if (bands.critical > 0 || summary.manual > 0) return ["Criar processos das publicacoes", "Sincronizar publicacoes vinculadas no Freshsales", "Auditar publicacoes reincidentes"];
-  if (summary.advise > 0) return ["Criar processos das publicacoes", "Sincronizar publicacoes vinculadas no Freshsales", "Rodar sync-worker (activities/CRM)"];
-  if (summary.freshsales > 0) return ["Sincronizar publicacoes vinculadas no Freshsales", "Rodar sync-worker (activities/CRM)"];
-  if (summary.stagnant > 0) return ["Criar processos das publicacoes", "Sincronizar publicacoes vinculadas no Freshsales"];
-  return ["Sincronizar publicacoes vinculadas no Freshsales", "Criar processos das publicacoes"];
+  if (bands.critical > 0 || summary.manual > 0) return ["Criar processos a partir das publicacoes", "Atualizar publicacoes vinculadas", "Revisar publicacoes reincidentes"];
+  if (summary.advise > 0) return ["Criar processos a partir das publicacoes", "Atualizar publicacoes vinculadas", "Atualizar integracoes do CRM"];
+  if (summary.freshsales > 0) return ["Atualizar publicacoes vinculadas", "Atualizar integracoes do CRM"];
+  if (summary.stagnant > 0) return ["Criar processos a partir das publicacoes", "Atualizar publicacoes vinculadas"];
+  return ["Atualizar publicacoes vinculadas", "Criar processos a partir das publicacoes"];
 }
 function derivePrimaryPublicacoesAction(actions = []) {
-  return actions[0] || "Sincronizar publicacoes vinculadas no Freshsales";
+  return actions[0] || "Atualizar publicacoes vinculadas";
 }
 function deriveSuggestedPublicacoesChecklist(summary, bands) {
   if (bands.critical > 0 || summary.manual > 0) {
@@ -500,7 +500,7 @@ function deriveSuggestedPublicacoesChecklist(summary, bands) {
   if (summary.advise > 0) {
     return [
       "Crie os processos faltantes a partir das publicacoes.",
-      "Sincronize as publicacoes dos processos que ja possuem account.",
+      "Atualize as publicacoes dos processos que ja possuem conta vinculada.",
       "Use o modulo de processos se precisar extrair ou reconciliar partes.",
     ];
   }
@@ -678,7 +678,7 @@ function QueueList({
                       className="underline hover:text-[#C5A059]"
                       onClick={(event) => event.stopPropagation()}
                     >
-                      Processo: {row.numero_cnj || row.account_id_freshsales}
+                      Processo relacionado: {row.numero_cnj || row.account_id_freshsales}
                     </a>
                   ) : null}
                 </div>
@@ -764,7 +764,7 @@ function IntegratedQueueList({
                     <p className="font-semibold break-all">{row.numero_cnj || row.key}</p>
                     <HealthBadge label={row.queueSource === "partes" ? "enriquecimento de partes" : "criacao de processo"} tone={row.queueSource === "partes" ? "warning" : "default"} />
                     <HealthBadge label={validationLabel(row.validation?.status)} tone={validationTone(row.validation?.status)} />
-                    {row.account_id_freshsales ? <HealthBadge label={`account ${row.account_id_freshsales}`} tone="success" /> : null}
+                    {row.account_id_freshsales ? <HealthBadge label={`conta ${row.account_id_freshsales}`} tone="success" /> : null}
                     {row.partes_novas ? <HealthBadge label={`${row.partes_novas} novas`} tone="warning" /> : null}
                   </div>
                   {row.titulo ? <p className="mt-2 opacity-75">{row.titulo}</p> : null}
@@ -852,10 +852,10 @@ function PublicacaoDetailPanel({
         <p className="mt-2 opacity-90">O processo foi encontrado na contagem, mas os detalhes nao vieram completos nesta leitura. Recarregue o detalhe para uma nova tentativa.</p>
       </div> : null}
       {data?.coverage?.items?.[0] ? <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-4 text-sm">
-        <p className="font-semibold">Processo no HMADV</p>
+        <p className="font-semibold">Processo relacionado na base</p>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-65">
           <span>CNJ: {data.coverage.items[0].numero_cnj || row?.numero_cnj}</span>
-          {data.coverage.items[0].account_id_freshsales ? <span>Account: {data.coverage.items[0].account_id_freshsales}</span> : null}
+          {data.coverage.items[0].account_id_freshsales ? <span>Conta: {data.coverage.items[0].account_id_freshsales}</span> : null}
           {data.coverage.items[0].status_atual_processo ? <span>Status: {data.coverage.items[0].status_atual_processo}</span> : null}
         </div>
         {data.coverage.items[0].titulo ? <p className="mt-2 opacity-70">{data.coverage.items[0].titulo}</p> : null}
@@ -963,7 +963,7 @@ function PublicacaoDetailPanel({
             <p className="font-semibold">Contato integrado</p>
             <p className="text-xs opacity-60">{firstLinkedContact.freshsales_contact_id || data?.contactDetail?.contact?.freshsales_contact_id}</p>
           </div>
-          {firstLinkedContact.freshsales_url ? <a href={firstLinkedContact.freshsales_url} target="_blank" rel="noreferrer" className="text-xs underline hover:text-[#C5A059]">Abrir no Freshsales</a> : null}
+          {firstLinkedContact.freshsales_url ? <a href={firstLinkedContact.freshsales_url} target="_blank" rel="noreferrer" className="text-xs underline hover:text-[#C5A059]">Abrir no CRM</a> : null}
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <label className="text-xs uppercase tracking-[0.14em] opacity-60">Nome
@@ -1062,7 +1062,7 @@ function renderSyncStatuses(row) {
   if (row.freshsales_repair?.skipped) {
     statuses.push({ label: "crm pendente", tone: "warning" });
   } else if (row.freshsales_repair) {
-    statuses.push({ label: "crm reparado", tone: "success" });
+    statuses.push({ label: "crm ajustado", tone: "success" });
   }
   return statuses;
 }
@@ -1124,7 +1124,7 @@ function OperationResult({ result }) {
         </div>
       ) : null}
       <div className="grid gap-3 md:grid-cols-6 text-sm">
-        <QueueSummaryCard title="Processos criados" count={counters.processosCriados} helper="Publicacoes que viraram processo no HMADV." accent="text-[#B7F7C6]" />
+        <QueueSummaryCard title="Processos criados" count={counters.processosCriados} helper="Publicacoes que viraram processo na base." accent="text-[#B7F7C6]" />
         <QueueSummaryCard title="Partes detectadas" count={counters.detectadas} helper="Novas partes encontradas no lote." accent="text-[#FDE68A]" />
         <QueueSummaryCard title="Partes salvas" count={result?.partesInseridas || 0} helper="Registros inseridos na base de partes." accent="text-[#B7F7C6]" />
         <QueueSummaryCard title="Polos atualizados" count={counters.polosAtualizados} helper="Processos com polo ativo/passivo recalculado." accent="text-[#B7F7C6]" />
@@ -1170,10 +1170,10 @@ function OperationResult({ result }) {
                     rel="noreferrer"
                     className="text-xs underline opacity-70 hover:text-[#C5A059]"
                   >
-                    Abrir account {row.account_id_freshsales}
+                    Abrir conta {row.account_id_freshsales}
                   </a>
                 ) : null}
-                {row.titulo_processo ? <p className="mt-2 text-xs opacity-70">Processo HMADV: {row.titulo_processo}</p> : null}
+                {row.titulo_processo ? <p className="mt-2 text-xs opacity-70">Processo relacionado: {row.titulo_processo}</p> : null}
                 {row.partes_novas?.length ? (
                   <p className="mt-2 text-xs opacity-70">
                     Partes novas: {row.partes_novas.map((item) => `${item.nome} (${item.polo})`).join(" | ")}
@@ -1229,7 +1229,7 @@ export default function InternoPublicacoesPage() {
         <InternoLayout
           profile={profile}
           title="Gestao de Publicacoes"
-      description="Gestão de publicações com leitura organizada, priorização do backlog e integração com a operação."
+      description="Gestao de publicacoes com leitura organizada, priorizacao e integracao em um fluxo mais claro."
         >
           <PublicacoesContent />
         </InternoLayout>
@@ -1653,7 +1653,7 @@ function PublicacoesContent() {
               if (Notification.permission === "default") {
                 Notification.requestPermission().catch(() => {});
               } else if (Notification.permission === "granted") {
-                new Notification("HMADV concluiu um job de publicacoes", {
+                new Notification("Atualizacao de publicacoes concluida", {
                   body: result.completedAll
                     ? "Todas as pendencias de publicacoes desta fila foram drenadas."
                     : `${ACTION_LABELS[job?.acao] || job?.acao}: ${buildJobPreview(job)}`,
@@ -1738,12 +1738,12 @@ function PublicacoesContent() {
     if (publicacoesPendentesComAccount > 0) {
       setOperationalStatus({
         mode: "limited",
-        message: `${publicacoesPendentesComAccount} publicacao(oes) vinculadas ainda aguardam sync no Freshsales.`,
+        message: `${publicacoesPendentesComAccount} publicacao(oes) vinculadas ainda aguardam atualizacao no CRM.`,
         updatedAt: new Date().toISOString(),
       });
       return;
     }
-    setOperationalStatus({ mode: "ok", message: "Operacao normal", updatedAt: new Date().toISOString() });
+    setOperationalStatus({ mode: "ok", message: "Fluxo operando normalmente", updatedAt: new Date().toISOString() });
   }, [globalError, overview.data, processCandidates, partesCandidates]);
 
   useEffect(() => {
@@ -1753,7 +1753,7 @@ function PublicacoesContent() {
       return;
     }
     if (latest.status === "error") {
-      setBackendHealth({ status: "error", message: "Ultimo ciclo HMADV falhou.", updatedAt: latest.created_at });
+      setBackendHealth({ status: "error", message: "A ultima rodada apresentou falha.", updatedAt: latest.created_at });
       return;
     }
     const latestRows = Array.isArray(latest?.result_sample) ? latest.result_sample : [];
@@ -1766,7 +1766,7 @@ function PublicacoesContent() {
       setBackendHealth({ status: "warning", message: "Ultimo ciclo nao teve progresso.", updatedAt: latest.created_at });
       return;
     }
-    setBackendHealth({ status: "ok", message: "Ciclo HMADV saudavel.", updatedAt: latest.created_at });
+    setBackendHealth({ status: "ok", message: "Ultima rodada concluida com estabilidade.", updatedAt: latest.created_at });
   }, [remoteHistory]);
 
   function pushQueueRefresh(key) {

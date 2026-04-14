@@ -407,7 +407,7 @@ function JobsContent({ copilotContext, initialSource }) {
   return (
     <div className="space-y-8">
       {copilotContext ? (
-        <Panel title="Contexto vindo do Copilot" eyebrow="Handoff operacional">
+        <Panel title="Contexto da conversa" eyebrow="Handoff guiado">
           <div className={`space-y-2 text-sm ${isLightTheme ? "text-[#4b5563]" : "opacity-75"}`}>
             <p className={`font-semibold ${isLightTheme ? "text-[#1f2937]" : "text-[#F5F1E8]"}`}>{copilotContext.conversationTitle || "Conversa ativa"}</p>
             {copilotContext.mission ? <p>{copilotContext.mission}</p> : null}
@@ -418,7 +418,7 @@ function JobsContent({ copilotContext, initialSource }) {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Jobs totais" value={metrics.total} helper="Execucoes persistidas visiveis na camada central." />
         <MetricCard label="Executando" value={metrics.running} helper="Jobs ativos consumindo fila agora." />
-        <MetricCard label="Backlog" value={metrics.pending} helper="Pendentes, agendados, pausados ou esperando retry." />
+        <MetricCard label="Fila" value={metrics.pending} helper="Pendentes, agendados, pausados ou aguardando nova tentativa." />
         <MetricCard label="Falharam" value={metrics.failed} helper="Jobs que precisam revisao, restart ou reprocesso." />
       </div>
 
@@ -434,7 +434,7 @@ function JobsContent({ copilotContext, initialSource }) {
 
       <Panel
         title="Mesa central de jobs"
-        eyebrow="Execucao em lote"
+        eyebrow="Orquestracao"
         actions={<ActionButton onClick={() => loadJobs()} disabled={jobsState.loading || commandState.loading}>Atualizar</ActionButton>}
       >
         <div className="grid gap-3 md:grid-cols-[220px_220px_180px_1fr]">
@@ -458,7 +458,7 @@ function JobsContent({ copilotContext, initialSource }) {
             <option value="interno">Interno</option>
             <option value="portal">Portal</option>
           </select>
-          <input value={filters.query} onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Buscar por acao, id, erro ou payload" className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
+          <input value={filters.query} onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Buscar por acao, id, erro ou contexto" className="border border-[#2D2E2E] bg-[#050706] p-3 text-sm outline-none focus:border-[#C5A059]" />
         </div>
 
         {jobsState.loading ? <p className="mt-4 text-sm opacity-60">Carregando jobs...</p> : null}
@@ -487,7 +487,7 @@ function JobsContent({ copilotContext, initialSource }) {
                       <span className="text-xs opacity-60">{formatDateTime(getJobReferenceTime(job))}</span>
                     </div>
                     <p className="mt-2 text-sm opacity-75">{summarizeJob(job)}</p>
-                    <p className="mt-2 text-xs opacity-55">Bucket: {control.rateLimitKey} • idade: {formatAgeLabel(job)}</p>
+                    <p className="mt-2 text-xs opacity-55">Canal: {control.rateLimitKey} • tempo em fila: {formatAgeLabel(job)}</p>
                     <div className="mt-3 h-2 overflow-hidden rounded-full bg-[rgba(255,255,255,0.06)]">
                       <div className="h-full bg-[#C5A059]" style={{ width: `${progress}%` }} />
                     </div>
@@ -498,7 +498,7 @@ function JobsContent({ copilotContext, initialSource }) {
             </div>
 
             <div className="border border-[#2D2E2E] bg-[rgba(10,12,11,0.82)] p-5">
-              {!selectedJob ? <p className="text-sm opacity-60">Selecione um job para ver os detalhes e comandar a execucao.</p> : (
+              {!selectedJob ? <p className="text-sm opacity-60">Selecione um item para ver detalhes e seguir com a acao mais adequada.</p> : (
                 <div className="space-y-5 text-sm">
                   {(() => {
                     const control = getJobControl(selectedJob);
@@ -513,9 +513,9 @@ function JobsContent({ copilotContext, initialSource }) {
                       <span className="rounded-full border border-[#2D2E2E] px-2 py-1 text-[10px] uppercase tracking-[0.14em] opacity-70">Prioridade {control.priority}</span>
                     </div>
                     <p className="mt-2 opacity-65">ID: {selectedJob.id}</p>
-                    <p className="mt-1 opacity-65">Bucket de rate limit: {control.rateLimitKey}</p>
+                    <p className="mt-1 opacity-65">Canal de distribuicao: {control.rateLimitKey}</p>
                     <p className="mt-1 opacity-65">Visivel ao portal: {control.visibleToPortal ? "sim" : "nao"}</p>
-                    <p className="mt-1 opacity-65">Idade operacional: {formatAgeLabel(selectedJob)} • {slaState.helper}</p>
+                    <p className="mt-1 opacity-65">Tempo em fila: {formatAgeLabel(selectedJob)} • {slaState.helper}</p>
                   </div>
                     );
                   })()}
@@ -615,7 +615,7 @@ export default function InternoJobsPage() {
         <InternoLayout
           profile={profile}
           title="Jobs"
-      description="Central de automações para acompanhar filas, execuções e estabilidade do produto."
+      description="Central de automacoes para acompanhar filas, execucoes e estabilidade do produto."
         >
           <JobsContent copilotContext={copilotContext} initialSource={source} />
         </InternoLayout>

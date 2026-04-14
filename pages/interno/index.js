@@ -265,7 +265,7 @@ export default function InternoHomePage() {
         <InternoLayout
           profile={profile}
           title="Visao geral"
-      description="Visão executiva do produto com indicadores, atalhos e prioridades para o dia."
+      description="Visao executiva do produto com indicadores, atalhos e prioridades mais claras para o dia."
         >
           <div className="grid gap-6 md:grid-cols-3 mb-8">
             <StatCard
@@ -288,9 +288,9 @@ export default function InternoHomePage() {
           <div className="grid gap-6 lg:grid-cols-2">
             <div className="border border-[#2D2E2E] bg-[rgba(13,15,14,0.96)] p-6 lg:col-span-2">
               <p className="text-xs font-semibold tracking-[0.15em] uppercase mb-3" style={{ color: "#C5A059" }}>
-                Torre HMADV
+                Centro de operacao
               </p>
-              {hmadvOps.loading ? <p className="text-sm opacity-70">Carregando controle operacional...</p> : null}
+              {hmadvOps.loading ? <p className="text-sm opacity-70">Carregando panorama do produto...</p> : null}
               {hmadvOps.error ? <p className="text-sm text-red-300">{hmadvOps.error}</p> : null}
               {!hmadvOps.loading && hmadvOps.data ? (
                 <div className="space-y-5">
@@ -308,7 +308,7 @@ export default function InternoHomePage() {
                     ))}
                   </div>
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <StatCard label="Processos pendentes" value={(hmadvOps.data.processosJobs?.pending || 0) + (hmadvOps.data.processosJobs?.running || 0)} helper="Jobs de processos aguardando drenagem." />
+                    <StatCard label="Processos pendentes" value={(hmadvOps.data.processosJobs?.pending || 0) + (hmadvOps.data.processosJobs?.running || 0)} helper="Itens de processos aguardando a proxima rodada." />
                     <StatCard label="Publicações pendentes" value={(hmadvOps.data.publicacoesJobs?.pending || 0) + (hmadvOps.data.publicacoesJobs?.running || 0)} helper="Jobs de publicações aguardando drenagem." />
                     <StatCard label="Sem account" value={hmadvOps.data.processosOverview?.processosSemAccount || 0} helper="Processos órfãos ainda sem Sales Account." />
                     <StatCard label="Sem processo" value={hmadvOps.data.publicacoesOverview?.publicacoesSemProcesso || 0} helper="Publicações ainda sem processo vinculado." />
@@ -317,8 +317,8 @@ export default function InternoHomePage() {
                     <div className="border border-[#2D2E2E] bg-[rgba(10,12,11,0.82)] p-4 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                         <div>
-                          <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Completude Freshsales x Supabase</p>
-                          <p className="font-semibold">Cobertura real por processo, com base na auditoria local do HMADV.</p>
+                          <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Cobertura da base e do CRM</p>
+                          <p className="font-semibold">Cobertura real por processo, com base na auditoria local da operacao.</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <ModeBadge active={true} label={`base ${formatPercent(((hmadvOps.data.completeness.processosBaseCompleta || 0) / Math.max(1, hmadvOps.data.completeness.processosTotal || 1)) * 100)}`} />
@@ -340,15 +340,15 @@ export default function InternoHomePage() {
                   ) : null}
                   <div className="border border-[#2D2E2E] bg-[rgba(10,12,11,0.82)] p-4 text-sm">
                     <div className="flex flex-wrap items-center gap-2 mb-3">
-                      <p className="font-semibold">Runner agendado</p>
+                      <p className="font-semibold">Automacao agendada</p>
                       <ModeBadge active={!hmadvOps.data.autoMode?.enabled} label="manual" />
                       <ModeBadge active={hmadvOps.data.autoMode?.enabled} label="automatico" />
                       <ModeBadge active={true} label={hmadvOps.data.autoMode?.healthLabel || "Saudavel"} />
                     </div>
                     <p className="opacity-75 mb-2">
                       {hmadvOps.data.runnerConfigured
-                        ? "Token do runner configurado. Confirme execucoes recentes do workflow hmadv-runner para validar a automacao."
-                        : "Pendente configurar HMADV_RUNNER_TOKEN ou MADV_RUNNER_TOKEN para liberar execucao agendada fora da aba."}
+                        ? "Automacao habilitada. Vale confirmar as ultimas execucoes para validar a continuidade."
+                        : "Ainda falta liberar a automacao agendada fora da aba para manter as rodadas consistentes."}
                     </p>
                     {hmadvOps.data.autoMode?.runnerTokenKey ? (
                       <p className="opacity-55 mb-2">Chave detectada no ambiente: {hmadvOps.data.autoMode.runnerTokenKey}</p>
@@ -383,7 +383,7 @@ export default function InternoHomePage() {
                       </div>
                       <div className="grid gap-3 md:grid-cols-2 mb-3">
                         <div className="border border-[#2D2E2E] p-3">
-                          <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Ultimo runner real</p>
+                          <p className="text-[11px] uppercase tracking-[0.14em] opacity-55 mb-1">Ultima execucao real</p>
                           <p className="text-sm font-semibold">
                             {hmadvOps.data.autoMode?.latestRunnerExecution?.created_at
                               ? `${new Date(hmadvOps.data.autoMode.latestRunnerExecution.created_at).toLocaleString("pt-BR")} (${hmadvOps.data.autoMode.lastActivityLabel || "atividade recente"})`
