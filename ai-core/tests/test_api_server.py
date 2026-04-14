@@ -40,7 +40,7 @@ class ApiServerTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(config.max_tokens, 224)
+        self.assertEqual(config.max_tokens, 160)
 
     def test_build_local_provider_prefers_aicore_runtime_over_generic_local_alias(self) -> None:
         config = build_local_provider_config(
@@ -188,8 +188,8 @@ class ApiServerTests(unittest.TestCase):
             )
 
         self.assertEqual(payload['metadata']['performance_profile'], 'low_resource')
-        self.assertEqual(payload['metadata']['effective_max_tokens'], 224)
-        self.assertEqual(payload['metadata']['history_messages_used'], 4)
+        self.assertEqual(payload['metadata']['effective_max_tokens'], 160)
+        self.assertEqual(payload['metadata']['history_messages_used'], 3)
 
     def test_messages_json_enriches_local_chat_with_session_memory_and_hybrid_rag(self) -> None:
         with patch('api.server._json_request') as mocked_request, \
